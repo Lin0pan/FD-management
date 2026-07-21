@@ -1,0 +1,29 @@
+// Prisma schema for FD-Management.
+//
+// Single-file SQLite database — backup is a copy of the file (see
+// docs/tech_stack_architecture_sketch.md §3, §6). The schema doubles as readable domain
+// documentation; the real customer / card / distribution / settings models arrive in later
+// sessions. For now it holds a single minimal model so `prisma validate`, `migrate diff` and
+// `migrate deploy` all have something valid to run against in CI and E2E.
+//
+// Note: the walking skeleton uses Prisma's native SQLite provider. Wiring the `better-sqlite3`
+// driver adapter (named in the stack doc) is deferred until the infrastructure layer gains real
+// repositories.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// Records that a schema migration baseline exists. Placeholder for the walking skeleton — replaced
+/// by the real domain models (Customer, HouseholdMember, Card, DistributionRecord, Setting, ...) in
+/// the next session.
+model SchemaMarker {
+  id        Int      @id @default(autoincrement())
+  note      String
+  createdAt DateTime @default(now())
+}

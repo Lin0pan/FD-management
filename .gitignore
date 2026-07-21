@@ -186,3 +186,18 @@ Backups.backupdb
 .MobileBackups.trash
 MobileBackups.trash
 tmbootpicker.efi
+
+# FD-Management: SQLite database (the data/ dir is tracked via .gitkeep, the db files are not)
+/data/*.db
+/data/*.db-journal
+/data/*.db-wal
+/data/*.db-shm
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# Prisma generated client
+/src/generated/
