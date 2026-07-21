@@ -27,7 +27,9 @@ Walking skeleton: runnable app, hexagonal structure, test harness, and CI pipeli
 features follow the build order **US-14 → US-01 → US-02 → US-03 → US-04 → US-05** (see
 `docs/user_stories_mvp.md`).
 
-## Contributing
+## Documentation
 
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the workflow, TDD approach, and why each CI gate
-exists.
+- [`docs/technical_documentation.md`](./docs/technical_documentation.md) — how the codebase is
+  organised and how to work in it (layers, modules, config, testing, CI, extending it).
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md) — workflow, TDD approach, and why each CI gate exists.
+- `docs/` — domain analysis, user stories, tech-stack/architecture sketch, dev-process overview.
