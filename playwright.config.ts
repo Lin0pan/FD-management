@@ -1,0 +1,39 @@
+import { defineConfig, devices } from "@playwright/test";
+
+/**
+ * End-to-end configuration.
+ *
+ * Playwright runs against the **built** app (`next start`) over a throwaway SQLite file that is
+ * migrated fresh before the server boots — mirroring the CI `e2e-tests` job
+ * (docs/fd_dev_setup_overview.md). The walking skeleton ships a single smoke spec; the
+ * distribution-day and registration flows are added with the features they cover.
+ */
+const PORT = 3000;
+const BASE_URL = `http://127.0.0.1:${PORT}`;
+
+export default defineConfig({
+  testDir: "./tests/e2e",
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  reporter: process.env.CI ? [["html", { open: "never" }], ["list"]] : "list",
+  use: {
+    baseURL: BASE_URL,
+    trace: "on-first-retry",
+  },
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+    },
+  ],
+  webServer: {
+    command: "npx prisma migrate deploy && npm run start",
+    url: BASE_URL,
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+    env: {
+      DATABASE_URL: "file:../data/e2e.db",
+    },
+  },
+});
