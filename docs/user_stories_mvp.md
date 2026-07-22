@@ -61,12 +61,20 @@ shared spreadsheet.
 
 **Related:** US-02 (card), US-11 (re-registration from archive), US-12 (waiting list), US-14 (quota `N`)
 
+> **Note — customer number is a slot, not an identity.** The `1..N` customer number is reusable: it
+> is freed on archiving (US-10) and later reassigned, so it is **not unique across the archive** —
+> two unrelated people may each have held number `50` at different times. It is therefore treated as
+> an attribute the customer _currently holds_, not as their identity. Internally the customer is
+> identified by a separate, never-reused surrogate key that all records (distribution, cards, notes)
+> reference; it is not shown to staff, who keep using the customer number and card number. See §5.3
+> of the architecture sketch for the rationale.
+
 ---
 
-### US-02 — Issue a Customer Card
+### US-02 — Issue a Customer Card (Digital)
 
 **As a** staff member
-**I want to** produce a customer card showing number, name, group and household counts
+**I want to** issue a customer card and see all its information displayed digitally
 **So that** the customer can identify themselves at the counter and be called up in the right order.
 
 **Preconditions:** The customer exists and is active.
@@ -79,9 +87,10 @@ shared spreadsheet.
    `50k1`, the next `50k2`.
 3. Exactly one card number per customer is valid at a time; issuing a new one invalidates all
    earlier ones immediately.
-4. The card is rendered as a printable view. `[added]` — the analysis says "issue a card" without
-   stating the medium; a browser print view is the cheapest thing that replaces the current
-   handwriting/Excel step. Confirm with FD whether they need a specific card size or label stock.
+4. All card information is presented **digitally** in the application — a card view on screen. The
+   MVP does **not** produce a physical/printable card. `[added]` — FD confirmed that printing the
+   physical card is handled by a separate, existing system; the software only needs to display the
+   card data so it can be transcribed or fed into that system. See §4 (out of scope).
 
 **Postconditions:** The customer's current card number is updated; previous numbers are invalid.
 
@@ -452,6 +461,9 @@ Replacing Excel without one would be a regression.
 
 ## 4. Deliberately Out of MVP Scope
 
+- **Physical card printing** — the software displays a customer's card data digitally (US-02), but
+  producing the physical card is done through a separate, existing system and is out of MVP scope.
+  Printing directly from this application may be added far later.
 - **User administration and login** — there are no accounts, no roles and no sign-in. The
   application is used by 3-4 trusted colleagues on a shared machine, and every staff member has the
   same permissions anyway. May be added far in the future; until then, no action can be attributed
