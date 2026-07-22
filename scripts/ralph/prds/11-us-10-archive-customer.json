@@ -28,7 +28,7 @@
       "description": "As a staff member, I want to archive a customer with a reason, so their slot frees up and the record is kept. Source: tasks/prd-us-10-archive-customer.md §US-10.2",
       "acceptanceCriteria": [
         "archiveCustomer(deps, {customerId, reason}) transitions the status to ARCHIVED via the status state machine and stores the reason",
-        "An empty or whitespace-only reason rejects with a typed ArchiveReasonRequired error",
+        "An empty or whitespace-only reason rejects with MissingAuditReason(\"customer.archived\") — the existing error in errors.ts, not a new class",
         "Test asserts the freed number is returned by lowestFreeNumber on the next call",
         "Test counts rows before and after to prove distribution records, cards, certificates, reminder logs and notes are all retained unchanged",
         "The customerNumber is retained on the archived row for historical reference",

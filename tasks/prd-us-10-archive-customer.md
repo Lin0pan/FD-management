@@ -46,7 +46,8 @@ missed, so I can notice the pattern the archiving rule depends on.
 
 - [ ] `archiveCustomer(deps, { customerId, reason })` transitions the status to `ARCHIVED` via the
       US-08.1 state machine and stores the reason
-- [ ] An empty or whitespace-only reason rejects with a typed `ArchiveReasonRequired` error
+- [ ] An empty or whitespace-only reason rejects with `MissingAuditReason("customer.archived")` —
+      the existing error from `errors.ts`, not a new class
 - [ ] Archiving frees the customer number **immediately** — asserted by a test showing the number is
       returned by `lowestFreeNumber` on the next call
 - [ ] Distribution records, cards, certificates, reminder logs and notes are all retained unchanged —

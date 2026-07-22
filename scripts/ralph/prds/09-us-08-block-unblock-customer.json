@@ -28,7 +28,7 @@
         "src/domain/customer/status.ts defines Status = 'ACTIVE' | 'BLOCKED' | 'ARCHIVED' and transition(from, to)",
         "Allowed: ACTIVE to BLOCKED, BLOCKED to ACTIVE, ACTIVE to ARCHIVED, BLOCKED to ARCHIVED",
         "Refused with a typed IllegalStatusTransition error: any transition out of ARCHIVED, and any no-op transition",
-        "A transition to BLOCKED without a non-empty reason yields a typed BlockReasonRequired error",
+        "A transition to BLOCKED without a non-empty reason yields MissingAuditReason(\"customer.blocked\") — the existing error in errors.ts, not a new class",
         "Every transition pair, legal and illegal, has a test",
         "Tests pass",
         "Typecheck passes"
@@ -42,7 +42,7 @@
       "title": "blockCustomer and unblockCustomer use cases",
       "description": "As a staff member, I want to pause a customer with a written reason and lift it later, so a customer can be paused without losing their number. Source: tasks/prd-us-08-block-unblock-customer.md §US-08.2",
       "acceptanceCriteria": [
-        "blockCustomer(deps, {customerId, reason}) sets status BLOCKED and stores the trimmed reason; an empty result rejects with BlockReasonRequired",
+        "blockCustomer(deps, {customerId, reason}) sets status BLOCKED and stores the trimmed reason; an empty result rejects with MissingAuditReason",
         "unblockCustomer(deps, {customerId}) returns the customer to ACTIVE and clears the reason",
         "Neither use case changes the customer number, the card or any distribution record",
         "Test asserts blocking does not free the slot — the taken-numbers query still includes it",

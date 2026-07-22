@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { DomainError, MissingAuditReason } from "./errors";
 
 /**
- * `MissingAuditReason` is raised by the state changes that turn on a human judgement — blocking,
- * archiving — none of which exist yet; `updateSettings` deliberately no longer uses it. It is
- * covered here so the rule it stands for stays stated while its callers are still to be written.
+ * `MissingAuditReason` is raised by the state changes that turn on a human judgement — blocking
+ * (US-08) and archiving (US-10), neither of which exists yet; `updateSettings` deliberately no
+ * longer uses it. It is covered here so the rule it stands for stays stated while its callers are
+ * still to be written.
  */
 describe("MissingAuditReason", () => {
   it("names the change that arrived without a reason", () => {
