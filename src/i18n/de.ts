@@ -72,7 +72,7 @@ export const de = {
     saving: "Wird gespeichert …",
     saved: "Gespeichert. Die neuen Werte gelten ab sofort.",
     history: {
-      heading: "Frühere Fassungen",
+      heading: "Änderungsverlauf",
       empty: "Es gibt noch keine weiteren Fassungen.",
       recordedAt: "Geändert am",
       current: "aktuell gültig",

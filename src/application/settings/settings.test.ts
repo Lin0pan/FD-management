@@ -207,6 +207,19 @@ describe("updateSettings", () => {
     expect(audit.entries).toHaveLength(0);
   });
 
+  it("compares against the later of two versions recorded in the same instant", async () => {
+    repository = new FakeSettingsRepository(
+      version("2026-06-01T00:00:00.000Z", { quotaN: 240, portionsPerChild: 2 }),
+      version("2026-06-01T00:00:00.000Z", { quotaN: 240, portionsPerChild: 1 }),
+    );
+
+    await updateSettings(deps(), updateInput({ settings: settingsInput({ portionsPerChild: 1 }) }));
+
+    // The second of the two is the one in force — the same tie rule `resolveSettingsAt` applies —
+    // and the new values match it, so nothing is reported as changed.
+    expect(audit.entries[0].changedFields).toEqual([]);
+  });
+
   it("compares against the latest version whatever order the repository returns them in", async () => {
     repository = new FakeSettingsRepository(
       version("2026-06-01T00:00:00.000Z", { quotaN: 240, portionsPerChild: 2 }),

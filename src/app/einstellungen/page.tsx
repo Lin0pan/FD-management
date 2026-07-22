@@ -28,9 +28,17 @@ function germanDate(date: Date): string {
 
 function VersionHistory({
   versions,
+  now,
 }: {
   versions: ReadonlyArray<SettingsVersion>;
+  now: Date;
 }): React.ReactElement {
+  // The list is newest first, so the first version already recorded is the one in force — the same
+  // rule `resolveSettingsAt` applies, read off an ordered list. A change applies immediately, so
+  // that is normally the first entry; a row stamped in the future can only come from a clock skew
+  // or a hand-edited database, and the label must not then contradict the form above it.
+  const inForce = versions.find((version) => version.recordedAt <= now);
+
   return (
     <section className="flex flex-col gap-3">
       <h2 className="text-xl font-semibold">{de.settings.history.heading}</h2>
@@ -38,7 +46,6 @@ function VersionHistory({
         <p className="text-foreground/70">{de.settings.history.empty}</p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {/* Newest first, so the first entry is the one in force — a change applies immediately. */}
           {versions.map((version, index) => (
             <li
               // Two versions can share an instant, so the position disambiguates the key.
@@ -49,7 +56,7 @@ function VersionHistory({
               <span className="font-medium">
                 {de.settings.history.recordedAt} {germanDate(version.recordedAt)}
               </span>
-              {index === 0 ? (
+              {version === inForce ? (
                 <span className="text-foreground/60"> — {de.settings.history.current}</span>
               ) : null}
               <span className="block text-foreground/70">
@@ -71,6 +78,8 @@ function VersionHistory({
 }
 
 export default async function SettingsPage(): Promise<React.ReactElement> {
+  const now = settingsDeps.clock.now();
+
   let current: Settings;
   try {
     current = await readCurrentSettings(settingsDeps);
@@ -95,7 +104,7 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
         <p className="max-w-prose text-foreground/70">{de.settings.intro}</p>
       </header>
       <SettingsForm settings={current} />
-      <VersionHistory versions={versions} />
+      <VersionHistory versions={versions} now={now} />
     </main>
   );
 }

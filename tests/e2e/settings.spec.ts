@@ -9,8 +9,8 @@ import { de } from "@/i18n/de";
  * adapter, SQLite — actually holds together; four green unit gates missed a `"use server"` export
  * bug that a single page load caught. They therefore drive the real screen rather than the ports.
  *
- * They run **serially against one shared database**: the first spec saves a new price, and the one
- * after it asserts that a rejected save left that value untouched.
+ * They run **serially against one shared database**: each spec builds on the price the previous one
+ * saved, and the last asserts that a rejected save left that value untouched.
  */
 
 /** The price every spec here edits: the per-grown-up price, seeded at 2,00 €. */
@@ -43,6 +43,26 @@ test.describe("Einstellungen", () => {
     );
   });
 
+  test("a second save on the same day is applied too, and both are listed", async ({ page }) => {
+    await page.goto("/einstellungen");
+
+    // Saving twice in a row is the behaviour this screen exists for — settings apply at once and
+    // are never dated, so nothing about the previous save can stand in the way of the next one.
+    await page.getByLabel(PRICE_LABEL, { exact: true }).fill("2,75");
+    await page.getByRole("button", { name: de.settings.save, exact: true }).click();
+    await expect(page.getByTestId("settings-saved")).toHaveText(de.settings.saved);
+
+    await page.reload();
+    await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("2,75");
+
+    const versions = page.getByTestId("settings-version");
+    await expect(versions).toHaveCount(3);
+    // Newest first: the price just saved leads the list and is the one marked as in force.
+    await expect(versions.first()).toContainText(`${de.settings.fields.pricePerGrownUp}: 2,75 €`);
+    await expect(versions.first()).toContainText(de.settings.history.current);
+    await expect(versions.nth(1)).toContainText(`${de.settings.fields.pricePerGrownUp}: 2,50 €`);
+  });
+
   test("a rejected quota shows a German error and saves nothing", async ({ page }) => {
     await page.goto("/einstellungen");
 
@@ -56,7 +76,7 @@ test.describe("Einstellungen", () => {
     );
 
     await page.reload();
-    await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("2,50");
+    await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("2,75");
   });
 
   // The quota-below-*active-customers* rule (FR-4) cannot be reached from the browser yet: there is

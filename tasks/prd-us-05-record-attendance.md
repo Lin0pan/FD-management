@@ -11,7 +11,8 @@ because distribution history is never overwritten, it is also the raw material f
 (US-10) and for any later reporting.
 
 Payment is a **flag**, not an amount: no money is stored on the record. The amount owed is implied by
-the prices in force on that date, which is exactly why US-14 dates its settings versions.
+the prices in force on that date, which is exactly why US-14 keeps every superseded settings version
+rather than overwriting it.
 
 ## 2. Goals
 

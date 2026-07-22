@@ -51,8 +51,8 @@ seam.
 
 ### US-14.2: `SettingsRepository` port and `readSettings` / `updateSettings` use cases (application)
 
-**Description:** As a developer, I need use cases that read the current settings and write a new
-dated version, so the UI never touches persistence directly.
+**Description:** As a developer, I need use cases that read the current settings and append a new
+version that applies at once, so the UI never touches persistence directly.
 
 **Acceptance Criteria:**
 

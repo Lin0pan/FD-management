@@ -167,7 +167,7 @@ coverage-measured layers.
 
 ### `src/application/settings/`
 
-The two use cases over the policy versions:
+The three use cases over the policy versions:
 
 - **`readCurrentSettings(deps)`** loads every version and resolves it against `deps.clock.now()`.
   This is the single seam other features use to reach configuration.
@@ -363,8 +363,9 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   value they wrote, so a second run against its own leftovers would start from the wrong number.
 - Today: a smoke test asserting the German `<h1>` renders, plus `settings.spec.ts` — the settings
   round-trip (change a price, save, reload, see it applied and listed in the
-  history) and a rejected save that must leave the stored value untouched. Those specs run
-  **serially** against the one shared database. The distribution-day and registration flows are
+  history), a second save on the same day — the behaviour the screen exists for, and once an error —
+  and a rejected save that must leave the stored value untouched. Those specs run
+  **serially** against the one shared database, each building on the price the previous one saved. The distribution-day and registration flows are
   added alongside the features they cover.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
