@@ -2,7 +2,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { SettingsRepository } from "@/application/ports";
 import { createSettings, parseWeekColour, type SettingsVersion } from "@/domain/policy/settings";
 
-/** One `SettingsVersion` row with its price rows, as the query below returns it. */
+/** One `SettingsVersion` row, as the query below returns it. */
 interface StoredVersion {
   readonly effectiveFrom: Date;
   readonly quotaN: number;
@@ -12,7 +12,8 @@ interface StoredVersion {
   readonly weekAnchorIsoWeek: string;
   readonly weekAnchorColour: string;
   readonly distributionWeekday: number;
-  readonly priceTable: ReadonlyArray<{ grownUps: number; children: number; cents: number }>;
+  readonly pricePerGrownUpCents: number;
+  readonly pricePerChildCents: number;
 }
 
 /**
@@ -34,11 +35,8 @@ function toDomain(row: StoredVersion): SettingsVersion {
         colour: parseWeekColour(row.weekAnchorColour),
       },
       distributionWeekday: row.distributionWeekday,
-      priceTable: row.priceTable.map((price) => ({
-        grownUps: price.grownUps,
-        children: price.children,
-        cents: price.cents,
-      })),
+      pricePerGrownUp: row.pricePerGrownUpCents,
+      pricePerChild: row.pricePerChildCents,
     }),
   };
 }
@@ -58,19 +56,18 @@ export class PrismaSettingsRepository implements SettingsRepository {
   }
 
   /**
-   * Every version ever written, together with its price table. `resolveSettingsAt` scans rather
-   * than assumes an order, so the query does not sort; the ascending order is for readable logs.
+   * Every version ever written. `resolveSettingsAt` scans rather than assumes an order, so the
+   * query does not sort; the ascending order is for readable logs.
    */
   async listVersions(): Promise<SettingsVersion[]> {
     const rows = await this.prisma.settingsVersion.findMany({
-      include: { priceTable: true },
       orderBy: { effectiveFrom: "asc" },
     });
     return rows.map(toDomain);
   }
 
   /**
-   * Store a new version and its price rows in one transaction.
+   * Store a new version.
    *
    * A second version with the same `effectiveFrom` violates the unique index and rejects — the
    * database is the last line of defence behind the `updateSettings` use case's own check.
@@ -87,13 +84,8 @@ export class PrismaSettingsRepository implements SettingsRepository {
         weekAnchorIsoWeek: settings.weekAnchor.isoWeek,
         weekAnchorColour: settings.weekAnchor.colour,
         distributionWeekday: settings.distributionWeekday,
-        priceTable: {
-          create: settings.priceTable.map((row) => ({
-            grownUps: row.grownUps,
-            children: row.children,
-            cents: row.cents,
-          })),
-        },
+        pricePerGrownUpCents: settings.pricePerGrownUp,
+        pricePerChildCents: settings.pricePerChild,
       },
     });
   }

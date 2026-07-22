@@ -75,14 +75,12 @@ const settingsForm = z.object({
   distributionWeekday: wholeNumber,
   effectiveFrom: isoDate,
   reason: z.string(),
-  priceGrownUps: z.array(wholeNumber),
-  priceChildren: z.array(wholeNumber),
-  priceEuros: z.array(euroAmount).min(1, { message: de.settings.errors.priceTableEmpty }),
+  pricePerGrownUp: euroAmount,
+  pricePerChild: euroAmount,
 });
 
 function formValues(formData: FormData): Record<string, unknown> {
   const text = (name: string): string => String(formData.get(name) ?? "");
-  const texts = (name: string): string[] => formData.getAll(name).map(String);
   return {
     quotaN: text("quotaN"),
     portionsPerGrownUp: text("portionsPerGrownUp"),
@@ -93,9 +91,8 @@ function formValues(formData: FormData): Record<string, unknown> {
     distributionWeekday: text("distributionWeekday"),
     effectiveFrom: text("effectiveFrom"),
     reason: text("reason"),
-    priceGrownUps: texts("priceGrownUps"),
-    priceChildren: texts("priceChildren"),
-    priceEuros: texts("priceEuros"),
+    pricePerGrownUp: text("pricePerGrownUp"),
+    pricePerChild: text("pricePerChild"),
   };
 }
 
@@ -153,12 +150,6 @@ export async function saveSettings(
   }
   const form = parsed.data;
 
-  const priceTable = form.priceEuros.map((cents, index) => ({
-    grownUps: form.priceGrownUps[index],
-    children: form.priceChildren[index],
-    cents,
-  }));
-
   try {
     await updateSettings(settingsDeps, {
       effectiveFrom: form.effectiveFrom,
@@ -170,7 +161,8 @@ export async function saveSettings(
         reminderThreshold: form.reminderThreshold,
         weekAnchor: { isoWeek: form.weekAnchorIsoWeek, colour: form.weekAnchorColour },
         distributionWeekday: form.distributionWeekday,
-        priceTable,
+        pricePerGrownUp: form.pricePerGrownUp,
+        pricePerChild: form.pricePerChild,
       },
     });
   } catch (error: unknown) {

@@ -41,14 +41,14 @@ beforeEach(async () => {
 it("stores what changed, when and why", async () => {
   await log.append({
     what: "settings.updated",
-    changedFields: ["quotaN", "priceTable"],
+    changedFields: ["quotaN", "pricePerChild"],
     when: new Date("2026-07-22T09:30:00.000Z"),
     why: "Preisanpassung zum Halbjahr",
   });
 
   const [stored] = await prisma.auditEntry.findMany();
   expect(stored.what).toBe("settings.updated");
-  expect(stored.changedFields).toBe("quotaN,priceTable");
+  expect(stored.changedFields).toBe("quotaN,pricePerChild");
   expect(stored.when).toEqual(new Date("2026-07-22T09:30:00.000Z"));
   expect(stored.why).toBe("Preisanpassung zum Halbjahr");
 });

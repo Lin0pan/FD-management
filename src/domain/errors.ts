@@ -15,7 +15,6 @@ export type DomainErrorCode =
   | "DuplicateAttendance"
   | "InvalidSettings"
   | "NoSettingsInForce"
-  | "NoPriceForHousehold"
   | "QuotaBelowActiveCustomers"
   | "RetroactiveSettingsVersion"
   | "MissingAuditReason"
@@ -113,18 +112,5 @@ export class InvalidEuroAmount extends DomainError {
   constructor(text: string) {
     super(`"${text}" is not a euro amount such as 2,50`);
     this.text = text;
-  }
-}
-
-/** The price table has no row for this household composition; prices are never interpolated. */
-export class NoPriceForHousehold extends DomainError {
-  readonly code = "NoPriceForHousehold";
-  readonly grownUps: number;
-  readonly children: number;
-
-  constructor(grownUps: number, children: number) {
-    super(`No price row for a household of ${grownUps} grown-up(s) and ${children} child(ren)`);
-    this.grownUps = grownUps;
-    this.children = children;
   }
 }

@@ -20,7 +20,8 @@ datasource db {
 }
 
 /// One immutable, dated set of the policy values FD can change without a deploy: the customer
-/// quota, the portions per head, the reminder threshold, the week-cycle anchor and the price table.
+/// quota, the portions per head, the price per head, the reminder threshold and the week-cycle
+/// anchor.
 ///
 /// Versions are **append-only**. A distribution record stores only a `paid` flag and never an
 /// amount, so the sole way to answer "what did that customer owe last March" is to resolve the
@@ -48,27 +49,14 @@ model SettingsVersion {
   /// Distribution day as an ISO weekday, Monday = 1 … Sunday = 7.
   distributionWeekday Int
 
-  priceTable PriceTableRow[]
+  /// What one grown-up and one child each pay, in whole euro cents. FD charges per head, so what a
+  /// household owes is derived — `grownUps × pricePerGrownUpCents + children × pricePerChildCents`
+  /// — and never stored on this row.
+  pricePerGrownUpCents Int
+  pricePerChildCents   Int
 
   /// When this version was written — bookkeeping, not policy. `effectiveFrom` is the business date.
   createdAt DateTime @default(now())
-}
-
-/// The price of one distribution for a household of exactly this composition. The table is a set of
-/// explicit rows, not a formula: FD's real prices need not be linear, and a household size with no
-/// row is a settings gap the counter reports rather than a number the system invents.
-model PriceTableRow {
-  id Int @id @default(autoincrement())
-
-  settingsVersionId Int
-  settingsVersion   SettingsVersion @relation(fields: [settingsVersionId], references: [id], onDelete: Cascade)
-
-  grownUps Int
-  children Int
-  /// Whole euro cents. Never a float.
-  cents    Int
-
-  @@unique([settingsVersionId, grownUps, children])
 }
 
 /// One append-only record of a state change: *what* changed, *when* and *why* — never *who*.

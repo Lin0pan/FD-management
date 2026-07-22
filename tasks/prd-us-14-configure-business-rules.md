@@ -2,11 +2,11 @@
 
 > Source story: `docs/user_stories_mvp.md` §US-14 (Tier 2). Build-order position: **first** — US-01
 > cannot assign a customer number without the quota `N`, US-03 cannot derive a week colour without
-> the anchor, and US-07 cannot price anything without the price table.
+> the anchor, and US-07 cannot price anything without the per-head prices.
 
 ## 1. Introduction
 
-Every number in FD's process — the customer quota, the portions per head, the price table, the
+Every number in FD's process — the customer quota, the portions per head, the price per head, the
 reminder threshold, the week-cycle anchor — is currently unknown, and all of them will change over
 the years. Hard-coding any of them guarantees a developer call-out for a price rise. This feature
 stores them as **configuration data with an effective-from date** and gives staff a screen to edit
@@ -14,7 +14,7 @@ them.
 
 Effective-from dating is not gold-plating: a distribution record stores only a `paid` flag and never
 an amount (US-05), so the **only** way to answer "what did that customer owe last March" is to look
-up the price table version in force on that date.
+up the settings version in force on that date.
 
 ## 2. Goals
 
@@ -36,17 +36,17 @@ a date, returns the values in force on that date, so every other rule reads poli
 - [ ] `src/domain/policy/settings.ts` defines the typed settings shape: `quotaN: number`,
       `portionsPerGrownUp: number`, `portionsPerChild: number`, `reminderThreshold: number`,
       `weekAnchor: { isoWeek: string; colour: 'RED' | 'BLUE' }`, `distributionWeekday: 1..7`
-      (ISO, Monday = 1), and `priceTable: ReadonlyArray<{ grownUps: number; children: number; cents: number }>`
+      (ISO, Monday = 1), `pricePerGrownUp: Cents` and `pricePerChild: Cents`
 - [ ] `resolveSettingsAt(versions, date)` returns the version with the greatest `effectiveFrom` that
       is `<= date`; ties are impossible (see US-14.3 constraint)
 - [ ] Given a date **before** the earliest version, it throws a typed `NoSettingsInForce` error
       rather than returning a partial object
-- [ ] `priceFor(settings, grownUps, children)` returns the matching row's cents, or throws a typed
-      `NoPriceForHousehold` error naming the counts — it never interpolates or guesses
+- [ ] `priceFor(settings, grownUps, children)` returns
+      `grownUps × pricePerGrownUp + children × pricePerChild` — every household size is priceable
 - [ ] All values validate on construction: `quotaN >= 1`, portion values `>= 0`, `reminderThreshold >= 1`,
-      every `cents` a non-negative integer
+      both prices non-negative integer cents
 - [ ] Tests cover: exact-boundary date (a version effective on that very day is in force), date
-      between versions, date before all versions, missing price row
+      between versions, date before all versions
 
 ### US-14.2: `SettingsRepository` port and `readSettings` / `updateSettings` use cases (application)
 
@@ -73,9 +73,9 @@ seeded with provisional defaults so a fresh install boots into a working app.
 
 **Acceptance Criteria:**
 
-- [ ] Prisma model `SettingsVersion` with `id`, `effectiveFrom DateTime`, the scalar policy fields,
-      and a related `PriceTableRow` model (`settingsVersionId`, `grownUps`, `children`, `cents Int`)
-- [ ] Unique constraint on `SettingsVersion.effectiveFrom`, and on `(settingsVersionId, grownUps, children)`
+- [ ] Prisma model `SettingsVersion` with `id`, `effectiveFrom DateTime`, the scalar policy fields
+      and `pricePerGrownUpCents Int` / `pricePerChildCents Int`
+- [ ] Unique constraint on `SettingsVersion.effectiveFrom`
 - [ ] All money columns are `Int` (cents). No `Float` or `Decimal` anywhere in the schema
 - [ ] Migration committed under `prisma/migrations/`
 - [ ] A seed routine inserts the provisional version (see `tasks/README.md` seed table) if and only
@@ -85,7 +85,7 @@ seeded with provisional defaults so a fresh install boots into a working app.
 
 ### US-14.4: Settings screen (presentation)
 
-**Description:** As a staff member, I want to edit the quota, portions, price table, reminder
+**Description:** As a staff member, I want to edit the quota, portions, prices, reminder
 threshold and week-cycle settings in the app so FD can adapt without calling a developer.
 
 **Acceptance Criteria:**
@@ -94,7 +94,7 @@ threshold and week-cycle settings in the app so FD can adapt without calling a d
       `src/i18n/de.ts`
 - [ ] A Zod schema validates the form; prices are entered as euro (e.g. `2,50`) and converted to
       whole cents before leaving the adapter
-- [ ] The price table is edited as a grid of (grown-ups × children) rows; rows can be added and removed
+- [ ] The two prices are edited as euro fields, one per grown-up and one per child
 - [ ] Saving asks for an **effective-from date**, defaulting to today
 - [ ] Attempting to lower `quotaN` below the active customer count shows the German error naming
       both numbers, and nothing is saved
@@ -105,16 +105,17 @@ threshold and week-cycle settings in the app so FD can adapt without calling a d
 
 **Acceptance Criteria:**
 
-- [ ] Playwright spec: open `/einstellungen`, change the price for (1 grown-up, 0 children), save
-      effective today, reload, and confirm the new value is displayed
+- [ ] Playwright spec: open `/einstellungen`, change the price per grown-up, save effective today,
+      reload, and confirm the new value is displayed
 - [ ] Spec asserts the quota-too-low path shows an error and leaves the stored value unchanged
 
 ## 4. Functional Requirements
 
 - FR-1: The system must store policy values as immutable versions, each with an `effectiveFrom` date.
 - FR-2: The system must resolve "the settings in force" for any given date, used by every other feature.
-- FR-3: Editable values are: quota `N`, portions per grown-up, portions per child, the price table by
-  (grown-ups, children), the reminder threshold, the week-cycle anchor, and the distribution weekday.
+- FR-3: Editable values are: quota `N`, portions per grown-up, portions per child, price per
+  grown-up, price per child, the reminder threshold, the week-cycle anchor, and the distribution
+  weekday.
 - FR-4: The system must refuse a `quotaN` lower than the current number of active customers, and
   explain why, naming both numbers.
 - FR-5: The system must store all money as whole cents in integer columns.
@@ -140,7 +141,7 @@ threshold and week-cycle settings in the app so FD can adapt without calling a d
 
 ## 7. Success Metrics
 
-- Changing the price of a household size takes under 60 seconds and no deploy.
+- Changing a price takes under 60 seconds and no deploy.
 - Any past distribution record can be priced correctly from stored data alone.
 - Zero floating-point money values in the schema or the codebase.
 
@@ -148,6 +149,4 @@ threshold and week-cycle settings in the app so FD can adapt without calling a d
 
 - **Provisional values.** Quota 240, 2 portions/grown-up, 1 portion/child, threshold 3, price
   200c/grown-up + 100c/child, anchor `2026-W02 = Red`, Thursday. **All must be confirmed with FD.**
-- Should the price table have a defined maximum household size, or accept arbitrary counts with a
-  "no price row" error at the counter?
 - Should an effective-from date in the future be allowed (scheduling a price rise in advance)?

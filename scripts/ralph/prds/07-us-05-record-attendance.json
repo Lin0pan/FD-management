@@ -1,7 +1,7 @@
 {
   "project": "FD-Management",
   "branchName": "ralph/us-05-record-attendance",
-  "description": "US-05 Record Attendance and Payment — One action records customer, date, showed-up and paid, with the price that applied. One record per customer per day, enforced by the database; records survive indefinitely.",
+  "description": "US-05 Record Attendance and Payment — One action records customer, date, showed-up and paid, with the price that applied, derived per head. One record per customer per day, enforced by the database; records survive indefinitely.",
   "userStories": [
     {
       "id": "US-001",

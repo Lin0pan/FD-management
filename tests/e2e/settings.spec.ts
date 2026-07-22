@@ -13,8 +13,8 @@ import { de } from "@/i18n/de";
  * later specs assert that a rejected save left the value written by the first one untouched.
  */
 
-/** The price row every spec here edits: one grown-up, no children, seeded at 2,00 €. */
-const PRICE_LABEL = `${de.settings.priceTable.price} 1/0`;
+/** The price every spec here edits: the per-grown-up price, seeded at 2,00 €. */
+const PRICE_LABEL = de.settings.fields.pricePerGrownUp;
 
 /** Today as the date input renders it. Versions are stored at midnight UTC, so read in UTC. */
 function todayIso(): string {
@@ -40,8 +40,10 @@ test.describe("Einstellungen", () => {
 
     await page.reload();
     await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("2,50");
-    // The new version is also listed in the read-only history, with its price table.
-    await expect(page.getByTestId("settings-version").first()).toContainText("1/0: 2,50 €");
+    // The new version is also listed in the read-only history, with its prices.
+    await expect(page.getByTestId("settings-version").first()).toContainText(
+      `${de.settings.fields.pricePerGrownUp}: 2,50 €`,
+    );
   });
 
   test("a rejected quota shows a German error and saves nothing", async ({ page }) => {

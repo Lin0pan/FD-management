@@ -71,9 +71,9 @@ function VersionHistory({
                 {de.settings.fields.reminderThreshold}: {version.settings.reminderThreshold}
               </span>
               <span className="block text-foreground/70">
-                {version.settings.priceTable
-                  .map((row) => `${row.grownUps}/${row.children}: ${formatEuros(row.cents)}`)
-                  .join(" · ")}
+                {de.settings.fields.pricePerGrownUp}:{" "}
+                {formatEuros(version.settings.pricePerGrownUp)} · {de.settings.fields.pricePerChild}
+                : {formatEuros(version.settings.pricePerChild)}
               </span>
             </li>
           ))}

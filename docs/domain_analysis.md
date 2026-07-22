@@ -35,23 +35,23 @@ list (not paper).
 
 ### Customer
 
-| Attribute                   | Description                                                                                                                                                                                                                             |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Customer number             | Unique number in range 1..N (e.g. 1..240). Determines call-up order at distribution. Freed and reassignable once a customer is archived.                                                                                                |
-| Name                        | First name and last name.                                                                                                                                                                                                               |
-| Date of birth               | Required — drives the age-13 classification (see 4.7).                                                                                                                                                                                  |
-| Address                     | German address: street, house number, ZIP code, city.                                                                                                                                                                                   |
-| Household members           | Name and date of birth of each family member (see Household Member).                                                                                                                                                                    |
-| Number of grown-ups         | Household members aged 13+. **Derived** from the household members' birthdates, not entered by hand.                                                                                                                                    |
-| Number of children          | Household members under 13. Age 13 is the exact cutoff — a child turns "grown-up" on that birthday. **Derived** like the grown-up count.                                                                                                |
-| Group / color               | "Red" or "Blue" — determines which weekly distribution the customer attends. Can change in individual cases; staff try to keep the two groups roughly equal in size, both when registering new customers and when moving existing ones. |
-| Portion allowance           | Number of food portions, derived from grown-up/children counts. Roughly a fixed amount per adult and per child, but can be adjusted up or down depending on currently available food supply or special occasions (e.g. Christmas).      |
-| Price                       | Small amount the customer pays to receive food. Read from a **fixed price table** keyed by grown-up/children count. Unlike the portion allowance, it does _not_ flex with supply or special occasions.                                  |
-| Certificate (Bescheinigung) | Proof of need (e.g. from the Jobcenter); has a type and a validity period/expiry date.                                                                                                                                                  |
-| Status                      | Active / temporarily blocked / archived. A temporary block is set **manually** by a staff member together with a **free-text reason**; it is lifted manually as well (see 4.5).                                                         |
-| Reminder count              | Number of certificate-expiry reminders issued (0-3 typically; resets to 0 once a valid certificate is presented).                                                                                                                       |
-| Current card number         | The customer's currently valid card number (see Customer Card).                                                                                                                                                                         |
-| Comments / notes            | Free-text field for individual staff notes about the customer.                                                                                                                                                                          |
+| Attribute                   | Description                                                                                                                                                                                                                                    |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Customer number             | Unique number in range 1..N (e.g. 1..240). Determines call-up order at distribution. Freed and reassignable once a customer is archived.                                                                                                       |
+| Name                        | First name and last name.                                                                                                                                                                                                                      |
+| Date of birth               | Required — drives the age-13 classification (see 4.7).                                                                                                                                                                                         |
+| Address                     | German address: street, house number, ZIP code, city.                                                                                                                                                                                          |
+| Household members           | Name and date of birth of each family member (see Household Member).                                                                                                                                                                           |
+| Number of grown-ups         | Household members aged 13+. **Derived** from the household members' birthdates, not entered by hand.                                                                                                                                           |
+| Number of children          | Household members under 13. Age 13 is the exact cutoff — a child turns "grown-up" on that birthday. **Derived** like the grown-up count.                                                                                                       |
+| Group / color               | "Red" or "Blue" — determines which weekly distribution the customer attends. Can change in individual cases; staff try to keep the two groups roughly equal in size, both when registering new customers and when moving existing ones.        |
+| Portion allowance           | Number of food portions, derived from grown-up/children counts. Roughly a fixed amount per adult and per child, but can be adjusted up or down depending on currently available food supply or special occasions (e.g. Christmas).             |
+| Price                       | Small amount the customer pays to receive food. **Derived per head**: a fixed price per grown-up and a fixed price per child, multiplied by the two counts. Unlike the portion allowance, it does _not_ flex with supply or special occasions. |
+| Certificate (Bescheinigung) | Proof of need (e.g. from the Jobcenter); has a type and a validity period/expiry date.                                                                                                                                                         |
+| Status                      | Active / temporarily blocked / archived. A temporary block is set **manually** by a staff member together with a **free-text reason**; it is lifted manually as well (see 4.5).                                                                |
+| Reminder count              | Number of certificate-expiry reminders issued (0-3 typically; resets to 0 once a valid certificate is presented).                                                                                                                              |
+| Current card number         | The customer's currently valid card number (see Customer Card).                                                                                                                                                                                |
+| Comments / notes            | Free-text field for individual staff notes about the customer.                                                                                                                                                                                 |
 
 ### Household Member
 
@@ -82,7 +82,7 @@ removed**; no history of past compositions is kept for now.
 
 Still minimal — neither who served the customer nor the exact amount handed out is tracked. Payment
 is recorded only as a flag on this record; no amount, no separate payment date. The amount owed is
-implied by the price table at that point in time.
+implied by the per-head prices in force at that point in time.
 
 | Attribute | Description                                                                  |
 | --------- | ---------------------------------------------------------------------------- |
@@ -127,8 +127,8 @@ implied by the price table at that point in time.
 5. Staff check the certificate's validity — see 4.2 (Eligibility & Reminder Flow).
 6. Staff issue the portion allowance (based on grown-up/children counts, food supply, and any
    special-occasion adjustments).
-7. Customer pays the small price looked up in the fixed price table for their grown-up/children
-   counts.
+7. Customer pays the small price for their household: the price per grown-up times the grown-up
+   count plus the price per child times the children count.
 8. Staff record that the customer showed up and received food that week (date-stamped) and mark the
    record as **paid**.
 
@@ -235,9 +235,9 @@ data model does not preclude them.
 All earlier questions about household semantics, blocks, card reissue and retention have been
 answered by FD and are folded into the sections above. What remains open:
 
-1. **Concrete policy values:** The actual numbers are still unknown — the price table
-   (€ per grown-up / per child), the standard portions per grown-up and per child, and the customer
-   quota `N`. Needed as initial configuration data, not as structure.
+1. **Concrete policy values:** The actual numbers are still unknown — the price per grown-up and per
+   child, the standard portions per grown-up and per child, and the customer quota `N`. Needed as
+   initial configuration data, not as structure.
 2. **Contact details:** The agreed field list has no phone number or e-mail. Is that deliberate
    (contact only happens in person at distribution), or simply not mentioned yet? Relevant if
    certificate-expiry reminders should ever be sent rather than given verbally.
