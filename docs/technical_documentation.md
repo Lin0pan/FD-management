@@ -223,8 +223,10 @@ counts as new.
 ### `src/infrastructure/prisma/audit-log.ts`
 
 The **append-only audit log** (`PrismaAuditLog`). Every state change is recorded with a timestamp
-and reason — but **never an actor**: FD has ruled out login, so the system records _what / when /
-why_, never _who_. Adding an actor field would be an additive change if login is ever introduced.
+and, where one was asked for, a reason — but **never an actor**: FD has ruled out login, so the
+system records _what / when / why_, never _who_. A settings edit stores an empty `why` when staff
+gave none, because `changedFields` already says what happened; the judgement calls (block, archive)
+require one. Adding an actor field would be an additive change if login is ever introduced.
 There is no update and no delete: an entry that could be rewritten would be worth nothing. The field
 list is stored comma-separated because SQLite has no array column and the list is only ever read
 back for display.

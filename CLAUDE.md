@@ -116,7 +116,8 @@ settings screen reporting that nothing is configured.
 - ❌ Don't hard-delete customer data — archive (status change) and keep it queryable.
 - ❌ Don't skip the audit entry on a state change (archive, block, group move, card reissue, policy
   edit). With no login, the log is the only accountability the system has — and it records _what,
-  when and why_, never _who_.
+  when and why_, never _who_. The _why_ is required where it is the record (archive, block) and
+  optional where the changed fields already say it (a policy edit).
 - ❌ Don't add a dependency to avoid ~50 lines of code, and don't reach for a heavier pattern
   (events, CQRS, aggregates) than the problem needs.
 - ❌ Don't bump the Next.js major casually — it is pinned on purpose.

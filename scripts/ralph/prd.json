@@ -1,19 +1,19 @@
 {
   "project": "FD-Management",
   "branchName": "ralph/us-14-configure-business-rules",
-  "description": "US-14 Configure the Business Rules — Policy values (quota N, portions, price table, reminder threshold, week anchor) as settings data with an effective-from date, plus the screen to edit them. Must be built first: registration needs N and the counter needs the week anchor.",
+  "description": "US-14 Configure the Business Rules — Policy values (quota N, portions, prices per head, week anchor) as settings data with an effective-from date, plus the screen to edit them. Must be built first: registration needs N and the counter needs the week anchor.",
   "userStories": [
     {
       "id": "US-001",
       "title": "Settings value objects and effective-from resolution",
       "description": "As a developer, I need a pure module that resolves the policy values in force on a given date, so every other rule reads configuration through one seam. Source: tasks/prd-us-14-configure-business-rules.md §US-14.1",
       "acceptanceCriteria": [
-        "src/domain/policy/settings.ts defines the settings shape: quotaN, portionsPerGrownUp, portionsPerChild, reminderThreshold, weekAnchor {isoWeek, colour}, distributionWeekday (ISO 1-7), priceTable as rows of {grownUps, children, cents}",
+        "src/domain/policy/settings.ts defines the settings shape: quotaN, portionsPerGrownUp, portionsPerChild, weekAnchor {isoWeek, colour}, distributionWeekday (ISO 1-7), pricePerGrownUp and pricePerChild as integer cents",
         "resolveSettingsAt(versions, date) returns the version with the greatest effectiveFrom that is <= date",
         "A date before the earliest version throws a typed NoSettingsInForce error, never a partial object",
-        "priceFor(settings, grownUps, children) returns the exact matching row's cents or throws a typed NoPriceForHousehold error naming both counts — it never interpolates",
-        "Construction validates quotaN >= 1, portion values >= 0, reminderThreshold >= 1, every cents value a non-negative integer",
-        "Tests cover: exact-boundary date, date between versions, date before all versions, missing price row",
+        "priceFor(settings, grownUps, children) returns grownUps * pricePerGrownUp + children * pricePerChild — every household size is priceable",
+        "Construction validates quotaN >= 1, portion values >= 0, both prices non-negative integer cents",
+        "Tests cover: exact-boundary date, date between versions, date before all versions, a household priced per head",
         "Module contains no I/O, no new Date() and no imports from Next.js, React or Prisma",
         "Tests pass",
         "Typecheck passes"
@@ -33,6 +33,7 @@
         "updateSettings rejects with a typed QuotaBelowActiveCustomers error carrying both numbers when the new quotaN is below the current active customer count",
         "updateSettings rejects a version whose effectiveFrom precedes the latest existing version",
         "updateSettings writes an audit entry recording what changed, when and why, with no actor field",
+        "The reason is optional for a settings edit — the changed fields already say what happened — and is stored as an empty why; block (US-08) and archive (US-10) still require one",
         "Tested against hand-written fakes and a fake clock",
         "Tests pass",
         "Typecheck passes"
@@ -46,10 +47,10 @@
       "title": "SettingsVersion schema, seed and Prisma repository",
       "description": "As a developer, I need settings versions stored in SQLite and seeded with provisional defaults, so a fresh install boots into a working app. Source: tasks/prd-us-14-configure-business-rules.md §US-14.3",
       "acceptanceCriteria": [
-        "Prisma models SettingsVersion (id, effectiveFrom, scalar policy fields) and PriceTableRow (settingsVersionId, grownUps, children, cents)",
-        "Unique constraint on SettingsVersion.effectiveFrom and on (settingsVersionId, grownUps, children)",
+        "Prisma model SettingsVersion (id, effectiveFrom, scalar policy fields, pricePerGrownUpCents, pricePerChildCents)",
+        "Unique constraint on SettingsVersion.effectiveFrom",
         "All money columns are Int cents — no Float or Decimal anywhere in schema.prisma",
-        "A seed routine inserts the provisional version (quotaN 240, 2 portions per grown-up, 1 per child, threshold 3, price 200c per grown-up + 100c per child, anchor 2026-W02 = RED, weekday Thursday) only when no version exists; running it twice is a no-op",
+        "A seed routine inserts the provisional version (quotaN 240, 2 portions per grown-up, 1 per child, price 200c per grown-up + 100c per child, anchor 2026-W02 = RED, weekday Thursday) only when no version exists; running it twice is a no-op",
         "PrismaSettingsRepository implements the port and is integration-tested against a throwaway SQLite file",
         "The placeholder SchemaMarker model is removed",
         "Migration committed under prisma/migrations/",
@@ -63,12 +64,12 @@
     {
       "id": "US-004",
       "title": "Settings screen at /einstellungen",
-      "description": "As a staff member, I want to edit the quota, portions, price table, reminder threshold and week-cycle settings in the app, so FD can adapt without calling a developer. Source: tasks/prd-us-14-configure-business-rules.md §US-14.4",
+      "description": "As a staff member, I want to edit the quota, portions, prices and week-cycle settings in the app, so FD can adapt without calling a developer. Source: tasks/prd-us-14-configure-business-rules.md §US-14.4",
       "acceptanceCriteria": [
         "Route /einstellungen shows the currently-in-force values, each labelled in German",
         "A Zod schema validates the form; euro input (e.g. 2,50) is converted to whole cents before leaving the adapter",
-        "The price table is edited as a grid of (grown-ups × children) rows; rows can be added and removed",
-        "Saving asks for an effective-from date, defaulting to today",
+        "The two prices are edited as euro fields, one per grown-up and one per child",
+        "Saving asks for an effective-from date, defaulting to today, and offers an optional reason field labelled as optional",
         "Lowering quotaN below the active customer count shows a German error naming both numbers and saves nothing",
         "Previous versions are listed read-only with their effective-from dates",
         "All user-facing strings come from src/i18n/de.ts",
@@ -84,7 +85,7 @@
       "title": "E2E: edit a price and see it applied",
       "description": "As a developer, I need a Playwright spec proving the settings round-trip works against the built app. Source: tasks/prd-us-14-configure-business-rules.md §US-14.5",
       "acceptanceCriteria": [
-        "Spec opens /einstellungen, changes the price for (1 grown-up, 0 children), saves effective today, reloads and asserts the new value is displayed",
+        "Spec opens /einstellungen, changes the price per grown-up, saves effective today, reloads and asserts the new value is displayed",
         "Spec asserts the quota-too-low path shows an error and leaves the stored value unchanged",
         "npm run test:e2e passes",
         "Typecheck passes"

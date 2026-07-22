@@ -163,9 +163,14 @@ uniform treatment is simply cheaper than two mechanisms.
 
 ### 5.2 Append-only audit log
 
-Every state change (archive, block, group move, card reissue, policy edit) is recorded with
-timestamp and reason. Given how many decisions are individual staff judgement calls, this is the
-feature that makes those decisions defensible — and it is far cheaper to add now than to retrofit.
+Every state change (archive, block, group move, card reissue, policy edit) is recorded with a
+timestamp, the fields it touched and — where the change turns on a judgement — a reason. Given how
+many decisions are individual staff judgement calls, this is the feature that makes those decisions
+defensible, and it is far cheaper to add now than to retrofit.
+
+A reason is required where it _is_ the record (archive, block) and optional where the changed fields
+already tell the story (a policy edit): demanding a sentence for every save collects text typed to
+get past a validation, which is worse than an honest blank.
 
 **No actor field:** FD has decided against login and user administration, so the system cannot tell
 its 3-4 staff apart. The log answers _what changed, when and why_, never _who_. That is a deliberate

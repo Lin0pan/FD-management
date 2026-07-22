@@ -64,6 +64,10 @@ dated version, so the UI never touches persistence directly.
 - [ ] `updateSettings` rejects a new version whose `effectiveFrom` is earlier than the latest
       existing version (no retroactive rewriting of history)
 - [ ] `updateSettings` writes an audit entry (`what`, `when`, `why`) — never an actor
+- [ ] The reason is **optional** for a settings edit: the changed fields already say what happened,
+      and requiring a sentence collects text typed to get past a validation. It is stored as an
+      empty `why`. The changes that turn on a judgement — block (US-08), archive (US-10) — still
+      require one
 - [ ] Tested against a fake `SettingsRepository`, a fake customer-count port, and a fake clock
 
 ### US-14.3: `Setting` persistence and seed migration (infrastructure)
@@ -95,7 +99,8 @@ settings in the app so FD can adapt without calling a developer.
 - [ ] A Zod schema validates the form; prices are entered as euro (e.g. `2,50`) and converted to
       whole cents before leaving the adapter
 - [ ] The two prices are edited as euro fields, one per grown-up and one per child
-- [ ] Saving asks for an **effective-from date**, defaulting to today
+- [ ] Saving asks for an **effective-from date**, defaulting to today, and offers an **optional**
+      reason field labelled as optional
 - [ ] Attempting to lower `quotaN` below the active customer count shows the German error naming
       both numbers, and nothing is saved
 - [ ] The page lists previous versions with their effective-from dates, read-only
