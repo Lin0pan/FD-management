@@ -41,6 +41,18 @@ Started: Wed Jul 22 12:49:05 CEST 2026
   `data/fd.db`; delete the scratch db afterwards.
 - TypeScript scripts outside `src/` (e.g. `prisma/seed.ts`) run through `tsx`; do not add a
   `package.json#prisma` key for them — Prisma 6 warns that it is deprecated.
+- A `"use server"` module may export **nothing but async functions** — every export becomes a
+  callable server endpoint. Put form-state objects and types in a sibling module. `npm run build`
+  does **not** catch this; it fails at page load, so a route needs an actual browser/E2E hit.
+- A route directory carries its own `deps.ts` composition root — the one place real adapters are
+  chosen. The page hands that object to a use case and does nothing else with it.
+- German text for a rejected field comes from `de.settings.errorFields`, keyed by the `field` string
+  the `InvalidSettings` error carries. Add a key when adding a validated field, or the screen quotes
+  an English identifier at staff.
+- Server components that read data changed through a form need `export const dynamic =
+  "force-dynamic"`, or Next prerenders them at build time and the screen shows stale values.
+- A screen is a client component only where it genuinely needs state (here: the price grid gaining
+  and losing rows). Everything else stays a server component.
 
 ## [2026-07-22] - US-001 (Settings value objects and effective-from resolution)
 - Implemented `src/domain/policy/settings.ts`: the `Settings` shape (quotaN, portionsPerGrownUp,
@@ -130,4 +142,43 @@ Started: Wed Jul 22 12:49:05 CEST 2026
     the chain.
   - `data/e2e.db` survives a local E2E run and is *not* re-migrated from scratch; delete it if a
     schema change makes a spec fail locally.
+---
+
+## [2026-07-22] - US-004 (Settings screen at /einstellungen)
+- Built the screen: `page.tsx` (server component — current values via `readCurrentSettings`, history
+  via `listSettingsVersions`, `force-dynamic`), `settings-form.tsx` (client component, editable
+  price grid with add/remove rows), and finished the `actions.ts` adapter left by the previous
+  iteration. Linked it from the home page.
+- Added `formatEuroAmount` to `src/domain/money.ts` (test first): cents → `"1,50"` with no currency
+  symbol, so what an input renders is exactly what `parseEuros` reads back.
+- Added `de.settings.errorFields`, a German name per domain field name, so `InvalidSettings` no
+  longer surfaces an English identifier; wired `priceTableEmpty` into the Zod schema.
+- **Fixed a real bug in the inherited `actions.ts`:** it exported `initialSaveSettingsState` (an
+  object) from a `"use server"` file, which is a runtime error at page load. `npm run build` passed
+  regardless — only an actual page hit caught it. Moved to `save-settings-state.ts`.
+- Files changed: `src/app/einstellungen/{page,settings-form}.tsx` (new),
+  `src/app/einstellungen/save-settings-state.ts` (new), `src/app/einstellungen/actions.ts`,
+  `src/app/page.tsx`, `src/domain/money.ts`, `src/domain/money.test.ts`, `src/i18n/de.ts`,
+  `docs/technical_documentation.md`. Also committed the previous iteration's uncommitted
+  groundwork: `PrismaAuditLog` + its migration and integration test, `emptyCustomerCounter`,
+  `listSettingsVersions`, `parseEuros`, `InvalidEuroAmount`, the German dictionary entries.
+- All gates green: lint, typecheck, coverage (domain + application 100%), build.
+- **Learnings for future iterations:**
+  - No browser MCP tooling is configured. Verification was a throwaway Playwright spec run against
+    the built app (deleted afterwards, since US-005 makes it a committed spec) plus a curl of the
+    rendered HTML. **Do this for any UI story** — it caught the `"use server"` export bug that four
+    green gates missed.
+  - The seed's `effectiveFrom` is 2026-01-01, so the first edit dated *today* is accepted, but a
+    second same-day edit is refused (`RetroactiveSettingsVersion` rejects equal dates). US-005's
+    spec must therefore not save twice on the same day against a database it did not reset —
+    `data/e2e.db` survives between local runs.
+  - `formData.getAll(name)` aligns the three repeated price fields by row order; that is why the
+    grid posts `priceGrownUps` / `priceChildren` / `priceEuros` as parallel arrays rather than
+    encoding an index into each name.
+  - The `quotaN`-below-active-customers path cannot be exercised end to end yet: `CustomerCounter`
+    reports 0 until US-01 adds the model, so nothing is ever below it. US-005's second criterion has
+    to either assert against the rule's unit test or wait for US-01 — flagging it now rather than
+    letting the next iteration discover it mid-spec.
+  - Version history lists every version newest-first and labels the one in force; the domain rule
+    (greatest `effectiveFrom <= now`) is re-read off the ordered list rather than duplicated.
 ---

@@ -76,8 +76,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "No browser MCP tooling is configured, so the screen was verified against the built app with a throwaway Playwright run (save effective today, reload shows the new price, retroactive date refused) plus a curl of the rendered HTML. US-005 makes that a committed spec."
     },
     {
       "id": "US-005",
