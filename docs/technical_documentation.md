@@ -171,8 +171,8 @@ The two use cases over the policy versions:
 
 - **`readCurrentSettings(deps)`** loads every version and resolves it against `deps.clock.now()`.
   This is the single seam other features use to reach configuration.
-- **`updateSettings(deps, input)`** validates the values (`createSettings`), requires a non-empty
-  reason, refuses a version dated **on or before** the latest existing one
+- **`updateSettings(deps, input)`** validates the values (`createSettings`), refuses a version dated
+  **on or before** the latest existing one
   (`RetroactiveSettingsVersion` — equal dates are refused because `effectiveFrom` is unique in the
   schema), refuses a `quotaN` below `customers.countActive()`
   (`QuotaBelowActiveCustomers`, carrying both numbers), then **appends** — never mutates — and

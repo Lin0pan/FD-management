@@ -6,11 +6,7 @@
  * (tasks/prd-us-14-configure-business-rules.md §US-14.2, FR-1/FR-6).
  */
 
-import {
-  MissingAuditReason,
-  QuotaBelowActiveCustomers,
-  RetroactiveSettingsVersion,
-} from "@/domain/errors";
+import { QuotaBelowActiveCustomers, RetroactiveSettingsVersion } from "@/domain/errors";
 import {
   changedSettingsFields,
   createSettings,
@@ -34,7 +30,13 @@ export interface UpdateSettingsInput {
   /** The day the new values take over. Not necessarily today — staff may schedule a price rise. */
   readonly effectiveFrom: Date;
   readonly settings: SettingsInput;
-  /** Why the change was made; it becomes the audit entry's *why*. */
+  /**
+   * Why the change was made, if staff gave a reason; it becomes the audit entry's *why*.
+   *
+   * Optional on purpose: most settings edits are self-explanatory from the changed fields, and
+   * demanding a sentence for every one of them buys invented text rather than accountability. The
+   * state changes that genuinely need a *why* — a block, an archiving — still require one.
+   */
   readonly reason: string;
 }
 
@@ -54,7 +56,6 @@ function latestVersion(versions: ReadonlyArray<SettingsVersion>): SettingsVersio
  * Nothing is written unless every check passes.
  *
  * @throws {InvalidSettings} if a policy value breaks an invariant.
- * @throws {MissingAuditReason} if no reason was given for the change.
  * @throws {RetroactiveSettingsVersion} if the new version is not dated after the latest one.
  * @throws {QuotaBelowActiveCustomers} if the new quota is below the customers already registered.
  */
@@ -64,9 +65,6 @@ export async function updateSettings(
 ): Promise<Settings> {
   const settings = createSettings(input.settings);
   const reason = input.reason.trim();
-  if (reason === "") {
-    throw new MissingAuditReason(SETTINGS_UPDATED);
-  }
 
   const latest = latestVersion(await deps.settings.listVersions());
   if (latest !== undefined && input.effectiveFrom.getTime() <= latest.effectiveFrom.getTime()) {

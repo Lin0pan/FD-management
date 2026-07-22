@@ -123,9 +123,6 @@ function germanMessage(error: unknown): string {
   if (error instanceof InvalidSettings) {
     return de.settings.errors.invalidSettings(de.settings.errorFields[error.field] ?? error.field);
   }
-  if (error instanceof DomainError && error.code === "MissingAuditReason") {
-    return de.settings.errors.missingReason;
-  }
   if (error instanceof DomainError && error.code === "NoSettingsInForce") {
     return de.settings.errors.noSettings;
   }

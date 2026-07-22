@@ -90,6 +90,11 @@ export class RetroactiveSettingsVersion extends DomainError {
 /**
  * A state change arrived without a reason. The audit log is the system's only accountability, and
  * an entry that cannot say *why* is worth little.
+ *
+ * Raised by the state changes that genuinely turn on a human judgement — blocking a customer,
+ * archiving one — where the reason *is* the record. A settings edit is not one of them: the changed
+ * fields already say what happened, so `updateSettings` accepts an empty reason rather than
+ * collecting a sentence typed to get past a validation.
  */
 export class MissingAuditReason extends DomainError {
   readonly code = "MissingAuditReason";

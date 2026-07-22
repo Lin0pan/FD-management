@@ -40,7 +40,7 @@ export interface AuditEntry {
   /** The names of the fields this change touched. */
   readonly changedFields: ReadonlyArray<string>;
   readonly when: Date;
-  /** The reason a human gave for the change. */
+  /** The reason a human gave for the change, or `""` where none was required. */
   readonly why: string;
 }
 

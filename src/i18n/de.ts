@@ -68,8 +68,8 @@ export const de = {
     } as Record<string, string | undefined>,
     effectiveFrom: "Gültig ab",
     effectiveFromHint: "Voreingestellt ist der heutige Tag.",
-    reason: "Grund der Änderung",
-    reasonHint: "Wird im Änderungsprotokoll festgehalten.",
+    reason: "Grund der Änderung (optional)",
+    reasonHint: "Wird, falls angegeben, im Änderungsprotokoll festgehalten.",
     save: "Speichern",
     saving: "Wird gespeichert …",
     saved: "Die neue Fassung wurde gespeichert.",
@@ -84,7 +84,6 @@ export const de = {
       notAnInteger: "Bitte eine ganze Zahl ab 0 eingeben.",
       notAnAmount: "Bitte einen Betrag wie 2,50 eingeben.",
       notADate: "Bitte ein Datum auswählen.",
-      missingReason: "Bitte einen Grund für die Änderung angeben.",
       noSettings:
         "Es sind noch keine Einstellungen hinterlegt. Bitte die Grundeinstellungen einspielen.",
       unknown: "Die Änderung konnte nicht gespeichert werden.",

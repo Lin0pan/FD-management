@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-  MissingAuditReason,
   NoSettingsInForce,
   QuotaBelowActiveCustomers,
   RetroactiveSettingsVersion,
@@ -249,10 +248,11 @@ describe("updateSettings", () => {
     expect(repository.versions).toHaveLength(1);
   });
 
-  it("rejects a change with no reason, because the audit entry records why", async () => {
-    await expect(updateSettings(deps(), updateInput({ reason: "   " }))).rejects.toThrow(
-      MissingAuditReason,
-    );
+  it("accepts a change with no reason, recording an empty why", async () => {
+    await updateSettings(deps(), updateInput({ reason: "   " }));
+
+    expect(repository.versions).toHaveLength(2);
+    expect(audit.entries[0].why).toBe("");
   });
 
   it("writes an audit entry naming the fields that changed", async () => {

@@ -74,7 +74,8 @@ model AuditEntry {
   /// When the change happened, read from the injected clock rather than the database.
   when DateTime
 
-  /// The reason a human gave. A state change without one is refused before it reaches here.
+  /// The reason a human gave, or empty when none was asked for. A settings edit is self-explanatory
+  /// from `changedFields`; the changes that turn on a judgement (block, archive) require one.
   why String
 
   @@index([when])
