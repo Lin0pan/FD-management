@@ -77,6 +77,10 @@ the full story-by-story history.)
 - Dates cross the form boundary as **UTC calendar days**: `<input type="date">` gives `YYYY-MM-DD`
   and the adapter pins it to `T00:00:00.000Z`, matching how the domain compares birthdates. Parsing
   in local time lands a date typed in Germany on the day before.
+- An E2E spec whose data lives in the shared `data/e2e.db` must be **serial** and must not assume a
+  clean register: it shares the customer-number sequence with every other spec in the file. Read the
+  proposed number off the screen and assert relative to it rather than hard-coding an id, and prove
+  "nothing was written" by reloading the form and seeing the same number still free.
 - A record that the domain owns is built by a `createX(input, today)` factory in `src/domain/…`; the
   use case above it never validates fields itself. Where a rule already derives something
   (`composition`), call it for its **rejections** and discard the result rather than adding a second
@@ -311,4 +315,44 @@ the full story-by-story history.)
   - A throwaway Playwright spec is the cheap way to satisfy the "verify in browser" criterion while
     no browser MCP is configured: write it, run it, delete it, and let the story that owns the E2E
     criterion write the permanent version.
+---
+
+## [2026-07-22 20:05] - US-007 (E2E: register a customer and get a card)
+- Added `tests/e2e/registration.spec.ts`, the permanent version of the throwaway spec US-006 used for
+  its browser check. Two specs, serial against the shared `data/e2e.db`:
+  - **Happy path**: `/kunden/neu` proposes number 1; the personal data is filled and the first
+    household row is asserted to mirror it (the applicant is a member, not an extra head); a child
+    row is added; the derived panel goes to 1 grown-up / 1 child *while typing*; the save redirects
+    to `/kunden/<id>`, where the card shows the same customer number, card number `1k1`, status
+    `aktiv`, the counts derived again from the stored birthdates, and both household members.
+  - **Empty household**: the mirrored first row is removed, the save is refused with
+    `de.customers.errors.emptyHousehold`, the browser stays on `/kunden/neu`, and a reload shows the
+    proposed number *unchanged* — nothing was written and no number was consumed.
+- Test data: `faker.seed(20260722)` once at the top; only names and addresses come from Faker. The
+  three dates are literals (`1988-04-17` grown-up, `2020-06-15` child until 2033,
+  `2027-03-31` certificate) because the rules under test are date rules.
+- Documentation: `docs/technical_documentation.md` — the file tree and the Playwright section now
+  describe the registration spec, its serial/shared-database constraint and its data policy.
+- Files changed: `tests/e2e/registration.spec.ts` (new), `docs/technical_documentation.md`,
+  `scripts/ralph/progress.txt`, `scripts/ralph/prd.json`.
+- All gates green: lint, typecheck, coverage (domain + application 100% on all four metrics), build,
+  and `npm run test:e2e` — 6 passed, 1 still skipped.
+- **Learnings for future iterations:**
+  - Assert against the number the screen *proposes* rather than a hard-coded id. The specs share the
+    customer-number sequence, so a hard-coded `/kunden/1` breaks the moment a spec is inserted above.
+    The same trick gives the "nothing was written" assertion for free: reload the form and the number
+    must still be free.
+  - `remove-member-0` is what produces an empty household from the browser — the first row mirrors
+    the personal data, so it is always there until it is deleted. The parallel-list pairing in
+    `actions.ts` then sends *no* `memberFirstName` at all and the domain raises `EmptyHousehold`.
+  - `getByRole("main")` + `toContainText("Label: value")` reads a two-`<span>` field without adding a
+    test id for it; the spans are inline, so `innerText` joins them exactly as rendered.
+  - The `quotaN`-below-active-customers e2e test in `settings.spec.ts` is **still skipped**, on
+    purpose. Two customers now exist in `data/e2e.db`, but `settings.spec.ts` and
+    `registration.spec.ts` run in *different workers* (`fullyParallel`), so a settings spec asserting
+    on the customer count would race the registrations. Enabling it means either moving it into the
+    registration spec or making the whole run serial — a decision for the story that needs it.
+  - CI runs with `retries: 2`. A retried registration spec restarts against a database the first
+    attempt already wrote to, so the happy path would see number 2. If that ever flakes, the answer
+    is to stop asserting the *absolute* proposed number ("1") and only compare before/after.
 ---

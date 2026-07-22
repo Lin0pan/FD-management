@@ -114,6 +114,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   └── i18n/de.ts                    # single German UI-string dictionary
 ├── tests/e2e/
 │   ├── home.spec.ts                  # Playwright smoke test
+│   ├── registration.spec.ts          # register a customer and get a card vs. the built app
 │   └── settings.spec.ts              # settings round-trip vs. the built app
 ├── eslint.config.mjs  .prettierrc.json  .prettierignore
 ├── vitest.config.ts   playwright.config.ts
@@ -560,8 +561,15 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   round-trip (change a price, save, reload, see it applied and listed in the
   history), a second save on the same day — the behaviour the screen exists for, and once an error —
   and a rejected save that must leave the stored value untouched. Those specs run
-  **serially** against the one shared database, each building on the price the previous one saved. The distribution-day and registration flows are
-  added alongside the features they cover.
+  **serially** against the one shared database, each building on the price the previous one saved.
+- `registration.spec.ts` covers US-01 end to end: a two-person household is registered from
+  `/kunden/neu` (proposed number, the mirrored first household row, the counts updating live to
+  1 grown-up / 1 child), lands on its card (`1k1`, status _aktiv_, both members listed), and an
+  empty household is refused in German while consuming no customer number. It is **serial** too —
+  the specs share the customer-number sequence in `data/e2e.db`, and the rejection asserts against
+  the number the happy path left free. Names and addresses come from Faker with a fixed seed; every
+  date is a literal, because the rules under test are about dates.
+- The distribution-day flows are added alongside the features they cover.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.
