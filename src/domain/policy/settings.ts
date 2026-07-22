@@ -154,6 +154,54 @@ export function resolveSettingsAt(versions: ReadonlyArray<SettingsVersion>, date
   return inForce.settings;
 }
 
+/** The policy fields, in the order an audit entry lists them. */
+const SETTINGS_FIELDS = [
+  "quotaN",
+  "portionsPerGrownUp",
+  "portionsPerChild",
+  "reminderThreshold",
+  "weekAnchor",
+  "distributionWeekday",
+  "priceTable",
+] as const;
+
+/** The name of one editable policy field, as it appears in an audit entry. */
+export type SettingsField = (typeof SETTINGS_FIELDS)[number];
+
+function sameWeekAnchor(a: WeekAnchor, b: WeekAnchor): boolean {
+  return a.isoWeek === b.isoWeek && a.colour === b.colour;
+}
+
+/** Price rows are a set keyed by household, so their order carries no meaning. */
+function samePriceTable(a: ReadonlyArray<PriceTableRow>, b: ReadonlyArray<PriceTableRow>): boolean {
+  if (a.length !== b.length) return false;
+  const before = new Map(a.map((row) => [householdKey(row.grownUps, row.children), row.cents]));
+  return b.every((row) => before.get(householdKey(row.grownUps, row.children)) === row.cents);
+}
+
+function isUnchanged(field: SettingsField, previous: Settings, next: Settings): boolean {
+  switch (field) {
+    case "weekAnchor":
+      return sameWeekAnchor(previous.weekAnchor, next.weekAnchor);
+    case "priceTable":
+      return samePriceTable(previous.priceTable, next.priceTable);
+    default:
+      return previous[field] === next[field];
+  }
+}
+
+/**
+ * The names of the policy fields that differ between two versions — what an audit entry records as
+ * *what changed*. With no previous version (the seed), every field counts as new.
+ */
+export function changedSettingsFields(
+  previous: Settings | undefined,
+  next: Settings,
+): ReadonlyArray<SettingsField> {
+  if (previous === undefined) return [...SETTINGS_FIELDS];
+  return SETTINGS_FIELDS.filter((field) => !isUnchanged(field, previous, next));
+}
+
 /**
  * The price for a household of exactly this composition.
  *

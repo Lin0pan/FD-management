@@ -15,6 +15,15 @@ Started: Wed Jul 22 12:49:05 CEST 2026
   validated primitive into a literal-union type — the repo standard forbids `any` and `!`.
 - Test helpers take a `Partial<Input>` overrides object over a valid baseline, so each test names
   exactly the one rule it is about (see `settings.test.ts`).
+- Use cases live in `src/application/<area>/<verb-noun>.ts`, one per business action, each taking a
+  `Deps` object of ports as its first argument and its `Input` as the second. Ports are declared in
+  `src/application/ports.ts` and stay type-only.
+- Application tests keep their hand-written fakes **inside the test file** (`settings.test.ts`) — a
+  separate `fakes.ts` under `src/application/` would be pulled into the 100% coverage gate.
+- Every state change appends an `AuditEntry` (`what` / `changedFields` / `when` / `why`, never an
+  actor); `when` comes from `clock.now()`, not from any business date in the input.
+- A helper like `latestVersion()` that scans with `latest === undefined || …` needs a test where the
+  array is out of order, or the second operand stays an uncovered branch.
 - Run `npx prettier --write <paths>` before `npm run lint`; the pre-commit hook formats anyway, but
   it rewrites files mid-run otherwise.
 - Local quality gate: `npm run lint && npm run typecheck && npm run test:coverage && npm run build`.
@@ -41,4 +50,32 @@ Started: Wed Jul 22 12:49:05 CEST 2026
     every household size FD actually has, not just a formula.
   - No Faker in `package.json` yet; the standard asks for synthetic data via Faker, so a story
     needing names/addresses will have to add it (settings tests need only numbers).
+---
+
+## [2026-07-22] - US-002 (SettingsRepository port + readCurrentSettings / updateSettings)
+- Added the `SettingsRepository`, `CustomerCounter` and `AuditLog` ports (plus the `AuditEntry`
+  shape) to `src/application/ports.ts`, alongside the existing `Clock`.
+- Implemented `readCurrentSettings(deps)` (resolves versions against `deps.clock.now()`) and
+  `updateSettings(deps, input)` — validates values, requires a reason, refuses a version dated on or
+  before the latest one, refuses a quota below the active customer count, appends a new version and
+  writes the audit entry. Nothing is written unless every check passes.
+- Added `changedSettingsFields(previous, next)` to the domain settings module so the audit entry can
+  name *what* changed; added `QuotaBelowActiveCustomers`, `RetroactiveSettingsVersion` and
+  `MissingAuditReason` to `src/domain/errors.ts`.
+- Files changed: `src/application/ports.ts`, `src/application/settings/read-current-settings.ts`
+  (new), `src/application/settings/update-settings.ts` (new),
+  `src/application/settings/settings.test.ts` (new, 22 tests, written first),
+  `src/domain/policy/settings.ts`, `src/domain/policy/settings.test.ts`, `src/domain/errors.ts`,
+  `docs/technical_documentation.md`.
+- All gates green (lint, typecheck, coverage 100% on domain + application, build).
+- **Learnings for future iterations:**
+  - Equal `effectiveFrom` dates are **rejected**, not just earlier ones — US-14.3 puts a unique
+    constraint on the column, so a same-day re-save must pick the next day (or the UI must offer to
+    supersede). The error carries both dates.
+  - The audit diff compares against the **latest** version, not the one in force today, because that
+    is the version the new one supersedes.
+  - `updateSettings` returns the stored `Settings`, which saves the UI a re-read after saving.
+  - `ports.ts` reports 0% coverage in the v8 table because it transpiles to nothing; that is
+    harmless (0/0) and does not affect the global threshold.
+  - Still no Faker dependency; nothing in this story needed names or addresses.
 ---

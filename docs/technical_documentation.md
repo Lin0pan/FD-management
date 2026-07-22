@@ -70,7 +70,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── policy/settings.test.ts   # its Vitest spec
 │   │   ├── customer/ card/ distribution/           # empty, reserved by the architecture
 │   ├── application/
-│   │   └── ports.ts                  # repository/service interfaces (Clock today)
+│   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, AuditLog
+│   │   └── settings/                 # readCurrentSettings + updateSettings use cases
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (implements Clock port)
 │   │   ├── audit.ts                  # append-only audit log (placeholder)
@@ -134,10 +135,33 @@ non-integer input. Fully unit-tested (`money.test.ts`), which is what keeps doma
 
 ### `src/application/ports.ts`
 
-The interfaces the application layer depends on. Today it holds only the **`Clock`** port
-(`now(): Date`). Per the TDD approach, ports **emerge from test needs** rather than being designed
-up front — repository interfaces are added as use cases require them. Type-only, so it adds no
-runtime code to the coverage-measured layers.
+The interfaces the application layer depends on. Per the TDD approach, ports **emerge from test
+needs** rather than being designed up front. Type-only, so it adds no runtime code to the
+coverage-measured layers.
+
+| Port                 | Shape                               | Notes                                                     |
+| -------------------- | ----------------------------------- | --------------------------------------------------------- |
+| `Clock`              | `now(): Date`                       | The one seam to the wall clock.                           |
+| `SettingsRepository` | `listVersions()`, `append(version)` | No update/delete — policy history is append-only.         |
+| `CustomerCounter`    | `countActive()`                     | The reality the quota `N` may not fall below.             |
+| `AuditLog`           | `append(entry)`                     | `AuditEntry` = `what` / `changedFields` / `when` / `why`. |
+
+`AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
+
+### `src/application/settings/`
+
+The two use cases over the policy versions:
+
+- **`readCurrentSettings(deps)`** loads every version and resolves it against `deps.clock.now()`.
+  This is the single seam other features use to reach configuration.
+- **`updateSettings(deps, input)`** validates the values (`createSettings`), requires a non-empty
+  reason, refuses a version dated **on or before** the latest existing one
+  (`RetroactiveSettingsVersion` — equal dates are refused because `effectiveFrom` is unique in the
+  schema), refuses a `quotaN` below `customers.countActive()`
+  (`QuotaBelowActiveCustomers`, carrying both numbers), then **appends** — never mutates — and
+  records an audit entry naming the changed fields. Nothing is written unless every check passes.
+
+Both are tested against hand-written fakes and a fake clock in `settings.test.ts`.
 
 ### `src/infrastructure/clock.ts`
 
@@ -150,7 +174,8 @@ settable fake clock can drive deterministic tests.
 
 The `DomainErrorCode` union — the closed set of failure modes — plus an abstract `DomainError` base
 class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
-`NoPriceForHousehold` today). Each carries the values that made it fail, so the UI can render a
+`NoPriceForHousehold`, `QuotaBelowActiveCustomers`, `RetroactiveSettingsVersion`,
+`MissingAuditReason` today). Each carries the values that made it fail, so the UI can render a
 German message naming concrete numbers without re-deriving them, and callers switch on `code`
 instead of parsing strings.
 
@@ -171,6 +196,11 @@ children)` returns the exactly matching row's cents or throws `NoPriceForHouseho
 interpolates, because an unpriced household size is a settings gap for staff to fix, not a number
 to invent. The module is pure: no I/O, no wall clock, and it works over an already-loaded array so
 the counter screen (US-04) resolves settings without a per-field query.
+
+`changedSettingsFields(previous, next)` names the policy fields that differ between two versions —
+what the audit entry records as _what changed_. Price rows are compared as a set keyed by
+household, so reordering the table is not a change; with no previous version (the seed) every field
+counts as new.
 
 ### `src/infrastructure/audit.ts`
 
@@ -382,7 +412,8 @@ colour). See `user_stories_mvp.md` §5.
 - Real Prisma models & repositories; the `better-sqlite3` driver adapter.
 - Policy/price-table schema with effective-from dating.
 - shadcn/ui component setup; the counter, registration, and list screens.
-- Typed domain error classes and the concrete append-only audit log.
+- The concrete append-only audit log behind the `AuditLog` port (`infrastructure/audit.ts`), and the
+  `SettingsRepository` / `CustomerCounter` Prisma adapters.
 
 ```
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { InvalidSettings, NoPriceForHousehold, NoSettingsInForce } from "../errors";
 import {
+  changedSettingsFields,
   createSettings,
   priceFor,
   resolveSettingsAt,
@@ -211,5 +212,104 @@ describe("priceFor", () => {
 
   it("names both counts in the error", () => {
     expect(() => priceFor(settings, 3, 2)).toThrow(/3.*2/);
+  });
+});
+
+describe("changedSettingsFields", () => {
+  const previous = createSettings(settingsInput());
+
+  it("reports nothing changed between two identical versions", () => {
+    expect(changedSettingsFields(previous, createSettings(settingsInput()))).toEqual([]);
+  });
+
+  it("reports every field when there is no previous version", () => {
+    expect(changedSettingsFields(undefined, previous)).toEqual([
+      "quotaN",
+      "portionsPerGrownUp",
+      "portionsPerChild",
+      "reminderThreshold",
+      "weekAnchor",
+      "distributionWeekday",
+      "priceTable",
+    ]);
+  });
+
+  it.each([
+    ["quotaN", { quotaN: 200 }],
+    ["portionsPerGrownUp", { portionsPerGrownUp: 3 }],
+    ["portionsPerChild", { portionsPerChild: 2 }],
+    ["reminderThreshold", { reminderThreshold: 4 }],
+    ["distributionWeekday", { distributionWeekday: 5 }],
+  ])("reports %s when only that value differs", (field, overrides) => {
+    const next = createSettings(settingsInput(overrides));
+    expect(changedSettingsFields(previous, next)).toEqual([field]);
+  });
+
+  it("reports weekAnchor when the anchor week moves", () => {
+    const next = createSettings(
+      settingsInput({ weekAnchor: { isoWeek: "2026-W03", colour: "RED" } }),
+    );
+    expect(changedSettingsFields(previous, next)).toEqual(["weekAnchor"]);
+  });
+
+  it("reports weekAnchor when only the anchor colour flips", () => {
+    const next = createSettings(
+      settingsInput({ weekAnchor: { isoWeek: "2026-W02", colour: "BLUE" } }),
+    );
+    expect(changedSettingsFields(previous, next)).toEqual(["weekAnchor"]);
+  });
+
+  it("reports priceTable when a price changes", () => {
+    const next = createSettings(
+      settingsInput({
+        priceTable: [
+          { grownUps: 1, children: 0, cents: 250 },
+          { grownUps: 2, children: 1, cents: 500 },
+        ],
+      }),
+    );
+    expect(changedSettingsFields(previous, next)).toEqual(["priceTable"]);
+  });
+
+  it("reports priceTable when a household row is added", () => {
+    const next = createSettings(
+      settingsInput({
+        priceTable: [
+          { grownUps: 1, children: 0, cents: 200 },
+          { grownUps: 2, children: 1, cents: 500 },
+          { grownUps: 3, children: 0, cents: 700 },
+        ],
+      }),
+    );
+    expect(changedSettingsFields(previous, next)).toEqual(["priceTable"]);
+  });
+
+  it("reports priceTable when a household row is replaced by another of the same size", () => {
+    const next = createSettings(
+      settingsInput({
+        priceTable: [
+          { grownUps: 1, children: 0, cents: 200 },
+          { grownUps: 2, children: 2, cents: 500 },
+        ],
+      }),
+    );
+    expect(changedSettingsFields(previous, next)).toEqual(["priceTable"]);
+  });
+
+  it("ignores the order of price rows", () => {
+    const next = createSettings(
+      settingsInput({
+        priceTable: [
+          { grownUps: 2, children: 1, cents: 500 },
+          { grownUps: 1, children: 0, cents: 200 },
+        ],
+      }),
+    );
+    expect(changedSettingsFields(previous, next)).toEqual([]);
+  });
+
+  it("lists several fields in declaration order when more than one changed", () => {
+    const next = createSettings(settingsInput({ quotaN: 200, reminderThreshold: 4 }));
+    expect(changedSettingsFields(previous, next)).toEqual(["quotaN", "reminderThreshold"]);
   });
 });

@@ -15,7 +15,10 @@ export type DomainErrorCode =
   | "DuplicateAttendance"
   | "InvalidSettings"
   | "NoSettingsInForce"
-  | "NoPriceForHousehold";
+  | "NoPriceForHousehold"
+  | "QuotaBelowActiveCustomers"
+  | "RetroactiveSettingsVersion"
+  | "MissingAuditReason";
 
 /** Base class of every domain error. `code` lets callers switch over the closed set above. */
 export abstract class DomainError extends Error {
@@ -46,6 +49,55 @@ export class NoSettingsInForce extends DomainError {
   constructor(date: Date) {
     super(`No settings version is in force on ${date.toISOString()}`);
     this.date = date;
+  }
+}
+
+/**
+ * The requested quota is smaller than the number of customers already registered. Carries both
+ * numbers so the UI can say which reality it collides with.
+ */
+export class QuotaBelowActiveCustomers extends DomainError {
+  readonly code = "QuotaBelowActiveCustomers";
+  readonly quotaN: number;
+  readonly activeCustomers: number;
+
+  constructor(quotaN: number, activeCustomers: number) {
+    super(`Quota ${quotaN} is below the ${activeCustomers} customers currently active`);
+    this.quotaN = quotaN;
+    this.activeCustomers = activeCustomers;
+  }
+}
+
+/**
+ * A new settings version was dated on or before the latest existing one. Versions are immutable and
+ * append-only: rewriting history would change what a past distribution cost.
+ */
+export class RetroactiveSettingsVersion extends DomainError {
+  readonly code = "RetroactiveSettingsVersion";
+  readonly effectiveFrom: Date;
+  readonly latestEffectiveFrom: Date;
+
+  constructor(effectiveFrom: Date, latestEffectiveFrom: Date) {
+    super(
+      `A settings version effective ${effectiveFrom.toISOString()} would precede the latest ` +
+        `version, effective ${latestEffectiveFrom.toISOString()}`,
+    );
+    this.effectiveFrom = effectiveFrom;
+    this.latestEffectiveFrom = latestEffectiveFrom;
+  }
+}
+
+/**
+ * A state change arrived without a reason. The audit log is the system's only accountability, and
+ * an entry that cannot say *why* is worth little.
+ */
+export class MissingAuditReason extends DomainError {
+  readonly code = "MissingAuditReason";
+  readonly what: string;
+
+  constructor(what: string) {
+    super(`The change "${what}" needs a reason for the audit log`);
+    this.what = what;
   }
 }
 
