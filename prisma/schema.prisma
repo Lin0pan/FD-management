@@ -2,7 +2,12 @@
 //
 // Single-file SQLite database — backup is a copy of the file (see
 // docs/tech_stack_architecture_sketch.md §3, §6). The schema doubles as readable domain
-// documentation; the customer / card / distribution models arrive in later sessions.
+// documentation; the distribution and attendance models arrive in later sessions.
+//
+// One rule this file cannot state on its own: **at most one non-archived customer may hold a given
+// customer number.** Prisma has no syntax for a partial (filtered) unique index, so the statement
+// lives at the end of prisma/migrations/*_init/migration.sql, written by hand. Regenerating the
+// migration drops it — re-add it, or the slot rule is enforced by application code alone.
 //
 // Money is always an `Int` of whole cents. SQLite has no decimal type and a float would round a
 // price away, so `Float` and `Decimal` appear nowhere in this file.
@@ -34,7 +39,7 @@ model SettingsVersion {
   recordedAt DateTime
 
   /// The maximum number of customer slots FD hands out.
-  quotaN Int
+  quotaN             Int
   /// Food portions allowed per grown-up (13 and older) and per child.
   portionsPerGrownUp Int
   portionsPerChild   Int
@@ -55,6 +60,108 @@ model SettingsVersion {
   pricePerChildCents   Int
 
   @@index([recordedAt])
+}
+
+/// A household FD serves.
+///
+/// `id` is the surrogate key and the **only identity** there is. `customerNumber` is a *slot*: it is
+/// what staff and the customer's card say, but an archived household releases it and the next
+/// registration fills the gap (tasks/prd-us-01-register-customer.md §US-01.2). Confusing the two is
+/// the mistake the Excel sheet made, so every foreign key in this file targets `id` and never
+/// `customerNumber`.
+///
+/// **There is deliberately no `grownUps` and no `children` column.** Both are derived from the
+/// household's birthdates wherever they are needed (`src/domain/customer/householdComposition.ts`);
+/// stored, they would drift with every birthday — which is exactly what they did in the sheet.
+///
+/// SQLite has no enum type, so `group` and `status` are strings the domain validates on the way in.
+model Customer {
+  id Int @id @default(autoincrement())
+
+  /// The slot this household holds, 1..`quotaN`. Not unique on its own — see the partial unique
+  /// index added by hand in the migration, which exempts archived rows.
+  customerNumber Int
+
+  firstName String
+  lastName  String
+  birthDate DateTime
+
+  /// The address in flat fields, never a formatted blob: FD sorts and searches by them.
+  street      String
+  houseNumber String
+  zip         String
+  city        String
+
+  /// The balancing group, `RED` or `BLUE` — which week of the two-week cycle they collect in.
+  group String
+
+  /// `ACTIVE`, `BLOCKED` or `ARCHIVED`. A blocked household is turned away at the counter but still
+  /// holds its slot; only archiving releases it. Customer data is never hard-deleted (US-10, US-11).
+  status String
+
+  /// How many certificate reminders have gone out (US-06).
+  reminderCount Int @default(0)
+
+  /// A free remark, or the empty string. Most households need none.
+  notes String @default("")
+
+  householdMembers HouseholdMember[]
+  certificate      Certificate?
+  cards            Card[]
+
+  @@index([customerNumber])
+  @@index([status])
+}
+
+/// One person living in the household, the registered customer included.
+///
+/// Only a name and a birthdate: the birthdate is what every rule that counts heads reads, and no
+/// count is stored anywhere.
+model HouseholdMember {
+  id Int @id @default(autoincrement())
+
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  firstName String
+  lastName  String
+  birthDate DateTime
+
+  @@index([customerId])
+}
+
+/// The proof of need that entitles a household to shop, e.g. a Jobcenter notice.
+///
+/// One per customer — a renewal replaces the dates rather than stacking a second row, because FD
+/// only ever asks whether the certificate on file is still valid (US-06).
+model Certificate {
+  id Int @id @default(autoincrement())
+
+  customerId Int      @unique
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  /// What kind of notice it is, as staff typed it.
+  type String
+
+  /// The day it stops entitling the household. What the reminder in US-06 counts down to.
+  validUntil DateTime
+}
+
+/// A shopping card handed to a customer.
+///
+/// `index` counts from 1 for the card issued with the registration; a reissue after a loss takes the
+/// next index (US-09), which is what makes an old card recognisable at the counter. The card number
+/// staff read out is derived from the customer number and this index, never stored.
+model Card {
+  id Int @id @default(autoincrement())
+
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  index    Int
+  issuedAt DateTime
+
+  @@unique([customerId, index])
 }
 
 /// One append-only record of a state change: *what* changed, *when* and *why* — never *who*.

@@ -79,11 +79,13 @@ test.describe("Einstellungen", () => {
     await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("2,75");
   });
 
-  // The quota-below-*active-customers* rule (FR-4) cannot be reached from the browser yet: there is
-  // no Customer model until US-01, so `emptyCustomerCounter` reports 0 and no valid quota (>= 1) can
-  // ever fall below it. The rule itself is covered by `src/application/settings/settings.test.ts`;
-  // the specs above prove the surrounding path — a rejected quota is explained in German and nothing
-  // is written. Enable this once US-01 lands and a real counter is wired into `deps.ts`.
+  // The quota-below-*active-customers* rule (FR-4) still cannot be reached from the browser: a real
+  // `PrismaCustomerCounter` is wired into `deps.ts` as of US-01.5, but nothing can put a customer
+  // into the register until the registration form lands (US-01.6), so the count is always 0 and no
+  // valid quota (>= 1) can fall below it. The rule itself is covered by
+  // `src/application/settings/settings.test.ts`; the specs above prove the surrounding path — a
+  // rejected quota is explained in German and nothing is written. Enable this once a customer can be
+  // registered from the browser.
   test.skip("a quota below the active customer count is refused", async ({ page }) => {
     await page.goto("/einstellungen");
   });

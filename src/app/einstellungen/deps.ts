@@ -1,6 +1,6 @@
 import type { AuditLog, Clock, CustomerCounter, SettingsRepository } from "@/application/ports";
-import { emptyCustomerCounter } from "@/infrastructure/customer-counter";
 import { systemClock } from "@/infrastructure/clock";
+import { PrismaCustomerCounter } from "@/infrastructure/prisma/customer-repository";
 import { PrismaAuditLog } from "@/infrastructure/prisma/audit-log";
 import { prisma } from "@/infrastructure/prisma/client";
 import { PrismaSettingsRepository } from "@/infrastructure/prisma/settings-repository";
@@ -19,6 +19,6 @@ export const settingsDeps: {
 } = {
   settings: new PrismaSettingsRepository(prisma),
   clock: systemClock,
-  customers: emptyCustomerCounter,
+  customers: new PrismaCustomerCounter(prisma),
   audit: new PrismaAuditLog(prisma),
 };

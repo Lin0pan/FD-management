@@ -56,6 +56,15 @@ the full story-by-story history.)
 - **Faker is a devDependency** as of US-004 (`@faker-js/faker`). Call `faker.seed(…)` once at the top
   of a spec so a failure is reproducible, and keep fixed dates literal — only names and addresses
   come from Faker.
+- Prisma cannot express a **partial/filtered unique index**. Where one is needed, hand-write the
+  `CREATE UNIQUE INDEX … WHERE …` at the end of the migration SQL and say so in a `schema.prisma`
+  comment — regenerating the migration silently drops it. Pre-release the whole history is
+  regenerated (`rm -rf prisma/migrations` + `prisma migrate dev --name init --create-only`), which is
+  exactly when that happens. `migrate dev` is interactive: delete `data/fd.db` first or it stops.
+- A **nested Prisma `create`** (customer + members + certificate + card in one `data`) is already one
+  transaction — no `$transaction` wrapper needed for "all or nothing".
+- Translate a Prisma `P2002` into the matching typed domain error in the adapter, checking the
+  constraint target so a *different* future constraint surfaces as itself rather than as a lie.
 - A record that the domain owns is built by a `createX(input, today)` factory in `src/domain/…`; the
   use case above it never validates fields itself. Where a rule already derives something
   (`composition`), call it for its **rejections** and discard the result rather than adding a second
@@ -192,4 +201,46 @@ the full story-by-story history.)
     replace `src/infrastructure/customer-counter.ts` with a real Prisma count.
   - US-006 has a fifth rejection to render in German beyond the four the PRD lists:
     `CustomerNumberTaken` after the retries, which reads as "please try again".
+---
+
+## [2026-07-22 19:36] - US-005 (Customer schema and PrismaCustomerRepository)
+- Added `Customer`, `HouseholdMember`, `Certificate` and `Card` to `prisma/schema.prisma`.
+  `Customer.id` is the surrogate autoincrement key and every FK targets it, never `customerNumber`.
+  No `grownUps` / `children` column exists — a test reads the raw table and asserts that.
+  `Certificate` is one-per-customer (`customerId @unique`); `Card` is unique on `(customerId, index)`.
+- Regenerated the migration history as a single `init` (pre-release, per CLAUDE.md), then hand-wrote
+  the partial unique index at the end of `migration.sql`:
+  `CREATE UNIQUE INDEX … ON "Customer"("customerNumber") WHERE "status" <> 'ARCHIVED'`.
+  The predicate is `<> 'ARCHIVED'` rather than `= 'ACTIVE'` because a BLOCKED household still holds
+  its slot — reusing its number would hand two households the same card. Documented in the schema
+  header, the migration and `docs/technical_documentation.md`.
+- Implemented `src/infrastructure/prisma/customer-repository.ts`: `PrismaCustomerRepository`
+  (`takenActiveNumbers`, `groupCounts`, `create`) and `PrismaCustomerCounter`, sharing one
+  `ON_REGISTER` where-clause. `create` is a single nested Prisma create; a `P2002` naming
+  `customerNumber` becomes the domain's `CustomerNumberTaken`, anything else is rethrown.
+- Replaced the `emptyCustomerCounter` placeholder (file deleted) with `PrismaCustomerCounter` in
+  `src/app/einstellungen/deps.ts`, and updated the skipped e2e comment that referred to it.
+- 14 integration tests against a throwaway SQLite file, including the two required by the PRD: two
+  archived customers both holding number 50, and a blocked one keeping its slot.
+- Files changed: `prisma/schema.prisma`, `prisma/migrations/20260722173231_init/migration.sql` (the
+  old `20260722150441_init` is gone), `src/infrastructure/prisma/customer-repository.ts` (new),
+  `src/infrastructure/prisma/customer-repository.test.ts` (new),
+  `src/infrastructure/customer-counter.ts` (deleted), `src/app/einstellungen/deps.ts`,
+  `tests/e2e/settings.spec.ts`, `docs/technical_documentation.md`, `scripts/ralph/prd.json`.
+- All gates green: lint, typecheck, coverage (domain + application 100% on all four metrics, 194
+  tests), build, and `npm run test:e2e` (4 passed, 1 still skipped).
+- **Learnings for future iterations:**
+  - `prisma migrate dev` refuses to run non-interactively when the dev database is ahead of the
+    migrations folder. Delete `data/fd.db` first (the `db:reset` one-liner does it), then
+    `--create-only`, hand-edit the SQL, then `prisma migrate deploy` + `npm run db:seed`.
+  - Prisma quotes identifiers, so a field literally named `group` is fine in SQLite despite `GROUP`
+    being a keyword. No `@map` needed.
+  - The next `prisma migrate dev` will report the hand-written index as drift, because it is not in
+    `schema.prisma`. That is expected — keep the statement when regenerating.
+  - `create` takes a `NewCustomer` and returns `{ ...customer, id }`: nothing is read back, so no
+    `parseGroup` / `parseCustomerStatus` exists yet. The first story that *reads* a customer (US-006's
+    card view) needs them, and per the US-003 learning `parseGroup` must be its own function, not
+    `parseWeekColour`.
+  - The `quotaN`-below-active-customers e2e test is still skipped: the counter is real now, but
+    nothing can put a customer into the register until the form lands (US-006). Enable it then.
 ---

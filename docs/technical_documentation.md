@@ -58,7 +58,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 ├── data/                             # SQLite db lives here at runtime (git-ignored; .gitkeep tracked)
 ├── docs/                             # all project documentation (this file included)
 ├── prisma/
-│   ├── schema.prisma                 # datasource + models (SettingsVersion, AuditEntry)
+│   ├── schema.prisma                 # datasource + models (SettingsVersion, AuditEntry,
+│   │                                 #   Customer, HouseholdMember, Certificate, Card)
 │   ├── seed.ts                       # `npm run db:seed` entry point
 │   └── migrations/                   # committed migration history
 ├── src/
@@ -94,10 +95,10 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   └── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (implements Clock port)
-│   │   ├── customer-counter.ts       # counts active customers — zero until US-01 adds the model
 │   │   └── prisma/                   # Prisma client + repository implementations
 │   │       ├── client.ts             # the process-wide PrismaClient
 │   │       ├── settings-repository.ts  # PrismaSettingsRepository (implements the port)
+│   │       ├── customer-repository.ts  # PrismaCustomerRepository + PrismaCustomerCounter
 │   │       ├── audit-log.ts          # PrismaAuditLog — append-only, no actor column
 │   │       ├── seed.ts               # provisional settings version, inserted only if none exists
 │   │       └── *.test.ts             # integration specs, throwaway SQLite file
@@ -334,13 +335,30 @@ There is no update and no delete: an entry that could be rewritten would be wort
 list is stored comma-separated because SQLite has no array column and the list is only ever read
 back for display.
 
-### `src/infrastructure/customer-counter.ts`
+### `src/infrastructure/prisma/customer-repository.ts`
 
-Implements the `CustomerCounter` port. There is no `Customer` model yet — registration is US-01, and
-US-14 is built first because registration needs the quota — so the count is genuinely zero and the
-`quotaN` check never fires. **When US-01 lands, replace this with a Prisma adapter**; the port, the
-rule in `updateSettings` and its tests already cover the behaviour, so only this file and
-`src/app/einstellungen/deps.ts` change.
+`PrismaCustomerRepository` (the `CustomerRepository` port) and `PrismaCustomerCounter` (the
+`CustomerCounter` port), together because they answer the same question — who still holds a customer
+number — and stating that condition twice is how a number gets handed out twice. Both count
+`status <> 'ARCHIVED'`: `ACTIVE` and `BLOCKED` occupy a slot, only archiving releases one.
+
+`create` writes the customer, the household members, the certificate and the first card as **one
+nested Prisma create**, which Prisma runs in a single transaction — a failure leaves neither a
+half-built household nor a consumed number. A `P2002` naming `customerNumber` is translated into the
+domain's `CustomerNumberTaken`, which is what lets `registerCustomer` retry with a fresh read; any
+other failure is rethrown as itself.
+
+The **partial unique index** the adapter relies on is not in `schema.prisma` — Prisma has no syntax
+for one — but hand-written at the end of the `init` migration:
+
+```sql
+CREATE UNIQUE INDEX "Customer_customerNumber_onRegister_key"
+    ON "Customer"("customerNumber") WHERE "status" <> 'ARCHIVED';
+```
+
+It is the final authority on a free number: the application reads the taken numbers and then writes,
+and only the database can settle the race in between. **Regenerating the migration drops it** — re-add
+it, or the slot rule is enforced by application code alone.
 
 ### `src/app/einstellungen/` — the settings screen
 
@@ -383,12 +401,23 @@ type. All user-facing text lives here; **code identifiers stay English**. `layou
 
 - `prisma/schema.prisma` declares a `sqlite` datasource whose URL comes from `env("DATABASE_URL")`
   and a `prisma-client-js` generator (client generated to the default `node_modules/@prisma/client`).
-- The only model today is `SettingsVersion` — the append-only policy values (the placeholder
-  `SchemaMarker` is gone). Its `recordedAt` is the indexed, machine-stamped instant the values took
-  over — deliberately not unique, because two saves in the same millisecond are a concurrency
-  accident, not a business error. It carries `pricePerGrownUpCents` / `pricePerChildCents` rather than a per-household
-  price table: what a household owes is derived, never stored. Customer, HouseholdMember, Card and
-  DistributionRecord follow with the stories that need them.
+- `SettingsVersion` holds the append-only policy values. Its `recordedAt` is the indexed,
+  machine-stamped instant the values took over — deliberately not unique, because two saves in the
+  same millisecond are a concurrency accident, not a business error. It carries
+  `pricePerGrownUpCents` / `pricePerChildCents` rather than a per-household price table: what a
+  household owes is derived, never stored.
+- `Customer`, `HouseholdMember`, `Certificate` and `Card` are the register (US-01).
+  `Customer.id` is a surrogate autoincrement key and **the only identity there is**; every foreign
+  key targets it and never `customerNumber`, which is a reusable _slot_. There is deliberately **no
+  `grownUps` and no `children` column** — both are derived from the household's birthdates, and
+  stored they would drift with every birthday, which is exactly what the Excel sheet did.
+  `Card` is unique on `(customerId, index)`; the card number staff read out is derived from the
+  customer number and the index, never stored. `DistributionRecord` follows with the stories that
+  need it.
+- **The slot rule is a partial unique index**, hand-written at the end of the `init` migration
+  because Prisma cannot express one: at most one non-archived customer may hold a given
+  `customerNumber`, so any number of archived rows may share one. See
+  `src/infrastructure/prisma/customer-repository.ts` above — regenerating the migration drops it.
 - **All money columns are `Int` cents.** `Float` and `Decimal` appear nowhere in the schema.
 - SQLite has no enum type, so the week colour is a `String` narrowed back to `WeekColour` by
   `parseWeekColour` on read — a hand-edited database cannot widen the cycle.
