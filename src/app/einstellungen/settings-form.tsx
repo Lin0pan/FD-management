@@ -3,37 +3,21 @@
 /**
  * The settings form.
  *
- * A client component only because the price table gains and loses rows as staff edit it; everything
- * else is a plain HTML form posting to the `saveSettings` server action. It holds no rules — the
- * values it shows come from the server, and every constraint on them is checked in the domain.
+ * A client component because `useActionState` reports the outcome of the `saveSettings` server
+ * action back into the page; otherwise it is a plain HTML form. It holds no rules — the values it
+ * shows come from the server, and every constraint on them is checked in the domain.
  */
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { formatEuroAmount } from "@/domain/money";
+import type { Cents } from "@/domain/money";
 import type { Settings } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { saveSettings } from "./actions";
 import { initialSaveSettingsState } from "./save-settings-state";
 
-/** One price-table row while it is being edited: text, because that is what a form field holds. */
-interface PriceRowDraft {
-  readonly key: number;
-  readonly grownUps: string;
-  readonly children: string;
-  readonly euros: string;
-}
-
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 const COLOURS = ["RED", "BLUE"] as const;
-
-function toDrafts(settings: Settings): PriceRowDraft[] {
-  return settings.priceTable.map((row, index) => ({
-    key: index,
-    grownUps: String(row.grownUps),
-    children: String(row.children),
-    euros: formatEuroAmount(row.cents),
-  }));
-}
 
 const fieldClass =
   "w-full rounded border border-foreground/20 bg-transparent px-2 py-1 tabular-nums";
@@ -63,6 +47,31 @@ function NumberField({
   );
 }
 
+/** A euro amount, shown as `2,50` and parsed back into whole cents by the server action. */
+function EuroField({
+  name,
+  label,
+  cents,
+}: {
+  name: string;
+  label: string;
+  cents: Cents;
+}): React.ReactElement {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-sm text-foreground/70">{label}</span>
+      <input
+        className={fieldClass}
+        type="text"
+        inputMode="decimal"
+        name={name}
+        id={name}
+        defaultValue={formatEuroAmount(cents)}
+      />
+    </label>
+  );
+}
+
 export function SettingsForm({
   settings,
   today,
@@ -71,21 +80,6 @@ export function SettingsForm({
   today: string;
 }): React.ReactElement {
   const [state, formAction, pending] = useActionState(saveSettings, initialSaveSettingsState);
-  const [rows, setRows] = useState<PriceRowDraft[]>(() => toDrafts(settings));
-  const [nextKey, setNextKey] = useState(() => settings.priceTable.length);
-
-  function addRow(): void {
-    setRows([...rows, { key: nextKey, grownUps: "1", children: "0", euros: "0,00" }]);
-    setNextKey(nextKey + 1);
-  }
-
-  function removeRow(key: number): void {
-    setRows(rows.filter((row) => row.key !== key));
-  }
-
-  function updateRow(key: number, patch: Partial<Omit<PriceRowDraft, "key">>): void {
-    setRows(rows.map((row) => (row.key === key ? { ...row, ...patch } : row)));
-  }
 
   return (
     <form action={formAction} className="flex flex-col gap-8">
@@ -158,82 +152,19 @@ export function SettingsForm({
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-xl font-semibold">{de.settings.priceTable.heading}</h2>
-        <p className="max-w-prose text-sm text-foreground/70">{de.settings.priceTable.hint}</p>
-        <table className="w-full max-w-xl text-left">
-          <thead>
-            <tr className="text-sm text-foreground/70">
-              <th scope="col" className="py-1">
-                {de.settings.priceTable.grownUps}
-              </th>
-              <th scope="col" className="py-1">
-                {de.settings.priceTable.children}
-              </th>
-              <th scope="col" className="py-1">
-                {de.settings.priceTable.price}
-              </th>
-              <th scope="col" className="py-1">
-                <span className="sr-only">{de.settings.priceTable.removeRow}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.key} data-testid="price-row">
-                <td className="py-1 pr-2">
-                  <input
-                    className={fieldClass}
-                    type="number"
-                    min={0}
-                    name="priceGrownUps"
-                    aria-label={de.settings.priceTable.grownUps}
-                    value={row.grownUps}
-                    onChange={(event) => updateRow(row.key, { grownUps: event.target.value })}
-                  />
-                </td>
-                <td className="py-1 pr-2">
-                  <input
-                    className={fieldClass}
-                    type="number"
-                    min={0}
-                    name="priceChildren"
-                    aria-label={de.settings.priceTable.children}
-                    value={row.children}
-                    onChange={(event) => updateRow(row.key, { children: event.target.value })}
-                  />
-                </td>
-                <td className="py-1 pr-2">
-                  <input
-                    className={fieldClass}
-                    type="text"
-                    inputMode="decimal"
-                    name="priceEuros"
-                    aria-label={`${de.settings.priceTable.price} ${row.grownUps}/${row.children}`}
-                    value={row.euros}
-                    onChange={(event) => updateRow(row.key, { euros: event.target.value })}
-                  />
-                </td>
-                <td className="py-1">
-                  <button
-                    type="button"
-                    className="rounded border border-foreground/20 px-2 py-1 text-sm"
-                    onClick={() => removeRow(row.key)}
-                  >
-                    {de.settings.priceTable.removeRow}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <div>
-          <button
-            type="button"
-            className="rounded border border-foreground/20 px-3 py-1 text-sm"
-            onClick={addRow}
-          >
-            {de.settings.priceTable.addRow}
-          </button>
+        <h2 className="text-xl font-semibold">{de.settings.prices.heading}</h2>
+        <p className="max-w-prose text-sm text-foreground/70">{de.settings.prices.hint}</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <EuroField
+            name="pricePerGrownUp"
+            label={de.settings.fields.pricePerGrownUp}
+            cents={settings.pricePerGrownUp}
+          />
+          <EuroField
+            name="pricePerChild"
+            label={de.settings.fields.pricePerChild}
+            cents={settings.pricePerChild}
+          />
         </div>
       </section>
 

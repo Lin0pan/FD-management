@@ -11,25 +11,6 @@ import { createSettings, type SettingsVersion } from "@/domain/policy/settings";
  */
 const SEED_EFFECTIVE_FROM = new Date("2026-01-01T00:00:00.000Z");
 
-/** The largest household the seed table prices; beyond it staff add a row on the settings screen. */
-const SEED_MAX_GROWN_UPS = 6;
-const SEED_MAX_CHILDREN = 6;
-
-/**
- * The seed price table: 200 cents per grown-up plus 100 cents per child, enumerated as explicit
- * rows. The formula generates the seed only — `priceFor` matches a row exactly and never
- * interpolates, and FD's real table need not be linear.
- */
-function seedPriceTable(): ReadonlyArray<{ grownUps: number; children: number; cents: number }> {
-  const rows = [];
-  for (let grownUps = 1; grownUps <= SEED_MAX_GROWN_UPS; grownUps += 1) {
-    for (let children = 0; children <= SEED_MAX_CHILDREN; children += 1) {
-      rows.push({ grownUps, children, cents: grownUps * 200 + children * 100 });
-    }
-  }
-  return rows;
-}
-
 /** The single version a fresh install is seeded with. */
 export function provisionalSettingsVersion(): SettingsVersion {
   return {
@@ -41,7 +22,8 @@ export function provisionalSettingsVersion(): SettingsVersion {
       reminderThreshold: 3,
       weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
       distributionWeekday: 4,
-      priceTable: seedPriceTable(),
+      pricePerGrownUp: 200,
+      pricePerChild: 100,
     }),
   };
 }

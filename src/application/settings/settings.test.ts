@@ -62,7 +62,8 @@ function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
     reminderThreshold: 3,
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday: 4,
-    priceTable: [{ grownUps: 1, children: 0, cents: 200 }],
+    pricePerGrownUp: 200,
+    pricePerChild: 100,
     ...overrides,
   };
 }
@@ -289,8 +290,8 @@ describe("updateSettings", () => {
 
     await updateSettings(deps(), updateInput());
 
-    expect(audit.entries[0].changedFields).toContain("priceTable");
-    expect(audit.entries[0].changedFields).toHaveLength(7);
+    expect(audit.entries[0].changedFields).toContain("pricePerGrownUp");
+    expect(audit.entries[0].changedFields).toHaveLength(8);
   });
 });
 

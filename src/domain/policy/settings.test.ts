@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { InvalidSettings, NoPriceForHousehold, NoSettingsInForce } from "../errors";
+import { InvalidSettings, NoSettingsInForce } from "../errors";
 import {
   changedSettingsFields,
   createSettings,
@@ -19,10 +19,8 @@ function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
     reminderThreshold: 3,
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday: 4,
-    priceTable: [
-      { grownUps: 1, children: 0, cents: 200 },
-      { grownUps: 2, children: 1, cents: 500 },
-    ],
+    pricePerGrownUp: 200,
+    pricePerChild: 100,
     ...overrides,
   };
 }
@@ -43,7 +41,8 @@ describe("createSettings", () => {
     expect(settings.reminderThreshold).toBe(3);
     expect(settings.weekAnchor).toEqual({ isoWeek: "2026-W02", colour: "RED" });
     expect(settings.distributionWeekday).toBe(4);
-    expect(settings.priceTable).toHaveLength(2);
+    expect(settings.pricePerGrownUp).toBe(200);
+    expect(settings.pricePerChild).toBe(100);
   });
 
   it("accepts a quota of exactly one", () => {
@@ -114,49 +113,27 @@ describe("createSettings", () => {
     ).toThrow(InvalidSettings);
   });
 
-  it("rejects an empty price table", () => {
-    expect(() => createSettings(settingsInput({ priceTable: [] }))).toThrow(InvalidSettings);
-  });
-
-  it("rejects a fractional price", () => {
-    expect(() =>
-      createSettings(settingsInput({ priceTable: [{ grownUps: 1, children: 0, cents: 200.5 }] })),
-    ).toThrow(InvalidSettings);
-  });
-
-  it("rejects a negative price", () => {
-    expect(() =>
-      createSettings(settingsInput({ priceTable: [{ grownUps: 1, children: 0, cents: -1 }] })),
-    ).toThrow(InvalidSettings);
-  });
-
-  it("accepts a free household", () => {
-    const settings = createSettings(
-      settingsInput({ priceTable: [{ grownUps: 1, children: 0, cents: 0 }] }),
+  it("rejects a fractional price per grown-up", () => {
+    expect(() => createSettings(settingsInput({ pricePerGrownUp: 200.5 }))).toThrow(
+      InvalidSettings,
     );
-    expect(priceFor(settings, 1, 0)).toBe(0);
   });
 
-  it("rejects a negative household size in the price table", () => {
-    expect(() =>
-      createSettings(settingsInput({ priceTable: [{ grownUps: -1, children: 0, cents: 200 }] })),
-    ).toThrow(InvalidSettings);
-    expect(() =>
-      createSettings(settingsInput({ priceTable: [{ grownUps: 1, children: -1, cents: 200 }] })),
-    ).toThrow(InvalidSettings);
+  it("rejects a fractional price per child", () => {
+    expect(() => createSettings(settingsInput({ pricePerChild: 100.5 }))).toThrow(InvalidSettings);
   });
 
-  it("rejects two price rows for the same household size", () => {
-    expect(() =>
-      createSettings(
-        settingsInput({
-          priceTable: [
-            { grownUps: 1, children: 0, cents: 200 },
-            { grownUps: 1, children: 0, cents: 300 },
-          ],
-        }),
-      ),
-    ).toThrow(InvalidSettings);
+  it("rejects a negative price per grown-up", () => {
+    expect(() => createSettings(settingsInput({ pricePerGrownUp: -1 }))).toThrow(InvalidSettings);
+  });
+
+  it("rejects a negative price per child", () => {
+    expect(() => createSettings(settingsInput({ pricePerChild: -1 }))).toThrow(InvalidSettings);
+  });
+
+  it("accepts free food — a price per head of zero", () => {
+    const settings = createSettings(settingsInput({ pricePerGrownUp: 0, pricePerChild: 0 }));
+    expect(priceFor(settings, 2, 3)).toBe(0);
   });
 
   it("names the offending field in the error", () => {
@@ -203,16 +180,20 @@ describe("resolveSettingsAt", () => {
 describe("priceFor", () => {
   const settings = createSettings(settingsInput());
 
-  it("returns the cents of the exactly matching row", () => {
+  it("charges each grown-up the grown-up price and each child the child price", () => {
     expect(priceFor(settings, 2, 1)).toBe(500);
   });
 
-  it("throws for a household with no row instead of interpolating", () => {
-    expect(() => priceFor(settings, 3, 0)).toThrow(NoPriceForHousehold);
+  it("charges a single-person household exactly one grown-up price", () => {
+    expect(priceFor(settings, 1, 0)).toBe(200);
   });
 
-  it("names both counts in the error", () => {
-    expect(() => priceFor(settings, 3, 2)).toThrow(/3.*2/);
+  it("prices any household size — there is no unpriced composition", () => {
+    expect(priceFor(settings, 9, 7)).toBe(2500);
+  });
+
+  it("charges nothing for a household of nobody", () => {
+    expect(priceFor(settings, 0, 0)).toBe(0);
   });
 });
 
@@ -231,7 +212,8 @@ describe("changedSettingsFields", () => {
       "reminderThreshold",
       "weekAnchor",
       "distributionWeekday",
-      "priceTable",
+      "pricePerGrownUp",
+      "pricePerChild",
     ]);
   });
 
@@ -241,6 +223,8 @@ describe("changedSettingsFields", () => {
     ["portionsPerChild", { portionsPerChild: 2 }],
     ["reminderThreshold", { reminderThreshold: 4 }],
     ["distributionWeekday", { distributionWeekday: 5 }],
+    ["pricePerGrownUp", { pricePerGrownUp: 250 }],
+    ["pricePerChild", { pricePerChild: 125 }],
   ])("reports %s when only that value differs", (field, overrides) => {
     const next = createSettings(settingsInput(overrides));
     expect(changedSettingsFields(previous, next)).toEqual([field]);
@@ -260,53 +244,9 @@ describe("changedSettingsFields", () => {
     expect(changedSettingsFields(previous, next)).toEqual(["weekAnchor"]);
   });
 
-  it("reports priceTable when a price changes", () => {
-    const next = createSettings(
-      settingsInput({
-        priceTable: [
-          { grownUps: 1, children: 0, cents: 250 },
-          { grownUps: 2, children: 1, cents: 500 },
-        ],
-      }),
-    );
-    expect(changedSettingsFields(previous, next)).toEqual(["priceTable"]);
-  });
-
-  it("reports priceTable when a household row is added", () => {
-    const next = createSettings(
-      settingsInput({
-        priceTable: [
-          { grownUps: 1, children: 0, cents: 200 },
-          { grownUps: 2, children: 1, cents: 500 },
-          { grownUps: 3, children: 0, cents: 700 },
-        ],
-      }),
-    );
-    expect(changedSettingsFields(previous, next)).toEqual(["priceTable"]);
-  });
-
-  it("reports priceTable when a household row is replaced by another of the same size", () => {
-    const next = createSettings(
-      settingsInput({
-        priceTable: [
-          { grownUps: 1, children: 0, cents: 200 },
-          { grownUps: 2, children: 2, cents: 500 },
-        ],
-      }),
-    );
-    expect(changedSettingsFields(previous, next)).toEqual(["priceTable"]);
-  });
-
-  it("ignores the order of price rows", () => {
-    const next = createSettings(
-      settingsInput({
-        priceTable: [
-          { grownUps: 2, children: 1, cents: 500 },
-          { grownUps: 1, children: 0, cents: 200 },
-        ],
-      }),
-    );
-    expect(changedSettingsFields(previous, next)).toEqual([]);
+  it("reports both price fields when a price rise touches each head", () => {
+    const next = createSettings(settingsInput({ pricePerGrownUp: 250, pricePerChild: 125 }));
+    expect(changedSettingsFields(previous, next)).toEqual(["pricePerGrownUp", "pricePerChild"]);
   });
 
   it("lists several fields in declaration order when more than one changed", () => {

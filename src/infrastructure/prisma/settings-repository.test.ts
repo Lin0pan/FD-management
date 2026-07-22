@@ -51,16 +51,14 @@ function version(effectiveFrom: string, quotaN = 240): SettingsVersion {
       reminderThreshold: 3,
       weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
       distributionWeekday: 4,
-      priceTable: [
-        { grownUps: 1, children: 0, cents: 200 },
-        { grownUps: 2, children: 3, cents: 700 },
-      ],
+      pricePerGrownUp: 200,
+      pricePerChild: 100,
     }),
   };
 }
 
 describe("PrismaSettingsRepository", () => {
-  it("returns a stored version unchanged, price table included", async () => {
+  it("returns a stored version unchanged, prices included", async () => {
     await repository.append(version("2026-01-01T00:00:00.000Z"));
 
     const [stored, ...rest] = await repository.listVersions();
@@ -75,10 +73,9 @@ describe("PrismaSettingsRepository", () => {
   it("stores prices as whole cents, never a float", async () => {
     await repository.append(version("2026-01-01T00:00:00.000Z"));
 
-    const rows = await prisma.priceTableRow.findMany();
-    for (const row of rows) {
-      expect(Number.isInteger(row.cents)).toBe(true);
-    }
+    const [row] = await prisma.settingsVersion.findMany();
+    expect(Number.isInteger(row.pricePerGrownUpCents)).toBe(true);
+    expect(Number.isInteger(row.pricePerChildCents)).toBe(true);
   });
 
   it("keeps every appended version rather than replacing the previous one", async () => {
@@ -95,29 +92,6 @@ describe("PrismaSettingsRepository", () => {
     await expect(repository.append(version("2026-01-01T00:00:00.000Z", 200))).rejects.toThrow();
   });
 
-  it("refuses two price rows for the same household in one version", async () => {
-    await expect(
-      prisma.settingsVersion.create({
-        data: {
-          effectiveFrom: new Date("2026-02-01T00:00:00.000Z"),
-          quotaN: 240,
-          portionsPerGrownUp: 2,
-          portionsPerChild: 1,
-          reminderThreshold: 3,
-          weekAnchorIsoWeek: "2026-W02",
-          weekAnchorColour: "RED",
-          distributionWeekday: 4,
-          priceTable: {
-            create: [
-              { grownUps: 1, children: 0, cents: 200 },
-              { grownUps: 1, children: 0, cents: 300 },
-            ],
-          },
-        },
-      }),
-    ).rejects.toThrow();
-  });
-
   it("rejects a stored week colour that is not part of the cycle", async () => {
     await prisma.settingsVersion.create({
       data: {
@@ -129,7 +103,8 @@ describe("PrismaSettingsRepository", () => {
         weekAnchorIsoWeek: "2026-W02",
         weekAnchorColour: "GREEN",
         distributionWeekday: 4,
-        priceTable: { create: [{ grownUps: 1, children: 0, cents: 200 }] },
+        pricePerGrownUpCents: 200,
+        pricePerChildCents: 100,
       },
     });
 

@@ -31,6 +31,8 @@ export const de = {
       weekAnchorIsoWeek: "Ankerwoche (ISO, z. B. 2026-W02)",
       weekAnchorColour: "Gruppe der Ankerwoche",
       distributionWeekday: "Ausgabetag",
+      pricePerGrownUp: "Preis je Erwachsenem",
+      pricePerChild: "Preis je Kind",
     },
     colours: {
       RED: "Rot",
@@ -45,16 +47,11 @@ export const de = {
       6: "Samstag",
       7: "Sonntag",
     },
-    priceTable: {
-      heading: "Preistabelle",
+    prices: {
+      heading: "Preise",
       hint:
-        "Für jede Haushaltsgröße genau eine Zeile. Fehlt eine Zeile, meldet die Ausgabe „kein " +
-        "Preis hinterlegt“ – es wird nichts geschätzt.",
-      grownUps: "Erwachsene",
-      children: "Kinder",
-      price: "Preis in Euro",
-      addRow: "Zeile hinzufügen",
-      removeRow: "Zeile entfernen",
+        "Der Preis wird je Kopf berechnet: je Erwachsenem und je Kind. Was ein Haushalt zahlt, " +
+        "ergibt sich daraus automatisch.",
     },
     /**
      * German names for the fields a domain error can name. The keys are the `field` values
@@ -68,10 +65,8 @@ export const de = {
       distributionWeekday: "Ausgabetag",
       "weekAnchor.isoWeek": "Ankerwoche (ISO, z. B. 2026-W02)",
       "weekAnchor.colour": "Gruppe der Ankerwoche",
-      priceTable: "Preistabelle",
-      "priceTable.grownUps": "Erwachsene in der Preistabelle",
-      "priceTable.children": "Kinder in der Preistabelle",
-      "priceTable.cents": "Preis in der Preistabelle",
+      pricePerGrownUp: "Preis je Erwachsenem",
+      pricePerChild: "Preis je Kind",
     } as Record<string, string | undefined>,
     effectiveFrom: "Gültig ab",
     effectiveFromHint: "Voreingestellt ist der heutige Tag.",
@@ -91,7 +86,6 @@ export const de = {
       notAnInteger: "Bitte eine ganze Zahl ab 0 eingeben.",
       notAnAmount: "Bitte einen Betrag wie 2,50 eingeben.",
       notADate: "Bitte ein Datum auswählen.",
-      priceTableEmpty: "Die Preistabelle braucht mindestens eine Zeile.",
       missingReason: "Bitte einen Grund für die Änderung angeben.",
       noSettings:
         "Es sind noch keine Einstellungen hinterlegt. Bitte die Grundeinstellungen einspielen.",

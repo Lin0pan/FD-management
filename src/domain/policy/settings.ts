@@ -2,7 +2,7 @@
  * The policy values FD can change without a deploy, and the rule that decides which of them apply
  * on a given day.
  *
- * Every number in FD's process — the quota, the portions per head, the price table, the reminder
+ * Every number in FD's process — the quota, the portions per head, the price per head, the reminder
  * threshold, the week-cycle anchor — is configuration, not a constant (tasks/prd-us-14-configure-
  * business-rules.md). Versions are immutable and dated: a distribution record stores only a `paid`
  * flag, so the only way to answer "what did that customer owe last March" is to resolve the version
@@ -12,7 +12,7 @@
  * versions that the application layer has already loaded.
  */
 
-import { InvalidSettings, NoPriceForHousehold, NoSettingsInForce } from "../errors";
+import { InvalidSettings, NoSettingsInForce } from "../errors";
 import type { Cents } from "../money";
 
 /** The two-week distribution cycle alternates between these two groups. */
@@ -50,13 +50,6 @@ export interface WeekAnchor {
   readonly colour: WeekColour;
 }
 
-/** The price of one distribution for a household of exactly this composition. */
-export interface PriceTableRow {
-  readonly grownUps: number;
-  readonly children: number;
-  readonly cents: Cents;
-}
-
 /** The complete set of policy values in force at one point in time. */
 export interface Settings {
   readonly quotaN: number;
@@ -65,7 +58,9 @@ export interface Settings {
   readonly reminderThreshold: number;
   readonly weekAnchor: WeekAnchor;
   readonly distributionWeekday: IsoWeekday;
-  readonly priceTable: ReadonlyArray<PriceTableRow>;
+  /** What one grown-up and one child each cost at a distribution. The total is derived. */
+  readonly pricePerGrownUp: Cents;
+  readonly pricePerChild: Cents;
 }
 
 /** The unvalidated shape `createSettings` accepts — the weekday is narrowed during validation. */
@@ -95,27 +90,6 @@ function isIsoWeekday(value: number): value is IsoWeekday {
   return Number.isInteger(value) && value >= 1 && value <= 7;
 }
 
-function validatePriceTable(rows: ReadonlyArray<PriceTableRow>): void {
-  if (rows.length === 0) {
-    throw new InvalidSettings("priceTable", "must contain at least one row");
-  }
-  const seen = new Set<string>();
-  for (const row of rows) {
-    requireInteger("priceTable.grownUps", row.grownUps, 0);
-    requireInteger("priceTable.children", row.children, 0);
-    requireInteger("priceTable.cents", row.cents, 0);
-    const key = householdKey(row.grownUps, row.children);
-    if (seen.has(key)) {
-      throw new InvalidSettings("priceTable", `has two rows for the household ${key}`);
-    }
-    seen.add(key);
-  }
-}
-
-function householdKey(grownUps: number, children: number): string {
-  return `${grownUps}/${children}`;
-}
-
 /**
  * Validate a set of policy values and return it as `Settings`.
  *
@@ -126,6 +100,8 @@ export function createSettings(input: SettingsInput): Settings {
   requireInteger("portionsPerGrownUp", input.portionsPerGrownUp, 0);
   requireInteger("portionsPerChild", input.portionsPerChild, 0);
   requireInteger("reminderThreshold", input.reminderThreshold, 1);
+  requireInteger("pricePerGrownUp", input.pricePerGrownUp, 0);
+  requireInteger("pricePerChild", input.pricePerChild, 0);
   if (!isIsoWeekday(input.distributionWeekday)) {
     throw new InvalidSettings(
       "distributionWeekday",
@@ -138,7 +114,6 @@ export function createSettings(input: SettingsInput): Settings {
       `must be an ISO week such as 2026-W02, received ${input.weekAnchor.isoWeek}`,
     );
   }
-  validatePriceTable(input.priceTable);
 
   return {
     quotaN: input.quotaN,
@@ -147,7 +122,8 @@ export function createSettings(input: SettingsInput): Settings {
     reminderThreshold: input.reminderThreshold,
     weekAnchor: { isoWeek: input.weekAnchor.isoWeek, colour: input.weekAnchor.colour },
     distributionWeekday: input.distributionWeekday,
-    priceTable: input.priceTable.map((row) => ({ ...row })),
+    pricePerGrownUp: input.pricePerGrownUp,
+    pricePerChild: input.pricePerChild,
   };
 }
 
@@ -182,7 +158,8 @@ const SETTINGS_FIELDS = [
   "reminderThreshold",
   "weekAnchor",
   "distributionWeekday",
-  "priceTable",
+  "pricePerGrownUp",
+  "pricePerChild",
 ] as const;
 
 /** The name of one editable policy field, as it appears in an audit entry. */
@@ -192,22 +169,11 @@ function sameWeekAnchor(a: WeekAnchor, b: WeekAnchor): boolean {
   return a.isoWeek === b.isoWeek && a.colour === b.colour;
 }
 
-/** Price rows are a set keyed by household, so their order carries no meaning. */
-function samePriceTable(a: ReadonlyArray<PriceTableRow>, b: ReadonlyArray<PriceTableRow>): boolean {
-  if (a.length !== b.length) return false;
-  const before = new Map(a.map((row) => [householdKey(row.grownUps, row.children), row.cents]));
-  return b.every((row) => before.get(householdKey(row.grownUps, row.children)) === row.cents);
-}
-
 function isUnchanged(field: SettingsField, previous: Settings, next: Settings): boolean {
-  switch (field) {
-    case "weekAnchor":
-      return sameWeekAnchor(previous.weekAnchor, next.weekAnchor);
-    case "priceTable":
-      return samePriceTable(previous.priceTable, next.priceTable);
-    default:
-      return previous[field] === next[field];
+  if (field === "weekAnchor") {
+    return sameWeekAnchor(previous.weekAnchor, next.weekAnchor);
   }
+  return previous[field] === next[field];
 }
 
 /**
@@ -223,17 +189,13 @@ export function changedSettingsFields(
 }
 
 /**
- * The price for a household of exactly this composition.
+ * What a household pays for one distribution: one grown-up price per grown-up plus one child price
+ * per child.
  *
- * @throws {NoPriceForHousehold} if there is no matching row. Prices are never interpolated: an
- * unpriced household size is a settings gap for staff to fix, not a number to invent.
+ * FD charges per head, so the total is derived rather than stored or looked up — every household
+ * size is priceable and there is no table to keep in step with reality. Both factors are whole
+ * cents, so the sum is too.
  */
 export function priceFor(settings: Settings, grownUps: number, children: number): Cents {
-  const row = settings.priceTable.find(
-    (candidate) => candidate.grownUps === grownUps && candidate.children === children,
-  );
-  if (row === undefined) {
-    throw new NoPriceForHousehold(grownUps, children);
-  }
-  return row.cents;
+  return grownUps * settings.pricePerGrownUp + children * settings.pricePerChild;
 }
