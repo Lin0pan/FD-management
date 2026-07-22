@@ -123,7 +123,7 @@ the counter screen.
 
 ## 6. Technical Considerations
 
-- `priceCents` is stored on the record **in addition to** effective-from settings. That is deliberate
+- `priceCents` is stored on the record **in addition to** the settings history. That is deliberate
   redundancy: settings resolve the price historically, but storing it makes a record self-describing
   and any future reporting a single-table read. Document the redundancy so it is not "cleaned up".
 - The day-key column is what lets SQLite enforce the one-record-per-day rule; a naive `DateTime`

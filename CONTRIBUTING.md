@@ -55,7 +55,7 @@ logic _down_ — logic in `app/` is a smell.
   interfaces **emerge** from test needs.
 - `infrastructure/` — test-after, thin integration tests vs. a throwaway SQLite file.
 - `app/` — test-after or cover via Playwright E2E.
-- Time-dependent rules (13th birthday, certificate expiry, week alternation, price effective-from)
+- Time-dependent rules (13th birthday, certificate expiry, week alternation, stamping a settings change)
   read "now" through an injectable **clock** so tests are deterministic — never call `new Date()` in
   domain code.
 - **Test data is synthetic only** (Faker) — never real customer or certificate data in fixtures.
@@ -91,8 +91,9 @@ CodeQL, Dependabot, and GitHub secret scanning run alongside.
   (`fd/domain-boundary` / `fd/application-boundary` in `eslint.config.mjs`, proved by
   `src/architecture.test.ts`), so a violation fails `npm run lint` and CI rather than waiting for a
   reviewer to notice. The same configs ban wall-clock reads outside `src/infrastructure`.
-- **Business rules are configurable data, not constants.** Portions, the price table, the reminder
-  threshold, and the quota `N` live in the database with an _effective-from_ date — never hard-coded.
+- **Business rules are configurable data, not constants.** Portions, the prices per head and the
+  quota `N` live in the database, editable in the UI — never hard-coded. A change applies
+  immediately; superseded versions are kept as history.
 - **Money is integer cents, never floats.** See `src/domain/money.ts`.
 
 ## Making a change

@@ -66,7 +66,7 @@ e2e-tests            →  needs: build; playwright vs. built app + fresh sqlite
 
 Key habits:
 
-- Write a fake, settable **clock** first — nearly every domain rule (13th birthday, certificate expiry, week alternation, price effective-from) depends on it
+- Write a fake, settable **clock** first — nearly every domain rule (13th birthday, certificate expiry, week alternation, stamping a settings change) depends on it
 - TDD the **invariant-breaking case first** (duplicate customer number, two active cards, out-of-order week) before the happy path
 - Let `ports.ts` interfaces **emerge** from application-layer test needs, not be pre-designed
 - Coverage near 100% on domain/application is a _consequence_ of TDD, not a goal to chase elsewhere
