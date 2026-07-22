@@ -25,7 +25,7 @@ Portion allowance flexes with food supply and special occasions (Christmas); the
 threshold is explicitly overridable; group placement is a judgement call; a temporary block is a
 free-text staff decision with no rule behind it.
 
-The price table is the exception — it is fixed per grown-up/children count and does not flex with
+The price is the exception — a fixed rate per grown-up and per child that does not flex with
 occasion or supply. It is still configuration (the amounts are unknown and will change over the
 years), just not a per-distribution decision.
 
@@ -136,8 +136,8 @@ tests/e2e/           # Playwright
 - **Testability** — the interesting logic (card numbering, week alternation, reminder escalation,
   number reuse) is pure functions, tested in milliseconds with no DB, no browser, no mocks.
 - **Change tolerance** — the domain analysis is an MVP starting point, not a finished spec, and
-  still carries three open questions. The concrete policy values (price table, portions per head,
-  quota `N`) are simply unknown today; when they arrive, they are config rows, not code. Later
+  still carries three open questions. The concrete policy values (prices per head, portions per
+  head, quota `N`) are simply unknown today; when they arrive, they are config rows, not code. Later
   additions — reporting, retention rules, block history — land in `domain/policy/` and the
   repositories rather than scattered across UI code.
 - **Framework insurance** — replacing Next.js touches only `src/app/`.
@@ -148,14 +148,14 @@ tests/e2e/           # Playwright
 
 ### 5.1 Policies as data
 
-Portions per adult, portions per child, the price table, the reminder threshold and the customer
-quota `N` live in a `settings` table with an _effective-from_ date and are editable in the UI. This
+Portions per adult, portions per child, the price per adult and per child, the reminder threshold
+and the customer quota `N` live in a `settings` table with an _effective-from_ date and are editable in the UI. This
 directly serves the "adjustable for Christmas" and "staff may extend the threshold" requirements
 without a code deploy.
 
-Effective-from dating matters most for the **price table**: a distribution record stores only a
+Effective-from dating matters most for the **prices**: a distribution record stores only a
 `paid` flag, never an amount, so the only way to answer "what did that customer owe last March" is
-to look up the table version in force on that date. Portion values want the same treatment for the
+to look up the settings version in force on that date. Portion values want the same treatment for the
 same reason. The reminder threshold and quota `N` are read at decision time and could get by with
 plain current values — uniform treatment is simply cheaper than two mechanisms.
 

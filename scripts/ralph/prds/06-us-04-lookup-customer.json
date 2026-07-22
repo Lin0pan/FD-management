@@ -98,7 +98,7 @@
         "The counter screen, the card view and the customer detail page all show portions and price",
         "Money renders as German-formatted euro (e.g. 2,50 €) via formatEuros from src/domain/money.ts",
         "Each screen states these are the standard values; there is no control to adjust them",
-        "A missing price row renders an explicit German error naming both counts and pointing at /einstellungen, while the rest of the customer data still renders",
+        "Money renders as German-formatted euro via formatEuros, derived from the counts and the settings in force",
         "All user-facing strings come from src/i18n/de.ts",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
@@ -113,7 +113,7 @@
       "description": "As a developer, I need a Playwright spec proving the allowance is derived, not stored. Source: tasks/prd-us-07-portions-and-price.md §US-07.5",
       "acceptanceCriteria": [
         "Spec asserts a customer with 2 grown-ups and 1 child shows the seeded portions and price",
-        "Spec asserts a household size with no price row shows the specific German error",
+        "Spec asserts adding a household member changes the portions and the price on reload",
         "npm run test:e2e passes",
         "Typecheck passes"
       ],

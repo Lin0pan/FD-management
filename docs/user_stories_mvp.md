@@ -163,7 +163,8 @@ install (US-14).
 **Acceptance Criteria**
 
 1. One action records: the customer, today's date, that they showed up, and that they paid.
-2. The record shows the price that applied — read from the price table for their current counts.
+2. The record shows the price that applied — derived from the per-head prices and their current
+   counts.
 3. No amount and no separate payment date are stored; payment is a flag. Paid is the normal case and
    is pre-set, but the staff member can clear it. `[added]` — the analysis says the employee tracks
    "paid" without saying whether not-paying is possible; a flag that cannot be cleared would be
@@ -213,8 +214,9 @@ documented rather than remembered.
 
 1. The portion allowance is computed from the derived grown-up/children counts and the configured
    portions-per-grown-up / portions-per-child values.
-2. The price is read from the **fixed price table** keyed by the grown-up/children counts. It never
-   flexes with supply or occasion.
+2. The price is **derived per head**: the configured price per grown-up times the grown-up count
+   plus the configured price per child times the children count. It never flexes with supply or
+   occasion.
 3. The allowance shown is always the **standard** one derived from the configured portion values.
    Day-to-day adjustments for supply or special occasions do happen, but they are made physically at
    the counter and are **out of scope for the software** — the system neither captures nor records
@@ -389,14 +391,14 @@ cards that made outdated
 ### US-14 — Configure the Business Rules
 
 **As a** staff member
-**I want to** edit the quota, price table, portion values and reminder threshold in the application
+**I want to** edit the quota, prices per head, portion values and reminder threshold in the
+application
 **So that** FD can adapt to changed prices or supply without calling a developer.
 
 **Acceptance Criteria**
 
-1. Editable: customer quota `N`; portions per grown-up and per child; the price table by
-   grown-up/children count; the reminder threshold (default 3); the week-cycle anchor and
-   distribution weekday.
+1. Editable: customer quota `N`; portions per grown-up and per child; the price per grown-up and per
+   child; the reminder threshold (default 3); the week-cycle anchor and distribution weekday.
 2. Changes are stored with an **effective-from date** so past distribution records can still be
    interpreted with the values that applied at the time.
 3. Lowering `N` below the number of active customers is refused with a clear explanation. `[added]` —

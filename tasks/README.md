@@ -46,18 +46,19 @@ implementation and tests, the PRDs assume the following seeds. They are configur
 (US-14), so replacing them is a data edit, not a code change. **All are provisional and must be
 confirmed with FD before go-live.**
 
-| Value                 | Provisional seed                             |
-| --------------------- | -------------------------------------------- |
-| Customer quota `N`    | 240                                          |
-| Portions per grown-up | 2                                            |
-| Portions per child    | 1                                            |
-| Reminder threshold    | 3                                            |
-| Price table           | 200 cents per grown-up + 100 cents per child |
-| Week-cycle anchor     | ISO week `2026-W02` = **Red**                |
-| Distribution weekday  | Thursday                                     |
+| Value                 | Provisional seed              |
+| --------------------- | ----------------------------- |
+| Customer quota `N`    | 240                           |
+| Portions per grown-up | 2                             |
+| Portions per child    | 1                             |
+| Reminder threshold    | 3                             |
+| Price per grown-up    | 200 cents                     |
+| Price per child       | 100 cents                     |
+| Week-cycle anchor     | ISO week `2026-W02` = **Red** |
+| Distribution weekday  | Thursday                      |
 
-The price table is stored as **explicit rows keyed by (grown-ups, children)**, not as a formula —
-the formula above only generates the seed data. FD's real table need not be linear.
+The price is charged **per head**: what a household owes is `grown-ups × price per grown-up +
+children × price per child`, derived wherever it is shown and never stored.
 
 ## Index
 

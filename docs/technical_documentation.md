@@ -58,7 +58,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 ├── data/                             # SQLite db lives here at runtime (git-ignored; .gitkeep tracked)
 ├── docs/                             # all project documentation (this file included)
 ├── prisma/
-│   ├── schema.prisma                 # datasource + models (SettingsVersion, PriceTableRow, AuditEntry)
+│   ├── schema.prisma                 # datasource + models (SettingsVersion, AuditEntry)
 │   ├── seed.ts                       # `npm run db:seed` entry point
 │   └── migrations/                   # committed migration history
 ├── src/
@@ -67,7 +67,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── page.tsx                  # home page (reads strings from i18n dictionary)
 │   │   ├── einstellungen/            # the settings screen (US-14)
 │   │   │   ├── page.tsx              # server component: current values + version history
-│   │   │   ├── settings-form.tsx     # client component: the form + editable price grid
+│   │   │   ├── settings-form.tsx     # client component: the form and its save-result state
 │   │   │   ├── actions.ts            # "use server": Zod → euros-to-cents → updateSettings
 │   │   │   ├── save-settings-state.ts  # the form state (not exportable from actions.ts)
 │   │   │   └── deps.ts               # composition root: the real adapters for this screen
@@ -194,15 +194,15 @@ settable fake clock can drive deterministic tests.
 
 The `DomainErrorCode` union — the closed set of failure modes — plus an abstract `DomainError` base
 class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
-`NoPriceForHousehold`, `QuotaBelowActiveCustomers`, `RetroactiveSettingsVersion`,
-`MissingAuditReason` today). Each carries the values that made it fail, so the UI can render a
+`QuotaBelowActiveCustomers`, `RetroactiveSettingsVersion`, `MissingAuditReason` today). Each carries the values that made it fail, so the UI can render a
 German message naming concrete numbers without re-deriving them, and callers switch on `code`
 instead of parsing strings.
 
 ### `src/domain/policy/settings.ts`
 
 The policy values FD can change without a deploy — quota `N`, portions per grown-up and per child,
-the reminder threshold, the price table, the week-cycle anchor and the distribution weekday — and
+the reminder threshold, the price per grown-up and per child, the week-cycle anchor and the
+distribution weekday — and
 the rule that decides which of them apply on a given day. Versions are **immutable and dated**:
 `resolveSettingsAt(versions, date)` returns the version with the greatest `effectiveFrom` that is
 not after `date`, and throws `NoSettingsInForce` rather than returning a partial object. This
@@ -210,16 +210,15 @@ matters because a distribution record stores only a `paid` flag (US-05), so the 
 "what did that customer owe last March" is to resolve the version in force then.
 
 `createSettings(input)` validates every invariant on construction (quota ≥ 1, portions ≥ 0,
-threshold ≥ 1, ISO weekday 1–7, an `YYYY-Www` anchor, non-negative integer cents, no duplicate
-household row) and throws `InvalidSettings` naming the field. `priceFor(settings, grownUps,
-children)` returns the exactly matching row's cents or throws `NoPriceForHousehold` — it never
-interpolates, because an unpriced household size is a settings gap for staff to fix, not a number
-to invent. The module is pure: no I/O, no wall clock, and it works over an already-loaded array so
+threshold ≥ 1, ISO weekday 1–7, an `YYYY-Www` anchor, non-negative integer cents) and throws
+`InvalidSettings` naming the field. `priceFor(settings, grownUps, children)` derives what a
+household owes — `grownUps × pricePerGrownUp + children × pricePerChild` — because FD charges per
+head. Every household size is therefore priceable and no table has to be kept in step with the
+sizes that actually turn up. The module is pure: no I/O, no wall clock, and it works over an already-loaded array so
 the counter screen (US-04) resolves settings without a per-field query.
 
 `changedSettingsFields(previous, next)` names the policy fields that differ between two versions —
-what the audit entry records as _what changed_. Price rows are compared as a set keyed by
-household, so reordering the table is not a change; with no previous version (the seed) every field
+what the audit entry records as _what changed_. With no previous version (the seed) every field
 counts as new.
 
 ### `src/infrastructure/prisma/audit-log.ts`
@@ -250,8 +249,8 @@ The first real screen, and the reference for how a route is wired:
   history (`listSettingsVersions`) and renders them; it is `dynamic = "force-dynamic"` because
   settings change through the form. A `NoSettingsInForce` error renders the German "not seeded yet"
   message rather than a stack trace.
-- **`settings-form.tsx`** is a client component **only** because the price grid gains and loses rows
-  as staff edit it. It holds no rules.
+- **`settings-form.tsx`** is a client component **only** because `useActionState` reports the save
+  result back into the page. It holds no rules.
 - **`actions.ts`** is the `"use server"` adapter: Zod gives the submitted strings a shape,
   `parseEuros` turns euro text (`2,50`) into whole cents **before it leaves the adapter**, and a
   typed domain error is translated into a German sentence. Each error carries the values that made
@@ -280,10 +279,10 @@ type. All user-facing text lives here; **code identifiers stay English**. `layou
 
 - `prisma/schema.prisma` declares a `sqlite` datasource whose URL comes from `env("DATABASE_URL")`
   and a `prisma-client-js` generator (client generated to the default `node_modules/@prisma/client`).
-- The models today are `SettingsVersion` and its `PriceTableRow` children — the dated, append-only
-  policy values (the placeholder `SchemaMarker` is gone). `SettingsVersion.effectiveFrom` is unique,
-  so "the settings in force on a date" can never tie; `(settingsVersionId, grownUps, children)` is
-  unique, so a household cannot have two prices in one version. Customer, HouseholdMember, Card and
+- The only model today is `SettingsVersion` — the dated, append-only policy values (the placeholder
+  `SchemaMarker` is gone). Its `effectiveFrom` is unique, so "the settings in force on a date" can
+  never tie, and it carries `pricePerGrownUpCents` / `pricePerChildCents` rather than a per-household
+  price table: what a household owes is derived, never stored. Customer, HouseholdMember, Card and
   DistributionRecord follow with the stories that need them.
 - **All money columns are `Int` cents.** `Float` and `Decimal` appear nowhere in the schema.
 - SQLite has no enum type, so the week colour is a `String` narrowed back to `WeekColour` by
@@ -450,7 +449,7 @@ npm run lint && npm run typecheck && npm run test:coverage && npm run build
   comments, and filenames are English and greppable.
 - **Money is integer cents**, never floats. Format via `src/domain/money.ts`.
 - **Time comes from the `Clock` port**, never `new Date()` in domain/application code.
-- **Policy values are data, not constants** — portions, price table, reminder threshold, quota `N`
+- **Policy values are data, not constants** — portions, prices per head, reminder threshold, quota `N`
   will live in the DB with an _effective-from_ date, editable in the UI.
 - **No actor in state records** — there is no login, so audit records never say _who_.
 - **Push logic down** — anything non-trivial in `src/app` belongs in a use case or the domain.
@@ -495,7 +494,7 @@ colour). See `user_stories_mvp.md` §5.
   **WeekColor** alternation, **HouseholdComposition** (13th-birthday split against a fake clock,
   incl. the day-before / day-of / day-after and 29 Feb edge cases).
 - Real Prisma models & repositories; the `better-sqlite3` driver adapter.
-- Policy/price-table schema with effective-from dating.
+- Policy schema with effective-from dating.
 - shadcn/ui component setup; the counter, registration, and list screens.
 - The concrete append-only audit log behind the `AuditLog` port (`infrastructure/audit.ts`), and the
   `SettingsRepository` / `CustomerCounter` Prisma adapters.

@@ -11,7 +11,7 @@ because distribution history is never overwritten, it is also the raw material f
 (US-10) and for any later reporting.
 
 Payment is a **flag**, not an amount: no money is stored on the record. The amount owed is implied by
-the price table in force on that date, which is exactly why US-14 dates its settings versions.
+the prices in force on that date, which is exactly why US-14 dates its settings versions.
 
 ## 2. Goals
 
@@ -101,7 +101,7 @@ the counter screen.
 ## 4. Functional Requirements
 
 - FR-1: One action must record the customer, today's date, that they showed up, and that they paid.
-- FR-2: The record must store the price that applied, read from the price table for the customer's
+- FR-2: The record must store the price that applied, derived from the per-head prices for the customer's
   current derived counts.
 - FR-3: No amount tendered and no separate payment date is stored; payment is a boolean flag.
 - FR-4: The paid flag must be pre-set to true and must be clearable by the staff member.

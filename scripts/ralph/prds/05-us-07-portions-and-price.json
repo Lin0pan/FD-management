@@ -21,12 +21,12 @@
     },
     {
       "id": "US-002",
-      "title": "PricePolicy — exact price-table lookup in cents",
-      "description": "As a staff member, I want the price read from the fixed table, so it never flexes with supply or occasion. Source: tasks/prd-us-07-portions-and-price.md §US-07.2",
+      "title": "PricePolicy — the per-head price derivation in cents",
+      "description": "As a staff member, I want the price derived from the price per grown-up and per child, so it never flexes with supply or occasion. Source: tasks/prd-us-07-portions-and-price.md §US-07.2",
       "acceptanceCriteria": [
-        "src/domain/policy/price.ts exports priceFor({grownUps, children}, priceTable) returning integer cents",
+        "priceFor(settings, grownUps, children) in src/domain/policy/settings.ts returns grownUps * pricePerGrownUp + children * pricePerChild as integer cents",
         "Looks up an exact (grownUps, children) row — it never interpolates, extrapolates or falls back to a nearest row",
-        "Returns a typed NoPriceForHousehold error carrying both counts when no row matches",
+        "Every household size is priceable — an empty household costs 0 and there is no unpriced-household failure mode",
         "Tests cover: exact match, no match, a valid zero-cent row",
         "The module returns cents only; formatting goes through src/domain/money.ts",
         "Tests pass",
@@ -42,7 +42,7 @@
       "description": "As a developer, I need one application helper that resolves settings, derives counts and returns the allowance, so the counter and record screens share it. Source: tasks/prd-us-07-portions-and-price.md §US-07.3",
       "acceptanceCriteria": [
         "The helper returns {grownUps, children, portions, priceCents} for a household at a given date",
-        "A household with no matching price row surfaces NoPriceForHousehold rather than a partial result",
+        "The price it returns is derived from the settings in force, never from a stored column",
         "Test proves a household evaluated on a date where an older settings version was in force is priced with that older version",
         "Tested against hand-written fakes and a fake clock",
         "Tests pass",
