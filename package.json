@@ -23,6 +23,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "node -e \"for (const s of ['','-journal','-wal','-shm']) require('fs').rmSync('data/fd.db'+s,{force:true})\" && prisma migrate deploy && npm run db:seed",
     "prepare": "husky"
   },
   "dependencies": {

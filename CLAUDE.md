@@ -80,6 +80,23 @@ deliberately and say why in the commit; do not add an inline disable.
 - Time-dependent rules deserve named boundary tests against a fake clock: the day before, the day of
   and the day after, plus 29 February.
 
+## Database migrations
+
+**Migration history is disposable until FD holds real data.** Pre-release, a schema change that
+contradicts an earlier migration _replaces_ it: delete `prisma/migrations/`, regenerate with
+`npx prisma migrate dev --name init`, then `npm run db:reset`. Do not stack a corrective migration
+onto a schema no one has ever run — the history would describe a system that never existed, and the
+next reader would take it for a decision FD once made.
+
+**The moment FD enters their first real customer, this reverses.** Migrations become append-only:
+never edited, never deleted, because from then on they run against data that cannot be regenerated.
+That record — not a version tag or a deploy — is the boundary. A build FD clicks around in with
+seeded data is still pre-release.
+
+`npm run db:reset` deletes `data/fd.db`, re-applies the migrations and re-seeds. Reach for it after
+any history rewrite: the schema and the database drift apart silently, and the first symptom is the
+settings screen reporting that nothing is configured.
+
 ## Git
 
 - **Small commits, one intent each.** A commit either refactors or changes behaviour — never both.
