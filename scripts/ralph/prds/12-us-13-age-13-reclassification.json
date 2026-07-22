@@ -1,0 +1,93 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-13-age-13-reclassification",
+  "description": "US-13 Reclassify Children Automatically at Age 13 — Counts, portions and price follow a 13th birthday with no staff action; affected customers appear on a cards-due-for-reissue list. A stale card is never grounds to turn anyone away.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Boundary-exhaustive tests for the 13th-birthday split",
+      "description": "As a developer, I need the 13th-birthday boundary pinned down by tests, because every downstream number depends on it. Source: tasks/prd-us-13-age-13-reclassification.md §US-13.1",
+      "acceptanceCriteria": [
+        "Extends the existing householdComposition tests — no new production rule is added",
+        "Test: born exactly 13 years ago today counts as a grown-up",
+        "Test: born 13 years ago tomorrow counts as a child",
+        "Test: born 13 years ago yesterday counts as a grown-up",
+        "Test: a 29 February birthdate in a non-leap year becomes a grown-up on 1 March, with the convention documented",
+        "Test: a 29 February birthdate in a leap year becomes a grown-up on 29 February",
+        "Test: evaluated at 23:59 and 00:01 Europe/Berlin around the birthday, the answer flips exactly once, at local midnight",
+        "Every test drives an explicit today parameter",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Card count snapshot fields",
+      "description": "As a developer, I need the counts printed on a card recorded at issue time, so the app can tell which physical cards have gone stale. Source: tasks/prd-us-13-age-13-reclassification.md §US-13.3",
+      "acceptanceCriteria": [
+        "Card.grownUpsAtIssue Int and Card.childrenAtIssue Int added, written by issueCard from the composition derived at issue time",
+        "A schema.prisma comment states these are a snapshot of the printed card, not household truth, so a future maintainer does not remove the duplication",
+        "Integration test seeds a card issued with 1/1 counts and a member who has since turned 13, and asserts the difference is detectable",
+        "Migration committed under prisma/migrations/",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "listCardsDueForReissue query",
+      "description": "As a staff member, I want a list of customers whose card shows counts that no longer match their household. Source: tasks/prd-us-13-age-13-reclassification.md §US-13.2",
+      "acceptanceCriteria": [
+        "listCardsDueForReissue(deps) returns active customers whose current card's recorded counts differ from the counts derived today",
+        "Each result carries customer number, name, card number, counts on the card, counts today, and a reason of AGE_13 when a birthday explains the difference or HOUSEHOLD_CHANGE otherwise",
+        "Archived and blocked customers are excluded, and the exclusion is documented",
+        "Test with a fake clock proves a household where a child turns 13 between two clock values appears on the list with no write having occurred in between",
+        "Tested against hand-written fakes and a fake clock",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Cards-due-for-reissue screen",
+      "description": "As a staff member, I want to see which cards need reissuing, without being nagged — a stale card is never grounds to turn anyone away. Source: tasks/prd-us-13-age-13-reclassification.md §US-13.4",
+      "acceptanceCriteria": [
+        "Route /karten-neuausstellung lists affected customers with both count sets side by side and the reason",
+        "The page states in German that this is not urgent and that a stale card is never grounds to turn anyone away",
+        "Each row has a 'Karte neu ausstellen' action using reason STALE_COUNTS; on success the row disappears",
+        "The counter screen shows a low-key note for a stale card that does not look like a warning or a verdict and never suppresses the serve action",
+        "A count badge for the list is shown on the home screen",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "E2E: a birthday changes the numbers with no user action",
+      "description": "As a developer, I need a Playwright spec proving the age-13 reclassification is automatic. Source: tasks/prd-us-13-age-13-reclassification.md §US-13.5",
+      "acceptanceCriteria": [
+        "Spec with a controllable clock asserts a customer with a 12-year-old member shows counts 1/1 with a given portion allowance and price",
+        "Spec advances the clock past the member's 13th birthday, reloads, and asserts counts are 2/0 with updated portions and price — with no user action in between",
+        "Spec asserts the customer now appears on the cards-due list, is still servable at the counter, and disappears from the list after a reissue",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

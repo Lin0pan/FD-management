@@ -1,0 +1,76 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-09-reissue-card-after-loss",
+  "description": "US-09 Reissue a Card After Loss — Replacement cards reuse the customer number with the next index; the old card stops working. No limit on reissues, but the count is visible so staff can judge.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "reissueCard use case for a lost card",
+      "description": "As a staff member, I want to issue a replacement card in one action, so a customer who lost theirs can collect today. Source: tasks/prd-us-09-reissue-card-after-loss.md §US-09.1",
+      "acceptanceCriteria": [
+        "reissueCard(deps, {customerId, reason: 'LOST'}) delegates to issueCard — there is one card-issuing code path, not two",
+        "The new index is the previous maximum + 1 and every earlier card becomes invalid as a consequence",
+        "Test asserts status, customer number, group, reminder count and distribution history are unchanged",
+        "No limit check exists — the tenth reissue succeeds exactly like the second",
+        "Rejects only for an archived customer",
+        "Writes an audit entry with reason LOST",
+        "Tested against hand-written fakes, including two reissues in a row",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Reissue counts on the customer read model",
+      "description": "As a staff member, I want to see how many cards a customer has been issued, so I can judge whether they are losing them unusually often. Source: tasks/prd-us-09-reissue-card-after-loss.md §US-09.2",
+      "acceptanceCriteria": [
+        "The customer read model exposes cardsIssued (the current index) and reissuesForLoss (count of cards with reason LOST)",
+        "The two are reported separately so a stale-counts reissue is not counted against the customer as a loss",
+        "The repository query is a single aggregate, not a load-all-and-count in application code",
+        "Integration test seeds a mixed history (FIRST_ISSUE, LOST, STALE_COUNTS, LOST) and asserts cardsIssued = 4 and reissuesForLoss = 2",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Card reissue UI",
+      "description": "As a staff member, I want to reissue a card from the card view or the customer record, with the count visible. Source: tasks/prd-us-09-reissue-card-after-loss.md §US-09.3",
+      "acceptanceCriteria": [
+        "'Karte neu ausstellen (Verlust)' action on the card view and the customer detail page",
+        "A confirmation step states the old number and the number that will be issued, before writing",
+        "After reissue the card view shows the new number and states that all earlier numbers are invalid",
+        "The card view shows the reissue count with loss-caused reissues called out separately",
+        "The system never warns, blocks or nags about a high count — it only displays it",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "E2E: old card refused, new card works",
+      "description": "As a developer, I need a Playwright spec proving reissue invalidates the old card without penalising the customer. Source: tasks/prd-us-09-reissue-card-after-loss.md §US-09.4",
+      "acceptanceCriteria": [
+        "Spec reissues a card for a customer holding Nk1 and asserts the new number is Nk2",
+        "Looking up Nk1 asserts the German invalid-card verdict naming Nk2, and that no distribution record, block or archive resulted",
+        "Looking up Nk2 asserts clear to serve",
+        "Spec reissues twice more and asserts the displayed reissue count reaches 3",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

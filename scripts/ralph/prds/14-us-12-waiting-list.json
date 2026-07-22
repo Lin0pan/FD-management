@@ -1,0 +1,97 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-12-waiting-list",
+  "description": "US-12 Manage the Waiting List — Strict first-come-first-served waiting list with a valid certificate required to join. When a slot frees up the longest-waiting applicant is named and offered for registration.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Waiting-list ordering rule",
+      "description": "As a developer, I need first-come-first-served as a pure function, so the ordering is a property rather than a query detail. Source: tasks/prd-us-12-waiting-list.md §US-12.1",
+      "acceptanceCriteria": [
+        "src/domain/customer/waitingList.ts exports nextInLine(entries, today) returning the entry with the earliest addedOn",
+        "Same-day ties break deterministically by insertion id, documented and never random",
+        "nextInLine returns the earliest entry regardless of certificate validity, and reports certificateExpired so the caller can flag it — the rule is never silently skipped",
+        "An empty list returns a typed WaitingListEmpty result, not undefined",
+        "Tests cover: single entry, ordering across dates, same-day tie, expired-certificate entry at the head",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Waiting-list use cases",
+      "description": "As a staff member, I want to add, list, remove and promote waiting applicants, so applicants are treated in a fair, defensible order. Source: tasks/prd-us-12-waiting-list.md §US-12.2",
+      "acceptanceCriteria": [
+        "addToWaitingList(deps, input) records name, date of birth, address, a free-text contact note, certificate type and validity, and addedOn from deps.clock.now()",
+        "It rejects an applicant whose certificate is already expired with a typed CertificateExpired error",
+        "listWaiting(deps) returns entries in strict arrival order, each flagged with whether its certificate has since expired",
+        "removeFromWaitingList(deps, {entryId, reason}) requires a reason and writes an audit entry",
+        "promoteFromWaitingList(deps, {entryId}) returns a registration draft plus the certificate-expired flag; it does not itself register anyone",
+        "Promotion rejects with NoFreeCustomerNumber when no slot is free",
+        "Test proves a failing registration leaves the entry in place — the entry is removed only after registration succeeds",
+        "Tested against hand-written fakes and a fake clock",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "WaitingListEntry schema",
+      "description": "As a developer, I need waiting-list entries persisted with removals retained, so the order of past promotions stays reconstructable. Source: tasks/prd-us-12-waiting-list.md §US-12.3",
+      "acceptanceCriteria": [
+        "Prisma model WaitingListEntry: id, firstName, lastName, birthDate, address fields, contactNote String?, certificateType, certificateValidUntil, addedOn, removedOn DateTime?, removalReason String?",
+        "Removed entries are retained with a removedOn timestamp rather than deleted",
+        "Index on addedOn; the active-list query filters removedOn IS NULL",
+        "Entries do not reference or occupy a Customer row",
+        "Integration test asserts arrival ordering survives a same-day tie",
+        "Migration committed under prisma/migrations/",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Waiting-list screen at /warteliste",
+      "description": "As a staff member, I want to manage the waiting list and be told when a slot frees up. Source: tasks/prd-us-12-waiting-list.md §US-12.4",
+      "acceptanceCriteria": [
+        "Route /warteliste lists entries in arrival order with position, name, date added, days waiting, and a German badge when the certificate expired while waiting",
+        "The list has no sort or reorder controls — the order is the rule",
+        "The add form validates with Zod and refuses an already-expired certificate with a specific German message",
+        "When at least one customer number is free, a prominent banner names the longest-waiting applicant and offers 'Jetzt registrieren', opening the pre-filled registration form",
+        "An expired-certificate applicant at the head shows a warning before the registration form opens",
+        "'Entfernen' requires a reason and confirms before removing",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "E2E: full quota, waitlist, promotion",
+      "description": "As a developer, I need a Playwright spec proving the quota-to-waitlist-to-promotion chain. Source: tasks/prd-us-12-waiting-list.md §US-12.5",
+      "acceptanceCriteria": [
+        "Spec sets the quota to 2 via the settings screen, fills both slots, attempts a third registration and asserts the user is directed to the waiting list",
+        "Spec adds two applicants, archives one customer, and asserts the banner names the first applicant added",
+        "Spec promotes them and asserts they receive the freed number and are removed from the list",
+        "Spec asserts the second applicant is now at the head",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

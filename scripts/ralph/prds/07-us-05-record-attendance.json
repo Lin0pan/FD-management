@@ -1,0 +1,94 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-05-record-attendance",
+  "description": "US-05 Record Attendance and Payment — One action records customer, date, showed-up and paid, with the price that applied. One record per customer per day, enforced by the database; records survive indefinitely.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Attendance rules — duplicate prevention and same-day correction",
+      "description": "As a developer, I need the attendance rules as pure functions, so duplicate prevention and same-day correction are testable without a database. Source: tasks/prd-us-05-record-attendance.md §US-05.1",
+      "acceptanceCriteria": [
+        "src/domain/distribution/attendance.ts exports canRecord(existingRecordsForCustomer, today) returning OK or a typed AlreadyServedToday error carrying the existing record's date",
+        "canCorrect(record, today) returns true only when record.date is the same calendar day as today",
+        "Day comparison is calendar-day based in Europe/Berlin and documented in a comment",
+        "Tests cover a midnight boundary and a DST change",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "recordAttendance and correctAttendance use cases",
+      "description": "As a staff member, I want one action that records the hand-out, so the queue keeps moving. Source: tasks/prd-us-05-record-attendance.md §US-05.2",
+      "acceptanceCriteria": [
+        "recordAttendance(deps, {customerId, paid}) writes one record with the customer's surrogate id, deps.clock.now(), showedUp true, the paid flag and priceCents resolved from the settings in force on that date",
+        "paid defaults to true and can be passed as false",
+        "A second invocation for the same customer on the same day rejects with AlreadyServedToday and writes nothing",
+        "The use case re-evaluates the counter verdict before writing and refuses ARCHIVED, BLOCKED and WRONG_GROUP — the UI is not the only guard",
+        "correctAttendance(deps, {recordId, ...}) amends or deletes a record made today; an older record rejects with a typed RecordNoLongerCorrectable error",
+        "Both write audit entries with no actor field",
+        "Tested against hand-written fakes and a fake clock, including the same-day duplicate and next-day correction cases",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "DistributionRecord schema with the one-per-day constraint",
+      "description": "As a developer, I need distribution records that survive indefinitely and cannot be duplicated per day. Source: tasks/prd-us-05-record-attendance.md §US-05.3",
+      "acceptanceCriteria": [
+        "Prisma model DistributionRecord: id, customerId (FK to Customer.id), date, showedUp, paid, priceCents Int",
+        "A normalised date-only day-key column carries a unique constraint on (customerId, dayKey) so the database prevents a double record",
+        "Indexes on date and on (customerId, date)",
+        "No delete cascade from customer archiving — records outlive status changes",
+        "Integration test proves the duplicate constraint fires",
+        "A schema comment records that priceCents is deliberate redundancy alongside effective-from settings, so it is not 'cleaned up' later",
+        "Migration committed under prisma/migrations/",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Serve action on the counter screen",
+      "description": "As a staff member, I want to confirm the hand-out with one keystroke without leaving the counter screen. Source: tasks/prd-us-05-record-attendance.md §US-05.4",
+      "acceptanceCriteria": [
+        "A German 'Ausgabe erfassen' button appears on /ausgabe only when the verdict permits serving",
+        "A 'paid' checkbox is pre-checked and can be cleared before confirming",
+        "The button is keyboard-reachable and confirms with Enter; on success a short confirmation shows and the lookup input re-focuses",
+        "A second attempt shows 'Heute bereits versorgt' with the existing record's time",
+        "A correct-today's-entry control allows changing the paid flag or removing the record, with a confirmation step before removal",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "E2E: distribution-day happy path",
+      "description": "As a developer, I need a Playwright spec covering the core distribution-day flow. Source: tasks/prd-us-05-record-attendance.md §US-05.5",
+      "acceptanceCriteria": [
+        "Spec with a fixed clock on a Red distribution day looks up a Red customer, records attendance with paid, and asserts the confirmation and today's record",
+        "Spec attempts a second recording and asserts the German already-served message and that only one record exists",
+        "Spec clears the paid flag for a second customer and asserts the record stores paid = false",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
