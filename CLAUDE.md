@@ -54,8 +54,8 @@ deliberately and say why in the commit; do not add an inline disable.
 - **Derive, don't store** anything computable — grown-up/children counts, portion allowance, card
   validity. Two sources of truth is the Excel failure we are replacing.
 - **Money is integer cents**, never a float. Format via `src/domain/money.ts`.
-- **Policy values are data, not constants** — price table, portions, reminder threshold and the quota
-  `N` live in settings with an `effectiveFrom` date.
+- **Policy values are data, not constants** — the prices per head, portions and the quota `N` live in
+  settings with an `effectiveFrom` date.
 - Throw **typed domain errors** from `errors.ts`; no bare `throw new Error("…")`.
 - **Identifiers English, UI strings German**, and only in `src/i18n/de.ts` — no German literals in
   components.
@@ -116,7 +116,8 @@ settings screen reporting that nothing is configured.
 - ❌ Don't hard-delete customer data — archive (status change) and keep it queryable.
 - ❌ Don't skip the audit entry on a state change (archive, block, group move, card reissue, policy
   edit). With no login, the log is the only accountability the system has — and it records _what,
-  when and why_, never _who_.
+  when and why_, never _who_. The _why_ is required where it is the record (archive, block) and
+  optional where the changed fields already say it (a policy edit).
 - ❌ Don't add a dependency to avoid ~50 lines of code, and don't reach for a heavier pattern
   (events, CQRS, aggregates) than the problem needs.
 - ❌ Don't bump the Next.js major casually — it is pinned on purpose.

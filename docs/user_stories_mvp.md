@@ -184,7 +184,7 @@ install (US-14).
 
 **As a** staff member
 **I want to** see whether the needs certificate is still valid and log a reminder when it is not
-**So that** customers get a fair grace period before losing their place, and the escalation is
+**So that** customers get a fair grace period before losing their place, and the reminder history is
 documented rather than remembered.
 
 **Acceptance Criteria**
@@ -194,13 +194,15 @@ documented rather than remembered.
    hand-out.
 3. Logging a reminder increments the reminder count by one; the screen shows the new count.
 4. Recording a renewed certificate (new type and validity period) **resets the reminder count to 0**.
-5. When the count reaches the configured threshold (default 3) and the certificate is still expired,
-   the screen prompts the staff member to archive the customer — it does **not** archive
-   automatically, because staff may extend the threshold case by case.
+5. The screen shows the current reminder count alongside the expiry status, so the staff member can
+   see how often this customer has already been reminded and decide what to do. The system holds no
+   threshold and never prompts or archives on its own — archiving is US-10's manual decision.
+   `[changed]` — FD reminds about three times as a habit, but each case is judged individually, so a
+   configured number would only be a rule the software pretends to have.
 6. At most one reminder is logged per customer per distribution day. `[added]` — prevents a
    mis-click from consuming a customer's grace period.
 
-**Related:** US-04, US-10 (archiving), US-14 (threshold configuration)
+**Related:** US-04, US-10 (archiving)
 
 ---
 
@@ -290,8 +292,8 @@ see why.
 
 1. Archiving is always a manual decision with a recorded reason; the system never archives on its
    own.
-2. It is offered — never forced — when: the reminder threshold is reached with the certificate still
-   expired (US-06), or the customer has not shown up for several consecutive distributions.
+2. It is offered — never forced — when: the certificate stays expired after repeated reminders
+   (US-06), or the customer has not shown up for several consecutive distributions.
 3. Consecutive no-shows are visible on the customer record so staff can spot them. `[added]` — the
    analysis names repeated no-shows as an archiving trigger but describes no way to notice them;
    with attendance recorded (US-05) this is derivable, and without it the trigger is unusable.
@@ -391,14 +393,13 @@ cards that made outdated
 ### US-14 — Configure the Business Rules
 
 **As a** staff member
-**I want to** edit the quota, prices per head, portion values and reminder threshold in the
-application
+**I want to** edit the quota, prices per head and portion values in the application
 **So that** FD can adapt to changed prices or supply without calling a developer.
 
 **Acceptance Criteria**
 
 1. Editable: customer quota `N`; portions per grown-up and per child; the price per grown-up and per
-   child; the reminder threshold (default 3); the week-cycle anchor and distribution weekday.
+   child; the week-cycle anchor and distribution weekday.
 2. Changes are stored with an **effective-from date** so past distribution records can still be
    interpreted with the values that applied at the time.
 3. Lowering `N` below the number of active customers is refused with a clear explanation. `[added]` —

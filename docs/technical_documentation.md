@@ -171,8 +171,8 @@ The two use cases over the policy versions:
 
 - **`readCurrentSettings(deps)`** loads every version and resolves it against `deps.clock.now()`.
   This is the single seam other features use to reach configuration.
-- **`updateSettings(deps, input)`** validates the values (`createSettings`), requires a non-empty
-  reason, refuses a version dated **on or before** the latest existing one
+- **`updateSettings(deps, input)`** validates the values (`createSettings`), refuses a version dated
+  **on or before** the latest existing one
   (`RetroactiveSettingsVersion` — equal dates are refused because `effectiveFrom` is unique in the
   schema), refuses a `quotaN` below `customers.countActive()`
   (`QuotaBelowActiveCustomers`, carrying both numbers), then **appends** — never mutates — and
@@ -201,8 +201,7 @@ instead of parsing strings.
 ### `src/domain/policy/settings.ts`
 
 The policy values FD can change without a deploy — quota `N`, portions per grown-up and per child,
-the reminder threshold, the price per grown-up and per child, the week-cycle anchor and the
-distribution weekday — and
+the price per grown-up and per child, the week-cycle anchor and the distribution weekday — and
 the rule that decides which of them apply on a given day. Versions are **immutable and dated**:
 `resolveSettingsAt(versions, date)` returns the version with the greatest `effectiveFrom` that is
 not after `date`, and throws `NoSettingsInForce` rather than returning a partial object. This
@@ -210,7 +209,7 @@ matters because a distribution record stores only a `paid` flag (US-05), so the 
 "what did that customer owe last March" is to resolve the version in force then.
 
 `createSettings(input)` validates every invariant on construction (quota ≥ 1, portions ≥ 0,
-threshold ≥ 1, ISO weekday 1–7, an `YYYY-Www` anchor, non-negative integer cents) and throws
+ISO weekday 1–7, an `YYYY-Www` anchor, non-negative integer cents) and throws
 `InvalidSettings` naming the field. `priceFor(settings, grownUps, children)` derives what a
 household owes — `grownUps × pricePerGrownUp + children × pricePerChild` — because FD charges per
 head. Every household size is therefore priceable and no table has to be kept in step with the
@@ -224,8 +223,10 @@ counts as new.
 ### `src/infrastructure/prisma/audit-log.ts`
 
 The **append-only audit log** (`PrismaAuditLog`). Every state change is recorded with a timestamp
-and reason — but **never an actor**: FD has ruled out login, so the system records _what / when /
-why_, never _who_. Adding an actor field would be an additive change if login is ever introduced.
+and, where one was asked for, a reason — but **never an actor**: FD has ruled out login, so the
+system records _what / when / why_, never _who_. A settings edit stores an empty `why` when staff
+gave none, because `changedFields` already says what happened; the judgement calls (block, archive)
+require one. Adding an actor field would be an additive change if login is ever introduced.
 There is no update and no delete: an entry that could be rewritten would be worth nothing. The field
 list is stored comma-separated because SQLite has no array column and the list is only ever read
 back for display.
@@ -292,7 +293,7 @@ type. All user-facing text lives here; **code identifiers stay English**. `layou
 - Migration history is committed under `prisma/migrations/`. Apply it with
   `npx prisma migrate deploy`; create new migrations during development with `npx prisma migrate dev`.
 - **Seeding.** `npm run db:seed` (`prisma/seed.ts`, run with `tsx`) inserts one provisional settings
-  version — quota 240, 2 portions per grown-up, 1 per child, threshold 3, 200c per grown-up + 100c
+  version — quota 240, 2 portions per grown-up, 1 per child, 200c per grown-up + 100c
   per child, anchor `2026-W02` = RED, Thursday — _only_ when the table is empty, so running it after
   every deploy is safe and never overwrites an operator's edit. Every one of those numbers is
   provisional and must be confirmed with FD; correcting them is a settings edit, not a migration.
@@ -449,8 +450,8 @@ npm run lint && npm run typecheck && npm run test:coverage && npm run build
   comments, and filenames are English and greppable.
 - **Money is integer cents**, never floats. Format via `src/domain/money.ts`.
 - **Time comes from the `Clock` port**, never `new Date()` in domain/application code.
-- **Policy values are data, not constants** — portions, prices per head, reminder threshold, quota `N`
-  will live in the DB with an _effective-from_ date, editable in the UI.
+- **Policy values are data, not constants** — portions, prices per head and quota `N` will live in
+  the DB with an _effective-from_ date, editable in the UI.
 - **No actor in state records** — there is no login, so audit records never say _who_.
 - **Push logic down** — anything non-trivial in `src/app` belongs in a use case or the domain.
 

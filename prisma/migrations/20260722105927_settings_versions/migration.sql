@@ -16,7 +16,6 @@ CREATE TABLE "SettingsVersion" (
     "quotaN" INTEGER NOT NULL,
     "portionsPerGrownUp" INTEGER NOT NULL,
     "portionsPerChild" INTEGER NOT NULL,
-    "reminderThreshold" INTEGER NOT NULL,
     "weekAnchorIsoWeek" TEXT NOT NULL,
     "weekAnchorColour" TEXT NOT NULL,
     "distributionWeekday" INTEGER NOT NULL,

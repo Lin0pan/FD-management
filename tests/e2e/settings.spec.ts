@@ -33,7 +33,9 @@ test.describe("Einstellungen", () => {
     await expect(page.locator("#effectiveFrom")).toHaveValue(todayIso());
 
     await price.fill("2,50");
-    await page.locator("#reason").fill("Preisanpassung");
+    // The reason is left empty on purpose: it is optional, and only a real page load proves the
+    // whole chain accepts a save without one.
+    await expect(page.locator("#reason")).toHaveValue("");
     await page.getByRole("button", { name: de.settings.save, exact: true }).click();
 
     await expect(page.getByTestId("settings-saved")).toHaveText(de.settings.saved);

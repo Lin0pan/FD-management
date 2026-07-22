@@ -48,7 +48,6 @@ function version(effectiveFrom: string, quotaN = 240): SettingsVersion {
       quotaN,
       portionsPerGrownUp: 2,
       portionsPerChild: 1,
-      reminderThreshold: 3,
       weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
       distributionWeekday: 4,
       pricePerGrownUp: 200,
@@ -99,7 +98,6 @@ describe("PrismaSettingsRepository", () => {
         quotaN: 240,
         portionsPerGrownUp: 2,
         portionsPerChild: 1,
-        reminderThreshold: 3,
         weekAnchorIsoWeek: "2026-W02",
         weekAnchorColour: "GREEN",
         distributionWeekday: 4,
@@ -121,7 +119,6 @@ describe("seedSettings", () => {
     expect(seeded.settings.quotaN).toBe(240);
     expect(seeded.settings.portionsPerGrownUp).toBe(2);
     expect(seeded.settings.portionsPerChild).toBe(1);
-    expect(seeded.settings.reminderThreshold).toBe(3);
     expect(seeded.settings.weekAnchor).toEqual({ isoWeek: "2026-W02", colour: "RED" });
     expect(seeded.settings.distributionWeekday).toBe(4);
     expect(priceFor(seeded.settings, 1, 0)).toBe(200);

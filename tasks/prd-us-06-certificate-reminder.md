@@ -1,16 +1,16 @@
 # PRD: US-06 — Check the Certificate and Log a Reminder
 
-> Source story: `docs/user_stories_mvp.md` §US-06 (Tier 1). Depends on **US-04** (counter screen) and
-> **US-14** (reminder threshold). Feeds **US-10** (archiving prompt).
+> Source story: `docs/user_stories_mvp.md` §US-06 (Tier 1). Depends on **US-04** (counter screen).
+> Feeds **US-10** (archiving, which stays a staff decision).
 
 ## 1. Introduction
 
 Eligibility rests on a needs certificate (Bescheinigung), typically from the Jobcenter, with a
 validity period. When it expires, FD does not turn the customer away — they are served anyway, given
-a verbal reminder to bring a renewed certificate, and the reminder is logged. After the configured
-number of reminders (default 3) with the certificate still expired, staff are prompted to archive the
-customer — but the system never archives on its own, because staff routinely extend the threshold
-case by case.
+a verbal reminder to bring a renewed certificate, and the reminder is logged. The count of reminders
+is what staff read when deciding what to do next: FD reminds about three times as a habit, but every
+case is judged individually, so the system holds no threshold, never prompts and never archives on
+its own (archiving is US-10).
 
 This feature makes the grace period **documented rather than remembered**.
 
@@ -20,25 +20,24 @@ This feature makes the grace period **documented rather than remembered**.
 - An expired certificate never blocks a hand-out.
 - Logging a reminder is one action; at most one per customer per distribution day.
 - Recording a renewed certificate resets the count to zero.
-- Reaching the threshold prompts — never forces — archiving.
+- The reminder count is always visible next to the expiry status, so the decision to archive is an
+  informed staff judgement rather than a rule the software applies.
 
 ## 3. User Stories
 
-### US-06.1: Certificate validity and reminder escalation (domain)
+### US-06.1: Certificate validity (domain)
 
-**Description:** As a developer, I need the expiry and escalation rules as pure functions so the grace
-period behaves identically everywhere.
+**Description:** As a developer, I need the expiry rule as a pure function so the grace period
+behaves identically everywhere.
 
 **Acceptance Criteria:**
 
 - [ ] `src/domain/customer/certificate.ts` exports `isExpired(certificate, today)`
 - [ ] A certificate is valid **on** its `validUntil` date and expired the day after — tested for the
-      day before, the day of and the day after
-- [ ] `escalation(reminderCount, threshold, expired)` returns `NONE`, `REMIND`, or `PROMPT_ARCHIVE`
-- [ ] `PROMPT_ARCHIVE` is returned only when the count has reached the threshold **and** the
-      certificate is still expired
-- [ ] A valid certificate always yields `NONE`, regardless of the reminder count
-- [ ] Pure — `today` and `threshold` are parameters, no clock, no settings lookup
+      day before, the day of and the day after, plus 29 February
+- [ ] There is **no** escalation function and no threshold: what a reminder count means is a staff
+      judgement, so the domain exposes the count and the expiry, nothing more
+- [ ] Pure — `today` is a parameter, no clock, no settings lookup
 
 ### US-06.2: `recordReminder` and `renewCertificate` use cases (application)
 
@@ -78,9 +77,8 @@ and let me log the reminder without leaving the screen.
       unmissable German note that the customer is served this time but must bring a renewal
 - [ ] A "Erinnerung erfassen" action logs the reminder and shows the new count immediately
 - [ ] After the action, the button is disabled for the rest of the day with an explanatory label
-- [ ] When the threshold is reached and the certificate is still expired, the screen shows a prompt
-      offering to archive (linking to US-10) — with an equally prominent option to continue without
-      archiving
+- [ ] The reminder count is shown next to the expiry status whenever it is greater than zero, so the
+      staff member can judge whether to archive (US-10); the screen never prompts or advises
 - [ ] A "renewed certificate" form captures type and validity end date and, on save, shows the reset
       count of 0
 - [ ] Verify in browser using dev-browser skill
@@ -92,8 +90,8 @@ and let me log the reminder without leaving the screen.
 - [ ] Playwright spec with a controllable clock: a customer with an expired certificate is served on
       three consecutive distribution days, logging one reminder each time
 - [ ] Spec asserts the second attempt on the same day is refused
-- [ ] Spec asserts that after the third reminder the archive prompt appears and that the customer is
-      **not** archived until staff confirm
+- [ ] Spec asserts the screen shows a count of 3 after the third reminder and that the customer is
+      still active — nothing about archiving happens without a staff decision
 - [ ] Spec asserts recording a renewed certificate resets the displayed count to 0 and removes the prompt
 
 ## 4. Functional Requirements
@@ -103,9 +101,9 @@ and let me log the reminder without leaving the screen.
 - FR-3: Logging a reminder must increment the reminder count by one and display the new count.
 - FR-4: Recording a renewed certificate must reset the reminder count to 0.
 - FR-5: At most one reminder may be logged per customer per distribution day.
-- FR-6: When the count reaches the configured threshold (default 3) and the certificate is still
-  expired, the system must prompt to archive — and must never archive automatically.
-- FR-7: The threshold must be read from settings (US-14), not hard-coded.
+- FR-6: The reminder count must be visible wherever the expiry status is; what it means for this
+  customer is a staff judgement, and the system must never prompt, advise or archive on its own.
+- FR-7: No reminder threshold exists — neither configured nor hard-coded.
 - FR-8: Certificate renewals must be appended, preserving the history.
 
 ## 5. Non-Goals
@@ -114,21 +112,24 @@ and let me log the reminder without leaving the screen.
 - No written, e-mailed or posted reminders; reminders are verbal and only logged here.
 - No upload or scan of the certificate document.
 - No proactive "expiring soon" alerting at the counter (the expiry list is part of US-15's filters).
-- No per-customer threshold override stored as data — staff simply decline the archive prompt.
+- No threshold at all — not configured, not hard-coded, not overridable per customer. FD's "about
+  three reminders" is a habit staff apply themselves, and encoding it would misrepresent a judgement
+  as a rule.
 
 ## 6. Technical Considerations
 
 - "One reminder per distribution day" is enforced per calendar day, which is stricter and simpler than
   per distribution event. Document that a special hand-out on a second day in the same week could
   therefore consume two reminders — flag for FD if that ever matters.
-- The escalation function reads the threshold in force **today**; a past distribution's escalation is
-  not recomputed retroactively.
+- The reminder count is a plain running total on the customer record. Because no rule consumes it,
+  there is nothing to recompute retroactively when a past distribution is reviewed.
 
 ## 7. Success Metrics
 
 - No customer loses their place without a documented reminder trail.
 - A mis-click cannot consume a customer's grace period.
-- Staff can see the full escalation state without leaving the counter screen.
+- Staff can see the expiry status and the reminder count without leaving the counter screen, and
+  decide from there.
 
 ## 8. Open Questions
 

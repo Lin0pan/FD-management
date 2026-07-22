@@ -51,7 +51,6 @@ confirmed with FD before go-live.**
 | Customer quota `N`    | 240                           |
 | Portions per grown-up | 2                             |
 | Portions per child    | 1                             |
-| Reminder threshold    | 3                             |
 | Price per grown-up    | 200 cents                     |
 | Price per child       | 100 cents                     |
 | Week-cycle anchor     | ISO week `2026-W02` = **Red** |

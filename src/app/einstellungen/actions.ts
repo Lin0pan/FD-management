@@ -69,7 +69,6 @@ const settingsForm = z.object({
   quotaN: wholeNumber,
   portionsPerGrownUp: wholeNumber,
   portionsPerChild: wholeNumber,
-  reminderThreshold: wholeNumber,
   weekAnchorIsoWeek: z.string(),
   weekAnchorColour: weekColour,
   distributionWeekday: wholeNumber,
@@ -85,7 +84,6 @@ function formValues(formData: FormData): Record<string, unknown> {
     quotaN: text("quotaN"),
     portionsPerGrownUp: text("portionsPerGrownUp"),
     portionsPerChild: text("portionsPerChild"),
-    reminderThreshold: text("reminderThreshold"),
     weekAnchorIsoWeek: text("weekAnchorIsoWeek"),
     weekAnchorColour: text("weekAnchorColour"),
     distributionWeekday: text("distributionWeekday"),
@@ -125,9 +123,6 @@ function germanMessage(error: unknown): string {
   if (error instanceof InvalidSettings) {
     return de.settings.errors.invalidSettings(de.settings.errorFields[error.field] ?? error.field);
   }
-  if (error instanceof DomainError && error.code === "MissingAuditReason") {
-    return de.settings.errors.missingReason;
-  }
   if (error instanceof DomainError && error.code === "NoSettingsInForce") {
     return de.settings.errors.noSettings;
   }
@@ -158,7 +153,6 @@ export async function saveSettings(
         quotaN: form.quotaN,
         portionsPerGrownUp: form.portionsPerGrownUp,
         portionsPerChild: form.portionsPerChild,
-        reminderThreshold: form.reminderThreshold,
         weekAnchor: { isoWeek: form.weekAnchorIsoWeek, colour: form.weekAnchorColour },
         distributionWeekday: form.distributionWeekday,
         pricePerGrownUp: form.pricePerGrownUp,

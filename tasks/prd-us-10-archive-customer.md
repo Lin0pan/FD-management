@@ -1,14 +1,14 @@
 # PRD: US-10 — Archive a Customer
 
 > Source story: `docs/user_stories_mvp.md` §US-10 (Tier 2). Depends on **US-05** (attendance history)
-> and **US-06** (reminder escalation). Frees the slot consumed by **US-01** and **US-12**.
+> and **US-06** (reminder count). Frees the slot consumed by **US-01** and **US-12**.
 
 ## 1. Introduction
 
 Archiving is how a customer leaves — and, crucially, how their **slot is freed** for someone on the
 waiting list. It is always a manual decision with a recorded reason. The system offers it in two
-situations (reminder threshold reached with the certificate still expired; several consecutive
-no-shows) but never performs it on its own, because both thresholds are staff judgement calls.
+situations (a certificate still expired after repeated reminders; several consecutive no-shows) but
+never performs it on its own, because both are staff judgement calls.
 
 Archived customers keep their full record indefinitely and stay searchable. Nothing is deleted.
 
@@ -46,7 +46,8 @@ missed, so I can notice the pattern the archiving rule depends on.
 
 - [ ] `archiveCustomer(deps, { customerId, reason })` transitions the status to `ARCHIVED` via the
       US-08.1 state machine and stores the reason
-- [ ] An empty or whitespace-only reason rejects with a typed `ArchiveReasonRequired` error
+- [ ] An empty or whitespace-only reason rejects with `MissingAuditReason("customer.archived")` —
+      the existing error from `errors.ts`, not a new class
 - [ ] Archiving frees the customer number **immediately** — asserted by a test showing the number is
       returned by `lowestFreeNumber` on the next call
 - [ ] Distribution records, cards, certificates, reminder logs and notes are all retained unchanged —
@@ -78,8 +79,8 @@ missed, so I can notice the pattern the archiving rule depends on.
       reassigned, and that the record is kept
 - [ ] The customer record and the counter screen both display the consecutive-no-show count when it is
       greater than zero
-- [ ] When the reminder threshold is reached with an expired certificate (US-06), the counter screen
-      offers archiving as a **prompt with an equally available "not now"** — never a forced dialog
+- [ ] The counter screen shows the reminder count next to an expired certificate (US-06) and keeps
+      archiving reachable from there as an ordinary action — never a prompt, and never a forced dialog
 - [ ] An archived customer's record renders read-only with an unmissable archived banner including the
       reason and date
 - [ ] Verify in browser using dev-browser skill
@@ -99,8 +100,8 @@ missed, so I can notice the pattern the archiving rule depends on.
 
 - FR-1: Archiving must always be a manual decision with a recorded reason; the system must never
   archive on its own.
-- FR-2: Archiving must be offered — never forced — when the reminder threshold is reached with the
-  certificate still expired, or when the customer has missed several consecutive distributions.
+- FR-2: Archiving must be offered — never forced — when the certificate is still expired after
+  repeated reminders, or when the customer has missed several consecutive distributions.
 - FR-3: Consecutive no-shows must be visible on the customer record.
 - FR-4: Archiving must immediately free the customer number for reassignment.
 - FR-5: Archived customers must keep their full record indefinitely and remain searchable; nothing may
@@ -115,7 +116,7 @@ missed, so I can notice the pattern the archiving rule depends on.
 - No retention or deletion policy — "keep forever" until a legal obligation surfaces.
 - No un-archive / restore action; re-registration (US-11) is the path back.
 - No notification to the customer.
-- No configurable no-show threshold — the count is displayed, the decision is human.
+- No configurable no-show or reminder threshold — the counts are displayed, the decision is human.
 
 ## 6. Design Considerations
 

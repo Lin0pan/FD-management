@@ -34,8 +34,10 @@ so illegal transitions are impossible rather than merely unlikely.
 - [ ] Allowed: `ACTIVE → BLOCKED`, `BLOCKED → ACTIVE`, `ACTIVE → ARCHIVED`, `BLOCKED → ARCHIVED`
 - [ ] Refused: any transition **out of** `ARCHIVED` (re-registration creates a new customer — US-11),
       and any no-op transition (`ACTIVE → ACTIVE`)
-- [ ] `blockReason` is required for `→ BLOCKED`: an empty or whitespace-only reason yields a typed
-      `BlockReasonRequired` error
+- [ ] `blockReason` is required for `→ BLOCKED`: an empty or whitespace-only reason yields
+      `MissingAuditReason("customer.blocked")` — the existing error from `errors.ts`, not a new class.
+      A block is one of the changes where the reason _is_ the record (a settings edit is not, and
+      accepts an empty one)
 - [ ] Every transition pair, legal and illegal, has a test
 
 ### US-08.2: `blockCustomer` / `unblockCustomer` use cases (application)
@@ -43,7 +45,7 @@ so illegal transitions are impossible rather than merely unlikely.
 **Acceptance Criteria:**
 
 - [ ] `blockCustomer(deps, { customerId, reason })` sets status `BLOCKED` and stores the reason
-- [ ] The reason is trimmed; an empty result rejects with `BlockReasonRequired`
+- [ ] The reason is trimmed; an empty result rejects with `MissingAuditReason`
 - [ ] `unblockCustomer(deps, { customerId })` returns the customer to `ACTIVE` and clears the reason
 - [ ] Neither use case changes the customer number, the card, or any distribution record
 - [ ] Blocking does **not** free the customer's slot — asserted by a test that the taken-numbers query

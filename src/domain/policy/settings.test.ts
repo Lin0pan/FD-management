@@ -16,7 +16,6 @@ function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
     quotaN: 240,
     portionsPerGrownUp: 2,
     portionsPerChild: 1,
-    reminderThreshold: 3,
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday: 4,
     pricePerGrownUp: 200,
@@ -38,7 +37,6 @@ describe("createSettings", () => {
     expect(settings.quotaN).toBe(240);
     expect(settings.portionsPerGrownUp).toBe(2);
     expect(settings.portionsPerChild).toBe(1);
-    expect(settings.reminderThreshold).toBe(3);
     expect(settings.weekAnchor).toEqual({ isoWeek: "2026-W02", colour: "RED" });
     expect(settings.distributionWeekday).toBe(4);
     expect(settings.pricePerGrownUp).toBe(200);
@@ -69,10 +67,6 @@ describe("createSettings", () => {
 
   it("rejects negative portions per child", () => {
     expect(() => createSettings(settingsInput({ portionsPerChild: -1 }))).toThrow(InvalidSettings);
-  });
-
-  it("rejects a reminder threshold below one", () => {
-    expect(() => createSettings(settingsInput({ reminderThreshold: 0 }))).toThrow(InvalidSettings);
   });
 
   it("accepts Monday and Sunday as distribution weekdays", () => {
@@ -209,7 +203,6 @@ describe("changedSettingsFields", () => {
       "quotaN",
       "portionsPerGrownUp",
       "portionsPerChild",
-      "reminderThreshold",
       "weekAnchor",
       "distributionWeekday",
       "pricePerGrownUp",
@@ -221,7 +214,6 @@ describe("changedSettingsFields", () => {
     ["quotaN", { quotaN: 200 }],
     ["portionsPerGrownUp", { portionsPerGrownUp: 3 }],
     ["portionsPerChild", { portionsPerChild: 2 }],
-    ["reminderThreshold", { reminderThreshold: 4 }],
     ["distributionWeekday", { distributionWeekday: 5 }],
     ["pricePerGrownUp", { pricePerGrownUp: 250 }],
     ["pricePerChild", { pricePerChild: 125 }],
@@ -250,8 +242,8 @@ describe("changedSettingsFields", () => {
   });
 
   it("lists several fields in declaration order when more than one changed", () => {
-    const next = createSettings(settingsInput({ quotaN: 200, reminderThreshold: 4 }));
-    expect(changedSettingsFields(previous, next)).toEqual(["quotaN", "reminderThreshold"]);
+    const next = createSettings(settingsInput({ quotaN: 200, portionsPerChild: 2 }));
+    expect(changedSettingsFields(previous, next)).toEqual(["quotaN", "portionsPerChild"]);
   });
 });
 

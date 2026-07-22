@@ -19,7 +19,6 @@ export function provisionalSettingsVersion(): SettingsVersion {
       quotaN: 240,
       portionsPerGrownUp: 2,
       portionsPerChild: 1,
-      reminderThreshold: 3,
       weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
       distributionWeekday: 4,
       pricePerGrownUp: 200,
