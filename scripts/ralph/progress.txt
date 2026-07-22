@@ -119,3 +119,24 @@ the full story-by-story history.)
     partial-unique-index violation (US-004/US-005), and waiting-list promotion (US-12). The
     database, not this function, is the final authority on a free slot.
 ---
+
+## [2026-07-22 19:23] - US-003 (Group type and suggestGroup balancing rule)
+- Implemented `src/domain/customer/group.ts`: the `Group = "RED" | "BLUE"` type, a `GroupCounts`
+  shape, and `suggestGroup({ red, blue })` returning the smaller group, `RED` on a tie.
+- Tests written first (5, named after the rules): red bigger, blue bigger, tie, both zero, and a
+  one-customer margin. No new error class was needed — the function is total.
+- Files changed: `src/domain/customer/group.ts` (new), `src/domain/customer/group.test.ts` (new),
+  `docs/technical_documentation.md`, `scripts/ralph/prd.json`.
+- All gates green: lint, typecheck, coverage (domain + application 100% on all four metrics), build.
+- **Learnings for future iterations:**
+  - `Group` is deliberately a **separate type** from `WeekColour` in `src/domain/policy/settings.ts`
+    despite both being `"RED" | "BLUE"`. A week's colour is derived from the settings anchor; a
+    customer's group is stored and hand-editable. Aliasing them would let one be changed through the
+    other. US-005 will therefore need its own `parseGroup` for the persisted string — do not reuse
+    `parseWeekColour`, whose `InvalidSettings` error names a settings field.
+  - `counts.blue < counts.red ? "BLUE" : "RED"` gets the tie rule and both branches from a single
+    comparison, so the branch gate is satisfied by the four ordering tests without a contrived case.
+    Writing it as two `if`s would have added an unreachable third branch.
+  - The suggestion is advice only — US-004 must let an explicit group in the input win over it, and
+    must not re-derive the group at persistence time.
+---

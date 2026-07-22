@@ -82,6 +82,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customer/householdComposition.test.ts  # its Vitest spec
 │   │   ├── customer/customerNumber.ts # lowest free slot in 1..quotaN
 │   │   ├── customer/customerNumber.test.ts  # its Vitest spec
+│   │   ├── customer/group.ts          # Group type and the RED/BLUE balancing suggestion
+│   │   ├── customer/group.test.ts     # its Vitest spec
 │   │   ├── card/ distribution/       # empty, reserved by the architecture
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, AuditLog
@@ -259,6 +261,22 @@ the limit FD has to raise or free.
 
 The function is advisory in the same sense as `suggestGroup`: the database's partial unique index is
 the final authority on whether the number was still free when the write landed (US-01.4).
+
+### `src/domain/customer/group.ts`
+
+`Group = 'RED' | 'BLUE'` is the half of the two-week cycle a customer belongs to: RED households
+come one week, BLUE the next, so roughly half the register turns up on any distribution day. The two
+groups therefore have to stay roughly equal in size — a lopsided split overwhelms the volunteers one
+week and wastes the food collected for the other.
+
+`suggestGroup({ red, blue })` answers with whichever group holds fewer **active** customers;
+archived customers do not turn up, so they do not count. On a tie the answer is always `RED`, never
+random: a shuffled suggestion would make registration irreproducible and would leave staff unable to
+tell a deliberate assignment from a coin flip. The result is **advice only** — the caller may store
+a different group (US-01.4), which is why `Group` is a separate type from `WeekColour` in
+`src/domain/policy/settings.ts` despite sharing its two values. A week's colour follows from the
+anchor in settings; a customer's group is editable by hand, and aliasing the types would make one
+changeable through the other.
 
 ### `src/infrastructure/prisma/audit-log.ts`
 
