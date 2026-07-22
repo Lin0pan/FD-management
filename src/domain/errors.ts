@@ -119,6 +119,21 @@ export class BirthDateInFuture extends DomainError {
 }
 
 /**
+ * Every customer number up to the quota is held by an active customer. Carries the quota so the UI
+ * can say which limit was reached rather than reporting a bare failure — FD's answer is either to
+ * archive a household or to raise `quotaN` in settings.
+ */
+export class NoFreeCustomerNumber extends DomainError {
+  readonly code = "NoFreeCustomerNumber";
+  readonly quotaN: number;
+
+  constructor(quotaN: number) {
+    super(`All ${quotaN} customer numbers are taken`);
+    this.quotaN = quotaN;
+  }
+}
+
+/**
  * A euro amount typed by a human could not be read as whole cents. Carries the text as entered so
  * the UI can quote it back rather than blaming an empty field.
  */

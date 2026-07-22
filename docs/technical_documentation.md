@@ -80,6 +80,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── policy/settings.test.ts   # its Vitest spec
 │   │   ├── customer/householdComposition.ts  # grown-up/children split, derived from birthdates
 │   │   ├── customer/householdComposition.test.ts  # its Vitest spec
+│   │   ├── customer/customerNumber.ts # lowest free slot in 1..quotaN
+│   │   ├── customer/customerNumber.test.ts  # its Vitest spec
 │   │   ├── card/ distribution/       # empty, reserved by the architecture
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, AuditLog
@@ -239,6 +241,24 @@ Excel sheet FD is replacing kept them as typed-in numbers that drifted with ever
 household raises `EmptyHousehold` rather than answering `{ 0, 0 }` (which would read as a household
 that owes nothing), and a birthdate after `today` raises `BirthDateInFuture` carrying the offending
 date so the UI can point at the row.
+
+### `src/domain/customer/customerNumber.ts`
+
+`lowestFreeNumber(takenNumbers, quotaN)` picks the slot a new customer occupies. A customer number
+is a **slot, not an identity**: FD serves at most `quotaN` households (US-14), and archiving one
+returns their number to the pool while the archived row keeps it as a historical record. Identity is
+the surrogate row id, which is what every foreign key targets (US-01.5).
+
+Allocation is the _lowest_ free number rather than the next-highest, for two reasons: FD's paper
+cards are numbered, so reusing a freed number keeps the range dense instead of exhausting the
+numbering long before the places run out; and it makes registration reproducible — the same register
+and quota always yield the same number. `takenNumbers` holds the **active** customers' numbers only;
+duplicates and numbers above the quota are ignored, since neither can make a slot inside the range
+more or less free. A full range raises `NoFreeCustomerNumber` carrying the quota, so the UI can name
+the limit FD has to raise or free.
+
+The function is advisory in the same sense as `suggestGroup`: the database's partial unique index is
+the final authority on whether the number was still free when the write landed (US-01.4).
 
 ### `src/infrastructure/prisma/audit-log.ts`
 

@@ -88,3 +88,34 @@ the full story-by-story history.)
   - `src/domain/customer/` was an empty placeholder directory before this story; `card/` and
     `distribution/` still are.
 ---
+
+## [2026-07-22 19:22] - US-002 (CustomerNumber — lowest free slot allocation)
+- Implemented `src/domain/customer/customerNumber.ts`: `lowestFreeNumber(takenNumbers, quotaN)`
+  scanning 1..quotaN against a `Set` of taken numbers, returning the first free one.
+- Added the `NoFreeCustomerNumber` error class to `src/domain/errors.ts` (the code was already in
+  the `DomainErrorCode` union from the initial sketch — only the class was missing). It carries
+  `quotaN` so the UI can name the limit FD has to raise.
+- Tests written first (10, named after the rules): empty list gives 1, `[1,2,4]` gives 3, a
+  contiguous range gives the next number, unsorted input, a duplicate taken number, `quotaN = 1`
+  free and taken, a full range, numbers above the quota not freeing a slot, and the quota carried
+  on the error.
+- Files changed: `src/domain/customer/customerNumber.ts` (new),
+  `src/domain/customer/customerNumber.test.ts` (new), `src/domain/errors.ts`,
+  `docs/technical_documentation.md`.
+- All gates green: lint, typecheck, coverage (domain + application 100% on all four metrics), build.
+- **Learnings for future iterations:**
+  - The PRD wording "returns a typed error *result*" was read as the repo convention of **throwing**
+    a typed domain error, matching `composition()` and `createSettings()`. There is no `Result` type
+    anywhere in the codebase; introducing one for a single function would have split the error
+    handling style in two.
+  - Deliberately **no validation** of `quotaN` here. Settings already guarantees an integer ≥ 1
+    (`requireInteger("quotaN", …)` in `src/domain/policy/settings.ts`), and a second check would be
+    an unreachable branch that the 100% branch gate then demands a contrived test for. Where an
+    invariant is already enforced on construction, do not re-check it downstream.
+  - Ignoring duplicates and out-of-range numbers instead of rejecting them keeps the function total:
+    the caller passes whatever the register contains, and the repository query shape can change
+    (`DISTINCT` or not) without breaking the rule.
+  - `NoFreeCustomerNumber` will be raised in two more places: `registerCustomer` translating the
+    partial-unique-index violation (US-004/US-005), and waiting-list promotion (US-12). The
+    database, not this function, is the final authority on a free slot.
+---
