@@ -11,9 +11,9 @@ rather than repeating them:
 This file describes _how_ the current codebase is organised and how to work in it.
 
 > **Status:** the app boots, is fully wired for TDD and CI, and carries its first feature end to end
-> in the core layers — US-14's policy settings (domain rules, use cases, SQLite persistence and
-> seed). The settings **screen** is still to come. Sections below mark clearly what exists vs. what
-> is a documented placeholder.
+> through every layer — US-14's policy settings: domain rules, use cases, SQLite persistence, seed
+> and the `/einstellungen` screen. Sections below mark clearly what exists vs. what is a documented
+> placeholder.
 
 ---
 
@@ -28,7 +28,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 | Styling            | Tailwind CSS v4 (`@tailwindcss/postcss`)    | `^4`                                     |
 | Database           | SQLite                                      | file-based                               |
 | ORM                | Prisma (native `sqlite` provider)           | `^6` (client generated at 6.19.x)        |
-| Validation         | Zod                                         | `^3` (installed, not yet used)           |
+| Validation         | Zod                                         | `^3` (form schemas in `app/`)            |
 | Unit tests         | Vitest + `@vitest/coverage-v8`              | `^3`                                     |
 | E2E tests          | Playwright                                  | `^1.5`                                   |
 | Lint               | ESLint 9 flat config + `eslint-config-next` | `^9`                                     |
@@ -58,13 +58,19 @@ This file describes _how_ the current codebase is organised and how to work in i
 ├── data/                             # SQLite db lives here at runtime (git-ignored; .gitkeep tracked)
 ├── docs/                             # all project documentation (this file included)
 ├── prisma/
-│   ├── schema.prisma                 # datasource + models (SettingsVersion, PriceTableRow)
+│   ├── schema.prisma                 # datasource + models (SettingsVersion, PriceTableRow, AuditEntry)
 │   ├── seed.ts                       # `npm run db:seed` entry point
 │   └── migrations/                   # committed migration history
 ├── src/
 │   ├── app/                          # Next.js App Router — thin adapter layer
 │   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
 │   │   ├── page.tsx                  # home page (reads strings from i18n dictionary)
+│   │   ├── einstellungen/            # the settings screen (US-14)
+│   │   │   ├── page.tsx              # server component: current values + version history
+│   │   │   ├── settings-form.tsx     # client component: the form + editable price grid
+│   │   │   ├── actions.ts            # "use server": Zod → euros-to-cents → updateSettings
+│   │   │   ├── save-settings-state.ts  # the form state (not exportable from actions.ts)
+│   │   │   └── deps.ts               # composition root: the real adapters for this screen
 │   │   └── globals.css               # Tailwind v4 import + theme + base styles
 │   ├── domain/                       # pure TypeScript, zero I/O (unit-tested)
 │   │   ├── money.ts                  # integer-cents euro formatting (the one real module)
@@ -75,15 +81,16 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customer/ card/ distribution/           # empty, reserved by the architecture
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, AuditLog
-│   │   └── settings/                 # readCurrentSettings + updateSettings use cases
+│   │   └── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (implements Clock port)
-│   │   ├── audit.ts                  # append-only audit log (placeholder)
+│   │   ├── customer-counter.ts       # counts active customers — zero until US-01 adds the model
 │   │   └── prisma/                   # Prisma client + repository implementations
 │   │       ├── client.ts             # the process-wide PrismaClient
 │   │       ├── settings-repository.ts  # PrismaSettingsRepository (implements the port)
+│   │       ├── audit-log.ts          # PrismaAuditLog — append-only, no actor column
 │   │       ├── seed.ts               # provisional settings version, inserted only if none exists
-│   │       └── settings-repository.test.ts  # integration spec, throwaway SQLite file
+│   │       └── *.test.ts             # integration specs, throwaway SQLite file
 │   └── i18n/de.ts                    # single German UI-string dictionary
 ├── tests/e2e/home.spec.ts            # Playwright smoke test
 ├── eslint.config.mjs  .prettierrc.json  .prettierignore
@@ -169,7 +176,10 @@ The two use cases over the policy versions:
   (`QuotaBelowActiveCustomers`, carrying both numbers), then **appends** — never mutates — and
   records an audit entry naming the changed fields. Nothing is written unless every check passes.
 
-Both are tested against hand-written fakes and a fake clock in `settings.test.ts`.
+- **`listSettingsVersions(deps)`** returns the whole history, newest first. The order is imposed
+  here rather than assumed of the repository, which is free to return rows however its query does.
+
+All three are tested against hand-written fakes and a fake clock in `settings.test.ts`.
 
 ### `src/infrastructure/clock.ts`
 
@@ -210,11 +220,49 @@ what the audit entry records as _what changed_. Price rows are compared as a set
 household, so reordering the table is not a change; with no previous version (the seed) every field
 counts as new.
 
-### `src/infrastructure/audit.ts`
+### `src/infrastructure/prisma/audit-log.ts`
 
-Placeholder for the **append-only audit log**. Every state change will be recorded with a timestamp
+The **append-only audit log** (`PrismaAuditLog`). Every state change is recorded with a timestamp
 and reason — but **never an actor**: FD has ruled out login, so the system records _what / when /
 why_, never _who_. Adding an actor field would be an additive change if login is ever introduced.
+There is no update and no delete: an entry that could be rewritten would be worth nothing. The field
+list is stored comma-separated because SQLite has no array column and the list is only ever read
+back for display.
+
+### `src/infrastructure/customer-counter.ts`
+
+Implements the `CustomerCounter` port. There is no `Customer` model yet — registration is US-01, and
+US-14 is built first because registration needs the quota — so the count is genuinely zero and the
+`quotaN` check never fires. **When US-01 lands, replace this with a Prisma adapter**; the port, the
+rule in `updateSettings` and its tests already cover the behaviour, so only this file and
+`src/app/einstellungen/deps.ts` change.
+
+### `src/app/einstellungen/` — the settings screen
+
+The first real screen, and the reference for how a route is wired:
+
+- **`deps.ts`** is the composition root: the one place the real adapters are chosen. The route hands
+  this object to a use case and does nothing else with it, so swapping SQLite or the clock touches
+  this file alone.
+- **`page.tsx`** is a server component. It reads the values in force (`readCurrentSettings`) and the
+  history (`listSettingsVersions`) and renders them; it is `dynamic = "force-dynamic"` because
+  settings change through the form. A `NoSettingsInForce` error renders the German "not seeded yet"
+  message rather than a stack trace.
+- **`settings-form.tsx`** is a client component **only** because the price grid gains and loses rows
+  as staff edit it. It holds no rules.
+- **`actions.ts`** is the `"use server"` adapter: Zod gives the submitted strings a shape,
+  `parseEuros` turns euro text (`2,50`) into whole cents **before it leaves the adapter**, and a
+  typed domain error is translated into a German sentence. Each error carries the values that made
+  it fail, so the message names concrete numbers without re-deriving them.
+
+⚠️ **A `"use server"` module may export nothing but async functions** — every export becomes a
+callable server endpoint. That is why the form's state object lives in `save-settings-state.ts`.
+The failure is a _runtime_ error at page load, not a build error, so it will not be caught by
+`npm run build`.
+
+⚠️ **German error text for a field** comes from `de.settings.errorFields`, keyed by the `field`
+value the `InvalidSettings` error carries. Add a key there when adding a validated settings field,
+or the screen quotes an English identifier at staff.
 
 ### `src/i18n/de.ts`
 

@@ -7,6 +7,7 @@ import {
 } from "@/domain/errors";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
 import type { AuditEntry, AuditLog, Clock, CustomerCounter, SettingsRepository } from "../ports";
+import { listSettingsVersions } from "./list-settings-versions";
 import { readCurrentSettings } from "./read-current-settings";
 import { updateSettings, type UpdateSettingsInput } from "./update-settings";
 
@@ -290,5 +291,35 @@ describe("updateSettings", () => {
 
     expect(audit.entries[0].changedFields).toContain("priceTable");
     expect(audit.entries[0].changedFields).toHaveLength(7);
+  });
+});
+
+describe("listSettingsVersions", () => {
+  it("lists the newest version first, so the settings screen leads with what applies now", async () => {
+    const repository = new FakeSettingsRepository(
+      version("2026-01-01T00:00:00.000Z", { quotaN: 200 }),
+      version("2026-06-01T00:00:00.000Z", { quotaN: 240 }),
+    );
+
+    const versions = await listSettingsVersions({ settings: repository });
+
+    expect(versions.map((entry) => entry.settings.quotaN)).toEqual([240, 200]);
+  });
+
+  it("does not rely on the repository returning versions in any order", async () => {
+    const repository = new FakeSettingsRepository(
+      version("2026-06-01T00:00:00.000Z", { quotaN: 240 }),
+      version("2026-01-01T00:00:00.000Z", { quotaN: 200 }),
+    );
+
+    const versions = await listSettingsVersions({ settings: repository });
+
+    expect(versions.map((entry) => entry.settings.quotaN)).toEqual([240, 200]);
+  });
+
+  it("returns an empty list for a database that was never seeded", async () => {
+    const versions = await listSettingsVersions({ settings: new FakeSettingsRepository() });
+
+    expect(versions).toEqual([]);
   });
 });

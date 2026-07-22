@@ -70,3 +70,27 @@ model PriceTableRow {
 
   @@unique([settingsVersionId, grownUps, children])
 }
+
+/// One append-only record of a state change: *what* changed, *when* and *why* — never *who*.
+///
+/// FD has ruled out login, so the system cannot tell its three or four staff apart and there is
+/// deliberately no actor column (docs/tech_stack_architecture_sketch.md §5.2). With no login the log
+/// is the only accountability the system has, so rows are never amended or deleted.
+model AuditEntry {
+  id Int @id @default(autoincrement())
+
+  /// A stable, machine-readable event name such as `settings.updated`.
+  what String
+
+  /// The fields the change touched, comma-separated: SQLite has no array type, and the list is
+  /// only ever read back for display.
+  changedFields String
+
+  /// When the change happened, read from the injected clock rather than the database.
+  when DateTime
+
+  /// The reason a human gave. A state change without one is refused before it reaches here.
+  why String
+
+  @@index([when])
+}

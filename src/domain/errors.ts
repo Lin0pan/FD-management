@@ -18,7 +18,8 @@ export type DomainErrorCode =
   | "NoPriceForHousehold"
   | "QuotaBelowActiveCustomers"
   | "RetroactiveSettingsVersion"
-  | "MissingAuditReason";
+  | "MissingAuditReason"
+  | "InvalidEuroAmount";
 
 /** Base class of every domain error. `code` lets callers switch over the closed set above. */
 export abstract class DomainError extends Error {
@@ -98,6 +99,20 @@ export class MissingAuditReason extends DomainError {
   constructor(what: string) {
     super(`The change "${what}" needs a reason for the audit log`);
     this.what = what;
+  }
+}
+
+/**
+ * A euro amount typed by a human could not be read as whole cents. Carries the text as entered so
+ * the UI can quote it back rather than blaming an empty field.
+ */
+export class InvalidEuroAmount extends DomainError {
+  readonly code = "InvalidEuroAmount";
+  readonly text: string;
+
+  constructor(text: string) {
+    super(`"${text}" is not a euro amount such as 2,50`);
+    this.text = text;
   }
 }
 
