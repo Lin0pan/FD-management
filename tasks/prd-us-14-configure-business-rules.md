@@ -7,7 +7,7 @@
 ## 1. Introduction
 
 Every number in FD's process — the customer quota, the portions per head, the price per head, the
-reminder threshold, the week-cycle anchor — is currently unknown, and all of them will change over
+week-cycle anchor — is currently unknown, and all of them will change over
 the years. Hard-coding any of them guarantees a developer call-out for a price rise. This feature
 stores them as **configuration data with an effective-from date** and gives staff a screen to edit
 them.
@@ -34,7 +34,7 @@ a date, returns the values in force on that date, so every other rule reads poli
 **Acceptance Criteria:**
 
 - [ ] `src/domain/policy/settings.ts` defines the typed settings shape: `quotaN: number`,
-      `portionsPerGrownUp: number`, `portionsPerChild: number`, `reminderThreshold: number`,
+      `portionsPerGrownUp: number`, `portionsPerChild: number`,
       `weekAnchor: { isoWeek: string; colour: 'RED' | 'BLUE' }`, `distributionWeekday: 1..7`
       (ISO, Monday = 1), `pricePerGrownUp: Cents` and `pricePerChild: Cents`
 - [ ] `resolveSettingsAt(versions, date)` returns the version with the greatest `effectiveFrom` that
@@ -43,8 +43,8 @@ a date, returns the values in force on that date, so every other rule reads poli
       rather than returning a partial object
 - [ ] `priceFor(settings, grownUps, children)` returns
       `grownUps × pricePerGrownUp + children × pricePerChild` — every household size is priceable
-- [ ] All values validate on construction: `quotaN >= 1`, portion values `>= 0`, `reminderThreshold >= 1`,
-      both prices non-negative integer cents
+- [ ] All values validate on construction: `quotaN >= 1`, portion values `>= 0`, both prices
+      non-negative integer cents
 - [ ] Tests cover: exact-boundary date (a version effective on that very day is in force), date
       between versions, date before all versions
 
@@ -85,8 +85,8 @@ seeded with provisional defaults so a fresh install boots into a working app.
 
 ### US-14.4: Settings screen (presentation)
 
-**Description:** As a staff member, I want to edit the quota, portions, prices, reminder
-threshold and week-cycle settings in the app so FD can adapt without calling a developer.
+**Description:** As a staff member, I want to edit the quota, portions, prices and week-cycle
+settings in the app so FD can adapt without calling a developer.
 
 **Acceptance Criteria:**
 
@@ -114,8 +114,8 @@ threshold and week-cycle settings in the app so FD can adapt without calling a d
 - FR-1: The system must store policy values as immutable versions, each with an `effectiveFrom` date.
 - FR-2: The system must resolve "the settings in force" for any given date, used by every other feature.
 - FR-3: Editable values are: quota `N`, portions per grown-up, portions per child, price per
-  grown-up, price per child, the reminder threshold, the week-cycle anchor, and the distribution
-  weekday.
+  grown-up, price per child, the week-cycle anchor, and the distribution weekday. The reminder
+  escalation is **not** configurable — FD judges each expired certificate individually (US-06).
 - FR-4: The system must refuse a `quotaN` lower than the current number of active customers, and
   explain why, naming both numbers.
 - FR-5: The system must store all money as whole cents in integer columns.
@@ -134,8 +134,8 @@ threshold and week-cycle settings in the app so FD can adapt without calling a d
 ## 6. Technical Considerations
 
 - Belongs in `src/domain/policy/`, exactly as reserved in the architecture sketch §4.
-- The reminder threshold and quota could get by with plain current values, but uniform effective-from
-  treatment is cheaper than maintaining two mechanisms (architecture sketch §5.1).
+- The quota could get by with a plain current value, but uniform effective-from treatment is cheaper
+  than maintaining two mechanisms (architecture sketch §5.1).
 - `resolveSettingsAt` is the hot path for US-04's counter screen; keep it a pure function over an
   already-loaded array rather than a per-field query.
 
@@ -147,6 +147,6 @@ threshold and week-cycle settings in the app so FD can adapt without calling a d
 
 ## 8. Open Questions
 
-- **Provisional values.** Quota 240, 2 portions/grown-up, 1 portion/child, threshold 3, price
+- **Provisional values.** Quota 240, 2 portions/grown-up, 1 portion/child, price
   200c/grown-up + 100c/child, anchor `2026-W02 = Red`, Thursday. **All must be confirmed with FD.**
 - Should an effective-from date in the future be allowed (scheduling a price rise in advance)?

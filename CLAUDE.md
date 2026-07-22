@@ -54,8 +54,8 @@ deliberately and say why in the commit; do not add an inline disable.
 - **Derive, don't store** anything computable — grown-up/children counts, portion allowance, card
   validity. Two sources of truth is the Excel failure we are replacing.
 - **Money is integer cents**, never a float. Format via `src/domain/money.ts`.
-- **Policy values are data, not constants** — price table, portions, reminder threshold and the quota
-  `N` live in settings with an `effectiveFrom` date.
+- **Policy values are data, not constants** — the prices per head, portions and the quota `N` live in
+  settings with an `effectiveFrom` date.
 - Throw **typed domain errors** from `errors.ts`; no bare `throw new Error("…")`.
 - **Identifiers English, UI strings German**, and only in `src/i18n/de.ts` — no German literals in
   components.

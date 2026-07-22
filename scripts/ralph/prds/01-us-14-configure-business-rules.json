@@ -1,18 +1,18 @@
 {
   "project": "FD-Management",
   "branchName": "ralph/us-14-configure-business-rules",
-  "description": "US-14 Configure the Business Rules — Policy values (quota N, portions, prices per head, reminder threshold, week anchor) as settings data with an effective-from date, plus the screen to edit them. Must be built first: registration needs N and the counter needs the week anchor.",
+  "description": "US-14 Configure the Business Rules — Policy values (quota N, portions, prices per head, week anchor) as settings data with an effective-from date, plus the screen to edit them. Must be built first: registration needs N and the counter needs the week anchor.",
   "userStories": [
     {
       "id": "US-001",
       "title": "Settings value objects and effective-from resolution",
       "description": "As a developer, I need a pure module that resolves the policy values in force on a given date, so every other rule reads configuration through one seam. Source: tasks/prd-us-14-configure-business-rules.md §US-14.1",
       "acceptanceCriteria": [
-        "src/domain/policy/settings.ts defines the settings shape: quotaN, portionsPerGrownUp, portionsPerChild, reminderThreshold, weekAnchor {isoWeek, colour}, distributionWeekday (ISO 1-7), pricePerGrownUp and pricePerChild as integer cents",
+        "src/domain/policy/settings.ts defines the settings shape: quotaN, portionsPerGrownUp, portionsPerChild, weekAnchor {isoWeek, colour}, distributionWeekday (ISO 1-7), pricePerGrownUp and pricePerChild as integer cents",
         "resolveSettingsAt(versions, date) returns the version with the greatest effectiveFrom that is <= date",
         "A date before the earliest version throws a typed NoSettingsInForce error, never a partial object",
         "priceFor(settings, grownUps, children) returns grownUps * pricePerGrownUp + children * pricePerChild — every household size is priceable",
-        "Construction validates quotaN >= 1, portion values >= 0, reminderThreshold >= 1, both prices non-negative integer cents",
+        "Construction validates quotaN >= 1, portion values >= 0, both prices non-negative integer cents",
         "Tests cover: exact-boundary date, date between versions, date before all versions, a household priced per head",
         "Module contains no I/O, no new Date() and no imports from Next.js, React or Prisma",
         "Tests pass",
@@ -63,7 +63,7 @@
     {
       "id": "US-004",
       "title": "Settings screen at /einstellungen",
-      "description": "As a staff member, I want to edit the quota, portions, prices, reminder threshold and week-cycle settings in the app, so FD can adapt without calling a developer. Source: tasks/prd-us-14-configure-business-rules.md §US-14.4",
+      "description": "As a staff member, I want to edit the quota, portions, prices and week-cycle settings in the app, so FD can adapt without calling a developer. Source: tasks/prd-us-14-configure-business-rules.md §US-14.4",
       "acceptanceCriteria": [
         "Route /einstellungen shows the currently-in-force values, each labelled in German",
         "A Zod schema validates the form; euro input (e.g. 2,50) is converted to whole cents before leaving the adapter",

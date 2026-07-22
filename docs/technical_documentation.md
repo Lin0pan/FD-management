@@ -201,8 +201,7 @@ instead of parsing strings.
 ### `src/domain/policy/settings.ts`
 
 The policy values FD can change without a deploy — quota `N`, portions per grown-up and per child,
-the reminder threshold, the price per grown-up and per child, the week-cycle anchor and the
-distribution weekday — and
+the price per grown-up and per child, the week-cycle anchor and the distribution weekday — and
 the rule that decides which of them apply on a given day. Versions are **immutable and dated**:
 `resolveSettingsAt(versions, date)` returns the version with the greatest `effectiveFrom` that is
 not after `date`, and throws `NoSettingsInForce` rather than returning a partial object. This
@@ -210,7 +209,7 @@ matters because a distribution record stores only a `paid` flag (US-05), so the 
 "what did that customer owe last March" is to resolve the version in force then.
 
 `createSettings(input)` validates every invariant on construction (quota ≥ 1, portions ≥ 0,
-threshold ≥ 1, ISO weekday 1–7, an `YYYY-Www` anchor, non-negative integer cents) and throws
+ISO weekday 1–7, an `YYYY-Www` anchor, non-negative integer cents) and throws
 `InvalidSettings` naming the field. `priceFor(settings, grownUps, children)` derives what a
 household owes — `grownUps × pricePerGrownUp + children × pricePerChild` — because FD charges per
 head. Every household size is therefore priceable and no table has to be kept in step with the
@@ -292,7 +291,7 @@ type. All user-facing text lives here; **code identifiers stay English**. `layou
 - Migration history is committed under `prisma/migrations/`. Apply it with
   `npx prisma migrate deploy`; create new migrations during development with `npx prisma migrate dev`.
 - **Seeding.** `npm run db:seed` (`prisma/seed.ts`, run with `tsx`) inserts one provisional settings
-  version — quota 240, 2 portions per grown-up, 1 per child, threshold 3, 200c per grown-up + 100c
+  version — quota 240, 2 portions per grown-up, 1 per child, 200c per grown-up + 100c
   per child, anchor `2026-W02` = RED, Thursday — _only_ when the table is empty, so running it after
   every deploy is safe and never overwrites an operator's edit. Every one of those numbers is
   provisional and must be confirmed with FD; correcting them is a settings edit, not a migration.
@@ -449,8 +448,8 @@ npm run lint && npm run typecheck && npm run test:coverage && npm run build
   comments, and filenames are English and greppable.
 - **Money is integer cents**, never floats. Format via `src/domain/money.ts`.
 - **Time comes from the `Clock` port**, never `new Date()` in domain/application code.
-- **Policy values are data, not constants** — portions, prices per head, reminder threshold, quota `N`
-  will live in the DB with an _effective-from_ date, editable in the UI.
+- **Policy values are data, not constants** — portions, prices per head and quota `N` will live in
+  the DB with an _effective-from_ date, editable in the UI.
 - **No actor in state records** — there is no login, so audit records never say _who_.
 - **Push logic down** — anything non-trivial in `src/app` belongs in a use case or the domain.
 

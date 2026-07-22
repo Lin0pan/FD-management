@@ -22,8 +22,8 @@ Four properties fall out of the domain analysis and should drive the design.
 ### 2.1 Rules are soft and staff-discretionary
 
 Portion allowance flexes with food supply and special occasions (Christmas); the "3 reminders"
-threshold is explicitly overridable; group placement is a judgement call; a temporary block is a
-free-text staff decision with no rule behind it.
+habit is a staff judgement made per case, not a threshold the software holds; group placement is a
+judgement call; a temporary block is a free-text staff decision with no rule behind it.
 
 The price is the exception — a fixed rate per grown-up and per child that does not flex with
 occasion or supply. It is still configuration (the amounts are unknown and will change over the
@@ -108,7 +108,7 @@ src/
     customer/        #   Customer, HouseholdMember, HouseholdComposition (derived), Group, Status
     card/            #   CardNumber value object (parse / format / next index)
     distribution/    #   WeekColor, week-cycle calendar rule
-    policy/          #   PortionPolicy, PricePolicy, ReminderPolicy — read config, no I/O
+    policy/          #   PortionPolicy, PricePolicy — read config, no I/O
     errors.ts        #   typed domain errors (e.g. WrongGroupForWeek, NoFreeCustomerNumber)
 
   application/       # use cases — one file per business action, transaction boundary
@@ -133,7 +133,7 @@ tests/e2e/           # Playwright
 
 ### 4.1 Why this pattern here
 
-- **Testability** — the interesting logic (card numbering, week alternation, reminder escalation,
+- **Testability** — the interesting logic (card numbering, week alternation, certificate expiry,
   number reuse) is pure functions, tested in milliseconds with no DB, no browser, no mocks.
 - **Change tolerance** — the domain analysis is an MVP starting point, not a finished spec, and
   still carries three open questions. The concrete policy values (prices per head, portions per
@@ -148,16 +148,18 @@ tests/e2e/           # Playwright
 
 ### 5.1 Policies as data
 
-Portions per adult, portions per child, the price per adult and per child, the reminder threshold
-and the customer quota `N` live in a `settings` table with an _effective-from_ date and are editable in the UI. This
-directly serves the "adjustable for Christmas" and "staff may extend the threshold" requirements
-without a code deploy.
+Portions per adult, portions per child, the price per adult and per child and the customer quota `N`
+live in a `settings` table with an _effective-from_ date and are editable in the UI. This directly
+serves the "adjustable for Christmas" requirement without a code deploy.
+
+The reminder escalation is deliberately **not** among them: FD judges each expired certificate on
+its own, reading the reminder count off the record, so there is no number to configure.
 
 Effective-from dating matters most for the **prices**: a distribution record stores only a
 `paid` flag, never an amount, so the only way to answer "what did that customer owe last March" is
 to look up the settings version in force on that date. Portion values want the same treatment for the
-same reason. The reminder threshold and quota `N` are read at decision time and could get by with
-plain current values — uniform treatment is simply cheaper than two mechanisms.
+same reason. Quota `N` is read at decision time and could get by with a plain current value —
+uniform treatment is simply cheaper than two mechanisms.
 
 ### 5.2 Append-only audit log
 
@@ -228,7 +230,8 @@ slot `50`, so it is not archive-unique either.
   before, the day of and the day after a member's 13th birthday, plus 29 February.
 - `npm run test:e2e` — Playwright covering: register a customer → card issued; distribution-day
   happy path including the `paid` flag; wrong-group customer turned away; expired certificate →
-  3rd reminder → archived; archived number reused by the next registration; waiting-list applicant
+  3rd reminder logged; archiving only once staff confirm it; archived number reused by the next
+  registration; waiting-list applicant
   promoted in first-come-first-served order.
 - Manual smoke: `npm run build && npm start` on macOS, confirming the app boots against a fresh
   `data/fd.db` created by `prisma migrate deploy`.

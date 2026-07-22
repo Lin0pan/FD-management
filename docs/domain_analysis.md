@@ -49,7 +49,7 @@ list (not paper).
 | Price                       | Small amount the customer pays to receive food. **Derived per head**: a fixed price per grown-up and a fixed price per child, multiplied by the two counts. Unlike the portion allowance, it does _not_ flex with supply or special occasions. |
 | Certificate (Bescheinigung) | Proof of need (e.g. from the Jobcenter); has a type and a validity period/expiry date.                                                                                                                                                         |
 | Status                      | Active / temporarily blocked / archived. A temporary block is set **manually** by a staff member together with a **free-text reason**; it is lifted manually as well (see 4.5).                                                                |
-| Reminder count              | Number of certificate-expiry reminders issued (0-3 typically; resets to 0 once a valid certificate is presented).                                                                                                                              |
+| Reminder count              | Number of certificate-expiry reminders issued (0-3 typically; resets to 0 once a valid certificate is presented). Informational — it is what staff read before judging whether to archive (see 4.2).                                           |
 | Current card number         | The customer's currently valid card number (see Customer Card).                                                                                                                                                                                |
 | Comments / notes            | Free-text field for individual staff notes about the customer.                                                                                                                                                                                 |
 
@@ -142,9 +142,11 @@ implied by the per-head prices in force at that point in time.
    b. Staff verbally remind the customer to bring a valid certificate next time.
    c. Staff log the reminder (increments the reminder count).
 4. If a valid, renewed certificate is presented at any point, the reminder count resets to 0.
-5. Once the reminder count reaches 3 (staff may individually extend this in specific cases) and
-   the certificate is still expired: the customer is told they can no longer receive food and is
-   archived.
+5. The reminder count is kept on the customer record so staff can see how often this customer has
+   already been reminded. When the certificate is still expired, the staff member reads that count
+   and decides case by case whether to archive — typically after about three reminders, but that is
+   a habit rather than a rule, and it is never a fixed number the system holds or enforces. The
+   system never archives on its own (see 4.5).
 
 ### 4.3 Customer Registration / Intake
 
