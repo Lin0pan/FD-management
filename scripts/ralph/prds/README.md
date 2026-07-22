@@ -26,14 +26,14 @@ cp scripts/ralph/prds/02-us-01-register-customer.json scripts/ralph/prd.json
 
 ## Four things to get right
 
-**1. Merge before starting the next batch.** `scripts/ralph/CLAUDE.md` step 3 creates the branch
+**1. Merge before starting the next batch.** `scripts/ralph/CLAUDE.md` step 4 creates the branch
 _from `main`_. If the previous PR is not merged, the new branch will not contain the previous batch's
 work — US-01 would build against a schema that does not exist. This is the rule that will actually
 bite; the rest are cheaper to recover from.
 
 **2. `progress.txt` is reset on every archive**, including the `## Codebase Patterns` section that
 Ralph accumulates. Across 16 batches that memory is wiped 16 times. The durable channel is CLAUDE.md
-files (step 7 of the agent instructions) — make sure patterns land in `src/domain/CLAUDE.md`,
+files (step 8 of the agent instructions) — make sure patterns land in `src/domain/CLAUDE.md`,
 `src/application/CLAUDE.md` and friends, not only in `progress.txt`. Alternatively, paste the
 patterns block into the fresh `progress.txt` before each run.
 

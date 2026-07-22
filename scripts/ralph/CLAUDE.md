@@ -3,30 +3,34 @@
 You are an autonomous coding agent working on a software project.
 
 > **The engineering standard for this project is the repository-root `CLAUDE.md`** — architecture
-> rules, coding style, testing approach, git conventions and the definition of done. It is loaded
-> automatically in every session, including this one, and it is authoritative. This file contains
-> only the loop contract: what to do each iteration and how to report it.
+> rules, coding style, testing approach, git conventions and the definition of done. It is
+> authoritative, and step 1 below tells you to read it. This file contains only the loop contract:
+> what to do each iteration and how to report it.
 >
 > The work itself is specified in `tasks/` (one PRD per user story). Every story in `prd.json` cites
 > its source PRD section — read it when a criterion is ambiguous rather than guessing.
 
 ## Your Task
 
-1. Read the PRD at `prd.json` (in the same directory as this file)
-2. Read the progress log at `progress.txt` (check Codebase Patterns section first)
-3. Check you're on the correct branch from PRD `branchName`. If not, check it out or create from main.
-4. Pick the **highest priority** user story where `passes: false`
-5. Implement that single user story
-6. Run the quality checks: `npm run lint && npm run typecheck && npm run test:coverage && npm run build`
-7. Update CLAUDE.md files if you discover reusable patterns (see below)
-8. Check and update documentation if needed
-9. If checks pass, commit ALL changes with a **conventional** message —
-   `feat(<scope>): <imperative subject>`, subject ≤72 chars, e.g.
-   `feat(domain): derive household composition from birthdates`. Put the story ID and the _why_ in
-   the body, not the subject. Scope is usually the layer (`domain`, `application`, `infra`, `app`)
-   or `docs`/`ci`.
-10. Update the PRD to set `passes: true` for the completed story
-11. Append your progress to `progress.txt`
+1. **Read `CLAUDE.md` at the repository root before anything else.** It is the engineering standard
+   and it is authoritative: architecture boundaries, coding style, the testing approach, git
+   conventions, and what "done" means. Your session may already have loaded it as project memory —
+   read it explicitly anyway, because nothing here should depend on that having happened.
+2. Read the PRD at `prd.json` (in the same directory as this file)
+3. Read the progress log at `progress.txt` (check Codebase Patterns section first)
+4. Check you're on the correct branch from PRD `branchName`. If not, check it out or create from main.
+5. Pick the **highest priority** user story where `passes: false`
+6. Implement that single user story
+7. Run the quality checks: `npm run lint && npm run typecheck && npm run test:coverage && npm run build`
+8. Update CLAUDE.md files if you discover reusable patterns (see below)
+9. Check and update documentation if needed
+10. If checks pass, commit ALL changes with a **conventional** message —
+    `feat(<scope>): <imperative subject>`, subject ≤72 chars, e.g.
+    `feat(domain): derive household composition from birthdates`. Put the story ID and the _why_ in
+    the body, not the subject. Scope is usually the layer (`domain`, `application`, `infra`, `app`)
+    or `docs`/`ci`.
+11. Update the PRD to set `passes: true` for the completed story
+12. Append your progress to `progress.txt`
 
 ## Progress Report Format
 
