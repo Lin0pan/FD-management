@@ -90,8 +90,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The quota-too-low criterion is only partly reachable end to end: with no Customer model, emptyCustomerCounter reports 0 and quotaN >= 1, so QuotaBelowActiveCustomers cannot fire from the browser. The spec asserts the reachable quota rejection (quotaN 0 shows the German error and saves nothing) plus a retroactive-date rejection; the active-customer variant is a documented test.skip for US-01 to enable."
     }
   ]
 }

@@ -53,6 +53,15 @@ Started: Wed Jul 22 12:49:05 CEST 2026
   "force-dynamic"`, or Next prerenders them at build time and the screen shows stale values.
 - A screen is a client component only where it genuinely needs state (here: the price grid gaining
   and losing rows). Everything else stays a server component.
+- Playwright specs live in `tests/e2e/*.spec.ts`, may import `@/…` (the tsconfig path alias works
+  there), and take their expected text from `src/i18n/de.ts` rather than hard-coding German.
+- E2E specs that share the seeded `data/e2e.db` must declare `test.describe.configure({ mode:
+  "serial" })` — `fullyParallel` is on, and two workers writing settings versions race.
+- The Playwright `webServer` deletes `data/e2e.db` before migrating and seeding, so every run starts
+  from the seed. Don't reintroduce state that assumes leftovers; don't drop the delete either, or a
+  same-day second run fails on `RetroactiveSettingsVersion`.
+- Address form fields in E2E by their `id` (`#quotaN`, `#reason`, `#effectiveFrom`) — a `<label>`
+  that also wraps a hint `<span>` gives `getByLabel` an accessible name you did not expect.
 
 ## [2026-07-22] - US-001 (Settings value objects and effective-from resolution)
 - Implemented `src/domain/policy/settings.ts`: the `Settings` shape (quotaN, portionsPerGrownUp,
@@ -181,4 +190,33 @@ Started: Wed Jul 22 12:49:05 CEST 2026
     letting the next iteration discover it mid-spec.
   - Version history lists every version newest-first and labels the one in force; the domain rule
     (greatest `effectiveFrom <= now`) is re-read off the ordered list rather than duplicated.
+---
+
+## [2026-07-22] - US-005 (E2E: edit a price and see it applied)
+- Added `tests/e2e/settings.spec.ts` (serial, four specs): the price round-trip (1 grown-up /
+  0 children, 2,00 → 2,50, saved effective today, reloaded, asserted in both the form field and the
+  read-only version history); a rejected quota showing the German `InvalidSettings` message and
+  leaving the stored price unchanged; a retroactive effective-from date refused the same way; and
+  one deliberately skipped spec for the quota-below-active-customers rule.
+- Made the Playwright `webServer` delete `data/e2e.db` before `migrate deploy && db:seed`, so a run
+  always starts from the seed. Without it a second run on the same day hit
+  `RetroactiveSettingsVersion` against its own leftovers.
+- Files changed: `tests/e2e/settings.spec.ts` (new), `playwright.config.ts`,
+  `docs/technical_documentation.md`.
+- All gates green: lint, typecheck, coverage (domain + application 100%), build, and
+  `npm run test:e2e` twice in a row (4 passed, 1 skipped both times).
+- **Learnings for future iterations:**
+  - The second acceptance criterion — "the quota-too-low path shows an error and leaves the stored
+    value unchanged" — is only **partly** reachable from the browser. `emptyCustomerCounter` reports
+    0 active customers and `quotaN >= 1`, so `QuotaBelowActiveCustomers` can never fire end to end
+    until US-01 adds the Customer model. The spec proves the surrounding path with the reachable
+    quota rejection (quotaN 0 → `InvalidSettings`, nothing written); the active-customer variant is
+    a `test.skip` carrying the reason. **US-01 must enable it** when it wires a real counter into
+    `src/app/einstellungen/deps.ts`.
+  - `test.skip("…", async ({ page }) => …)` still typechecks and lints its body, so the placeholder
+    keeps one real statement (`page.goto`) rather than an unused fixture.
+  - The price input's accessible name is `"Preis in Euro <grownUps>/<children>"`, built from the row
+    values; changing the price does not change the label, so one locator works before and after.
+  - Serial mode plus a shared database means spec order is load-bearing: the two rejection specs
+    assert the value written by the first one. Adding a spec that saves must go last, or reset.
 ---

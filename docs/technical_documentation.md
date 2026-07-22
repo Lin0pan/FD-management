@@ -92,7 +92,9 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │       ├── seed.ts               # provisional settings version, inserted only if none exists
 │   │       └── *.test.ts             # integration specs, throwaway SQLite file
 │   └── i18n/de.ts                    # single German UI-string dictionary
-├── tests/e2e/home.spec.ts            # Playwright smoke test
+├── tests/e2e/
+│   ├── home.spec.ts                  # Playwright smoke test
+│   └── settings.spec.ts              # settings round-trip vs. the built app
 ├── eslint.config.mjs  .prettierrc.json  .prettierignore
 ├── vitest.config.ts   playwright.config.ts
 ├── next.config.ts     postcss.config.mjs   tsconfig.json
@@ -352,11 +354,19 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
 ### End-to-end — Playwright (`playwright.config.ts`)
 
 - `testDir: tests/e2e`; runs Chromium against the **built** app.
-- `webServer` runs `npx prisma migrate deploy && npm run db:seed && npm run start` over a throwaway
-  `data/e2e.db`,
-  mirroring the CI `e2e-tests` job. `reuseExistingServer` is on locally, off in CI.
-- Today: one smoke test asserting the German `<h1>` renders. The distribution-day and registration
-  flows are added alongside the features they cover.
+- `webServer` **deletes `data/e2e.db`**, then runs `npx prisma migrate deploy && npm run db:seed &&
+npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` is on locally, off
+  in CI. The delete matters locally: the settings specs append a version dated _today_, and
+  `updateSettings` refuses a version dated on or before the latest one, so a second run on the same
+  day would otherwise fail against its own leftovers.
+- Today: a smoke test asserting the German `<h1>` renders, plus `settings.spec.ts` — the settings
+  round-trip (change a price, save effective today, reload, see it applied and listed in the
+  history) and two rejected saves that must leave the stored value untouched. Those specs run
+  **serially** against the one shared database. The distribution-day and registration flows are
+  added alongside the features they cover.
+- E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
+  that exports a non-function, and only a real page load fails. Any story touching a route needs a
+  spec here.
 - Run: `npm run test:e2e` (first time locally: `npx playwright install --with-deps chromium`).
 
 ### TDD approach per layer
