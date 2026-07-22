@@ -20,8 +20,8 @@ export const de = {
   settings: {
     heading: "Einstellungen",
     intro:
-      "Diese Werte gelten ab einem Stichtag. Beim Speichern wird eine neue Fassung angelegt; " +
-      "frühere Fassungen bleiben erhalten, damit vergangene Ausgaben nachvollziehbar bleiben.",
+      "Änderungen gelten sofort. Beim Speichern wird eine neue Fassung angelegt; frühere " +
+      "Fassungen bleiben erhalten, damit vergangene Ausgaben nachvollziehbar bleiben.",
     currentHeading: "Aktuell gültige Werte",
     fields: {
       quotaN: "Höchstzahl der Kundinnen und Kunden (N)",
@@ -66,33 +66,26 @@ export const de = {
       pricePerGrownUp: "Preis je Erwachsenem",
       pricePerChild: "Preis je Kind",
     } as Record<string, string | undefined>,
-    effectiveFrom: "Gültig ab",
-    effectiveFromHint: "Voreingestellt ist der heutige Tag.",
     reason: "Grund der Änderung (optional)",
     reasonHint: "Wird, falls angegeben, im Änderungsprotokoll festgehalten.",
     save: "Speichern",
     saving: "Wird gespeichert …",
-    saved: "Die neue Fassung wurde gespeichert.",
+    saved: "Gespeichert. Die neuen Werte gelten ab sofort.",
     history: {
       heading: "Frühere Fassungen",
       empty: "Es gibt noch keine weiteren Fassungen.",
-      effectiveFrom: "Gültig ab",
+      recordedAt: "Geändert am",
       current: "aktuell gültig",
-      future: "gilt ab dem genannten Datum",
     },
     errors: {
       notAnInteger: "Bitte eine ganze Zahl ab 0 eingeben.",
       notAnAmount: "Bitte einen Betrag wie 2,50 eingeben.",
-      notADate: "Bitte ein Datum auswählen.",
       noSettings:
         "Es sind noch keine Einstellungen hinterlegt. Bitte die Grundeinstellungen einspielen.",
       unknown: "Die Änderung konnte nicht gespeichert werden.",
       quotaBelowActiveCustomers: (quotaN: number, activeCustomers: number): string =>
         `Die Höchstzahl ${quotaN} liegt unter den derzeit ${activeCustomers} aktiven Kundinnen ` +
         `und Kunden. Es wurde nichts gespeichert.`,
-      retroactiveVersion: (effectiveFrom: string, latest: string): string =>
-        `Das Datum „gültig ab“ (${effectiveFrom}) muss nach der letzten Fassung vom ${latest} ` +
-        `liegen. Frühere Fassungen werden nicht überschrieben.`,
       invalidSettings: (field: string): string => `Ungültiger Wert im Feld „${field}“.`,
       invalidAmount: (text: string): string => `„${text}“ ist kein Betrag wie 2,50.`,
     },

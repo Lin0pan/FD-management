@@ -17,7 +17,6 @@ import {
   InvalidEuroAmount,
   InvalidSettings,
   QuotaBelowActiveCustomers,
-  RetroactiveSettingsVersion,
 } from "@/domain/errors";
 import { parseEuros } from "@/domain/money";
 import { parseWeekColour } from "@/domain/policy/settings";
@@ -44,15 +43,6 @@ const euroAmount = z.string().transform((value, ctx): number => {
   }
 });
 
-/** The `<input type="date">` value, read as midnight UTC to match how versions are stored. */
-const isoDate = z.string().transform((value, ctx): Date => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: de.settings.errors.notADate });
-    return z.NEVER;
-  }
-  return new Date(`${value}T00:00:00.000Z`);
-});
-
 const weekColour = z.string().transform((value, ctx) => {
   try {
     return parseWeekColour(value);
@@ -72,7 +62,6 @@ const settingsForm = z.object({
   weekAnchorIsoWeek: z.string(),
   weekAnchorColour: weekColour,
   distributionWeekday: wholeNumber,
-  effectiveFrom: isoDate,
   reason: z.string(),
   pricePerGrownUp: euroAmount,
   pricePerChild: euroAmount,
@@ -87,18 +76,10 @@ function formValues(formData: FormData): Record<string, unknown> {
     weekAnchorIsoWeek: text("weekAnchorIsoWeek"),
     weekAnchorColour: text("weekAnchorColour"),
     distributionWeekday: text("distributionWeekday"),
-    effectiveFrom: text("effectiveFrom"),
     reason: text("reason"),
     pricePerGrownUp: text("pricePerGrownUp"),
     pricePerChild: text("pricePerChild"),
   };
-}
-
-/** German dates in error messages, so the screen never quotes an ISO timestamp at staff. */
-function germanDate(date: Date): string {
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  return `${day}.${month}.${date.getUTCFullYear()}`;
 }
 
 /**
@@ -110,12 +91,6 @@ function germanDate(date: Date): string {
 function germanMessage(error: unknown): string {
   if (error instanceof QuotaBelowActiveCustomers) {
     return de.settings.errors.quotaBelowActiveCustomers(error.quotaN, error.activeCustomers);
-  }
-  if (error instanceof RetroactiveSettingsVersion) {
-    return de.settings.errors.retroactiveVersion(
-      germanDate(error.effectiveFrom),
-      germanDate(error.latestEffectiveFrom),
-    );
   }
   if (error instanceof InvalidEuroAmount) {
     return de.settings.errors.invalidAmount(error.text);
@@ -130,7 +105,8 @@ function germanMessage(error: unknown): string {
 }
 
 /**
- * Validate the form, append a new settings version and record the change in the audit log.
+ * Validate the form, append a new settings version — in force at once — and record the change in
+ * the audit log.
  *
  * On any failure nothing is written — the use case checks every rule before it appends — and the
  * form comes back with a German explanation.
@@ -147,7 +123,6 @@ export async function saveSettings(
 
   try {
     await updateSettings(settingsDeps, {
-      effectiveFrom: form.effectiveFrom,
       reason: form.reason,
       settings: {
         quotaN: form.quotaN,

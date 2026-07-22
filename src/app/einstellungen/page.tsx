@@ -19,11 +19,6 @@ import { SettingsForm } from "./settings-form";
 /** Settings change through the form, so the page must never be served from a build-time cache. */
 export const dynamic = "force-dynamic";
 
-/** The `<input type="date">` value format. Versions are stored at midnight UTC, so read in UTC. */
-function isoDay(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
 /** Dates are shown to staff the German way; nobody here should have to read an ISO timestamp. */
 function germanDate(date: Date): string {
   const day = String(date.getUTCDate()).padStart(2, "0");
@@ -33,15 +28,9 @@ function germanDate(date: Date): string {
 
 function VersionHistory({
   versions,
-  now,
 }: {
   versions: ReadonlyArray<SettingsVersion>;
-  now: Date;
 }): React.ReactElement {
-  // The list is newest first, so the first version that has already taken effect is the one in
-  // force — the same rule `resolveSettingsAt` applies, read off an ordered list.
-  const inForce = versions.find((version) => version.effectiveFrom <= now)?.effectiveFrom;
-
   return (
     <section className="flex flex-col gap-3">
       <h2 className="text-xl font-semibold">{de.settings.history.heading}</h2>
@@ -49,19 +38,18 @@ function VersionHistory({
         <p className="text-foreground/70">{de.settings.history.empty}</p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {versions.map((version) => (
+          {/* Newest first, so the first entry is the one in force — a change applies immediately. */}
+          {versions.map((version, index) => (
             <li
-              key={version.effectiveFrom.toISOString()}
+              // Two versions can share an instant, so the position disambiguates the key.
+              key={`${version.recordedAt.toISOString()}-${index}`}
               data-testid="settings-version"
               className="rounded border border-foreground/15 px-3 py-2 text-sm"
             >
               <span className="font-medium">
-                {de.settings.history.effectiveFrom} {germanDate(version.effectiveFrom)}
+                {de.settings.history.recordedAt} {germanDate(version.recordedAt)}
               </span>
-              {version.effectiveFrom > now ? (
-                <span className="text-foreground/60"> — {de.settings.history.future}</span>
-              ) : null}
-              {version.effectiveFrom === inForce ? (
+              {index === 0 ? (
                 <span className="text-foreground/60"> — {de.settings.history.current}</span>
               ) : null}
               <span className="block text-foreground/70">
@@ -83,8 +71,6 @@ function VersionHistory({
 }
 
 export default async function SettingsPage(): Promise<React.ReactElement> {
-  const now = settingsDeps.clock.now();
-
   let current: Settings;
   try {
     current = await readCurrentSettings(settingsDeps);
@@ -108,8 +94,8 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
         <h1 className="text-3xl font-semibold">{de.settings.heading}</h1>
         <p className="max-w-prose text-foreground/70">{de.settings.intro}</p>
       </header>
-      <SettingsForm settings={current} today={isoDay(now)} />
-      <VersionHistory versions={versions} now={now} />
+      <SettingsForm settings={current} />
+      <VersionHistory versions={versions} />
     </main>
   );
 }
