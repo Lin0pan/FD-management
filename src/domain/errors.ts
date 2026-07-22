@@ -10,6 +10,8 @@
 /** The closed set of domain error kinds. Extended as rules are implemented. */
 export type DomainErrorCode =
   | "NoFreeCustomerNumber"
+  | "CustomerNumberTaken"
+  | "MissingRequiredField"
   | "EmptyHousehold"
   | "BirthDateInFuture"
   | "WrongGroupForWeek"
@@ -130,6 +132,39 @@ export class NoFreeCustomerNumber extends DomainError {
   constructor(quotaN: number) {
     super(`All ${quotaN} customer numbers are taken`);
     this.quotaN = quotaN;
+  }
+}
+
+/**
+ * Somebody else took the chosen customer number between reading the free slots and writing the row.
+ * Carries the number so a retry can be told apart from a genuinely full register — unlike
+ * {@link NoFreeCustomerNumber}, this says nothing about the quota being reached, only that this one
+ * slot went to a registration that landed first.
+ *
+ * Raised by the repository, which owns the partial unique index that is the final authority on a
+ * free slot (tasks/prd-us-01-register-customer.md §7).
+ */
+export class CustomerNumberTaken extends DomainError {
+  readonly code = "CustomerNumberTaken";
+  readonly customerNumber: number;
+
+  constructor(customerNumber: number) {
+    super(`Customer number ${customerNumber} was taken by another registration`);
+    this.customerNumber = customerNumber;
+  }
+}
+
+/**
+ * A record was submitted without a field it cannot exist without. Carries the field name so the UI
+ * can mark the input rather than reporting that "something" is missing.
+ */
+export class MissingRequiredField extends DomainError {
+  readonly code = "MissingRequiredField";
+  readonly field: string;
+
+  constructor(field: string) {
+    super(`The field ${field} is required`);
+    this.field = field;
   }
 }
 

@@ -84,9 +84,13 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customer/customerNumber.test.ts  # its Vitest spec
 │   │   ├── customer/group.ts          # Group type and the RED/BLUE balancing suggestion
 │   │   ├── customer/group.test.ts     # its Vitest spec
+│   │   ├── customer/customer.ts       # the customer record, validated on construction
+│   │   ├── customer/customer.test.ts  # its Vitest spec
 │   │   ├── card/ distribution/       # empty, reserved by the architecture
 │   ├── application/
-│   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, AuditLog
+│   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
+│   │   │                             #   CustomerRepository, AuditLog
+│   │   ├── customers/                # registerCustomer
 │   │   └── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (implements Clock port)
@@ -162,12 +166,13 @@ The interfaces the application layer depends on. Per the TDD approach, ports **e
 needs** rather than being designed up front. Type-only, so it adds no runtime code to the
 coverage-measured layers.
 
-| Port                 | Shape                               | Notes                                                     |
-| -------------------- | ----------------------------------- | --------------------------------------------------------- |
-| `Clock`              | `now(): Date`                       | The one seam to the wall clock.                           |
-| `SettingsRepository` | `listVersions()`, `append(version)` | No update/delete — policy history is append-only.         |
-| `CustomerCounter`    | `countActive()`                     | The reality the quota `N` may not fall below.             |
-| `AuditLog`           | `append(entry)`                     | `AuditEntry` = `what` / `changedFields` / `when` / `why`. |
+| Port                 | Shape                                                       | Notes                                                                                      |
+| -------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `Clock`              | `now(): Date`                                               | The one seam to the wall clock.                                                            |
+| `SettingsRepository` | `listVersions()`, `append(version)`                         | No update/delete — policy history is append-only.                                          |
+| `CustomerCounter`    | `countActive()`                                             | The reality the quota `N` may not fall below.                                              |
+| `CustomerRepository` | `takenActiveNumbers()`, `groupCounts()`, `create(customer)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`. |
+| `AuditLog`           | `append(entry)`                                             | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                  |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
 
@@ -200,7 +205,8 @@ settable fake clock can drive deterministic tests.
 
 The `DomainErrorCode` union — the closed set of failure modes — plus an abstract `DomainError` base
 class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
-`QuotaBelowActiveCustomers`, `MissingAuditReason`, `EmptyHousehold`, `BirthDateInFuture` today).
+`QuotaBelowActiveCustomers`, `MissingAuditReason`, `EmptyHousehold`, `BirthDateInFuture`,
+`NoFreeCustomerNumber`, `CustomerNumberTaken`, `MissingRequiredField`, `InvalidEuroAmount` today).
 Each carries the values that made it fail, so the UI can render a
 German message naming concrete numbers without re-deriving them, and callers switch on `code`
 instead of parsing strings.
@@ -277,6 +283,45 @@ a different group (US-01.4), which is why `Group` is a separate type from `WeekC
 `src/domain/policy/settings.ts` despite sharing its two values. A week's colour follows from the
 anchor in settings; a customer's group is editable by hand, and aliasing the types would make one
 changeable through the other.
+
+### `src/domain/customer/customer.ts`
+
+The customer record: personal data, a flat German address (street, house number, ZIP, city), the
+needs certificate (`type`, `validUntil`) and the household members, each a name plus a birthdate.
+`createCustomerDetails(input, today)` is the only way to make one — it trims every text field,
+raises `MissingRequiredField` naming the blank one (down to `householdMembers.1.firstName`, so the
+form can mark the row), and validates the household **by deriving its composition**, which is what
+raises `EmptyHousehold` and `BirthDateInFuture`. The derived counts are then discarded: what is
+deliberately absent from the record is any grown-up or children count, any portion allowance and
+any price, because all three follow from the birthdates and the settings in force wherever they are
+needed. The Excel sheet FD is replacing stored them, and they drifted with every birthday.
+
+`NewCustomer` adds what registration decides — `customerNumber`, `group`, `status`,
+`reminderCount`, the first `card` — and `RegisteredCustomer` adds the surrogate `id`, which is the
+only identity there is: a customer number is a slot another household may hold once this one is
+archived. `CustomerStatus` is `ACTIVE | BLOCKED | ARCHIVED`; a blocked customer still holds their
+slot (US-08), an archived one releases it (US-10).
+
+### `src/application/customers/registerCustomer`
+
+The one use case that turns a filled-in form into a customer: it reads the clock **once**, builds
+the validated details as of that instant, resolves the settings in force through
+`readCurrentSettings` for the quota, resolves the group (an explicit choice from the form wins over
+`suggestGroup`), takes the lowest free number and writes the customer, household, certificate and
+first card in a single `customers.create(…)` — one transaction, so a failure leaves no half-built
+household and consumes no number. The card is not a separate action staff can forget.
+
+The concurrent-registration race is real even at four users: two staff can read the same free slot
+before either writes. The repository's partial unique index is the final authority and reports the
+loss as `CustomerNumberTaken`; `registerCustomer` then retries with a fresh read, up to three
+attempts, so the second registration lands on the next free number instead of showing an error that
+staff could only answer by pressing the button again. The bound matters more than its size — an
+unbounded loop would turn a repository fault into a hang. Anything that is not a lost race is not
+retried.
+
+The audit entry is written under `customer.registered` with an empty `why` — a registration needs no
+justification — and names `customerNumber`, `group`, `status` and `card`: what the _system_ decided,
+rather than repeating the fields staff typed, which are the record itself.
 
 ### `src/infrastructure/prisma/audit-log.ts`
 
@@ -437,7 +482,9 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
 | `infrastructure/` | Test-after, thin integration tests vs. a throwaway SQLite file.           |
 | `app/`            | Test-after or cover via Playwright; logic here is a smell — push it down. |
 
-Test data is **synthetic only** (Faker) — never real customer or certificate data in fixtures.
+Test data is **synthetic only** — never real customer or certificate data in fixtures.
+`@faker-js/faker` is a devDependency, added with US-01 as the first story to handle names and
+addresses; specs call `faker.seed(…)` once at the top so a failing run stays reproducible.
 
 ---
 

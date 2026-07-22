@@ -53,9 +53,13 @@ the full story-by-story history.)
 - **No browser MCP tooling is configured.** For a UI story, verify with a throwaway Playwright run
   against the built app plus a curl of the rendered HTML — that is what caught the `"use server"`
   export bug four green gates missed.
-- **Faker is still not a dependency.** The standard mandates synthetic data via Faker, so the first
-  story needing names or addresses (US-006 / US-007 here) has to add `@faker-js/faker` as a
-  devDependency.
+- **Faker is a devDependency** as of US-004 (`@faker-js/faker`). Call `faker.seed(…)` once at the top
+  of a spec so a failure is reproducible, and keep fixed dates literal — only names and addresses
+  come from Faker.
+- A record that the domain owns is built by a `createX(input, today)` factory in `src/domain/…`; the
+  use case above it never validates fields itself. Where a rule already derives something
+  (`composition`), call it for its **rejections** and discard the result rather than adding a second
+  check — one place states the rule.
 
 ---
 
@@ -139,4 +143,53 @@ the full story-by-story history.)
     Writing it as two `if`s would have added an unreachable third branch.
   - The suggestion is advice only — US-004 must let an explicit group in the input win over it, and
     must not re-derive the group at persistence time.
+---
+
+## [2026-07-22 19:32] - US-004 (registerCustomer use case)
+- Added the customer record to the domain: `src/domain/customer/customer.ts` with `Address`,
+  `NeedsCertificate`, `HouseholdMemberDetails`, `CustomerStatus`, `CustomerCard`, `NewCustomer`,
+  `RegisteredCustomer` and the `createCustomerDetails(input, today)` factory. The factory trims every
+  text field, raises `MissingRequiredField` naming the blank one (down to
+  `householdMembers.1.firstName`), and validates the household by **deriving its composition** —
+  that call is what raises `EmptyHousehold` / `BirthDateInFuture`; the counts are discarded and never
+  stored.
+- Added `CustomerNumberTaken` and `MissingRequiredField` to `src/domain/errors.ts` and the
+  `DomainErrorCode` union.
+- Added the `CustomerRepository` port (`takenActiveNumbers`, `groupCounts`, `create`) to
+  `src/application/ports.ts`; `create` is documented as one transaction and as the authority that
+  reports a lost race.
+- Implemented `src/application/customers/register-customer.ts`: one clock read for the whole
+  registration, settings via `readCurrentSettings` for `quotaN`, `lowestFreeNumber`, an explicit
+  group winning over `suggestGroup`, one `create` with status ACTIVE / reminderCount 0 / card index
+  1, then the `customer.registered` audit entry (`why: ""`, no actor).
+- Race handling: up to 3 attempts. A `CustomerNumberTaken` from the repository is retried with a
+  fresh read of the taken numbers; anything else is rethrown at once. Exhausting the attempts
+  surfaces `CustomerNumberTaken` — never a duplicate.
+- Tests first: 17 domain tests (`customer.test.ts`) and 21 application tests
+  (`customers.test.ts`), including the lost-race cases against a fake register that really claims
+  the number between read and write.
+- Added `@faker-js/faker` as a devDependency — first story with names and addresses.
+- Files changed: `src/domain/customer/customer.ts` (new), `src/domain/customer/customer.test.ts`
+  (new), `src/domain/errors.ts`, `src/application/ports.ts`,
+  `src/application/customers/register-customer.ts` (new),
+  `src/application/customers/customers.test.ts` (new), `docs/technical_documentation.md`,
+  `package.json`, `package-lock.json`, `scripts/ralph/prd.json`.
+- All gates green: lint, typecheck, coverage (domain + application 100% on all four metrics, 180
+  tests), build.
+- **Learnings for future iterations:**
+  - A retry loop written as `for (;;)` with `return` inside keeps TypeScript from demanding an
+    unreachable trailing `return` — which would be an uncoverable line under the 100% gate. Guard the
+    rethrow with `attemptsLeft === 0 || !(error instanceof X)` so all three branch outcomes are
+    reachable from three tests (success after a retry, exhausted attempts, a non-retryable failure).
+  - The application fake for a repository should enforce the rule the database will enforce
+    (a `stealNext(times)` hook claiming the chosen number just before the write). That turns the
+    concurrency criterion into a real test rather than an assertion about a mock.
+  - `registerCustomer` composes `readCurrentSettings` rather than reading `listVersions` itself, so
+    the settings seam stays single. It does mean the clock is read twice (once by each); the card and
+    the audit entry both use the *use case's* single read, which is what the test asserts.
+  - US-005 must implement `CustomerRepository` and translate the partial-unique-index violation into
+    `CustomerNumberTaken` (not `NoFreeCustomerNumber` — that one means the quota is full), and
+    replace `src/infrastructure/customer-counter.ts` with a real Prisma count.
+  - US-006 has a fifth rejection to render in German beyond the four the PRD lists:
+    `CustomerNumberTaken` after the retries, which reads as "please try again".
 ---

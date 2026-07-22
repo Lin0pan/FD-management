@@ -7,6 +7,8 @@
  * untested runtime code.
  */
 
+import type { NewCustomer, RegisteredCustomer } from "@/domain/customer/customer";
+import type { GroupCounts } from "@/domain/customer/group";
 import type { SettingsVersion } from "@/domain/policy/settings";
 
 /** Injectable time source. Every time-dependent domain rule reads "now" through this port. */
@@ -27,6 +29,28 @@ export interface SettingsRepository {
 /** How many customers currently hold a slot — the reality the quota `N` may not fall below. */
 export interface CustomerCounter {
   countActive(): Promise<number>;
+}
+
+/**
+ * The customer register.
+ *
+ * `create` is **one transaction**: the customer, their household members, the certificate and the
+ * first card are written together or not at all, so a failure can leave neither a half-built
+ * household nor a consumed customer number (tasks/prd-us-01-register-customer.md §US-01.4). The
+ * adapter — not the caller — is the final authority on whether the chosen number was still free when
+ * the write landed, and reports a lost race as `CustomerNumberTaken`.
+ */
+export interface CustomerRepository {
+  /** The numbers held by customers who still occupy a slot; archived rows release theirs. */
+  takenActiveNumbers(): Promise<ReadonlyArray<number>>;
+  /** How many active customers each balancing group holds. */
+  groupCounts(): Promise<GroupCounts>;
+  /**
+   * Persist a new customer with everything that belongs to them.
+   *
+   * @throws {CustomerNumberTaken} if another registration took the number first.
+   */
+  create(customer: NewCustomer): Promise<RegisteredCustomer>;
 }
 
 /**

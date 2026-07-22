@@ -1,0 +1,331 @@
+import { faker } from "@faker-js/faker";
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+  type HouseholdMemberDetails,
+  type NewCustomer,
+  type RegisteredCustomer,
+} from "@/domain/customer/customer";
+import type { GroupCounts } from "@/domain/customer/group";
+import {
+  BirthDateInFuture,
+  CustomerNumberTaken,
+  EmptyHousehold,
+  MissingRequiredField,
+  NoFreeCustomerNumber,
+  NoSettingsInForce,
+} from "@/domain/errors";
+import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
+import type { AuditEntry, AuditLog, Clock, CustomerRepository, SettingsRepository } from "../ports";
+import { registerCustomer, type RegisterCustomerInput } from "./register-customer";
+
+/**
+ * Hand-written fakes, per the testing standard, and synthetic data only — never a real name, address
+ * or certificate. The seed keeps a failing run reproducible.
+ */
+
+faker.seed(20260722);
+
+const TODAY = "2026-07-22T09:00:00.000Z";
+
+class FakeSettingsRepository implements SettingsRepository {
+  readonly versions: SettingsVersion[] = [];
+
+  constructor(...versions: SettingsVersion[]) {
+    this.versions.push(...versions);
+  }
+
+  listVersions(): Promise<SettingsVersion[]> {
+    return Promise.resolve([...this.versions]);
+  }
+
+  append(version: SettingsVersion): Promise<void> {
+    this.versions.push(version);
+    return Promise.resolve();
+  }
+}
+
+class FakeAuditLog implements AuditLog {
+  readonly entries: AuditEntry[] = [];
+
+  append(entry: AuditEntry): Promise<void> {
+    this.entries.push(entry);
+    return Promise.resolve();
+  }
+}
+
+/**
+ * A register that behaves like the database will: `stealNext` lets another registration claim the
+ * chosen number in the moment between the read and the write, which is what makes the concurrency
+ * test meaningful rather than a mocked assertion.
+ */
+class FakeCustomerRepository implements CustomerRepository {
+  readonly created: RegisteredCustomer[] = [];
+  private nextId = 1;
+  /** How many more writes a concurrent registration beats to the chosen number. */
+  private stealsLeft = 0;
+
+  constructor(
+    private readonly taken: number[] = [],
+    private readonly counts: GroupCounts = { red: 0, blue: 0 },
+  ) {}
+
+  /** Have another registration take the chosen number, just before this one writes it, `times` over. */
+  stealNext(times: number): void {
+    this.stealsLeft = times;
+  }
+
+  takenActiveNumbers(): Promise<ReadonlyArray<number>> {
+    return Promise.resolve([...this.taken]);
+  }
+
+  groupCounts(): Promise<GroupCounts> {
+    return Promise.resolve(this.counts);
+  }
+
+  create(customer: NewCustomer): Promise<RegisteredCustomer> {
+    if (this.stealsLeft > 0) {
+      this.stealsLeft -= 1;
+      this.taken.push(customer.customerNumber);
+      return Promise.reject(new CustomerNumberTaken(customer.customerNumber));
+    }
+    this.taken.push(customer.customerNumber);
+    const registered: RegisteredCustomer = { ...customer, id: this.nextId };
+    this.nextId += 1;
+    this.created.push(registered);
+    return Promise.resolve(registered);
+  }
+}
+
+/** A repository that fails for a reason no retry can mend. */
+class BrokenCustomerRepository extends FakeCustomerRepository {
+  override create(): Promise<RegisteredCustomer> {
+    return Promise.reject(new Error("database unavailable"));
+  }
+}
+
+function fakeClock(iso: string): Clock {
+  return { now: () => new Date(iso) };
+}
+
+function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
+  return {
+    quotaN: 240,
+    portionsPerGrownUp: 2,
+    portionsPerChild: 1,
+    weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
+    distributionWeekday: 4,
+    pricePerGrownUp: 200,
+    pricePerChild: 100,
+    ...overrides,
+  };
+}
+
+function version(overrides: Partial<SettingsInput> = {}): SettingsVersion {
+  return {
+    recordedAt: new Date("2026-01-01T00:00:00.000Z"),
+    settings: createSettings(settingsInput(overrides)),
+  };
+}
+
+function member(overrides: Partial<HouseholdMemberDetails> = {}): HouseholdMemberDetails {
+  return {
+    firstName: faker.person.firstName(),
+    lastName: faker.person.lastName(),
+    birthDate: new Date("1990-04-05T00:00:00.000Z"),
+    ...overrides,
+  };
+}
+
+function registerInput(overrides: Partial<RegisterCustomerInput> = {}): RegisterCustomerInput {
+  return {
+    firstName: faker.person.firstName(),
+    lastName: faker.person.lastName(),
+    birthDate: new Date("1985-03-11T00:00:00.000Z"),
+    address: {
+      street: faker.location.street(),
+      houseNumber: faker.location.buildingNumber(),
+      zip: faker.location.zipCode("#####"),
+      city: faker.location.city(),
+    },
+    certificate: { type: "Jobcenter", validUntil: new Date("2027-01-31T00:00:00.000Z") },
+    householdMembers: [member(), member({ birthDate: new Date("2020-06-01T00:00:00.000Z") })],
+    notes: "",
+    ...overrides,
+  };
+}
+
+describe("registerCustomer", () => {
+  let customers: FakeCustomerRepository;
+  let settings: FakeSettingsRepository;
+  let audit: FakeAuditLog;
+
+  function deps(today = TODAY) {
+    return { customers, settings, clock: fakeClock(today), audit };
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository();
+    settings = new FakeSettingsRepository(version());
+    audit = new FakeAuditLog();
+  });
+
+  it("gives a first customer number 1 and hands back the persisted record", async () => {
+    const customer = await registerCustomer(deps(), registerInput());
+
+    expect(customer.id).toBe(1);
+    expect(customer.customerNumber).toBe(1);
+    expect(customers.created).toHaveLength(1);
+  });
+
+  it("fills the gap an archived customer left before any higher number", async () => {
+    customers = new FakeCustomerRepository([1, 2, 4]);
+
+    const customer = await registerCustomer(deps(), registerInput());
+
+    expect(customer.customerNumber).toBe(3);
+  });
+
+  it("allocates within the quota in force today, not a hard-coded limit", async () => {
+    settings = new FakeSettingsRepository(version({ quotaN: 2 }));
+    customers = new FakeCustomerRepository([1, 2]);
+
+    await expect(registerCustomer(deps(), registerInput())).rejects.toThrow(NoFreeCustomerNumber);
+  });
+
+  it("registers the customer as active with no reminders and a first card", async () => {
+    const customer = await registerCustomer(deps(), registerInput());
+
+    expect(customer.status).toBe("ACTIVE");
+    expect(customer.reminderCount).toBe(0);
+    expect(customer.card.index).toBe(1);
+  });
+
+  it("stamps the first card with the clock, so the card and the audit entry agree", async () => {
+    const customer = await registerCustomer(deps(TODAY), registerInput());
+
+    expect(customer.card.issuedAt).toEqual(new Date(TODAY));
+    expect(audit.entries[0].when).toEqual(new Date(TODAY));
+  });
+
+  it("suggests the smaller group when staff made no choice", async () => {
+    customers = new FakeCustomerRepository([], { red: 10, blue: 8 });
+
+    const customer = await registerCustomer(deps(), registerInput({ group: undefined }));
+
+    expect(customer.group).toBe("BLUE");
+  });
+
+  it("lets an explicit group win over the suggestion", async () => {
+    customers = new FakeCustomerRepository([], { red: 10, blue: 8 });
+
+    const customer = await registerCustomer(deps(), registerInput({ group: "RED" }));
+
+    expect(customer.group).toBe("RED");
+  });
+
+  it("stores no household counts — they are derived from the birthdates", async () => {
+    const customer = await registerCustomer(deps(), registerInput());
+
+    expect(Object.keys(customer)).not.toContain("grownUps");
+    expect(Object.keys(customer.details)).not.toContain("children");
+  });
+
+  it("keeps the whole household, the customer's address and the certificate", async () => {
+    const input = registerInput();
+
+    const customer = await registerCustomer(deps(), input);
+
+    expect(customer.details.householdMembers).toHaveLength(2);
+    expect(customer.details.address.city).toBe(input.address.city);
+    expect(customer.details.certificate.type).toBe("Jobcenter");
+  });
+
+  it("rejects a registration with a required field left blank", async () => {
+    await expect(registerCustomer(deps(), registerInput({ lastName: " " }))).rejects.toThrow(
+      MissingRequiredField,
+    );
+  });
+
+  it("rejects a registration with an empty household", async () => {
+    await expect(registerCustomer(deps(), registerInput({ householdMembers: [] }))).rejects.toThrow(
+      EmptyHousehold,
+    );
+  });
+
+  it("rejects a registration with a birthdate after today", async () => {
+    const input = registerInput({
+      householdMembers: [member({ birthDate: new Date("2026-07-23T00:00:00.000Z") })],
+    });
+
+    await expect(registerCustomer(deps(), input)).rejects.toThrow(BirthDateInFuture);
+  });
+
+  it("rejects a registration when no settings version is in force yet", async () => {
+    settings = new FakeSettingsRepository();
+
+    await expect(registerCustomer(deps(), registerInput())).rejects.toThrow(NoSettingsInForce);
+  });
+
+  it("writes nothing at all when the registration is rejected", async () => {
+    await registerCustomer(deps(), registerInput({ householdMembers: [] })).catch(() => undefined);
+
+    expect(customers.created).toHaveLength(0);
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("consumes no customer number when the write fails", async () => {
+    customers = new BrokenCustomerRepository();
+
+    await registerCustomer(deps(), registerInput()).catch(() => undefined);
+
+    await expect(customers.takenActiveNumbers()).resolves.toEqual([]);
+  });
+
+  it("does not retry a failure that is not a lost race", async () => {
+    customers = new BrokenCustomerRepository();
+
+    await expect(registerCustomer(deps(), registerInput())).rejects.toThrow("database unavailable");
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("moves to the next free number when another registration took the chosen one", async () => {
+    customers.stealNext(1);
+
+    const customer = await registerCustomer(deps(), registerInput());
+
+    expect(customer.customerNumber).toBe(2);
+    expect(customers.created).toHaveLength(1);
+  });
+
+  it("never creates a duplicate when the race is lost repeatedly", async () => {
+    customers.stealNext(3);
+
+    const failure = await registerCustomer(deps(), registerInput()).catch(
+      (error: unknown) => error,
+    );
+
+    expect(failure).toBeInstanceOf(CustomerNumberTaken);
+    expect(customers.created).toHaveLength(0);
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("records the registration under a stable event name, with no actor", async () => {
+    await registerCustomer(deps(), registerInput());
+
+    expect(audit.entries).toHaveLength(1);
+    expect(audit.entries[0].what).toBe("customer.registered");
+    expect(Object.keys(audit.entries[0])).not.toContain("who");
+  });
+
+  it("names what registration decided, not what staff typed", async () => {
+    await registerCustomer(deps(), registerInput());
+
+    expect(audit.entries[0].changedFields).toEqual(["customerNumber", "group", "status", "card"]);
+  });
+
+  it("records an empty why — a registration needs no justification", async () => {
+    await registerCustomer(deps(), registerInput());
+
+    expect(audit.entries[0].why).toBe("");
+  });
+});
