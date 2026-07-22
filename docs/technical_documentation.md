@@ -10,28 +10,31 @@ rather than repeating them:
 
 This file describes _how_ the current codebase is organised and how to work in it.
 
-> **Status:** walking skeleton. The app boots and is fully wired for TDD and CI, but carries no
-> domain features yet. Sections below mark clearly what exists vs. what is a documented placeholder.
+> **Status:** the app boots, is fully wired for TDD and CI, and carries its first feature end to end
+> in the core layers — US-14's policy settings (domain rules, use cases, SQLite persistence and
+> seed). The settings **screen** is still to come. Sections below mark clearly what exists vs. what
+> is a documented placeholder.
 
 ---
 
 ## 1. Technology stack (as installed)
 
-| Concern    | Choice                                      | Version (pinned in `package.json`)       |
-| ---------- | ------------------------------------------- | ---------------------------------------- |
-| Language   | TypeScript (strict)                         | `^5`                                     |
-| Runtime    | Node.js LTS                                 | `22` (`.nvmrc`, `engines.node >=22 <23`) |
-| Framework  | Next.js (App Router)                        | `16.2.10` (exact)                        |
-| UI runtime | React / React DOM                           | `19.2.4` (exact)                         |
-| Styling    | Tailwind CSS v4 (`@tailwindcss/postcss`)    | `^4`                                     |
-| Database   | SQLite                                      | file-based                               |
-| ORM        | Prisma (native `sqlite` provider)           | `^6` (client generated at 6.19.x)        |
-| Validation | Zod                                         | `^3` (installed, not yet used)           |
-| Unit tests | Vitest + `@vitest/coverage-v8`              | `^3`                                     |
-| E2E tests  | Playwright                                  | `^1.5`                                   |
-| Lint       | ESLint 9 flat config + `eslint-config-next` | `^9`                                     |
-| Format     | Prettier + `lint-staged`                    | `^3` / `^15`                             |
-| Git hooks  | Husky                                       | `^9`                                     |
+| Concern            | Choice                                      | Version (pinned in `package.json`)       |
+| ------------------ | ------------------------------------------- | ---------------------------------------- |
+| Language           | TypeScript (strict)                         | `^5`                                     |
+| Runtime            | Node.js LTS                                 | `22` (`.nvmrc`, `engines.node >=22 <23`) |
+| Framework          | Next.js (App Router)                        | `16.2.10` (exact)                        |
+| UI runtime         | React / React DOM                           | `19.2.4` (exact)                         |
+| Styling            | Tailwind CSS v4 (`@tailwindcss/postcss`)    | `^4`                                     |
+| Database           | SQLite                                      | file-based                               |
+| ORM                | Prisma (native `sqlite` provider)           | `^6` (client generated at 6.19.x)        |
+| Validation         | Zod                                         | `^3` (installed, not yet used)           |
+| Unit tests         | Vitest + `@vitest/coverage-v8`              | `^3`                                     |
+| E2E tests          | Playwright                                  | `^1.5`                                   |
+| Lint               | ESLint 9 flat config + `eslint-config-next` | `^9`                                     |
+| Format             | Prettier + `lint-staged`                    | `^3` / `^15`                             |
+| Git hooks          | Husky                                       | `^9`                                     |
+| Seed script runner | `tsx` (dev-only, runs `prisma/seed.ts`)     | `^4`                                     |
 
 **Deviations from the original sketch** (all recorded in `fd_dev_setup_overview.md`):
 
@@ -55,7 +58,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 ├── data/                             # SQLite db lives here at runtime (git-ignored; .gitkeep tracked)
 ├── docs/                             # all project documentation (this file included)
 ├── prisma/
-│   ├── schema.prisma                 # datasource + models (placeholder model today)
+│   ├── schema.prisma                 # datasource + models (SettingsVersion, PriceTableRow)
+│   ├── seed.ts                       # `npm run db:seed` entry point
 │   └── migrations/                   # committed migration history
 ├── src/
 │   ├── app/                          # Next.js App Router — thin adapter layer
@@ -75,7 +79,11 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (implements Clock port)
 │   │   ├── audit.ts                  # append-only audit log (placeholder)
-│   │   └── prisma/                   # reserved for Prisma repository implementations
+│   │   └── prisma/                   # Prisma client + repository implementations
+│   │       ├── client.ts             # the process-wide PrismaClient
+│   │       ├── settings-repository.ts  # PrismaSettingsRepository (implements the port)
+│   │       ├── seed.ts               # provisional settings version, inserted only if none exists
+│   │       └── settings-repository.test.ts  # integration spec, throwaway SQLite file
 │   └── i18n/de.ts                    # single German UI-string dictionary
 ├── tests/e2e/home.spec.ts            # Playwright smoke test
 ├── eslint.config.mjs  .prettierrc.json  .prettierignore
@@ -222,11 +230,23 @@ type. All user-facing text lives here; **code identifiers stay English**. `layou
 
 - `prisma/schema.prisma` declares a `sqlite` datasource whose URL comes from `env("DATABASE_URL")`
   and a `prisma-client-js` generator (client generated to the default `node_modules/@prisma/client`).
-- The schema currently holds a single placeholder model (`SchemaMarker`) so `prisma validate`,
-  `migrate diff`, and `migrate deploy` all have something valid to run against in CI and E2E. The
-  real models (Customer, HouseholdMember, Card, DistributionRecord, Setting, …) replace it next.
+- The models today are `SettingsVersion` and its `PriceTableRow` children — the dated, append-only
+  policy values (the placeholder `SchemaMarker` is gone). `SettingsVersion.effectiveFrom` is unique,
+  so "the settings in force on a date" can never tie; `(settingsVersionId, grownUps, children)` is
+  unique, so a household cannot have two prices in one version. Customer, HouseholdMember, Card and
+  DistributionRecord follow with the stories that need them.
+- **All money columns are `Int` cents.** `Float` and `Decimal` appear nowhere in the schema.
+- SQLite has no enum type, so the week colour is a `String` narrowed back to `WeekColour` by
+  `parseWeekColour` on read — a hand-edited database cannot widen the cycle.
+- Rows re-enter the domain through `createSettings`, so a database edited outside the app cannot
+  smuggle a fractional price or an impossible weekday past the invariants.
 - Migration history is committed under `prisma/migrations/`. Apply it with
   `npx prisma migrate deploy`; create new migrations during development with `npx prisma migrate dev`.
+- **Seeding.** `npm run db:seed` (`prisma/seed.ts`, run with `tsx`) inserts one provisional settings
+  version — quota 240, 2 portions per grown-up, 1 per child, threshold 3, 200c per grown-up + 100c
+  per child, anchor `2026-W02` = RED, Thursday — _only_ when the table is empty, so running it after
+  every deploy is safe and never overwrites an operator's edit. Every one of those numbers is
+  provisional and must be confirmed with FD; correcting them is a settings edit, not a migration.
 
 ### ⚠️ SQLite path resolution (important gotcha)
 
@@ -240,9 +260,10 @@ DATABASE_URL="file:../data/fd.db"      # → <repo>/data/fd.db
 
 This is consistent across `.env`, the Playwright web-server env, and the CI job envs (which use
 `../data/ci.db` and `../data/e2e.db`). The `data/` directory is tracked via `.gitkeep`; the `*.db`
-files themselves are git-ignored. When the first real runtime queries are added, re-verify that the
-**generated client** resolves the same path at runtime (relative SQLite paths are a known Prisma
-footgun) — until then only the CLI touches the DB.
+files themselves are git-ignored. Note that the **generated client** resolves a relative SQLite path
+against the _current working directory_, not against `prisma/` as the CLI does (a known Prisma
+footgun) — which is why the app is always started from the repo root, and why the integration tests
+pass an **absolute** `datasourceUrl`.
 
 ---
 
@@ -274,12 +295,17 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
 - Type-only files in those layers (`ports.ts`) transpile to no runtime statements, so they pass the
   thresholds without needing tests. Files that do carry runtime code — including the error classes
   in `errors.ts` — are covered by the spec of the rule that raises them.
+- Infrastructure specs run in the same Vitest command but are **integration** tests: they migrate a
+  throwaway SQLite file under the OS temp directory (`prisma migrate deploy` in `beforeAll`) and
+  delete it afterwards, so `data/fd.db` is never touched. They need a generated Prisma client — CI
+  runs `prisma generate` before `vitest`.
 - Run: `npm test` (or `npm run test:coverage`, `npm run test:watch`).
 
 ### End-to-end — Playwright (`playwright.config.ts`)
 
 - `testDir: tests/e2e`; runs Chromium against the **built** app.
-- `webServer` runs `npx prisma migrate deploy && npm run start` over a throwaway `data/e2e.db`,
+- `webServer` runs `npx prisma migrate deploy && npm run db:seed && npm run start` over a throwaway
+  `data/e2e.db`,
   mirroring the CI `e2e-tests` job. `reuseExistingServer` is on locally, off in CI.
 - Today: one smoke test asserting the German `<h1>` renders. The distribution-day and registration
   flows are added alongside the features they cover.
@@ -356,6 +382,7 @@ npm run lint && npm run typecheck && npm run test:coverage && npm run build
 | `npm run test:e2e`                          | Playwright                                     |
 | `npm run format` / `format:check`           | Prettier                                       |
 | `npm run prisma:*`                          | `generate` / `validate` / `migrate` / `deploy` |
+| `npm run db:seed`                           | Seed the provisional settings version          |
 
 ---
 

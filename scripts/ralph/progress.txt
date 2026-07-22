@@ -27,6 +27,20 @@ Started: Wed Jul 22 12:49:05 CEST 2026
 - Run `npx prettier --write <paths>` before `npm run lint`; the pre-commit hook formats anyway, but
   it rewrites files mid-run otherwise.
 - Local quality gate: `npm run lint && npm run typecheck && npm run test:coverage && npm run build`.
+- Infrastructure adapters live in `src/infrastructure/prisma/<thing>-repository.ts` and implement a
+  port from `src/application/ports.ts`. Rows re-enter the domain through the `createX` factory, so a
+  hand-edited database cannot bypass an invariant.
+- Integration tests migrate a **throwaway** SQLite file: `mkdtempSync` + `execFileSync("npx",
+  ["prisma","migrate","deploy"], { env: { ...process.env, DATABASE_URL: url } })` in `beforeAll`
+  (60s timeout), `new PrismaClient({ datasourceUrl: url })`, `rmSync` in `afterAll`. Use an
+  **absolute** `file:` path — the generated client resolves relative paths against the cwd, while
+  the CLI resolves them against `prisma/`.
+- SQLite has no enum type: store a union as `String` and narrow it back with a domain parser
+  (`parseWeekColour`). Parsing belongs in the domain, not the adapter.
+- `prisma migrate dev` needs `DATABASE_URL` on the command line if you do not want it to touch
+  `data/fd.db`; delete the scratch db afterwards.
+- TypeScript scripts outside `src/` (e.g. `prisma/seed.ts`) run through `tsx`; do not add a
+  `package.json#prisma` key for them — Prisma 6 warns that it is deprecated.
 
 ## [2026-07-22] - US-001 (Settings value objects and effective-from resolution)
 - Implemented `src/domain/policy/settings.ts`: the `Settings` shape (quotaN, portionsPerGrownUp,
@@ -78,4 +92,42 @@ Started: Wed Jul 22 12:49:05 CEST 2026
   - `ports.ts` reports 0% coverage in the v8 table because it transpiles to nothing; that is
     harmless (0/0) and does not affect the global threshold.
   - Still no Faker dependency; nothing in this story needed names or addresses.
+---
+
+## [2026-07-22] - US-003 (SettingsVersion schema, seed and Prisma repository)
+- Replaced the placeholder `SchemaMarker` model with `SettingsVersion` (unique `effectiveFrom`, the
+  scalar policy fields, week anchor as `String` + `String`) and `PriceTableRow` (`cents Int`,
+  unique on `(settingsVersionId, grownUps, children)`, cascade-deleted with its version). No
+  `Float` and no `Decimal` anywhere in the schema. Migration
+  `prisma/migrations/20260722105927_settings_versions/`.
+- Implemented `PrismaSettingsRepository` (`listVersions` / `append`, append-only by construction)
+  and `seedSettings(repository)`, which inserts the provisional version only when the table is
+  empty. `prisma/seed.ts` is the CLI entry point behind the new `npm run db:seed`; the Playwright
+  web server now runs it between `migrate deploy` and `npm run start`.
+- Added `parseWeekColour` to `src/domain/policy/settings.ts` (test first) so the persisted colour
+  string re-enters the domain through a check rather than a cast.
+- Files changed: `prisma/schema.prisma`, `prisma/migrations/20260722105927_settings_versions/
+  migration.sql` (new), `prisma/seed.ts` (new), `src/infrastructure/prisma/client.ts` (new),
+  `src/infrastructure/prisma/settings-repository.ts` (new),
+  `src/infrastructure/prisma/seed.ts` (new),
+  `src/infrastructure/prisma/settings-repository.test.ts` (new, 9 integration tests),
+  `src/domain/policy/settings.ts`, `src/domain/policy/settings.test.ts`, `package.json`
+  (+ `tsx` devDependency, `db:seed` script), `playwright.config.ts`, `README.md`,
+  `CONTRIBUTING.md`, `docs/technical_documentation.md`.
+- All gates green: lint, typecheck, coverage (domain + application still 100%), build, and
+  `npm run test:e2e` re-run to prove the seeded web server still boots.
+- **Learnings for future iterations:**
+  - The seed writes **no audit entry**: the log records what a person changed and *why*, and a
+    fresh database's initial state is nobody's decision. There is still no `AuditLog` adapter — the
+    first use case wired to a route will need one (`src/infrastructure/audit.ts` is a placeholder).
+  - The seed price table enumerates grown-ups 1–6 × children 0–6 from the formula 200c per grown-up
+    + 100c per child. `priceFor` never interpolates, so a household outside that range raises
+    `NoPriceForHousehold` — the settings screen (US-004) must let staff add a row.
+  - The seed version is dated `2026-01-01T00:00:00.000Z`. `updateSettings` refuses a version dated
+    on or before the latest one, so the first edit on the settings screen must pick a later date.
+  - `tsx` was added as a devDependency (Prisma's own recommended seed runner); Node's
+    `--experimental-strip-types` was rejected because it forces `.ts` extensions on every import in
+    the chain.
+  - `data/e2e.db` survives a local E2E run and is *not* re-migrated from scratch; delete it if a
+    schema change makes a spec fail locally.
 ---

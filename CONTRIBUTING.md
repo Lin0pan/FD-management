@@ -21,6 +21,7 @@ Requires **Node 22** (see `.nvmrc`; `nvm use` picks it up).
 npm install                 # also installs Husky git hooks via the "prepare" script
 cp .env.example .env        # sets DATABASE_URL to the local SQLite file
 npx prisma migrate deploy   # creates data/fd.db from the committed migrations
+npm run db:seed             # seeds the provisional settings version (no-op if one exists)
 npm run dev                 # http://localhost:3000
 ```
 

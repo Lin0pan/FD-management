@@ -3,6 +3,7 @@ import { InvalidSettings, NoPriceForHousehold, NoSettingsInForce } from "../erro
 import {
   changedSettingsFields,
   createSettings,
+  parseWeekColour,
   priceFor,
   resolveSettingsAt,
   type SettingsInput,
@@ -311,5 +312,20 @@ describe("changedSettingsFields", () => {
   it("lists several fields in declaration order when more than one changed", () => {
     const next = createSettings(settingsInput({ quotaN: 200, reminderThreshold: 4 }));
     expect(changedSettingsFields(previous, next)).toEqual(["quotaN", "reminderThreshold"]);
+  });
+});
+
+describe("parseWeekColour", () => {
+  it("accepts the two colours of the cycle", () => {
+    expect(parseWeekColour("RED")).toBe("RED");
+    expect(parseWeekColour("BLUE")).toBe("BLUE");
+  });
+
+  it("rejects anything else, so a stored value can never widen the cycle", () => {
+    expect(() => parseWeekColour("GREEN")).toThrow(InvalidSettings);
+  });
+
+  it("is case-sensitive — the stored form is upper case", () => {
+    expect(() => parseWeekColour("red")).toThrow(InvalidSettings);
   });
 });

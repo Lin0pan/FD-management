@@ -12,6 +12,7 @@ Requires **Node 22** (`.nvmrc`).
 npm install
 cp .env.example .env
 npx prisma migrate deploy   # creates data/fd.db
+npm run db:seed             # provisional policy values, so the app boots usable
 npm run dev                 # http://localhost:3000
 ```
 

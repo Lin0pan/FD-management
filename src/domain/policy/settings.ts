@@ -18,6 +18,26 @@ import type { Cents } from "../money";
 /** The two-week distribution cycle alternates between these two groups. */
 export type WeekColour = "RED" | "BLUE";
 
+/** The stored form of the two week colours, in the order they are written to the database. */
+const WEEK_COLOURS: ReadonlyArray<WeekColour> = ["RED", "BLUE"];
+
+/**
+ * Narrow a persisted string to a {@link WeekColour}. SQLite has no enum type, so the colour comes
+ * back from the database as a plain string and has to re-enter the domain through a check.
+ *
+ * @throws {InvalidSettings} if the value is not one of the two colours of the cycle.
+ */
+export function parseWeekColour(value: string): WeekColour {
+  const colour = WEEK_COLOURS.find((candidate) => candidate === value);
+  if (colour === undefined) {
+    throw new InvalidSettings(
+      "weekAnchor.colour",
+      `must be one of ${WEEK_COLOURS.join(" or ")}, received ${value}`,
+    );
+  }
+  return colour;
+}
+
 /** ISO weekday, Monday = 1 … Sunday = 7. */
 export type IsoWeekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
