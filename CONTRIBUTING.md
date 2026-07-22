@@ -9,6 +9,10 @@ Read `docs/` first — especially `tech_stack_architecture_sketch.md` (stack + a
 `fd_dev_setup_overview.md` (dev process). This file explains the day-to-day workflow and, more
 importantly, **why each quality gate exists**.
 
+The coding standard itself — architecture rules, style, testing approach, git conventions, the
+definition of done — lives in the repository-root `CLAUDE.md`. It is stated once there and binds
+humans and agents alike; this file does not restate it.
+
 ## Getting started
 
 Requires **Node 22** (see `.nvmrc`; `nvm use` picks it up).
@@ -82,7 +86,10 @@ CodeQL, Dependabot, and GitHub secret scanning run alongside.
   staff apart. State-change records answer _what / when / why_, never _who_. Do not add an actor
   field unless login is introduced (it would be an additive change).
 - **The domain layer must not import Next.js / React / Prisma** ("framework insurance"): if the
-  framework is ever replaced, only `src/app/` is thrown away. Keep the boundary clean.
+  framework is ever replaced, only `src/app/` is thrown away. This is enforced by ESLint
+  (`fd/domain-boundary` / `fd/application-boundary` in `eslint.config.mjs`, proved by
+  `src/architecture.test.ts`), so a violation fails `npm run lint` and CI rather than waiting for a
+  reviewer to notice. The same configs ban wall-clock reads outside `src/infrastructure`.
 - **Business rules are configurable data, not constants.** Portions, the price table, the reminder
   threshold, and the quota `N` live in the database with an _effective-from_ date — never hard-coded.
 - **Money is integer cents, never floats.** See `src/domain/money.ts`.
