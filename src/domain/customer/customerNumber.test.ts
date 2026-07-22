@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { NoFreeCustomerNumber } from "../errors";
-import { lowestFreeNumber } from "./customerNumber";
+import { findLowestFreeNumber, lowestFreeNumber } from "./customerNumber";
 
 describe("lowestFreeNumber", () => {
   it("gives the first customer number 1 when nothing is taken", () => {
@@ -48,5 +48,19 @@ describe("lowestFreeNumber", () => {
       expect(error).toBeInstanceOf(NoFreeCustomerNumber);
       expect((error as NoFreeCustomerNumber).quotaN).toBe(2);
     }
+  });
+});
+
+/**
+ * The total form of the same rule, for a screen that has to render whether or not a slot is free.
+ * It is the one scan both functions share, so these tests only state what the `null` case means.
+ */
+describe("findLowestFreeNumber", () => {
+  it("gives the lowest free slot, like the throwing form", () => {
+    expect(findLowestFreeNumber([1, 2, 4], 240)).toBe(3);
+  });
+
+  it("gives null instead of refusing when the register is full", () => {
+    expect(findLowestFreeNumber([1, 2], 2)).toBeNull();
   });
 });

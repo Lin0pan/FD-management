@@ -1,8 +1,14 @@
 import { faker } from "@faker-js/faker";
 import { describe, expect, it } from "vitest";
-import { BirthDateInFuture, EmptyHousehold, MissingRequiredField } from "../errors";
+import {
+  BirthDateInFuture,
+  EmptyHousehold,
+  InvalidCustomerRecord,
+  MissingRequiredField,
+} from "../errors";
 import {
   createCustomerDetails,
+  parseCustomerStatus,
   type CustomerDetailsInput,
   type HouseholdMemberDetails,
 } from "./customer";
@@ -171,5 +177,30 @@ describe("createCustomerDetails", () => {
     rows.push(member());
 
     expect(details.householdMembers).toHaveLength(1);
+  });
+});
+
+describe("parseCustomerStatus", () => {
+  it("reads ACTIVE back from a stored row", () => {
+    expect(parseCustomerStatus("ACTIVE")).toBe("ACTIVE");
+  });
+
+  it("reads BLOCKED back from a stored row", () => {
+    expect(parseCustomerStatus("BLOCKED")).toBe("BLOCKED");
+  });
+
+  it("reads ARCHIVED back from a stored row", () => {
+    expect(parseCustomerStatus("ARCHIVED")).toBe("ARCHIVED");
+  });
+
+  it("rejects an unknown status rather than treating the household as active", () => {
+    try {
+      parseCustomerStatus("GESPERRT");
+      expect.unreachable("parseCustomerStatus should have rejected the value");
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(InvalidCustomerRecord);
+      expect((error as InvalidCustomerRecord).field).toBe("status");
+      expect((error as InvalidCustomerRecord).value).toBe("GESPERRT");
+    }
   });
 });

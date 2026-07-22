@@ -79,13 +79,14 @@ test.describe("Einstellungen", () => {
     await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("2,75");
   });
 
-  // The quota-below-*active-customers* rule (FR-4) still cannot be reached from the browser: a real
-  // `PrismaCustomerCounter` is wired into `deps.ts` as of US-01.5, but nothing can put a customer
-  // into the register until the registration form lands (US-01.6), so the count is always 0 and no
-  // valid quota (>= 1) can fall below it. The rule itself is covered by
+  // The quota-below-*active-customers* rule (FR-4) is reachable from the browser as of US-01.6 —
+  // the registration form can now put customers into the register — but it needs **two** of them:
+  // a quota is only valid at 1 or above, so the count has to reach 2 before any valid quota can
+  // fall below it. Registering two households belongs in the registration spec (US-01.7), which
+  // owns that flow and its synthetic data; driving the form from the settings spec would couple two
+  // files to one customer-number sequence in the shared `data/e2e.db`. The rule itself is covered by
   // `src/application/settings/settings.test.ts`; the specs above prove the surrounding path — a
-  // rejected quota is explained in German and nothing is written. Enable this once a customer can be
-  // registered from the browser.
+  // rejected quota is explained in German and nothing is written.
   test.skip("a quota below the active customer count is refused", async ({ page }) => {
     await page.goto("/einstellungen");
   });

@@ -11,11 +11,14 @@ import {
   CustomerNumberTaken,
   EmptyHousehold,
   MissingRequiredField,
+  CustomerNotFound,
   NoFreeCustomerNumber,
   NoSettingsInForce,
 } from "@/domain/errors";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
 import type { AuditEntry, AuditLog, Clock, CustomerRepository, SettingsRepository } from "../ports";
+import { proposeRegistration } from "./propose-registration";
+import { readCustomer } from "./read-customer";
 import { registerCustomer, type RegisterCustomerInput } from "./register-customer";
 
 /**
@@ -80,6 +83,10 @@ class FakeCustomerRepository implements CustomerRepository {
 
   groupCounts(): Promise<GroupCounts> {
     return Promise.resolve(this.counts);
+  }
+
+  findById(id: number): Promise<RegisteredCustomer | null> {
+    return Promise.resolve(this.created.find((customer) => customer.id === id) ?? null);
   }
 
   create(customer: NewCustomer): Promise<RegisteredCustomer> {
@@ -327,5 +334,122 @@ describe("registerCustomer", () => {
     await registerCustomer(deps(), registerInput());
 
     expect(audit.entries[0].why).toBe("");
+  });
+});
+
+describe("proposeRegistration", () => {
+  let customers: FakeCustomerRepository;
+  let settings: FakeSettingsRepository;
+
+  function deps(today = TODAY) {
+    return { customers, settings, clock: fakeClock(today) };
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository();
+    settings = new FakeSettingsRepository(version());
+  });
+
+  it("proposes number 1 for the very first customer", async () => {
+    const proposal = await proposeRegistration(deps());
+
+    expect(proposal.customerNumber).toBe(1);
+  });
+
+  it("proposes the gap an archived customer left, not the next number up", async () => {
+    customers = new FakeCustomerRepository([1, 2, 4]);
+
+    const proposal = await proposeRegistration(deps());
+
+    expect(proposal.customerNumber).toBe(3);
+  });
+
+  it("proposes no number when the register is full, so the screen can still render", async () => {
+    settings = new FakeSettingsRepository(version({ quotaN: 2 }));
+    customers = new FakeCustomerRepository([1, 2]);
+
+    const proposal = await proposeRegistration(deps());
+
+    expect(proposal.customerNumber).toBeNull();
+    expect(proposal.quotaN).toBe(2);
+  });
+
+  it("suggests the smaller group and shows both sizes it was decided from", async () => {
+    customers = new FakeCustomerRepository([1, 2, 3], { red: 2, blue: 1 });
+
+    const proposal = await proposeRegistration(deps());
+
+    expect(proposal.suggestedGroup).toBe("BLUE");
+    expect(proposal.groupCounts).toEqual({ red: 2, blue: 1 });
+  });
+
+  it("reports the day the form must judge the household against", async () => {
+    const proposal = await proposeRegistration(deps());
+
+    expect(proposal.today).toEqual(new Date(TODAY));
+  });
+
+  it("refuses to propose anything when no settings have been recorded", async () => {
+    settings = new FakeSettingsRepository();
+
+    await expect(proposeRegistration(deps())).rejects.toThrow(NoSettingsInForce);
+  });
+});
+
+describe("readCustomer", () => {
+  let customers: FakeCustomerRepository;
+  let settings: FakeSettingsRepository;
+  let audit: FakeAuditLog;
+
+  function deps(today = TODAY) {
+    return { customers, settings, clock: fakeClock(today), audit };
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository();
+    settings = new FakeSettingsRepository(version());
+    audit = new FakeAuditLog();
+  });
+
+  it("derives the card number from the slot and the card index", async () => {
+    const registered = await registerCustomer(deps(), registerInput());
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.cardNumber).toBe("1k1");
+    expect(view.customer.id).toBe(registered.id);
+  });
+
+  it("derives the household counts from the birthdates as of today", async () => {
+    const registered = await registerCustomer(
+      deps(),
+      registerInput({
+        householdMembers: [
+          member({ birthDate: new Date("1990-04-05T00:00:00.000Z") }),
+          member({ birthDate: new Date("2020-06-01T00:00:00.000Z") }),
+        ],
+      }),
+    );
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.composition).toEqual({ grownUps: 1, children: 1 });
+  });
+
+  it("counts a member who turned 13 since the registration as a grown-up", async () => {
+    const registered = await registerCustomer(
+      deps(),
+      registerInput({
+        householdMembers: [member({ birthDate: new Date("2013-08-01T00:00:00.000Z") })],
+      }),
+    );
+
+    const view = await readCustomer(deps("2026-08-01T09:00:00.000Z"), registered.id);
+
+    expect(view.composition).toEqual({ grownUps: 1, children: 0 });
+  });
+
+  it("refuses an id that belongs to nobody rather than showing an empty card", async () => {
+    await expect(readCustomer(deps(), 404)).rejects.toThrow(CustomerNotFound);
   });
 });

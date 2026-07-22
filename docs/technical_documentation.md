@@ -10,10 +10,10 @@ rather than repeating them:
 
 This file describes _how_ the current codebase is organised and how to work in it.
 
-> **Status:** the app boots, is fully wired for TDD and CI, and carries its first feature end to end
-> through every layer — US-14's policy settings: domain rules, use cases, SQLite persistence, seed
-> and the `/einstellungen` screen. Sections below mark clearly what exists vs. what is a documented
-> placeholder.
+> **Status:** the app boots, is fully wired for TDD and CI, and carries two features end to end
+> through every layer — US-14's policy settings (`/einstellungen`) and US-01's customer registration
+> (`/kunden/neu` and the card view at `/kunden/[id]`): domain rules, use cases, SQLite persistence,
+> seed and screens. Sections below mark clearly what exists vs. what is a documented placeholder.
 
 ---
 
@@ -66,6 +66,14 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── app/                          # Next.js App Router — thin adapter layer
 │   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
 │   │   ├── page.tsx                  # home page (reads strings from i18n dictionary)
+│   │   ├── kunden/                   # the customer screens (US-01)
+│   │   │   ├── deps.ts               # composition root for both routes below
+│   │   │   ├── neu/                  # the registration screen
+│   │   │   │   ├── page.tsx          # server component: reads the proposal, renders the form
+│   │   │   │   ├── registration-form.tsx  # client component: repeatable rows + live counts
+│   │   │   │   ├── actions.ts        # "use server": Zod → registerCustomer → redirect
+│   │   │   │   └── register-customer-state.ts  # form state (not exportable from actions.ts)
+│   │   │   └── [id]/page.tsx         # the card view a registration lands on
 │   │   ├── einstellungen/            # the settings screen (US-14)
 │   │   │   ├── page.tsx              # server component: current values + version history
 │   │   │   ├── settings-form.tsx     # client component: the form and its save-result state
@@ -87,11 +95,12 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customer/group.test.ts     # its Vitest spec
 │   │   ├── customer/customer.ts       # the customer record, validated on construction
 │   │   ├── customer/customer.test.ts  # its Vitest spec
-│   │   ├── card/ distribution/       # empty, reserved by the architecture
+│   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
+│   │   ├── distribution/             # empty, reserved by the architecture
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
 │   │   │                             #   CustomerRepository, AuditLog
-│   │   ├── customers/                # registerCustomer
+│   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer
 │   │   └── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (implements Clock port)
@@ -324,6 +333,23 @@ The audit entry is written under `customer.registered` with an empty `why` — a
 justification — and names `customerNumber`, `group`, `status` and `card`: what the _system_ decided,
 rather than repeating the fields staff typed, which are the record itself.
 
+### `src/application/customers/proposeRegistration` and `readCustomer`
+
+The two read-side use cases the customer screens sit on:
+
+- **`proposeRegistration`** answers what the _empty_ form should show: the lowest free number (via
+  `findLowestFreeNumber`, the total form of the rule, so a full register is `null` rather than a
+  throw), the suggested group, both group sizes and the day to judge birthdates against. Read-only —
+  it reserves nothing.
+- **`readCustomer`** answers what the card view shows: the customer plus everything derivable from
+  them, worked out here rather than in the page — the household counts from the birthdates and the
+  card number from the slot and the card index. It throws `CustomerNotFound` for an id nobody holds.
+
+`customerNumber.ts` therefore exports the rule in **two forms**: `findLowestFreeNumber` returning
+`number | null` for callers that only want to _show_ the next number, and `lowestFreeNumber` throwing
+`NoFreeCustomerNumber` for the caller that is about to allocate one. The second is written in terms
+of the first, so there is still one statement of the rule.
+
 ### `src/infrastructure/prisma/audit-log.ts`
 
 The **append-only audit log** (`PrismaAuditLog`). Every state change is recorded with a timestamp
@@ -386,6 +412,45 @@ The failure is a _runtime_ error at page load, not a build error, so it will not
 ⚠️ **German error text for a field** comes from `de.settings.errorFields`, keyed by the `field`
 value the `InvalidSettings` error carries. Add a key there when adding a validated settings field,
 or the screen quotes an English identifier at staff.
+
+### `src/app/kunden/` — the registration screen and the card view
+
+Both routes share one `deps.ts`, and both follow the settings screen's wiring. What is worth knowing
+beyond it:
+
+- **`neu/page.tsx`** reads a **proposal** (`proposeRegistration`) — the next free number, the
+  suggested group, both group sizes, and the day birthdates are judged against. It is a proposal and
+  not a reservation: nothing is held, and `registerCustomer` allocates again on submit. The partial
+  unique index, not this reading, is the authority on a free slot. A full register arrives as
+  `customerNumber: null` rather than as a thrown error, because the screen still has to render.
+- **`neu/registration-form.tsx`** is a client component for two reasons: `useActionState`, and the
+  household counts have to update **as staff type**. It does not compute them — it calls the domain
+  rule (`composition`) against the day the server handed it, so the number on screen is the number
+  the save derives. There is no input control for the counts by design.
+  The first household row **mirrors the personal-data fields** until somebody edits it: the
+  registered person _is_ a household member, and typing their name twice is how a household ends up
+  with a phantom extra head.
+- **`neu/actions.ts`** pairs the repeated household inputs back into rows. The three fields arrive as
+  three parallel lists, so the row count is the **longest** of them — a row whose birthdate was left
+  blank must reach the domain and be rejected there rather than vanishing on the way. `redirect()`
+  is called **outside** the `try`: it works by throwing, and catching it would turn a successful
+  registration into "could not be saved".
+- **`[id]/page.tsx`** renders what `readCustomer` already derived — the counts from the birthdates
+  and the card number from the slot and the card index. A non-numeric id and an id nobody holds give
+  the same German answer: there is no such customer.
+
+⚠️ **Dates cross the form boundary as UTC calendar days.** `<input type="date">` submits `YYYY-MM-DD`
+and the adapter pins it to `T00:00:00.000Z`, because the domain compares birthdates as UTC calendar
+days — parsing it in local time would land a date typed in Germany on the day before.
+
+⚠️ **German error text for a rejected customer field** comes from `customerFieldLabel()` in
+`src/i18n/de.ts`, which reads `de.customers.errorFields` and expands the domain's indexed household
+fields (`householdMembers.1.firstName`) into "Haushaltsmitglied 2: Vorname". Rows count from 1 on
+screen and from 0 in the domain.
+
+⚠️ **`eslint` forbids constructing JSX inside a `try`** (`react-hooks/error-boundaries`): React
+renders the component after the function has returned, so the `catch` would never fire. Await the
+read into a variable inside the `try` and build the JSX after it.
 
 ### `src/i18n/de.ts`
 

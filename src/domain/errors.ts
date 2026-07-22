@@ -11,6 +11,8 @@
 export type DomainErrorCode =
   | "NoFreeCustomerNumber"
   | "CustomerNumberTaken"
+  | "CustomerNotFound"
+  | "InvalidCustomerRecord"
   | "MissingRequiredField"
   | "EmptyHousehold"
   | "BirthDateInFuture"
@@ -151,6 +153,42 @@ export class CustomerNumberTaken extends DomainError {
   constructor(customerNumber: number) {
     super(`Customer number ${customerNumber} was taken by another registration`);
     this.customerNumber = customerNumber;
+  }
+}
+
+/**
+ * No customer holds the requested identity. Carries the id that was asked for, so a mistyped link
+ * can be told from an archived household that is genuinely gone — it never is, because customer data
+ * is not hard-deleted (US-10), which makes this error a wrong address rather than a lost record.
+ */
+export class CustomerNotFound extends DomainError {
+  readonly code = "CustomerNotFound";
+  readonly id: number;
+
+  constructor(id: number) {
+    super(`No customer has the id ${id}`);
+    this.id = id;
+  }
+}
+
+/**
+ * A stored customer row carries a value the domain does not recognise — a group or status that is
+ * not one of the known words.
+ *
+ * SQLite has no enum type, so these arrive as plain strings and are parsed on the way back in. The
+ * only way to reach this error is a hand-edited database or a migration that was never run, and
+ * failing loudly is the point: silently defaulting to `ACTIVE` or `RED` would put a household in the
+ * wrong week without anyone noticing.
+ */
+export class InvalidCustomerRecord extends DomainError {
+  readonly code = "InvalidCustomerRecord";
+  readonly field: string;
+  readonly value: string;
+
+  constructor(field: string, value: string) {
+    super(`"${value}" is not a valid ${field}`);
+    this.field = field;
+    this.value = value;
   }
 }
 

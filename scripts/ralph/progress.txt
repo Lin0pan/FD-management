@@ -65,6 +65,18 @@ the full story-by-story history.)
   transaction — no `$transaction` wrapper needed for "all or nothing".
 - Translate a Prisma `P2002` into the matching typed domain error in the adapter, checking the
   constraint target so a *different* future constraint surfaces as itself rather than as a lie.
+- **Check `git status` before starting a story.** A killed iteration leaves finished but uncommitted
+  work behind while `prd.json` still reads `passes: false`. Review the diff before writing anything.
+- `eslint`'s `react-hooks/error-boundaries` forbids constructing JSX inside a `try` — the `catch`
+  could never fire, because React renders after the function returned. Await into a variable inside
+  the `try`, build the JSX after it. Only lint catches this, not `npm run build`.
+- Next 16 gives a dynamic route its `params` as a **`Promise`** — `await` it in the page.
+- Where a screen must render whether or not a rule succeeds, give the rule a **total** form beside
+  the throwing one (`findLowestFreeNumber` / `lowestFreeNumber`) and write the throwing one in terms
+  of it — two entry points, one statement of the rule.
+- Dates cross the form boundary as **UTC calendar days**: `<input type="date">` gives `YYYY-MM-DD`
+  and the adapter pins it to `T00:00:00.000Z`, matching how the domain compares birthdates. Parsing
+  in local time lands a date typed in Germany on the day before.
 - A record that the domain owns is built by a `createX(input, today)` factory in `src/domain/…`; the
   use case above it never validates fields itself. Where a rule already derives something
   (`composition`), call it for its **rejections** and discard the result rather than adding a second
@@ -243,4 +255,60 @@ the full story-by-story history.)
     `parseWeekColour`.
   - The `quotaN`-below-active-customers e2e test is still skipped: the counter is real now, but
     nothing can put a customer into the register until the form lands (US-006). Enable it then.
+---
+
+## [2026-07-22 19:52] - US-006 (Registration form at /kunden/neu)
+- Picked up a **partially finished** US-006: an interrupted earlier iteration had already left the
+  domain, application, i18n and form work in the tree (uncommitted). This iteration reviewed it,
+  wrote the two missing route pages, and took the story through the gates.
+- Already in the tree, verified and kept: `src/domain/card/cardNumber.ts` (`formatCardNumber` —
+  `12k1`, derived not stored), `parseGroup` + `GROUPS` in `group.ts`, `findLowestFreeNumber` (the
+  total form of the rule) alongside the throwing `lowestFreeNumber`, `CustomerNotFound` and
+  `InvalidCustomerRecord` in `errors.ts`, `findById` on the `CustomerRepository` port,
+  `proposeRegistration` and `readCustomer` use cases, the whole `de.customers` dictionary with
+  `customerFieldLabel()`, and `src/app/kunden/{deps.ts,neu/actions.ts,neu/register-customer-state.ts,
+  neu/registration-form.tsx}`.
+- Written this iteration: `src/app/kunden/neu/page.tsx` (reads the proposal, renders the form,
+  `force-dynamic`, German "not seeded" message on `NoSettingsInForce`), `src/app/kunden/[id]/page.tsx`
+  (the card view the registration redirects to: number, card number, status, group, address,
+  household list with derived counts, certificate, notes), and the `/kunden/neu` link on the home
+  page.
+- Corrected the stale skip comment on the `quotaN`-below-active-customers e2e test: the form landing
+  does **not** unblock it. A quota is only valid at 1 or above, so the active count has to reach 2
+  before any valid quota can fall below it — that needs two registrations, which belong in US-007's
+  spec rather than coupling the settings spec to the shared customer-number sequence.
+- Documentation: `docs/technical_documentation.md` — the `src/app/kunden/` section (proposal-not-
+  reservation, the mirrored first row, the parallel-list row pairing, `redirect` outside the `try`),
+  a section on the two read-side use cases and the two forms of the free-number rule, and the file
+  tree.
+- Files changed: the 12 modified + 6 untracked files listed above, plus
+  `src/app/kunden/neu/page.tsx` (new), `src/app/kunden/[id]/page.tsx` (new), `src/app/page.tsx`,
+  `tests/e2e/settings.spec.ts`, `docs/technical_documentation.md`, `scripts/ralph/prd.json`.
+- All gates green: lint, typecheck, coverage (domain + application 100% on all four metrics, 224
+  tests), build (both routes listed as dynamic), and `npm run test:e2e` (4 passed, 1 still skipped).
+- **Browser verification: done**, via a throwaway Playwright spec against the built app, then
+  deleted (US-007 writes the permanent one). It proved the happy path (proposed number 1, first row
+  mirroring the personal data, counts going live to 1 grown-up / 1 child, redirect to `/kunden/1`,
+  card number `1k1`, status aktiv, two household members listed), the empty-household rejection in
+  German leaving the register untouched, and the not-found message for an unknown id.
+- **Learnings for future iterations:**
+  - **Check the working tree before starting a story.** A killed iteration leaves finished,
+    uncommitted work behind, and `prd.json` still says `passes: false`. Read the diff first — this
+    story was ~80% done and re-implementing it would have thrown away good work.
+  - `eslint`'s `react-hooks/error-boundaries` **forbids constructing JSX inside a `try`**: React
+    renders the component after the function returned, so the `catch` can never fire. Await the read
+    into a variable inside the `try`, then build the JSX after it. `npm run build` does not catch
+    this — lint does.
+  - Next 16 hands a dynamic route its `params` as a **`Promise`** (`params: Promise<{ id: string }>`),
+    so the page must `await` it. A non-numeric id should give the same answer as an unknown one; do
+    not let `Number("abc")` reach a use case.
+  - A screen that has to render whether or not a rule succeeds wants the rule in a **total** form
+    next to the throwing one (`findLowestFreeNumber` / `lowestFreeNumber`), the throwing one written
+    in terms of the total one. Two entry points, still one statement of the rule.
+  - `germanDate()` is now duplicated in `einstellungen/page.tsx` and `kunden/[id]/page.tsx`. Left as
+    is deliberately — a commit either refactors or changes behaviour, never both. **Worth extracting
+    to a shared UI date formatter in the next story that touches either page.**
+  - A throwaway Playwright spec is the cheap way to satisfy the "verify in browser" criterion while
+    no browser MCP is configured: write it, run it, delete it, and let the story that owns the E2E
+    criterion write the permanent version.
 ---

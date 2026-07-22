@@ -243,3 +243,46 @@ describe("PrismaCustomerCounter", () => {
     expect(await counter.countActive()).toBe(2);
   });
 });
+
+describe("PrismaCustomerRepository.findById", () => {
+  it("reads a customer back whole, household, certificate and card included", async () => {
+    const written = newCustomer();
+    const created = await repository.create(written);
+
+    const found = await repository.findById(created.id);
+
+    expect(found?.customerNumber).toBe(written.customerNumber);
+    expect(found?.details.lastName).toBe(written.details.lastName);
+    expect(found?.details.householdMembers).toHaveLength(2);
+    expect(found?.details.certificate.type).toBe(written.details.certificate.type);
+    expect(found?.card.index).toBe(1);
+  });
+
+  it("narrows the stored group and status strings back into the domain's types", async () => {
+    const created = await repository.create(newCustomer({ group: "BLUE", status: "BLOCKED" }));
+
+    const found = await repository.findById(created.id);
+
+    expect(found?.group).toBe("BLUE");
+    expect(found?.status).toBe("BLOCKED");
+  });
+
+  it("gives null for an id that belongs to nobody", async () => {
+    expect(await repository.findById(9_999)).toBeNull();
+  });
+
+  it("returns an archived customer — their data stays queryable", async () => {
+    const created = await repository.create(newCustomer({ status: "ARCHIVED" }));
+
+    expect((await repository.findById(created.id))?.status).toBe("ARCHIVED");
+  });
+
+  it("reports the highest card index, so a reissued card supersedes the first", async () => {
+    const created = await repository.create(newCustomer());
+    await prisma.card.create({
+      data: { customerId: created.id, index: 2, issuedAt: TODAY },
+    });
+
+    expect((await repository.findById(created.id))?.card.index).toBe(2);
+  });
+});

@@ -46,6 +46,11 @@ export interface CustomerRepository {
   /** How many active customers each balancing group holds. */
   groupCounts(): Promise<GroupCounts>;
   /**
+   * The customer with this surrogate id, or `null` if the id belongs to nobody. Archived customers
+   * are returned like any other — their data stays queryable (US-10, US-11).
+   */
+  findById(id: number): Promise<RegisteredCustomer | null>;
+  /**
    * Persist a new customer with everything that belongs to them.
    *
    * @throws {CustomerNumberTaken} if another registration took the number first.

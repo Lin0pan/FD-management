@@ -19,7 +19,7 @@
 import { NoFreeCustomerNumber } from "../errors";
 
 /**
- * The lowest number in `1..quotaN` that nobody active holds.
+ * The lowest number in `1..quotaN` that nobody active holds, or `null` when the register is full.
  *
  * `takenNumbers` is the numbers held by **active** customers only; archived rows keep their number
  * as a historical record but do not occupy the slot, which is exactly how a gap appears in the
@@ -27,11 +27,14 @@ import { NoFreeCustomerNumber } from "../errors";
  * caller passes what the register happens to contain, and neither can make a slot inside the range
  * any more or less free.
  *
- * @throws {NoFreeCustomerNumber} when every slot up to `quotaN` is taken. FD then has to archive a
- *   customer or raise the quota; guessing a number beyond it would silently break the promise the
- *   quota makes.
+ * This is the total form of the rule, for callers that only want to *show* the next number — a
+ * registration screen has to render whether or not one is free. A caller that is about to allocate
+ * wants {@link lowestFreeNumber}, which refuses instead of returning nothing.
  */
-export function lowestFreeNumber(takenNumbers: ReadonlyArray<number>, quotaN: number): number {
+export function findLowestFreeNumber(
+  takenNumbers: ReadonlyArray<number>,
+  quotaN: number,
+): number | null {
   const taken = new Set(takenNumbers);
 
   for (let candidate = 1; candidate <= quotaN; candidate += 1) {
@@ -40,5 +43,20 @@ export function lowestFreeNumber(takenNumbers: ReadonlyArray<number>, quotaN: nu
     }
   }
 
-  throw new NoFreeCustomerNumber(quotaN);
+  return null;
+}
+
+/**
+ * The lowest free number, insisting there is one.
+ *
+ * @throws {NoFreeCustomerNumber} when every slot up to `quotaN` is taken. FD then has to archive a
+ *   customer or raise the quota; guessing a number beyond it would silently break the promise the
+ *   quota makes.
+ */
+export function lowestFreeNumber(takenNumbers: ReadonlyArray<number>, quotaN: number): number {
+  const free = findLowestFreeNumber(takenNumbers, quotaN);
+  if (free === null) {
+    throw new NoFreeCustomerNumber(quotaN);
+  }
+  return free;
 }

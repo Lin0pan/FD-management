@@ -15,6 +15,8 @@
  * This module is pure: it does no I/O and never reads the wall clock.
  */
 
+import { InvalidCustomerRecord } from "../errors";
+
 /** The two halves of the distribution cycle a customer can be assigned to. */
 export type Group = "RED" | "BLUE";
 
@@ -38,4 +40,24 @@ export interface GroupCounts {
  */
 export function suggestGroup(counts: GroupCounts): Group {
   return counts.blue < counts.red ? "BLUE" : "RED";
+}
+
+/** The two groups, for parsing and for offering both of them in a form. */
+export const GROUPS: ReadonlyArray<Group> = ["RED", "BLUE"];
+
+/**
+ * Read a stored or submitted group word back as a {@link Group}.
+ *
+ * SQLite has no enum type and an HTML form sends strings, so the word is checked here rather than
+ * trusted. It is deliberately **not** `parseWeekColour`: that one reports an invalid *settings*
+ * field, and a customer's group is not a settings value (US-01.3).
+ *
+ * @throws {InvalidCustomerRecord} for anything that is not `RED` or `BLUE`.
+ */
+export function parseGroup(value: string): Group {
+  const group = GROUPS.find((candidate) => candidate === value);
+  if (group === undefined) {
+    throw new InvalidCustomerRecord("group", value);
+  }
+  return group;
 }

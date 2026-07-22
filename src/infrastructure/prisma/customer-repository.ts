@@ -1,8 +1,12 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { CustomerCounter, CustomerRepository } from "@/application/ports";
-import type { NewCustomer, RegisteredCustomer } from "@/domain/customer/customer";
-import type { GroupCounts } from "@/domain/customer/group";
-import { CustomerNumberTaken } from "@/domain/errors";
+import {
+  parseCustomerStatus,
+  type NewCustomer,
+  type RegisteredCustomer,
+} from "@/domain/customer/customer";
+import { parseGroup, type GroupCounts } from "@/domain/customer/group";
+import { CustomerNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
 
 /**
  * Everyone who still holds a customer number.
@@ -60,6 +64,64 @@ export class PrismaCustomerRepository implements CustomerRepository {
       this.prisma.customer.count({ where: { ...ON_REGISTER, group: "BLUE" } }),
     ]);
     return { red, blue };
+  }
+
+  /**
+   * The customer behind a surrogate id, with their household, certificate and current card.
+   *
+   * Archived customers come back like any other — their data stays queryable (US-10, US-11). The
+   * stored `group` and `status` strings re-enter the domain through its own parsers, so a
+   * hand-edited row fails loudly instead of quietly becoming an active RED household.
+   */
+  async findById(id: number): Promise<RegisteredCustomer | null> {
+    const row = await this.prisma.customer.findUnique({
+      where: { id },
+      include: {
+        householdMembers: { orderBy: { id: "asc" } },
+        certificate: true,
+        // The highest index is the card the customer actually holds; a reissue supersedes the
+        // earlier one, which stays on file so an old card can be recognised at the counter (US-09).
+        cards: { orderBy: { index: "desc" }, take: 1 },
+      },
+    });
+    if (row === null) {
+      return null;
+    }
+
+    const certificate = row.certificate;
+    const card = row.cards[0];
+    if (certificate === null || card === undefined) {
+      // Registration writes both in the same transaction as the customer, so a row without them can
+      // only come from a hand-edited database — and a card view inventing either would be worse.
+      throw new InvalidCustomerRecord(certificate === null ? "certificate" : "card", String(id));
+    }
+
+    return {
+      id: row.id,
+      customerNumber: row.customerNumber,
+      group: parseGroup(row.group),
+      status: parseCustomerStatus(row.status),
+      reminderCount: row.reminderCount,
+      card: { index: card.index, issuedAt: card.issuedAt },
+      details: {
+        firstName: row.firstName,
+        lastName: row.lastName,
+        birthDate: row.birthDate,
+        address: {
+          street: row.street,
+          houseNumber: row.houseNumber,
+          zip: row.zip,
+          city: row.city,
+        },
+        certificate: { type: certificate.type, validUntil: certificate.validUntil },
+        householdMembers: row.householdMembers.map((member) => ({
+          firstName: member.firstName,
+          lastName: member.lastName,
+          birthDate: member.birthDate,
+        })),
+        notes: row.notes,
+      },
+    };
   }
 
   /**

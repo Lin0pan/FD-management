@@ -11,7 +11,7 @@
  * The module is pure: `today` is a parameter, and nothing here knows how a customer is stored.
  */
 
-import { MissingRequiredField } from "../errors";
+import { InvalidCustomerRecord, MissingRequiredField } from "../errors";
 import type { Group } from "./group";
 import { composition, type HouseholdMember } from "./householdComposition";
 
@@ -23,6 +23,23 @@ import { composition, type HouseholdMember } from "./householdComposition";
  * queryable, because customer data is never hard-deleted (US-10, US-11).
  */
 export type CustomerStatus = "ACTIVE" | "BLOCKED" | "ARCHIVED";
+
+/** Every status a stored customer can be in. */
+const CUSTOMER_STATUSES: ReadonlyArray<CustomerStatus> = ["ACTIVE", "BLOCKED", "ARCHIVED"];
+
+/**
+ * Read a stored status word back as a {@link CustomerStatus}. SQLite has no enum type, so the word
+ * is checked rather than trusted.
+ *
+ * @throws {InvalidCustomerRecord} for anything that is not one of the three known words.
+ */
+export function parseCustomerStatus(value: string): CustomerStatus {
+  const status = CUSTOMER_STATUSES.find((candidate) => candidate === value);
+  if (status === undefined) {
+    throw new InvalidCustomerRecord("status", value);
+  }
+  return status;
+}
 
 /** A German address in flat fields, never a formatted blob — FD sorts and searches by them. */
 export interface Address {
