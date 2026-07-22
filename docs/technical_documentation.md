@@ -65,8 +65,10 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── domain/                       # pure TypeScript, zero I/O (unit-tested)
 │   │   ├── money.ts                  # integer-cents euro formatting (the one real module)
 │   │   ├── money.test.ts             # its Vitest spec
-│   │   ├── errors.ts                 # typed domain-error codes (type-only placeholder)
-│   │   ├── customer/ card/ distribution/ policy/   # empty, reserved by the architecture
+│   │   ├── errors.ts                 # DomainError base class + typed error classes
+│   │   ├── policy/settings.ts        # policy values + effective-from resolution
+│   │   ├── policy/settings.test.ts   # its Vitest spec
+│   │   ├── customer/ card/ distribution/           # empty, reserved by the architecture
 │   ├── application/
 │   │   └── ports.ts                  # repository/service interfaces (Clock today)
 │   ├── infrastructure/
@@ -146,9 +148,29 @@ settable fake clock can drive deterministic tests.
 
 ### `src/domain/errors.ts`
 
-A type-only `DomainErrorCode` union (placeholder). Concrete typed error classes arrive with the
-first domain rules so the application and UI can react to a closed set of failure modes instead of
-parsing strings.
+The `DomainErrorCode` union — the closed set of failure modes — plus an abstract `DomainError` base
+class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
+`NoPriceForHousehold` today). Each carries the values that made it fail, so the UI can render a
+German message naming concrete numbers without re-deriving them, and callers switch on `code`
+instead of parsing strings.
+
+### `src/domain/policy/settings.ts`
+
+The policy values FD can change without a deploy — quota `N`, portions per grown-up and per child,
+the reminder threshold, the price table, the week-cycle anchor and the distribution weekday — and
+the rule that decides which of them apply on a given day. Versions are **immutable and dated**:
+`resolveSettingsAt(versions, date)` returns the version with the greatest `effectiveFrom` that is
+not after `date`, and throws `NoSettingsInForce` rather than returning a partial object. This
+matters because a distribution record stores only a `paid` flag (US-05), so the only way to answer
+"what did that customer owe last March" is to resolve the version in force then.
+
+`createSettings(input)` validates every invariant on construction (quota ≥ 1, portions ≥ 0,
+threshold ≥ 1, ISO weekday 1–7, an `YYYY-Www` anchor, non-negative integer cents, no duplicate
+household row) and throws `InvalidSettings` naming the field. `priceFor(settings, grownUps,
+children)` returns the exactly matching row's cents or throws `NoPriceForHousehold` — it never
+interpolates, because an unpriced household size is a settings gap for staff to fix, not a number
+to invent. The module is pure: no I/O, no wall clock, and it works over an already-loaded array so
+the counter screen (US-04) resolves settings without a per-field query.
 
 ### `src/infrastructure/audit.ts`
 
@@ -219,8 +241,9 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
 - **Coverage is deliberately scoped** to `src/domain/**` + `src/application/**` only, with 100%
   line/branch/function/statement thresholds. High coverage there is a _consequence_ of TDD on pure
   logic — not a number chased across UI/infrastructure where it would invite low-value tests.
-- Type-only files in those layers (`errors.ts`, `ports.ts`) transpile to no runtime statements, so
-  they pass the thresholds without needing tests.
+- Type-only files in those layers (`ports.ts`) transpile to no runtime statements, so they pass the
+  thresholds without needing tests. Files that do carry runtime code — including the error classes
+  in `errors.ts` — are covered by the spec of the rule that raises them.
 - Run: `npm test` (or `npm run test:coverage`, `npm run test:watch`).
 
 ### End-to-end — Playwright (`playwright.config.ts`)

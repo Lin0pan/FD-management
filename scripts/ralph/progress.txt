@@ -1,0 +1,44 @@
+# Ralph Progress Log
+Started: Wed Jul 22 12:49:05 CEST 2026
+---
+
+## Codebase Patterns
+- Typed domain errors live in `src/domain/errors.ts`: extend the abstract `DomainError` base class,
+  declare `readonly code` from the `DomainErrorCode` union, and carry the offending values as
+  fields. Never `throw new Error("…")`. Add the new kind to the union when adding a class.
+- Domain modules are validated-on-construction: a `createX(input)` factory throws naming the field,
+  so no partially-valid object can exist. Prefer this over scattering checks at call sites.
+- Coverage on `src/domain` + `src/application` is gated at 100% including **branches**. A
+  short-circuiting guard like `Number.isInteger(v) && v >= 1 && v <= 7` needs a test per operand —
+  budget one test per clause or the coverage gate fails.
+- Use a type guard (`function isX(v: number): v is X`) rather than an `as` cast to narrow a
+  validated primitive into a literal-union type — the repo standard forbids `any` and `!`.
+- Test helpers take a `Partial<Input>` overrides object over a valid baseline, so each test names
+  exactly the one rule it is about (see `settings.test.ts`).
+- Run `npx prettier --write <paths>` before `npm run lint`; the pre-commit hook formats anyway, but
+  it rewrites files mid-run otherwise.
+- Local quality gate: `npm run lint && npm run typecheck && npm run test:coverage && npm run build`.
+
+## [2026-07-22] - US-001 (Settings value objects and effective-from resolution)
+- Implemented `src/domain/policy/settings.ts`: the `Settings` shape (quotaN, portionsPerGrownUp,
+  portionsPerChild, reminderThreshold, weekAnchor, distributionWeekday, priceTable), plus
+  `createSettings` (validating factory), `resolveSettingsAt(versions, date)` and
+  `priceFor(settings, grownUps, children)`. Pure: no I/O, no wall clock, no framework imports.
+- Turned `src/domain/errors.ts` from a type-only placeholder into a real error hierarchy:
+  `DomainError` base + `InvalidSettings`, `NoSettingsInForce`, `NoPriceForHousehold`.
+- Files changed: `src/domain/policy/settings.ts` (new), `src/domain/policy/settings.test.ts` (new,
+  30 tests, written first), `src/domain/errors.ts`, `docs/technical_documentation.md`.
+- All gates green; domain coverage 100% on statements/branches/functions/lines.
+- **Learnings for future iterations:**
+  - `resolveSettingsAt` does not assume the versions array is sorted — it scans for the greatest
+    `effectiveFrom <= date`. Repository adapters therefore need not order their query.
+  - `SettingsInput` widens only `distributionWeekday` to `number`; everything else reuses
+    `Settings`, so adding a policy field means touching only the `Settings` interface plus its
+    validation and the returned object.
+  - Boundary semantics settled here: a version dated exactly `date` **is** in force that day, and a
+    date before the earliest version throws rather than returning a default.
+  - `priceFor` matches exactly and never interpolates — US-14.3's seed must therefore enumerate
+    every household size FD actually has, not just a formula.
+  - No Faker in `package.json` yet; the standard asks for synthetic data via Faker, so a story
+    needing names/addresses will have to add it (settings tests need only numbers).
+---
