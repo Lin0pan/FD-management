@@ -110,8 +110,14 @@ Everything else is a replaceable adapter around it. Dependencies point inward on
 tolerance (policy values are data, not code), and framework insurance (replacing Next.js touches
 only `src/app`). See `tech_stack_architecture_sketch.md` §4 for the full argument.
 
-**Enforcement:** the dependency rule is a convention today, guarded by review. If it is ever worth
-hardening, an ESLint `no-restricted-imports` rule on `src/domain/**` is the natural place.
+**Enforcement:** the dependency rule is a **build failure**, not a convention. `eslint.config.mjs`
+carries two boundary configs — `fd/domain-boundary` and `fd/application-boundary` — combining
+`no-restricted-imports` (framework, Prisma, filesystem and outer-layer imports) with
+`no-restricted-syntax` (a zero-argument `new Date()` or `Date.now()`, i.e. a wall-clock read).
+`src/architecture.test.ts` lints code samples through the real config to prove each rule fires, and
+that legitimate code — `new Date(valuePassedIn)`, importing the domain from the application layer —
+still passes. Review is not part of the enforcement path, which matters because autonomous Ralph runs
+have no reviewer in the loop.
 
 ---
 

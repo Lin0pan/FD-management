@@ -2,6 +2,14 @@
 
 You are an autonomous coding agent working on a software project.
 
+> **The engineering standard for this project is the repository-root `CLAUDE.md`** — architecture
+> rules, coding style, testing approach, git conventions and the definition of done. It is loaded
+> automatically in every session, including this one, and it is authoritative. This file contains
+> only the loop contract: what to do each iteration and how to report it.
+>
+> The work itself is specified in `tasks/` (one PRD per user story). Every story in `prd.json` cites
+> its source PRD section — read it when a criterion is ambiguous rather than guessing.
+
 ## Your Task
 
 1. Read the PRD at `prd.json` (in the same directory as this file)
@@ -9,10 +17,14 @@ You are an autonomous coding agent working on a software project.
 3. Check you're on the correct branch from PRD `branchName`. If not, check it out or create from main.
 4. Pick the **highest priority** user story where `passes: false`
 5. Implement that single user story
-6. Run quality checks (e.g., typecheck, lint, test - use whatever your project requires)
+6. Run the quality checks: `npm run lint && npm run typecheck && npm run test:coverage && npm run build`
 7. Update CLAUDE.md files if you discover reusable patterns (see below)
 8. Check and update documentation if needed
-9. If checks pass, commit ALL changes with message: `feat: [Story ID] - [Story Title]`
+9. If checks pass, commit ALL changes with a **conventional** message —
+   `feat(<scope>): <imperative subject>`, subject ≤72 chars, e.g.
+   `feat(domain): derive household composition from birthdates`. Put the story ID and the _why_ in
+   the body, not the subject. Scope is usually the layer (`domain`, `application`, `infra`, `app`)
+   or `docs`/`ci`.
 10. Update the PRD to set `passes: true` for the completed story
 11. Append your progress to `progress.txt`
 
@@ -117,68 +129,3 @@ If there are still stories with `passes: false`, end your response normally (ano
 - Commit frequently
 - Keep CI green
 - Read the Codebase Patterns section in progress.txt before starting
-
-## Development Guidelines — FD-Management
-
-Short list of the habits that keep this codebase maintainable over years. Rationale lives in
-[`tech_stack_architecture_sketch.md`](../../docs/tech_stack_architecture_sketch.md) and
-[`fd_dev_setup_overview.md`](../../docs/fd_dev_setup_overview.md).
-
-### Git
-
-- **Small commits, one intent each.** A commit either refactors or changes behaviour — never both.
-- **Conventional commit messages:** `feat(domain): derive household composition from birthdates`.
-  Subject in imperative, ≤72 chars. Use the body for _why_, not _what_ — the diff says what.
-- **Branch per story** (`feat/us-01-register-customer`), rebase on `main`, squash-merge via PR.
-- **Green before push.** Hooks run lint + unit tests; don't `--no-verify`.
-- Never commit `data/fd.db`, `.env`, or anything with real customer data.
-
-### Architecture rules (non-negotiable)
-
-- `domain/` imports **nothing** from Next.js, React or Prisma. Zero I/O, no `new Date()`.
-- `application/` orchestrates; it talks to persistence only through `ports.ts` interfaces.
-- `app/` is thin: validate with Zod → call one use case → render. Logic here is a bug.
-- Dependencies point inwards only: `app → application → domain`.
-
-### Coding style
-
-- TypeScript **strict**; no `any`, no non-null `!` — narrow or fail loudly.
-- **Time is injected.** Always take a `Clock`; never call `Date.now()` outside `infrastructure/`.
-- **Derive, don't store** anything computable (grown-up/children counts, portion allowance, card
-  validity). Two sources of truth is the Excel failure we are replacing.
-- **Money is integer cents.** Never a float.
-- **Policy values are data**, never constants — price table, portions, reminder threshold, quota `N`
-  live in settings with `effectiveFrom`.
-- Throw **typed domain errors** from `errors.ts`; no bare `throw new Error("...")`.
-- **Identifiers English, UI strings German**, and only in `src/i18n/de.ts` — no German literals in
-  components.
-- Prefer pure functions and value objects (`CardNumber`) over primitives passed around.
-- Formatting/import order is Prettier + ESLint's job — never argue about it in review.
-
-### Testing
-
-- **Domain: strict TDD**, red → green → refactor. Write the invariant-breaking test _first_
-  (duplicate customer number, two active cards, out-of-order week), then the happy path.
-- **Application: TDD against hand-written fakes.** Prefer fakes over mocking libraries.
-- Infrastructure: test-after against a throwaway SQLite file. UI: cover via Playwright.
-- One named test per business rule; name it after the rule, not the function
-  (`turns grown-up on the 13th birthday, not the day before`).
-- **Synthetic test data only** (Faker). Never real names, addresses or certificates.
-- Coverage on domain/application is a consequence of TDD — don't chase it elsewhere.
-
-### Don'ts
-
-- ❌ Don't put business rules in a server action, React component or Prisma query.
-- ❌ Don't hard-code a price, portion count or threshold.
-- ❌ Don't hard-delete customer data — archive (status change), keep it queryable.
-- ❌ Don't skip the audit entry on a state change (archive, block, group move, card reissue,
-  policy edit) — with no login, the log is the only accountability we have.
-- ❌ Don't add a dependency to avoid ~50 lines of code, and don't reach for a heavier pattern
-  (events, CQRS, aggregates) than the problem needs.
-- ❌ Don't bump the Next.js major casually — it's pinned on purpose.
-
-### Reviewing / done
-
-A change is done when: tests written first (domain), CI green, the domain boundary intact, German
-strings in the dictionary, an audit entry where state changed, and docs updated if a decision
-changed.
