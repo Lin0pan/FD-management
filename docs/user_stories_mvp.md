@@ -400,8 +400,9 @@ cards that made outdated
 
 1. Editable: customer quota `N`; portions per grown-up and per child; the price per grown-up and per
    child; the week-cycle anchor and distribution weekday.
-2. Changes are stored with an **effective-from date** so past distribution records can still be
-   interpreted with the values that applied at the time.
+2. A saved change **takes effect immediately** — there is no date to pick. The superseded values
+   are kept as read-only history, so past distribution records can still be interpreted with the
+   values that applied at the time.
 3. Lowering `N` below the number of active customers is refused with a clear explanation. `[added]` —
    otherwise the quota silently contradicts reality.
 4. Price values are entered and stored in whole cents.

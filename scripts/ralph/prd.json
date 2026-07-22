@@ -1,19 +1,19 @@
 {
   "project": "FD-Management",
   "branchName": "ralph/us-14-configure-business-rules",
-  "description": "US-14 Configure the Business Rules — Policy values (quota N, portions, prices per head, week anchor) as settings data with an effective-from date, plus the screen to edit them. Must be built first: registration needs N and the counter needs the week anchor.",
+  "description": "US-14 Configure the Business Rules — Policy values (quota N, portions, prices per head, week anchor) as settings data that takes effect the moment it is saved, plus the screen to edit them. Must be built first: registration needs N and the counter needs the week anchor.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Settings value objects and effective-from resolution",
-      "description": "As a developer, I need a pure module that resolves the policy values in force on a given date, so every other rule reads configuration through one seam. Source: tasks/prd-us-14-configure-business-rules.md §US-14.1",
+      "title": "Settings value objects and in-force resolution",
+      "description": "As a developer, I need a pure module that resolves the policy values in force at a given point in time, so every other rule reads configuration through one seam. Source: tasks/prd-us-14-configure-business-rules.md §US-14.1",
       "acceptanceCriteria": [
         "src/domain/policy/settings.ts defines the settings shape: quotaN, portionsPerGrownUp, portionsPerChild, weekAnchor {isoWeek, colour}, distributionWeekday (ISO 1-7), pricePerGrownUp and pricePerChild as integer cents",
-        "resolveSettingsAt(versions, date) returns the version with the greatest effectiveFrom that is <= date",
+        "resolveSettingsAt(versions, date) returns the version with the greatest recordedAt that is <= date; of two versions recorded at the same instant the later one wins",
         "A date before the earliest version throws a typed NoSettingsInForce error, never a partial object",
         "priceFor(settings, grownUps, children) returns grownUps * pricePerGrownUp + children * pricePerChild — every household size is priceable",
         "Construction validates quotaN >= 1, portion values >= 0, both prices non-negative integer cents",
-        "Tests cover: exact-boundary date, date between versions, date before all versions, a household priced per head",
+        "Tests cover: the exact instant a version was recorded, a date between versions, a date before all versions, two versions sharing an instant, a household priced per head",
         "Module contains no I/O, no new Date() and no imports from Next.js, React or Prisma",
         "Tests pass",
         "Typecheck passes"
@@ -25,13 +25,12 @@
     {
       "id": "US-002",
       "title": "SettingsRepository port with readCurrentSettings and updateSettings use cases",
-      "description": "As a developer, I need use cases that read the settings in force and append a new dated version, so the UI never touches persistence directly. Source: tasks/prd-us-14-configure-business-rules.md §US-14.2",
+      "description": "As a developer, I need use cases that read the settings in force and append a new version that applies at once, so the UI never touches persistence directly. Source: tasks/prd-us-14-configure-business-rules.md §US-14.2",
       "acceptanceCriteria": [
         "SettingsRepository port added to src/application/ports.ts with listVersions() and append(version)",
         "readCurrentSettings(deps) resolves versions against deps.clock.now()",
-        "updateSettings(deps, input) appends a new version and never mutates an existing one",
+        "updateSettings(deps, input) appends a new version stamped with deps.clock.now() and never mutates an existing one — there is no effective-from input and the saved values are in force at once",
         "updateSettings rejects with a typed QuotaBelowActiveCustomers error carrying both numbers when the new quotaN is below the current active customer count",
-        "updateSettings rejects a version whose effectiveFrom precedes the latest existing version",
         "updateSettings writes an audit entry recording what changed, when and why, with no actor field",
         "The reason is optional for a settings edit — the changed fields already say what happened — and is stored as an empty why; block (US-08) and archive (US-10) still require one",
         "Tested against hand-written fakes and a fake clock",
@@ -47,8 +46,8 @@
       "title": "SettingsVersion schema, seed and Prisma repository",
       "description": "As a developer, I need settings versions stored in SQLite and seeded with provisional defaults, so a fresh install boots into a working app. Source: tasks/prd-us-14-configure-business-rules.md §US-14.3",
       "acceptanceCriteria": [
-        "Prisma model SettingsVersion (id, effectiveFrom, scalar policy fields, pricePerGrownUpCents, pricePerChildCents)",
-        "Unique constraint on SettingsVersion.effectiveFrom",
+        "Prisma model SettingsVersion (id, recordedAt, scalar policy fields, pricePerGrownUpCents, pricePerChildCents)",
+        "recordedAt is indexed but not unique — it is machine-stamped, so a same-millisecond collision is a concurrency accident, not a business error",
         "All money columns are Int cents — no Float or Decimal anywhere in schema.prisma",
         "A seed routine inserts the provisional version (quotaN 240, 2 portions per grown-up, 1 per child, price 200c per grown-up + 100c per child, anchor 2026-W02 = RED, weekday Thursday) only when no version exists; running it twice is a no-op",
         "PrismaSettingsRepository implements the port and is integration-tested against a throwaway SQLite file",
@@ -69,30 +68,30 @@
         "Route /einstellungen shows the currently-in-force values, each labelled in German",
         "A Zod schema validates the form; euro input (e.g. 2,50) is converted to whole cents before leaving the adapter",
         "The two prices are edited as euro fields, one per grown-up and one per child",
-        "Saving asks for an effective-from date, defaulting to today, and offers an optional reason field labelled as optional",
+        "Saving takes effect immediately — the screen has no effective-from field — and offers an optional reason field labelled as optional",
         "Lowering quotaN below the active customer count shows a German error naming both numbers and saves nothing",
-        "Previous versions are listed read-only with their effective-from dates",
+        "Previous versions are listed read-only with the date each was recorded",
         "All user-facing strings come from src/i18n/de.ts",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "No browser MCP tooling is configured, so the screen was verified against the built app with a throwaway Playwright run (save effective today, reload shows the new price, retroactive date refused) plus a curl of the rendered HTML. US-005 makes that a committed spec."
+      "notes": "No browser MCP tooling is configured, so the screen was verified against the built app with a throwaway Playwright run (save, reload shows the new price) plus a curl of the rendered HTML. US-005 makes that a committed spec."
     },
     {
       "id": "US-005",
       "title": "E2E: edit a price and see it applied",
       "description": "As a developer, I need a Playwright spec proving the settings round-trip works against the built app. Source: tasks/prd-us-14-configure-business-rules.md §US-14.5",
       "acceptanceCriteria": [
-        "Spec opens /einstellungen, changes the price per grown-up, saves effective today, reloads and asserts the new value is displayed",
+        "Spec opens /einstellungen, changes the price per grown-up, saves, reloads and asserts the new value is displayed and listed in the history",
         "Spec asserts the quota-too-low path shows an error and leaves the stored value unchanged",
         "npm run test:e2e passes",
         "Typecheck passes"
       ],
       "priority": 5,
       "passes": true,
-      "notes": "The quota-too-low criterion is only partly reachable end to end: with no Customer model, emptyCustomerCounter reports 0 and quotaN >= 1, so QuotaBelowActiveCustomers cannot fire from the browser. The spec asserts the reachable quota rejection (quotaN 0 shows the German error and saves nothing) plus a retroactive-date rejection; the active-customer variant is a documented test.skip for US-01 to enable."
+      "notes": "The quota-too-low criterion is only partly reachable end to end: with no Customer model, emptyCustomerCounter reports 0 and quotaN >= 1, so QuotaBelowActiveCustomers cannot fire from the browser. The spec asserts the reachable quota rejection (quotaN 0 shows the German error and saves nothing); the active-customer variant is a documented test.skip for US-01 to enable."
     }
   ]
 }

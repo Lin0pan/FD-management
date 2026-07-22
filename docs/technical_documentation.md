@@ -76,7 +76,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── money.ts                  # integer-cents euro formatting (the one real module)
 │   │   ├── money.test.ts             # its Vitest spec
 │   │   ├── errors.ts                 # DomainError base class + typed error classes
-│   │   ├── policy/settings.ts        # policy values + effective-from resolution
+│   │   ├── policy/settings.ts        # policy values + the rule that picks the current one
 │   │   ├── policy/settings.test.ts   # its Vitest spec
 │   │   ├── customer/ card/ distribution/           # empty, reserved by the architecture
 │   ├── application/
@@ -171,12 +171,12 @@ The two use cases over the policy versions:
 
 - **`readCurrentSettings(deps)`** loads every version and resolves it against `deps.clock.now()`.
   This is the single seam other features use to reach configuration.
-- **`updateSettings(deps, input)`** validates the values (`createSettings`), refuses a version dated
-  **on or before** the latest existing one
-  (`RetroactiveSettingsVersion` — equal dates are refused because `effectiveFrom` is unique in the
-  schema), refuses a `quotaN` below `customers.countActive()`
-  (`QuotaBelowActiveCustomers`, carrying both numbers), then **appends** — never mutates — and
-  records an audit entry naming the changed fields. Nothing is written unless every check passes.
+- **`updateSettings(deps, input)`** validates the values (`createSettings`), refuses a `quotaN`
+  below `customers.countActive()`
+  (`QuotaBelowActiveCustomers`, carrying both numbers), then **appends** a version stamped with
+  `deps.clock.now()` — never mutates — and records an audit entry naming the changed fields, under
+  the same instant. The saved values are in force from that moment: there is no effective-from date
+  to pick. Nothing is written unless every check passes.
 
 - **`listSettingsVersions(deps)`** returns the whole history, newest first. The order is imposed
   here rather than assumed of the repository, which is free to return rows however its query does.
@@ -187,14 +187,14 @@ All three are tested against hand-written fakes and a fake clock in `settings.te
 
 `systemClock` — the real, wall-clock implementation of the `Clock` port and the **only** place
 `new Date()` is called. Every time-dependent rule (13th-birthday reclassification, certificate
-expiry, week-colour alternation, price effective-from dating) reads "now" through this port so a
+expiry, week-colour alternation, stamping a settings change) reads "now" through this port so a
 settable fake clock can drive deterministic tests.
 
 ### `src/domain/errors.ts`
 
 The `DomainErrorCode` union — the closed set of failure modes — plus an abstract `DomainError` base
 class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
-`QuotaBelowActiveCustomers`, `RetroactiveSettingsVersion`, `MissingAuditReason` today). Each carries the values that made it fail, so the UI can render a
+`QuotaBelowActiveCustomers`, `MissingAuditReason` today). Each carries the values that made it fail, so the UI can render a
 German message naming concrete numbers without re-deriving them, and callers switch on `code`
 instead of parsing strings.
 
@@ -202,11 +202,13 @@ instead of parsing strings.
 
 The policy values FD can change without a deploy — quota `N`, portions per grown-up and per child,
 the price per grown-up and per child, the week-cycle anchor and the distribution weekday — and
-the rule that decides which of them apply on a given day. Versions are **immutable and dated**:
-`resolveSettingsAt(versions, date)` returns the version with the greatest `effectiveFrom` that is
-not after `date`, and throws `NoSettingsInForce` rather than returning a partial object. This
-matters because a distribution record stores only a `paid` flag (US-05), so the only way to answer
-"what did that customer owe last March" is to resolve the version in force then.
+the rule that decides which of them apply at a point in time. A saved change is **in force
+immediately**; versions are **immutable and stamped with the instant they were recorded**:
+`resolveSettingsAt(versions, date)` returns the version with the greatest `recordedAt` that is not
+after `date` (of two recorded in the same instant, the later one written wins), and throws
+`NoSettingsInForce` rather than returning a partial object. Keeping superseded versions matters
+because a distribution record stores only a `paid` flag (US-05), so the only way to answer "what did
+that customer owe last March" is to resolve the version that was in force then.
 
 `createSettings(input)` validates every invariant on construction (quota ≥ 1, portions ≥ 0,
 ISO weekday 1–7, an `YYYY-Www` anchor, non-negative integer cents) and throws
@@ -280,9 +282,10 @@ type. All user-facing text lives here; **code identifiers stay English**. `layou
 
 - `prisma/schema.prisma` declares a `sqlite` datasource whose URL comes from `env("DATABASE_URL")`
   and a `prisma-client-js` generator (client generated to the default `node_modules/@prisma/client`).
-- The only model today is `SettingsVersion` — the dated, append-only policy values (the placeholder
-  `SchemaMarker` is gone). Its `effectiveFrom` is unique, so "the settings in force on a date" can
-  never tie, and it carries `pricePerGrownUpCents` / `pricePerChildCents` rather than a per-household
+- The only model today is `SettingsVersion` — the append-only policy values (the placeholder
+  `SchemaMarker` is gone). Its `recordedAt` is the indexed, machine-stamped instant the values took
+  over — deliberately not unique, because two saves in the same millisecond are a concurrency
+  accident, not a business error. It carries `pricePerGrownUpCents` / `pricePerChildCents` rather than a per-household
   price table: what a household owes is derived, never stored. Customer, HouseholdMember, Card and
   DistributionRecord follow with the stories that need them.
 - **All money columns are `Int` cents.** `Float` and `Decimal` appear nowhere in the schema.
@@ -356,12 +359,11 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
 - `testDir: tests/e2e`; runs Chromium against the **built** app.
 - `webServer` **deletes `data/e2e.db`**, then runs `npx prisma migrate deploy && npm run db:seed &&
 npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` is on locally, off
-  in CI. The delete matters locally: the settings specs append a version dated _today_, and
-  `updateSettings` refuses a version dated on or before the latest one, so a second run on the same
-  day would otherwise fail against its own leftovers.
+  in CI. The delete matters locally: the settings specs edit the seeded price and then assert the
+  value they wrote, so a second run against its own leftovers would start from the wrong number.
 - Today: a smoke test asserting the German `<h1>` renders, plus `settings.spec.ts` — the settings
-  round-trip (change a price, save effective today, reload, see it applied and listed in the
-  history) and two rejected saves that must leave the stored value untouched. Those specs run
+  round-trip (change a price, save, reload, see it applied and listed in the
+  history) and a rejected save that must leave the stored value untouched. Those specs run
   **serially** against the one shared database. The distribution-day and registration flows are
   added alongside the features they cover.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
@@ -450,8 +452,8 @@ npm run lint && npm run typecheck && npm run test:coverage && npm run build
   comments, and filenames are English and greppable.
 - **Money is integer cents**, never floats. Format via `src/domain/money.ts`.
 - **Time comes from the `Clock` port**, never `new Date()` in domain/application code.
-- **Policy values are data, not constants** — portions, prices per head and quota `N` will live in
-  the DB with an _effective-from_ date, editable in the UI.
+- **Policy values are data, not constants** — portions, prices per head and quota `N` live in the
+  DB, editable in the UI. A change applies immediately; superseded versions are kept as history.
 - **No actor in state records** — there is no login, so audit records never say _who_.
 - **Push logic down** — anything non-trivial in `src/app` belongs in a use case or the domain.
 
@@ -495,7 +497,6 @@ colour). See `user_stories_mvp.md` §5.
   **WeekColor** alternation, **HouseholdComposition** (13th-birthday split against a fake clock,
   incl. the day-before / day-of / day-after and 29 Feb edge cases).
 - Real Prisma models & repositories; the `better-sqlite3` driver adapter.
-- Policy schema with effective-from dating.
 - shadcn/ui component setup; the counter, registration, and list screens.
 - The concrete append-only audit log behind the `AuditLog` port (`infrastructure/audit.ts`), and the
   `SettingsRepository` / `CustomerCounter` Prisma adapters.
