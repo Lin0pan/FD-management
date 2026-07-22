@@ -1,0 +1,125 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-04-lookup-customer",
+  "description": "US-04 Look Up a Customer by Card Number — The counter screen: one input, one unmissable verdict, everything needed to decide. Includes the portions/price display stories moved here from US-07, since they need this screen to exist.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "evaluateAtCounter — the counter verdict rule",
+      "description": "As a developer, I need a pure function returning exactly one verdict for a customer at the counter, so the decision is testable in milliseconds and cannot drift between screens. Source: tasks/prd-us-04-lookup-customer.md §US-04.1",
+      "acceptanceCriteria": [
+        "src/domain/distribution/counterVerdict.ts exports evaluateAtCounter(input) returning a discriminated union",
+        "Verdict cases are exactly: NOT_FOUND, ARCHIVED, BLOCKED (carries reason), WRONG_GROUP (carries customer group and today's colour), OUTDATED_CARD (carries presented and current card number), ALREADY_SERVED_TODAY, CLEAR_TO_SERVE, CLEAR_TO_SERVE_CERTIFICATE_EXPIRED (carries expiry date and reminder count)",
+        "Precedence is NOT_FOUND, ARCHIVED, BLOCKED, WRONG_GROUP, OUTDATED_CARD, certificate check, CLEAR_TO_SERVE — and every adjacent ordering pair has its own test",
+        "An expired certificate never produces a blocking verdict",
+        "today and weekColour are parameters — no clock and no I/O in the module",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "lookupCustomer use case",
+      "description": "As a developer, I need a read-only use case that resolves a typed number to a customer and returns the verdict plus everything the counter screen shows. Source: tasks/prd-us-04-lookup-customer.md §US-04.2",
+      "acceptanceCriteria": [
+        "Accepts a raw string and parses it as a card number (50k3) or a bare customer number (50)",
+        "A bare customer number resolves to the active holder of that slot; when only archived customers ever held it, the verdict is ARCHIVED for the most recent holder",
+        "A card index lower than the holder's current index yields OUTDATED_CARD; an unassigned customer number yields NOT_FOUND",
+        "The result carries name, customer number, group, counts, portions, priceCents, certificate expiry, status, reminder count, notes and current card number",
+        "Counts, portions and price are computed at read time — never read from stored columns",
+        "Test asserts the fake repository received no mutations for every verdict branch",
+        "Tested against hand-written fakes and a fake clock for all verdict branches",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Counter lookup queries and indexes",
+      "description": "As a developer, I need the lookup to resolve reassigned slots correctly and stay instant. Source: tasks/prd-us-04-lookup-customer.md §US-04.3",
+      "acceptanceCriteria": [
+        "findByCustomerNumber(n) returns the active holder, plus the most recent archived holder when there is no active one",
+        "Indexes exist on Customer.customerNumber and Customer.status",
+        "Household members, certificate and cards are loaded in one query — no N+1 at the counter",
+        "Integration test with an archived and an active customer both holding number 50 resolves correctly",
+        "Migration committed under prisma/migrations/ if the schema changed",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Counter lookup screen on /ausgabe",
+      "description": "As a staff member, I want to type a number and see one clear answer, so I can serve a queue quickly. Source: tasks/prd-us-04-lookup-customer.md §US-04.4",
+      "acceptanceCriteria": [
+        "/ausgabe shows the week-colour banner and a single auto-focused number input; Enter performs the lookup and the input clears and re-focuses",
+        "The verdict renders as a full-width banner with a distinct colour AND an explicit German sentence and icon — never colour alone",
+        "Wrong group renders the send-away sentence naming both colours; outdated card names the presented and the current card number; blocked shows the reason verbatim; archived states not eligible; expired certificate states serve-and-remind; otherwise clear to serve",
+        "Below the verdict: name, customer number, group, counts, portions, price, certificate expiry, status, reminder count and notes are all visible without further clicks",
+        "An unknown number renders 'Nummer nicht gefunden' and keeps the input focused",
+        "The UI switch over the verdict union is exhaustive with a never-check in the default branch",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "E2E: every verdict at the counter",
+      "description": "As a developer, I need a Playwright spec covering each counter verdict and proving read-only behaviour. Source: tasks/prd-us-04-lookup-customer.md §US-04.5",
+      "acceptanceCriteria": [
+        "Spec seeds one customer per verdict and asserts the banner text for each",
+        "Spec asserts that looking up a wrong-group customer and an outdated card leaves the database unchanged: no distribution record, no reminder, no status change",
+        "Spec asserts an unknown number shows the not-found message rather than an empty page",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Display portions and price across the customer screens",
+      "description": "As a staff member, I want portions and price shown wherever I look at a customer, so I hand out the right amount without arithmetic. Source: tasks/prd-us-07-portions-and-price.md §US-07.4",
+      "acceptanceCriteria": [
+        "The counter screen, the card view and the customer detail page all show portions and price",
+        "Money renders as German-formatted euro (e.g. 2,50 €) via formatEuros from src/domain/money.ts",
+        "Each screen states these are the standard values; there is no control to adjust them",
+        "A missing price row renders an explicit German error naming both counts and pointing at /einstellungen, while the rest of the customer data still renders",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "E2E: portions and price follow the household",
+      "description": "As a developer, I need a Playwright spec proving the allowance is derived, not stored. Source: tasks/prd-us-07-portions-and-price.md §US-07.5",
+      "acceptanceCriteria": [
+        "Spec asserts a customer with 2 grown-ups and 1 child shows the seeded portions and price",
+        "Spec asserts a household size with no price row shows the specific German error",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

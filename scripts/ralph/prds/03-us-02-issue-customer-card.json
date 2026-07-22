@@ -1,0 +1,89 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-02-issue-customer-card",
+  "description": "US-02 Issue a Customer Card (Digital) — CardNumber value object, the single issueCard path, and the digital card view. Exactly one valid card per customer; no printing (FD uses a separate system).",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "CardNumber value object",
+      "description": "As a developer, I need a value object for card numbers, so 50k3 is never handled as an ad-hoc string. Source: tasks/prd-us-02-issue-customer-card.md §US-02.1",
+      "acceptanceCriteria": [
+        "src/domain/card/cardNumber.ts exports format(customerNumber, index), parse(text) and next(cardNumber)",
+        "format(50, 3) returns '50k3'; parse('50k3') returns {customerNumber: 50, index: 3}; next({50,3}) returns {50,4}",
+        "parse returns a typed InvalidCardNumber error for: '', '50', 'k3', '50k0', '50k', '050k3', '50k3x' and negative numbers",
+        "Input parsing accepts an uppercase K; output is always lowercase — documented in a comment",
+        "Index starts at 1, never 0",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "issueCard use case — the single card-issuing path",
+      "description": "As a developer, I need one use case that issues the next card and invalidates the previous one, reused by first issue, loss and stale-count reissue. Source: tasks/prd-us-02-issue-customer-card.md §US-02.2",
+      "acceptanceCriteria": [
+        "issueCard(deps, {customerId, reason}) creates a card with index = max existing index + 1, or 1 if none",
+        "Validity is derived from being the highest index — no separate mutable valid flag exists",
+        "Rejects with a typed error if the customer is archived",
+        "Writes an audit entry with reason FIRST_ISSUE | LOST | STALE_COUNTS | OTHER",
+        "Tested with fakes: first issue, second issue, archived customer, issue after a gap in indices (must take max+1)",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Card repository with currentCard query",
+      "description": "As a developer, I need card persistence that guarantees exactly one valid card per customer. Source: tasks/prd-us-02-issue-customer-card.md §US-02.3",
+      "acceptanceCriteria": [
+        "Card model gains a reason field; @@unique([customerId, index]) is confirmed present",
+        "PrismaCardRepository exposes currentCard(customerId) returning the highest index, and issue(customerId, index, reason)",
+        "Integration test proves two different customers may both hold card number 50k1",
+        "Integration test proves a concurrent double-issue cannot create two cards with the same index — the unique constraint surfaces as a typed error",
+        "Migration committed under prisma/migrations/",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Card view at /kunden/[id]/karte",
+      "description": "As a staff member, I want to see all card information on screen, so I can transcribe it onto the physical card or feed it into the printing system. Source: tasks/prd-us-02-issue-customer-card.md §US-02.4",
+      "acceptanceCriteria": [
+        "Route /kunden/[id]/karte renders card number, first name, last name, group as a German coloured label, grown-up count and children count",
+        "Counts are read live from the derived composition, never from a stored column",
+        "The view states in German that this is the current card and which numbers it replaced",
+        "Layout is card-shaped and legible across a desk; no print stylesheet and no PDF is produced",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "E2E: card is issued on registration and displayed",
+      "description": "As a developer, I need a Playwright spec proving registration produces a displayable k1 card. Source: tasks/prd-us-02-issue-customer-card.md §US-02.5",
+      "acceptanceCriteria": [
+        "Spec registers a customer, lands on the card view and asserts the card number matches ^[0-9]+k1$",
+        "Spec asserts name, group and counts on the card match the registration input",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

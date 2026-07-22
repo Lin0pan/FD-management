@@ -1,0 +1,101 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-16-maintain-customer-record",
+  "description": "US-16 Maintain a Customer's Record — Household, address, group, notes and certificate renewal editing on the customer record, with counts, portions and price updating immediately.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "updateHousehold use case",
+      "description": "As a staff member, I want to add and remove household members, so the record reflects reality as households change. Source: tasks/prd-us-16-maintain-customer-record.md §US-16.1",
+      "acceptanceCriteria": [
+        "updateHousehold(deps, {customerId, members}) replaces the household member set",
+        "An empty member list rejects with EmptyHousehold and a future birthdate with BirthDateInFuture, reusing the registration domain rules rather than a second implementation",
+        "Derived counts, portions and price are never written",
+        "Test asserts a change that alters the counts puts the customer on the cards-due list with reason HOUSEHOLD_CHANGE",
+        "Test asserts a change that does not alter the counts (e.g. a spelling fix) does not put the customer on that list",
+        "Test asserts no history of the previous composition is kept",
+        "Writes an audit entry",
+        "Tested against hand-written fakes and a fake clock",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "updateCustomerDetails and updateNotes use cases",
+      "description": "As a staff member, I want to correct a customer's personal data, address and notes. Source: tasks/prd-us-16-maintain-customer-record.md §US-16.2 and §US-16.3",
+      "acceptanceCriteria": [
+        "updateCustomerDetails updates name, date of birth and address with the same validation as registration",
+        "The customer's own record and their household-member entry stay consistent when their name or birthdate changes; the mechanism is decided, documented and tested (a single source of truth is preferred)",
+        "The customer number is not editable through this use case",
+        "updateNotes saves free text as given; empty is allowed, and a maximum length (4000 chars) is enforced with a clear message",
+        "Test asserts notes are returned by the counter lookup",
+        "Both write audit entries",
+        "Tested against hand-written fakes",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "changeGroup use case",
+      "description": "As a staff member, I want to move a customer between Red and Blue, so the two groups stay roughly balanced. Source: tasks/prd-us-16-maintain-customer-record.md §US-16.4",
+      "acceptanceCriteria": [
+        "changeGroup(deps, {customerId, group}) sets the group and returns the resulting group sizes",
+        "Changing to the same group rejects as a no-op",
+        "Test asserts a customer moved to Red is servable in a Red week on the same day",
+        "The change puts the customer on the cards-due list with reason GROUP_CHANGE, since the card prints the group",
+        "Writes an audit entry",
+        "Tested against hand-written fakes and a fake clock",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Customer record editing on /kunden/[id]",
+      "description": "As a staff member, I want one screen where I can see and update everything about a customer. Source: tasks/prd-us-16-maintain-customer-record.md §US-16.5",
+      "acceptanceCriteria": [
+        "Household members can be added and removed inline; counts, portions and price update live",
+        "The group control shows both current group sizes next to the choice",
+        "Notes are a multi-line field saved explicitly, with an indication that they appear at the counter",
+        "The certificate renewal form is embedded and shows the reminder count resetting to 0",
+        "Destructive actions (reissue card, block/unblock, archive) are grouped in a clearly separated section, each with its own confirmation",
+        "Distribution history is listed newest first with date, showed-up, paid and the price that applied",
+        "Each household member shows their current age next to their birthdate",
+        "An archived customer's record renders fully read-only",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "E2E: edit a household and see the effects",
+      "description": "As a developer, I need a Playwright spec proving record edits propagate to counts, price, group and the counter. Source: tasks/prd-us-16-maintain-customer-record.md §US-16.6",
+      "acceptanceCriteria": [
+        "Spec opens a customer record, adds a child, and asserts counts, portions and price update and that the customer appears on the cards-due list",
+        "Spec changes the group and asserts both group sizes update and the counter verdict for today flips accordingly",
+        "Spec edits the notes and asserts the text appears on the counter screen for that customer",
+        "Spec records a renewed certificate and asserts the reminder count shows 0",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

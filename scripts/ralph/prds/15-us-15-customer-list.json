@@ -1,0 +1,81 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-15-customer-list",
+  "description": "US-15 Browse and Search the Customer List — Search by name, customer number or card number; filter by status, group and certificate expiry; both group sizes always visible. Restores what the Excel sheet did.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "listCustomers query use case with filters",
+      "description": "As a staff member, I want to search and filter all customers, so I can answer questions away from the counter. Source: tasks/prd-us-15-customer-list.md §US-15.1",
+      "acceptanceCriteria": [
+        "listCustomers(deps, {search?, status?, group?, certificate?, includeArchived?}) is implemented",
+        "search matches last name, first name (case- and diacritic-insensitive), an exact customer number, or a card number resolved to its holder",
+        "certificate accepts VALID | EXPIRING_SOON | EXPIRED, where expiring-soon is within 30 days of deps.clock.now() and the constant is documented",
+        "includeArchived defaults to false; archived customers appear only when it is true or status names ARCHIVED",
+        "Results carry customer number, name, group, status, derived counts, certificate expiry, reminder count and current card number",
+        "The result carries groupCounts {red, blue} for active customers independent of the current filter — asserted by a test that filters to Blue and still receives both",
+        "Default sort is ascending customer number",
+        "The use case performs no writes",
+        "Tested against hand-written fakes and a fake clock",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Customer list queries and indexes",
+      "description": "As a developer, I need the list filters implemented in SQL with the search normalisation shared with the archive search. Source: tasks/prd-us-15-customer-list.md §US-15.2",
+      "acceptanceCriteria": [
+        "Filters are implemented in SQL, not by loading all rows and filtering in JavaScript; only the derived counts are computed per row after loading",
+        "Indexes exist on lastName, customerNumber, status and group",
+        "The normalised search column introduced for the archive search is reused — there is one search-normalisation approach in the codebase, not two",
+        "Integration test seeds around 50 synthetic customers across statuses and groups and asserts each filter's result set and the group counts",
+        "Migration committed under prisma/migrations/ if the schema changed",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Customer list screen at /kunden",
+      "description": "As a staff member, I want a dense searchable list, so the app can replace the spreadsheet I used to filter. Source: tasks/prd-us-15-customer-list.md §US-15.3",
+      "acceptanceCriteria": [
+        "Route /kunden shows a dense table: number, name, group, status, counts, portions, price, certificate expiry, reminder count",
+        "A single search box handles name, customer number and card number, with a German placeholder saying so",
+        "Filter controls for status, group and certificate state, with filter state reflected in the URL so a view can be bookmarked",
+        "Both active group sizes are shown prominently above the table",
+        "Archived customers are hidden until a clearly labelled toggle is switched on; archived rows are visually distinct",
+        "Empty results render an explicit German message naming the active filters, never a blank table",
+        "Each row links to /kunden/[id]; status is conveyed by text plus colour, never colour alone",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "E2E: search and filter the customer list",
+      "description": "As a developer, I need a Playwright spec covering search, filters and the group-balance figures. Source: tasks/prd-us-15-customer-list.md §US-15.4",
+      "acceptanceCriteria": [
+        "Spec seeds customers across groups, statuses and certificate states",
+        "Spec asserts name search finds the right customer, a card number resolves to its holder, the blocked filter shows only blocked customers, and archived are hidden by default but appear when toggled",
+        "Spec asserts the group counts match the seeded data and do not change when a filter is applied",
+        "Spec asserts the URL carries the filter state and reloading restores the same view",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

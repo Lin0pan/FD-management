@@ -1,0 +1,90 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-03-week-colour",
+  "description": "US-03 Know Which Group Collects Today — Red/Blue week colour derived from the calendar by strict alternation from a configured anchor, with a prominent banner and any-week lookup.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "weekColour calendar alternation rule",
+      "description": "As a developer, I need a pure function from a date to a week colour, so the Red/Blue alternation is testable without a database. Source: tasks/prd-us-03-week-colour.md §US-03.1",
+      "acceptanceCriteria": [
+        "src/domain/distribution/weekColour.ts exports colourOf(date, anchor) where anchor is {isoWeek, colour}",
+        "The colour flips on every ISO week boundary; parity is computed from the ISO week difference to the anchor",
+        "colourOf is total for dates before the anchor — tests cover one, two and fifty-three weeks before it",
+        "Property test asserts colourOf(d) !== colourOf(d + 7 days) for a swept range of dates",
+        "Tests cover ISO edge cases: the Sunday-to-Monday boundary, 1 January falling in week 52/53 of the prior ISO year, and a 53-week year",
+        "ISO-8601 week numbering (weeks start Monday) is used and documented in a comment",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "isDistributionDay and nextDistribution",
+      "description": "As a staff member, I want the app to know whether today is a distribution day and, if not, when the next one is and what colour it will be. Source: tasks/prd-us-03-week-colour.md §US-03.2",
+      "acceptanceCriteria": [
+        "isDistributionDay(date, weekday) compares against the configured ISO weekday",
+        "nextDistribution(date, settings) returns {date, colour} for the next distribution day at or after date",
+        "On a distribution day, nextDistribution returns today, not next week",
+        "Tests cover the day before, the day of and the day after a distribution day, and a configured weekday of Sunday (ISO 7)",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "getWeekColour use case",
+      "description": "As a developer, I need a use case that resolves the settings in force and returns the colour for any date. Source: tasks/prd-us-03-week-colour.md §US-03.3",
+      "acceptanceCriteria": [
+        "getWeekColour(deps, date?) resolves settings at that date, then delegates to the domain function",
+        "Defaults to deps.clock.now() when no date is given",
+        "Test proves a lookup for a past date uses the anchor that was in force then, not the current anchor",
+        "No week rows are ever persisted — the use case needs only SettingsRepository",
+        "Tested against hand-written fakes and a fake clock",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Week colour banner and week lookup on /ausgabe",
+      "description": "As a staff member, I want the distribution screen to state today's colour prominently and let me check any other week. Source: tasks/prd-us-03-week-colour.md §US-03.4",
+      "acceptanceCriteria": [
+        "Route /ausgabe shows a large German banner with today's colour, and on a non-distribution day states which colour is next and on which date",
+        "The colour is conveyed by text plus colour, never by colour alone",
+        "A date picker looks up the colour of any past or future week and shows the ISO week number alongside",
+        "The banner is the visually dominant element on the screen",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "E2E: week colour banner against a fixed clock",
+      "description": "As a developer, I need a Playwright spec proving the banner reflects the calendar rule. Source: tasks/prd-us-03-week-colour.md §US-03.5",
+      "acceptanceCriteria": [
+        "The app accepts a test-only fixed clock (env variable or clock override) documented in the spec",
+        "Spec asserts the banner text for a Red distribution day, the following week (Blue) and a non-distribution weekday",
+        "Spec asserts the lookup control returns the expected colour for a date two years out",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

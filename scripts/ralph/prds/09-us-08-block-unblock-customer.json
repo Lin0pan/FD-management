@@ -1,0 +1,107 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-08-block-unblock-customer",
+  "description": "US-08 Block and Unblock a Customer — Manual temporary block with a mandatory free-text reason, shown verbatim at the counter. Opens with the customer detail page shell, which this and the next two batches attach their actions to.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Customer detail page shell at /kunden/[id]",
+      "description": "As a staff member, I want a read-only page showing everything known about one customer, so later stories have a place to attach their actions. Sequencing story derived from tasks/prd-us-16-maintain-customer-record.md §US-16.5 — it exists here so US-08, US-09 and US-10 have a host page.",
+      "acceptanceCriteria": [
+        "Route /kunden/[id] renders read-only: personal data, address, household members with birthdate and current age, derived counts, group, status, current card number, certificate type and expiry, reminder count, notes",
+        "The page links to the card view at /kunden/[id]/karte",
+        "An unknown id renders a German not-found message, not a crash",
+        "The page performs no writes",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Customer status transition state machine",
+      "description": "As a developer, I need status transitions modelled as a state machine, so illegal transitions are impossible rather than merely unlikely. Source: tasks/prd-us-08-block-unblock-customer.md §US-08.1",
+      "acceptanceCriteria": [
+        "src/domain/customer/status.ts defines Status = 'ACTIVE' | 'BLOCKED' | 'ARCHIVED' and transition(from, to)",
+        "Allowed: ACTIVE to BLOCKED, BLOCKED to ACTIVE, ACTIVE to ARCHIVED, BLOCKED to ARCHIVED",
+        "Refused with a typed IllegalStatusTransition error: any transition out of ARCHIVED, and any no-op transition",
+        "A transition to BLOCKED without a non-empty reason yields a typed BlockReasonRequired error",
+        "Every transition pair, legal and illegal, has a test",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "blockCustomer and unblockCustomer use cases",
+      "description": "As a staff member, I want to pause a customer with a written reason and lift it later, so a customer can be paused without losing their number. Source: tasks/prd-us-08-block-unblock-customer.md §US-08.2",
+      "acceptanceCriteria": [
+        "blockCustomer(deps, {customerId, reason}) sets status BLOCKED and stores the trimmed reason; an empty result rejects with BlockReasonRequired",
+        "unblockCustomer(deps, {customerId}) returns the customer to ACTIVE and clears the reason",
+        "Neither use case changes the customer number, the card or any distribution record",
+        "Test asserts blocking does not free the slot — the taken-numbers query still includes it",
+        "Blocking an already-blocked customer and unblocking an active one both reject",
+        "Both write audit entries carrying the reason, with no actor field",
+        "Tested against hand-written fakes",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Block fields and slot-occupancy invariant",
+      "description": "As a developer, I need blocked customers to occupy their slot exactly like active ones. Source: tasks/prd-us-08-block-unblock-customer.md §US-08.3",
+      "acceptanceCriteria": [
+        "Customer.blockReason String? exists alongside status",
+        "An invariant test proves blockReason is non-null exactly when status is BLOCKED",
+        "Integration test proves the active-number unique index treats BLOCKED as occupying the slot; only ARCHIVED is exempt",
+        "Migration committed under prisma/migrations/",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Block and unblock UI",
+      "description": "As a staff member, I want to block and unblock a customer and see the reason at the counter. Source: tasks/prd-us-08-block-unblock-customer.md §US-08.4",
+      "acceptanceCriteria": [
+        "The customer detail page offers 'Sperren' with a required multi-line reason field; save is disabled until the reason is non-empty",
+        "A blocked customer's counter screen shows the reason verbatim and in full in the verdict banner — never truncated behind a 'more' link",
+        "'Sperre aufheben' is available from the customer detail page and asks for confirmation, showing the current reason before lifting",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "E2E: blocked customer at the counter",
+      "description": "As a developer, I need a Playwright spec proving a block is visible and reversible. Source: tasks/prd-us-08-block-unblock-customer.md §US-08.5",
+      "acceptanceCriteria": [
+        "Spec blocks a customer with a reason, looks them up at the counter and asserts the reason is displayed and no serve action is offered",
+        "Spec asserts an empty reason cannot be submitted",
+        "Spec lifts the block and asserts the customer is servable again with the same customer number and the same card number",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

@@ -1,0 +1,133 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-01-register-customer",
+  "description": "US-01 Register a New Customer — Register an applicant with household, address and needs certificate; assign the lowest free customer number and a balancing group; create the first card. Counts are derived from birthdates, never stored.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "HouseholdComposition — derive grown-up/children counts from birthdates",
+      "description": "As a developer, I need the grown-up/children split computed from birthdates against an injected clock, so counts can never drift from reality. Source: tasks/prd-us-01-register-customer.md §US-01.1",
+      "acceptanceCriteria": [
+        "src/domain/customer/householdComposition.ts exports composition(members, today) returning {grownUps, children}",
+        "A member counts as a grown-up on their 13th birthday; the day before they are a child",
+        "Tests cover the day before, the day of and the day after a 13th birthday",
+        "Test covers a 29 February birthdate evaluated in a non-leap year (grown-up from 1 March), with the convention documented in a comment",
+        "An empty member list throws a typed EmptyHousehold error, never {0, 0}",
+        "A future birthdate throws a typed BirthDateInFuture error",
+        "today is a parameter — no new Date() in the module",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "CustomerNumber — lowest free slot allocation",
+      "description": "As a developer, I need a pure function that picks the lowest free customer number, so registration order is reproducible and testable. Source: tasks/prd-us-01-register-customer.md §US-01.2",
+      "acceptanceCriteria": [
+        "src/domain/customer/customerNumber.ts exports lowestFreeNumber(takenNumbers, quotaN)",
+        "Returns the smallest integer in 1..quotaN not present in takenNumbers",
+        "Returns a typed NoFreeCustomerNumber error when every number is taken",
+        "A gap left by an archived customer is filled before any higher number",
+        "Tests cover: empty list gives 1, [1,2,4] gives 3, full range gives the error, quotaN = 1",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Group type and suggestGroup balancing rule",
+      "description": "As a staff member, I want the app to suggest the smaller group, so Red and Blue stay roughly equal without me counting. Source: tasks/prd-us-01-register-customer.md §US-01.3",
+      "acceptanceCriteria": [
+        "src/domain/customer/group.ts exports the Group = 'RED' | 'BLUE' type and suggestGroup({red, blue})",
+        "Returns the group with fewer active customers",
+        "On a tie returns 'RED' deterministically — never random — and the choice is documented",
+        "Tests cover: red smaller, blue smaller, tie, both zero",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "registerCustomer use case",
+      "description": "As a developer, I need one transactional use case that turns validated input into an active customer with a number, a group and a first card. Source: tasks/prd-us-01-register-customer.md §US-01.4",
+      "acceptanceCriteria": [
+        "CustomerRepository port added to src/application/ports.ts with takenActiveNumbers(), groupCounts() and create(customer)",
+        "registerCustomer(deps, input) reads settings for quotaN, allocates the lowest free number, resolves the group (an explicit input choice wins over the suggestion) and persists the customer with status ACTIVE, reminderCount 0 and card index 1",
+        "Rejects with one typed error per case: NoFreeCustomerNumber, EmptyHousehold, BirthDateInFuture, MissingRequiredField",
+        "The whole operation is a single transaction — a failure leaves no partial customer and consumes no customer number",
+        "Writes an audit entry with no actor field",
+        "Test covers the race where the chosen number was taken between read and write: it must surface NoFreeCustomerNumber or retry, never create a duplicate",
+        "Tested against hand-written fakes and a fake clock",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Customer, HouseholdMember, Certificate and Card schema with the slot-vs-identity constraint",
+      "description": "As a developer, I need the core customer tables with the reusable-slot rule enforced by the database, not just by application code. Source: tasks/prd-us-01-register-customer.md §US-01.5",
+      "acceptanceCriteria": [
+        "Prisma models: Customer (surrogate id Int autoincrement, customerNumber, firstName, lastName, birthDate, street, houseNumber, zip, city, group, status, reminderCount, notes), HouseholdMember, Certificate (type, validUntil), Card (index, issuedAt)",
+        "No grownUps or children columns exist on Customer — the counts are derived, never stored",
+        "A partial/filtered unique index enforces at most one ACTIVE customer per customerNumber; archived rows are exempt",
+        "Every foreign key targets Customer.id, never customerNumber",
+        "Unique constraint on (customerId, index) for cards",
+        "PrismaCustomerRepository implements the port and is integration-tested against a throwaway SQLite file",
+        "Integration test proves two archived customers may both hold customer number 50",
+        "Migration committed under prisma/migrations/",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Registration form at /kunden/neu",
+      "description": "As a staff member, I want a registration screen that captures everything in one place and shows me the derived counts as I type. Source: tasks/prd-us-01-register-customer.md §US-01.6",
+      "acceptanceCriteria": [
+        "Route /kunden/neu with a Zod-validated server action that calls registerCustomer and nothing else",
+        "Fields: first name, last name, date of birth, street, house number, ZIP, city, certificate type, certificate valid-until",
+        "Household members are repeatable rows (first name, last name, birthdate); the customer is pre-filled as the first member from the personal-data fields",
+        "Grown-up and children counts are shown as read-only derived values that update live — there is no input control for them",
+        "The proposed customer number and suggested group are shown; the group is changeable and both current group sizes are displayed",
+        "Each rejection renders its own German message: no free number, missing field, empty household, future birthdate",
+        "On success, redirect to the customer's card view",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "E2E: register a customer and get a card",
+      "description": "As a developer, I need a Playwright spec covering the registration happy path and the empty-household rejection. Source: tasks/prd-us-01-register-customer.md §US-01.7",
+      "acceptanceCriteria": [
+        "Spec registers a two-person household and asserts: a customer number is assigned, counts show 1 grown-up and 1 child, the card number ends in k1, status is active",
+        "Spec asserts submitting with an empty household shows the German error and creates nothing",
+        "Test data is synthetic (Faker) — no real names, addresses or certificates",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-07-portions-and-price",
+  "description": "US-07 Portion Allowance and Price (domain) — PortionPolicy and PricePolicy plus the describeAllowance helper. Domain and application layers only — the display stories moved into the US-04 batch, because they render onto the counter screen.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "PortionPolicy — portions from counts and configured per-head values",
+      "description": "As a staff member, I want the portion allowance derived automatically, so I do no arithmetic at a busy counter. Source: tasks/prd-us-07-portions-and-price.md §US-07.1",
+      "acceptanceCriteria": [
+        "src/domain/policy/portions.ts exports portionsFor({grownUps, children}, {portionsPerGrownUp, portionsPerChild})",
+        "Returns grownUps * portionsPerGrownUp + children * portionsPerChild as an integer",
+        "No default values are baked into the module — the configuration is a parameter",
+        "Tests cover: single-person household, household with children, zero children, portionsPerChild of 0",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "PricePolicy — exact price-table lookup in cents",
+      "description": "As a staff member, I want the price read from the fixed table, so it never flexes with supply or occasion. Source: tasks/prd-us-07-portions-and-price.md §US-07.2",
+      "acceptanceCriteria": [
+        "src/domain/policy/price.ts exports priceFor({grownUps, children}, priceTable) returning integer cents",
+        "Looks up an exact (grownUps, children) row — it never interpolates, extrapolates or falls back to a nearest row",
+        "Returns a typed NoPriceForHousehold error carrying both counts when no row matches",
+        "Tests cover: exact match, no match, a valid zero-cent row",
+        "The module returns cents only; formatting goes through src/domain/money.ts",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "describeAllowance — counts, portions and price for a customer at a date",
+      "description": "As a developer, I need one application helper that resolves settings, derives counts and returns the allowance, so the counter and record screens share it. Source: tasks/prd-us-07-portions-and-price.md §US-07.3",
+      "acceptanceCriteria": [
+        "The helper returns {grownUps, children, portions, priceCents} for a household at a given date",
+        "A household with no matching price row surfaces NoPriceForHousehold rather than a partial result",
+        "Test proves a household evaluated on a date where an older settings version was in force is priced with that older version",
+        "Tested against hand-written fakes and a fake clock",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
