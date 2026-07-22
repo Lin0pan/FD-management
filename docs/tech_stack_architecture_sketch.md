@@ -34,7 +34,8 @@ isolated place.**
 
 ### 2.2 A few hard invariants must never break
 
-- Customer numbers are unique in `1..N` and only become reusable after archiving.
+- A customer number is unique **among active customers** in `1..N`, and becomes reusable after
+  archiving. It is a slot, not an identity (see [§5.3](#53-customer-identity-vs-customer-number)).
 - Card number is `<customerNo>k<index>`, with exactly one valid card per customer.
 - Red and Blue weeks strictly alternate.
 
@@ -167,6 +168,38 @@ feature that makes those decisions defensible — and it is far cheaper to add n
 **No actor field:** FD has decided against login and user administration, so the system cannot tell
 its 3-4 staff apart. The log answers _what changed, when and why_, never _who_. That is a deliberate
 scope decision, not an oversight; if login is ever added, an actor column is an additive change.
+
+### 5.3 Customer identity vs. customer number
+
+**Decision.** A customer's stable identity is a surrogate primary key — a database-generated,
+auto-incrementing integer `id` — separate from the `1..N` customer number.
+
+**Why.** The domain requires the customer number to be a reusable slot: when a customer is archived,
+their number is freed and later reassigned to a different person (domain analysis §4.6). That makes
+the customer number **non-unique across the archive** — two unrelated people can each have held
+number `50` at different times. An attribute that gets recycled cannot serve as identity: it cannot
+safely key distribution records, cards, notes or any foreign key, because those would silently
+collapse two different people onto one slot.
+
+The card number has the same shape and the same limitation — `50k1` recurs for every occupant of
+slot `50`, so it is not archive-unique either.
+
+**Consequences.**
+
+- `Customer.id` (surrogate int) is the primary key and the target of **every** foreign key —
+  distribution records, cards, audit log entries. It is immutable, never reused, unique across
+  active _and_ archived customers by construction.
+- The customer number is modelled as an **attribute the customer currently holds**, with a database
+  constraint of _at most one active customer per number_ (a partial/filtered unique index — archived
+  rows are exempt). The domain layer owns "lowest free number" assignment (US-01).
+- The card row is keyed by / FK'd to `id`; its `<customerNo>k<index>` string is display data only.
+  `50k1` appearing for two different `id`s is therefore harmless.
+- **Purely internal.** The surrogate `id` is plumbing — it is not shown in the UI and not spoken by
+  staff, who continue to use the customer number and card number as today. (Considered and rejected:
+  a human-facing composite like `50-1`/`50-2` — it re-couples identity to the reusable slot, is a
+  smart key inviting parse/sort bugs, and needs a stateful per-slot lookup to generate. The opaque
+  surrogate avoids all three.) If a human-readable stable handle is ever wanted, exposing the
+  surrogate is an additive change.
 
 ## 6. Operations
 
