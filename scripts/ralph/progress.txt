@@ -1,0 +1,222 @@
+# Ralph Progress Log
+Started: Wed Jul 22 12:49:05 CEST 2026
+---
+
+## Codebase Patterns
+- Typed domain errors live in `src/domain/errors.ts`: extend the abstract `DomainError` base class,
+  declare `readonly code` from the `DomainErrorCode` union, and carry the offending values as
+  fields. Never `throw new Error("…")`. Add the new kind to the union when adding a class.
+- Domain modules are validated-on-construction: a `createX(input)` factory throws naming the field,
+  so no partially-valid object can exist. Prefer this over scattering checks at call sites.
+- Coverage on `src/domain` + `src/application` is gated at 100% including **branches**. A
+  short-circuiting guard like `Number.isInteger(v) && v >= 1 && v <= 7` needs a test per operand —
+  budget one test per clause or the coverage gate fails.
+- Use a type guard (`function isX(v: number): v is X`) rather than an `as` cast to narrow a
+  validated primitive into a literal-union type — the repo standard forbids `any` and `!`.
+- Test helpers take a `Partial<Input>` overrides object over a valid baseline, so each test names
+  exactly the one rule it is about (see `settings.test.ts`).
+- Use cases live in `src/application/<area>/<verb-noun>.ts`, one per business action, each taking a
+  `Deps` object of ports as its first argument and its `Input` as the second. Ports are declared in
+  `src/application/ports.ts` and stay type-only.
+- Application tests keep their hand-written fakes **inside the test file** (`settings.test.ts`) — a
+  separate `fakes.ts` under `src/application/` would be pulled into the 100% coverage gate.
+- Every state change appends an `AuditEntry` (`what` / `changedFields` / `when` / `why`, never an
+  actor); `when` comes from `clock.now()`, not from any business date in the input.
+- A helper like `latestVersion()` that scans with `latest === undefined || …` needs a test where the
+  array is out of order, or the second operand stays an uncovered branch.
+- Run `npx prettier --write <paths>` before `npm run lint`; the pre-commit hook formats anyway, but
+  it rewrites files mid-run otherwise.
+- Local quality gate: `npm run lint && npm run typecheck && npm run test:coverage && npm run build`.
+- Infrastructure adapters live in `src/infrastructure/prisma/<thing>-repository.ts` and implement a
+  port from `src/application/ports.ts`. Rows re-enter the domain through the `createX` factory, so a
+  hand-edited database cannot bypass an invariant.
+- Integration tests migrate a **throwaway** SQLite file: `mkdtempSync` + `execFileSync("npx",
+  ["prisma","migrate","deploy"], { env: { ...process.env, DATABASE_URL: url } })` in `beforeAll`
+  (60s timeout), `new PrismaClient({ datasourceUrl: url })`, `rmSync` in `afterAll`. Use an
+  **absolute** `file:` path — the generated client resolves relative paths against the cwd, while
+  the CLI resolves them against `prisma/`.
+- SQLite has no enum type: store a union as `String` and narrow it back with a domain parser
+  (`parseWeekColour`). Parsing belongs in the domain, not the adapter.
+- `prisma migrate dev` needs `DATABASE_URL` on the command line if you do not want it to touch
+  `data/fd.db`; delete the scratch db afterwards.
+- TypeScript scripts outside `src/` (e.g. `prisma/seed.ts`) run through `tsx`; do not add a
+  `package.json#prisma` key for them — Prisma 6 warns that it is deprecated.
+- A `"use server"` module may export **nothing but async functions** — every export becomes a
+  callable server endpoint. Put form-state objects and types in a sibling module. `npm run build`
+  does **not** catch this; it fails at page load, so a route needs an actual browser/E2E hit.
+- A route directory carries its own `deps.ts` composition root — the one place real adapters are
+  chosen. The page hands that object to a use case and does nothing else with it.
+- German text for a rejected field comes from `de.settings.errorFields`, keyed by the `field` string
+  the `InvalidSettings` error carries. Add a key when adding a validated field, or the screen quotes
+  an English identifier at staff.
+- Server components that read data changed through a form need `export const dynamic =
+  "force-dynamic"`, or Next prerenders them at build time and the screen shows stale values.
+- A screen is a client component only where it genuinely needs state (here: the price grid gaining
+  and losing rows). Everything else stays a server component.
+- Playwright specs live in `tests/e2e/*.spec.ts`, may import `@/…` (the tsconfig path alias works
+  there), and take their expected text from `src/i18n/de.ts` rather than hard-coding German.
+- E2E specs that share the seeded `data/e2e.db` must declare `test.describe.configure({ mode:
+  "serial" })` — `fullyParallel` is on, and two workers writing settings versions race.
+- The Playwright `webServer` deletes `data/e2e.db` before migrating and seeding, so every run starts
+  from the seed. Don't reintroduce state that assumes leftovers; don't drop the delete either, or a
+  same-day second run fails on `RetroactiveSettingsVersion`.
+- Address form fields in E2E by their `id` (`#quotaN`, `#reason`, `#effectiveFrom`) — a `<label>`
+  that also wraps a hint `<span>` gives `getByLabel` an accessible name you did not expect.
+
+## [2026-07-22] - US-001 (Settings value objects and effective-from resolution)
+- Implemented `src/domain/policy/settings.ts`: the `Settings` shape (quotaN, portionsPerGrownUp,
+  portionsPerChild, reminderThreshold, weekAnchor, distributionWeekday, priceTable), plus
+  `createSettings` (validating factory), `resolveSettingsAt(versions, date)` and
+  `priceFor(settings, grownUps, children)`. Pure: no I/O, no wall clock, no framework imports.
+- Turned `src/domain/errors.ts` from a type-only placeholder into a real error hierarchy:
+  `DomainError` base + `InvalidSettings`, `NoSettingsInForce`, `NoPriceForHousehold`.
+- Files changed: `src/domain/policy/settings.ts` (new), `src/domain/policy/settings.test.ts` (new,
+  30 tests, written first), `src/domain/errors.ts`, `docs/technical_documentation.md`.
+- All gates green; domain coverage 100% on statements/branches/functions/lines.
+- **Learnings for future iterations:**
+  - `resolveSettingsAt` does not assume the versions array is sorted — it scans for the greatest
+    `effectiveFrom <= date`. Repository adapters therefore need not order their query.
+  - `SettingsInput` widens only `distributionWeekday` to `number`; everything else reuses
+    `Settings`, so adding a policy field means touching only the `Settings` interface plus its
+    validation and the returned object.
+  - Boundary semantics settled here: a version dated exactly `date` **is** in force that day, and a
+    date before the earliest version throws rather than returning a default.
+  - `priceFor` matches exactly and never interpolates — US-14.3's seed must therefore enumerate
+    every household size FD actually has, not just a formula.
+  - No Faker in `package.json` yet; the standard asks for synthetic data via Faker, so a story
+    needing names/addresses will have to add it (settings tests need only numbers).
+---
+
+## [2026-07-22] - US-002 (SettingsRepository port + readCurrentSettings / updateSettings)
+- Added the `SettingsRepository`, `CustomerCounter` and `AuditLog` ports (plus the `AuditEntry`
+  shape) to `src/application/ports.ts`, alongside the existing `Clock`.
+- Implemented `readCurrentSettings(deps)` (resolves versions against `deps.clock.now()`) and
+  `updateSettings(deps, input)` — validates values, requires a reason, refuses a version dated on or
+  before the latest one, refuses a quota below the active customer count, appends a new version and
+  writes the audit entry. Nothing is written unless every check passes.
+- Added `changedSettingsFields(previous, next)` to the domain settings module so the audit entry can
+  name *what* changed; added `QuotaBelowActiveCustomers`, `RetroactiveSettingsVersion` and
+  `MissingAuditReason` to `src/domain/errors.ts`.
+- Files changed: `src/application/ports.ts`, `src/application/settings/read-current-settings.ts`
+  (new), `src/application/settings/update-settings.ts` (new),
+  `src/application/settings/settings.test.ts` (new, 22 tests, written first),
+  `src/domain/policy/settings.ts`, `src/domain/policy/settings.test.ts`, `src/domain/errors.ts`,
+  `docs/technical_documentation.md`.
+- All gates green (lint, typecheck, coverage 100% on domain + application, build).
+- **Learnings for future iterations:**
+  - Equal `effectiveFrom` dates are **rejected**, not just earlier ones — US-14.3 puts a unique
+    constraint on the column, so a same-day re-save must pick the next day (or the UI must offer to
+    supersede). The error carries both dates.
+  - The audit diff compares against the **latest** version, not the one in force today, because that
+    is the version the new one supersedes.
+  - `updateSettings` returns the stored `Settings`, which saves the UI a re-read after saving.
+  - `ports.ts` reports 0% coverage in the v8 table because it transpiles to nothing; that is
+    harmless (0/0) and does not affect the global threshold.
+  - Still no Faker dependency; nothing in this story needed names or addresses.
+---
+
+## [2026-07-22] - US-003 (SettingsVersion schema, seed and Prisma repository)
+- Replaced the placeholder `SchemaMarker` model with `SettingsVersion` (unique `effectiveFrom`, the
+  scalar policy fields, week anchor as `String` + `String`) and `PriceTableRow` (`cents Int`,
+  unique on `(settingsVersionId, grownUps, children)`, cascade-deleted with its version). No
+  `Float` and no `Decimal` anywhere in the schema. Migration
+  `prisma/migrations/20260722105927_settings_versions/`.
+- Implemented `PrismaSettingsRepository` (`listVersions` / `append`, append-only by construction)
+  and `seedSettings(repository)`, which inserts the provisional version only when the table is
+  empty. `prisma/seed.ts` is the CLI entry point behind the new `npm run db:seed`; the Playwright
+  web server now runs it between `migrate deploy` and `npm run start`.
+- Added `parseWeekColour` to `src/domain/policy/settings.ts` (test first) so the persisted colour
+  string re-enters the domain through a check rather than a cast.
+- Files changed: `prisma/schema.prisma`, `prisma/migrations/20260722105927_settings_versions/
+  migration.sql` (new), `prisma/seed.ts` (new), `src/infrastructure/prisma/client.ts` (new),
+  `src/infrastructure/prisma/settings-repository.ts` (new),
+  `src/infrastructure/prisma/seed.ts` (new),
+  `src/infrastructure/prisma/settings-repository.test.ts` (new, 9 integration tests),
+  `src/domain/policy/settings.ts`, `src/domain/policy/settings.test.ts`, `package.json`
+  (+ `tsx` devDependency, `db:seed` script), `playwright.config.ts`, `README.md`,
+  `CONTRIBUTING.md`, `docs/technical_documentation.md`.
+- All gates green: lint, typecheck, coverage (domain + application still 100%), build, and
+  `npm run test:e2e` re-run to prove the seeded web server still boots.
+- **Learnings for future iterations:**
+  - The seed writes **no audit entry**: the log records what a person changed and *why*, and a
+    fresh database's initial state is nobody's decision. There is still no `AuditLog` adapter — the
+    first use case wired to a route will need one (`src/infrastructure/audit.ts` is a placeholder).
+  - The seed price table enumerates grown-ups 1–6 × children 0–6 from the formula 200c per grown-up
+    + 100c per child. `priceFor` never interpolates, so a household outside that range raises
+    `NoPriceForHousehold` — the settings screen (US-004) must let staff add a row.
+  - The seed version is dated `2026-01-01T00:00:00.000Z`. `updateSettings` refuses a version dated
+    on or before the latest one, so the first edit on the settings screen must pick a later date.
+  - `tsx` was added as a devDependency (Prisma's own recommended seed runner); Node's
+    `--experimental-strip-types` was rejected because it forces `.ts` extensions on every import in
+    the chain.
+  - `data/e2e.db` survives a local E2E run and is *not* re-migrated from scratch; delete it if a
+    schema change makes a spec fail locally.
+---
+
+## [2026-07-22] - US-004 (Settings screen at /einstellungen)
+- Built the screen: `page.tsx` (server component — current values via `readCurrentSettings`, history
+  via `listSettingsVersions`, `force-dynamic`), `settings-form.tsx` (client component, editable
+  price grid with add/remove rows), and finished the `actions.ts` adapter left by the previous
+  iteration. Linked it from the home page.
+- Added `formatEuroAmount` to `src/domain/money.ts` (test first): cents → `"1,50"` with no currency
+  symbol, so what an input renders is exactly what `parseEuros` reads back.
+- Added `de.settings.errorFields`, a German name per domain field name, so `InvalidSettings` no
+  longer surfaces an English identifier; wired `priceTableEmpty` into the Zod schema.
+- **Fixed a real bug in the inherited `actions.ts`:** it exported `initialSaveSettingsState` (an
+  object) from a `"use server"` file, which is a runtime error at page load. `npm run build` passed
+  regardless — only an actual page hit caught it. Moved to `save-settings-state.ts`.
+- Files changed: `src/app/einstellungen/{page,settings-form}.tsx` (new),
+  `src/app/einstellungen/save-settings-state.ts` (new), `src/app/einstellungen/actions.ts`,
+  `src/app/page.tsx`, `src/domain/money.ts`, `src/domain/money.test.ts`, `src/i18n/de.ts`,
+  `docs/technical_documentation.md`. Also committed the previous iteration's uncommitted
+  groundwork: `PrismaAuditLog` + its migration and integration test, `emptyCustomerCounter`,
+  `listSettingsVersions`, `parseEuros`, `InvalidEuroAmount`, the German dictionary entries.
+- All gates green: lint, typecheck, coverage (domain + application 100%), build.
+- **Learnings for future iterations:**
+  - No browser MCP tooling is configured. Verification was a throwaway Playwright spec run against
+    the built app (deleted afterwards, since US-005 makes it a committed spec) plus a curl of the
+    rendered HTML. **Do this for any UI story** — it caught the `"use server"` export bug that four
+    green gates missed.
+  - The seed's `effectiveFrom` is 2026-01-01, so the first edit dated *today* is accepted, but a
+    second same-day edit is refused (`RetroactiveSettingsVersion` rejects equal dates). US-005's
+    spec must therefore not save twice on the same day against a database it did not reset —
+    `data/e2e.db` survives between local runs.
+  - `formData.getAll(name)` aligns the three repeated price fields by row order; that is why the
+    grid posts `priceGrownUps` / `priceChildren` / `priceEuros` as parallel arrays rather than
+    encoding an index into each name.
+  - The `quotaN`-below-active-customers path cannot be exercised end to end yet: `CustomerCounter`
+    reports 0 until US-01 adds the model, so nothing is ever below it. US-005's second criterion has
+    to either assert against the rule's unit test or wait for US-01 — flagging it now rather than
+    letting the next iteration discover it mid-spec.
+  - Version history lists every version newest-first and labels the one in force; the domain rule
+    (greatest `effectiveFrom <= now`) is re-read off the ordered list rather than duplicated.
+---
+
+## [2026-07-22] - US-005 (E2E: edit a price and see it applied)
+- Added `tests/e2e/settings.spec.ts` (serial, four specs): the price round-trip (1 grown-up /
+  0 children, 2,00 → 2,50, saved effective today, reloaded, asserted in both the form field and the
+  read-only version history); a rejected quota showing the German `InvalidSettings` message and
+  leaving the stored price unchanged; a retroactive effective-from date refused the same way; and
+  one deliberately skipped spec for the quota-below-active-customers rule.
+- Made the Playwright `webServer` delete `data/e2e.db` before `migrate deploy && db:seed`, so a run
+  always starts from the seed. Without it a second run on the same day hit
+  `RetroactiveSettingsVersion` against its own leftovers.
+- Files changed: `tests/e2e/settings.spec.ts` (new), `playwright.config.ts`,
+  `docs/technical_documentation.md`.
+- All gates green: lint, typecheck, coverage (domain + application 100%), build, and
+  `npm run test:e2e` twice in a row (4 passed, 1 skipped both times).
+- **Learnings for future iterations:**
+  - The second acceptance criterion — "the quota-too-low path shows an error and leaves the stored
+    value unchanged" — is only **partly** reachable from the browser. `emptyCustomerCounter` reports
+    0 active customers and `quotaN >= 1`, so `QuotaBelowActiveCustomers` can never fire end to end
+    until US-01 adds the Customer model. The spec proves the surrounding path with the reachable
+    quota rejection (quotaN 0 → `InvalidSettings`, nothing written); the active-customer variant is
+    a `test.skip` carrying the reason. **US-01 must enable it** when it wires a real counter into
+    `src/app/einstellungen/deps.ts`.
+  - `test.skip("…", async ({ page }) => …)` still typechecks and lints its body, so the placeholder
+    keeps one real statement (`page.goto`) rather than an unused fixture.
+  - The price input's accessible name is `"Preis in Euro <grownUps>/<children>"`, built from the row
+    values; changing the price does not change the label, so one locator works before and after.
+  - Serial mode plus a shared database means spec order is load-bearing: the two rejection specs
+    assert the value written by the first one. Adding a spec that saves must go last, or reset.
+---

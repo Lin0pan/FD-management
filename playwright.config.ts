@@ -4,7 +4,7 @@ import { defineConfig, devices } from "@playwright/test";
  * End-to-end configuration.
  *
  * Playwright runs against the **built** app (`next start`) over a throwaway SQLite file that is
- * migrated fresh before the server boots — mirroring the CI `e2e-tests` job
+ * migrated and seeded fresh before the server boots — mirroring the CI `e2e-tests` job
  * (docs/fd_dev_setup_overview.md). The walking skeleton ships a single smoke spec; the
  * distribution-day and registration flows are added with the features they cover.
  */
@@ -28,7 +28,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npx prisma migrate deploy && npm run start",
+    // The database is deleted first so every run starts from the seed. The settings specs append a
+    // version dated *today*, and a version dated on or before the latest one is refused — without
+    // the reset, a second run on the same day would fail against its own leftovers.
+    command:
+      "node -e \"for (const s of ['','-journal','-wal','-shm']) require('fs').rmSync('data/e2e.db'+s,{force:true})\" && npx prisma migrate deploy && npm run db:seed && npm run start",
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

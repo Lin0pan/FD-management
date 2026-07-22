@@ -10,28 +10,31 @@ rather than repeating them:
 
 This file describes _how_ the current codebase is organised and how to work in it.
 
-> **Status:** walking skeleton. The app boots and is fully wired for TDD and CI, but carries no
-> domain features yet. Sections below mark clearly what exists vs. what is a documented placeholder.
+> **Status:** the app boots, is fully wired for TDD and CI, and carries its first feature end to end
+> through every layer — US-14's policy settings: domain rules, use cases, SQLite persistence, seed
+> and the `/einstellungen` screen. Sections below mark clearly what exists vs. what is a documented
+> placeholder.
 
 ---
 
 ## 1. Technology stack (as installed)
 
-| Concern    | Choice                                      | Version (pinned in `package.json`)       |
-| ---------- | ------------------------------------------- | ---------------------------------------- |
-| Language   | TypeScript (strict)                         | `^5`                                     |
-| Runtime    | Node.js LTS                                 | `22` (`.nvmrc`, `engines.node >=22 <23`) |
-| Framework  | Next.js (App Router)                        | `16.2.10` (exact)                        |
-| UI runtime | React / React DOM                           | `19.2.4` (exact)                         |
-| Styling    | Tailwind CSS v4 (`@tailwindcss/postcss`)    | `^4`                                     |
-| Database   | SQLite                                      | file-based                               |
-| ORM        | Prisma (native `sqlite` provider)           | `^6` (client generated at 6.19.x)        |
-| Validation | Zod                                         | `^3` (installed, not yet used)           |
-| Unit tests | Vitest + `@vitest/coverage-v8`              | `^3`                                     |
-| E2E tests  | Playwright                                  | `^1.5`                                   |
-| Lint       | ESLint 9 flat config + `eslint-config-next` | `^9`                                     |
-| Format     | Prettier + `lint-staged`                    | `^3` / `^15`                             |
-| Git hooks  | Husky                                       | `^9`                                     |
+| Concern            | Choice                                      | Version (pinned in `package.json`)       |
+| ------------------ | ------------------------------------------- | ---------------------------------------- |
+| Language           | TypeScript (strict)                         | `^5`                                     |
+| Runtime            | Node.js LTS                                 | `22` (`.nvmrc`, `engines.node >=22 <23`) |
+| Framework          | Next.js (App Router)                        | `16.2.10` (exact)                        |
+| UI runtime         | React / React DOM                           | `19.2.4` (exact)                         |
+| Styling            | Tailwind CSS v4 (`@tailwindcss/postcss`)    | `^4`                                     |
+| Database           | SQLite                                      | file-based                               |
+| ORM                | Prisma (native `sqlite` provider)           | `^6` (client generated at 6.19.x)        |
+| Validation         | Zod                                         | `^3` (form schemas in `app/`)            |
+| Unit tests         | Vitest + `@vitest/coverage-v8`              | `^3`                                     |
+| E2E tests          | Playwright                                  | `^1.5`                                   |
+| Lint               | ESLint 9 flat config + `eslint-config-next` | `^9`                                     |
+| Format             | Prettier + `lint-staged`                    | `^3` / `^15`                             |
+| Git hooks          | Husky                                       | `^9`                                     |
+| Seed script runner | `tsx` (dev-only, runs `prisma/seed.ts`)     | `^4`                                     |
 
 **Deviations from the original sketch** (all recorded in `fd_dev_setup_overview.md`):
 
@@ -55,26 +58,43 @@ This file describes _how_ the current codebase is organised and how to work in i
 ├── data/                             # SQLite db lives here at runtime (git-ignored; .gitkeep tracked)
 ├── docs/                             # all project documentation (this file included)
 ├── prisma/
-│   ├── schema.prisma                 # datasource + models (placeholder model today)
+│   ├── schema.prisma                 # datasource + models (SettingsVersion, PriceTableRow, AuditEntry)
+│   ├── seed.ts                       # `npm run db:seed` entry point
 │   └── migrations/                   # committed migration history
 ├── src/
 │   ├── app/                          # Next.js App Router — thin adapter layer
 │   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
 │   │   ├── page.tsx                  # home page (reads strings from i18n dictionary)
+│   │   ├── einstellungen/            # the settings screen (US-14)
+│   │   │   ├── page.tsx              # server component: current values + version history
+│   │   │   ├── settings-form.tsx     # client component: the form + editable price grid
+│   │   │   ├── actions.ts            # "use server": Zod → euros-to-cents → updateSettings
+│   │   │   ├── save-settings-state.ts  # the form state (not exportable from actions.ts)
+│   │   │   └── deps.ts               # composition root: the real adapters for this screen
 │   │   └── globals.css               # Tailwind v4 import + theme + base styles
 │   ├── domain/                       # pure TypeScript, zero I/O (unit-tested)
 │   │   ├── money.ts                  # integer-cents euro formatting (the one real module)
 │   │   ├── money.test.ts             # its Vitest spec
-│   │   ├── errors.ts                 # typed domain-error codes (type-only placeholder)
-│   │   ├── customer/ card/ distribution/ policy/   # empty, reserved by the architecture
+│   │   ├── errors.ts                 # DomainError base class + typed error classes
+│   │   ├── policy/settings.ts        # policy values + effective-from resolution
+│   │   ├── policy/settings.test.ts   # its Vitest spec
+│   │   ├── customer/ card/ distribution/           # empty, reserved by the architecture
 │   ├── application/
-│   │   └── ports.ts                  # repository/service interfaces (Clock today)
+│   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, AuditLog
+│   │   └── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (implements Clock port)
-│   │   ├── audit.ts                  # append-only audit log (placeholder)
-│   │   └── prisma/                   # reserved for Prisma repository implementations
+│   │   ├── customer-counter.ts       # counts active customers — zero until US-01 adds the model
+│   │   └── prisma/                   # Prisma client + repository implementations
+│   │       ├── client.ts             # the process-wide PrismaClient
+│   │       ├── settings-repository.ts  # PrismaSettingsRepository (implements the port)
+│   │       ├── audit-log.ts          # PrismaAuditLog — append-only, no actor column
+│   │       ├── seed.ts               # provisional settings version, inserted only if none exists
+│   │       └── *.test.ts             # integration specs, throwaway SQLite file
 │   └── i18n/de.ts                    # single German UI-string dictionary
-├── tests/e2e/home.spec.ts            # Playwright smoke test
+├── tests/e2e/
+│   ├── home.spec.ts                  # Playwright smoke test
+│   └── settings.spec.ts              # settings round-trip vs. the built app
 ├── eslint.config.mjs  .prettierrc.json  .prettierignore
 ├── vitest.config.ts   playwright.config.ts
 ├── next.config.ts     postcss.config.mjs   tsconfig.json
@@ -132,10 +152,36 @@ non-integer input. Fully unit-tested (`money.test.ts`), which is what keeps doma
 
 ### `src/application/ports.ts`
 
-The interfaces the application layer depends on. Today it holds only the **`Clock`** port
-(`now(): Date`). Per the TDD approach, ports **emerge from test needs** rather than being designed
-up front — repository interfaces are added as use cases require them. Type-only, so it adds no
-runtime code to the coverage-measured layers.
+The interfaces the application layer depends on. Per the TDD approach, ports **emerge from test
+needs** rather than being designed up front. Type-only, so it adds no runtime code to the
+coverage-measured layers.
+
+| Port                 | Shape                               | Notes                                                     |
+| -------------------- | ----------------------------------- | --------------------------------------------------------- |
+| `Clock`              | `now(): Date`                       | The one seam to the wall clock.                           |
+| `SettingsRepository` | `listVersions()`, `append(version)` | No update/delete — policy history is append-only.         |
+| `CustomerCounter`    | `countActive()`                     | The reality the quota `N` may not fall below.             |
+| `AuditLog`           | `append(entry)`                     | `AuditEntry` = `what` / `changedFields` / `when` / `why`. |
+
+`AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
+
+### `src/application/settings/`
+
+The two use cases over the policy versions:
+
+- **`readCurrentSettings(deps)`** loads every version and resolves it against `deps.clock.now()`.
+  This is the single seam other features use to reach configuration.
+- **`updateSettings(deps, input)`** validates the values (`createSettings`), requires a non-empty
+  reason, refuses a version dated **on or before** the latest existing one
+  (`RetroactiveSettingsVersion` — equal dates are refused because `effectiveFrom` is unique in the
+  schema), refuses a `quotaN` below `customers.countActive()`
+  (`QuotaBelowActiveCustomers`, carrying both numbers), then **appends** — never mutates — and
+  records an audit entry naming the changed fields. Nothing is written unless every check passes.
+
+- **`listSettingsVersions(deps)`** returns the whole history, newest first. The order is imposed
+  here rather than assumed of the repository, which is free to return rows however its query does.
+
+All three are tested against hand-written fakes and a fake clock in `settings.test.ts`.
 
 ### `src/infrastructure/clock.ts`
 
@@ -146,15 +192,79 @@ settable fake clock can drive deterministic tests.
 
 ### `src/domain/errors.ts`
 
-A type-only `DomainErrorCode` union (placeholder). Concrete typed error classes arrive with the
-first domain rules so the application and UI can react to a closed set of failure modes instead of
-parsing strings.
+The `DomainErrorCode` union — the closed set of failure modes — plus an abstract `DomainError` base
+class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
+`NoPriceForHousehold`, `QuotaBelowActiveCustomers`, `RetroactiveSettingsVersion`,
+`MissingAuditReason` today). Each carries the values that made it fail, so the UI can render a
+German message naming concrete numbers without re-deriving them, and callers switch on `code`
+instead of parsing strings.
 
-### `src/infrastructure/audit.ts`
+### `src/domain/policy/settings.ts`
 
-Placeholder for the **append-only audit log**. Every state change will be recorded with a timestamp
+The policy values FD can change without a deploy — quota `N`, portions per grown-up and per child,
+the reminder threshold, the price table, the week-cycle anchor and the distribution weekday — and
+the rule that decides which of them apply on a given day. Versions are **immutable and dated**:
+`resolveSettingsAt(versions, date)` returns the version with the greatest `effectiveFrom` that is
+not after `date`, and throws `NoSettingsInForce` rather than returning a partial object. This
+matters because a distribution record stores only a `paid` flag (US-05), so the only way to answer
+"what did that customer owe last March" is to resolve the version in force then.
+
+`createSettings(input)` validates every invariant on construction (quota ≥ 1, portions ≥ 0,
+threshold ≥ 1, ISO weekday 1–7, an `YYYY-Www` anchor, non-negative integer cents, no duplicate
+household row) and throws `InvalidSettings` naming the field. `priceFor(settings, grownUps,
+children)` returns the exactly matching row's cents or throws `NoPriceForHousehold` — it never
+interpolates, because an unpriced household size is a settings gap for staff to fix, not a number
+to invent. The module is pure: no I/O, no wall clock, and it works over an already-loaded array so
+the counter screen (US-04) resolves settings without a per-field query.
+
+`changedSettingsFields(previous, next)` names the policy fields that differ between two versions —
+what the audit entry records as _what changed_. Price rows are compared as a set keyed by
+household, so reordering the table is not a change; with no previous version (the seed) every field
+counts as new.
+
+### `src/infrastructure/prisma/audit-log.ts`
+
+The **append-only audit log** (`PrismaAuditLog`). Every state change is recorded with a timestamp
 and reason — but **never an actor**: FD has ruled out login, so the system records _what / when /
 why_, never _who_. Adding an actor field would be an additive change if login is ever introduced.
+There is no update and no delete: an entry that could be rewritten would be worth nothing. The field
+list is stored comma-separated because SQLite has no array column and the list is only ever read
+back for display.
+
+### `src/infrastructure/customer-counter.ts`
+
+Implements the `CustomerCounter` port. There is no `Customer` model yet — registration is US-01, and
+US-14 is built first because registration needs the quota — so the count is genuinely zero and the
+`quotaN` check never fires. **When US-01 lands, replace this with a Prisma adapter**; the port, the
+rule in `updateSettings` and its tests already cover the behaviour, so only this file and
+`src/app/einstellungen/deps.ts` change.
+
+### `src/app/einstellungen/` — the settings screen
+
+The first real screen, and the reference for how a route is wired:
+
+- **`deps.ts`** is the composition root: the one place the real adapters are chosen. The route hands
+  this object to a use case and does nothing else with it, so swapping SQLite or the clock touches
+  this file alone.
+- **`page.tsx`** is a server component. It reads the values in force (`readCurrentSettings`) and the
+  history (`listSettingsVersions`) and renders them; it is `dynamic = "force-dynamic"` because
+  settings change through the form. A `NoSettingsInForce` error renders the German "not seeded yet"
+  message rather than a stack trace.
+- **`settings-form.tsx`** is a client component **only** because the price grid gains and loses rows
+  as staff edit it. It holds no rules.
+- **`actions.ts`** is the `"use server"` adapter: Zod gives the submitted strings a shape,
+  `parseEuros` turns euro text (`2,50`) into whole cents **before it leaves the adapter**, and a
+  typed domain error is translated into a German sentence. Each error carries the values that made
+  it fail, so the message names concrete numbers without re-deriving them.
+
+⚠️ **A `"use server"` module may export nothing but async functions** — every export becomes a
+callable server endpoint. That is why the form's state object lives in `save-settings-state.ts`.
+The failure is a _runtime_ error at page load, not a build error, so it will not be caught by
+`npm run build`.
+
+⚠️ **German error text for a field** comes from `de.settings.errorFields`, keyed by the `field`
+value the `InvalidSettings` error carries. Add a key there when adding a validated settings field,
+or the screen quotes an English identifier at staff.
 
 ### `src/i18n/de.ts`
 
@@ -170,11 +280,23 @@ type. All user-facing text lives here; **code identifiers stay English**. `layou
 
 - `prisma/schema.prisma` declares a `sqlite` datasource whose URL comes from `env("DATABASE_URL")`
   and a `prisma-client-js` generator (client generated to the default `node_modules/@prisma/client`).
-- The schema currently holds a single placeholder model (`SchemaMarker`) so `prisma validate`,
-  `migrate diff`, and `migrate deploy` all have something valid to run against in CI and E2E. The
-  real models (Customer, HouseholdMember, Card, DistributionRecord, Setting, …) replace it next.
+- The models today are `SettingsVersion` and its `PriceTableRow` children — the dated, append-only
+  policy values (the placeholder `SchemaMarker` is gone). `SettingsVersion.effectiveFrom` is unique,
+  so "the settings in force on a date" can never tie; `(settingsVersionId, grownUps, children)` is
+  unique, so a household cannot have two prices in one version. Customer, HouseholdMember, Card and
+  DistributionRecord follow with the stories that need them.
+- **All money columns are `Int` cents.** `Float` and `Decimal` appear nowhere in the schema.
+- SQLite has no enum type, so the week colour is a `String` narrowed back to `WeekColour` by
+  `parseWeekColour` on read — a hand-edited database cannot widen the cycle.
+- Rows re-enter the domain through `createSettings`, so a database edited outside the app cannot
+  smuggle a fractional price or an impossible weekday past the invariants.
 - Migration history is committed under `prisma/migrations/`. Apply it with
   `npx prisma migrate deploy`; create new migrations during development with `npx prisma migrate dev`.
+- **Seeding.** `npm run db:seed` (`prisma/seed.ts`, run with `tsx`) inserts one provisional settings
+  version — quota 240, 2 portions per grown-up, 1 per child, threshold 3, 200c per grown-up + 100c
+  per child, anchor `2026-W02` = RED, Thursday — _only_ when the table is empty, so running it after
+  every deploy is safe and never overwrites an operator's edit. Every one of those numbers is
+  provisional and must be confirmed with FD; correcting them is a settings edit, not a migration.
 
 ### ⚠️ SQLite path resolution (important gotcha)
 
@@ -188,9 +310,10 @@ DATABASE_URL="file:../data/fd.db"      # → <repo>/data/fd.db
 
 This is consistent across `.env`, the Playwright web-server env, and the CI job envs (which use
 `../data/ci.db` and `../data/e2e.db`). The `data/` directory is tracked via `.gitkeep`; the `*.db`
-files themselves are git-ignored. When the first real runtime queries are added, re-verify that the
-**generated client** resolves the same path at runtime (relative SQLite paths are a known Prisma
-footgun) — until then only the CLI touches the DB.
+files themselves are git-ignored. Note that the **generated client** resolves a relative SQLite path
+against the _current working directory_, not against `prisma/` as the CLI does (a known Prisma
+footgun) — which is why the app is always started from the repo root, and why the integration tests
+pass an **absolute** `datasourceUrl`.
 
 ---
 
@@ -219,17 +342,31 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
 - **Coverage is deliberately scoped** to `src/domain/**` + `src/application/**` only, with 100%
   line/branch/function/statement thresholds. High coverage there is a _consequence_ of TDD on pure
   logic — not a number chased across UI/infrastructure where it would invite low-value tests.
-- Type-only files in those layers (`errors.ts`, `ports.ts`) transpile to no runtime statements, so
-  they pass the thresholds without needing tests.
+- Type-only files in those layers (`ports.ts`) transpile to no runtime statements, so they pass the
+  thresholds without needing tests. Files that do carry runtime code — including the error classes
+  in `errors.ts` — are covered by the spec of the rule that raises them.
+- Infrastructure specs run in the same Vitest command but are **integration** tests: they migrate a
+  throwaway SQLite file under the OS temp directory (`prisma migrate deploy` in `beforeAll`) and
+  delete it afterwards, so `data/fd.db` is never touched. They need a generated Prisma client — CI
+  runs `prisma generate` before `vitest`.
 - Run: `npm test` (or `npm run test:coverage`, `npm run test:watch`).
 
 ### End-to-end — Playwright (`playwright.config.ts`)
 
 - `testDir: tests/e2e`; runs Chromium against the **built** app.
-- `webServer` runs `npx prisma migrate deploy && npm run start` over a throwaway `data/e2e.db`,
-  mirroring the CI `e2e-tests` job. `reuseExistingServer` is on locally, off in CI.
-- Today: one smoke test asserting the German `<h1>` renders. The distribution-day and registration
-  flows are added alongside the features they cover.
+- `webServer` **deletes `data/e2e.db`**, then runs `npx prisma migrate deploy && npm run db:seed &&
+npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` is on locally, off
+  in CI. The delete matters locally: the settings specs append a version dated _today_, and
+  `updateSettings` refuses a version dated on or before the latest one, so a second run on the same
+  day would otherwise fail against its own leftovers.
+- Today: a smoke test asserting the German `<h1>` renders, plus `settings.spec.ts` — the settings
+  round-trip (change a price, save effective today, reload, see it applied and listed in the
+  history) and two rejected saves that must leave the stored value untouched. Those specs run
+  **serially** against the one shared database. The distribution-day and registration flows are
+  added alongside the features they cover.
+- E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
+  that exports a non-function, and only a real page load fails. Any story touching a route needs a
+  spec here.
 - Run: `npm run test:e2e` (first time locally: `npx playwright install --with-deps chromium`).
 
 ### TDD approach per layer
@@ -303,6 +440,7 @@ npm run lint && npm run typecheck && npm run test:coverage && npm run build
 | `npm run test:e2e`                          | Playwright                                     |
 | `npm run format` / `format:check`           | Prettier                                       |
 | `npm run prisma:*`                          | `generate` / `validate` / `migrate` / `deploy` |
+| `npm run db:seed`                           | Seed the provisional settings version          |
 
 ---
 
@@ -359,7 +497,8 @@ colour). See `user_stories_mvp.md` §5.
 - Real Prisma models & repositories; the `better-sqlite3` driver adapter.
 - Policy/price-table schema with effective-from dating.
 - shadcn/ui component setup; the counter, registration, and list screens.
-- Typed domain error classes and the concrete append-only audit log.
+- The concrete append-only audit log behind the `AuditLog` port (`infrastructure/audit.ts`), and the
+  `SettingsRepository` / `CustomerCounter` Prisma adapters.
 
 ```
 

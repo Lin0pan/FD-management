@@ -2,13 +2,13 @@
 //
 // Single-file SQLite database — backup is a copy of the file (see
 // docs/tech_stack_architecture_sketch.md §3, §6). The schema doubles as readable domain
-// documentation; the real customer / card / distribution / settings models arrive in later
-// sessions. For now it holds a single minimal model so `prisma validate`, `migrate diff` and
-// `migrate deploy` all have something valid to run against in CI and E2E.
+// documentation; the customer / card / distribution models arrive in later sessions.
+//
+// Money is always an `Int` of whole cents. SQLite has no decimal type and a float would round a
+// price away, so `Float` and `Decimal` appear nowhere in this file.
 //
 // Note: the walking skeleton uses Prisma's native SQLite provider. Wiring the `better-sqlite3`
-// driver adapter (named in the stack doc) is deferred until the infrastructure layer gains real
-// repositories.
+// driver adapter (named in the stack doc) is deferred until the database grows beyond settings.
 
 generator client {
   provider = "prisma-client-js"
@@ -19,11 +19,78 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Records that a schema migration baseline exists. Placeholder for the walking skeleton — replaced
-/// by the real domain models (Customer, HouseholdMember, Card, DistributionRecord, Setting, ...) in
-/// the next session.
-model SchemaMarker {
-  id        Int      @id @default(autoincrement())
-  note      String
+/// One immutable, dated set of the policy values FD can change without a deploy: the customer
+/// quota, the portions per head, the reminder threshold, the week-cycle anchor and the price table.
+///
+/// Versions are **append-only**. A distribution record stores only a `paid` flag and never an
+/// amount, so the sole way to answer "what did that customer owe last March" is to resolve the
+/// version in force on that date (tasks/prd-us-14-configure-business-rules.md, FR-1).
+model SettingsVersion {
+  id Int @id @default(autoincrement())
+
+  /// The day these values take over. Unique, so "the settings in force on a date" can never tie.
+  effectiveFrom DateTime @unique
+
+  /// The maximum number of customer slots FD hands out.
+  quotaN Int
+  /// Food portions allowed per grown-up (13 and older) and per child.
+  portionsPerGrownUp Int
+  portionsPerChild   Int
+  /// After how many consecutive absences a customer is flagged for a reminder.
+  reminderThreshold  Int
+
+  /// The known week of the two-week cycle everything else is counted from, e.g. `2026-W02`, and the
+  /// group that collected in it (`RED` or `BLUE`). SQLite has no enum type, so the colour is a
+  /// string the domain validates on the way in and out.
+  weekAnchorIsoWeek String
+  weekAnchorColour  String
+
+  /// Distribution day as an ISO weekday, Monday = 1 … Sunday = 7.
+  distributionWeekday Int
+
+  priceTable PriceTableRow[]
+
+  /// When this version was written — bookkeeping, not policy. `effectiveFrom` is the business date.
   createdAt DateTime @default(now())
+}
+
+/// The price of one distribution for a household of exactly this composition. The table is a set of
+/// explicit rows, not a formula: FD's real prices need not be linear, and a household size with no
+/// row is a settings gap the counter reports rather than a number the system invents.
+model PriceTableRow {
+  id Int @id @default(autoincrement())
+
+  settingsVersionId Int
+  settingsVersion   SettingsVersion @relation(fields: [settingsVersionId], references: [id], onDelete: Cascade)
+
+  grownUps Int
+  children Int
+  /// Whole euro cents. Never a float.
+  cents    Int
+
+  @@unique([settingsVersionId, grownUps, children])
+}
+
+/// One append-only record of a state change: *what* changed, *when* and *why* — never *who*.
+///
+/// FD has ruled out login, so the system cannot tell its three or four staff apart and there is
+/// deliberately no actor column (docs/tech_stack_architecture_sketch.md §5.2). With no login the log
+/// is the only accountability the system has, so rows are never amended or deleted.
+model AuditEntry {
+  id Int @id @default(autoincrement())
+
+  /// A stable, machine-readable event name such as `settings.updated`.
+  what String
+
+  /// The fields the change touched, comma-separated: SQLite has no array type, and the list is
+  /// only ever read back for display.
+  changedFields String
+
+  /// When the change happened, read from the injected clock rather than the database.
+  when DateTime
+
+  /// The reason a human gave. A state change without one is refused before it reaches here.
+  why String
+
+  @@index([when])
 }
