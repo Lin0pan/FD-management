@@ -78,7 +78,9 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── errors.ts                 # DomainError base class + typed error classes
 │   │   ├── policy/settings.ts        # policy values + the rule that picks the current one
 │   │   ├── policy/settings.test.ts   # its Vitest spec
-│   │   ├── customer/ card/ distribution/           # empty, reserved by the architecture
+│   │   ├── customer/householdComposition.ts  # grown-up/children split, derived from birthdates
+│   │   ├── customer/householdComposition.test.ts  # its Vitest spec
+│   │   ├── card/ distribution/       # empty, reserved by the architecture
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, AuditLog
 │   │   └── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
@@ -194,7 +196,8 @@ settable fake clock can drive deterministic tests.
 
 The `DomainErrorCode` union — the closed set of failure modes — plus an abstract `DomainError` base
 class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
-`QuotaBelowActiveCustomers`, `MissingAuditReason` today). Each carries the values that made it fail, so the UI can render a
+`QuotaBelowActiveCustomers`, `MissingAuditReason`, `EmptyHousehold`, `BirthDateInFuture` today).
+Each carries the values that made it fail, so the UI can render a
 German message naming concrete numbers without re-deriving them, and callers switch on `code`
 instead of parsing strings.
 
@@ -221,6 +224,21 @@ the counter screen (US-04) resolves settings without a per-field query.
 `changedSettingsFields(previous, next)` names the policy fields that differ between two versions —
 what the audit entry records as _what changed_. With no previous version (the seed) every field
 counts as new.
+
+### `src/domain/customer/householdComposition.ts`
+
+`composition(members, today)` derives the grown-up/children split of a household from the members'
+birthdates. A member is a grown-up **on** their 13th birthday and a child the day before; both
+dates are compared as UTC calendar days, so the time of day a record was written cannot change a
+count. A 29 February birthdate has no anniversary in a non-leap year and rolls over to 1 March,
+following § 188 Abs. 3 BGB — thirteen years after a leap year is never itself a leap year, so this
+happens every time.
+
+The counts are **never stored**: they drive the portion allowance and the price (US-07), and the
+Excel sheet FD is replacing kept them as typed-in numbers that drifted with every birthday. An empty
+household raises `EmptyHousehold` rather than answering `{ 0, 0 }` (which would read as a household
+that owes nothing), and a birthdate after `today` raises `BirthDateInFuture` carrying the offending
+date so the UI can point at the row.
 
 ### `src/infrastructure/prisma/audit-log.ts`
 

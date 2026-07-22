@@ -10,6 +10,8 @@
 /** The closed set of domain error kinds. Extended as rules are implemented. */
 export type DomainErrorCode =
   | "NoFreeCustomerNumber"
+  | "EmptyHousehold"
+  | "BirthDateInFuture"
   | "WrongGroupForWeek"
   | "InvalidCardNumber"
   | "DuplicateAttendance"
@@ -84,6 +86,35 @@ export class MissingAuditReason extends DomainError {
   constructor(what: string) {
     super(`The change "${what}" needs a reason for the audit log`);
     this.what = what;
+  }
+}
+
+/**
+ * A household was submitted with no members. The registered customer is themselves a member, so the
+ * smallest legitimate household has exactly one — an empty one is a data-entry mistake, and a
+ * household of nobody would be charged for nobody.
+ */
+export class EmptyHousehold extends DomainError {
+  readonly code = "EmptyHousehold";
+
+  constructor() {
+    super("A household must have at least one member");
+  }
+}
+
+/**
+ * A household member was born after the day the household was evaluated. Carries both dates so the
+ * UI can point at the row it means rather than at the form as a whole.
+ */
+export class BirthDateInFuture extends DomainError {
+  readonly code = "BirthDateInFuture";
+  readonly birthDate: Date;
+  readonly today: Date;
+
+  constructor(birthDate: Date, today: Date) {
+    super(`Birth date ${birthDate.toISOString()} lies after ${today.toISOString()}`);
+    this.birthDate = birthDate;
+    this.today = today;
   }
 }
 
