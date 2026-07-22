@@ -1,12 +1,12 @@
 /**
  * The policy values FD can change without a deploy, and the rule that decides which of them apply
- * on a given day.
+ * at a point in time.
  *
  * Every number in FD's process — the quota, the portions per head, the price per head, the
  * week-cycle anchor — is configuration, not a constant (tasks/prd-us-14-configure-
- * business-rules.md). Versions are immutable and dated: a distribution record stores only a `paid`
- * flag, so the only way to answer "what did that customer owe last March" is to resolve the version
- * in force on that date.
+ * business-rules.md). A saved change is in force immediately; superseded versions are kept rather
+ * than overwritten, because a distribution record stores only a `paid` flag and the only way to
+ * answer "what did that customer owe last March" is to resolve the version in force then.
  *
  * This module is pure: it does no I/O, never reads the wall clock, and works over an array of
  * versions that the application layer has already loaded.
@@ -67,9 +67,15 @@ export interface SettingsInput extends Omit<Settings, "distributionWeekday"> {
   readonly distributionWeekday: number;
 }
 
-/** A set of policy values together with the date it takes effect. */
+/**
+ * A set of policy values together with the instant they took over.
+ *
+ * `recordedAt` is stamped from the clock when the change is saved, never chosen by staff: FD adjusts
+ * the numbers when reality changes, so a change applies at once and cannot be dated forwards or
+ * backwards.
+ */
 export interface SettingsVersion {
-  readonly effectiveFrom: Date;
+  readonly recordedAt: Date;
   readonly settings: Settings;
 }
 
@@ -125,19 +131,20 @@ export function createSettings(input: SettingsInput): Settings {
 }
 
 /**
- * The settings in force on `date`: the version with the greatest `effectiveFrom` that is not after
- * it. A version dated exactly `date` is in force on that day.
+ * The settings in force at `date`: the version with the greatest `recordedAt` that is not after it.
+ * A version recorded at exactly `date` is already in force — saving takes effect immediately.
  *
- * @throws {NoSettingsInForce} if no version had taken effect yet — never a partial object.
+ * Two versions can share an instant (nothing stops two saves in the same millisecond), so the tie is
+ * broken by position: the one recorded later — later in the array — wins. Otherwise the array order
+ * is irrelevant, and callers need not sort.
+ *
+ * @throws {NoSettingsInForce} if nothing had been recorded yet — never a partial object.
  */
 export function resolveSettingsAt(versions: ReadonlyArray<SettingsVersion>, date: Date): Settings {
   let inForce: SettingsVersion | undefined;
   for (const version of versions) {
-    if (version.effectiveFrom.getTime() > date.getTime()) continue;
-    if (
-      inForce === undefined ||
-      version.effectiveFrom.getTime() > inForce.effectiveFrom.getTime()
-    ) {
+    if (version.recordedAt.getTime() > date.getTime()) continue;
+    if (inForce === undefined || version.recordedAt.getTime() >= inForce.recordedAt.getTime()) {
       inForce = version;
     }
   }

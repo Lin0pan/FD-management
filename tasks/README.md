@@ -33,7 +33,7 @@ order in `docs/technical_documentation.md` §12:
 - Money is **integer cents**, formatted via `src/domain/money.ts`. Never a float.
 - Time comes from the **`Clock` port**, never `new Date()` in domain or application code.
 - Grown-up/children counts are **derived from birthdates on every read**, never stored.
-- Policy values are **data with an effective-from date**, not constants.
+- Policy values are **data**, not constants — a change applies immediately and is kept as history.
 - No actor is ever recorded — FD has no login, so records say _what / when / why_, never _who_.
 - `Customer.id` (surrogate int) is identity and the target of every FK; the `1..N` customer number
   is a **reusable slot attribute**, not an identity.

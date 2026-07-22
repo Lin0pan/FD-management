@@ -41,9 +41,9 @@ beforeEach(async () => {
   await prisma.settingsVersion.deleteMany();
 });
 
-function version(effectiveFrom: string, quotaN = 240): SettingsVersion {
+function version(recordedAt: string, quotaN = 240): SettingsVersion {
   return {
-    effectiveFrom: new Date(effectiveFrom),
+    recordedAt: new Date(recordedAt),
     settings: createSettings({
       quotaN,
       portionsPerGrownUp: 2,
@@ -62,7 +62,7 @@ describe("PrismaSettingsRepository", () => {
 
     const [stored, ...rest] = await repository.listVersions();
     expect(rest).toHaveLength(0);
-    expect(stored.effectiveFrom).toEqual(new Date("2026-01-01T00:00:00.000Z"));
+    expect(stored.recordedAt).toEqual(new Date("2026-01-01T00:00:00.000Z"));
     expect(stored.settings.quotaN).toBe(240);
     expect(stored.settings.weekAnchor).toEqual({ isoWeek: "2026-W02", colour: "RED" });
     expect(stored.settings.distributionWeekday).toBe(4);
@@ -85,16 +85,18 @@ describe("PrismaSettingsRepository", () => {
     expect(quotas).toEqual([200, 240]);
   });
 
-  it("refuses a second version effective on the same day", async () => {
-    await repository.append(version("2026-01-01T00:00:00.000Z"));
+  it("returns versions in the order they were written, so a same-instant tie resolves", async () => {
+    await repository.append(version("2026-01-01T00:00:00.000Z", 200));
+    await repository.append(version("2026-01-01T00:00:00.000Z", 210));
 
-    await expect(repository.append(version("2026-01-01T00:00:00.000Z", 200))).rejects.toThrow();
+    const quotas = (await repository.listVersions()).map((stored) => stored.settings.quotaN);
+    expect(quotas).toEqual([200, 210]);
   });
 
   it("rejects a stored week colour that is not part of the cycle", async () => {
     await prisma.settingsVersion.create({
       data: {
-        effectiveFrom: new Date("2026-03-01T00:00:00.000Z"),
+        recordedAt: new Date("2026-03-01T00:00:00.000Z"),
         quotaN: 240,
         portionsPerGrownUp: 2,
         portionsPerChild: 1,
@@ -115,7 +117,7 @@ describe("seedSettings", () => {
     expect(await seedSettings(repository)).toBe(true);
 
     const [seeded] = await repository.listVersions();
-    expect(seeded.effectiveFrom).toEqual(provisionalSettingsVersion().effectiveFrom);
+    expect(seeded.recordedAt).toEqual(provisionalSettingsVersion().recordedAt);
     expect(seeded.settings.quotaN).toBe(240);
     expect(seeded.settings.portionsPerGrownUp).toBe(2);
     expect(seeded.settings.portionsPerChild).toBe(1);

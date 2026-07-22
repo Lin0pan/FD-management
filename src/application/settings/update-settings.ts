@@ -1,12 +1,13 @@
 /**
- * Append a new dated version of the policy values.
+ * Append a new version of the policy values, in force from the moment it is saved.
  *
- * Settings are never edited in place. Each save adds a version with an effective-from date, so a
- * distribution recorded last March can still be priced with the table that applied then
- * (tasks/prd-us-14-configure-business-rules.md §US-14.2, FR-1/FR-6).
+ * Settings are never edited in place: each save adds a version stamped with the clock, so a
+ * distribution recorded last March can still be priced with the values that applied then
+ * (tasks/prd-us-14-configure-business-rules.md §US-14.2, FR-1). Staff do not date the change —
+ * they adjust the numbers when reality changes, and it applies at once.
  */
 
-import { QuotaBelowActiveCustomers, RetroactiveSettingsVersion } from "@/domain/errors";
+import { QuotaBelowActiveCustomers } from "@/domain/errors";
 import {
   changedSettingsFields,
   createSettings,
@@ -27,8 +28,6 @@ export interface UpdateSettingsDeps {
 }
 
 export interface UpdateSettingsInput {
-  /** The day the new values take over. Not necessarily today — staff may schedule a price rise. */
-  readonly effectiveFrom: Date;
   readonly settings: SettingsInput;
   /**
    * Why the change was made, if staff gave a reason; it becomes the audit entry's *why*.
@@ -40,10 +39,14 @@ export interface UpdateSettingsInput {
   readonly reason: string;
 }
 
+/**
+ * The version currently in force — what the new one is compared against to name the changed fields.
+ * Ties go to the later element, matching `resolveSettingsAt`.
+ */
 function latestVersion(versions: ReadonlyArray<SettingsVersion>): SettingsVersion | undefined {
   let latest: SettingsVersion | undefined;
   for (const version of versions) {
-    if (latest === undefined || version.effectiveFrom.getTime() > latest.effectiveFrom.getTime()) {
+    if (latest === undefined || version.recordedAt.getTime() >= latest.recordedAt.getTime()) {
       latest = version;
     }
   }
@@ -56,7 +59,6 @@ function latestVersion(versions: ReadonlyArray<SettingsVersion>): SettingsVersio
  * Nothing is written unless every check passes.
  *
  * @throws {InvalidSettings} if a policy value breaks an invariant.
- * @throws {RetroactiveSettingsVersion} if the new version is not dated after the latest one.
  * @throws {QuotaBelowActiveCustomers} if the new quota is below the customers already registered.
  */
 export async function updateSettings(
@@ -67,20 +69,20 @@ export async function updateSettings(
   const reason = input.reason.trim();
 
   const latest = latestVersion(await deps.settings.listVersions());
-  if (latest !== undefined && input.effectiveFrom.getTime() <= latest.effectiveFrom.getTime()) {
-    throw new RetroactiveSettingsVersion(input.effectiveFrom, latest.effectiveFrom);
-  }
 
   const activeCustomers = await deps.customers.countActive();
   if (settings.quotaN < activeCustomers) {
     throw new QuotaBelowActiveCustomers(settings.quotaN, activeCustomers);
   }
 
-  await deps.settings.append({ effectiveFrom: input.effectiveFrom, settings });
+  // One read of the clock for both writes: the instant the values took over and the instant the
+  // audit entry records must be the same, or the log would contradict the history.
+  const now = deps.clock.now();
+  await deps.settings.append({ recordedAt: now, settings });
   await deps.audit.append({
     what: SETTINGS_UPDATED,
     changedFields: changedSettingsFields(latest?.settings, settings),
-    when: deps.clock.now(),
+    when: now,
     why: reason,
   });
   return settings;

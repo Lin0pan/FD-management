@@ -48,7 +48,7 @@
         "Indexes on date and on (customerId, date)",
         "No delete cascade from customer archiving — records outlive status changes",
         "Integration test proves the duplicate constraint fires",
-        "A schema comment records that priceCents is deliberate redundancy alongside effective-from settings, so it is not 'cleaned up' later",
+        "A schema comment records that priceCents is deliberate redundancy alongside the settings history, so it is not 'cleaned up' later",
         "Migration committed under prisma/migrations/",
         "Tests pass",
         "Typecheck passes"

@@ -8,13 +8,17 @@ import { createSettings, type SettingsVersion } from "@/domain/policy/settings";
  * **Every number here is provisional and must be confirmed with FD** (tasks/README.md, "Provisional
  * seed values"). They are configuration rows, so correcting them is a settings edit on the
  * `/einstellungen` screen — not a code change and not a migration.
+ *
+ * The stamp is a fixed instant rather than the clock, so seeding is deterministic and re-running it
+ * can never produce a different history. It predates any change staff can make, so the seeded
+ * values are in force until the first edit replaces them.
  */
-const SEED_EFFECTIVE_FROM = new Date("2026-01-01T00:00:00.000Z");
+const SEED_RECORDED_AT = new Date("2026-01-01T00:00:00.000Z");
 
 /** The single version a fresh install is seeded with. */
 export function provisionalSettingsVersion(): SettingsVersion {
   return {
-    effectiveFrom: SEED_EFFECTIVE_FROM,
+    recordedAt: SEED_RECORDED_AT,
     settings: createSettings({
       quotaN: 240,
       portionsPerGrownUp: 2,

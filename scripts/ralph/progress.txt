@@ -220,3 +220,21 @@ Started: Wed Jul 22 12:49:05 CEST 2026
   - Serial mode plus a shared database means spec order is load-bearing: the two rejection specs
     assert the value written by the first one. Adding a spec that saves must go last, or reset.
 ---
+
+## [2026-07-22] - Correction: settings apply immediately (no effective-from date)
+
+- **What changed:** manual testing with FD showed the "Gültig ab" / effective-from date on
+  `/einstellungen` was never a requirement. Settings now take effect the moment they are saved.
+  `SettingsVersion.effectiveFrom` (staff-entered) became `recordedAt` (stamped from the injected
+  clock), and `RetroactiveSettingsVersion` is gone along with the date field, its Zod parser and its
+  German message.
+- Superseded versions are still kept and still listed read-only — the reason for keeping them
+  (pricing a past distribution, which stores only a `paid` flag) survives the change; only the
+  staff-chosen date was wrong.
+- **Obsolete learnings above:** the note that "a same-day second E2E run fails on
+  `RetroactiveSettingsVersion`" no longer applies — that error no longer exists. The E2E database is
+  still deleted per run, because the specs assert the value they wrote rather than the seeded one.
+- **Learning:** a PRD detail can be internally consistent and still be a misfeature. The
+  effective-from date was carried faithfully from `docs/` through every layer and every test; the
+  cost of removing it was ~15 documentation touchpoints, not the code. Check a policy question with
+  FD before it is spread that far.

@@ -72,13 +72,7 @@ function EuroField({
   );
 }
 
-export function SettingsForm({
-  settings,
-  today,
-}: {
-  settings: Settings;
-  today: string;
-}): React.ReactElement {
+export function SettingsForm({ settings }: { settings: Settings }): React.ReactElement {
   const [state, formAction, pending] = useActionState(saveSettings, initialSaveSettingsState);
 
   return (
@@ -165,17 +159,6 @@ export function SettingsForm({
 
       <section className="flex flex-col gap-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-sm text-foreground/70">{de.settings.effectiveFrom}</span>
-            <input
-              className={fieldClass}
-              type="date"
-              name="effectiveFrom"
-              id="effectiveFrom"
-              defaultValue={today}
-            />
-            <span className="text-xs text-foreground/60">{de.settings.effectiveFromHint}</span>
-          </label>
           <label className="flex flex-col gap-1">
             <span className="text-sm text-foreground/70">{de.settings.reason}</span>
             <input className={fieldClass} type="text" name="reason" id="reason" defaultValue="" />

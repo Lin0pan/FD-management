@@ -14,12 +14,12 @@ export interface ListSettingsVersionsDeps {
 }
 
 /**
- * Every version, ordered by `effectiveFrom` descending. The order is imposed here rather than
- * assumed of the repository, which is free to return rows however its query happens to.
+ * Every version, newest first. The order is imposed here rather than assumed of the repository,
+ * which is free to return rows however its query happens to.
  */
 export async function listSettingsVersions(
   deps: ListSettingsVersionsDeps,
 ): Promise<SettingsVersion[]> {
   const versions = await deps.settings.listVersions();
-  return versions.sort((a, b) => b.effectiveFrom.getTime() - a.effectiveFrom.getTime());
+  return versions.sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime());
 }

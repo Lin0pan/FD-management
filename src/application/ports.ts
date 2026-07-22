@@ -15,9 +15,9 @@ export interface Clock {
 }
 
 /**
- * The dated, immutable policy versions. There is no `update` and no `delete` by design: history is
- * append-only because a past distribution's price can only be recovered from the version in force
- * on that day (docs/tech_stack_architecture_sketch.md §5.1).
+ * The immutable policy versions, each stamped with the instant it took over. There is no `update`
+ * and no `delete` by design: history is append-only because a past distribution's price can only be
+ * recovered from the version that was in force then (docs/tech_stack_architecture_sketch.md §5.1).
  */
 export interface SettingsRepository {
   listVersions(): Promise<SettingsVersion[]>;

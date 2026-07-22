@@ -19,17 +19,19 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// One immutable, dated set of the policy values FD can change without a deploy: the customer
-/// quota, the portions per head, the price per head and the week-cycle anchor.
+/// One immutable set of the policy values FD can change without a deploy: the customer quota, the
+/// portions per head, the price per head and the week-cycle anchor.
 ///
 /// Versions are **append-only**. A distribution record stores only a `paid` flag and never an
 /// amount, so the sole way to answer "what did that customer owe last March" is to resolve the
-/// version in force on that date (tasks/prd-us-14-configure-business-rules.md, FR-1).
+/// version that was in force then (tasks/prd-us-14-configure-business-rules.md, FR-1).
 model SettingsVersion {
   id Int @id @default(autoincrement())
 
-  /// The day these values take over. Unique, so "the settings in force on a date" can never tie.
-  effectiveFrom DateTime @unique
+  /// The instant these values took over — stamped from the clock when staff saved them, never a
+  /// date they pick: a change applies immediately. Deliberately **not** unique; two saves in the
+  /// same millisecond are a concurrency accident, not a business error, and the later row wins.
+  recordedAt DateTime
 
   /// The maximum number of customer slots FD hands out.
   quotaN Int
@@ -52,8 +54,7 @@ model SettingsVersion {
   pricePerGrownUpCents Int
   pricePerChildCents   Int
 
-  /// When this version was written — bookkeeping, not policy. `effectiveFrom` is the business date.
-  createdAt DateTime @default(now())
+  @@index([recordedAt])
 }
 
 /// One append-only record of a state change: *what* changed, *when* and *why* — never *who*.

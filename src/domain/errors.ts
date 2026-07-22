@@ -16,7 +16,6 @@ export type DomainErrorCode =
   | "InvalidSettings"
   | "NoSettingsInForce"
   | "QuotaBelowActiveCustomers"
-  | "RetroactiveSettingsVersion"
   | "MissingAuditReason"
   | "InvalidEuroAmount";
 
@@ -41,13 +40,13 @@ export class InvalidSettings extends DomainError {
   }
 }
 
-/** No settings version had taken effect on the requested date. */
+/** No settings version had been recorded by the requested date. */
 export class NoSettingsInForce extends DomainError {
   readonly code = "NoSettingsInForce";
   readonly date: Date;
 
   constructor(date: Date) {
-    super(`No settings version is in force on ${date.toISOString()}`);
+    super(`No settings version is in force at ${date.toISOString()}`);
     this.date = date;
   }
 }
@@ -65,25 +64,6 @@ export class QuotaBelowActiveCustomers extends DomainError {
     super(`Quota ${quotaN} is below the ${activeCustomers} customers currently active`);
     this.quotaN = quotaN;
     this.activeCustomers = activeCustomers;
-  }
-}
-
-/**
- * A new settings version was dated on or before the latest existing one. Versions are immutable and
- * append-only: rewriting history would change what a past distribution cost.
- */
-export class RetroactiveSettingsVersion extends DomainError {
-  readonly code = "RetroactiveSettingsVersion";
-  readonly effectiveFrom: Date;
-  readonly latestEffectiveFrom: Date;
-
-  constructor(effectiveFrom: Date, latestEffectiveFrom: Date) {
-    super(
-      `A settings version effective ${effectiveFrom.toISOString()} would precede the latest ` +
-        `version, effective ${latestEffectiveFrom.toISOString()}`,
-    );
-    this.effectiveFrom = effectiveFrom;
-    this.latestEffectiveFrom = latestEffectiveFrom;
   }
 }
 

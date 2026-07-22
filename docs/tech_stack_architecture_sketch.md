@@ -149,17 +149,20 @@ tests/e2e/           # Playwright
 ### 5.1 Policies as data
 
 Portions per adult, portions per child, the price per adult and per child and the customer quota `N`
-live in a `settings` table with an _effective-from_ date and are editable in the UI. This directly
-serves the "adjustable for Christmas" requirement without a code deploy.
+live in a `settings` table and are editable in the UI. This directly serves the "adjustable for
+Christmas" requirement without a code deploy. **A saved change is in force immediately** — staff
+adjust the numbers when reality changes, and asking them to schedule that would be a field to think
+about and a way to get it wrong.
 
 The reminder escalation is deliberately **not** among them: FD judges each expired certificate on
 its own, reading the reminder count off the record, so there is no number to configure.
 
-Effective-from dating matters most for the **prices**: a distribution record stores only a
-`paid` flag, never an amount, so the only way to answer "what did that customer owe last March" is
-to look up the settings version in force on that date. Portion values want the same treatment for the
-same reason. Quota `N` is read at decision time and could get by with a plain current value —
-uniform treatment is simply cheaper than two mechanisms.
+Superseded values are **kept rather than overwritten**, each stamped with the instant it took over.
+That matters most for the **prices**: a distribution record stores only a `paid` flag, never an
+amount, so the only way to answer "what did that customer owe last March" is to look up the version
+that was in force then. Portion values want the same treatment for the same reason. Quota `N` is read
+at decision time and could get by with a plain current value — uniform treatment is simply cheaper
+than two mechanisms.
 
 ### 5.2 Append-only audit log
 

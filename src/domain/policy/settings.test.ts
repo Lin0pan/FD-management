@@ -24,9 +24,9 @@ function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   };
 }
 
-function version(effectiveFrom: string, overrides: Partial<SettingsInput> = {}): SettingsVersion {
+function version(recordedAt: string, overrides: Partial<SettingsInput> = {}): SettingsVersion {
   return {
-    effectiveFrom: new Date(effectiveFrom),
+    recordedAt: new Date(recordedAt),
     settings: createSettings(settingsInput(overrides)),
   };
 }
@@ -141,11 +141,11 @@ describe("resolveSettingsAt", () => {
     version("2026-06-01T00:00:00.000Z", { quotaN: 240 }),
   ];
 
-  it("returns the version effective on that very day", () => {
+  it("is in force from the very instant it was recorded", () => {
     expect(resolveSettingsAt(versions, new Date("2026-06-01T00:00:00.000Z")).quotaN).toBe(240);
   });
 
-  it("returns the earlier version the day before the later one starts", () => {
+  it("returns the earlier version a millisecond before the later one was recorded", () => {
     expect(resolveSettingsAt(versions, new Date("2026-05-31T23:59:59.999Z")).quotaN).toBe(200);
   });
 
@@ -156,6 +156,15 @@ describe("resolveSettingsAt", () => {
   it("resolves regardless of the order the versions arrive in", () => {
     const shuffled = [versions[1], versions[0]];
     expect(resolveSettingsAt(shuffled, new Date("2026-03-01T00:00:00.000Z")).quotaN).toBe(200);
+  });
+
+  it("prefers the later of two versions recorded in the same instant", () => {
+    const sameInstant = [
+      version("2026-06-01T00:00:00.000Z", { quotaN: 240 }),
+      version("2026-06-01T00:00:00.000Z", { quotaN: 250 }),
+    ];
+
+    expect(resolveSettingsAt(sameInstant, new Date("2026-06-02T00:00:00.000Z")).quotaN).toBe(250);
   });
 
   it("throws rather than returning a partial object before the earliest version", () => {

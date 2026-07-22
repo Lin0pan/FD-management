@@ -4,7 +4,7 @@ import { createSettings, parseWeekColour, type SettingsVersion } from "@/domain/
 
 /** One `SettingsVersion` row, as the query below returns it. */
 interface StoredVersion {
-  readonly effectiveFrom: Date;
+  readonly recordedAt: Date;
   readonly quotaN: number;
   readonly portionsPerGrownUp: number;
   readonly portionsPerChild: number;
@@ -23,7 +23,7 @@ interface StoredVersion {
  */
 function toDomain(row: StoredVersion): SettingsVersion {
   return {
-    effectiveFrom: row.effectiveFrom,
+    recordedAt: row.recordedAt,
     settings: createSettings({
       quotaN: row.quotaN,
       portionsPerGrownUp: row.portionsPerGrownUp,
@@ -54,27 +54,23 @@ export class PrismaSettingsRepository implements SettingsRepository {
   }
 
   /**
-   * Every version ever written. `resolveSettingsAt` scans rather than assumes an order, so the
-   * query does not sort; the ascending order is for readable logs.
+   * Every version ever written, in the order it was written. `resolveSettingsAt` scans rather than
+   * assumes an order, but it breaks a same-instant tie by position, so insertion order is the one
+   * ordering that answers such a tie correctly.
    */
   async listVersions(): Promise<SettingsVersion[]> {
     const rows = await this.prisma.settingsVersion.findMany({
-      orderBy: { effectiveFrom: "asc" },
+      orderBy: { id: "asc" },
     });
     return rows.map(toDomain);
   }
 
-  /**
-   * Store a new version.
-   *
-   * A second version with the same `effectiveFrom` violates the unique index and rejects — the
-   * database is the last line of defence behind the `updateSettings` use case's own check.
-   */
+  /** Store a new version. Nothing is ever updated or deleted. */
   async append(version: SettingsVersion): Promise<void> {
     const { settings } = version;
     await this.prisma.settingsVersion.create({
       data: {
-        effectiveFrom: version.effectiveFrom,
+        recordedAt: version.recordedAt,
         quotaN: settings.quotaN,
         portionsPerGrownUp: settings.portionsPerGrownUp,
         portionsPerChild: settings.portionsPerChild,

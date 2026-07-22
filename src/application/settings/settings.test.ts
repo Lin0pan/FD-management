@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import {
-  NoSettingsInForce,
-  QuotaBelowActiveCustomers,
-  RetroactiveSettingsVersion,
-} from "@/domain/errors";
+import { NoSettingsInForce, QuotaBelowActiveCustomers } from "@/domain/errors";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
 import type { AuditEntry, AuditLog, Clock, CustomerCounter, SettingsRepository } from "../ports";
 import { listSettingsVersions } from "./list-settings-versions";
@@ -66,16 +62,15 @@ function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   };
 }
 
-function version(effectiveFrom: string, overrides: Partial<SettingsInput> = {}): SettingsVersion {
+function version(recordedAt: string, overrides: Partial<SettingsInput> = {}): SettingsVersion {
   return {
-    effectiveFrom: new Date(effectiveFrom),
+    recordedAt: new Date(recordedAt),
     settings: createSettings(settingsInput(overrides)),
   };
 }
 
 function updateInput(overrides: Partial<UpdateSettingsInput> = {}): UpdateSettingsInput {
   return {
-    effectiveFrom: new Date("2026-07-01T00:00:00.000Z"),
     settings: settingsInput(),
     reason: "Preisanpassung beschlossen",
     ...overrides,
@@ -97,7 +92,7 @@ describe("readCurrentSettings", () => {
     expect(settings.quotaN).toBe(240);
   });
 
-  it("ignores a version that only takes effect tomorrow", async () => {
+  it("ignores a version recorded after the clock's now — a clock skew, not a schedule", async () => {
     const repository = new FakeSettingsRepository(
       version("2026-01-01T00:00:00.000Z", { quotaN: 200 }),
       version("2026-08-01T00:00:00.000Z", { quotaN: 240 }),
@@ -111,7 +106,7 @@ describe("readCurrentSettings", () => {
     expect(settings.quotaN).toBe(200);
   });
 
-  it("throws when no version has taken effect yet", async () => {
+  it("throws when nothing had been recorded yet", async () => {
     const repository = new FakeSettingsRepository(version("2026-08-01T00:00:00.000Z"));
 
     await expect(
@@ -157,10 +152,25 @@ describe("updateSettings", () => {
     expect(stored.quotaN).toBe(250);
   });
 
-  it("stores the effective-from date it was given", async () => {
-    await updateSettings(deps(), updateInput());
+  it("stamps the new version with the clock, so a saved change is in force at once", async () => {
+    await updateSettings(deps(100, "2026-06-15T08:00:00.000Z"), updateInput());
 
-    expect(repository.versions[1].effectiveFrom).toEqual(new Date("2026-07-01T00:00:00.000Z"));
+    expect(repository.versions[1].recordedAt).toEqual(new Date("2026-06-15T08:00:00.000Z"));
+  });
+
+  it("reads the clock once, so the version and its audit entry cannot disagree", async () => {
+    await updateSettings(deps(100, "2026-06-15T08:00:00.000Z"), updateInput());
+
+    expect(repository.versions[1].recordedAt).toEqual(audit.entries[0].when);
+  });
+
+  it("applies a change however long ago the previous version was recorded", async () => {
+    repository = new FakeSettingsRepository(version("2020-01-01T00:00:00.000Z", { quotaN: 240 }));
+
+    await updateSettings(deps(), updateInput({ settings: settingsInput({ quotaN: 250 }) }));
+
+    expect(repository.versions).toHaveLength(2);
+    expect(repository.versions[1].settings.quotaN).toBe(250);
   });
 
   it("accepts a quota equal to the active customer count", async () => {
@@ -197,47 +207,30 @@ describe("updateSettings", () => {
     expect(audit.entries).toHaveLength(0);
   });
 
-  it("rejects a version dated before the latest existing one", async () => {
-    await expect(
-      updateSettings(deps(), updateInput({ effectiveFrom: new Date("2025-12-31T00:00:00.000Z") })),
-    ).rejects.toThrow(RetroactiveSettingsVersion);
-  });
-
-  it("rejects a version dated exactly on the latest existing one", async () => {
-    await expect(
-      updateSettings(deps(), updateInput({ effectiveFrom: new Date("2026-01-01T00:00:00.000Z") })),
-    ).rejects.toThrow(RetroactiveSettingsVersion);
-  });
-
-  it("accepts the day after the latest existing version", async () => {
-    await updateSettings(
-      deps(),
-      updateInput({ effectiveFrom: new Date("2026-01-02T00:00:00.000Z") }),
-    );
-
-    expect(repository.versions).toHaveLength(2);
-  });
-
-  it("finds the latest version whatever order the repository returns them in", async () => {
+  it("compares against the later of two versions recorded in the same instant", async () => {
     repository = new FakeSettingsRepository(
-      version("2026-06-01T00:00:00.000Z"),
-      version("2026-01-01T00:00:00.000Z"),
+      version("2026-06-01T00:00:00.000Z", { quotaN: 240, portionsPerChild: 2 }),
+      version("2026-06-01T00:00:00.000Z", { quotaN: 240, portionsPerChild: 1 }),
     );
 
-    await expect(
-      updateSettings(deps(), updateInput({ effectiveFrom: new Date("2026-03-01T00:00:00.000Z") })),
-    ).rejects.toThrow(RetroactiveSettingsVersion);
+    await updateSettings(deps(), updateInput({ settings: settingsInput({ portionsPerChild: 1 }) }));
+
+    // The second of the two is the one in force — the same tie rule `resolveSettingsAt` applies —
+    // and the new values match it, so nothing is reported as changed.
+    expect(audit.entries[0].changedFields).toEqual([]);
   });
 
-  it("accepts the very first version whatever its date", async () => {
-    repository = new FakeSettingsRepository();
-
-    await updateSettings(
-      deps(),
-      updateInput({ effectiveFrom: new Date("2020-01-01T00:00:00.000Z") }),
+  it("compares against the latest version whatever order the repository returns them in", async () => {
+    repository = new FakeSettingsRepository(
+      version("2026-06-01T00:00:00.000Z", { quotaN: 240, portionsPerChild: 2 }),
+      version("2026-01-01T00:00:00.000Z", { quotaN: 200 }),
     );
 
-    expect(repository.versions).toHaveLength(1);
+    await updateSettings(deps(), updateInput({ settings: settingsInput({ quotaN: 240 }) }));
+
+    // Only the portion count differs from the newest stored version; the quota matches it and so is
+    // not reported as changed, even though it differs from the older one.
+    expect(audit.entries[0].changedFields).toEqual(["portionsPerChild"]);
   });
 
   it("rejects invalid policy values before touching the repository", async () => {
@@ -265,7 +258,7 @@ describe("updateSettings", () => {
     expect(audit.entries[0].changedFields).toEqual(["quotaN", "portionsPerChild"]);
   });
 
-  it("stamps the audit entry with the clock, not the effective-from date", async () => {
+  it("stamps the audit entry with the clock", async () => {
     await updateSettings(deps(100, "2026-06-15T08:00:00.000Z"), updateInput());
 
     expect(audit.entries[0].when).toEqual(new Date("2026-06-15T08:00:00.000Z"));

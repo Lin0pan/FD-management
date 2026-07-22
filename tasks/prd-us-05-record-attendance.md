@@ -11,7 +11,8 @@ because distribution history is never overwritten, it is also the raw material f
 (US-10) and for any later reporting.
 
 Payment is a **flag**, not an amount: no money is stored on the record. The amount owed is implied by
-the prices in force on that date, which is exactly why US-14 dates its settings versions.
+the prices in force on that date, which is exactly why US-14 keeps every superseded settings version
+rather than overwriting it.
 
 ## 2. Goals
 
@@ -123,7 +124,7 @@ the counter screen.
 
 ## 6. Technical Considerations
 
-- `priceCents` is stored on the record **in addition to** effective-from settings. That is deliberate
+- `priceCents` is stored on the record **in addition to** the settings history. That is deliberate
   redundancy: settings resolve the price historically, but storing it makes a record self-describing
   and any future reporting a single-table read. Document the redundancy so it is not "cleaned up".
 - The day-key column is what lets SQLite enforce the one-record-per-day rule; a naive `DateTime`
