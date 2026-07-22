@@ -20,8 +20,7 @@ datasource db {
 }
 
 /// One immutable, dated set of the policy values FD can change without a deploy: the customer
-/// quota, the portions per head, the price per head, the reminder threshold and the week-cycle
-/// anchor.
+/// quota, the portions per head, the price per head and the week-cycle anchor.
 ///
 /// Versions are **append-only**. A distribution record stores only a `paid` flag and never an
 /// amount, so the sole way to answer "what did that customer owe last March" is to resolve the
@@ -37,8 +36,6 @@ model SettingsVersion {
   /// Food portions allowed per grown-up (13 and older) and per child.
   portionsPerGrownUp Int
   portionsPerChild   Int
-  /// After how many consecutive absences a customer is flagged for a reminder.
-  reminderThreshold  Int
 
   /// The known week of the two-week cycle everything else is counted from, e.g. `2026-W02`, and the
   /// group that collected in it (`RED` or `BLUE`). SQLite has no enum type, so the colour is a

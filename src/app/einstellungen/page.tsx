@@ -67,8 +67,7 @@ function VersionHistory({
               <span className="block text-foreground/70">
                 {de.settings.fields.quotaN}: {version.settings.quotaN} ·{" "}
                 {de.settings.fields.portionsPerGrownUp}: {version.settings.portionsPerGrownUp} ·{" "}
-                {de.settings.fields.portionsPerChild}: {version.settings.portionsPerChild} ·{" "}
-                {de.settings.fields.reminderThreshold}: {version.settings.reminderThreshold}
+                {de.settings.fields.portionsPerChild}: {version.settings.portionsPerChild}
               </span>
               <span className="block text-foreground/70">
                 {de.settings.fields.pricePerGrownUp}:{" "}

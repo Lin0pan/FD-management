@@ -8,7 +8,6 @@ interface StoredVersion {
   readonly quotaN: number;
   readonly portionsPerGrownUp: number;
   readonly portionsPerChild: number;
-  readonly reminderThreshold: number;
   readonly weekAnchorIsoWeek: string;
   readonly weekAnchorColour: string;
   readonly distributionWeekday: number;
@@ -29,7 +28,6 @@ function toDomain(row: StoredVersion): SettingsVersion {
       quotaN: row.quotaN,
       portionsPerGrownUp: row.portionsPerGrownUp,
       portionsPerChild: row.portionsPerChild,
-      reminderThreshold: row.reminderThreshold,
       weekAnchor: {
         isoWeek: row.weekAnchorIsoWeek,
         colour: parseWeekColour(row.weekAnchorColour),
@@ -80,7 +78,6 @@ export class PrismaSettingsRepository implements SettingsRepository {
         quotaN: settings.quotaN,
         portionsPerGrownUp: settings.portionsPerGrownUp,
         portionsPerChild: settings.portionsPerChild,
-        reminderThreshold: settings.reminderThreshold,
         weekAnchorIsoWeek: settings.weekAnchor.isoWeek,
         weekAnchorColour: settings.weekAnchor.colour,
         distributionWeekday: settings.distributionWeekday,

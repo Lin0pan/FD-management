@@ -97,11 +97,6 @@ export function SettingsForm({
             label={de.settings.fields.portionsPerChild}
             value={settings.portionsPerChild}
           />
-          <NumberField
-            name="reminderThreshold"
-            label={de.settings.fields.reminderThreshold}
-            value={settings.reminderThreshold}
-          />
           <label className="flex flex-col gap-1">
             <span className="text-sm text-foreground/70">
               {de.settings.fields.weekAnchorIsoWeek}

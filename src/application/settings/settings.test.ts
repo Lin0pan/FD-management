@@ -59,7 +59,6 @@ function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
     quotaN: 240,
     portionsPerGrownUp: 2,
     portionsPerChild: 1,
-    reminderThreshold: 3,
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday: 4,
     pricePerGrownUp: 200,
@@ -259,11 +258,11 @@ describe("updateSettings", () => {
   it("writes an audit entry naming the fields that changed", async () => {
     await updateSettings(
       deps(),
-      updateInput({ settings: settingsInput({ quotaN: 250, reminderThreshold: 4 }) }),
+      updateInput({ settings: settingsInput({ quotaN: 250, portionsPerChild: 2 }) }),
     );
 
     expect(audit.entries).toHaveLength(1);
-    expect(audit.entries[0].changedFields).toEqual(["quotaN", "reminderThreshold"]);
+    expect(audit.entries[0].changedFields).toEqual(["quotaN", "portionsPerChild"]);
   });
 
   it("stamps the audit entry with the clock, not the effective-from date", async () => {
@@ -291,7 +290,7 @@ describe("updateSettings", () => {
     await updateSettings(deps(), updateInput());
 
     expect(audit.entries[0].changedFields).toContain("pricePerGrownUp");
-    expect(audit.entries[0].changedFields).toHaveLength(8);
+    expect(audit.entries[0].changedFields).toHaveLength(7);
   });
 });
 

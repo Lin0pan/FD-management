@@ -2,8 +2,8 @@
  * The policy values FD can change without a deploy, and the rule that decides which of them apply
  * on a given day.
  *
- * Every number in FD's process — the quota, the portions per head, the price per head, the reminder
- * threshold, the week-cycle anchor — is configuration, not a constant (tasks/prd-us-14-configure-
+ * Every number in FD's process — the quota, the portions per head, the price per head, the
+ * week-cycle anchor — is configuration, not a constant (tasks/prd-us-14-configure-
  * business-rules.md). Versions are immutable and dated: a distribution record stores only a `paid`
  * flag, so the only way to answer "what did that customer owe last March" is to resolve the version
  * in force on that date.
@@ -55,7 +55,6 @@ export interface Settings {
   readonly quotaN: number;
   readonly portionsPerGrownUp: number;
   readonly portionsPerChild: number;
-  readonly reminderThreshold: number;
   readonly weekAnchor: WeekAnchor;
   readonly distributionWeekday: IsoWeekday;
   /** What one grown-up and one child each cost at a distribution. The total is derived. */
@@ -99,7 +98,6 @@ export function createSettings(input: SettingsInput): Settings {
   requireInteger("quotaN", input.quotaN, 1);
   requireInteger("portionsPerGrownUp", input.portionsPerGrownUp, 0);
   requireInteger("portionsPerChild", input.portionsPerChild, 0);
-  requireInteger("reminderThreshold", input.reminderThreshold, 1);
   requireInteger("pricePerGrownUp", input.pricePerGrownUp, 0);
   requireInteger("pricePerChild", input.pricePerChild, 0);
   if (!isIsoWeekday(input.distributionWeekday)) {
@@ -119,7 +117,6 @@ export function createSettings(input: SettingsInput): Settings {
     quotaN: input.quotaN,
     portionsPerGrownUp: input.portionsPerGrownUp,
     portionsPerChild: input.portionsPerChild,
-    reminderThreshold: input.reminderThreshold,
     weekAnchor: { isoWeek: input.weekAnchor.isoWeek, colour: input.weekAnchor.colour },
     distributionWeekday: input.distributionWeekday,
     pricePerGrownUp: input.pricePerGrownUp,
@@ -155,7 +152,6 @@ const SETTINGS_FIELDS = [
   "quotaN",
   "portionsPerGrownUp",
   "portionsPerChild",
-  "reminderThreshold",
   "weekAnchor",
   "distributionWeekday",
   "pricePerGrownUp",
