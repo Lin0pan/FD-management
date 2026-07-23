@@ -39,3 +39,42 @@ Started: Thu Jul 23 21:04:04 CEST 2026
     use case will pass `null` until blocks exist). Kept nullable to avoid an unexercisable fallback.
   - Certificate expiry is a calendar-day comparison via `startOfUtcDay`; valid *through* validUntil.
 ---
+
+## 2026-07-23 - US-002 (lookupCustomer use case)
+- Implemented the read-only counter lookup use case (US-04.2).
+- Files changed:
+  - `src/application/customers/lookup-customer.ts` (new) — `lookupCustomer(deps, rawQuery)`
+    returns `{ verdict, customer }`. Parses the query, resolves the slot via
+    `findByCustomerNumber`, evaluates `evaluateAtCounter`, and (unless NOT_FOUND) assembles the
+    view via `describeAllowance` (counts/portions/price) + `getWeekColour` (week colour) + derived
+    card number. Takes no writable port — the only way it could mutate is not to exist.
+  - `src/application/customers/lookup-customer.test.ts` (new) — a branch per verdict, a derived-
+    counts test, a "carries every field" test, an InvalidCardNumber test, and a loop asserting
+    zero repository writes on every verdict branch.
+  - `src/domain/card/cardNumber.ts` (+ test) — `parseCounterQuery(text)` reads `50k3` or bare `50`
+    in one regex `^([1-9][0-9]*)(?:k([1-9][0-9]*))?$` (case-insensitive, no leading zeros),
+    returning `{ customerNumber, cardIndex: number | null }`. `null` index means "current card".
+  - `src/application/ports.ts` — added `CustomerRepository.findByCustomerNumber(n)`.
+  - `src/infrastructure/prisma/customer-repository.ts` — implemented `findByCustomerNumber`
+    (active holder, else most-recent archived), extracted `CUSTOMER_INCLUDE` + a shared
+    `toRegisteredCustomer` mapper reused by `findById`. Schema already had the needed indexes
+    (`@@index([customerNumber])`, `@@index([status])`) and the partial-unique-active-number index.
+  - `docs/technical_documentation.md` — noted lookupCustomer in the application/customers line.
+- **Learnings for future iterations:**
+  - `RegisteredCustomer.card` already carries the *current* (highest) card — loaded in one query by
+    the repository — so the counter reads `customer.card.index` as `currentCardIndex`; no separate
+    CardRepository call, no N+1. This is what US-04.3's "one query" criterion already relies on.
+  - Compose use cases rather than re-derive: lookupCustomer calls `describeAllowance` and
+    `getWeekColour` (both read settings history), passing an explicit `today` so all three reads
+    (verdict, allowance, colour) agree on one instant.
+  - Adding a method to a port interface breaks every `implements CustomerRepository` — the fake in
+    `customers.test.ts` AND `PrismaCustomerRepository`. Update all implementers in the same commit
+    or typecheck/build fails.
+  - `blockReason` is passed as `null` until US-08 stores a reason (a BLOCKED verdict then carries
+    it). `2026-07-23` is a RED week under the default `2026-W02` RED anchor (even week offset), so a
+    RED customer is CLEAR and a BLUE one is WRONG_GROUP — handy for counter tests.
+  - US-003 (next, infra) is mostly satisfied already: the indexes exist and `findByCustomerNumber`
+    is implemented. That story still needs the integration test for a reassigned slot (an archived
+    + an active holder of number 50 resolving to the active one) and a check that no migration is
+    needed.
+---
