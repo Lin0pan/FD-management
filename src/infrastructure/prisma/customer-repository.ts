@@ -20,8 +20,13 @@ const ON_REGISTER = { status: { not: "ARCHIVED" } } as const;
 
 /**
  * The related rows the counter and the card view both read off a customer — the household, the
- * certificate and the current card — loaded with the customer in a single query so neither screen
- * fans out into an N+1 (tasks/prd-us-04-lookup-customer.md §US-04.3).
+ * certificate and the current card — loaded *with* the customer so neither screen fans out into an
+ * N+1 (tasks/prd-us-04-lookup-customer.md §US-04.3).
+ *
+ * Prisma's SQLite provider has no join strategy (`relationLoadStrategy: "join"` is Postgres/MySQL
+ * only), so this is four statements per lookup rather than literally one: the customer and one per
+ * relation. What matters at the counter is that the number is *fixed* — a ten-person household costs
+ * the same four reads as a two-person one — which is the invariant the integration test pins.
  */
 const CUSTOMER_INCLUDE = {
   householdMembers: { orderBy: { id: "asc" } },

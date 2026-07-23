@@ -13,6 +13,15 @@ Started: Thu Jul 23 21:04:04 CEST 2026
   factory that returns the happy-path value so each test overrides only the field its rule turns on.
 - Verdicts/statuses/reasons are discriminated unions with a `kind`/enum discriminator; the UI switch
   is meant to be exhaustive with a `never`-check (US-04.4).
+- Infra tests migrate a throwaway SQLite file in `beforeAll` (`mkdtempSync` + `prisma migrate
+  deploy`) and `deleteMany()` in `beforeEach`; keep the temp `url` at module scope if a test needs a
+  second client. Cascades mean deleting customers clears households/cards/certificates too.
+- Prisma's SQLite provider has **no join strategy**, so `include` costs one statement per relation.
+  Assert query counts are *equal across input sizes* (no fan-out), never a magic number — a new
+  relation would break the latter for no reason.
+- `insertCustomer` in the repository test writes a bare row with no certificate or card: fine for
+  counting/slot tests, but any read through `toRegisteredCustomer` throws `InvalidCustomerRecord`.
+  Use `repository.create(newCustomer({...}))` for anything that reads a customer back.
 
 ---
 
@@ -77,4 +86,38 @@ Started: Thu Jul 23 21:04:04 CEST 2026
     is implemented. That story still needs the integration test for a reassigned slot (an archived
     + an active holder of number 50 resolving to the active one) and a check that no migration is
     needed.
+---
+
+## 2026-07-23 - US-003 (Counter lookup queries and indexes)
+- Proved the counter's persistence read (US-04.3). The implementation had already landed with
+  US-002 — `findByCustomerNumber`, `CUSTOMER_INCLUDE` and both indexes existed — so this story was
+  the integration tests plus one corrected claim, and **no migration** (the schema was already right).
+- Files changed:
+  - `src/infrastructure/prisma/customer-repository.test.ts` — six specs for `findByCustomerNumber`
+    (reassigned slot resolves to the active holder; a blocked holder still holds the slot; the most
+    recently archived holder when the slot stands empty; null for an unheld number; relations read
+    back whole; and a no-fan-out spec) plus one asserting the two counter indexes exist via
+    `PRAGMA index_list("Customer")`.
+  - `src/infrastructure/prisma/customer-repository.ts` — corrected the `CUSTOMER_INCLUDE` comment,
+    which claimed a "single query".
+  - `docs/technical_documentation.md` — documented why `findByCustomerNumber` is two queries and
+    what the N+1 guarantee actually is.
+- Checks: lint, typecheck, `test:coverage` (390 tests, domain+application still 100%) and build all
+  green. No UI change, so no browser verification was needed.
+- **Learnings for future iterations:**
+  - The PRD's "loaded in one query" is not achievable on SQLite: `relationLoadStrategy: "join"` is
+    Postgres/MySQL only, so Prisma issues the customer plus one SELECT per relation — four for a
+    counter lookup. I measured it with a throwaway `PrismaClient({ log: [{ emit: "event", level:
+    "query" }] })` before writing the assertion. The real invariant is that the count is constant in
+    household size, so the test compares a 7-person household against a 2-person one. Recorded the
+    deviation in the story's `notes` rather than quietly claiming the criterion.
+  - A query listener cannot be detached (`$on` has no `$off` in this Prisma version), so a test that
+    counts queries needs a fresh client per measurement, disconnected afterwards.
+  - `findByCustomerNumber` is deliberately two round trips, not one `orderBy`: an active holder must
+    beat an archived one regardless of row age, and recency only decides *among* archived holders.
+    A single ordered query cannot say that.
+  - US-004 (next) is the first UI story of this batch: `/ausgabe` already exists as a route, and the
+    exhaustive `never`-check switch over the `Verdict` union is an explicit criterion. All eight
+    verdict cases need German strings in `src/i18n/de.ts`, `ALREADY_SERVED_TODAY` included even
+    though the read-only rule never emits it yet.
 ---

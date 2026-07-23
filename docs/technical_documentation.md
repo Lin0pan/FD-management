@@ -572,6 +572,22 @@ It is the final authority on a free number: the application reads the taken numb
 and only the database can settle the race in between. **Regenerating the migration drops it** — re-add
 it, or the slot rule is enforced by application code alone.
 
+`findByCustomerNumber(n)` is the counter's read (US-04). Because a customer number is a slot rather
+than an identity, it is deliberately **two queries and not one `orderBy`**: an active holder wins over
+an archived one whenever there is one, and only when the slot stands empty does recency pick the most
+recently archived holder. A reassigned number therefore resolves to its current holder, never to the
+household it was taken from. `Customer.customerNumber` and `Customer.status` are both indexed so the
+query stays instant while staff work through a queue.
+
+`findById` and `findByCustomerNumber` share one `CUSTOMER_INCLUDE`, which pulls the household, the
+certificate and the current card along with the customer. Prisma's SQLite provider has **no join
+strategy** (`relationLoadStrategy: "join"` is Postgres/MySQL only), so a lookup is four statements —
+the customer plus one per relation — rather than literally one. The property that matters at the
+counter is that the number is _fixed_: a ten-person household costs the same four reads as a
+two-person one, so there is no N+1. An integration test pins that by measuring the query count for two
+household sizes and asserting they are equal, rather than asserting a magic number that a future
+relation would invalidate.
+
 ### `src/infrastructure/prisma/card-repository.ts`
 
 `PrismaCardRepository` (the `CardRepository` port). It stores cards and reads them back and decides

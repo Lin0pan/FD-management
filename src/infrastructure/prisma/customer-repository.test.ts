@@ -27,13 +27,14 @@ faker.seed(20260722);
 const TODAY = new Date("2026-07-22T09:00:00.000Z");
 
 let directory: string;
+let url: string;
 let prisma: PrismaClient;
 let repository: PrismaCustomerRepository;
 let counter: PrismaCustomerCounter;
 
 beforeAll(() => {
   directory = mkdtempSync(join(tmpdir(), "fd-customers-"));
-  const url = `file:${join(directory, "test.db")}`;
+  url = `file:${join(directory, "test.db")}`;
   execFileSync("npx", ["prisma", "migrate", "deploy"], {
     env: { ...process.env, DATABASE_URL: url },
     stdio: "ignore",
@@ -286,5 +287,96 @@ describe("PrismaCustomerRepository.findById", () => {
     });
 
     expect((await repository.findById(created.id))?.card.index).toBe(2);
+  });
+});
+
+describe("PrismaCustomerRepository.findByCustomerNumber", () => {
+  it("resolves a reassigned number to its active holder, not the household it was taken from", async () => {
+    const archived = await repository.create(newCustomer({ status: "ARCHIVED" }));
+    const active = await repository.create(newCustomer());
+
+    const found = await repository.findByCustomerNumber(50);
+
+    expect(found?.id).toBe(active.id);
+    expect(found?.id).not.toBe(archived.id);
+    expect(found?.status).toBe("ACTIVE");
+  });
+
+  it("resolves to a blocked holder, who is turned away but still holds the slot", async () => {
+    const blocked = await repository.create(newCustomer({ status: "BLOCKED" }));
+
+    expect((await repository.findByCustomerNumber(50))?.id).toBe(blocked.id);
+  });
+
+  it("names the most recently archived holder when the number stands empty", async () => {
+    await repository.create(newCustomer({ status: "ARCHIVED" }));
+    const later = await repository.create(newCustomer({ status: "ARCHIVED" }));
+
+    const found = await repository.findByCustomerNumber(50);
+
+    expect(found?.id).toBe(later.id);
+    expect(found?.status).toBe("ARCHIVED");
+  });
+
+  it("gives null for a number nobody has ever held", async () => {
+    expect(await repository.findByCustomerNumber(51)).toBeNull();
+  });
+
+  it("reads the household, the certificate and the current card back with the customer", async () => {
+    const written = newCustomer();
+    const created = await repository.create(written);
+    await prisma.card.create({
+      data: { customerId: created.id, index: 2, issuedAt: TODAY, reason: "LOST" },
+    });
+
+    const found = await repository.findByCustomerNumber(50);
+
+    expect(found?.details.householdMembers).toHaveLength(2);
+    expect(found?.details.certificate.type).toBe(written.details.certificate.type);
+    expect(found?.card.index).toBe(2);
+  });
+
+  it("costs the same number of queries however large the household — the counter never fans out", async () => {
+    const queriesForHousehold = async (memberCount: number): Promise<number> => {
+      await prisma.customer.deleteMany();
+      const created = await repository.create(newCustomer());
+      await prisma.householdMember.createMany({
+        data: Array.from({ length: memberCount - 2 }, () => ({
+          customerId: created.id,
+          firstName: faker.person.firstName(),
+          lastName: faker.person.lastName(),
+          birthDate: new Date("2001-06-15T00:00:00.000Z"),
+        })),
+      });
+
+      // A throwaway client per measurement, because a query listener cannot be detached again.
+      const logged = new PrismaClient({
+        datasourceUrl: url,
+        log: [{ emit: "event", level: "query" }],
+      });
+      let queries = 0;
+      logged.$on("query", () => {
+        queries += 1;
+      });
+      const found = await new PrismaCustomerRepository(logged).findByCustomerNumber(50);
+      await logged.$disconnect();
+
+      expect(found?.details.householdMembers).toHaveLength(memberCount);
+      return queries;
+    };
+
+    expect(await queriesForHousehold(7)).toBe(await queriesForHousehold(2));
+  });
+});
+
+describe("the counter lookup indexes", () => {
+  it("indexes customerNumber and status, so the counter query stays instant", async () => {
+    const indexes = await prisma.$queryRawUnsafe<Array<{ name: string }>>(
+      `PRAGMA index_list("Customer")`,
+    );
+
+    const names = indexes.map((index) => index.name);
+    expect(names).toContain("Customer_customerNumber_idx");
+    expect(names).toContain("Customer_status_idx");
   });
 });

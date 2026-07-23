@@ -53,8 +53,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The query and the indexes already landed with US-002; this story added the proof. One deviation from the wording: 'loaded in one query' is not reachable on Prisma's SQLite provider, which has no join strategy (relationLoadStrategy: 'join' is Postgres/MySQL only). A lookup is four fixed statements — the customer plus one per relation — and the test pins the invariant that actually matters, that the count does not grow with household size. No migration: the schema was already correct."
     },
     {
       "id": "US-004",
