@@ -10,10 +10,10 @@ rather than repeating them:
 
 This file describes _how_ the current codebase is organised and how to work in it.
 
-> **Status:** the app boots, is fully wired for TDD and CI, and carries two features end to end
-> through every layer — US-14's policy settings (`/einstellungen`) and US-01's customer registration
-> (`/kunden/neu` and the card view at `/kunden/[id]`): domain rules, use cases, SQLite persistence,
-> seed and screens. Sections below mark clearly what exists vs. what is a documented placeholder.
+> **Status:** the app boots, is fully wired for TDD and CI, and carries three features end to end
+> through every layer — US-14's policy settings (`/einstellungen`), US-01's customer registration
+> (`/kunden/neu` and the card view at `/kunden/[id]`) and US-03's week colour (`/ausgabe`): domain
+> rules, use cases, SQLite persistence, seed and screens. Sections below mark clearly what exists vs. what is a documented placeholder.
 
 ---
 
@@ -66,6 +66,9 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── app/                          # Next.js App Router — thin adapter layer
 │   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
 │   │   ├── page.tsx                  # home page (reads strings from i18n dictionary)
+│   │   ├── ausgabe/                  # the distribution screen (US-03)
+│   │   │   ├── page.tsx              # server component: the colour banner + the week lookup
+│   │   │   └── deps.ts               # composition root: settings repository + clock
 │   │   ├── kunden/                   # the customer screens (US-01)
 │   │   │   ├── deps.ts               # composition root for both routes below
 │   │   │   ├── neu/                  # the registration screen
@@ -635,6 +638,23 @@ screen and from 0 in the domain.
 ⚠️ **`eslint` forbids constructing JSX inside a `try`** (`react-hooks/error-boundaries`): React
 renders the component after the function has returned, so the `catch` would never fire. Await the
 read into a variable inside the `try` and build the JSX after it.
+
+### `src/app/ausgabe/` — the distribution screen
+
+The screen that answers the question the counter asks first: which group collects (US-03.4).
+
+- **`deps.ts`** needs only `SettingsRepository` and `Clock`. A week colour is derived from the
+  calendar, never stored, so there is no repository of weeks to reach for.
+- **`page.tsx`** calls `getWeekColour` once for today and, when a date was submitted, once more for
+  that day. Both questions are the same use case; the page arranges the answers and decides nothing.
+- The **banner** is the dominant element and is painted in the colour it _names_ — on a day without a
+  distribution that is the **next** distribution's colour, which need not be the current week's. The
+  colour is always written out in words ("Gruppe Rot") as well as painted: several staff share one
+  screen in variable lighting, so colour alone is never the message.
+- The **lookup** is a plain `method="get"` form, so the looked-up day lands in `?datum=` and a colour
+  someone has checked can be reloaded or passed on as a URL. It needs no client component.
+- A lookup fails **on its own**: an unreadable date, or a day before FD had any settings, renders a
+  German sentence beside the form and leaves today's banner standing.
 
 ### `src/i18n/de.ts`
 

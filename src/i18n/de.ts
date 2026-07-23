@@ -16,6 +16,7 @@ export const de = {
     subheading:
       "Die Anwendung ist einsatzbereit. Die Fachfunktionen folgen in den nächsten Schritten.",
     settingsLink: "Einstellungen",
+    distributionLink: "Ausgabe: Welche Gruppe ist dran?",
     newCustomerLink: "Neue Kundin oder neuen Kunden aufnehmen",
   },
   customers: {
@@ -141,6 +142,43 @@ export const de = {
       reissue: "Karte neu ausstellen",
       reissueHint: "Die Neuausstellung folgt in einem späteren Schritt.",
       backToCustomer: "Zurück zur Kundenübersicht",
+    },
+  },
+  /** The distribution screen at /ausgabe — which group collects, today and in any other week. */
+  distribution: {
+    heading: "Ausgabe",
+    colours: {
+      RED: "Rot",
+      BLUE: "Blau",
+    },
+    /** The colour is always named in words; the banner's colour only repeats what the text says. */
+    group: (colour: string): string => `Gruppe ${colour}`,
+    banner: {
+      isDistributionDay: "Heute ist Ausgabe",
+      noDistributionDay: "Heute ist keine Ausgabe",
+      next: (date: string, colour: string): string => `Nächste Ausgabe: ${date}, Gruppe ${colour}`,
+      week: (isoWeek: string): string => `Kalenderwoche ${isoWeek}`,
+    },
+    lookup: {
+      heading: "Andere Woche nachschlagen",
+      hint: "Zeigt die Gruppe einer beliebigen vergangenen oder künftigen Woche.",
+      label: "Datum",
+      submit: "Nachschlagen",
+      reset: "Zurück zu heute",
+      result: (date: string, isoWeek: string, colour: string): string =>
+        `${date} (Kalenderwoche ${isoWeek}): Gruppe ${colour}`,
+      isDistributionDay: "An diesem Tag ist Ausgabe.",
+      nextDistribution: (date: string, colour: string): string =>
+        `Nächste Ausgabe ab diesem Tag: ${date}, Gruppe ${colour}`,
+    },
+    errors: {
+      notADate: "Bitte ein Datum im Format TT.MM.JJJJ auswählen.",
+      noSettings:
+        "Für dieses Datum sind keine Einstellungen hinterlegt. Bitte die Grundeinstellungen " +
+        "einspielen.",
+      invalidAnchor:
+        "Die Ankerwoche in den Einstellungen benennt keine Woche des Kalenders. Bitte die " +
+        "Einstellungen prüfen.",
     },
   },
   settings: {
