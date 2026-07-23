@@ -59,6 +59,23 @@ export class PrismaCardRepository implements CardRepository {
   }
 
   /**
+   * Every card the customer has been issued, highest index first — the one they hold, then the
+   * numbers it replaced. Superseded cards are kept rather than deleted, so an old card handed over
+   * at the counter can still be recognised (US-09).
+   */
+  async listCards(customerId: number): Promise<ReadonlyArray<IssuedCard>> {
+    const rows = await this.prisma.card.findMany({
+      where: { customerId },
+      orderBy: { index: "desc" },
+    });
+    return rows.map((row) => ({
+      index: row.index,
+      issuedAt: row.issuedAt,
+      reason: parseCardIssueReason(row.reason),
+    }));
+  }
+
+  /**
    * Write one card for a customer and hand it back as it was stored.
    *
    * @throws {CardIndexTaken} if a concurrent issue took the index first.

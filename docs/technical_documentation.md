@@ -73,7 +73,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   │   ├── registration-form.tsx  # client component: repeatable rows + live counts
 │   │   │   │   ├── actions.ts        # "use server": Zod → registerCustomer → redirect
 │   │   │   │   └── register-customer-state.ts  # form state (not exportable from actions.ts)
-│   │   │   └── [id]/page.tsx         # the card view a registration lands on
+│   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on
+│   │   │   └── [id]/karte/page.tsx   # the digital customer card (US-02.4)
 │   │   ├── einstellungen/            # the settings screen (US-14)
 │   │   │   ├── page.tsx              # server component: current values + version history
 │   │   │   ├── settings-form.tsx     # client component: the form and its save-result state
@@ -104,7 +105,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
 │   │   │                             #   CustomerRepository, CardRepository, AuditLog
 │   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
-│   │   │                             #   issueCard
+│   │   │                             #   readCard, issueCard
 │   │   └── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (implements Clock port)
@@ -116,7 +117,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │       ├── audit-log.ts          # PrismaAuditLog — append-only, no actor column
 │   │       ├── seed.ts               # provisional settings version, inserted only if none exists
 │   │       └── *.test.ts             # integration specs, throwaway SQLite file
-│   └── i18n/de.ts                    # single German UI-string dictionary
+│   ├── i18n/de.ts                    # single German UI-string dictionary
+│   └── i18n/format.ts                # German value formatting (germanDate) + its spec
 ├── tests/e2e/
 │   ├── home.spec.ts                  # Playwright smoke test
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
@@ -182,14 +184,14 @@ The interfaces the application layer depends on. Per the TDD approach, ports **e
 needs** rather than being designed up front. Type-only, so it adds no runtime code to the
 coverage-measured layers.
 
-| Port                 | Shape                                                       | Notes                                                                                                                   |
-| -------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `Clock`              | `now(): Date`                                               | The one seam to the wall clock.                                                                                         |
-| `SettingsRepository` | `listVersions()`, `append(version)`                         | No update/delete — policy history is append-only.                                                                       |
-| `CustomerCounter`    | `countActive()`                                             | The reality the quota `N` may not fall below.                                                                           |
-| `CustomerRepository` | `takenActiveNumbers()`, `groupCounts()`, `create(customer)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                              |
-| `CardRepository`     | `currentCard(customerId)`, `issue(customerId, card)`        | `currentCard` is the highest index — there is no `valid` flag to read; `issue` reports a lost race as `CardIndexTaken`. |
-| `AuditLog`           | `append(entry)`                                             | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                               |
+| Port                 | Shape                                                                         | Notes                                                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `Clock`              | `now(): Date`                                                                 | The one seam to the wall clock.                                                                                         |
+| `SettingsRepository` | `listVersions()`, `append(version)`                                           | No update/delete — policy history is append-only.                                                                       |
+| `CustomerCounter`    | `countActive()`                                                               | The reality the quota `N` may not fall below.                                                                           |
+| `CustomerRepository` | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                   | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                              |
+| `CardRepository`     | `currentCard(customerId)`, `listCards(customerId)`, `issue(customerId, card)` | `currentCard` is the highest index — there is no `valid` flag to read; `issue` reports a lost race as `CardIndexTaken`. |
+| `AuditLog`           | `append(entry)`                                                               | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                               |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
 
@@ -424,9 +426,17 @@ The two read-side use cases the customer screens sit on:
   `findLowestFreeNumber`, the total form of the rule, so a full register is `null` rather than a
   throw), the suggested group, both group sizes and the day to judge birthdates against. Read-only —
   it reserves nothing.
-- **`readCustomer`** answers what the card view shows: the customer plus everything derivable from
-  them, worked out here rather than in the page — the household counts from the birthdates and the
-  card number from the slot and the card index. It throws `CustomerNotFound` for an id nobody holds.
+- **`readCustomer`** answers what the customer overview shows: the customer plus everything
+  derivable from them, worked out here rather than in the page — the household counts from the
+  birthdates and the card number from the slot and the card index. It throws `CustomerNotFound` for
+  an id nobody holds.
+- **`readCard`** answers what the _card_ shows (US-02.4): the current card number, the name, the
+  group, the counts as of today, and the numbers this card replaced. It reads the customer's whole
+  run of cards in **one** `listCards` call and takes the head as the current card — asking twice,
+  once for the current card and once for the rest, would let two answers come from two moments. A
+  customer with no card at all is refused as an `InvalidCustomerRecord` rather than shown a card
+  without a number: registration writes the first card in the same transaction as the customer, so
+  an empty run can only come from a hand-edited database.
 
 `customerNumber.ts` therefore exports the rule in **two forms**: `findLowestFreeNumber` returning
 `number | null` for callers that only want to _show_ the next number, and `lowestFreeNumber` throwing
@@ -539,7 +549,14 @@ beyond it:
   registration into "could not be saved".
 - **`[id]/page.tsx`** renders what `readCustomer` already derived — the counts from the birthdates
   and the card number from the slot and the card index. A non-numeric id and an id nobody holds give
-  the same German answer: there is no such customer.
+  the same German answer: there is no such customer. It links on to the card view.
+- **`[id]/karte/page.tsx`** is the **digital customer card** (US-02.4): the number, the name, the
+  group as a coloured German label and the two counts, set large enough to read across a desk, plus
+  the numbers this card replaced and why each was issued. It is a screen, not a document — FD prints
+  through a system they already own, so there is deliberately **no print stylesheet and no PDF**.
+  The counts come from `readCard`, derived per request (`dynamic = "force-dynamic"`), so a birthday
+  can never leave a stale number on screen. The "Karte neu ausstellen" button is present but
+  disabled: FD expects the action here, and its behaviour is specified in US-09.
 
 ⚠️ **Dates cross the form boundary as UTC calendar days.** `<input type="date">` submits `YYYY-MM-DD`
 and the adapter pins it to `T00:00:00.000Z`, because the domain compares birthdates as UTC calendar
@@ -559,6 +576,14 @@ read into a variable inside the `try` and build the JSX after it.
 A single `const de = {…} as const` dictionary of German UI strings, plus the derived `Dictionary`
 type. All user-facing text lives here; **code identifiers stay English**. `layout.tsx` and
 `page.tsx` read from it, so there are no hard-coded strings in components.
+
+### `src/i18n/format.ts`
+
+The shapes values are written in for German-speaking staff, beside the dictionary that holds the
+words. `germanDate(date)` writes `TT.MM.JJJJ` and reads the date **in UTC**, because dates here are
+calendar days stored at midnight UTC — formatting in the server's zone would show the day before for
+anyone west of Greenwich. It lives here rather than in a page because it was copied into two of
+them, and two copies is how two screens start rendering the same date two ways.
 
 ---
 

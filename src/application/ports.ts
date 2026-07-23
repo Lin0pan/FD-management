@@ -71,6 +71,13 @@ export interface CustomerRepository {
 export interface CardRepository {
   /** The customer's highest-indexed card, or `null` if they hold none yet. */
   currentCard(customerId: number): Promise<IssuedCard | null>;
+  /**
+   * Every card the customer has ever been issued, **highest index first** — so the first element is
+   * the one they hold and the rest are the numbers it replaced. Ordering is the adapter's job
+   * because the database can do it in the query; a caller sorting it again would be a second, silent
+   * statement of which card is current.
+   */
+  listCards(customerId: number): Promise<ReadonlyArray<IssuedCard>>;
   /** Write one card for a customer, and hand it back as it was stored. */
   issue(customerId: number, card: IssuedCard): Promise<IssuedCard>;
 }

@@ -106,7 +106,7 @@ export const de = {
       unknown: "Die Aufnahme konnte nicht gespeichert werden.",
       notFound: "Diese Kundin oder dieser Kunde wurde nicht gefunden.",
     },
-    /** The card view a registration lands on. */
+    /** The customer overview a registration lands on. */
     card: {
       heading: "Kundenkarte",
       householdHeading: "Haushalt",
@@ -114,6 +114,33 @@ export const de = {
       validUntil: "gültig bis",
       registered: "Aufgenommen",
       backToHome: "Zur Startseite",
+      cardViewLink: "Kundenkarte anzeigen",
+    },
+    /** Why a card was handed over — the four reasons `CardIssueReason` names. */
+    cardReasons: {
+      FIRST_ISSUE: "Erstausstellung",
+      LOST: "Verlust",
+      STALE_COUNTS: "Geänderte Haushaltszahlen",
+      OTHER: "Sonstiger Grund",
+    },
+    /** The card view at /kunden/[id]/karte — what staff copy onto the physical card. */
+    cardView: {
+      heading: "Kundenkarte",
+      current:
+        "Dies ist die aktuell gültige Karte. Frühere Karten sind damit ungültig und dürfen an " +
+        "der Ausgabe nicht mehr angenommen werden.",
+      issuedAt: "Ausgestellt am",
+      issuedBecause: "Grund der Ausstellung",
+      supersededHeading: "Ersetzte Kartennummern",
+      supersededNone: "Diese Karte ist die erste des Haushalts und ersetzt keine frühere.",
+      // The reason belongs to the card named here — why *it* was handed over — not to its
+      // replacement, so it reads as a note on that line rather than as the cause of the reissue.
+      supersededEntry: (number: string, date: string, reason: string): string =>
+        `${number} — ausgestellt am ${date}, Grund: ${reason}`,
+      countsHint: "Erwachsene und Kinder werden bei jedem Aufruf aus den Geburtsdaten berechnet.",
+      reissue: "Karte neu ausstellen",
+      reissueHint: "Die Neuausstellung folgt in einem späteren Schritt.",
+      backToCustomer: "Zurück zur Kundenübersicht",
     },
   },
   settings: {

@@ -187,3 +187,30 @@ describe("PrismaCardRepository.currentCard", () => {
     await expect(repository.currentCard(customerId)).rejects.toBeInstanceOf(InvalidCustomerRecord);
   });
 });
+
+describe("PrismaCardRepository.listCards", () => {
+  it("hands back the whole run highest index first, so the head is the current card", async () => {
+    const customerId = await insertCustomer(50);
+    await repository.issue(customerId, { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" });
+    await repository.issue(customerId, { index: 2, issuedAt: LATER, reason: "LOST" });
+
+    const cards = await repository.listCards(customerId);
+
+    expect(cards.map((card) => card.index)).toEqual([2, 1]);
+    expect(cards[0].reason).toBe("LOST");
+  });
+
+  it("lists only the cards of the customer asked about", async () => {
+    const one = await insertCustomer(50);
+    const other = await insertCustomer(51);
+    await repository.issue(one, { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" });
+    await repository.issue(other, { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" });
+    await repository.issue(other, { index: 2, issuedAt: LATER, reason: "LOST" });
+
+    expect(await repository.listCards(one)).toHaveLength(1);
+  });
+
+  it("answers with nothing for a customer id nobody holds", async () => {
+    expect(await repository.listCards(404)).toEqual([]);
+  });
+});

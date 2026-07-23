@@ -14,6 +14,7 @@ import {
   CustomerArchived,
   CustomerNumberTaken,
   EmptyHousehold,
+  InvalidCustomerRecord,
   MissingRequiredField,
   CustomerNotFound,
   NoFreeCustomerNumber,
@@ -30,6 +31,7 @@ import type {
 } from "../ports";
 import { issueCard } from "./issue-card";
 import { proposeRegistration } from "./propose-registration";
+import { readCard } from "./read-card";
 import { readCustomer } from "./read-customer";
 import { registerCustomer, type RegisterCustomerInput } from "./register-customer";
 
@@ -141,6 +143,12 @@ class FakeCardRepository implements CardRepository {
       null,
     );
     return Promise.resolve(highest);
+  }
+
+  listCards(customerId: number): Promise<ReadonlyArray<IssuedCard>> {
+    // Highest index first, like the adapter's `orderBy`, and deliberately not insertion order — a
+    // card placed into a gap must still come back below the one that supersedes it.
+    return Promise.resolve([...this.cardsOf(customerId)].sort((a, b) => b.index - a.index));
   }
 
   issue(customerId: number, card: IssuedCard): Promise<IssuedCard> {
@@ -635,5 +643,130 @@ describe("readCustomer", () => {
 
   it("refuses an id that belongs to nobody rather than showing an empty card", async () => {
     await expect(readCustomer(deps(), 404)).rejects.toThrow(CustomerNotFound);
+  });
+});
+
+describe("readCard", () => {
+  let customers: FakeCustomerRepository;
+  let cards: FakeCardRepository;
+  let settings: FakeSettingsRepository;
+  let audit: FakeAuditLog;
+
+  function deps(today = TODAY) {
+    return { customers, cards, clock: fakeClock(today), audit };
+  }
+
+  function registerDeps(today = TODAY) {
+    return { customers, settings, clock: fakeClock(today), audit };
+  }
+
+  /**
+   * Register a customer and put their first card in the card store.
+   *
+   * `registerCustomer` writes customer and card in one transaction through the customer repository
+   * (US-01.4), so the card never passes through `FakeCardRepository` — the fake has to be told, or
+   * the two halves of the fake database disagree in a way the real one cannot.
+   */
+  async function registered(
+    overrides: Partial<RegisterCustomerInput> = {},
+  ): Promise<RegisteredCustomer> {
+    const customer = await registerCustomer(registerDeps(), registerInput(overrides));
+    cards.place(customer.id, customer.card.index);
+    return customer;
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository();
+    cards = new FakeCardRepository();
+    settings = new FakeSettingsRepository(version());
+    audit = new FakeAuditLog();
+  });
+
+  it("shows the number of the card the customer holds today", async () => {
+    const customer = await registered();
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.cardNumber).toBe("1k1");
+  });
+
+  it("shows the highest-indexed card as the current one after a reissue", async () => {
+    const customer = await registered();
+    await issueCard(deps(), { customerId: customer.id, reason: "LOST" });
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.cardNumber).toBe("1k2");
+    expect(view.card.reason).toBe("LOST");
+  });
+
+  it("names the numbers the current card replaced, newest first", async () => {
+    const customer = await registered();
+    await issueCard(deps(), { customerId: customer.id, reason: "LOST" });
+    await issueCard(deps(), { customerId: customer.id, reason: "STALE_COUNTS" });
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.superseded.map((entry) => entry.number)).toEqual(["1k2", "1k1"]);
+  });
+
+  it("keeps the reason a superseded card was issued for, which its number cannot say", async () => {
+    const customer = await registered();
+    await issueCard(deps(), { customerId: customer.id, reason: "LOST" });
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.superseded[0].card.reason).toBe("FIRST_ISSUE");
+  });
+
+  it("replaces nothing when the household is on its first card", async () => {
+    const customer = await registered();
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.superseded).toEqual([]);
+  });
+
+  it("derives the household counts from the birthdates rather than a stored number", async () => {
+    const customer = await registered({
+      householdMembers: [
+        member({ birthDate: new Date("1990-04-05T00:00:00.000Z") }),
+        member({ birthDate: new Date("2020-06-01T00:00:00.000Z") }),
+      ],
+    });
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.composition).toEqual({ grownUps: 1, children: 1 });
+  });
+
+  it("counts a member who turned 13 since the card was issued as a grown-up", async () => {
+    const customer = await registered({
+      householdMembers: [member({ birthDate: new Date("2013-08-01T00:00:00.000Z") })],
+    });
+
+    const view = await readCard(deps("2026-08-01T09:00:00.000Z"), customer.id);
+
+    expect(view.composition).toEqual({ grownUps: 1, children: 0 });
+  });
+
+  it("carries the name and the group the card is printed with", async () => {
+    const customer = await registered({ firstName: "Mira", lastName: "Aalto", group: "BLUE" });
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.firstName).toBe("Mira");
+    expect(view.lastName).toBe("Aalto");
+    expect(view.group).toBe("BLUE");
+  });
+
+  it("refuses an id that belongs to nobody rather than showing an empty card", async () => {
+    await expect(readCard(deps(), 404)).rejects.toThrow(CustomerNotFound);
+  });
+
+  it("refuses a customer with no card on file rather than inventing a number", async () => {
+    const customer = await registerCustomer(registerDeps(), registerInput());
+
+    await expect(readCard(deps(), customer.id)).rejects.toThrow(InvalidCustomerRecord);
   });
 });

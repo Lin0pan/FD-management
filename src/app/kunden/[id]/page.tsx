@@ -10,17 +10,11 @@ import Link from "next/link";
 import { readCustomer, type CustomerCardView } from "@/application/customers/read-customer";
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
+import { germanDate } from "@/i18n/format";
 import { customerDeps } from "../deps";
 
 /** The card shows data the registration form writes, so it must never be served from a cache. */
 export const dynamic = "force-dynamic";
-
-/** Dates are shown to staff the German way; nobody here should have to read an ISO timestamp. */
-function germanDate(date: Date): string {
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  return `${day}.${month}.${date.getUTCFullYear()}`;
-}
 
 function Field({ label, value }: { label: string; value: string }): React.ReactElement {
   return (
@@ -127,9 +121,18 @@ function CustomerCard({ view }: { view: CustomerCardView }): React.ReactElement 
         </section>
       )}
 
-      <Link href="/" className="underline underline-offset-4">
-        {de.customers.card.backToHome}
-      </Link>
+      <div className="flex flex-wrap gap-6">
+        <Link
+          href={`/kunden/${customer.id}/karte`}
+          className="underline underline-offset-4"
+          data-testid="card-view-link"
+        >
+          {de.customers.card.cardViewLink}
+        </Link>
+        <Link href="/" className="underline underline-offset-4">
+          {de.customers.card.backToHome}
+        </Link>
+      </div>
     </main>
   );
 }
