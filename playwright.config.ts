@@ -13,7 +13,13 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  fullyParallel: true,
+  // Every spec runs against the *same* SQLite file, and several of them write to it: registering a
+  // customer consumes a customer number, the settings specs append a version. Two workers would
+  // interleave those writes and each spec would assert against a register the other one moved, so
+  // the suite is deliberately serial — it is seconds long, and a flaky gate is worth less than a
+  // slow one.
+  fullyParallel: false,
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? [["html", { open: "never" }], ["list"]] : "list",

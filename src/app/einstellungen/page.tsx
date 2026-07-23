@@ -13,18 +13,12 @@ import { DomainError } from "@/domain/errors";
 import { formatEuros } from "@/domain/money";
 import type { Settings, SettingsVersion } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
+import { germanDate } from "@/i18n/format";
 import { settingsDeps } from "./deps";
 import { SettingsForm } from "./settings-form";
 
 /** Settings change through the form, so the page must never be served from a build-time cache. */
 export const dynamic = "force-dynamic";
-
-/** Dates are shown to staff the German way; nobody here should have to read an ISO timestamp. */
-function germanDate(date: Date): string {
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  return `${day}.${month}.${date.getUTCFullYear()}`;
-}
 
 function VersionHistory({
   versions,

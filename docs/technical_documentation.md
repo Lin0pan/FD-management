@@ -73,7 +73,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   │   ├── registration-form.tsx  # client component: repeatable rows + live counts
 │   │   │   │   ├── actions.ts        # "use server": Zod → registerCustomer → redirect
 │   │   │   │   └── register-customer-state.ts  # form state (not exportable from actions.ts)
-│   │   │   └── [id]/page.tsx         # the card view a registration lands on
+│   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on
+│   │   │   └── [id]/karte/page.tsx   # the digital customer card (US-02.4)
 │   │   ├── einstellungen/            # the settings screen (US-14)
 │   │   │   ├── page.tsx              # server component: current values + version history
 │   │   │   ├── settings-form.tsx     # client component: the form and its save-result state
@@ -95,12 +96,16 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customer/group.test.ts     # its Vitest spec
 │   │   ├── customer/customer.ts       # the customer record, validated on construction
 │   │   ├── customer/customer.test.ts  # its Vitest spec
+│   │   ├── card/card.ts              # what an issued card is + why it was issued
+│   │   ├── card/card.test.ts         # its Vitest spec
 │   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
+│   │   ├── card/cardNumber.test.ts   # its Vitest spec
 │   │   ├── distribution/             # empty, reserved by the architecture
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
-│   │   │                             #   CustomerRepository, AuditLog
-│   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer
+│   │   │                             #   CustomerRepository, CardRepository, AuditLog
+│   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
+│   │   │                             #   readCard, issueCard
 │   │   └── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (implements Clock port)
@@ -108,11 +113,14 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │       ├── client.ts             # the process-wide PrismaClient
 │   │       ├── settings-repository.ts  # PrismaSettingsRepository (implements the port)
 │   │       ├── customer-repository.ts  # PrismaCustomerRepository + PrismaCustomerCounter
+│   │       ├── card-repository.ts    # PrismaCardRepository — the (customer, index) constraint
 │   │       ├── audit-log.ts          # PrismaAuditLog — append-only, no actor column
 │   │       ├── seed.ts               # provisional settings version, inserted only if none exists
 │   │       └── *.test.ts             # integration specs, throwaway SQLite file
-│   └── i18n/de.ts                    # single German UI-string dictionary
+│   ├── i18n/de.ts                    # single German UI-string dictionary
+│   └── i18n/format.ts                # German value formatting (germanDate) + its spec
 ├── tests/e2e/
+│   ├── card.spec.ts                  # registration issues k1 and the card view shows it
 │   ├── home.spec.ts                  # Playwright smoke test
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
 │   └── settings.spec.ts              # settings round-trip vs. the built app
@@ -177,13 +185,14 @@ The interfaces the application layer depends on. Per the TDD approach, ports **e
 needs** rather than being designed up front. Type-only, so it adds no runtime code to the
 coverage-measured layers.
 
-| Port                 | Shape                                                       | Notes                                                                                      |
-| -------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `Clock`              | `now(): Date`                                               | The one seam to the wall clock.                                                            |
-| `SettingsRepository` | `listVersions()`, `append(version)`                         | No update/delete — policy history is append-only.                                          |
-| `CustomerCounter`    | `countActive()`                                             | The reality the quota `N` may not fall below.                                              |
-| `CustomerRepository` | `takenActiveNumbers()`, `groupCounts()`, `create(customer)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`. |
-| `AuditLog`           | `append(entry)`                                             | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                  |
+| Port                 | Shape                                                                         | Notes                                                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `Clock`              | `now(): Date`                                                                 | The one seam to the wall clock.                                                                                         |
+| `SettingsRepository` | `listVersions()`, `append(version)`                                           | No update/delete — policy history is append-only.                                                                       |
+| `CustomerCounter`    | `countActive()`                                                               | The reality the quota `N` may not fall below.                                                                           |
+| `CustomerRepository` | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                   | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                              |
+| `CardRepository`     | `currentCard(customerId)`, `listCards(customerId)`, `issue(customerId, card)` | `currentCard` is the highest index — there is no `valid` flag to read; `issue` reports a lost race as `CardIndexTaken`. |
+| `AuditLog`           | `append(entry)`                                                               | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                               |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
 
@@ -217,7 +226,9 @@ settable fake clock can drive deterministic tests.
 The `DomainErrorCode` union — the closed set of failure modes — plus an abstract `DomainError` base
 class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
 `QuotaBelowActiveCustomers`, `MissingAuditReason`, `EmptyHousehold`, `BirthDateInFuture`,
-`NoFreeCustomerNumber`, `CustomerNumberTaken`, `MissingRequiredField`, `InvalidEuroAmount` today).
+`NoFreeCustomerNumber`, `CustomerNumberTaken`, `CustomerNotFound`, `CustomerArchived`,
+`InvalidCustomerRecord`, `MissingRequiredField`, `InvalidCardNumber`, `CardIndexTaken`,
+`InvalidEuroAmount` today).
 Each carries the values that made it fail, so the UI can render a
 German message naming concrete numbers without re-deriving them, and callers switch on `code`
 instead of parsing strings.
@@ -313,6 +324,53 @@ only identity there is: a customer number is a slot another household may hold o
 archived. `CustomerStatus` is `ACTIVE | BLOCKED | ARCHIVED`; a blocked customer still holds their
 slot (US-08), an archived one releases it (US-10).
 
+### `src/domain/card/card.ts`
+
+What an issued card _is_: `IssuedCard` = `index` + `issuedAt` + `reason`, and `CardIssueReason` =
+`FIRST_ISSUE | LOST | STALE_COUNTS | OTHER`. `parseCardIssueReason(value)` reads a stored reason word
+back — SQLite has no enum type, so the word is checked rather than trusted, exactly as `group` and
+`status` are, and an unknown one raises `InvalidCustomerRecord` instead of quietly becoming `OTHER`.
+
+It is the **one** shape of a card in the system: `NewCustomer.card` is an `IssuedCard` too, so the
+card written with a registration and the card written by `issueCard` cannot drift into two row
+shapes.
+
+There is deliberately **no `valid` flag**. A card is current _because_ it carries the highest index
+the customer has been issued (FR-4), so validity cannot drift away from the cards that actually
+exist — the same argument that keeps the household counts derived. The reason is a closed set rather
+than free text because the audit log is read by people who did not make the change, and four words
+they can scan tell them more than a sentence typed to get past a form.
+
+### `src/domain/card/cardNumber.ts`
+
+The card number staff read out at the counter, `<customer number>k<index>` — `12k1` is the first
+card of customer 12 and `12k2` the one issued after they lost it (US-09). It is **derived, never
+stored**: the string is the customer's slot and the index of the card they hold, so persisting it
+would give the same fact two homes and every reissue would have to keep them in step — the mistake
+the Excel sheet made with the household counts.
+
+`formatCardNumber(customerNumber, index)` writes it and validates nothing: both arguments come off a
+persisted card the register already guarantees is a positive whole number, so a check here would only
+be an unreachable branch. `nextCardNumber(card)` gives the number that replaces one, same customer
+and index + 1. Issuing it invalidates every earlier card as a consequence, because validity is
+_being the highest index_ rather than a flag somebody has to remember to clear (FR-4); the function
+says only what the next index is, and deciding a card is due belongs to the application layer, which
+is the only one that knows the highest issued index.
+
+`parseCardNumber(text)` reads a typed number back and is where the strictness lives. It is forgiving
+where forgiveness cannot change which card is meant — an uppercase `K` and surrounding whitespace,
+both of which someone copying a number off a card produces — and strict where it can: a **leading
+zero is rejected**, because reading `050k3` as customer 50 would teach staff that padding carries
+meaning when the register never pads, and the two forms would then drift apart on screen. Customer
+number 0 and index 0 are refused for the reason neither is ever written: counting starts at 1.
+Anything else raises `InvalidCardNumber` carrying the text as entered, so the counter screen can
+quote back what was typed — a mistyped `50l3` and an unknown-but-well-formed `50k9` are different
+problems for staff, and only the first is this error.
+
+Card numbers are **not unique across the archive**: slot 50 can be reassigned once a household is
+archived, so `50k1` may name a different person later (FR-6). Nothing keys a row or a foreign key by
+a card number.
+
 ### `src/application/customers/registerCustomer`
 
 The one use case that turns a filled-in form into a customer: it reads the clock **once**, builds
@@ -334,6 +392,33 @@ The audit entry is written under `customer.registered` with an empty `why` — a
 justification — and names `customerNumber`, `group`, `status` and `card`: what the _system_ decided,
 rather than repeating the fields staff typed, which are the record itself.
 
+### `src/application/customers/issueCard`
+
+The **single path by which any card comes into existence**. First issue (US-02), a replacement for a
+lost card (US-09) and a replacement whose printed counts a birthday has overtaken (US-13) differ only
+in the reason they record, so they are one use case with a different `reason` rather than three code
+paths that could drift apart.
+
+`issueCard(deps, { customerId, reason })` reads the clock once — the card's date and the audit
+entry's instant are the same event — loads the customer (`CustomerNotFound` for an id nobody holds),
+refuses an archived one (`CustomerArchived`, because their slot may already be another household's,
+FR-6) but serves a **blocked** one, since a block turns a customer away at the counter without
+unregistering them (US-08). The new index is `currentCard(customerId)` + 1, asked of
+`nextCardNumber` so "the next card is the next index" is stated once, or 1 when the customer holds
+none yet. Reading the _highest_ index rather than counting rows is what makes a gap in the run
+harmless.
+
+Earlier cards are left on record: the history is how a reissue is explained, and every one of them is
+invalid by the only definition there is — not being the highest. The audit entry goes under
+`customer.card.issued`, names `card` as the changed field, and carries the reason as its `why`: it
+was chosen by a human from a closed set, and a sentence beside it would say the same thing less
+legibly months later.
+
+The registration card is still written inside `customers.create(…)` rather than through this use
+case, because the customer and their first card must land in **one transaction** (US-01.4) and a
+second write could not. It records `FIRST_ISSUE` on the same `IssuedCard` shape this use case writes,
+so the two paths differ only in the transaction they belong to.
+
 ### `src/application/customers/proposeRegistration` and `readCustomer`
 
 The two read-side use cases the customer screens sit on:
@@ -342,9 +427,17 @@ The two read-side use cases the customer screens sit on:
   `findLowestFreeNumber`, the total form of the rule, so a full register is `null` rather than a
   throw), the suggested group, both group sizes and the day to judge birthdates against. Read-only —
   it reserves nothing.
-- **`readCustomer`** answers what the card view shows: the customer plus everything derivable from
-  them, worked out here rather than in the page — the household counts from the birthdates and the
-  card number from the slot and the card index. It throws `CustomerNotFound` for an id nobody holds.
+- **`readCustomer`** answers what the customer overview shows: the customer plus everything
+  derivable from them, worked out here rather than in the page — the household counts from the
+  birthdates and the card number from the slot and the card index. It throws `CustomerNotFound` for
+  an id nobody holds.
+- **`readCard`** answers what the _card_ shows (US-02.4): the current card number, the name, the
+  group, the counts as of today, and the numbers this card replaced. It reads the customer's whole
+  run of cards in **one** `listCards` call and takes the head as the current card — asking twice,
+  once for the current card and once for the rest, would let two answers come from two moments. A
+  customer with no card at all is refused as an `InvalidCustomerRecord` rather than shown a card
+  without a number: registration writes the first card in the same transaction as the customer, so
+  an empty run can only come from a hand-edited database.
 
 `customerNumber.ts` therefore exports the rule in **two forms**: `findLowestFreeNumber` returning
 `number | null` for callers that only want to _show_ the next number, and `lowestFreeNumber` throwing
@@ -386,6 +479,25 @@ CREATE UNIQUE INDEX "Customer_customerNumber_onRegister_key"
 It is the final authority on a free number: the application reads the taken numbers and then writes,
 and only the database can settle the race in between. **Regenerating the migration drops it** — re-add
 it, or the slot rule is enforced by application code alone.
+
+### `src/infrastructure/prisma/card-repository.ts`
+
+`PrismaCardRepository` (the `CardRepository` port). It stores cards and reads them back and decides
+nothing: `currentCard(customerId)` is the highest-indexed row, because that _is_ what valid means
+(FR-4), and there is no flag to set when a replacement supersedes it. An unknown customer id answers
+`null` like a customer who simply holds no card — whether the household exists is the use case's
+question, asked once of the customer register.
+
+`issue` translates a `P2002` naming `index` into the domain's `CardIndexTaken`. The constraint behind
+it is `@@unique([customerId, index])`, and it is what makes "exactly one valid card" (FR-3) true
+under two simultaneous issues: if both writes landed, two cards would share the highest index and
+neither would be the current one. The constraint is per **customer id**, deliberately not per card
+number: slot 50 is reassigned when a household is archived, so two customers may each legitimately
+hold `50k1` (FR-6).
+
+The `Card.reason` column is the one thing a superseded card's index cannot say — why the household
+needed another one. It is a plain string, narrowed back through `parseCardIssueReason` on the way
+out.
 
 ### `src/app/einstellungen/` — the settings screen
 
@@ -438,7 +550,14 @@ beyond it:
   registration into "could not be saved".
 - **`[id]/page.tsx`** renders what `readCustomer` already derived — the counts from the birthdates
   and the card number from the slot and the card index. A non-numeric id and an id nobody holds give
-  the same German answer: there is no such customer.
+  the same German answer: there is no such customer. It links on to the card view.
+- **`[id]/karte/page.tsx`** is the **digital customer card** (US-02.4): the number, the name, the
+  group as a coloured German label and the two counts, set large enough to read across a desk, plus
+  the numbers this card replaced and why each was issued. It is a screen, not a document — FD prints
+  through a system they already own, so there is deliberately **no print stylesheet and no PDF**.
+  The counts come from `readCard`, derived per request (`dynamic = "force-dynamic"`), so a birthday
+  can never leave a stale number on screen. The "Karte neu ausstellen" button is present but
+  disabled: FD expects the action here, and its behaviour is specified in US-09.
 
 ⚠️ **Dates cross the form boundary as UTC calendar days.** `<input type="date">` submits `YYYY-MM-DD`
 and the adapter pins it to `T00:00:00.000Z`, because the domain compares birthdates as UTC calendar
@@ -458,6 +577,14 @@ read into a variable inside the `try` and build the JSX after it.
 A single `const de = {…} as const` dictionary of German UI strings, plus the derived `Dictionary`
 type. All user-facing text lives here; **code identifiers stay English**. `layout.tsx` and
 `page.tsx` read from it, so there are no hard-coded strings in components.
+
+### `src/i18n/format.ts`
+
+The shapes values are written in for German-speaking staff, beside the dictionary that holds the
+words. `germanDate(date)` writes `TT.MM.JJJJ` and reads the date **in UTC**, because dates here are
+calendar days stored at midnight UTC — formatting in the server's zone would show the day before for
+anyone west of Greenwich. It lives here rather than in a page because it was copied into two of
+them, and two copies is how two screens start rendering the same date two ways.
 
 ---
 
@@ -553,6 +680,12 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
 ### End-to-end — Playwright (`playwright.config.ts`)
 
 - `testDir: tests/e2e`; runs Chromium against the **built** app.
+- **`workers: 1`, `fullyParallel: false`.** Every spec shares the one `data/e2e.db`, and several of
+  them write to it — a registration consumes a customer number, a settings save appends a version.
+  Two workers would interleave those writes and each spec would assert against a register the other
+  one had moved. The suite runs in a few seconds; a flaky gate is worth less than a slow one. The
+  consequence for a new spec: **never name a customer number outright** — read the one the screen
+  proposes, or inserting a spec file alphabetically above another one breaks it.
 - `webServer` **deletes `data/e2e.db`**, then runs `npx prisma migrate deploy && npm run db:seed &&
 npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` is on locally, off
   in CI. The delete matters locally: the settings specs edit the seeded price and then assert the
@@ -564,11 +697,17 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   **serially** against the one shared database, each building on the price the previous one saved.
 - `registration.spec.ts` covers US-01 end to end: a two-person household is registered from
   `/kunden/neu` (proposed number, the mirrored first household row, the counts updating live to
-  1 grown-up / 1 child), lands on its card (`1k1`, status _aktiv_, both members listed), and an
-  empty household is refused in German while consuming no customer number. It is **serial** too —
-  the specs share the customer-number sequence in `data/e2e.db`, and the rejection asserts against
-  the number the happy path left free. Names and addresses come from Faker with a fixed seed; every
-  date is a literal, because the rules under test are about dates.
+  1 grown-up / 1 child), lands on its overview (`<n>k1`, status _aktiv_, both members listed), and
+  an empty household is refused in German while consuming no customer number. It is **serial** too,
+  and the rejection asserts against the successor of the number the happy path consumed rather than
+  against a literal. Names and addresses come from Faker with a fixed seed; every date is a literal,
+  because the rules under test are about dates.
+- `card.spec.ts` covers US-02 end to end (§US-02.5): a three-person household is registered, the
+  overview's card link is followed to `/kunden/[id]/karte`, and the card is asserted to match
+  `^[0-9]+k1$` — the number the form proposed plus `k1` — with the name and group as entered, the
+  counts derived again on that request (2 grown-ups / 1 child) and no superseded numbers. It is the
+  only proof that the number the form proposed, the card the registration transaction wrote and the
+  card the view renders are the same card.
 - The distribution-day flows are added alongside the features they cover.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a

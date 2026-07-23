@@ -11,6 +11,7 @@
  * The module is pure: `today` is a parameter, and nothing here knows how a customer is stored.
  */
 
+import type { IssuedCard } from "../card/card";
 import { InvalidCustomerRecord, MissingRequiredField } from "../errors";
 import type { Group } from "./group";
 import { composition, type HouseholdMember } from "./householdComposition";
@@ -83,13 +84,6 @@ export interface CustomerDetails extends CustomerDetailsInput {
   readonly householdMembers: ReadonlyArray<HouseholdMemberDetails>;
 }
 
-/** The first card of a customer, issued with the registration itself (US-02). */
-export interface CustomerCard {
-  /** 1 for the card handed over at registration; a reissue after a loss counts on (US-09). */
-  readonly index: number;
-  readonly issuedAt: Date;
-}
-
 /** A customer about to be written: the typed details plus everything registration decided. */
 export interface NewCustomer {
   readonly details: CustomerDetails;
@@ -97,7 +91,13 @@ export interface NewCustomer {
   readonly group: Group;
   readonly status: CustomerStatus;
   readonly reminderCount: number;
-  readonly card: CustomerCard;
+  /**
+   * The card the customer currently holds — index 1 for the one handed over with the registration,
+   * counting on with every reissue (US-09). It is an {@link IssuedCard} like any other: a card
+   * written with a registration and a card written by `issueCard` are the same thing, and two shapes
+   * would let the two paths drift apart.
+   */
+  readonly card: IssuedCard;
 }
 
 /**

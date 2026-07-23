@@ -88,7 +88,7 @@ function newCustomer(overrides: Partial<Omit<NewCustomer, "details">> = {}): New
     group: "RED",
     status: "ACTIVE",
     reminderCount: 0,
-    card: { index: 1, issuedAt: TODAY },
+    card: { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" },
     ...overrides,
   };
 }
@@ -138,6 +138,7 @@ describe("PrismaCustomerRepository.create", () => {
     expect(row.cards).toHaveLength(1);
     expect(row.cards[0].index).toBe(1);
     expect(row.cards[0].issuedAt).toEqual(TODAY);
+    expect(row.cards[0].reason).toBe("FIRST_ISSUE");
   });
 
   it("returns the customer with the surrogate id the database assigned", async () => {
@@ -256,6 +257,7 @@ describe("PrismaCustomerRepository.findById", () => {
     expect(found?.details.householdMembers).toHaveLength(2);
     expect(found?.details.certificate.type).toBe(written.details.certificate.type);
     expect(found?.card.index).toBe(1);
+    expect(found?.card.reason).toBe("FIRST_ISSUE");
   });
 
   it("narrows the stored group and status strings back into the domain's types", async () => {
@@ -280,7 +282,7 @@ describe("PrismaCustomerRepository.findById", () => {
   it("reports the highest card index, so a reissued card supersedes the first", async () => {
     const created = await repository.create(newCustomer());
     await prisma.card.create({
-      data: { customerId: created.id, index: 2, issuedAt: TODAY },
+      data: { customerId: created.id, index: 2, issuedAt: TODAY, reason: "LOST" },
     });
 
     expect((await repository.findById(created.id))?.card.index).toBe(2);

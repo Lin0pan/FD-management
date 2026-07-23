@@ -1,358 +1,295 @@
 # Ralph Progress Log
-Started: Wed Jul 22 19:16:11 CEST 2026
+Started: Thu Jul 23 11:26:53 CEST 2026
 ---
 
 ## Codebase Patterns
-(Carried forward from the US-14 batch, archived at
-`scripts/ralph/archive/2026-07-22-us-14-configure-business-rules/progress.txt` — read that file for
-the full story-by-story history.)
-
-- Typed domain errors live in `src/domain/errors.ts`: extend the abstract `DomainError` base class,
-  declare `readonly code` from the `DomainErrorCode` union, and carry the offending values as
-  fields. Never `throw new Error("…")`. Add the new kind to the union when adding a class.
-- Domain modules are validated-on-construction: a `createX(input)` factory throws naming the field,
-  so no partially-valid object can exist. Prefer this over scattering checks at call sites.
-- Coverage on `src/domain` + `src/application` is gated at 100% including **branches**. A
-  short-circuiting guard needs a test per operand — budget one test per clause or the gate fails.
-- Use a type guard (`function isX(v: number): v is X`) rather than an `as` cast to narrow a
-  validated primitive into a literal-union type — the repo standard forbids `any` and `!`.
-- Test helpers take a `Partial<Input>` overrides object over a valid baseline, so each test names
-  exactly the one rule it is about (see `settings.test.ts`).
-- Use cases live in `src/application/<area>/<verb-noun>.ts`, one per business action, each taking a
-  `Deps` object of ports as its first argument and its `Input` as the second. Ports are declared in
-  `src/application/ports.ts` and stay type-only.
-- Application tests keep their hand-written fakes **inside the test file** — a separate `fakes.ts`
-  under `src/application/` would be pulled into the 100% coverage gate.
-- Every state change appends an `AuditEntry` (`what` / `changedFields` / `when` / `why`, never an
-  actor); `when` comes from `clock.now()`, not from any business date in the input.
-- Run `npx prettier --write <paths>` before `npm run lint`; the pre-commit hook formats anyway, but
-  it rewrites files mid-run otherwise.
-- Local quality gate: `npm run lint && npm run typecheck && npm run test:coverage && npm run build`.
-- Infrastructure adapters live in `src/infrastructure/prisma/<thing>-repository.ts` and implement a
-  port from `src/application/ports.ts`. Rows re-enter the domain through the `createX` factory, so a
-  hand-edited database cannot bypass an invariant.
-- Integration tests migrate a **throwaway** SQLite file: `mkdtempSync` + `execFileSync("npx",
-  ["prisma","migrate","deploy"], { env: { ...process.env, DATABASE_URL: url } })` in `beforeAll`
-  (60s timeout), `new PrismaClient({ datasourceUrl: url })`, `rmSync` in `afterAll`. Use an
-  **absolute** `file:` path — the generated client resolves relative paths against the cwd, while
-  the CLI resolves them against `prisma/`.
-- SQLite has no enum type: store a union as `String` and narrow it back with a domain parser
-  (`parseWeekColour`). Parsing belongs in the domain, not the adapter.
-- A `"use server"` module may export **nothing but async functions** — every export becomes a
-  callable server endpoint. Put form-state objects and types in a sibling module. `npm run build`
-  does **not** catch this; it fails at page load, so a route needs an actual browser/E2E hit.
-- A route directory carries its own `deps.ts` composition root — the one place real adapters are
-  chosen. The page hands that object to a use case and does nothing else with it.
-- German text for a rejected field comes from a keyed map in `src/i18n/de.ts` (e.g.
-  `de.settings.errorFields`), keyed by the `field` string the domain error carries.
-- Server components that read data changed through a form need `export const dynamic =
-  "force-dynamic"`, or Next prerenders them at build time and the screen shows stale values.
-- Playwright specs live in `tests/e2e/*.spec.ts`, may import `@/…`, and take their expected text
-  from `src/i18n/de.ts` rather than hard-coding German. Specs sharing `data/e2e.db` must declare
-  `test.describe.configure({ mode: "serial" })`. Address form fields by `id`, not `getByLabel`.
-- **No browser MCP tooling is configured.** For a UI story, verify with a throwaway Playwright run
-  against the built app plus a curl of the rendered HTML — that is what caught the `"use server"`
-  export bug four green gates missed.
-- **Faker is a devDependency** as of US-004 (`@faker-js/faker`). Call `faker.seed(…)` once at the top
-  of a spec so a failure is reproducible, and keep fixed dates literal — only names and addresses
-  come from Faker.
-- Prisma cannot express a **partial/filtered unique index**. Where one is needed, hand-write the
-  `CREATE UNIQUE INDEX … WHERE …` at the end of the migration SQL and say so in a `schema.prisma`
-  comment — regenerating the migration silently drops it. Pre-release the whole history is
-  regenerated (`rm -rf prisma/migrations` + `prisma migrate dev --name init --create-only`), which is
-  exactly when that happens. `migrate dev` is interactive: delete `data/fd.db` first or it stops.
-- A **nested Prisma `create`** (customer + members + certificate + card in one `data`) is already one
-  transaction — no `$transaction` wrapper needed for "all or nothing".
-- Translate a Prisma `P2002` into the matching typed domain error in the adapter, checking the
-  constraint target so a *different* future constraint surfaces as itself rather than as a lie.
-- **Check `git status` before starting a story.** A killed iteration leaves finished but uncommitted
-  work behind while `prd.json` still reads `passes: false`. Review the diff before writing anything.
-- `eslint`'s `react-hooks/error-boundaries` forbids constructing JSX inside a `try` — the `catch`
-  could never fire, because React renders after the function returned. Await into a variable inside
-  the `try`, build the JSX after it. Only lint catches this, not `npm run build`.
-- Next 16 gives a dynamic route its `params` as a **`Promise`** — `await` it in the page.
-- Where a screen must render whether or not a rule succeeds, give the rule a **total** form beside
-  the throwing one (`findLowestFreeNumber` / `lowestFreeNumber`) and write the throwing one in terms
-  of it — two entry points, one statement of the rule.
-- Dates cross the form boundary as **UTC calendar days**: `<input type="date">` gives `YYYY-MM-DD`
-  and the adapter pins it to `T00:00:00.000Z`, matching how the domain compares birthdates. Parsing
-  in local time lands a date typed in Germany on the day before.
-- An E2E spec whose data lives in the shared `data/e2e.db` must be **serial** and must not assume a
-  clean register: it shares the customer-number sequence with every other spec in the file. Read the
-  proposed number off the screen and assert relative to it rather than hard-coding an id, and prove
-  "nothing was written" by reloading the form and seeing the same number still free.
-- A record that the domain owns is built by a `createX(input, today)` factory in `src/domain/…`; the
-  use case above it never validates fields itself. Where a rule already derives something
-  (`composition`), call it for its **rejections** and discard the result rather than adding a second
-  check — one place states the rule.
+- **Check the working tree and `origin/main` before starting.** This batch began with local `main`
+  one commit behind `origin/main` (US-01 had already been squash-merged as #26) and a stale
+  unmerged `prd.json` in the index. Branch from `origin/main`, not from local `main`.
+- **Parsers throw, they do not return errors.** `parseGroup`, `parseWeekColour` and now
+  `parseCardNumber` all raise a typed `DomainError`. Where a screen has to render whether or not the
+  rule succeeds, add a *total* form beside the throwing one (`findLowestFreeNumber` /
+  `lowestFreeNumber`) and write the throwing one in terms of it — two entry points, one statement of
+  the rule. Do not add the total form speculatively; wait for the caller.
+- **Domain modules are named for what they do, not for their file**: `formatCardNumber`, not
+  `format`. A PRD that writes `format(...)` is naming the concept, not prescribing the export.
+- **Derived, never stored**: card numbers, household counts, portion allowance, price. If a value can
+  be computed from the birthdates plus the settings in force, it has no column.
+- **100% branch coverage on domain + application is a hard gate.** Every guard you add needs a named
+  test, so do not add a defensive branch you cannot justify with a rule.
+- `eslint`'s `react-hooks/error-boundaries` forbids constructing JSX inside a `try`. Await into a
+  variable inside the `try`, build the JSX after it. `npm run build` does not catch this; lint does.
+- Next 16 hands a dynamic route its `params` as a **`Promise`** — `await` it, and treat a
+  non-numeric id exactly like an unknown one.
+- **Playwright runs `workers: 1`, `fullyParallel: false`** — every spec shares `data/e2e.db` and
+  several of them write to it. Specs share the customer-number sequence, so assert against the
+  number the screen *proposes*, never a hard-coded id: files run alphabetically, and inserting one
+  above another shifts every number below it.
+- **A port method takes a value object, not loose arguments, whenever a field has to come from the
+  clock.** `cards.issue(customerId, { index, issuedAt, reason })` keeps the stamping in the
+  application layer; an `issue(customerId, index, reason)` would have left infrastructure to invent
+  the time and broken the one-wall-clock rule.
+- **Every use case reads `deps.clock.now()` exactly once**, into a `const now`, and uses it for both
+  the record and the audit entry. Two reads would make the same event carry two instants.
+- **Fakes live in `src/application/customers/customers.test.ts`**, one class per port, and each
+  imitates the *database's* behaviour rather than the happy path — `FakeCustomerRepository.stealNext`
+  fakes a lost race, `FakeCardRepository.place` leaves a gap in the card indices. Write the fake so
+  the rule can actually fail.
+- `prisma migrate dev` refuses to run non-interactively when the dev database is ahead of the
+  migrations folder. Delete `data/fd.db` first (`npm run db:reset` does it), then `--create-only`,
+  hand-edit the SQL, then `prisma migrate deploy` + `npm run db:seed`.
+- **Regenerating the init migration drops the hand-written partial unique index.** Save the tail
+  first (`awk '/hand-written/{f=1} f' prisma/migrations/*_init/migration.sql > /tmp/tail.sql`),
+  regenerate, then append it back. Without it, two active households can hold one customer number and
+  only `customer-repository.test.ts` notices.
+- **A stored enum word is parsed back, never trusted**: `parseGroup`, `parseCustomerStatus`,
+  `parseCardIssueReason`. SQLite has no enum type, so the adapter narrows on the way out and raises
+  `InvalidCustomerRecord` — a hand-edited row must fail loudly rather than default to a plausible
+  value.
+- **A lost race belongs to the adapter, not the caller.** A `P2002` is translated into a typed domain
+  error naming the constraint's meaning (`CustomerNumberTaken`, `CardIndexTaken`), and the check
+  inspects `error.meta` for the field rather than assuming which constraint fired.
+- **Adapters are wired in `src/app/<area>/deps.ts`** — the one composition root per screen area. A new
+  repository is not reachable until it is added there.
+- **One use case per screen, not one per entity.** `readCustomer` (the overview) and `readCard` (the
+  card) both start from a customer id and deliberately stay apart: a view object serving two screens
+  carries fields each of them ignores, and the next story widens it again. Add a use case rather than
+  a field.
+- **Ask the database once for a run and take the head.** `listCards` returns every card highest index
+  first, so the current card and the ones it replaced come from one read at one moment. Two calls —
+  `currentCard` plus a history query — could disagree.
+- **A formatter copied into a second page belongs in `src/i18n/`.** `germanDate` now lives in
+  `src/i18n/format.ts` beside the dictionary: `de.ts` holds the words, `format.ts` holds the shapes.
+  Dates are read in **UTC** there, because the domain stores calendar days at midnight UTC.
+- **Playwright's `webServer` needs port 3000 free.** A `npm run dev` left running from a manual check
+  makes e2e specs fail against *its* database with assertions that look like real regressions. Kill
+  the dev server before `npm run test:e2e`.
+- **`npm run dev` rewrites `next-env.d.ts`** to the dev-mode routes path. Restore it
+  (`git checkout next-env.d.ts`) before committing, or an unrelated one-line diff rides along.
 
 ---
 
-## [2026-07-22 19:20] - US-001 (HouseholdComposition — derive grown-up/children counts)
-- Implemented `src/domain/customer/householdComposition.ts`: `composition(members, today)` returning
-  `{ grownUps, children }`, plus the `HouseholdMember` / `HouseholdComposition` types and the
-  `GROWN_UP_AGE_YEARS = 13` constant. Pure — `today` is a parameter, no `new Date()` in the module.
-- Added `EmptyHousehold` and `BirthDateInFuture` to `src/domain/errors.ts` and to the
-  `DomainErrorCode` union.
-- Tests written first (11 named after the rules, not the function): the day before / the day of /
-  the day after a 13th birthday, 29 February in a non-leap year on both 28 Feb and 1 March, born
-  today, a mixed five-person household, time-of-day independence, empty household, future birthdate,
-  and the offending date carried on the error.
-- Files changed: `src/domain/customer/householdComposition.ts` (new),
-  `src/domain/customer/householdComposition.test.ts` (new), `src/domain/errors.ts`,
-  `docs/technical_documentation.md`.
-- All gates green: lint, typecheck, coverage (domain + application 100% on all four metrics), build.
+## [2026-07-23 11:30] - US-001 (CardNumber value object)
+- Grew `src/domain/card/cardNumber.ts` from the format-only helper US-01 left behind into the full
+  value object: a `CardNumber` interface (`{ customerNumber, index }`), `parseCardNumber(text)` and
+  `nextCardNumber(card)` beside the existing `formatCardNumber(customerNumber, index)`.
+- Added the `InvalidCardNumber` error class to `src/domain/errors.ts`. Its `code` was already in the
+  `DomainErrorCode` union, reserved by an earlier story — the class was the missing half. It carries
+  the text as entered, like `InvalidEuroAmount`.
+- Parsing rules, all named tests: accepts an uppercase `K` and surrounding whitespace (someone
+  copying a number off a card at the counter produces both, and neither names a different card);
+  rejects `''`, `'50'`, `'k3'`, `'50k'`, `'50k0'`, `'0k1'`, `'050k3'`, `'50k03'`, `'50k3x'`,
+  `'-50k3'`, `'50k-3'`. Output is always the lowercase `k`, documented on the pattern constant.
+- Files changed: `src/domain/card/cardNumber.ts`, `src/domain/card/cardNumber.test.ts`,
+  `src/domain/errors.ts`, `docs/technical_documentation.md`, `scripts/ralph/prd.json`,
+  `scripts/ralph/progress.txt`.
+- Documentation: `docs/technical_documentation.md` gained a `src/domain/card/cardNumber.ts` section
+  (derived-not-stored, the three functions, why the leading zero is rejected, and FR-6 — card numbers
+  are *not* unique across the archive because slot 50 is reassignable). The file tree and the
+  `errors.ts` class list were updated; the list had also been missing `CustomerNotFound` and
+  `InvalidCustomerRecord` since US-01.
+- All gates green: lint, typecheck, coverage (domain + application 100% on all four metrics, 243
+  tests, up from 224), build.
 - **Learnings for future iterations:**
-  - Both dates are normalised to their **UTC calendar day** before comparison, so a birthdate stored
-    with a time component (Prisma hands back a `DateTime`) cannot flip a count. Any later date rule
-    (card validity, certificate expiry, week colour) should use the same normalisation rather than
-    comparing raw timestamps.
-  - The 29 February convention falls out of `Date.UTC(year + 13, month, day)` rolling over to
-    1 March — no special case needed, and thirteen years after a leap year is *never* a leap year,
-    so the rollover always happens. Documented in the function's doc comment, per the criterion.
-  - `HouseholdMember` is deliberately declared here as *just* `{ birthDate: Date }` — the part of a
-    member this rule sees. US-004/US-005 will carry names alongside it; a wider record stays
-    structurally assignable, so widening the entity need not touch this module. That also kept this
-    story free of the Faker dependency (birthdates are not personal data).
-  - `src/domain/customer/` was an empty placeholder directory before this story; `card/` and
-    `distribution/` still are.
+  - **Deviated from the PRD's export names on purpose**, recorded in the story's `notes`: the PRD
+    writes `format` / `parse` / `next`, but the file already exported `formatCardNumber` and the
+    domain's convention is `parseGroup` / `parseWeekColour`. Read a PRD signature as naming the
+    concept, not dictating the identifier; record the deviation rather than silently renaming
+    working code.
+  - The PRD said `parse` "returns a typed `InvalidCardNumber` error". It **throws** it, because every
+    other parser in this domain throws and a lone returning one would make callers branch two ways.
+    US-04 (lookup by card number at the counter) is the story that may genuinely want a total
+    `tryParseCardNumber` — add it *then*, in terms of this one, not speculatively.
+  - The regex is built from the `CARD_INDEX_MARKER` constant with the `i` flag, so the marker is
+    stated once. `[1-9][0-9]*` on both parts is what rejects the leading zero and the zero itself in
+    one expression — no extra branch, so no extra coverage burden.
+  - `next` returns a fresh object; a test asserts the input is untouched. Domain value objects here
+    are `readonly` interfaces, never mutated in place.
+  - **US-002 next**: the `issueCard` use case. `nextCardNumber` deliberately does *not* decide that a
+    card is due — the application layer reads the highest issued index (US-003's `currentCard`) and
+    calls it. Validity stays derived from being the highest index; do not add a `valid` column.
 ---
 
-## [2026-07-22 19:22] - US-002 (CustomerNumber — lowest free slot allocation)
-- Implemented `src/domain/customer/customerNumber.ts`: `lowestFreeNumber(takenNumbers, quotaN)`
-  scanning 1..quotaN against a `Set` of taken numbers, returning the first free one.
-- Added the `NoFreeCustomerNumber` error class to `src/domain/errors.ts` (the code was already in
-  the `DomainErrorCode` union from the initial sketch — only the class was missing). It carries
-  `quotaN` so the UI can name the limit FD has to raise.
-- Tests written first (10, named after the rules): empty list gives 1, `[1,2,4]` gives 3, a
-  contiguous range gives the next number, unsorted input, a duplicate taken number, `quotaN = 1`
-  free and taken, a full range, numbers above the quota not freeing a slot, and the quota carried
-  on the error.
-- Files changed: `src/domain/customer/customerNumber.ts` (new),
-  `src/domain/customer/customerNumber.test.ts` (new), `src/domain/errors.ts`,
-  `docs/technical_documentation.md`.
-- All gates green: lint, typecheck, coverage (domain + application 100% on all four metrics), build.
+## [2026-07-23 11:40] - US-002 (issueCard use case)
+- Added `src/application/customers/issue-card.ts`: the single path by which any card comes into
+  existence. Reads the clock once, loads the customer (`CustomerNotFound`), refuses an archived one
+  (`CustomerArchived`, new error) but serves a blocked one, takes `currentCard(customerId)` + 1 via
+  `nextCardNumber` (1 when they hold none), writes the card and the audit entry under
+  `customer.card.issued` with the reason as the `why`.
+- Added the type-only `src/domain/card/card.ts`: `IssuedCard { index, issuedAt, reason }` and
+  `CardIssueReason = FIRST_ISSUE | LOST | STALE_COUNTS | OTHER`. No `valid` flag — validity is being
+  the highest index (FR-4).
+- Added the `CardRepository` port (`currentCard`, `issue`) and the `CustomerArchived` domain error.
+- 12 named tests against a new `FakeCardRepository`: first issue, second issue, a gap in the run
+  (1 and 4 → 5), earlier cards kept, clock stamping, the reason on the card, the audit entry,
+  blocked served, archived refused, nothing written when refused, unknown id refused.
+- Files changed: `src/domain/card/card.ts` (new), `src/domain/errors.ts`,
+  `src/application/ports.ts`, `src/application/customers/issue-card.ts` (new),
+  `src/application/customers/customers.test.ts`, `docs/technical_documentation.md`,
+  `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- Documentation: `docs/technical_documentation.md` gained `src/domain/card/card.ts` and
+  `src/application/customers/issueCard` sections; the ports table, the errors list and the file tree
+  were updated.
+- All gates green: lint, typecheck, coverage (domain + application 100%, 254 tests, up from 243),
+  build. No UI changed, so no browser verification was needed.
 - **Learnings for future iterations:**
-  - The PRD wording "returns a typed error *result*" was read as the repo convention of **throwing**
-    a typed domain error, matching `composition()` and `createSettings()`. There is no `Result` type
-    anywhere in the codebase; introducing one for a single function would have split the error
-    handling style in two.
-  - Deliberately **no validation** of `quotaN` here. Settings already guarantees an integer ≥ 1
-    (`requireInteger("quotaN", …)` in `src/domain/policy/settings.ts`), and a second check would be
-    an unreachable branch that the 100% branch gate then demands a contrived test for. Where an
-    invariant is already enforced on construction, do not re-check it downstream.
-  - Ignoring duplicates and out-of-range numbers instead of rejecting them keeps the function total:
-    the caller passes whatever the register contains, and the repository query shape can change
-    (`DISTINCT` or not) without breaking the rule.
-  - `NoFreeCustomerNumber` will be raised in two more places: `registerCustomer` translating the
-    partial-unique-index violation (US-004/US-005), and waiting-list promotion (US-12). The
-    database, not this function, is the final authority on a free slot.
+  - **Deviated from the PRD's port signature on purpose** (recorded in the story's `notes`): the PRD
+    writes `issue(customerId, index, reason)`, but `issuedAt` has to come from the injected clock, and
+    that signature would have left the adapter to read the wall clock. The port takes the whole
+    `IssuedCard` instead.
+  - `registerCustomer` still writes the first card inside `customers.create(…)` rather than calling
+    `issueCard`: US-01.4 requires the customer and their first card in **one transaction**, which a
+    second use-case call cannot be part of. "One card-issuing path" means one *decision* about the
+    next index, not one SQL statement. Do not refactor this without a transactional port.
+  - The `reason` column does not exist yet, so `CustomerCard` in `customer.ts` is still
+    `{ index, issuedAt }` while `IssuedCard` carries the reason. **US-003 should unify them** when it
+    adds the column — that is the story that owns the schema change, and adding the column here would
+    have been a half-migration.
+  - A type-only domain module shows as `0 | 0 | 0 | 0` in the coverage table (like `ports.ts`) and
+    still passes the 100% gate — v8 reports no statements rather than uncovered ones.
+  - **US-003 next**: `PrismaCardRepository`. It needs the `reason` column, the confirmed
+    `@@unique([customerId, index])`, and a typed error for the lost race — the port's doc comment
+    already says the adapter is the final authority on a free index.
 ---
 
-## [2026-07-22 19:23] - US-003 (Group type and suggestGroup balancing rule)
-- Implemented `src/domain/customer/group.ts`: the `Group = "RED" | "BLUE"` type, a `GroupCounts`
-  shape, and `suggestGroup({ red, blue })` returning the smaller group, `RED` on a tie.
-- Tests written first (5, named after the rules): red bigger, blue bigger, tie, both zero, and a
-  one-customer margin. No new error class was needed — the function is total.
-- Files changed: `src/domain/customer/group.ts` (new), `src/domain/customer/group.test.ts` (new),
-  `docs/technical_documentation.md`, `scripts/ralph/prd.json`.
-- All gates green: lint, typecheck, coverage (domain + application 100% on all four metrics), build.
+## [2026-07-23 11:50] - US-003 (Card repository with currentCard query)
+- Added `src/infrastructure/prisma/card-repository.ts`: `PrismaCardRepository` implementing the
+  `CardRepository` port. `currentCard(customerId)` is the highest-indexed row — validity is being the
+  highest index (FR-4), so there is no flag to read and none to clear; an unknown id answers `null`
+  like a customer holding no card, because whether the household exists is the use case's question.
+  `issue` translates a `P2002` naming `index` into the new `CardIndexTaken` domain error.
+- `Card` gained the `reason` column. That **unified `NewCustomer.card` with `IssuedCard`** — the
+  `CustomerCard` interface is gone — so the card written inside `customers.create` and the card
+  written by `issueCard` are one shape. `registerCustomer` now records `FIRST_ISSUE`.
+- Added `parseCardIssueReason` to `src/domain/card/card.ts` (previously type-only) with 6 named
+  tests, and `CardIndexTaken` to `errors.ts`.
+- 11 integration tests in `card-repository.test.ts`: the reason is stored, the superseded card stays
+  on file, no `valid` column exists, a taken index is `CardIndexTaken`, two simultaneous issues of
+  one index leave exactly one row, **two different customers both hold `50k1`**, `currentCard` is
+  null / highest / highest-across-a-gap, and a hand-edited reason is refused.
+- Regenerated the init migration (`20260723094018_init`) rather than stacking an `ALTER TABLE`, per
+  CLAUDE.md's disposable-history rule, and re-added the hand-written partial unique index to its
+  tail. `npm run db:reset` re-applied and re-seeded it.
+- Wired `cards: new PrismaCardRepository(prisma)` into `src/app/kunden/deps.ts`.
+- Files changed: `prisma/schema.prisma`, `prisma/migrations/20260723094018_init/migration.sql`
+  (replacing `20260722173231_init`), `src/domain/card/card.ts`, `src/domain/card/card.test.ts` (new),
+  `src/domain/errors.ts`, `src/domain/customer/customer.ts`,
+  `src/application/customers/register-customer.ts`, `src/application/customers/customers.test.ts`,
+  `src/infrastructure/prisma/card-repository.ts` (new), `src/infrastructure/prisma/card-repository.test.ts`
+  (new), `src/infrastructure/prisma/customer-repository.ts`,
+  `src/infrastructure/prisma/customer-repository.test.ts`, `src/app/kunden/deps.ts`,
+  `docs/technical_documentation.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- Documentation: `docs/technical_documentation.md` gained a
+  `src/infrastructure/prisma/card-repository.ts` section (why the constraint is per customer id and
+  not per card number, what `CardIndexTaken` means); the `card.ts` section, the ports table, the
+  errors list and the file tree were updated.
+- All gates green: lint, typecheck, coverage (domain + application 100%, 271 tests, up from 254),
+  build, and `npm run test:e2e` (6 passed, 1 skipped) since registration now writes a reason.
 - **Learnings for future iterations:**
-  - `Group` is deliberately a **separate type** from `WeekColour` in `src/domain/policy/settings.ts`
-    despite both being `"RED" | "BLUE"`. A week's colour is derived from the settings anchor; a
-    customer's group is stored and hand-editable. Aliasing them would let one be changed through the
-    other. US-005 will therefore need its own `parseGroup` for the persisted string — do not reuse
-    `parseWeekColour`, whose `InvalidSettings` error names a settings field.
-  - `counts.blue < counts.red ? "BLUE" : "RED"` gets the tie rule and both branches from a single
-    comparison, so the branch gate is satisfied by the four ordering tests without a contrived case.
-    Writing it as two `if`s would have added an unreachable third branch.
-  - The suggestion is advice only — US-004 must let an explicit group in the input win over it, and
-    must not re-derive the group at persistence time.
+  - **The unique constraint is per `(customerId, index)`, deliberately not per card number.** Slot 50
+    is reassigned when a household is archived, so two customers may each legitimately hold `50k1`
+    (FR-6). Any future lookup *by card number* must resolve to the active holder — that is US-04's
+    problem, and it cannot be solved with a database constraint.
+  - Adding a column to a model forced edits in four places at once: the schema, the adapter's
+    `create`, the adapter's read mapping and every test fixture that builds a `NewCustomer`.
+    `npm run typecheck` finds all of them — run it before writing new tests.
+  - `Promise.allSettled` with two `issue` calls is enough to prove the double-issue guard; no
+    threading or transaction trickery is needed, because SQLite settles it on the unique index.
+  - A `reason` on a superseded card is the only thing its index cannot say. Keep it when US-004
+    renders "which numbers this card replaced" — the history reads as *why*, not just *what*.
+  - **US-004 next**: the card view at `/kunden/[id]/karte`. `readCustomer` already derives the counts
+    and the card number; the deps object now carries `cards`, so listing the superseded numbers needs
+    either a `listCards` port method or a widened `readCustomer` — decide there, and note that
+    `germanDate()` is still duplicated across two pages and this is the story to extract it.
 ---
 
-## [2026-07-22 19:32] - US-004 (registerCustomer use case)
-- Added the customer record to the domain: `src/domain/customer/customer.ts` with `Address`,
-  `NeedsCertificate`, `HouseholdMemberDetails`, `CustomerStatus`, `CustomerCard`, `NewCustomer`,
-  `RegisteredCustomer` and the `createCustomerDetails(input, today)` factory. The factory trims every
-  text field, raises `MissingRequiredField` naming the blank one (down to
-  `householdMembers.1.firstName`), and validates the household by **deriving its composition** —
-  that call is what raises `EmptyHousehold` / `BirthDateInFuture`; the counts are discarded and never
-  stored.
-- Added `CustomerNumberTaken` and `MissingRequiredField` to `src/domain/errors.ts` and the
-  `DomainErrorCode` union.
-- Added the `CustomerRepository` port (`takenActiveNumbers`, `groupCounts`, `create`) to
-  `src/application/ports.ts`; `create` is documented as one transaction and as the authority that
-  reports a lost race.
-- Implemented `src/application/customers/register-customer.ts`: one clock read for the whole
-  registration, settings via `readCurrentSettings` for `quotaN`, `lowestFreeNumber`, an explicit
-  group winning over `suggestGroup`, one `create` with status ACTIVE / reminderCount 0 / card index
-  1, then the `customer.registered` audit entry (`why: ""`, no actor).
-- Race handling: up to 3 attempts. A `CustomerNumberTaken` from the repository is retried with a
-  fresh read of the taken numbers; anything else is rethrown at once. Exhausting the attempts
-  surfaces `CustomerNumberTaken` — never a duplicate.
-- Tests first: 17 domain tests (`customer.test.ts`) and 21 application tests
-  (`customers.test.ts`), including the lost-race cases against a fake register that really claims
-  the number between read and write.
-- Added `@faker-js/faker` as a devDependency — first story with names and addresses.
-- Files changed: `src/domain/customer/customer.ts` (new), `src/domain/customer/customer.test.ts`
-  (new), `src/domain/errors.ts`, `src/application/ports.ts`,
-  `src/application/customers/register-customer.ts` (new),
-  `src/application/customers/customers.test.ts` (new), `docs/technical_documentation.md`,
-  `package.json`, `package-lock.json`, `scripts/ralph/prd.json`.
-- All gates green: lint, typecheck, coverage (domain + application 100% on all four metrics, 180
-  tests), build.
+## [2026-07-23 12:05] - US-004 (Card view at /kunden/[id]/karte)
+- Added `src/app/kunden/[id]/karte/page.tsx`: the digital customer card. Card number and name set
+  large, the group as a coloured German pill (`Rot` / `Blau`), the two counts as big numerals, the
+  issue date and reason, then the numbers this card replaced with the reason each was issued for. A
+  screen, not a document — no print stylesheet and no PDF, because FD prints through a system they
+  already own. `dynamic = "force-dynamic"`, so the counts are derived on every request.
+- Added `src/application/customers/read-card.ts` (`readCard`): the current card number, name, group,
+  composition as of `clock.now()` and the superseded numbers. Reads the whole run through one new
+  port call and takes the head as current; refuses a customer with no card at all as
+  `InvalidCustomerRecord` rather than rendering a card without a number.
+- Added `listCards(customerId)` to the `CardRepository` port, to `PrismaCardRepository` (`orderBy:
+  { index: "desc" }`) and to `FakeCardRepository`.
+- Extracted the twice-copied `germanDate` into `src/i18n/format.ts` with its own spec (padding, the
+  UTC day, 29 February), and pointed the settings page and the customer overview at it.
+- `/kunden/[id]` now links on to the card (`Kundenkarte anzeigen`). New strings:
+  `de.customers.cardView.*` and `de.customers.cardReasons` (the four `CardIssueReason` words in
+  German).
+- The PRD's "reissue card" action is present but **disabled**, with a German note that it follows —
+  its behaviour is US-09, and a button that silently did nothing would be worse than a visible gap.
+- Files changed: `src/app/kunden/[id]/karte/page.tsx` (new),
+  `src/application/customers/read-card.ts` (new), `src/i18n/format.ts` + `format.test.ts` (new),
+  `src/application/ports.ts`, `src/application/customers/customers.test.ts`,
+  `src/infrastructure/prisma/card-repository.ts` + its test, `src/app/kunden/[id]/page.tsx`,
+  `src/app/einstellungen/page.tsx`, `src/i18n/de.ts`, `docs/technical_documentation.md`,
+  `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- Documentation: `docs/technical_documentation.md` gained the `[id]/karte/page.tsx` and
+  `src/i18n/format.ts` sections and a `readCard` entry beside `readCustomer`; the ports table and the
+  file tree were updated.
+- All gates green: lint, typecheck, coverage (domain + application 100%, 287 tests, up from 271),
+  build, prettier, and `npm run test:e2e` (6 passed, 1 skipped).
 - **Learnings for future iterations:**
-  - A retry loop written as `for (;;)` with `return` inside keeps TypeScript from demanding an
-    unreachable trailing `return` — which would be an uncoverable line under the 100% gate. Guard the
-    rethrow with `attemptsLeft === 0 || !(error instanceof X)` so all three branch outcomes are
-    reachable from three tests (success after a retry, exhausted attempts, a non-retryable failure).
-  - The application fake for a repository should enforce the rule the database will enforce
-    (a `stealNext(times)` hook claiming the chosen number just before the write). That turns the
-    concurrency criterion into a real test rather than an assertion about a mock.
-  - `registerCustomer` composes `readCurrentSettings` rather than reading `listVersions` itself, so
-    the settings seam stays single. It does mean the clock is read twice (once by each); the card and
-    the audit entry both use the *use case's* single read, which is what the test asserts.
-  - US-005 must implement `CustomerRepository` and translate the partial-unique-index violation into
-    `CustomerNumberTaken` (not `NoFreeCustomerNumber` — that one means the quota is full), and
-    replace `src/infrastructure/customer-counter.ts` with a real Prisma count.
-  - US-006 has a fifth rejection to render in German beyond the four the PRD lists:
-    `CustomerNumberTaken` after the retries, which reads as "please try again".
+  - **Verified in the browser by rendering, not by a browser tool** — no MCP browser tool is
+    configured in this sandbox. `npm run dev`, insert a customer with three cards straight through
+    Prisma, then `curl` the route and strip the tags: enough to prove the German text, the derived
+    counts (2 grown-ups / 1 child from three birthdates) and the superseded list read correctly. The
+    *visual* layout still deserves a human glance.
+  - A script importing `@prisma/client` must live **inside the project**; from `/tmp` Node cannot
+    resolve the package.
+  - The first draft read `„50k1 … ersetzt wegen: Erstausstellung“`, which attaches the reason to the
+    wrong card — a superseded card's reason says why *it* was issued, not why it was replaced. Read
+    generated German back as a sentence, not as a template.
+  - `readCard` deliberately does **not** take the current card from `customer.card`. It is the same
+    row in the real database, but two sources in the fakes drifted at once, and one read of the run
+    is the honest statement of "the highest index is the valid card".
+  - **US-005 next**: the Playwright spec. Registration still redirects to `/kunden/[id]`, not to
+    `/karte` — decide there whether the spec follows the `card-view-link` (`data-testid`) or whether
+    the redirect should change. The card view exposes `card-number`, `card-name`, `card-group`,
+    `grown-ups`, `children` and `superseded-card` as test ids.
 ---
 
-## [2026-07-22 19:36] - US-005 (Customer schema and PrismaCustomerRepository)
-- Added `Customer`, `HouseholdMember`, `Certificate` and `Card` to `prisma/schema.prisma`.
-  `Customer.id` is the surrogate autoincrement key and every FK targets it, never `customerNumber`.
-  No `grownUps` / `children` column exists — a test reads the raw table and asserts that.
-  `Certificate` is one-per-customer (`customerId @unique`); `Card` is unique on `(customerId, index)`.
-- Regenerated the migration history as a single `init` (pre-release, per CLAUDE.md), then hand-wrote
-  the partial unique index at the end of `migration.sql`:
-  `CREATE UNIQUE INDEX … ON "Customer"("customerNumber") WHERE "status" <> 'ARCHIVED'`.
-  The predicate is `<> 'ARCHIVED'` rather than `= 'ACTIVE'` because a BLOCKED household still holds
-  its slot — reusing its number would hand two households the same card. Documented in the schema
-  header, the migration and `docs/technical_documentation.md`.
-- Implemented `src/infrastructure/prisma/customer-repository.ts`: `PrismaCustomerRepository`
-  (`takenActiveNumbers`, `groupCounts`, `create`) and `PrismaCustomerCounter`, sharing one
-  `ON_REGISTER` where-clause. `create` is a single nested Prisma create; a `P2002` naming
-  `customerNumber` becomes the domain's `CustomerNumberTaken`, anything else is rethrown.
-- Replaced the `emptyCustomerCounter` placeholder (file deleted) with `PrismaCustomerCounter` in
-  `src/app/einstellungen/deps.ts`, and updated the skipped e2e comment that referred to it.
-- 14 integration tests against a throwaway SQLite file, including the two required by the PRD: two
-  archived customers both holding number 50, and a blocked one keeping its slot.
-- Files changed: `prisma/schema.prisma`, `prisma/migrations/20260722173231_init/migration.sql` (the
-  old `20260722150441_init` is gone), `src/infrastructure/prisma/customer-repository.ts` (new),
-  `src/infrastructure/prisma/customer-repository.test.ts` (new),
-  `src/infrastructure/customer-counter.ts` (deleted), `src/app/einstellungen/deps.ts`,
-  `tests/e2e/settings.spec.ts`, `docs/technical_documentation.md`, `scripts/ralph/prd.json`.
-- All gates green: lint, typecheck, coverage (domain + application 100% on all four metrics, 194
-  tests), build, and `npm run test:e2e` (4 passed, 1 still skipped).
+## [2026-07-23 12:20] - US-005 (E2E: card is issued on registration and displayed)
+- Added `tests/e2e/card.spec.ts`: registers a three-person household (two grown-ups, one child)
+  from `/kunden/neu` with the group **chosen by hand** rather than accepted from the suggestion,
+  follows the overview's `card-view-link` to `/kunden/[id]/karte`, and asserts the card number
+  matches `^[0-9]+k1$` *and* equals `${proposedNumber}k1`, the name and group as entered, the counts
+  derived again on that request (2 / 1), and that a first card lists no superseded numbers.
+- This is the only proof that the number the form proposed, the card the registration transaction
+  wrote and the card the view renders are one card — each half is unit-tested in isolation.
+- **Made the e2e suite serial** (`playwright.config.ts`: `workers: 1`, `fullyParallel: false`). A
+  fourth spec that *writes* to the shared `data/e2e.db` would otherwise race the registration spec
+  for the customer-number sequence.
+- Consequently `registration.spec.ts` no longer asserts the literals `1` and `2`: the happy path
+  reads the number the form proposes, and the rejection spec asserts its successor.
+- Files changed: `tests/e2e/card.spec.ts` (new), `tests/e2e/registration.spec.ts`,
+  `playwright.config.ts`, `docs/technical_documentation.md`, `scripts/ralph/prd.json`,
+  `scripts/ralph/progress.txt`.
+- Documentation: `docs/technical_documentation.md` gained a `card.spec.ts` entry and a paragraph on
+  why the suite is single-worker (and what that means for the next spec author); the
+  `registration.spec.ts` entry was corrected — it lands on the customer *overview*, not the card.
+- All gates green: lint, typecheck, coverage (domain + application 100%, 287 tests), build,
+  prettier, and `npm run test:e2e` (7 passed, 1 skipped, up from 6 passed).
 - **Learnings for future iterations:**
-  - `prisma migrate dev` refuses to run non-interactively when the dev database is ahead of the
-    migrations folder. Delete `data/fd.db` first (the `db:reset` one-liner does it), then
-    `--create-only`, hand-edit the SQL, then `prisma migrate deploy` + `npm run db:seed`.
-  - Prisma quotes identifiers, so a field literally named `group` is fine in SQLite despite `GROUP`
-    being a keyword. No `@map` needed.
-  - The next `prisma migrate dev` will report the hand-written index as drift, because it is not in
-    `schema.prisma`. That is expected — keep the statement when regenerating.
-  - `create` takes a `NewCustomer` and returns `{ ...customer, id }`: nothing is read back, so no
-    `parseGroup` / `parseCustomerStatus` exists yet. The first story that *reads* a customer (US-006's
-    card view) needs them, and per the US-003 learning `parseGroup` must be its own function, not
-    `parseWeekColour`.
-  - The `quotaN`-below-active-customers e2e test is still skipped: the counter is real now, but
-    nothing can put a customer into the register until the form lands (US-006). Enable it then.
----
-
-## [2026-07-22 19:52] - US-006 (Registration form at /kunden/neu)
-- Picked up a **partially finished** US-006: an interrupted earlier iteration had already left the
-  domain, application, i18n and form work in the tree (uncommitted). This iteration reviewed it,
-  wrote the two missing route pages, and took the story through the gates.
-- Already in the tree, verified and kept: `src/domain/card/cardNumber.ts` (`formatCardNumber` —
-  `12k1`, derived not stored), `parseGroup` + `GROUPS` in `group.ts`, `findLowestFreeNumber` (the
-  total form of the rule) alongside the throwing `lowestFreeNumber`, `CustomerNotFound` and
-  `InvalidCustomerRecord` in `errors.ts`, `findById` on the `CustomerRepository` port,
-  `proposeRegistration` and `readCustomer` use cases, the whole `de.customers` dictionary with
-  `customerFieldLabel()`, and `src/app/kunden/{deps.ts,neu/actions.ts,neu/register-customer-state.ts,
-  neu/registration-form.tsx}`.
-- Written this iteration: `src/app/kunden/neu/page.tsx` (reads the proposal, renders the form,
-  `force-dynamic`, German "not seeded" message on `NoSettingsInForce`), `src/app/kunden/[id]/page.tsx`
-  (the card view the registration redirects to: number, card number, status, group, address,
-  household list with derived counts, certificate, notes), and the `/kunden/neu` link on the home
-  page.
-- Corrected the stale skip comment on the `quotaN`-below-active-customers e2e test: the form landing
-  does **not** unblock it. A quota is only valid at 1 or above, so the active count has to reach 2
-  before any valid quota can fall below it — that needs two registrations, which belong in US-007's
-  spec rather than coupling the settings spec to the shared customer-number sequence.
-- Documentation: `docs/technical_documentation.md` — the `src/app/kunden/` section (proposal-not-
-  reservation, the mirrored first row, the parallel-list row pairing, `redirect` outside the `try`),
-  a section on the two read-side use cases and the two forms of the free-number rule, and the file
-  tree.
-- Files changed: the 12 modified + 6 untracked files listed above, plus
-  `src/app/kunden/neu/page.tsx` (new), `src/app/kunden/[id]/page.tsx` (new), `src/app/page.tsx`,
-  `tests/e2e/settings.spec.ts`, `docs/technical_documentation.md`, `scripts/ralph/prd.json`.
-- All gates green: lint, typecheck, coverage (domain + application 100% on all four metrics, 224
-  tests), build (both routes listed as dynamic), and `npm run test:e2e` (4 passed, 1 still skipped).
-- **Browser verification: done**, via a throwaway Playwright spec against the built app, then
-  deleted (US-007 writes the permanent one). It proved the happy path (proposed number 1, first row
-  mirroring the personal data, counts going live to 1 grown-up / 1 child, redirect to `/kunden/1`,
-  card number `1k1`, status aktiv, two household members listed), the empty-household rejection in
-  German leaving the register untouched, and the not-found message for an unknown id.
-- **Learnings for future iterations:**
-  - **Check the working tree before starting a story.** A killed iteration leaves finished,
-    uncommitted work behind, and `prd.json` still says `passes: false`. Read the diff first — this
-    story was ~80% done and re-implementing it would have thrown away good work.
-  - `eslint`'s `react-hooks/error-boundaries` **forbids constructing JSX inside a `try`**: React
-    renders the component after the function returned, so the `catch` can never fire. Await the read
-    into a variable inside the `try`, then build the JSX after it. `npm run build` does not catch
-    this — lint does.
-  - Next 16 hands a dynamic route its `params` as a **`Promise`** (`params: Promise<{ id: string }>`),
-    so the page must `await` it. A non-numeric id should give the same answer as an unknown one; do
-    not let `Number("abc")` reach a use case.
-  - A screen that has to render whether or not a rule succeeds wants the rule in a **total** form
-    next to the throwing one (`findLowestFreeNumber` / `lowestFreeNumber`), the throwing one written
-    in terms of the total one. Two entry points, still one statement of the rule.
-  - `germanDate()` is now duplicated in `einstellungen/page.tsx` and `kunden/[id]/page.tsx`. Left as
-    is deliberately — a commit either refactors or changes behaviour, never both. **Worth extracting
-    to a shared UI date formatter in the next story that touches either page.**
-  - A throwaway Playwright spec is the cheap way to satisfy the "verify in browser" criterion while
-    no browser MCP is configured: write it, run it, delete it, and let the story that owns the E2E
-    criterion write the permanent version.
----
-
-## [2026-07-22 20:05] - US-007 (E2E: register a customer and get a card)
-- Added `tests/e2e/registration.spec.ts`, the permanent version of the throwaway spec US-006 used for
-  its browser check. Two specs, serial against the shared `data/e2e.db`:
-  - **Happy path**: `/kunden/neu` proposes number 1; the personal data is filled and the first
-    household row is asserted to mirror it (the applicant is a member, not an extra head); a child
-    row is added; the derived panel goes to 1 grown-up / 1 child *while typing*; the save redirects
-    to `/kunden/<id>`, where the card shows the same customer number, card number `1k1`, status
-    `aktiv`, the counts derived again from the stored birthdates, and both household members.
-  - **Empty household**: the mirrored first row is removed, the save is refused with
-    `de.customers.errors.emptyHousehold`, the browser stays on `/kunden/neu`, and a reload shows the
-    proposed number *unchanged* — nothing was written and no number was consumed.
-- Test data: `faker.seed(20260722)` once at the top; only names and addresses come from Faker. The
-  three dates are literals (`1988-04-17` grown-up, `2020-06-15` child until 2033,
-  `2027-03-31` certificate) because the rules under test are date rules.
-- Documentation: `docs/technical_documentation.md` — the file tree and the Playwright section now
-  describe the registration spec, its serial/shared-database constraint and its data policy.
-- Files changed: `tests/e2e/registration.spec.ts` (new), `docs/technical_documentation.md`,
-  `scripts/ralph/progress.txt`, `scripts/ralph/prd.json`.
-- All gates green: lint, typecheck, coverage (domain + application 100% on all four metrics), build,
-  and `npm run test:e2e` — 6 passed, 1 still skipped.
-- **Learnings for future iterations:**
-  - Assert against the number the screen *proposes* rather than a hard-coded id. The specs share the
-    customer-number sequence, so a hard-coded `/kunden/1` breaks the moment a spec is inserted above.
-    The same trick gives the "nothing was written" assertion for free: reload the form and the number
-    must still be free.
-  - `remove-member-0` is what produces an empty household from the browser — the first row mirrors
-    the personal data, so it is always there until it is deleted. The parallel-list pairing in
-    `actions.ts` then sends *no* `memberFirstName` at all and the domain raises `EmptyHousehold`.
-  - `getByRole("main")` + `toContainText("Label: value")` reads a two-`<span>` field without adding a
-    test id for it; the spans are inline, so `innerText` joins them exactly as rendered.
-  - The `quotaN`-below-active-customers e2e test in `settings.spec.ts` is **still skipped**, on
-    purpose. Two customers now exist in `data/e2e.db`, but `settings.spec.ts` and
-    `registration.spec.ts` run in *different workers* (`fullyParallel`), so a settings spec asserting
-    on the customer count would race the registrations. Enabling it means either moving it into the
-    registration spec or making the whole run serial — a decision for the story that needs it.
-  - CI runs with `retries: 2`. A retried registration spec restarts against a database the first
-    attempt already wrote to, so the happy path would see number 2. If that ever flakes, the answer
-    is to stop asserting the *absolute* proposed number ("1") and only compare before/after.
+  - **A new e2e spec is a write against a shared register, not an isolated test.** Adding one that
+    registers a customer silently invalidated `registration.spec.ts`'s hard-coded numbers, and under
+    the previous `fullyParallel: true` it would have failed *intermittently* rather than every time.
+    Check what the other specs assume about the database before adding one that mutates it.
+  - Playwright orders spec **files alphabetically**; `card.spec.ts` therefore consumes customer
+    number 1 and everything downstream shifts. Deriving a number from what the screen proposes is
+    the only assertion that survives the next inserted file.
+  - Registration still redirects to `/kunden/[id]`, not to the card. That was deliberate — the
+    overview is where staff carry on, and it links to the card — so the spec clicks through rather
+    than asserting a redirect that does not exist. **US-09 (reissue) should not change the
+    redirect** without updating this spec.
+  - The group radio is `#group-<GROUP>`. Checking it explicitly keeps the assertion about *what was
+    entered*; accepting the suggestion would make the spec depend on which group happened to be
+    smaller, which the specs above it change.
+  - Kill any `npm run dev` on port 3000 before `npm run test:e2e` — `reuseExistingServer` is on
+    locally, so the suite would otherwise run against the dev database.
+  - **US-02 is complete**: all five stories pass. The next batch is a new PRD in `tasks/`.
 ---

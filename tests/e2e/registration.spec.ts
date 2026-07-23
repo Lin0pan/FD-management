@@ -12,8 +12,9 @@ import { de } from "@/i18n/de";
  * reaches the card, or a rejection that quietly wrote half a household.
  *
  * The specs run **serially against one shared database** (`data/e2e.db`, deleted and re-seeded
- * before the server boots): they share the customer-number sequence, and the rejection spec asserts
- * against the number the happy path left free.
+ * before the server boots): they share the customer-number sequence with every other spec file, so
+ * nothing here names a customer number outright. The happy path reads the one the form proposes and
+ * the rejection spec asserts that the same number is still free afterwards.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -51,6 +52,9 @@ async function fillPersonalData(page: Page, applicant: Person): Promise<void> {
 test.describe.configure({ mode: "serial" });
 
 test.describe("Kundenaufnahme", () => {
+  /** The number the happy path consumed, so the rejection spec can name its successor. */
+  let registeredNumber: string;
+
   test("a two-person household is registered with a number, a card and derived counts", async ({
     page,
   }) => {
@@ -60,10 +64,10 @@ test.describe("Kundenaufnahme", () => {
 
     await page.goto("/kunden/neu");
 
-    // The number is a proposal, not a reservation — but on an otherwise empty register it is the
-    // number the save will actually assign, so the card can be predicted from it.
+    // The number is a proposal, not a reservation — but on a serial run it is the number the save
+    // will actually assign, so the card can be predicted from it.
     const proposedNumber = await page.getByTestId("proposed-number").innerText();
-    expect(proposedNumber).toBe("1");
+    registeredNumber = proposedNumber;
 
     await fillPersonalData(page, applicant);
 
@@ -101,9 +105,10 @@ test.describe("Kundenaufnahme", () => {
   test("an empty household is refused in German and nothing is written", async ({ page }) => {
     await page.goto("/kunden/neu");
 
-    // The number the previous registration left free. It has to still be free after the rejection.
+    // The number the previous registration left free — its successor, because that one is now
+    // taken. It has to still be free after the rejection.
     const proposedNumber = await page.getByTestId("proposed-number").innerText();
-    expect(proposedNumber).toBe("2");
+    expect(proposedNumber).toBe(String(Number(registeredNumber) + 1));
 
     await fillPersonalData(page, person(faker.person.lastName()));
 

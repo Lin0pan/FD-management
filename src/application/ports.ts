@@ -7,6 +7,7 @@
  * untested runtime code.
  */
 
+import type { IssuedCard } from "@/domain/card/card";
 import type { NewCustomer, RegisteredCustomer } from "@/domain/customer/customer";
 import type { GroupCounts } from "@/domain/customer/group";
 import type { SettingsVersion } from "@/domain/policy/settings";
@@ -56,6 +57,29 @@ export interface CustomerRepository {
    * @throws {CustomerNumberTaken} if another registration took the number first.
    */
   create(customer: NewCustomer): Promise<RegisteredCustomer>;
+}
+
+/**
+ * The cards a customer has been issued.
+ *
+ * The repository stores cards; it does not decide which one is valid. `currentCard` answers with the
+ * highest index on record, and that card *is* the valid one (FR-4) — there is no flag to set and
+ * none to clear when a replacement is issued. The adapter — not the caller — is the final authority
+ * on whether an index was still free when the write landed, because the database holds the
+ * `@@unique([customerId, index])` constraint that decides it.
+ */
+export interface CardRepository {
+  /** The customer's highest-indexed card, or `null` if they hold none yet. */
+  currentCard(customerId: number): Promise<IssuedCard | null>;
+  /**
+   * Every card the customer has ever been issued, **highest index first** — so the first element is
+   * the one they hold and the rest are the numbers it replaced. Ordering is the adapter's job
+   * because the database can do it in the query; a caller sorting it again would be a second, silent
+   * statement of which card is current.
+   */
+  listCards(customerId: number): Promise<ReadonlyArray<IssuedCard>>;
+  /** Write one card for a customer, and hand it back as it was stored. */
+  issue(customerId: number, card: IssuedCard): Promise<IssuedCard>;
 }
 
 /**
