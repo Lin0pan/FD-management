@@ -12,7 +12,35 @@ Started: Thu Jul 23 20:41:04 CEST 2026
   returns integer cents) — US-002 is effectively implemented and tested on main; just needs marking.
 - Coverage is gated at 100% on domain/ + application/ (`vitest.config.ts`). TDD: write the
   invariant-named test first. Test files sit beside the module (`foo.ts` + `foo.test.ts`).
+- Application helpers that must answer historically (price, week colour) take an optional `date?` and
+  resolve settings AND any date-dependent derivation at that same instant (`date ?? clock.now()`),
+  reading `settings.listVersions()` + `resolveSettingsAt` directly rather than `readCurrentSettings`.
+  See `distribution/get-week-colour.ts` and `allowance/describe-allowance.ts`.
 - Quality gate command: `npm run lint && npm run typecheck && npm run test:coverage && npm run build`.
+---
+
+## 2026-07-23 21:00 - US-003 (describeAllowance)
+- Implemented `describeAllowance(deps, household, date?)` in
+  `src/application/allowance/describe-allowance.ts`: resolves settings at the evaluated instant
+  (given `date`, else `clock.now()`), derives the split via `composition(household, at)` at that same
+  instant, then combines `portionsFor` + `priceFor` into `{grownUps, children, portions, priceCents}`.
+- Files: src/application/allowance/describe-allowance.ts (new),
+  describe-allowance.test.ts (new), docs/technical_documentation.md (dir tree + new section).
+- Tests (FakeSettingsRepository + fake clock): today path, single-person per-head pricing, historical
+  older-version pricing (proves a past date uses the version in force then), birthday changes the
+  allowance (counts derived as-of the date), NoSettingsInForce propagation. 100% coverage; all gates
+  green (lint, typecheck, test:coverage, build).
+- **Learnings for future iterations:**
+  - Resolving BOTH counts and settings at the same instant `at` is the whole point — a past
+    distribution must be priced with the ages and prices as they stood then. Pass a `date` to get
+    historical values; omit it for today. This mirrors `getWeekColour`'s instant-resolution pattern.
+  - `portionsFor` takes `Pick<Settings, "portionsPerGrownUp"|"portionsPerChild">`, so a full
+    `Settings` is assignable — no need to destructure before calling.
+  - The household input is `ReadonlyArray<HouseholdMember>` (birthdates only), not the full customer
+    entity — keeps the helper decoupled and trivially testable. Consumers pass
+    `customer.details.householdMembers`.
+  - US-07's remaining stories (US-07.4 display, US-07.5 E2E) are presentation and moved into the
+    US-04 batch — not in this PRD. This PRD (domain + application) is now complete.
 ---
 
 ## 2026-07-23 20:44 - US-002 (PricePolicy)
