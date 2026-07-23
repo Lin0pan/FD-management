@@ -120,6 +120,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── i18n/de.ts                    # single German UI-string dictionary
 │   └── i18n/format.ts                # German value formatting (germanDate) + its spec
 ├── tests/e2e/
+│   ├── card.spec.ts                  # registration issues k1 and the card view shows it
 │   ├── home.spec.ts                  # Playwright smoke test
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
 │   └── settings.spec.ts              # settings round-trip vs. the built app
@@ -679,6 +680,12 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
 ### End-to-end — Playwright (`playwright.config.ts`)
 
 - `testDir: tests/e2e`; runs Chromium against the **built** app.
+- **`workers: 1`, `fullyParallel: false`.** Every spec shares the one `data/e2e.db`, and several of
+  them write to it — a registration consumes a customer number, a settings save appends a version.
+  Two workers would interleave those writes and each spec would assert against a register the other
+  one had moved. The suite runs in a few seconds; a flaky gate is worth less than a slow one. The
+  consequence for a new spec: **never name a customer number outright** — read the one the screen
+  proposes, or inserting a spec file alphabetically above another one breaks it.
 - `webServer` **deletes `data/e2e.db`**, then runs `npx prisma migrate deploy && npm run db:seed &&
 npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` is on locally, off
   in CI. The delete matters locally: the settings specs edit the seeded price and then assert the
@@ -690,11 +697,17 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   **serially** against the one shared database, each building on the price the previous one saved.
 - `registration.spec.ts` covers US-01 end to end: a two-person household is registered from
   `/kunden/neu` (proposed number, the mirrored first household row, the counts updating live to
-  1 grown-up / 1 child), lands on its card (`1k1`, status _aktiv_, both members listed), and an
-  empty household is refused in German while consuming no customer number. It is **serial** too —
-  the specs share the customer-number sequence in `data/e2e.db`, and the rejection asserts against
-  the number the happy path left free. Names and addresses come from Faker with a fixed seed; every
-  date is a literal, because the rules under test are about dates.
+  1 grown-up / 1 child), lands on its overview (`<n>k1`, status _aktiv_, both members listed), and
+  an empty household is refused in German while consuming no customer number. It is **serial** too,
+  and the rejection asserts against the successor of the number the happy path consumed rather than
+  against a literal. Names and addresses come from Faker with a fixed seed; every date is a literal,
+  because the rules under test are about dates.
+- `card.spec.ts` covers US-02 end to end (§US-02.5): a three-person household is registered, the
+  overview's card link is followed to `/kunden/[id]/karte`, and the card is asserted to match
+  `^[0-9]+k1$` — the number the form proposed plus `k1` — with the name and group as entered, the
+  counts derived again on that request (2 grown-ups / 1 child) and no superseded numbers. It is the
+  only proof that the number the form proposed, the card the registration transaction wrote and the
+  card the view renders are the same card.
 - The distribution-day flows are added alongside the features they cover.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a

@@ -21,11 +21,10 @@ Started: Thu Jul 23 11:26:53 CEST 2026
   variable inside the `try`, build the JSX after it. `npm run build` does not catch this; lint does.
 - Next 16 hands a dynamic route its `params` as a **`Promise`** — `await` it, and treat a
   non-numeric id exactly like an unknown one.
-- `germanDate()` is duplicated in `einstellungen/page.tsx` and `kunden/[id]/page.tsx`. **Worth
-  extracting to a shared UI date formatter in the next story that touches either page** — US-004's
-  card view is a candidate.
-- Playwright specs share `data/e2e.db` and the customer-number sequence. Assert against the number
-  the screen *proposes*, never a hard-coded id, or inserting a spec above breaks the run.
+- **Playwright runs `workers: 1`, `fullyParallel: false`** — every spec shares `data/e2e.db` and
+  several of them write to it. Specs share the customer-number sequence, so assert against the
+  number the screen *proposes*, never a hard-coded id: files run alphabetically, and inserting one
+  above another shifts every number below it.
 - **A port method takes a value object, not loose arguments, whenever a field has to come from the
   clock.** `cards.issue(customerId, { index, issuedAt, reason })` keeps the stamping in the
   application layer; an `issue(customerId, index, reason)` would have left infrastructure to invent
@@ -252,4 +251,45 @@ Started: Thu Jul 23 11:26:53 CEST 2026
     `/karte` — decide there whether the spec follows the `card-view-link` (`data-testid`) or whether
     the redirect should change. The card view exposes `card-number`, `card-name`, `card-group`,
     `grown-ups`, `children` and `superseded-card` as test ids.
+---
+
+## [2026-07-23 12:20] - US-005 (E2E: card is issued on registration and displayed)
+- Added `tests/e2e/card.spec.ts`: registers a three-person household (two grown-ups, one child)
+  from `/kunden/neu` with the group **chosen by hand** rather than accepted from the suggestion,
+  follows the overview's `card-view-link` to `/kunden/[id]/karte`, and asserts the card number
+  matches `^[0-9]+k1$` *and* equals `${proposedNumber}k1`, the name and group as entered, the counts
+  derived again on that request (2 / 1), and that a first card lists no superseded numbers.
+- This is the only proof that the number the form proposed, the card the registration transaction
+  wrote and the card the view renders are one card — each half is unit-tested in isolation.
+- **Made the e2e suite serial** (`playwright.config.ts`: `workers: 1`, `fullyParallel: false`). A
+  fourth spec that *writes* to the shared `data/e2e.db` would otherwise race the registration spec
+  for the customer-number sequence.
+- Consequently `registration.spec.ts` no longer asserts the literals `1` and `2`: the happy path
+  reads the number the form proposes, and the rejection spec asserts its successor.
+- Files changed: `tests/e2e/card.spec.ts` (new), `tests/e2e/registration.spec.ts`,
+  `playwright.config.ts`, `docs/technical_documentation.md`, `scripts/ralph/prd.json`,
+  `scripts/ralph/progress.txt`.
+- Documentation: `docs/technical_documentation.md` gained a `card.spec.ts` entry and a paragraph on
+  why the suite is single-worker (and what that means for the next spec author); the
+  `registration.spec.ts` entry was corrected — it lands on the customer *overview*, not the card.
+- All gates green: lint, typecheck, coverage (domain + application 100%, 287 tests), build,
+  prettier, and `npm run test:e2e` (7 passed, 1 skipped, up from 6 passed).
+- **Learnings for future iterations:**
+  - **A new e2e spec is a write against a shared register, not an isolated test.** Adding one that
+    registers a customer silently invalidated `registration.spec.ts`'s hard-coded numbers, and under
+    the previous `fullyParallel: true` it would have failed *intermittently* rather than every time.
+    Check what the other specs assume about the database before adding one that mutates it.
+  - Playwright orders spec **files alphabetically**; `card.spec.ts` therefore consumes customer
+    number 1 and everything downstream shifts. Deriving a number from what the screen proposes is
+    the only assertion that survives the next inserted file.
+  - Registration still redirects to `/kunden/[id]`, not to the card. That was deliberate — the
+    overview is where staff carry on, and it links to the card — so the spec clicks through rather
+    than asserting a redirect that does not exist. **US-09 (reissue) should not change the
+    redirect** without updating this spec.
+  - The group radio is `#group-<GROUP>`. Checking it explicitly keeps the assertion about *what was
+    entered*; accepting the suggestion would make the spec depend on which group happened to be
+    smaller, which the specs above it change.
+  - Kill any `npm run dev` on port 3000 before `npm run test:e2e` — `reuseExistingServer` is on
+    locally, so the suite would otherwise run against the dev database.
+  - **US-02 is complete**: all five stories pass. The next batch is a new PRD in `tasks/`.
 ---

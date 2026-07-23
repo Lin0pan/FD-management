@@ -82,8 +82,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "tests/e2e/card.spec.ts registers a three-person household, follows the overview's card-view-link to /kunden/[id]/karte and asserts ^[0-9]+k1$ plus name, group and the derived counts. Registration still redirects to /kunden/[id] rather than to the card — the overview is where staff continue working, and the card is one click on. Adding a fourth writing spec to the one shared e2e database forced playwright.config.ts to workers: 1 / fullyParallel: false, and registration.spec.ts to derive its customer numbers instead of asserting the literals 1 and 2."
     }
   ]
 }
