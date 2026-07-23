@@ -113,7 +113,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
 │   │   │                             #   CustomerRepository, CardRepository, AuditLog
 │   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
-│   │   │                             #   readCard, issueCard
+│   │   │                             #   readCard, issueCard, lookupCustomer (the counter lookup)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour — the colour of any day, from history
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date

@@ -66,6 +66,52 @@ export function parseCardNumber(text: string): CardNumber {
 }
 
 /**
+ * A number a staff member types at the counter: either a full card number (`50k3`) or the bare
+ * customer number (`50`) that names whichever card the customer holds today.
+ */
+export interface CounterQuery {
+  readonly customerNumber: number;
+  /**
+   * The card index that was presented, or `null` for a bare customer number. Only a presented index
+   * can be *outdated*; a bare number always means the current card (counterVerdict.ts, US-04.1).
+   */
+  readonly cardIndex: number | null;
+}
+
+/**
+ * The same `<customer number>[k<index>]`, with the `k<index>` optional — so it reads both forms of
+ * counter query in one pass. Matched case-insensitively for the reason {@link parseCardNumber} is,
+ * and just as strict about leading zeros: `050` is a slip of the hand, not customer 50.
+ */
+const COUNTER_QUERY_PATTERN = new RegExp(
+  `^([1-9][0-9]*)(?:${CARD_INDEX_MARKER}([1-9][0-9]*))?$`,
+  "i",
+);
+
+/**
+ * Read what a staff member typed at the counter into a customer number and, when a full card number
+ * was given, the card index it presented.
+ *
+ * The rules are exactly {@link parseCardNumber}'s — positive whole numbers, no padding, an optional
+ * uppercase `K` — with the index made optional, because the counter accepts a bare customer number
+ * too (US-04.2, FR-1). A bare number resolves to the customer's current card, so its `cardIndex` is
+ * `null` rather than a guessed `1`.
+ *
+ * @throws {InvalidCardNumber} for anything that is not `<customer number>` or `<customer number>k<index>`.
+ */
+export function parseCounterQuery(text: string): CounterQuery {
+  const match = COUNTER_QUERY_PATTERN.exec(text.trim());
+  if (match === null) {
+    throw new InvalidCardNumber(text);
+  }
+  const [, customerNumber, index] = match;
+  return {
+    customerNumber: Number(customerNumber),
+    cardIndex: index === undefined ? null : Number(index),
+  };
+}
+
+/**
  * The card number that replaces `card` — the same customer, the next index.
  *
  * Issuing it invalidates every earlier card of that customer, because validity is *being the highest

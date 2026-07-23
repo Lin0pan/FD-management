@@ -52,6 +52,17 @@ export interface CustomerRepository {
    */
   findById(id: number): Promise<RegisteredCustomer | null>;
   /**
+   * The customer a customer *number* resolves to — the slot's current holder for the counter lookup
+   * (US-04.2). A number is a slot another household may hold once this one is archived, so the answer
+   * is the **active** holder when there is one, and otherwise the **most recently archived** holder,
+   * so a lookup of a freed-and-not-yet-reissued number still names who last had it rather than
+   * nothing. `null` only when no customer has ever held the number.
+   *
+   * The card, household and certificate are loaded with the row — the counter reads them all without
+   * a second query (US-04.3).
+   */
+  findByCustomerNumber(customerNumber: number): Promise<RegisteredCustomer | null>;
+  /**
    * Persist a new customer with everything that belongs to them.
    *
    * @throws {CustomerNumberTaken} if another registration took the number first.

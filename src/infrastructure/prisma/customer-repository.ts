@@ -19,6 +19,22 @@ import { CustomerNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
 const ON_REGISTER = { status: { not: "ARCHIVED" } } as const;
 
 /**
+ * The related rows the counter and the card view both read off a customer — the household, the
+ * certificate and the current card — loaded with the customer in a single query so neither screen
+ * fans out into an N+1 (tasks/prd-us-04-lookup-customer.md §US-04.3).
+ */
+const CUSTOMER_INCLUDE = {
+  householdMembers: { orderBy: { id: "asc" } },
+  certificate: true,
+  // The highest index is the card the customer actually holds; a reissue supersedes the earlier
+  // one, which stays on file so an old card can be recognised at the counter (US-09).
+  cards: { orderBy: { index: "desc" }, take: 1 },
+} as const satisfies Prisma.CustomerInclude;
+
+/** A customer row with the {@link CUSTOMER_INCLUDE} relations attached. */
+type CustomerRow = Prisma.CustomerGetPayload<{ include: typeof CUSTOMER_INCLUDE }>;
+
+/**
  * Whether a failed write was the partial unique index rejecting a customer number that had been
  * taken in the meantime.
  *
@@ -77,24 +93,56 @@ export class PrismaCustomerRepository implements CustomerRepository {
   async findById(id: number): Promise<RegisteredCustomer | null> {
     const row = await this.prisma.customer.findUnique({
       where: { id },
-      include: {
-        householdMembers: { orderBy: { id: "asc" } },
-        certificate: true,
-        // The highest index is the card the customer actually holds; a reissue supersedes the
-        // earlier one, which stays on file so an old card can be recognised at the counter (US-09).
-        cards: { orderBy: { index: "desc" }, take: 1 },
-      },
+      include: CUSTOMER_INCLUDE,
     });
-    if (row === null) {
-      return null;
+    return row === null ? null : this.toRegisteredCustomer(row);
+  }
+
+  /**
+   * The customer a customer *number* resolves to at the counter (US-04.2): the slot's active holder
+   * when there is one, and otherwise the most recently archived holder, so a freed-and-not-yet-
+   * reissued number still names who last had it.
+   *
+   * Two reads rather than one because "active or, failing that, the latest archived" is not a single
+   * `orderBy`: an active holder must always win over an archived one regardless of when each row was
+   * created, and only when there is no active holder does recency decide between the archived ones.
+   * A reassigned slot therefore resolves to its current holder, never to the person it was taken
+   * from. At most one active holder can exist — the partial unique index guarantees it.
+   */
+  async findByCustomerNumber(customerNumber: number): Promise<RegisteredCustomer | null> {
+    const active = await this.prisma.customer.findFirst({
+      where: { customerNumber, status: { not: "ARCHIVED" } },
+      include: CUSTOMER_INCLUDE,
+    });
+    if (active !== null) {
+      return this.toRegisteredCustomer(active);
     }
 
+    const archived = await this.prisma.customer.findFirst({
+      where: { customerNumber, status: "ARCHIVED" },
+      orderBy: { id: "desc" },
+      include: CUSTOMER_INCLUDE,
+    });
+    return archived === null ? null : this.toRegisteredCustomer(archived);
+  }
+
+  /**
+   * Map a loaded row into the domain record, validating the stored `group` and `status` strings on
+   * the way back in — a hand-edited row fails loudly rather than quietly becoming an active RED
+   * household.
+   *
+   * @throws {InvalidCustomerRecord} if the certificate or the current card is missing. Registration
+   *   writes both in the same transaction as the customer, so a row without them can only come from
+   *   a hand-edited database — and a card view inventing either would be worse than refusing.
+   */
+  private toRegisteredCustomer(row: CustomerRow): RegisteredCustomer {
     const certificate = row.certificate;
     const card = row.cards[0];
     if (certificate === null || card === undefined) {
-      // Registration writes both in the same transaction as the customer, so a row without them can
-      // only come from a hand-edited database — and a card view inventing either would be worse.
-      throw new InvalidCustomerRecord(certificate === null ? "certificate" : "card", String(id));
+      throw new InvalidCustomerRecord(
+        certificate === null ? "certificate" : "card",
+        String(row.id),
+      );
     }
 
     return {
