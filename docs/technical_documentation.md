@@ -113,7 +113,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
 │   │   │                             #   readCard, issueCard
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
-│   │   └── distribution/             # getWeekColour — the colour of any day, from history
+│   │   ├── distribution/             # getWeekColour — the colour of any day, from history
+│   │   └── allowance/                # describeAllowance — counts, portions and price at a date
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (+ the FD_FIXED_NOW_FILE test seam)
 │   │   └── prisma/                   # Prisma client + repository implementations
@@ -236,6 +237,19 @@ Two decisions are worth knowing:
   directly rather than going through `readCurrentSettings`.
 - It resolves at the asked-about _instant_ and normalises only the calendar arithmetic to a UTC day,
   so a settings change saved this morning is in force this morning.
+
+### `src/application/allowance/`
+
+**`describeAllowance(deps, household, date?)`** is the single seam the counter screen (US-04) and the
+customer record (US-05) both read for a household's `{ grownUps, children, portions, priceCents }`, so
+neither recomputes the arithmetic and the two can never disagree (US-07.3). Everything is derived,
+nothing stored: the split from the birthdates, portions from `portionsFor` and the price from
+`priceFor`, all against the settings **in force on the evaluated date**.
+
+Both the counts and the settings resolve at the _same_ instant — the given date, or the clock's today
+— so a past distribution is priced with the members' ages and the policy values as they stood then,
+not as they stand now. That is why it reads the version history directly rather than going through
+`readCurrentSettings`.
 
 Nothing is persisted: a week colour is a function of the date and the anchor, so there are no week
 rows and `SettingsRepository` is the only port needed. Tested against hand-written fakes and a fake

@@ -16,8 +16,8 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "src/domain/policy/portions.ts + portions.test.ts. Pure per-head derivation reusing HouseholdComposition and Settings types; no baked-in defaults. 100% coverage."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -33,8 +33,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "priceFor(settings, grownUps, children) in src/domain/policy/settings.ts derives per-head cents (no table, no interpolation); every household priceable, empty = 0. Tests in settings.test.ts cover exact per-head, single-person, arbitrary size, empty household and a zero-cent price. Already on branch; verified against gates."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -49,8 +49,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "describeAllowance(deps, household, date?) in src/application/allowance/describe-allowance.ts. Resolves settings at the evaluated instant (given date or clock.now()), derives counts via composition at the same instant, then combines portionsFor + priceFor into {grownUps, children, portions, priceCents}. Tested against FakeSettingsRepository + fake clock: today path, single-person, historical older-version pricing, birthday-changes-allowance, and NoSettingsInForce. 100% coverage; all gates green."
+      "passes": false,
+      "notes": ""
     }
   ]
 }
