@@ -52,6 +52,21 @@ Started: Thu Jul 23 11:26:53 CEST 2026
   inspects `error.meta` for the field rather than assuming which constraint fired.
 - **Adapters are wired in `src/app/<area>/deps.ts`** — the one composition root per screen area. A new
   repository is not reachable until it is added there.
+- **One use case per screen, not one per entity.** `readCustomer` (the overview) and `readCard` (the
+  card) both start from a customer id and deliberately stay apart: a view object serving two screens
+  carries fields each of them ignores, and the next story widens it again. Add a use case rather than
+  a field.
+- **Ask the database once for a run and take the head.** `listCards` returns every card highest index
+  first, so the current card and the ones it replaced come from one read at one moment. Two calls —
+  `currentCard` plus a history query — could disagree.
+- **A formatter copied into a second page belongs in `src/i18n/`.** `germanDate` now lives in
+  `src/i18n/format.ts` beside the dictionary: `de.ts` holds the words, `format.ts` holds the shapes.
+  Dates are read in **UTC** there, because the domain stores calendar days at midnight UTC.
+- **Playwright's `webServer` needs port 3000 free.** A `npm run dev` left running from a manual check
+  makes e2e specs fail against *its* database with assertions that look like real regressions. Kill
+  the dev server before `npm run test:e2e`.
+- **`npm run dev` rewrites `next-env.d.ts`** to the dev-mode routes path. Restore it
+  (`git checkout next-env.d.ts`) before committing, or an unrelated one-line diff rides along.
 
 ---
 
@@ -187,4 +202,54 @@ Started: Thu Jul 23 11:26:53 CEST 2026
     and the card number; the deps object now carries `cards`, so listing the superseded numbers needs
     either a `listCards` port method or a widened `readCustomer` — decide there, and note that
     `germanDate()` is still duplicated across two pages and this is the story to extract it.
+---
+
+## [2026-07-23 12:05] - US-004 (Card view at /kunden/[id]/karte)
+- Added `src/app/kunden/[id]/karte/page.tsx`: the digital customer card. Card number and name set
+  large, the group as a coloured German pill (`Rot` / `Blau`), the two counts as big numerals, the
+  issue date and reason, then the numbers this card replaced with the reason each was issued for. A
+  screen, not a document — no print stylesheet and no PDF, because FD prints through a system they
+  already own. `dynamic = "force-dynamic"`, so the counts are derived on every request.
+- Added `src/application/customers/read-card.ts` (`readCard`): the current card number, name, group,
+  composition as of `clock.now()` and the superseded numbers. Reads the whole run through one new
+  port call and takes the head as current; refuses a customer with no card at all as
+  `InvalidCustomerRecord` rather than rendering a card without a number.
+- Added `listCards(customerId)` to the `CardRepository` port, to `PrismaCardRepository` (`orderBy:
+  { index: "desc" }`) and to `FakeCardRepository`.
+- Extracted the twice-copied `germanDate` into `src/i18n/format.ts` with its own spec (padding, the
+  UTC day, 29 February), and pointed the settings page and the customer overview at it.
+- `/kunden/[id]` now links on to the card (`Kundenkarte anzeigen`). New strings:
+  `de.customers.cardView.*` and `de.customers.cardReasons` (the four `CardIssueReason` words in
+  German).
+- The PRD's "reissue card" action is present but **disabled**, with a German note that it follows —
+  its behaviour is US-09, and a button that silently did nothing would be worse than a visible gap.
+- Files changed: `src/app/kunden/[id]/karte/page.tsx` (new),
+  `src/application/customers/read-card.ts` (new), `src/i18n/format.ts` + `format.test.ts` (new),
+  `src/application/ports.ts`, `src/application/customers/customers.test.ts`,
+  `src/infrastructure/prisma/card-repository.ts` + its test, `src/app/kunden/[id]/page.tsx`,
+  `src/app/einstellungen/page.tsx`, `src/i18n/de.ts`, `docs/technical_documentation.md`,
+  `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- Documentation: `docs/technical_documentation.md` gained the `[id]/karte/page.tsx` and
+  `src/i18n/format.ts` sections and a `readCard` entry beside `readCustomer`; the ports table and the
+  file tree were updated.
+- All gates green: lint, typecheck, coverage (domain + application 100%, 287 tests, up from 271),
+  build, prettier, and `npm run test:e2e` (6 passed, 1 skipped).
+- **Learnings for future iterations:**
+  - **Verified in the browser by rendering, not by a browser tool** — no MCP browser tool is
+    configured in this sandbox. `npm run dev`, insert a customer with three cards straight through
+    Prisma, then `curl` the route and strip the tags: enough to prove the German text, the derived
+    counts (2 grown-ups / 1 child from three birthdates) and the superseded list read correctly. The
+    *visual* layout still deserves a human glance.
+  - A script importing `@prisma/client` must live **inside the project**; from `/tmp` Node cannot
+    resolve the package.
+  - The first draft read `„50k1 … ersetzt wegen: Erstausstellung“`, which attaches the reason to the
+    wrong card — a superseded card's reason says why *it* was issued, not why it was replaced. Read
+    generated German back as a sentence, not as a template.
+  - `readCard` deliberately does **not** take the current card from `customer.card`. It is the same
+    row in the real database, but two sources in the fakes drifted at once, and one read of the run
+    is the honest statement of "the highest index is the valid card".
+  - **US-005 next**: the Playwright spec. Registration still redirects to `/kunden/[id]`, not to
+    `/karte` — decide there whether the spec follows the `card-view-link` (`data-testid`) or whether
+    the redirect should change. The card view exposes `card-number`, `card-name`, `card-group`,
+    `grown-ups`, `children` and `superseded-card` as test ids.
 ---

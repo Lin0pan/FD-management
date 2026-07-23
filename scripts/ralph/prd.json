@@ -68,8 +68,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The route reads a new `readCard` use case (src/application/customers/read-card.ts) rather than widening `readCustomer` — the card asks a different question (the run of cards) than the overview does, and one view object serving both would carry fields each screen ignores. It needed a third card-port method, `listCards(customerId)`, returning the whole run highest index first; the head is the current card, so which card is valid is still read off the run and never off a flag. `/kunden/[id]` stays the customer overview and links on to the card. The PRD's 'reissue card' action is present but disabled, since its behaviour is US-09. Also extracted the twice-copied `germanDate` into src/i18n/format.ts. Browser-verified by rendering the route against seeded data (no MCP browser tool is configured in this sandbox); the visual layout is worth a human glance."
     },
     {
       "id": "US-005",
