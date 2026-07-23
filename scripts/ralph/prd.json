@@ -51,8 +51,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "getWeekColour in src/application/distribution/get-week-colour.ts; 8 tests against hand-written fakes. Returns the whole banner view (date, isoWeek, colour, isDistributionDay, nextDistribution) so US-004 needs no second use case."
     },
     {
       "id": "US-004",

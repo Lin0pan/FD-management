@@ -109,7 +109,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   CustomerRepository, CardRepository, AuditLog
 │   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
 │   │   │                             #   readCard, issueCard
-│   │   └── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
+│   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
+│   │   └── distribution/             # getWeekColour — the colour of any day, from history
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (implements Clock port)
 │   │   └── prisma/                   # Prisma client + repository implementations
@@ -216,6 +217,25 @@ The three use cases over the policy versions:
   here rather than assumed of the repository, which is free to return rows however its query does.
 
 All three are tested against hand-written fakes and a fake clock in `settings.test.ts`.
+
+### `src/application/distribution/`
+
+**`getWeekColour(deps, date?)`** is the single seam the distribution screen reads. It answers for the
+clock's today by default and for a looked-up date on request, returning everything the banner states:
+the day, its ISO week (`2026-W30`), the colour, whether FD distributes that day and the next
+distribution at or after it (US-03, FR-1/4/5).
+
+Two decisions are worth knowing:
+
+- It resolves the settings **at the date asked about**, not at today, so a lookup for a past week
+  answers with the anchor that was in force _then_ (FR-6). That is why it reads the version history
+  directly rather than going through `readCurrentSettings`.
+- It resolves at the asked-about _instant_ and normalises only the calendar arithmetic to a UTC day,
+  so a settings change saved this morning is in force this morning.
+
+Nothing is persisted: a week colour is a function of the date and the anchor, so there are no week
+rows and `SettingsRepository` is the only port needed. Tested against hand-written fakes and a fake
+clock in `distribution.test.ts`.
 
 ### `src/infrastructure/clock.ts`
 

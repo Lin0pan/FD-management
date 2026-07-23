@@ -18,6 +18,11 @@ Started: Thu Jul 23 15:09:52 CEST 2026
   import it rather than re-deriving UTC/ISO weekday maths in a new module.
 - Verify every ISO date claim in a test comment against a real calendar before trusting it; an
   expectation written from intuition is the likeliest red in this area.
+- A use case that answers about a **past** date resolves settings with `resolveSettingsAt(versions,
+  thatDate)` rather than through `readCurrentSettings` — the latter always resolves at `clock.now()`
+  and would apply today's policy to a historic question.
+- Application use cases return a view object carrying everything one screen states, so the page needs
+  a single call; `app/` composing two use cases is where logic leaks back up.
 
 ---
 
@@ -82,4 +87,35 @@ Started: Thu Jul 23 15:09:52 CEST 2026
     uncovered branch under the 100% gate).
   - Next up (US-003) needs only `SettingsRepository` + `Clock`; the fake-based application tests in
     `src/application/settings/settings.test.ts` are the pattern to copy.
+---
+
+## 2026-07-23 - US-003 (getWeekColour use case)
+- Implemented `src/application/distribution/get-week-colour.ts`: `getWeekColour(deps, date?)` resolves
+  the settings version in force at the asked-about date and delegates to `colourOf`, `isoWeekOf`,
+  `isDistributionDay` and `nextDistribution`. It returns a `WeekColourView` — the day, its ISO week,
+  the colour, whether FD distributes that day and the next distribution — which is exactly what the
+  US-004 banner has to state, so the page will need one call and no logic of its own.
+- Written test-first: the spec was red (module missing) before the implementation existed.
+- Only `SettingsRepository` + `Clock`; nothing is persisted, per FR-2/US-03.3.
+- Files changed:
+  - `src/application/distribution/get-week-colour.ts` (new)
+  - `src/application/distribution/distribution.test.ts` (new, 8 tests)
+  - `docs/technical_documentation.md` (source tree + an application module section)
+  - `scripts/ralph/prd.json` (US-003 passes)
+- Gate: lint, typecheck, `test:coverage` (331 tests, 100% on domain + application) and `build` all
+  green.
+- **Learnings for future iterations:**
+  - `readCurrentSettings` is *not* reusable for a dated lookup: it hard-codes `clock.now()`. FR-6
+    wants the anchor in force **then**, so this use case calls `resolveSettingsAt` on the history
+    itself. Any future "what did it cost / what colour was it" question needs the same shape.
+  - Settings are resolved at the asked-about **instant**, but the calendar arithmetic runs on
+    `startOfUtcDay`. Resolving at day-start instead would hide a settings change saved earlier the
+    same morning, which contradicts "a saved change is in force immediately" in CLAUDE.md.
+  - The past-vs-present anchor test is only meaningful if the two dates sit an **even** number of
+    weeks apart from the anchor — then the colours differ solely by the anchor colour in force.
+    2026-01-08 and 2026-07-23 are 28 weeks apart, which is why that pair was chosen.
+  - The application test file is named after the folder (`distribution.test.ts`), matching
+    `customers.test.ts` and `settings.test.ts`; the fakes are re-declared per file rather than shared.
+  - Next up (US-004) is the `/ausgabe` route: it does not exist yet under `src/app/`, and every string
+    it renders must be added to `src/i18n/de.ts` (German literals in components are a lint error).
 ---
