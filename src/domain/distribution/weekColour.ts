@@ -26,23 +26,29 @@ const MS_PER_WEEK = 7 * MS_PER_DAY;
 const ISO_WEEK = /^(\d{4})-W(\d{2})$/;
 
 /**
- * The instant of the UTC day a date falls on. A week colour is a property of a calendar day, so the
- * time of day must not decide it — otherwise a distribution recorded at 23:59 could report a
- * different colour from one recorded at 00:01 the same morning.
+ * The start of the UTC day a date falls on. A week colour — like a distribution day — is a property
+ * of a calendar day, so the time of day must not decide it: otherwise a distribution recorded at
+ * 23:59 could report a different colour from one recorded at 00:01 the same morning.
  */
-function utcDay(date: Date): number {
-  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+export function startOfUtcDay(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
 
-/** ISO weekday of a UTC day instant: Monday = 1 … Sunday = 7. */
-function isoWeekday(dayUtc: number): number {
-  return ((new Date(dayUtc).getUTCDay() + 6) % 7) + 1;
+/**
+ * The ISO weekday of the day a date falls on: Monday = 1 … Sunday = 7. `Date` numbers its weekdays
+ * from Sunday = 0, which is the other convention and one FD never uses.
+ */
+export function isoWeekdayOf(date: Date): number {
+  return ((date.getUTCDay() + 6) % 7) + 1;
+}
+
+function utcDay(date: Date): number {
+  return startOfUtcDay(date).getTime();
 }
 
 /** The UTC instant of the Monday that starts the ISO week containing `date`. */
 function mondayOf(date: Date): number {
-  const day = utcDay(date);
-  return day - (isoWeekday(day) - 1) * MS_PER_DAY;
+  return utcDay(date) - (isoWeekdayOf(date) - 1) * MS_PER_DAY;
 }
 
 /**

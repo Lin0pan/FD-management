@@ -14,6 +14,10 @@ Started: Thu Jul 23 15:09:52 CEST 2026
 - `docs/technical_documentation.md` carries both a source tree and a per-module section; a new domain
   module needs an entry in each.
 - Full gate: `npm run lint && npm run typecheck && npm run test:coverage && npm run build`.
+- Shared calendar arithmetic lives in `distribution/weekColour.ts` (`startOfUtcDay`, `isoWeekdayOf`) —
+  import it rather than re-deriving UTC/ISO weekday maths in a new module.
+- Verify every ISO date claim in a test comment against a real calendar before trusting it; an
+  expectation written from intuition is the likeliest red in this area.
 
 ---
 
@@ -48,4 +52,34 @@ Started: Thu Jul 23 15:09:52 CEST 2026
     and needs no guard — a guard would be an uncovered branch and fail the coverage gate.
   - There is no `e2e/` directory yet; `npm run test:e2e` runs Playwright from `tests/e2e` per
     `vitest.config.ts`'s comment. US-005 will have to create it.
+---
+
+## 2026-07-23 - US-002 (isDistributionDay and nextDistribution)
+- Implemented `src/domain/distribution/distributionDay.ts`: `isDistributionDay(date, weekday)` and
+  `nextDistribution(date, settings)` returning `{ date, colour }` for the next distribution at or
+  after the given date — today when today is a distribution day.
+- Written test-first: the spec was red (module missing) before the implementation existed.
+- `weekColour.ts` grew two exports, `startOfUtcDay` and `isoWeekdayOf`, replacing its two private
+  helpers so the new module reuses the same UTC/ISO arithmetic instead of duplicating it.
+- Files changed:
+  - `src/domain/distribution/distributionDay.ts` (new)
+  - `src/domain/distribution/distributionDay.test.ts` (new, 13 tests)
+  - `src/domain/distribution/weekColour.ts` (helpers exported)
+  - `docs/technical_documentation.md` (source tree + a module section)
+  - `scripts/ralph/prd.json` (US-002 passes)
+- Gate: lint, typecheck, `test:coverage` (323 tests, 100% on domain + application) and `build` all
+  green.
+- **Learnings for future iterations:**
+  - `date.getUTCDay()` is unaffected by the time of day, so the ISO weekday needs no day-normalising
+    first — only the returned *date* does.
+  - "Next occurrence of weekday W, today counting" is `(W - isoWeekday(d) + 7) % 7` days ahead; the
+    `% 7` is what makes a distribution day return itself rather than +7.
+  - One test failed first time because its comment mis-stated the calendar: 2025-W52 (22–28 Dec) is
+    **two** weeks before the anchor 2026-W02, not one — 2025-W53 does not exist, so W52 is followed
+    by 2026-W01. Check the week numbering, not just the day count.
+  - `Settings.distributionWeekday` is already narrowed to `IsoWeekday` by `createSettings`, so the
+    domain functions can take the narrow type and need no re-validation branch (which would be an
+    uncovered branch under the 100% gate).
+  - Next up (US-003) needs only `SettingsRepository` + `Clock`; the fake-based application tests in
+    `src/application/settings/settings.test.ts` are the pattern to copy.
 ---

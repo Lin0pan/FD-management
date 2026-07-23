@@ -34,8 +34,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "isDistributionDay + nextDistribution in src/domain/distribution/distributionDay.ts; 13 tests. weekColour.ts now exports startOfUtcDay and isoWeekdayOf so both modules share one piece of calendar arithmetic."
     },
     {
       "id": "US-003",

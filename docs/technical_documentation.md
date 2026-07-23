@@ -102,6 +102,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── card/cardNumber.test.ts   # its Vitest spec
 │   │   ├── distribution/weekColour.ts  # RED/BLUE alternation derived from the ISO calendar
 │   │   ├── distribution/weekColour.test.ts  # its Vitest spec
+│   │   ├── distribution/distributionDay.ts  # is today a distribution day, and when is the next
+│   │   ├── distribution/distributionDay.test.ts  # its Vitest spec
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
 │   │   │                             #   CustomerRepository, CardRepository, AuditLog
@@ -395,6 +397,23 @@ so staff can check it against a wall calendar.
 The anchor is validated here as well as in `createSettings`, and for a reason the shape check cannot
 cover: `2025-W53` is well-formed but 2025 has only 52 ISO weeks. Both raise `InvalidSettings` against
 `weekAnchor.isoWeek`, so the settings screen marks the same input either way.
+
+The two calendar helpers the module needs are exported rather than kept private, because the
+distribution-day rules are the same arithmetic: `startOfUtcDay(date)` drops the time of day and
+`isoWeekdayOf(date)` numbers weekdays the ISO way (Monday = 1 … Sunday = 7) rather than `Date`'s
+Sunday = 0.
+
+### `src/domain/distribution/distributionDay.ts`
+
+When FD hands out food. `isDistributionDay(date, weekday)` compares the ISO weekday of a date against
+the configured `distributionWeekday`, and `nextDistribution(date, settings)` returns the next
+distribution **at or after** that date together with the colour of the week it falls in (US-03,
+FR-5). "At or after" is the rule that matters in the hall: on a distribution day it answers _today_,
+not a week hence. On any other day the screen can say which colour is next and when, instead of going
+blank.
+
+A skipped week shifts nothing here either — the next distribution is simply the next occurrence of
+the configured weekday, and its colour comes from `colourOf`, so the parity is the calendar's.
 
 ### `src/application/customers/registerCustomer`
 
