@@ -107,6 +107,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── distribution/weekColour.test.ts  # its Vitest spec
 │   │   ├── distribution/distributionDay.ts  # is today a distribution day, and when is the next
 │   │   ├── distribution/distributionDay.test.ts  # its Vitest spec
+│   │   ├── distribution/counterVerdict.ts  # evaluateAtCounter — the one verdict at the counter
+│   │   ├── distribution/counterVerdict.test.ts  # its Vitest spec
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
 │   │   │                             #   CustomerRepository, CardRepository, AuditLog

@@ -1,76 +1,41 @@
 # Ralph Progress Log
-Started: Thu Jul 23 20:41:04 CEST 2026
+Started: Thu Jul 23 21:04:04 CEST 2026
 ---
 
 ## Codebase Patterns
-- Domain policy modules live in `src/domain/policy/`. Per-head derivations (price, portions) are
-  pure functions that take the counts and the settings values as parameters — NO baked-in defaults,
-  because policy values are configuration (CLAUDE.md). Reuse `HouseholdComposition` ({grownUps,
-  children}) from `src/domain/customer/householdComposition.ts` and `Pick<Settings, ...>` for the
-  settings-derived params rather than redeclaring `{grownUps, children}` shapes.
-- `priceFor(settings, grownUps, children)` already lives in `src/domain/policy/settings.ts` (per-head,
-  returns integer cents) — US-002 is effectively implemented and tested on main; just needs marking.
-- Coverage is gated at 100% on domain/ + application/ (`vitest.config.ts`). TDD: write the
-  invariant-named test first. Test files sit beside the module (`foo.ts` + `foo.test.ts`).
-- Application helpers that must answer historically (price, week colour) take an optional `date?` and
-  resolve settings AND any date-dependent derivation at that same instant (`date ?? clock.now()`),
-  reading `settings.listVersions()` + `resolveSettingsAt` directly rather than `readCurrentSettings`.
-  See `distribution/get-week-colour.ts` and `allowance/describe-allowance.ts`.
-- Quality gate command: `npm run lint && npm run typecheck && npm run test:coverage && npm run build`.
+- Domain modules are pure: `today` (and `weekColour`, settings) are always parameters — never
+  `new Date()`. Day-boundary comparisons go through `startOfUtcDay` (exported from
+  `domain/distribution/weekColour.ts`) so a rule never turns on the time of day.
+- Domain tests use relative imports (`./counterVerdict`); application/infra use the `@/` alias.
+- Domain/application coverage is gated at 100% — avoid `?? ""`-style fallback branches you cannot
+  exercise; pass values straight through (e.g. `reason: string | null`) instead.
+- Test helper convention: an `on("2026-07-23")` → UTC-midnight `Date`, and a `customer(overrides)`
+  factory that returns the happy-path value so each test overrides only the field its rule turns on.
+- Verdicts/statuses/reasons are discriminated unions with a `kind`/enum discriminator; the UI switch
+  is meant to be exhaustive with a `never`-check (US-04.4).
+
 ---
 
-## 2026-07-23 21:00 - US-003 (describeAllowance)
-- Implemented `describeAllowance(deps, household, date?)` in
-  `src/application/allowance/describe-allowance.ts`: resolves settings at the evaluated instant
-  (given `date`, else `clock.now()`), derives the split via `composition(household, at)` at that same
-  instant, then combines `portionsFor` + `priceFor` into `{grownUps, children, portions, priceCents}`.
-- Files: src/application/allowance/describe-allowance.ts (new),
-  describe-allowance.test.ts (new), docs/technical_documentation.md (dir tree + new section).
-- Tests (FakeSettingsRepository + fake clock): today path, single-person per-head pricing, historical
-  older-version pricing (proves a past date uses the version in force then), birthday changes the
-  allowance (counts derived as-of the date), NoSettingsInForce propagation. 100% coverage; all gates
-  green (lint, typecheck, test:coverage, build).
+## 2026-07-23 - US-001 (evaluateAtCounter — the counter verdict rule)
+- Implemented the pure `evaluateAtCounter(input): Verdict` counter-verdict rule (US-04.1).
+- Files changed:
+  - `src/domain/distribution/counterVerdict.ts` (new) — `Verdict` discriminated union
+    (NOT_FOUND, ARCHIVED, BLOCKED, WRONG_GROUP, OUTDATED_CARD, ALREADY_SERVED_TODAY, CLEAR_TO_SERVE,
+    CLEAR_TO_SERVE_CERTIFICATE_EXPIRED), `CounterCustomer`/`CounterInput` inputs, and the function.
+  - `src/domain/distribution/counterVerdict.test.ts` (new) — precedence, card matching, wrong group
+    and certificate-boundary tests (day before/of/after + 29 Feb).
+  - `docs/technical_documentation.md` — added the module to the file tree.
 - **Learnings for future iterations:**
-  - Resolving BOTH counts and settings at the same instant `at` is the whole point — a past
-    distribution must be priced with the ages and prices as they stood then. Pass a `date` to get
-    historical values; omit it for today. This mirrors `getWeekColour`'s instant-resolution pattern.
-  - `portionsFor` takes `Pick<Settings, "portionsPerGrownUp"|"portionsPerChild">`, so a full
-    `Settings` is assignable — no need to destructure before calling.
-  - The household input is `ReadonlyArray<HouseholdMember>` (birthdates only), not the full customer
-    entity — keeps the helper decoupled and trivially testable. Consumers pass
-    `customer.details.householdMembers`.
-  - US-07's remaining stories (US-07.4 display, US-07.5 E2E) are presentation and moved into the
-    US-04 batch — not in this PRD. This PRD (domain + application) is now complete.
----
-
-## 2026-07-23 20:44 - US-002 (PricePolicy)
-- Verified `priceFor(settings, grownUps, children)` in `src/domain/policy/settings.ts` (already on
-  branch): derives `grownUps*pricePerGrownUp + children*pricePerChild` as integer cents. Per-head
-  derivation, so it never interpolates/extrapolates and every household size is priceable (empty=0).
-- No code change needed. Tests in `settings.test.ts` cover exact per-head, single-person, arbitrary
-  size, empty household, and a valid zero-cent price. Flipped `passes: true`.
-- All gates green: lint, typecheck, 100% coverage, build.
-- **Learnings for future iterations:**
-  - US-002's AC talks of an "exact (grownUps, children) row" / "no match" — that is legacy
-    table-lookup wording. The domain uses per-head derivation, which subsumes it: no row table to
-    keep in step, so "no match" simply can't occur. Don't reintroduce a lookup table.
-  - Only US-003 (`describeAllowance`, application layer) remains. Build an app helper that resolves
-    settings at a date (settings repo + fake clock), derives counts from birthdates
-    (`householdComposition`), then combines `portionsFor` and `priceFor`. Follow the fake-repo +
-    fake-clock pattern in `src/application/settings/` and `distribution/get-week-colour.ts`.
----
-
-## 2026-07-23 20:42 - US-001 (PortionPolicy)
-- Implemented `portionsFor({grownUps, children}, {portionsPerGrownUp, portionsPerChild})` in
-  `src/domain/policy/portions.ts`, deriving portions per head with no baked-in defaults.
-- Files changed: src/domain/policy/portions.ts (new), src/domain/policy/portions.test.ts (new).
-- Tests cover single-person household, household with children, zero children, and portionsPerChild=0.
-- All gates green: lint, typecheck, 335 tests, 100% coverage, build.
-- **Learnings for future iterations:**
-  - US-002 (`priceFor`) is ALREADY implemented + tested in settings.ts (lines ~202, tests in
-    settings.test.ts) — next iteration only needs to verify and flip `passes: true`, no code.
-  - US-003 (`describeAllowance`, application) still needs building: an app helper resolving settings
-    at a date via the settings repo/clock and returning {grownUps, children, portions, priceCents}.
-    Look at `src/application/settings/read-current-settings.ts` and `distribution/get-week-colour.ts`
-    for the fake-repo + fake-clock test pattern.
+  - Precedence is fixed: NOT_FOUND → ARCHIVED → BLOCKED → WRONG_GROUP → OUTDATED_CARD → certificate
+    check → CLEAR_TO_SERVE. Status values (ACTIVE/BLOCKED/ARCHIVED) are mutually exclusive, so the
+    "adjacent pair" tests for the status verdicts show the higher status winning over a *lower*
+    condition (e.g. an archived/blocked customer also in the wrong group) rather than over each other.
+  - `ALREADY_SERVED_TODAY` is declared in the union but the read-only rule never emits it — US-05's
+    serve/duplicate-prevention will. It exists now so US-004's exhaustive UI switch already covers it.
+  - `OUTDATED_CARD` only fires for a *presented* index strictly `< currentCardIndex`; a bare customer
+    number (`presentedCardIndex: null`) always means the current card. `currentCardIndex` is the
+    highest issued card index — the application layer derives it from the card run (US-04.2/US-04.3).
+  - `BLOCKED.reason` / `CounterCustomer.blockReason` are `string | null` (US-08 not built yet; the
+    use case will pass `null` until blocks exist). Kept nullable to avoid an unexercisable fallback.
+  - Certificate expiry is a calendar-day comparison via `startOfUtcDay`; valid *through* validUntil.
 ---
