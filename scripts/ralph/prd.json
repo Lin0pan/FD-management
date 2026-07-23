@@ -51,8 +51,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "PrismaCardRepository lives in src/infrastructure/prisma/card-repository.ts and implements the port as declared in US-002 — issue(customerId, card) taking the whole IssuedCard, not (customerId, index, reason), so issuedAt stays the application's to stamp. The lost race surfaces as the new CardIndexTaken domain error. Adding the reason column unified NewCustomer.card with IssuedCard (CustomerCard is gone) and needed parseCardIssueReason, since SQLite has no enum type. The init migration was regenerated rather than amended, per CLAUDE.md's disposable-history rule; the hand-written partial unique index was re-added to its tail. PrismaCardRepository is wired into src/app/kunden/deps.ts so US-004 can reach it."
     },
     {
       "id": "US-004",

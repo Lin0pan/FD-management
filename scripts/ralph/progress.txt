@@ -39,6 +39,19 @@ Started: Thu Jul 23 11:26:53 CEST 2026
 - `prisma migrate dev` refuses to run non-interactively when the dev database is ahead of the
   migrations folder. Delete `data/fd.db` first (`npm run db:reset` does it), then `--create-only`,
   hand-edit the SQL, then `prisma migrate deploy` + `npm run db:seed`.
+- **Regenerating the init migration drops the hand-written partial unique index.** Save the tail
+  first (`awk '/hand-written/{f=1} f' prisma/migrations/*_init/migration.sql > /tmp/tail.sql`),
+  regenerate, then append it back. Without it, two active households can hold one customer number and
+  only `customer-repository.test.ts` notices.
+- **A stored enum word is parsed back, never trusted**: `parseGroup`, `parseCustomerStatus`,
+  `parseCardIssueReason`. SQLite has no enum type, so the adapter narrows on the way out and raises
+  `InvalidCustomerRecord` — a hand-edited row must fail loudly rather than default to a plausible
+  value.
+- **A lost race belongs to the adapter, not the caller.** A `P2002` is translated into a typed domain
+  error naming the constraint's meaning (`CustomerNumberTaken`, `CardIndexTaken`), and the check
+  inspects `error.meta` for the field rather than assuming which constraint fired.
+- **Adapters are wired in `src/app/<area>/deps.ts`** — the one composition root per screen area. A new
+  repository is not reachable until it is added there.
 
 ---
 
@@ -123,4 +136,55 @@ Started: Thu Jul 23 11:26:53 CEST 2026
   - **US-003 next**: `PrismaCardRepository`. It needs the `reason` column, the confirmed
     `@@unique([customerId, index])`, and a typed error for the lost race — the port's doc comment
     already says the adapter is the final authority on a free index.
+---
+
+## [2026-07-23 11:50] - US-003 (Card repository with currentCard query)
+- Added `src/infrastructure/prisma/card-repository.ts`: `PrismaCardRepository` implementing the
+  `CardRepository` port. `currentCard(customerId)` is the highest-indexed row — validity is being the
+  highest index (FR-4), so there is no flag to read and none to clear; an unknown id answers `null`
+  like a customer holding no card, because whether the household exists is the use case's question.
+  `issue` translates a `P2002` naming `index` into the new `CardIndexTaken` domain error.
+- `Card` gained the `reason` column. That **unified `NewCustomer.card` with `IssuedCard`** — the
+  `CustomerCard` interface is gone — so the card written inside `customers.create` and the card
+  written by `issueCard` are one shape. `registerCustomer` now records `FIRST_ISSUE`.
+- Added `parseCardIssueReason` to `src/domain/card/card.ts` (previously type-only) with 6 named
+  tests, and `CardIndexTaken` to `errors.ts`.
+- 11 integration tests in `card-repository.test.ts`: the reason is stored, the superseded card stays
+  on file, no `valid` column exists, a taken index is `CardIndexTaken`, two simultaneous issues of
+  one index leave exactly one row, **two different customers both hold `50k1`**, `currentCard` is
+  null / highest / highest-across-a-gap, and a hand-edited reason is refused.
+- Regenerated the init migration (`20260723094018_init`) rather than stacking an `ALTER TABLE`, per
+  CLAUDE.md's disposable-history rule, and re-added the hand-written partial unique index to its
+  tail. `npm run db:reset` re-applied and re-seeded it.
+- Wired `cards: new PrismaCardRepository(prisma)` into `src/app/kunden/deps.ts`.
+- Files changed: `prisma/schema.prisma`, `prisma/migrations/20260723094018_init/migration.sql`
+  (replacing `20260722173231_init`), `src/domain/card/card.ts`, `src/domain/card/card.test.ts` (new),
+  `src/domain/errors.ts`, `src/domain/customer/customer.ts`,
+  `src/application/customers/register-customer.ts`, `src/application/customers/customers.test.ts`,
+  `src/infrastructure/prisma/card-repository.ts` (new), `src/infrastructure/prisma/card-repository.test.ts`
+  (new), `src/infrastructure/prisma/customer-repository.ts`,
+  `src/infrastructure/prisma/customer-repository.test.ts`, `src/app/kunden/deps.ts`,
+  `docs/technical_documentation.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- Documentation: `docs/technical_documentation.md` gained a
+  `src/infrastructure/prisma/card-repository.ts` section (why the constraint is per customer id and
+  not per card number, what `CardIndexTaken` means); the `card.ts` section, the ports table, the
+  errors list and the file tree were updated.
+- All gates green: lint, typecheck, coverage (domain + application 100%, 271 tests, up from 254),
+  build, and `npm run test:e2e` (6 passed, 1 skipped) since registration now writes a reason.
+- **Learnings for future iterations:**
+  - **The unique constraint is per `(customerId, index)`, deliberately not per card number.** Slot 50
+    is reassigned when a household is archived, so two customers may each legitimately hold `50k1`
+    (FR-6). Any future lookup *by card number* must resolve to the active holder — that is US-04's
+    problem, and it cannot be solved with a database constraint.
+  - Adding a column to a model forced edits in four places at once: the schema, the adapter's
+    `create`, the adapter's read mapping and every test fixture that builds a `NewCustomer`.
+    `npm run typecheck` finds all of them — run it before writing new tests.
+  - `Promise.allSettled` with two `issue` calls is enough to prove the double-issue guard; no
+    threading or transaction trickery is needed, because SQLite settles it on the unique index.
+  - A `reason` on a superseded card is the only thing its index cannot say. Keep it when US-004
+    renders "which numbers this card replaced" — the history reads as *why*, not just *what*.
+  - **US-004 next**: the card view at `/kunden/[id]/karte`. `readCustomer` already derives the counts
+    and the card number; the deps object now carries `cards`, so listing the superseded numbers needs
+    either a `listCards` port method or a widened `readCustomer` — decide there, and note that
+    `germanDate()` is still duplicated across two pages and this is the story to extract it.
 ---
