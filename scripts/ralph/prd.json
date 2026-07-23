@@ -68,8 +68,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "src/app/ausgabe/{page.tsx,deps.ts}. Banner is painted in the colour it names — on a non-distribution day that is the next distribution's colour, not the current week's. The lookup is a plain GET form (?datum=), so no client component was needed. Verified by driving the dev server and reading the rendered HTML; no browser MCP tool is configured."
     },
     {
       "id": "US-005",

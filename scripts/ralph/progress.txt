@@ -23,6 +23,16 @@ Started: Thu Jul 23 15:09:52 CEST 2026
   and would apply today's policy to a historic question.
 - Application use cases return a view object carrying everything one screen states, so the page needs
   a single call; `app/` composing two use cases is where logic leaks back up.
+- A route is three files at most: `deps.ts` (composition root, real adapters), `page.tsx` (server
+  component), and a client component **only** when `useActionState` or live typing demands one. A
+  read-only screen with a GET form needs no `"use client"` at all.
+- Every screen needs its own `deps.ts` naming only the ports it uses — do not import another route's.
+- `npm run dev` rewrites `next-env.d.ts` to the `.next/dev/...` types path; `npm run build` puts it
+  back. Check `git status` after driving the dev server and `git checkout next-env.d.ts`.
+- A throwaway script that imports `@prisma/client` must live **inside the repo** (`./x.tmp.ts`), not
+  in `/tmp` — module resolution is relative to the file. Use `async function main()`; `npx tsx -e`
+  has no top-level await.
+- Reset the dev database with `npm run db:reset` after poking at it to see a screen branch render.
 
 ---
 
@@ -118,4 +128,52 @@ Started: Thu Jul 23 15:09:52 CEST 2026
     `customers.test.ts` and `settings.test.ts`; the fakes are re-declared per file rather than shared.
   - Next up (US-004) is the `/ausgabe` route: it does not exist yet under `src/app/`, and every string
     it renders must be added to `src/i18n/de.ts` (German literals in components are a lint error).
+---
+
+## 2026-07-23 - US-004 (Week colour banner and week lookup on /ausgabe)
+- Implemented the distribution screen at `/ausgabe`: a dominant banner stating today's colour, and a
+  date lookup for any past or future week showing the ISO week alongside. The screen calls
+  `getWeekColour` once for today and, when `?datum=` is present, once for that day; it decides
+  nothing itself.
+- The banner is painted in the colour it *names*. On a non-distribution day that is the **next**
+  distribution's colour — not the current week's, which would state a colour nobody collects in.
+  The colour is always written out ("Gruppe Rot") as well as painted, per the accessibility criterion.
+- Files changed:
+  - `src/app/ausgabe/page.tsx` (new)
+  - `src/app/ausgabe/deps.ts` (new — only `SettingsRepository` + `Clock`)
+  - `src/i18n/de.ts` (`de.distribution.*`, `de.home.distributionLink`)
+  - `src/app/page.tsx` (link to the new screen so it is reachable)
+  - `docs/technical_documentation.md` (source tree, status line, a route section)
+  - `scripts/ralph/prd.json` (US-004 passes)
+- Gate: lint, typecheck, `test` (331 tests, unchanged — this story adds no pure logic) and `build`
+  all green.
+- **Verification:** no browser MCP tool is configured in this environment, so the screen was driven
+  through `next dev` on port 3111 and the rendered HTML inspected. Confirmed on the seeded database
+  (today 23.07.2026, a Thursday):
+  - distribution day → "Heute ist Ausgabe / Gruppe Rot / 23.07.2026 · Kalenderwoche 2026-W30",
+    banner `bg-red-600`;
+  - `?datum=2026-07-30` → "Gruppe Blau … 2026-W31" (the alternation, visible on screen);
+  - `?datum=2028-07-20` → "Gruppe Rot … 2028-W29" (two years out, per US-005's criterion);
+  - `?datum=quatsch` → the German "not a date" sentence, banner intact;
+  - `?datum=2001-01-01` → the German "no settings" sentence, banner intact;
+  - after temporarily adding a settings version with `distributionWeekday: 5`, the off-day branch
+    rendered exactly the PRD's sentence: "Heute ist keine Ausgabe … Nächste Ausgabe: 24.07.2026,
+    Gruppe Rot". The database was reset afterwards.
+- **Learnings for future iterations:**
+  - The lookup needed **no client component**: a `method="get"` form puts the day in the URL, which
+    is both simpler than `useActionState` and better behaviour — a checked colour can be reloaded or
+    passed on as a link. Reach for `"use client"` only when state has to survive without a round trip.
+  - `searchParams` is a `Promise` in Next 16 and its values are `string | string[] | undefined`. Type
+    it honestly and reject the array case; do not cast.
+  - A failing *lookup* must not take the *banner* down. Two separate `try` blocks, and the lookup
+    returns a German sentence instead of throwing — a staff member asking about 2001 should still see
+    what today is.
+  - `getWeekColour` throws `NoSettingsInForce` for any date before FD's first settings version. That
+    is reachable from the UI the moment someone picks an early date, so it is a normal answer on this
+    screen, not an error page.
+  - US-005 (E2E) needs a **test-only fixed clock**: `distributionDeps.clock` is `systemClock`, so the
+    banner assertions cannot be pinned without one. An env variable read in `src/infrastructure/
+    clock.ts` is the seam — `deps.ts` should keep choosing `systemClock` by name.
+  - The e2e specs run against `data/e2e.db` (there is already one), so US-005 can seed a known anchor
+    without disturbing the dev database.
 ---
