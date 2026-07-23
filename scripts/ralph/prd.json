@@ -83,8 +83,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "tests/e2e/distribution.spec.ts, 4 specs. The fixed clock is a file the spec writes (FD_FIXED_NOW_FILE → data/e2e-now.txt, read per call in src/infrastructure/clock.ts), so one server covers three different 'todays' without a restart; afterAll deletes it so the settings specs keep the wall clock."
     }
   ]
 }

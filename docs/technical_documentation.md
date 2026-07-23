@@ -115,7 +115,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   └── distribution/             # getWeekColour — the colour of any day, from history
 │   ├── infrastructure/
-│   │   ├── clock.ts                  # systemClock adapter (implements Clock port)
+│   │   ├── clock.ts                  # systemClock adapter (+ the FD_FIXED_NOW_FILE test seam)
 │   │   └── prisma/                   # Prisma client + repository implementations
 │   │       ├── client.ts             # the process-wide PrismaClient
 │   │       ├── settings-repository.ts  # PrismaSettingsRepository (implements the port)
@@ -128,6 +128,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   └── i18n/format.ts                # German value formatting (germanDate) + its spec
 ├── tests/e2e/
 │   ├── card.spec.ts                  # registration issues k1 and the card view shows it
+│   ├── distribution.spec.ts          # the week-colour banner against a fixed clock
 │   ├── home.spec.ts                  # Playwright smoke test
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
 │   └── settings.spec.ts              # settings round-trip vs. the built app
@@ -246,6 +247,14 @@ clock in `distribution.test.ts`.
 `new Date()` is called. Every time-dependent rule (13th-birthday reclassification, certificate
 expiry, week-colour alternation, stamping a settings change) reads "now" through this port so a
 settable fake clock can drive deterministic tests.
+
+It also carries the one seam end-to-end tests need, since they drive the built app from outside and
+cannot pass a fake: if the environment variable **`FD_FIXED_NOW_FILE`** names a file, `now()` returns
+the ISO instant that file holds instead of the wall clock. The file is re-read on every call, so a
+spec can move the app's today from one distribution week to the next without restarting the server,
+and deleting it hands the wall clock straight back. The variable is read once at module load, is set
+only by `playwright.config.ts` (to `data/e2e-now.txt`, git-ignored), and an unreadable or unparsable
+file falls back to the wall clock rather than failing a request.
 
 ### `src/domain/errors.ts`
 
@@ -792,11 +801,24 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   counts derived again on that request (2 grown-ups / 1 child) and no superseded numbers. It is the
   only proof that the number the form proposed, the card the registration transaction wrote and the
   card the view renders are the same card.
-- The distribution-day flows are added alongside the features they cover.
+- `distribution.spec.ts` covers US-03 end to end (§US-03.5). The banner is a pure function of the
+  calendar, so the spec first decides what day the app thinks it is: it writes an ISO instant to
+  `data/e2e-now.txt`, the file `FD_FIXED_NOW_FILE` points `systemClock` at (see
+  `src/infrastructure/clock.ts`). Against the seeded anchor `2026-W02` = RED and Thursday
+  distributions it asserts the banner on a RED distribution day (08.01.2026), on the BLUE one a week
+  later, and on the Tuesday between them — where the banner must state the _next_ distribution and
+  its colour — then looks up a week two years out (20.07.2028, `2028-W29`, RED) through the date
+  control. It is **serial**, writes nothing to the database, and deletes the pinned-now file in
+  `afterAll`: a frozen today would otherwise reach the settings specs, which stamp a version with
+  the clock. The `webServer` command deletes that file too, so an aborted run cannot poison the next
+  one.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.
-- Run: `npm run test:e2e` (first time locally: `npx playwright install --with-deps chromium`).
+- Run: `npm run test:e2e` (first time locally: `npx playwright install --with-deps chromium`). The
+  web server runs `npm run start`, which serves whatever `.next` already holds — it does **not**
+  build. Run `npm run build` first after changing anything the app renders, or the suite will assert
+  against the previous build. CI has this right by construction: `e2e-tests` builds in the job.
 
 ### TDD approach per layer
 

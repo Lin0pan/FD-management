@@ -33,6 +33,12 @@ Started: Thu Jul 23 15:09:52 CEST 2026
   in `/tmp` — module resolution is relative to the file. Use `async function main()`; `npx tsx -e`
   has no top-level await.
 - Reset the dev database with `npm run db:reset` after poking at it to see a screen branch render.
+- `npm run test:e2e` serves whatever `.next` already holds — the Playwright web server runs
+  `npm run start`, which does **not** build. Run `npm run build` first or you assert against the
+  previous build (this cost one confusing red).
+- E2E can pin the app's clock: `FD_FIXED_NOW_FILE=data/e2e-now.txt` (set in `playwright.config.ts`)
+  makes `systemClock` return the ISO instant that file holds, re-read per call. A spec writes it to
+  choose "today" and **must delete it in `afterAll`** — a frozen today leaks into every later spec.
 
 ---
 
@@ -176,4 +182,48 @@ Started: Thu Jul 23 15:09:52 CEST 2026
     clock.ts` is the seam — `deps.ts` should keep choosing `systemClock` by name.
   - The e2e specs run against `data/e2e.db` (there is already one), so US-005 can seed a known anchor
     without disturbing the dev database.
+---
+
+## 2026-07-23 - US-005 (E2E: week colour banner against a fixed clock)
+- Added `tests/e2e/distribution.spec.ts` (4 specs) and the test-only clock seam it needs. The banner
+  is a pure function of the calendar, so asserting it at all means deciding what day the app thinks
+  it is.
+- The seam: `FD_FIXED_NOW_FILE` names a file holding an ISO instant; `systemClock` returns that
+  instead of the wall clock and **re-reads it on every call**. One built server therefore covers
+  three different "todays" — the spec rewrites the file between navigations. The variable is read
+  once at module load, set only by `playwright.config.ts`, and an unreadable file falls back to the
+  wall clock, so a deployment can neither acquire a fixed clock nor 500 on a half-written one.
+- Asserted against the seeded anchor (`2026-W02` = RED, Thursday distributions): Thu 08.01.2026 →
+  "Heute ist Ausgabe / Gruppe Rot / 2026-W02" and no "next" line; Thu 15.01.2026 → Gruppe Blau,
+  2026-W03; Tue 13.01.2026 → "Heute ist keine Ausgabe" plus "Nächste Ausgabe: 15.01.2026, Gruppe
+  Blau"; and the lookup two years out → 20.07.2028, 2028-W29, Gruppe Rot, with today's banner
+  unchanged behind it.
+- Files changed:
+  - `tests/e2e/distribution.spec.ts` (new)
+  - `src/infrastructure/clock.ts` (the fixed-now seam)
+  - `playwright.config.ts` (`FD_FIXED_NOW_FILE` env + the file is deleted with the database)
+  - `.gitignore` (`/data/e2e-now.txt`)
+  - `docs/technical_documentation.md` (source tree, the clock section, the E2E section)
+  - `scripts/ralph/prd.json` (US-005 passes)
+- Gate: lint, typecheck, `test:coverage` (331 tests, 100% on domain + application) and `build` all
+  green; `npm run test:e2e` 11 passed, 1 skipped.
+- **Learnings for future iterations:**
+  - The first e2e run was red for a reason that had nothing to do with the test: `npm run start`
+    serves the existing `.next`, so the new clock code was not in the running app. Build before
+    every local e2e run.
+  - A *file* beats an env variable as the e2e clock seam. `webServer` env is fixed for the whole
+    run, so an env-only fixed clock gives one "today" per server and this story needed three —
+    the alternatives were three web servers on three ports or a per-request override, and `Clock.now`
+    is synchronous, which rules out reading a cookie (`cookies()` is async in Next 16).
+  - Anything a spec pins globally has to be undone in `afterAll` *and* in the `webServer` reset
+    command: the specs share one server and one database, and `settings.spec.ts` stamps a version
+    from the clock, so a leftover pinned today would have failed it — alphabetically it runs after
+    `distribution.spec.ts`.
+  - Spec files are ordered alphabetically and the suite is serial, so inserting one changes what the
+    later ones see. `distribution.spec.ts` writes nothing, which is what makes it safe to drop in
+    between `card` and `home`.
+  - `page.getByLabel(de.distribution.lookup.label)` reaches the `<input type="date">` through the
+    wrapping `<label>`, and `fill()` takes the ISO `YYYY-MM-DD` form there.
+  - All four expectations were verified against the domain functions in a scratch script before the
+    spec was written, per the standing rule about ISO date claims.
 ---
