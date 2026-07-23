@@ -27,11 +27,19 @@ const COLOUR_STYLES = {
   BLUE: "bg-blue-700 text-white",
 } as const;
 
-/** A calendar day as `<input type="date">` submits it, read as the UTC day it names. */
+/**
+ * A calendar day as `<input type="date">` submits it, read as the UTC day it names.
+ *
+ * The shape check is not enough: `2026-13-45` matches it and parses to an Invalid Date, whose NaN
+ * would flow through the calendar arithmetic and be *rendered* — `NaN.NaN.NaN`, week `NaN-WNaN`, and
+ * a colour picked by a parity comparison against NaN. The day itself has to be a day. Only the URL
+ * can carry one that is not, but that is enough.
+ */
 const lookupDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .transform((value): Date => new Date(`${value}T00:00:00.000Z`));
+  .transform((value): Date => new Date(`${value}T00:00:00.000Z`))
+  .refine((date): boolean => !Number.isNaN(date.getTime()));
 
 /** Either the looked-up day or the German sentence explaining why there is none. */
 type Lookup =

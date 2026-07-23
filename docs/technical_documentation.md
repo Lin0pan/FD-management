@@ -663,7 +663,10 @@ The screen that answers the question the counter asks first: which group collect
 - The **lookup** is a plain `method="get"` form, so the looked-up day lands in `?datum=` and a colour
   someone has checked can be reloaded or passed on as a URL. It needs no client component.
 - A lookup fails **on its own**: an unreadable date, or a day before FD had any settings, renders a
-  German sentence beside the form and leaves today's banner standing.
+  German sentence beside the form and leaves today's banner standing. "Unreadable" includes a day
+  the calendar does not have (`?datum=2026-13-45`): the Zod schema checks the shape _and_ that the
+  parsed date is a date, because an Invalid Date's NaN survives the calendar arithmetic silently and
+  would be rendered as a week `NaN-WNaN` in a confidently-named colour.
 
 ### `src/i18n/de.ts`
 

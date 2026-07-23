@@ -81,6 +81,20 @@ test.describe("Ausgabe", () => {
     );
   });
 
+  test("refuses a day the calendar does not have and leaves the banner standing", async ({
+    page,
+  }) => {
+    pinNow("2026-01-08T09:00:00.000Z");
+    // Only a hand-edited URL can carry this — the date control cannot submit it.
+    await page.goto("/ausgabe?datum=2026-13-45");
+
+    await expect(page.getByTestId("lookup-error")).toHaveText(de.distribution.errors.notADate);
+    await expect(page.getByTestId("lookup-result")).toHaveCount(0);
+    await expect(page.getByTestId("week-colour-group")).toHaveText(
+      de.distribution.group(de.distribution.colours.RED),
+    );
+  });
+
   test("looks up the colour of a week two years out", async ({ page }) => {
     pinNow("2026-01-08T09:00:00.000Z");
     await page.goto("/ausgabe");
