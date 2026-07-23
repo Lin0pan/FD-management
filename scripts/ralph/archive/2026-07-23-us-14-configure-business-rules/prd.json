@@ -17,8 +17,8 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Exports formatCardNumber / parseCardNumber / nextCardNumber rather than bare format/parse/next — the module-suffixed names match the existing formatCardNumber and the parseGroup / parseWeekColour convention. parse throws InvalidCardNumber (added to errors.ts) rather than returning it, matching every other parser in the domain. Also rejects a padded index ('50k03') and customer number 0, and trims surrounding whitespace."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",

@@ -207,6 +207,21 @@ export class MissingRequiredField extends DomainError {
 }
 
 /**
+ * A card number could not be read as `<customer number>k<index>`. Carries the text as entered so
+ * the counter screen can quote back what was typed — a mistyped `50l3` and an unknown `50k9` are
+ * different problems for staff, and only the first of them is this one.
+ */
+export class InvalidCardNumber extends DomainError {
+  readonly code = "InvalidCardNumber";
+  readonly text: string;
+
+  constructor(text: string) {
+    super(`"${text}" is not a card number such as 50k3`);
+    this.text = text;
+  }
+}
+
+/**
  * A euro amount typed by a human could not be read as whole cents. Carries the text as entered so
  * the UI can quote it back rather than blaming an empty field.
  */

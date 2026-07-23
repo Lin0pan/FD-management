@@ -96,6 +96,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customer/customer.ts       # the customer record, validated on construction
 │   │   ├── customer/customer.test.ts  # its Vitest spec
 │   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
+│   │   ├── card/cardNumber.test.ts   # its Vitest spec
 │   │   ├── distribution/             # empty, reserved by the architecture
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
@@ -217,7 +218,8 @@ settable fake clock can drive deterministic tests.
 The `DomainErrorCode` union — the closed set of failure modes — plus an abstract `DomainError` base
 class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
 `QuotaBelowActiveCustomers`, `MissingAuditReason`, `EmptyHousehold`, `BirthDateInFuture`,
-`NoFreeCustomerNumber`, `CustomerNumberTaken`, `MissingRequiredField`, `InvalidEuroAmount` today).
+`NoFreeCustomerNumber`, `CustomerNumberTaken`, `CustomerNotFound`, `InvalidCustomerRecord`,
+`MissingRequiredField`, `InvalidCardNumber`, `InvalidEuroAmount` today).
 Each carries the values that made it fail, so the UI can render a
 German message naming concrete numbers without re-deriving them, and callers switch on `code`
 instead of parsing strings.
@@ -312,6 +314,36 @@ needed. The Excel sheet FD is replacing stored them, and they drifted with every
 only identity there is: a customer number is a slot another household may hold once this one is
 archived. `CustomerStatus` is `ACTIVE | BLOCKED | ARCHIVED`; a blocked customer still holds their
 slot (US-08), an archived one releases it (US-10).
+
+### `src/domain/card/cardNumber.ts`
+
+The card number staff read out at the counter, `<customer number>k<index>` — `12k1` is the first
+card of customer 12 and `12k2` the one issued after they lost it (US-09). It is **derived, never
+stored**: the string is the customer's slot and the index of the card they hold, so persisting it
+would give the same fact two homes and every reissue would have to keep them in step — the mistake
+the Excel sheet made with the household counts.
+
+`formatCardNumber(customerNumber, index)` writes it and validates nothing: both arguments come off a
+persisted card the register already guarantees is a positive whole number, so a check here would only
+be an unreachable branch. `nextCardNumber(card)` gives the number that replaces one, same customer
+and index + 1. Issuing it invalidates every earlier card as a consequence, because validity is
+_being the highest index_ rather than a flag somebody has to remember to clear (FR-4); the function
+says only what the next index is, and deciding a card is due belongs to the application layer, which
+is the only one that knows the highest issued index.
+
+`parseCardNumber(text)` reads a typed number back and is where the strictness lives. It is forgiving
+where forgiveness cannot change which card is meant — an uppercase `K` and surrounding whitespace,
+both of which someone copying a number off a card produces — and strict where it can: a **leading
+zero is rejected**, because reading `050k3` as customer 50 would teach staff that padding carries
+meaning when the register never pads, and the two forms would then drift apart on screen. Customer
+number 0 and index 0 are refused for the reason neither is ever written: counting starts at 1.
+Anything else raises `InvalidCardNumber` carrying the text as entered, so the counter screen can
+quote back what was typed — a mistyped `50l3` and an unknown-but-well-formed `50k9` are different
+problems for staff, and only the first is this error.
+
+Card numbers are **not unique across the archive**: slot 50 can be reassigned once a household is
+archived, so `50k1` may name a different person later (FR-6). Nothing keys a row or a foreign key by
+a card number.
 
 ### `src/application/customers/registerCustomer`
 
