@@ -100,7 +100,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── card/card.test.ts         # its Vitest spec
 │   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
 │   │   ├── card/cardNumber.test.ts   # its Vitest spec
-│   │   ├── distribution/             # empty, reserved by the architecture
+│   │   ├── distribution/weekColour.ts  # RED/BLUE alternation derived from the ISO calendar
+│   │   ├── distribution/weekColour.test.ts  # its Vitest spec
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
 │   │   │                             #   CustomerRepository, CardRepository, AuditLog
@@ -370,6 +371,30 @@ problems for staff, and only the first is this error.
 Card numbers are **not unique across the archive**: slot 50 can be reassigned once a household is
 archived, so `50k1` may name a different person later (FR-6). Nothing keys a row or a foreign key by
 a card number.
+
+### `src/domain/distribution/weekColour.ts`
+
+Which of the two groups collects in a given week. `colourOf(date, anchor)` counts ISO weeks from the
+configured anchor week and returns the anchor's colour on an even difference, the other colour on an
+odd one — so the RED/BLUE alternation is **derived from the calendar**, never typed in per week
+(US-03, FR-2). That is the whole point: a per-week table could hold two RED weeks in a row, which FD
+considers unfair, whereas two dates seven days apart land on opposite parities by construction. A
+skipped distribution (holiday, weather) therefore does not shift the cycle — the rule is calendar
+parity, not "every week FD actually opened".
+
+The arithmetic is **ISO-8601**: weeks start Monday, and week 1 of an ISO year is the one containing 4
+January, which is why 1 January 2023 belongs to `2022-W52` and 1 January 2027 to `2026-W53`. All of
+it runs on UTC day instants, so the time of day cannot decide a colour and no local-time or DST
+boundary enters the calculation. `colourOf` is total in both directions: the week difference goes
+negative before the anchor and the parity is taken with a non-negative modulo, so a lookup for a week
+that predates the configuration answers instead of failing.
+
+`isoWeekOf(date)` writes the ISO week as `2026-W30` — what the lookup control shows beside a colour
+so staff can check it against a wall calendar.
+
+The anchor is validated here as well as in `createSettings`, and for a reason the shape check cannot
+cover: `2025-W53` is well-formed but 2025 has only 52 ISO weeks. Both raise `InvalidSettings` against
+`weekAnchor.isoWeek`, so the settings screen marks the same input either way.
 
 ### `src/application/customers/registerCustomer`
 

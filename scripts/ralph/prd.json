@@ -1,89 +1,90 @@
 {
   "project": "FD-Management",
-  "branchName": "ralph/us-02-issue-customer-card",
-  "description": "US-02 Issue a Customer Card (Digital) — CardNumber value object, the single issueCard path, and the digital card view. Exactly one valid card per customer; no printing (FD uses a separate system).",
+  "branchName": "ralph/us-03-week-colour",
+  "description": "US-03 Know Which Group Collects Today — Red/Blue week colour derived from the calendar by strict alternation from a configured anchor, with a prominent banner and any-week lookup.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "CardNumber value object",
-      "description": "As a developer, I need a value object for card numbers, so 50k3 is never handled as an ad-hoc string. Source: tasks/prd-us-02-issue-customer-card.md §US-02.1",
+      "title": "weekColour calendar alternation rule",
+      "description": "As a developer, I need a pure function from a date to a week colour, so the Red/Blue alternation is testable without a database. Source: tasks/prd-us-03-week-colour.md §US-03.1",
       "acceptanceCriteria": [
-        "src/domain/card/cardNumber.ts exports format(customerNumber, index), parse(text) and next(cardNumber)",
-        "format(50, 3) returns '50k3'; parse('50k3') returns {customerNumber: 50, index: 3}; next({50,3}) returns {50,4}",
-        "parse returns a typed InvalidCardNumber error for: '', '50', 'k3', '50k0', '50k', '050k3', '50k3x' and negative numbers",
-        "Input parsing accepts an uppercase K; output is always lowercase — documented in a comment",
-        "Index starts at 1, never 0",
+        "src/domain/distribution/weekColour.ts exports colourOf(date, anchor) where anchor is {isoWeek, colour}",
+        "The colour flips on every ISO week boundary; parity is computed from the ISO week difference to the anchor",
+        "colourOf is total for dates before the anchor — tests cover one, two and fifty-three weeks before it",
+        "Property test asserts colourOf(d) !== colourOf(d + 7 days) for a swept range of dates",
+        "Tests cover ISO edge cases: the Sunday-to-Monday boundary, 1 January falling in week 52/53 of the prior ISO year, and a 53-week year",
+        "ISO-8601 week numbering (weeks start Monday) is used and documented in a comment",
         "Tests pass",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Exports formatCardNumber / parseCardNumber / nextCardNumber rather than bare format/parse/next — the module-suffixed names match the existing formatCardNumber and the parseGroup / parseWeekColour convention. parse throws InvalidCardNumber (added to errors.ts) rather than returning it, matching every other parser in the domain. Also rejects a padded index ('50k03') and customer number 0, and trims surrounding whitespace."
+      "notes": "colourOf + isoWeekOf in src/domain/distribution/weekColour.ts; 23 tests including a five-year alternation sweep. The anchor is re-validated here (2025-W53 is well-formed but does not exist)."
     },
     {
       "id": "US-002",
-      "title": "issueCard use case — the single card-issuing path",
-      "description": "As a developer, I need one use case that issues the next card and invalidates the previous one, reused by first issue, loss and stale-count reissue. Source: tasks/prd-us-02-issue-customer-card.md §US-02.2",
+      "title": "isDistributionDay and nextDistribution",
+      "description": "As a staff member, I want the app to know whether today is a distribution day and, if not, when the next one is and what colour it will be. Source: tasks/prd-us-03-week-colour.md §US-03.2",
       "acceptanceCriteria": [
-        "issueCard(deps, {customerId, reason}) creates a card with index = max existing index + 1, or 1 if none",
-        "Validity is derived from being the highest index — no separate mutable valid flag exists",
-        "Rejects with a typed error if the customer is archived",
-        "Writes an audit entry with reason FIRST_ISSUE | LOST | STALE_COUNTS | OTHER",
-        "Tested with fakes: first issue, second issue, archived customer, issue after a gap in indices (must take max+1)",
+        "isDistributionDay(date, weekday) compares against the configured ISO weekday",
+        "nextDistribution(date, settings) returns {date, colour} for the next distribution day at or after date",
+        "On a distribution day, nextDistribution returns today, not next week",
+        "Tests cover the day before, the day of and the day after a distribution day, and a configured weekday of Sunday (ISO 7)",
         "Tests pass",
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Lives in src/application/customers/issue-card.ts against a new CardRepository port (currentCard / issue). The port takes issue(customerId, {index, issuedAt, reason}) rather than the PRD's issue(customerId, index, reason): issuedAt must come from the injected clock, so infrastructure cannot be the one to stamp it. IssuedCard and CardIssueReason are declared in the new type-only src/domain/card/card.ts. Archived customers are refused with the new CustomerArchived error; blocked ones are served, since a block does not unregister. The registration card is still written inside customers.create — one transaction (US-01.4) — and gains its stored reason with the column in US-003."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Card repository with currentCard query",
-      "description": "As a developer, I need card persistence that guarantees exactly one valid card per customer. Source: tasks/prd-us-02-issue-customer-card.md §US-02.3",
+      "title": "getWeekColour use case",
+      "description": "As a developer, I need a use case that resolves the settings in force and returns the colour for any date. Source: tasks/prd-us-03-week-colour.md §US-03.3",
       "acceptanceCriteria": [
-        "Card model gains a reason field; @@unique([customerId, index]) is confirmed present",
-        "PrismaCardRepository exposes currentCard(customerId) returning the highest index, and issue(customerId, index, reason)",
-        "Integration test proves two different customers may both hold card number 50k1",
-        "Integration test proves a concurrent double-issue cannot create two cards with the same index — the unique constraint surfaces as a typed error",
-        "Migration committed under prisma/migrations/",
+        "getWeekColour(deps, date?) resolves settings at that date, then delegates to the domain function",
+        "Defaults to deps.clock.now() when no date is given",
+        "Test proves a lookup for a past date uses the anchor that was in force then, not the current anchor",
+        "No week rows are ever persisted — the use case needs only SettingsRepository",
+        "Tested against hand-written fakes and a fake clock",
         "Tests pass",
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "PrismaCardRepository lives in src/infrastructure/prisma/card-repository.ts and implements the port as declared in US-002 — issue(customerId, card) taking the whole IssuedCard, not (customerId, index, reason), so issuedAt stays the application's to stamp. The lost race surfaces as the new CardIndexTaken domain error. Adding the reason column unified NewCustomer.card with IssuedCard (CustomerCard is gone) and needed parseCardIssueReason, since SQLite has no enum type. The init migration was regenerated rather than amended, per CLAUDE.md's disposable-history rule; the hand-written partial unique index was re-added to its tail. PrismaCardRepository is wired into src/app/kunden/deps.ts so US-004 can reach it."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Card view at /kunden/[id]/karte",
-      "description": "As a staff member, I want to see all card information on screen, so I can transcribe it onto the physical card or feed it into the printing system. Source: tasks/prd-us-02-issue-customer-card.md §US-02.4",
+      "title": "Week colour banner and week lookup on /ausgabe",
+      "description": "As a staff member, I want the distribution screen to state today's colour prominently and let me check any other week. Source: tasks/prd-us-03-week-colour.md §US-03.4",
       "acceptanceCriteria": [
-        "Route /kunden/[id]/karte renders card number, first name, last name, group as a German coloured label, grown-up count and children count",
-        "Counts are read live from the derived composition, never from a stored column",
-        "The view states in German that this is the current card and which numbers it replaced",
-        "Layout is card-shaped and legible across a desk; no print stylesheet and no PDF is produced",
+        "Route /ausgabe shows a large German banner with today's colour, and on a non-distribution day states which colour is next and on which date",
+        "The colour is conveyed by text plus colour, never by colour alone",
+        "A date picker looks up the colour of any past or future week and shows the ISO week number alongside",
+        "The banner is the visually dominant element on the screen",
         "All user-facing strings come from src/i18n/de.ts",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "The route reads a new `readCard` use case (src/application/customers/read-card.ts) rather than widening `readCustomer` — the card asks a different question (the run of cards) than the overview does, and one view object serving both would carry fields each screen ignores. It needed a third card-port method, `listCards(customerId)`, returning the whole run highest index first; the head is the current card, so which card is valid is still read off the run and never off a flag. `/kunden/[id]` stays the customer overview and links on to the card. The PRD's 'reissue card' action is present but disabled, since its behaviour is US-09. Also extracted the twice-copied `germanDate` into src/i18n/format.ts. Browser-verified by rendering the route against seeded data (no MCP browser tool is configured in this sandbox); the visual layout is worth a human glance."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
-      "title": "E2E: card is issued on registration and displayed",
-      "description": "As a developer, I need a Playwright spec proving registration produces a displayable k1 card. Source: tasks/prd-us-02-issue-customer-card.md §US-02.5",
+      "title": "E2E: week colour banner against a fixed clock",
+      "description": "As a developer, I need a Playwright spec proving the banner reflects the calendar rule. Source: tasks/prd-us-03-week-colour.md §US-03.5",
       "acceptanceCriteria": [
-        "Spec registers a customer, lands on the card view and asserts the card number matches ^[0-9]+k1$",
-        "Spec asserts name, group and counts on the card match the registration input",
+        "The app accepts a test-only fixed clock (env variable or clock override) documented in the spec",
+        "Spec asserts the banner text for a Red distribution day, the following week (Blue) and a non-distribution weekday",
+        "Spec asserts the lookup control returns the expected colour for a date two years out",
         "npm run test:e2e passes",
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "tests/e2e/card.spec.ts registers a three-person household, follows the overview's card-view-link to /kunden/[id]/karte and asserts ^[0-9]+k1$ plus name, group and the derived counts. Registration still redirects to /kunden/[id] rather than to the card — the overview is where staff continue working, and the card is one click on. Adding a fourth writing spec to the one shared e2e database forced playwright.config.ts to workers: 1 / fullyParallel: false, and registration.spec.ts to derive its customer numbers instead of asserting the literals 1 and 2."
+      "passes": false,
+      "notes": ""
     }
   ]
 }
