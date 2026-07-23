@@ -16,6 +16,105 @@ export const de = {
     subheading:
       "Die Anwendung ist einsatzbereit. Die Fachfunktionen folgen in den nächsten Schritten.",
     settingsLink: "Einstellungen",
+    newCustomerLink: "Neue Kundin oder neuen Kunden aufnehmen",
+  },
+  customers: {
+    groups: {
+      RED: "Rot",
+      BLUE: "Blau",
+    },
+    status: {
+      ACTIVE: "aktiv",
+      BLOCKED: "gesperrt",
+      ARCHIVED: "archiviert",
+    },
+    /** The registration screen. */
+    new: {
+      heading: "Neue Kundin oder neuen Kunden aufnehmen",
+      intro:
+        "Kundennummer und Gruppe schlägt die Anwendung vor. Erwachsene und Kinder werden aus den " +
+        "Geburtsdaten berechnet und können nicht eingetragen werden.",
+      personalHeading: "Person",
+      addressHeading: "Anschrift",
+      certificateHeading: "Bedarfsnachweis",
+      householdHeading: "Haushalt",
+      householdHint:
+        "Die aufgenommene Person zählt selbst zum Haushalt und steht in der ersten Zeile. " +
+        "Weitere Mitglieder bitte ergänzen.",
+      assignmentHeading: "Zuordnung",
+      addMember: "Weiteres Haushaltsmitglied",
+      removeMember: "Zeile entfernen",
+      memberRow: (position: number): string => `Haushaltsmitglied ${position}`,
+      submit: "Aufnehmen",
+      submitting: "Wird gespeichert …",
+    },
+    fields: {
+      firstName: "Vorname",
+      lastName: "Nachname",
+      birthDate: "Geburtsdatum",
+      street: "Straße",
+      houseNumber: "Hausnummer",
+      zip: "PLZ",
+      city: "Ort",
+      certificateType: "Art des Nachweises",
+      certificateValidUntil: "Nachweis gültig bis",
+      notes: "Bemerkung (optional)",
+      group: "Gruppe",
+      customerNumber: "Kundennummer",
+      cardNumber: "Kartennummer",
+      status: "Status",
+    },
+    derived: {
+      grownUps: "Erwachsene (ab 13 Jahren)",
+      children: "Kinder (unter 13 Jahren)",
+      hint: "Berechnet aus den Geburtsdaten — nicht eingebbar.",
+      unknown: "—",
+    },
+    assignment: {
+      proposedNumber: "Vorgeschlagene Kundennummer",
+      suggestedGroup: (group: string): string => `Vorschlag: ${group}`,
+      groupSizes: (red: number, blue: number): string =>
+        `Aktuell: Rot ${red}, Blau ${blue} Haushalte`,
+    },
+    /**
+     * German names for the fields a `MissingRequiredField` can name. The keys are the `field` values
+     * the domain error carries, so a rejected value never quotes an English identifier at staff.
+     */
+    errorFields: {
+      firstName: "Vorname",
+      lastName: "Nachname",
+      birthDate: "Geburtsdatum",
+      "address.street": "Straße",
+      "address.houseNumber": "Hausnummer",
+      "address.zip": "PLZ",
+      "address.city": "Ort",
+      "certificate.type": "Art des Nachweises",
+      "certificate.validUntil": "Nachweis gültig bis",
+    } as Record<string, string | undefined>,
+    errors: {
+      missingField: (field: string): string => `Bitte das Feld „${field}“ ausfüllen.`,
+      emptyHousehold:
+        "Der Haushalt hat kein Mitglied. Die aufgenommene Person zählt selbst dazu — bitte " +
+        "mindestens eine Zeile ausfüllen.",
+      birthDateInFuture: "Ein Geburtsdatum liegt in der Zukunft. Bitte das Datum prüfen.",
+      noFreeCustomerNumber: (quotaN: number): string =>
+        `Alle ${quotaN} Kundennummern sind vergeben. Bitte einen Haushalt archivieren oder die ` +
+        `Höchstzahl in den Einstellungen erhöhen. Es wurde nichts gespeichert.`,
+      customerNumberTaken:
+        "Die Kundennummer wurde zwischenzeitlich vergeben. Bitte erneut speichern.",
+      notADate: "Bitte ein Datum im Format TT.MM.JJJJ auswählen.",
+      unknown: "Die Aufnahme konnte nicht gespeichert werden.",
+      notFound: "Diese Kundin oder dieser Kunde wurde nicht gefunden.",
+    },
+    /** The card view a registration lands on. */
+    card: {
+      heading: "Kundenkarte",
+      householdHeading: "Haushalt",
+      certificateHeading: "Bedarfsnachweis",
+      validUntil: "gültig bis",
+      registered: "Aufgenommen",
+      backToHome: "Zur Startseite",
+    },
   },
   settings: {
     heading: "Einstellungen",
@@ -93,3 +192,23 @@ export const de = {
 } as const;
 
 export type Dictionary = typeof de;
+
+/** A household field as the domain names it, e.g. `householdMembers.1.firstName`. */
+const HOUSEHOLD_FIELD = /^householdMembers\.(\d+)\.(firstName|lastName|birthDate)$/;
+
+/**
+ * The German label for a field a customer error names.
+ *
+ * Household rows are numbered rather than listed in the dictionary: the domain names them by index,
+ * and there is no upper bound on how many people live in a household. Rows count from 1 on screen
+ * while the domain counts from 0.
+ */
+export function customerFieldLabel(field: string): string {
+  const householdMatch = HOUSEHOLD_FIELD.exec(field);
+  if (householdMatch !== null) {
+    const position = Number(householdMatch[1]) + 1;
+    const part = de.customers.fields[householdMatch[2] as "firstName" | "lastName" | "birthDate"];
+    return `${de.customers.new.memberRow(position)}: ${part}`;
+  }
+  return de.customers.errorFields[field] ?? field;
+}

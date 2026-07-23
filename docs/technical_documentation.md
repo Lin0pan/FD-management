@@ -10,10 +10,10 @@ rather than repeating them:
 
 This file describes _how_ the current codebase is organised and how to work in it.
 
-> **Status:** the app boots, is fully wired for TDD and CI, and carries its first feature end to end
-> through every layer — US-14's policy settings: domain rules, use cases, SQLite persistence, seed
-> and the `/einstellungen` screen. Sections below mark clearly what exists vs. what is a documented
-> placeholder.
+> **Status:** the app boots, is fully wired for TDD and CI, and carries two features end to end
+> through every layer — US-14's policy settings (`/einstellungen`) and US-01's customer registration
+> (`/kunden/neu` and the card view at `/kunden/[id]`): domain rules, use cases, SQLite persistence,
+> seed and screens. Sections below mark clearly what exists vs. what is a documented placeholder.
 
 ---
 
@@ -58,13 +58,22 @@ This file describes _how_ the current codebase is organised and how to work in i
 ├── data/                             # SQLite db lives here at runtime (git-ignored; .gitkeep tracked)
 ├── docs/                             # all project documentation (this file included)
 ├── prisma/
-│   ├── schema.prisma                 # datasource + models (SettingsVersion, AuditEntry)
+│   ├── schema.prisma                 # datasource + models (SettingsVersion, AuditEntry,
+│   │                                 #   Customer, HouseholdMember, Certificate, Card)
 │   ├── seed.ts                       # `npm run db:seed` entry point
 │   └── migrations/                   # committed migration history
 ├── src/
 │   ├── app/                          # Next.js App Router — thin adapter layer
 │   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
 │   │   ├── page.tsx                  # home page (reads strings from i18n dictionary)
+│   │   ├── kunden/                   # the customer screens (US-01)
+│   │   │   ├── deps.ts               # composition root for both routes below
+│   │   │   ├── neu/                  # the registration screen
+│   │   │   │   ├── page.tsx          # server component: reads the proposal, renders the form
+│   │   │   │   ├── registration-form.tsx  # client component: repeatable rows + live counts
+│   │   │   │   ├── actions.ts        # "use server": Zod → registerCustomer → redirect
+│   │   │   │   └── register-customer-state.ts  # form state (not exportable from actions.ts)
+│   │   │   └── [id]/page.tsx         # the card view a registration lands on
 │   │   ├── einstellungen/            # the settings screen (US-14)
 │   │   │   ├── page.tsx              # server component: current values + version history
 │   │   │   ├── settings-form.tsx     # client component: the form and its save-result state
@@ -78,22 +87,34 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── errors.ts                 # DomainError base class + typed error classes
 │   │   ├── policy/settings.ts        # policy values + the rule that picks the current one
 │   │   ├── policy/settings.test.ts   # its Vitest spec
-│   │   ├── customer/ card/ distribution/           # empty, reserved by the architecture
+│   │   ├── customer/householdComposition.ts  # grown-up/children split, derived from birthdates
+│   │   ├── customer/householdComposition.test.ts  # its Vitest spec
+│   │   ├── customer/customerNumber.ts # lowest free slot in 1..quotaN
+│   │   ├── customer/customerNumber.test.ts  # its Vitest spec
+│   │   ├── customer/group.ts          # Group type and the RED/BLUE balancing suggestion
+│   │   ├── customer/group.test.ts     # its Vitest spec
+│   │   ├── customer/customer.ts       # the customer record, validated on construction
+│   │   ├── customer/customer.test.ts  # its Vitest spec
+│   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
+│   │   ├── distribution/             # empty, reserved by the architecture
 │   ├── application/
-│   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, AuditLog
+│   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
+│   │   │                             #   CustomerRepository, AuditLog
+│   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer
 │   │   └── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (implements Clock port)
-│   │   ├── customer-counter.ts       # counts active customers — zero until US-01 adds the model
 │   │   └── prisma/                   # Prisma client + repository implementations
 │   │       ├── client.ts             # the process-wide PrismaClient
 │   │       ├── settings-repository.ts  # PrismaSettingsRepository (implements the port)
+│   │       ├── customer-repository.ts  # PrismaCustomerRepository + PrismaCustomerCounter
 │   │       ├── audit-log.ts          # PrismaAuditLog — append-only, no actor column
 │   │       ├── seed.ts               # provisional settings version, inserted only if none exists
 │   │       └── *.test.ts             # integration specs, throwaway SQLite file
 │   └── i18n/de.ts                    # single German UI-string dictionary
 ├── tests/e2e/
 │   ├── home.spec.ts                  # Playwright smoke test
+│   ├── registration.spec.ts          # register a customer and get a card vs. the built app
 │   └── settings.spec.ts              # settings round-trip vs. the built app
 ├── eslint.config.mjs  .prettierrc.json  .prettierignore
 ├── vitest.config.ts   playwright.config.ts
@@ -156,12 +177,13 @@ The interfaces the application layer depends on. Per the TDD approach, ports **e
 needs** rather than being designed up front. Type-only, so it adds no runtime code to the
 coverage-measured layers.
 
-| Port                 | Shape                               | Notes                                                     |
-| -------------------- | ----------------------------------- | --------------------------------------------------------- |
-| `Clock`              | `now(): Date`                       | The one seam to the wall clock.                           |
-| `SettingsRepository` | `listVersions()`, `append(version)` | No update/delete — policy history is append-only.         |
-| `CustomerCounter`    | `countActive()`                     | The reality the quota `N` may not fall below.             |
-| `AuditLog`           | `append(entry)`                     | `AuditEntry` = `what` / `changedFields` / `when` / `why`. |
+| Port                 | Shape                                                       | Notes                                                                                      |
+| -------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `Clock`              | `now(): Date`                                               | The one seam to the wall clock.                                                            |
+| `SettingsRepository` | `listVersions()`, `append(version)`                         | No update/delete — policy history is append-only.                                          |
+| `CustomerCounter`    | `countActive()`                                             | The reality the quota `N` may not fall below.                                              |
+| `CustomerRepository` | `takenActiveNumbers()`, `groupCounts()`, `create(customer)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`. |
+| `AuditLog`           | `append(entry)`                                             | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                  |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
 
@@ -194,7 +216,9 @@ settable fake clock can drive deterministic tests.
 
 The `DomainErrorCode` union — the closed set of failure modes — plus an abstract `DomainError` base
 class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
-`QuotaBelowActiveCustomers`, `MissingAuditReason` today). Each carries the values that made it fail, so the UI can render a
+`QuotaBelowActiveCustomers`, `MissingAuditReason`, `EmptyHousehold`, `BirthDateInFuture`,
+`NoFreeCustomerNumber`, `CustomerNumberTaken`, `MissingRequiredField`, `InvalidEuroAmount` today).
+Each carries the values that made it fail, so the UI can render a
 German message naming concrete numbers without re-deriving them, and callers switch on `code`
 instead of parsing strings.
 
@@ -222,6 +246,111 @@ the counter screen (US-04) resolves settings without a per-field query.
 what the audit entry records as _what changed_. With no previous version (the seed) every field
 counts as new.
 
+### `src/domain/customer/householdComposition.ts`
+
+`composition(members, today)` derives the grown-up/children split of a household from the members'
+birthdates. A member is a grown-up **on** their 13th birthday and a child the day before; both
+dates are compared as UTC calendar days, so the time of day a record was written cannot change a
+count. A 29 February birthdate has no anniversary in a non-leap year and rolls over to 1 March,
+following § 188 Abs. 3 BGB — thirteen years after a leap year is never itself a leap year, so this
+happens every time.
+
+The counts are **never stored**: they drive the portion allowance and the price (US-07), and the
+Excel sheet FD is replacing kept them as typed-in numbers that drifted with every birthday. An empty
+household raises `EmptyHousehold` rather than answering `{ 0, 0 }` (which would read as a household
+that owes nothing), and a birthdate after `today` raises `BirthDateInFuture` carrying the offending
+date so the UI can point at the row.
+
+### `src/domain/customer/customerNumber.ts`
+
+`lowestFreeNumber(takenNumbers, quotaN)` picks the slot a new customer occupies. A customer number
+is a **slot, not an identity**: FD serves at most `quotaN` households (US-14), and archiving one
+returns their number to the pool while the archived row keeps it as a historical record. Identity is
+the surrogate row id, which is what every foreign key targets (US-01.5).
+
+Allocation is the _lowest_ free number rather than the next-highest, for two reasons: FD's paper
+cards are numbered, so reusing a freed number keeps the range dense instead of exhausting the
+numbering long before the places run out; and it makes registration reproducible — the same register
+and quota always yield the same number. `takenNumbers` holds the **active** customers' numbers only;
+duplicates and numbers above the quota are ignored, since neither can make a slot inside the range
+more or less free. A full range raises `NoFreeCustomerNumber` carrying the quota, so the UI can name
+the limit FD has to raise or free.
+
+The function is advisory in the same sense as `suggestGroup`: the database's partial unique index is
+the final authority on whether the number was still free when the write landed (US-01.4).
+
+### `src/domain/customer/group.ts`
+
+`Group = 'RED' | 'BLUE'` is the half of the two-week cycle a customer belongs to: RED households
+come one week, BLUE the next, so roughly half the register turns up on any distribution day. The two
+groups therefore have to stay roughly equal in size — a lopsided split overwhelms the volunteers one
+week and wastes the food collected for the other.
+
+`suggestGroup({ red, blue })` answers with whichever group holds fewer **active** customers;
+archived customers do not turn up, so they do not count. On a tie the answer is always `RED`, never
+random: a shuffled suggestion would make registration irreproducible and would leave staff unable to
+tell a deliberate assignment from a coin flip. The result is **advice only** — the caller may store
+a different group (US-01.4), which is why `Group` is a separate type from `WeekColour` in
+`src/domain/policy/settings.ts` despite sharing its two values. A week's colour follows from the
+anchor in settings; a customer's group is editable by hand, and aliasing the types would make one
+changeable through the other.
+
+### `src/domain/customer/customer.ts`
+
+The customer record: personal data, a flat German address (street, house number, ZIP, city), the
+needs certificate (`type`, `validUntil`) and the household members, each a name plus a birthdate.
+`createCustomerDetails(input, today)` is the only way to make one — it trims every text field,
+raises `MissingRequiredField` naming the blank one (down to `householdMembers.1.firstName`, so the
+form can mark the row), and validates the household **by deriving its composition**, which is what
+raises `EmptyHousehold` and `BirthDateInFuture`. The derived counts are then discarded: what is
+deliberately absent from the record is any grown-up or children count, any portion allowance and
+any price, because all three follow from the birthdates and the settings in force wherever they are
+needed. The Excel sheet FD is replacing stored them, and they drifted with every birthday.
+
+`NewCustomer` adds what registration decides — `customerNumber`, `group`, `status`,
+`reminderCount`, the first `card` — and `RegisteredCustomer` adds the surrogate `id`, which is the
+only identity there is: a customer number is a slot another household may hold once this one is
+archived. `CustomerStatus` is `ACTIVE | BLOCKED | ARCHIVED`; a blocked customer still holds their
+slot (US-08), an archived one releases it (US-10).
+
+### `src/application/customers/registerCustomer`
+
+The one use case that turns a filled-in form into a customer: it reads the clock **once**, builds
+the validated details as of that instant, resolves the settings in force through
+`readCurrentSettings` for the quota, resolves the group (an explicit choice from the form wins over
+`suggestGroup`), takes the lowest free number and writes the customer, household, certificate and
+first card in a single `customers.create(…)` — one transaction, so a failure leaves no half-built
+household and consumes no number. The card is not a separate action staff can forget.
+
+The concurrent-registration race is real even at four users: two staff can read the same free slot
+before either writes. The repository's partial unique index is the final authority and reports the
+loss as `CustomerNumberTaken`; `registerCustomer` then retries with a fresh read, up to three
+attempts, so the second registration lands on the next free number instead of showing an error that
+staff could only answer by pressing the button again. The bound matters more than its size — an
+unbounded loop would turn a repository fault into a hang. Anything that is not a lost race is not
+retried.
+
+The audit entry is written under `customer.registered` with an empty `why` — a registration needs no
+justification — and names `customerNumber`, `group`, `status` and `card`: what the _system_ decided,
+rather than repeating the fields staff typed, which are the record itself.
+
+### `src/application/customers/proposeRegistration` and `readCustomer`
+
+The two read-side use cases the customer screens sit on:
+
+- **`proposeRegistration`** answers what the _empty_ form should show: the lowest free number (via
+  `findLowestFreeNumber`, the total form of the rule, so a full register is `null` rather than a
+  throw), the suggested group, both group sizes and the day to judge birthdates against. Read-only —
+  it reserves nothing.
+- **`readCustomer`** answers what the card view shows: the customer plus everything derivable from
+  them, worked out here rather than in the page — the household counts from the birthdates and the
+  card number from the slot and the card index. It throws `CustomerNotFound` for an id nobody holds.
+
+`customerNumber.ts` therefore exports the rule in **two forms**: `findLowestFreeNumber` returning
+`number | null` for callers that only want to _show_ the next number, and `lowestFreeNumber` throwing
+`NoFreeCustomerNumber` for the caller that is about to allocate one. The second is written in terms
+of the first, so there is still one statement of the rule.
+
 ### `src/infrastructure/prisma/audit-log.ts`
 
 The **append-only audit log** (`PrismaAuditLog`). Every state change is recorded with a timestamp
@@ -233,13 +362,30 @@ There is no update and no delete: an entry that could be rewritten would be wort
 list is stored comma-separated because SQLite has no array column and the list is only ever read
 back for display.
 
-### `src/infrastructure/customer-counter.ts`
+### `src/infrastructure/prisma/customer-repository.ts`
 
-Implements the `CustomerCounter` port. There is no `Customer` model yet — registration is US-01, and
-US-14 is built first because registration needs the quota — so the count is genuinely zero and the
-`quotaN` check never fires. **When US-01 lands, replace this with a Prisma adapter**; the port, the
-rule in `updateSettings` and its tests already cover the behaviour, so only this file and
-`src/app/einstellungen/deps.ts` change.
+`PrismaCustomerRepository` (the `CustomerRepository` port) and `PrismaCustomerCounter` (the
+`CustomerCounter` port), together because they answer the same question — who still holds a customer
+number — and stating that condition twice is how a number gets handed out twice. Both count
+`status <> 'ARCHIVED'`: `ACTIVE` and `BLOCKED` occupy a slot, only archiving releases one.
+
+`create` writes the customer, the household members, the certificate and the first card as **one
+nested Prisma create**, which Prisma runs in a single transaction — a failure leaves neither a
+half-built household nor a consumed number. A `P2002` naming `customerNumber` is translated into the
+domain's `CustomerNumberTaken`, which is what lets `registerCustomer` retry with a fresh read; any
+other failure is rethrown as itself.
+
+The **partial unique index** the adapter relies on is not in `schema.prisma` — Prisma has no syntax
+for one — but hand-written at the end of the `init` migration:
+
+```sql
+CREATE UNIQUE INDEX "Customer_customerNumber_onRegister_key"
+    ON "Customer"("customerNumber") WHERE "status" <> 'ARCHIVED';
+```
+
+It is the final authority on a free number: the application reads the taken numbers and then writes,
+and only the database can settle the race in between. **Regenerating the migration drops it** — re-add
+it, or the slot rule is enforced by application code alone.
 
 ### `src/app/einstellungen/` — the settings screen
 
@@ -268,6 +414,45 @@ The failure is a _runtime_ error at page load, not a build error, so it will not
 value the `InvalidSettings` error carries. Add a key there when adding a validated settings field,
 or the screen quotes an English identifier at staff.
 
+### `src/app/kunden/` — the registration screen and the card view
+
+Both routes share one `deps.ts`, and both follow the settings screen's wiring. What is worth knowing
+beyond it:
+
+- **`neu/page.tsx`** reads a **proposal** (`proposeRegistration`) — the next free number, the
+  suggested group, both group sizes, and the day birthdates are judged against. It is a proposal and
+  not a reservation: nothing is held, and `registerCustomer` allocates again on submit. The partial
+  unique index, not this reading, is the authority on a free slot. A full register arrives as
+  `customerNumber: null` rather than as a thrown error, because the screen still has to render.
+- **`neu/registration-form.tsx`** is a client component for two reasons: `useActionState`, and the
+  household counts have to update **as staff type**. It does not compute them — it calls the domain
+  rule (`composition`) against the day the server handed it, so the number on screen is the number
+  the save derives. There is no input control for the counts by design.
+  The first household row **mirrors the personal-data fields** until somebody edits it: the
+  registered person _is_ a household member, and typing their name twice is how a household ends up
+  with a phantom extra head.
+- **`neu/actions.ts`** pairs the repeated household inputs back into rows. The three fields arrive as
+  three parallel lists, so the row count is the **longest** of them — a row whose birthdate was left
+  blank must reach the domain and be rejected there rather than vanishing on the way. `redirect()`
+  is called **outside** the `try`: it works by throwing, and catching it would turn a successful
+  registration into "could not be saved".
+- **`[id]/page.tsx`** renders what `readCustomer` already derived — the counts from the birthdates
+  and the card number from the slot and the card index. A non-numeric id and an id nobody holds give
+  the same German answer: there is no such customer.
+
+⚠️ **Dates cross the form boundary as UTC calendar days.** `<input type="date">` submits `YYYY-MM-DD`
+and the adapter pins it to `T00:00:00.000Z`, because the domain compares birthdates as UTC calendar
+days — parsing it in local time would land a date typed in Germany on the day before.
+
+⚠️ **German error text for a rejected customer field** comes from `customerFieldLabel()` in
+`src/i18n/de.ts`, which reads `de.customers.errorFields` and expands the domain's indexed household
+fields (`householdMembers.1.firstName`) into "Haushaltsmitglied 2: Vorname". Rows count from 1 on
+screen and from 0 in the domain.
+
+⚠️ **`eslint` forbids constructing JSX inside a `try`** (`react-hooks/error-boundaries`): React
+renders the component after the function has returned, so the `catch` would never fire. Await the
+read into a variable inside the `try` and build the JSX after it.
+
 ### `src/i18n/de.ts`
 
 A single `const de = {…} as const` dictionary of German UI strings, plus the derived `Dictionary`
@@ -282,12 +467,23 @@ type. All user-facing text lives here; **code identifiers stay English**. `layou
 
 - `prisma/schema.prisma` declares a `sqlite` datasource whose URL comes from `env("DATABASE_URL")`
   and a `prisma-client-js` generator (client generated to the default `node_modules/@prisma/client`).
-- The only model today is `SettingsVersion` — the append-only policy values (the placeholder
-  `SchemaMarker` is gone). Its `recordedAt` is the indexed, machine-stamped instant the values took
-  over — deliberately not unique, because two saves in the same millisecond are a concurrency
-  accident, not a business error. It carries `pricePerGrownUpCents` / `pricePerChildCents` rather than a per-household
-  price table: what a household owes is derived, never stored. Customer, HouseholdMember, Card and
-  DistributionRecord follow with the stories that need them.
+- `SettingsVersion` holds the append-only policy values. Its `recordedAt` is the indexed,
+  machine-stamped instant the values took over — deliberately not unique, because two saves in the
+  same millisecond are a concurrency accident, not a business error. It carries
+  `pricePerGrownUpCents` / `pricePerChildCents` rather than a per-household price table: what a
+  household owes is derived, never stored.
+- `Customer`, `HouseholdMember`, `Certificate` and `Card` are the register (US-01).
+  `Customer.id` is a surrogate autoincrement key and **the only identity there is**; every foreign
+  key targets it and never `customerNumber`, which is a reusable _slot_. There is deliberately **no
+  `grownUps` and no `children` column** — both are derived from the household's birthdates, and
+  stored they would drift with every birthday, which is exactly what the Excel sheet did.
+  `Card` is unique on `(customerId, index)`; the card number staff read out is derived from the
+  customer number and the index, never stored. `DistributionRecord` follows with the stories that
+  need it.
+- **The slot rule is a partial unique index**, hand-written at the end of the `init` migration
+  because Prisma cannot express one: at most one non-archived customer may hold a given
+  `customerNumber`, so any number of archived rows may share one. See
+  `src/infrastructure/prisma/customer-repository.ts` above — regenerating the migration drops it.
 - **All money columns are `Int` cents.** `Float` and `Decimal` appear nowhere in the schema.
 - SQLite has no enum type, so the week colour is a `String` narrowed back to `WeekColour` by
   `parseWeekColour` on read — a hand-edited database cannot widen the cycle.
@@ -365,8 +561,15 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   round-trip (change a price, save, reload, see it applied and listed in the
   history), a second save on the same day — the behaviour the screen exists for, and once an error —
   and a rejected save that must leave the stored value untouched. Those specs run
-  **serially** against the one shared database, each building on the price the previous one saved. The distribution-day and registration flows are
-  added alongside the features they cover.
+  **serially** against the one shared database, each building on the price the previous one saved.
+- `registration.spec.ts` covers US-01 end to end: a two-person household is registered from
+  `/kunden/neu` (proposed number, the mirrored first household row, the counts updating live to
+  1 grown-up / 1 child), lands on its card (`1k1`, status _aktiv_, both members listed), and an
+  empty household is refused in German while consuming no customer number. It is **serial** too —
+  the specs share the customer-number sequence in `data/e2e.db`, and the rejection asserts against
+  the number the happy path left free. Names and addresses come from Faker with a fixed seed; every
+  date is a literal, because the rules under test are about dates.
+- The distribution-day flows are added alongside the features they cover.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.
@@ -381,7 +584,9 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
 | `infrastructure/` | Test-after, thin integration tests vs. a throwaway SQLite file.           |
 | `app/`            | Test-after or cover via Playwright; logic here is a smell — push it down. |
 
-Test data is **synthetic only** (Faker) — never real customer or certificate data in fixtures.
+Test data is **synthetic only** — never real customer or certificate data in fixtures.
+`@faker-js/faker` is a devDependency, added with US-01 as the first story to handle names and
+addresses; specs call `faker.seed(…)` once at the top so a failing run stays reproducible.
 
 ---
 
