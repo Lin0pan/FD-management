@@ -12,6 +12,7 @@ export type DomainErrorCode =
   | "NoFreeCustomerNumber"
   | "CustomerNumberTaken"
   | "CustomerNotFound"
+  | "CustomerArchived"
   | "InvalidCustomerRecord"
   | "MissingRequiredField"
   | "EmptyHousehold"
@@ -167,6 +168,25 @@ export class CustomerNotFound extends DomainError {
 
   constructor(id: number) {
     super(`No customer has the id ${id}`);
+    this.id = id;
+  }
+}
+
+/**
+ * Something was asked of a customer who has left the register. Carries the id so the screen can say
+ * which household it means.
+ *
+ * An archived customer keeps their row and their history — data is never hard-deleted (US-10) — but
+ * they hold no slot, so nothing may be issued to them. Their card number would name a slot that a
+ * different household may already have taken (FR-6). Reactivating them is FD's answer, and it is a
+ * deliberate act rather than something a card issue may do quietly on their behalf.
+ */
+export class CustomerArchived extends DomainError {
+  readonly code = "CustomerArchived";
+  readonly id: number;
+
+  constructor(id: number) {
+    super(`Customer ${id} is archived`);
     this.id = id;
   }
 }

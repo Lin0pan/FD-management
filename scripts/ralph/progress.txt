@@ -26,6 +26,16 @@ Started: Thu Jul 23 11:26:53 CEST 2026
   card view is a candidate.
 - Playwright specs share `data/e2e.db` and the customer-number sequence. Assert against the number
   the screen *proposes*, never a hard-coded id, or inserting a spec above breaks the run.
+- **A port method takes a value object, not loose arguments, whenever a field has to come from the
+  clock.** `cards.issue(customerId, { index, issuedAt, reason })` keeps the stamping in the
+  application layer; an `issue(customerId, index, reason)` would have left infrastructure to invent
+  the time and broken the one-wall-clock rule.
+- **Every use case reads `deps.clock.now()` exactly once**, into a `const now`, and uses it for both
+  the record and the audit entry. Two reads would make the same event carry two instants.
+- **Fakes live in `src/application/customers/customers.test.ts`**, one class per port, and each
+  imitates the *database's* behaviour rather than the happy path — `FakeCustomerRepository.stealNext`
+  fakes a lost race, `FakeCardRepository.place` leaves a gap in the card indices. Write the fake so
+  the rule can actually fail.
 - `prisma migrate dev` refuses to run non-interactively when the dev database is ahead of the
   migrations folder. Delete `data/fd.db` first (`npm run db:reset` does it), then `--create-only`,
   hand-edit the SQL, then `prisma migrate deploy` + `npm run db:seed`.
@@ -71,4 +81,46 @@ Started: Thu Jul 23 11:26:53 CEST 2026
   - **US-002 next**: the `issueCard` use case. `nextCardNumber` deliberately does *not* decide that a
     card is due — the application layer reads the highest issued index (US-003's `currentCard`) and
     calls it. Validity stays derived from being the highest index; do not add a `valid` column.
+---
+
+## [2026-07-23 11:40] - US-002 (issueCard use case)
+- Added `src/application/customers/issue-card.ts`: the single path by which any card comes into
+  existence. Reads the clock once, loads the customer (`CustomerNotFound`), refuses an archived one
+  (`CustomerArchived`, new error) but serves a blocked one, takes `currentCard(customerId)` + 1 via
+  `nextCardNumber` (1 when they hold none), writes the card and the audit entry under
+  `customer.card.issued` with the reason as the `why`.
+- Added the type-only `src/domain/card/card.ts`: `IssuedCard { index, issuedAt, reason }` and
+  `CardIssueReason = FIRST_ISSUE | LOST | STALE_COUNTS | OTHER`. No `valid` flag — validity is being
+  the highest index (FR-4).
+- Added the `CardRepository` port (`currentCard`, `issue`) and the `CustomerArchived` domain error.
+- 12 named tests against a new `FakeCardRepository`: first issue, second issue, a gap in the run
+  (1 and 4 → 5), earlier cards kept, clock stamping, the reason on the card, the audit entry,
+  blocked served, archived refused, nothing written when refused, unknown id refused.
+- Files changed: `src/domain/card/card.ts` (new), `src/domain/errors.ts`,
+  `src/application/ports.ts`, `src/application/customers/issue-card.ts` (new),
+  `src/application/customers/customers.test.ts`, `docs/technical_documentation.md`,
+  `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- Documentation: `docs/technical_documentation.md` gained `src/domain/card/card.ts` and
+  `src/application/customers/issueCard` sections; the ports table, the errors list and the file tree
+  were updated.
+- All gates green: lint, typecheck, coverage (domain + application 100%, 254 tests, up from 243),
+  build. No UI changed, so no browser verification was needed.
+- **Learnings for future iterations:**
+  - **Deviated from the PRD's port signature on purpose** (recorded in the story's `notes`): the PRD
+    writes `issue(customerId, index, reason)`, but `issuedAt` has to come from the injected clock, and
+    that signature would have left the adapter to read the wall clock. The port takes the whole
+    `IssuedCard` instead.
+  - `registerCustomer` still writes the first card inside `customers.create(…)` rather than calling
+    `issueCard`: US-01.4 requires the customer and their first card in **one transaction**, which a
+    second use-case call cannot be part of. "One card-issuing path" means one *decision* about the
+    next index, not one SQL statement. Do not refactor this without a transactional port.
+  - The `reason` column does not exist yet, so `CustomerCard` in `customer.ts` is still
+    `{ index, issuedAt }` while `IssuedCard` carries the reason. **US-003 should unify them** when it
+    adds the column — that is the story that owns the schema change, and adding the column here would
+    have been a half-migration.
+  - A type-only domain module shows as `0 | 0 | 0 | 0` in the coverage table (like `ports.ts`) and
+    still passes the 100% gate — v8 reports no statements rather than uncovered ones.
+  - **US-003 next**: `PrismaCardRepository`. It needs the `reason` column, the confirmed
+    `@@unique([customerId, index])`, and a typed error for the lost race — the port's doc comment
+    already says the adapter is the final authority on a free index.
 ---

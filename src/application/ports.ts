@@ -7,6 +7,7 @@
  * untested runtime code.
  */
 
+import type { IssuedCard } from "@/domain/card/card";
 import type { NewCustomer, RegisteredCustomer } from "@/domain/customer/customer";
 import type { GroupCounts } from "@/domain/customer/group";
 import type { SettingsVersion } from "@/domain/policy/settings";
@@ -56,6 +57,22 @@ export interface CustomerRepository {
    * @throws {CustomerNumberTaken} if another registration took the number first.
    */
   create(customer: NewCustomer): Promise<RegisteredCustomer>;
+}
+
+/**
+ * The cards a customer has been issued.
+ *
+ * The repository stores cards; it does not decide which one is valid. `currentCard` answers with the
+ * highest index on record, and that card *is* the valid one (FR-4) — there is no flag to set and
+ * none to clear when a replacement is issued. The adapter — not the caller — is the final authority
+ * on whether an index was still free when the write landed, because the database holds the
+ * `@@unique([customerId, index])` constraint that decides it.
+ */
+export interface CardRepository {
+  /** The customer's highest-indexed card, or `null` if they hold none yet. */
+  currentCard(customerId: number): Promise<IssuedCard | null>;
+  /** Write one card for a customer, and hand it back as it was stored. */
+  issue(customerId: number, card: IssuedCard): Promise<IssuedCard>;
 }
 
 /**

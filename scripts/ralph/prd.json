@@ -34,8 +34,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Lives in src/application/customers/issue-card.ts against a new CardRepository port (currentCard / issue). The port takes issue(customerId, {index, issuedAt, reason}) rather than the PRD's issue(customerId, index, reason): issuedAt must come from the injected clock, so infrastructure cannot be the one to stamp it. IssuedCard and CardIssueReason are declared in the new type-only src/domain/card/card.ts. Archived customers are refused with the new CustomerArchived error; blocked ones are served, since a block does not unregister. The registration card is still written inside customers.create — one transaction (US-01.4) — and gains its stored reason with the column in US-003."
     },
     {
       "id": "US-003",

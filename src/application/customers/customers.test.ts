@@ -1,6 +1,9 @@
 import { faker } from "@faker-js/faker";
 import { beforeEach, describe, expect, it } from "vitest";
+import type { IssuedCard } from "@/domain/card/card";
 import {
+  createCustomerDetails,
+  type CustomerStatus,
   type HouseholdMemberDetails,
   type NewCustomer,
   type RegisteredCustomer,
@@ -8,6 +11,7 @@ import {
 import type { GroupCounts } from "@/domain/customer/group";
 import {
   BirthDateInFuture,
+  CustomerArchived,
   CustomerNumberTaken,
   EmptyHousehold,
   MissingRequiredField,
@@ -16,7 +20,15 @@ import {
   NoSettingsInForce,
 } from "@/domain/errors";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
-import type { AuditEntry, AuditLog, Clock, CustomerRepository, SettingsRepository } from "../ports";
+import type {
+  AuditEntry,
+  AuditLog,
+  CardRepository,
+  Clock,
+  CustomerRepository,
+  SettingsRepository,
+} from "../ports";
+import { issueCard } from "./issue-card";
 import { proposeRegistration } from "./propose-registration";
 import { readCustomer } from "./read-customer";
 import { registerCustomer, type RegisterCustomerInput } from "./register-customer";
@@ -103,6 +115,46 @@ class FakeCustomerRepository implements CustomerRepository {
   }
 }
 
+/**
+ * A card store that behaves like the table will: cards are kept per customer and `currentCard`
+ * answers with the highest index rather than the last one written, so a test can leave a gap in the
+ * run — the shape a hand-fixed database or a future deletion would leave — and the use case still
+ * has to count on from the top.
+ */
+class FakeCardRepository implements CardRepository {
+  readonly cards = new Map<number, IssuedCard[]>();
+
+  /** Put cards on record without going through the use case, e.g. to leave a gap in the indices. */
+  place(customerId: number, ...indices: number[]): void {
+    for (const index of indices) {
+      this.cardsOf(customerId).push({
+        index,
+        issuedAt: new Date(TODAY),
+        reason: "FIRST_ISSUE",
+      });
+    }
+  }
+
+  currentCard(customerId: number): Promise<IssuedCard | null> {
+    const highest = this.cardsOf(customerId).reduce<IssuedCard | null>(
+      (current, card) => (current === null || card.index > current.index ? card : current),
+      null,
+    );
+    return Promise.resolve(highest);
+  }
+
+  issue(customerId: number, card: IssuedCard): Promise<IssuedCard> {
+    this.cardsOf(customerId).push(card);
+    return Promise.resolve(card);
+  }
+
+  private cardsOf(customerId: number): IssuedCard[] {
+    const cards = this.cards.get(customerId) ?? [];
+    this.cards.set(customerId, cards);
+    return cards;
+  }
+}
+
 /** A repository that fails for a reason no retry can mend. */
 class BrokenCustomerRepository extends FakeCustomerRepository {
   override create(): Promise<RegisteredCustomer> {
@@ -158,6 +210,21 @@ function registerInput(overrides: Partial<RegisterCustomerInput> = {}): Register
     householdMembers: [member(), member({ birthDate: new Date("2020-06-01T00:00:00.000Z") })],
     notes: "",
     ...overrides,
+  };
+}
+
+/**
+ * A customer as the register already holds them, built without going through registration — the
+ * status is the point of these, and registration only ever produces `ACTIVE`.
+ */
+function storedCustomer(status: CustomerStatus): NewCustomer {
+  return {
+    details: createCustomerDetails(registerInput(), new Date(TODAY)),
+    customerNumber: 50,
+    group: "RED",
+    status,
+    reminderCount: 0,
+    card: { index: 1, issuedAt: new Date(TODAY) },
   };
 }
 
@@ -334,6 +401,123 @@ describe("registerCustomer", () => {
     await registerCustomer(deps(), registerInput());
 
     expect(audit.entries[0].why).toBe("");
+  });
+});
+
+describe("issueCard", () => {
+  let customers: FakeCustomerRepository;
+  let cards: FakeCardRepository;
+  let audit: FakeAuditLog;
+
+  function deps(today = TODAY) {
+    return { customers, cards, clock: fakeClock(today), audit };
+  }
+
+  /** Put a customer of the given status in the register and hand back their id. */
+  async function customerWith(status: CustomerStatus): Promise<number> {
+    const customer = await customers.create(storedCustomer(status));
+    return customer.id;
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository();
+    cards = new FakeCardRepository();
+    audit = new FakeAuditLog();
+  });
+
+  it("issues index 1 to a customer who holds no card yet", async () => {
+    const customerId = await customerWith("ACTIVE");
+
+    const card = await issueCard(deps(), { customerId, reason: "FIRST_ISSUE" });
+
+    expect(card.index).toBe(1);
+  });
+
+  it("issues the index after the current card, invalidating it by being higher", async () => {
+    const customerId = await customerWith("ACTIVE");
+    cards.place(customerId, 1);
+
+    const card = await issueCard(deps(), { customerId, reason: "LOST" });
+
+    expect(card.index).toBe(2);
+    await expect(cards.currentCard(customerId)).resolves.toEqual(card);
+  });
+
+  it("counts on from the highest index, not the number of cards, when the run has a gap", async () => {
+    const customerId = await customerWith("ACTIVE");
+    cards.place(customerId, 1, 4);
+
+    const card = await issueCard(deps(), { customerId, reason: "STALE_COUNTS" });
+
+    expect(card.index).toBe(5);
+  });
+
+  it("leaves the earlier cards on record — the history is how a reissue is explained", async () => {
+    const customerId = await customerWith("ACTIVE");
+    cards.place(customerId, 1);
+
+    await issueCard(deps(), { customerId, reason: "LOST" });
+
+    expect(cards.cards.get(customerId)?.map((card) => card.index)).toEqual([1, 2]);
+  });
+
+  it("stamps the card with the injected clock, so it and the audit entry agree", async () => {
+    const customerId = await customerWith("ACTIVE");
+
+    const card = await issueCard(deps(), { customerId, reason: "FIRST_ISSUE" });
+
+    expect(card.issuedAt).toEqual(new Date(TODAY));
+    expect(audit.entries[0].when).toEqual(new Date(TODAY));
+  });
+
+  it("keeps the reason on the card, so a later reissue can be explained", async () => {
+    const customerId = await customerWith("ACTIVE");
+
+    const card = await issueCard(deps(), { customerId, reason: "OTHER" });
+
+    expect(card.reason).toBe("OTHER");
+  });
+
+  it("records the issue under a stable event name, with the reason as the why", async () => {
+    const customerId = await customerWith("ACTIVE");
+
+    await issueCard(deps(), { customerId, reason: "LOST" });
+
+    expect(audit.entries).toHaveLength(1);
+    expect(audit.entries[0].what).toBe("customer.card.issued");
+    expect(audit.entries[0].changedFields).toEqual(["card"]);
+    expect(audit.entries[0].why).toBe("LOST");
+  });
+
+  it("issues to a blocked customer — a block turns them away, it does not unregister them", async () => {
+    const customerId = await customerWith("BLOCKED");
+
+    const card = await issueCard(deps(), { customerId, reason: "LOST" });
+
+    expect(card.index).toBe(1);
+  });
+
+  it("refuses a card to an archived customer, whose slot may already be someone else's", async () => {
+    const customerId = await customerWith("ARCHIVED");
+
+    await expect(issueCard(deps(), { customerId, reason: "LOST" })).rejects.toThrow(
+      CustomerArchived,
+    );
+  });
+
+  it("writes neither card nor audit entry when the customer is archived", async () => {
+    const customerId = await customerWith("ARCHIVED");
+
+    await issueCard(deps(), { customerId, reason: "LOST" }).catch(() => undefined);
+
+    expect(cards.cards.get(customerId)).toBeUndefined();
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("refuses an id that belongs to nobody rather than issuing a card into the void", async () => {
+    await expect(issueCard(deps(), { customerId: 404, reason: "LOST" })).rejects.toThrow(
+      CustomerNotFound,
+    );
   });
 });
 

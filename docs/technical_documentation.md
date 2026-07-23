@@ -95,13 +95,15 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customer/group.test.ts     # its Vitest spec
 │   │   ├── customer/customer.ts       # the customer record, validated on construction
 │   │   ├── customer/customer.test.ts  # its Vitest spec
+│   │   ├── card/card.ts              # what an issued card is + why it was issued (type-only)
 │   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
 │   │   ├── card/cardNumber.test.ts   # its Vitest spec
 │   │   ├── distribution/             # empty, reserved by the architecture
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
-│   │   │                             #   CustomerRepository, AuditLog
-│   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer
+│   │   │                             #   CustomerRepository, CardRepository, AuditLog
+│   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
+│   │   │                             #   issueCard
 │   │   └── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (implements Clock port)
@@ -184,6 +186,7 @@ coverage-measured layers.
 | `SettingsRepository` | `listVersions()`, `append(version)`                         | No update/delete — policy history is append-only.                                          |
 | `CustomerCounter`    | `countActive()`                                             | The reality the quota `N` may not fall below.                                              |
 | `CustomerRepository` | `takenActiveNumbers()`, `groupCounts()`, `create(customer)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`. |
+| `CardRepository`     | `currentCard(customerId)`, `issue(customerId, card)`        | `currentCard` is the highest index — there is no `valid` flag to read.                     |
 | `AuditLog`           | `append(entry)`                                             | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                  |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
@@ -218,8 +221,8 @@ settable fake clock can drive deterministic tests.
 The `DomainErrorCode` union — the closed set of failure modes — plus an abstract `DomainError` base
 class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
 `QuotaBelowActiveCustomers`, `MissingAuditReason`, `EmptyHousehold`, `BirthDateInFuture`,
-`NoFreeCustomerNumber`, `CustomerNumberTaken`, `CustomerNotFound`, `InvalidCustomerRecord`,
-`MissingRequiredField`, `InvalidCardNumber`, `InvalidEuroAmount` today).
+`NoFreeCustomerNumber`, `CustomerNumberTaken`, `CustomerNotFound`, `CustomerArchived`,
+`InvalidCustomerRecord`, `MissingRequiredField`, `InvalidCardNumber`, `InvalidEuroAmount` today).
 Each carries the values that made it fail, so the UI can render a
 German message naming concrete numbers without re-deriving them, and callers switch on `code`
 instead of parsing strings.
@@ -315,6 +318,18 @@ only identity there is: a customer number is a slot another household may hold o
 archived. `CustomerStatus` is `ACTIVE | BLOCKED | ARCHIVED`; a blocked customer still holds their
 slot (US-08), an archived one releases it (US-10).
 
+### `src/domain/card/card.ts`
+
+What an issued card _is_: `IssuedCard` = `index` + `issuedAt` + `reason`, and `CardIssueReason` =
+`FIRST_ISSUE | LOST | STALE_COUNTS | OTHER`. Type-only, so it adds no runtime code to the
+coverage-measured layer.
+
+There is deliberately **no `valid` flag**. A card is current _because_ it carries the highest index
+the customer has been issued (FR-4), so validity cannot drift away from the cards that actually
+exist — the same argument that keeps the household counts derived. The reason is a closed set rather
+than free text because the audit log is read by people who did not make the change, and four words
+they can scan tell them more than a sentence typed to get past a form.
+
 ### `src/domain/card/cardNumber.ts`
 
 The card number staff read out at the counter, `<customer number>k<index>` — `12k1` is the first
@@ -365,6 +380,33 @@ retried.
 The audit entry is written under `customer.registered` with an empty `why` — a registration needs no
 justification — and names `customerNumber`, `group`, `status` and `card`: what the _system_ decided,
 rather than repeating the fields staff typed, which are the record itself.
+
+### `src/application/customers/issueCard`
+
+The **single path by which any card comes into existence**. First issue (US-02), a replacement for a
+lost card (US-09) and a replacement whose printed counts a birthday has overtaken (US-13) differ only
+in the reason they record, so they are one use case with a different `reason` rather than three code
+paths that could drift apart.
+
+`issueCard(deps, { customerId, reason })` reads the clock once — the card's date and the audit
+entry's instant are the same event — loads the customer (`CustomerNotFound` for an id nobody holds),
+refuses an archived one (`CustomerArchived`, because their slot may already be another household's,
+FR-6) but serves a **blocked** one, since a block turns a customer away at the counter without
+unregistering them (US-08). The new index is `currentCard(customerId)` + 1, asked of
+`nextCardNumber` so "the next card is the next index" is stated once, or 1 when the customer holds
+none yet. Reading the _highest_ index rather than counting rows is what makes a gap in the run
+harmless.
+
+Earlier cards are left on record: the history is how a reissue is explained, and every one of them is
+invalid by the only definition there is — not being the highest. The audit entry goes under
+`customer.card.issued`, names `card` as the changed field, and carries the reason as its `why`: it
+was chosen by a human from a closed set, and a sentence beside it would say the same thing less
+legibly months later.
+
+The registration card is still written inside `customers.create(…)` rather than through this use
+case, because the customer and their first card must land in **one transaction** (US-01.4) and a
+second write could not. It is a `FIRST_ISSUE` in every sense but the stored word: the `reason` column
+arrives with the card repository (US-02.3), which is where the two paths converge on one row shape.
 
 ### `src/application/customers/proposeRegistration` and `readCustomer`
 
