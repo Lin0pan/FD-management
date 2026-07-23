@@ -18,8 +18,8 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "colourOf + isoWeekOf in src/domain/distribution/weekColour.ts; 23 tests including a five-year alternation sweep. The anchor is re-validated here (2025-W53 is well-formed but does not exist)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -34,8 +34,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "isDistributionDay + nextDistribution in src/domain/distribution/distributionDay.ts; 13 tests. weekColour.ts now exports startOfUtcDay and isoWeekdayOf so both modules share one piece of calendar arithmetic."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -51,8 +51,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "getWeekColour in src/application/distribution/get-week-colour.ts; 8 tests against hand-written fakes. Returns the whole banner view (date, isoWeek, colour, isDistributionDay, nextDistribution) so US-004 needs no second use case."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -68,8 +68,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "src/app/ausgabe/{page.tsx,deps.ts}. Banner is painted in the colour it names — on a non-distribution day that is the next distribution's colour, not the current week's. The lookup is a plain GET form (?datum=), so no client component was needed. Verified by driving the dev server and reading the rendered HTML; no browser MCP tool is configured."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
@@ -83,8 +83,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "tests/e2e/distribution.spec.ts, 4 specs. The fixed clock is a file the spec writes (FD_FIXED_NOW_FILE → data/e2e-now.txt, read per call in src/infrastructure/clock.ts), so one server covers three different 'todays' without a restart; afterAll deletes it so the settings specs keep the wall clock."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

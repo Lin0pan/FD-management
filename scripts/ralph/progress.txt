@@ -1,295 +1,229 @@
 # Ralph Progress Log
-Started: Thu Jul 23 11:26:53 CEST 2026
+Started: Thu Jul 23 15:09:52 CEST 2026
 ---
 
 ## Codebase Patterns
-- **Check the working tree and `origin/main` before starting.** This batch began with local `main`
-  one commit behind `origin/main` (US-01 had already been squash-merged as #26) and a stale
-  unmerged `prd.json` in the index. Branch from `origin/main`, not from local `main`.
-- **Parsers throw, they do not return errors.** `parseGroup`, `parseWeekColour` and now
-  `parseCardNumber` all raise a typed `DomainError`. Where a screen has to render whether or not the
-  rule succeeds, add a *total* form beside the throwing one (`findLowestFreeNumber` /
-  `lowestFreeNumber`) and write the throwing one in terms of it — two entry points, one statement of
-  the rule. Do not add the total form speculatively; wait for the caller.
-- **Domain modules are named for what they do, not for their file**: `formatCardNumber`, not
-  `format`. A PRD that writes `format(...)` is naming the concept, not prescribing the export.
-- **Derived, never stored**: card numbers, household counts, portion allowance, price. If a value can
-  be computed from the birthdates plus the settings in force, it has no column.
-- **100% branch coverage on domain + application is a hard gate.** Every guard you add needs a named
-  test, so do not add a defensive branch you cannot justify with a rule.
-- `eslint`'s `react-hooks/error-boundaries` forbids constructing JSX inside a `try`. Await into a
-  variable inside the `try`, build the JSX after it. `npm run build` does not catch this; lint does.
-- Next 16 hands a dynamic route its `params` as a **`Promise`** — `await` it, and treat a
-  non-numeric id exactly like an unknown one.
-- **Playwright runs `workers: 1`, `fullyParallel: false`** — every spec shares `data/e2e.db` and
-  several of them write to it. Specs share the customer-number sequence, so assert against the
-  number the screen *proposes*, never a hard-coded id: files run alphabetically, and inserting one
-  above another shifts every number below it.
-- **A port method takes a value object, not loose arguments, whenever a field has to come from the
-  clock.** `cards.issue(customerId, { index, issuedAt, reason })` keeps the stamping in the
-  application layer; an `issue(customerId, index, reason)` would have left infrastructure to invent
-  the time and broken the one-wall-clock rule.
-- **Every use case reads `deps.clock.now()` exactly once**, into a `const now`, and uses it for both
-  the record and the audit entry. Two reads would make the same event carry two instants.
-- **Fakes live in `src/application/customers/customers.test.ts`**, one class per port, and each
-  imitates the *database's* behaviour rather than the happy path — `FakeCustomerRepository.stealNext`
-  fakes a lost race, `FakeCardRepository.place` leaves a gap in the card indices. Write the fake so
-  the rule can actually fail.
-- `prisma migrate dev` refuses to run non-interactively when the dev database is ahead of the
-  migrations folder. Delete `data/fd.db` first (`npm run db:reset` does it), then `--create-only`,
-  hand-edit the SQL, then `prisma migrate deploy` + `npm run db:seed`.
-- **Regenerating the init migration drops the hand-written partial unique index.** Save the tail
-  first (`awk '/hand-written/{f=1} f' prisma/migrations/*_init/migration.sql > /tmp/tail.sql`),
-  regenerate, then append it back. Without it, two active households can hold one customer number and
-  only `customer-repository.test.ts` notices.
-- **A stored enum word is parsed back, never trusted**: `parseGroup`, `parseCustomerStatus`,
-  `parseCardIssueReason`. SQLite has no enum type, so the adapter narrows on the way out and raises
-  `InvalidCustomerRecord` — a hand-edited row must fail loudly rather than default to a plausible
-  value.
-- **A lost race belongs to the adapter, not the caller.** A `P2002` is translated into a typed domain
-  error naming the constraint's meaning (`CustomerNumberTaken`, `CardIndexTaken`), and the check
-  inspects `error.meta` for the field rather than assuming which constraint fired.
-- **Adapters are wired in `src/app/<area>/deps.ts`** — the one composition root per screen area. A new
-  repository is not reachable until it is added there.
-- **One use case per screen, not one per entity.** `readCustomer` (the overview) and `readCard` (the
-  card) both start from a customer id and deliberately stay apart: a view object serving two screens
-  carries fields each of them ignores, and the next story widens it again. Add a use case rather than
-  a field.
-- **Ask the database once for a run and take the head.** `listCards` returns every card highest index
-  first, so the current card and the ones it replaced come from one read at one moment. Two calls —
-  `currentCard` plus a history query — could disagree.
-- **A formatter copied into a second page belongs in `src/i18n/`.** `germanDate` now lives in
-  `src/i18n/format.ts` beside the dictionary: `de.ts` holds the words, `format.ts` holds the shapes.
-  Dates are read in **UTC** there, because the domain stores calendar days at midnight UTC.
-- **Playwright's `webServer` needs port 3000 free.** A `npm run dev` left running from a manual check
-  makes e2e specs fail against *its* database with assertions that look like real regressions. Kill
-  the dev server before `npm run test:e2e`.
-- **`npm run dev` rewrites `next-env.d.ts`** to the dev-mode routes path. Restore it
-  (`git checkout next-env.d.ts`) before committing, or an unrelated one-line diff rides along.
+- Domain modules are pure and take dates as parameters — `new Date()` with no argument is an ESLint
+  error in `src/domain` and `src/application`. `new Date(value)` is fine.
+- Calendar rules work on **UTC day instants** (`Date.UTC(y, m, d)`), never on raw timestamps or local
+  time — see `householdComposition.ts` and `distribution/weekColour.ts` for the idiom.
+- Coverage on `src/domain` and `src/application` is gated at **100% including branches**. Every
+  branch of a helper needs a named test, so do not add a defensive branch you cannot reach.
+- Typed errors from `src/domain/errors.ts` only — add a code to `DomainErrorCode` before the class.
+- Test names state the business rule, not the function: "flips on the Sunday-to-Monday boundary".
+- `docs/technical_documentation.md` carries both a source tree and a per-module section; a new domain
+  module needs an entry in each.
+- Full gate: `npm run lint && npm run typecheck && npm run test:coverage && npm run build`.
+- Shared calendar arithmetic lives in `distribution/weekColour.ts` (`startOfUtcDay`, `isoWeekdayOf`) —
+  import it rather than re-deriving UTC/ISO weekday maths in a new module.
+- Verify every ISO date claim in a test comment against a real calendar before trusting it; an
+  expectation written from intuition is the likeliest red in this area.
+- A use case that answers about a **past** date resolves settings with `resolveSettingsAt(versions,
+  thatDate)` rather than through `readCurrentSettings` — the latter always resolves at `clock.now()`
+  and would apply today's policy to a historic question.
+- Application use cases return a view object carrying everything one screen states, so the page needs
+  a single call; `app/` composing two use cases is where logic leaks back up.
+- A route is three files at most: `deps.ts` (composition root, real adapters), `page.tsx` (server
+  component), and a client component **only** when `useActionState` or live typing demands one. A
+  read-only screen with a GET form needs no `"use client"` at all.
+- Every screen needs its own `deps.ts` naming only the ports it uses — do not import another route's.
+- `npm run dev` rewrites `next-env.d.ts` to the `.next/dev/...` types path; `npm run build` puts it
+  back. Check `git status` after driving the dev server and `git checkout next-env.d.ts`.
+- A throwaway script that imports `@prisma/client` must live **inside the repo** (`./x.tmp.ts`), not
+  in `/tmp` — module resolution is relative to the file. Use `async function main()`; `npx tsx -e`
+  has no top-level await.
+- Reset the dev database with `npm run db:reset` after poking at it to see a screen branch render.
+- `npm run test:e2e` serves whatever `.next` already holds — the Playwright web server runs
+  `npm run start`, which does **not** build. Run `npm run build` first or you assert against the
+  previous build (this cost one confusing red).
+- E2E can pin the app's clock: `FD_FIXED_NOW_FILE=data/e2e-now.txt` (set in `playwright.config.ts`)
+  makes `systemClock` return the ISO instant that file holds, re-read per call. A spec writes it to
+  choose "today" and **must delete it in `afterAll`** — a frozen today leaks into every later spec.
 
 ---
 
-## [2026-07-23 11:30] - US-001 (CardNumber value object)
-- Grew `src/domain/card/cardNumber.ts` from the format-only helper US-01 left behind into the full
-  value object: a `CardNumber` interface (`{ customerNumber, index }`), `parseCardNumber(text)` and
-  `nextCardNumber(card)` beside the existing `formatCardNumber(customerNumber, index)`.
-- Added the `InvalidCardNumber` error class to `src/domain/errors.ts`. Its `code` was already in the
-  `DomainErrorCode` union, reserved by an earlier story — the class was the missing half. It carries
-  the text as entered, like `InvalidEuroAmount`.
-- Parsing rules, all named tests: accepts an uppercase `K` and surrounding whitespace (someone
-  copying a number off a card at the counter produces both, and neither names a different card);
-  rejects `''`, `'50'`, `'k3'`, `'50k'`, `'50k0'`, `'0k1'`, `'050k3'`, `'50k03'`, `'50k3x'`,
-  `'-50k3'`, `'50k-3'`. Output is always the lowercase `k`, documented on the pattern constant.
-- Files changed: `src/domain/card/cardNumber.ts`, `src/domain/card/cardNumber.test.ts`,
-  `src/domain/errors.ts`, `docs/technical_documentation.md`, `scripts/ralph/prd.json`,
-  `scripts/ralph/progress.txt`.
-- Documentation: `docs/technical_documentation.md` gained a `src/domain/card/cardNumber.ts` section
-  (derived-not-stored, the three functions, why the leading zero is rejected, and FR-6 — card numbers
-  are *not* unique across the archive because slot 50 is reassignable). The file tree and the
-  `errors.ts` class list were updated; the list had also been missing `CustomerNotFound` and
-  `InvalidCustomerRecord` since US-01.
-- All gates green: lint, typecheck, coverage (domain + application 100% on all four metrics, 243
-  tests, up from 224), build.
+## 2026-07-23 - US-001 (weekColour calendar alternation rule)
+- Implemented `src/domain/distribution/weekColour.ts`: `colourOf(date, anchor)` derives the RED/BLUE
+  week colour by ISO-week parity from the configured anchor, and `isoWeekOf(date)` formats the ISO
+  week as `2026-W30` for the lookup UI (US-004 will need it).
+- Written test-first: the spec was red (module missing) before the implementation existed.
+- Files changed:
+  - `src/domain/distribution/weekColour.ts` (new)
+  - `src/domain/distribution/weekColour.test.ts` (new, 23 tests)
+  - `docs/technical_documentation.md` (source tree + a module section)
+  - `scripts/ralph/prd.json` (US-001 passes)
+- Gate: lint, typecheck, `test:coverage` (310 tests, 100% on domain + application) and `build` all
+  green.
 - **Learnings for future iterations:**
-  - **Deviated from the PRD's export names on purpose**, recorded in the story's `notes`: the PRD
-    writes `format` / `parse` / `next`, but the file already exported `formatCardNumber` and the
-    domain's convention is `parseGroup` / `parseWeekColour`. Read a PRD signature as naming the
-    concept, not dictating the identifier; record the deviation rather than silently renaming
-    working code.
-  - The PRD said `parse` "returns a typed `InvalidCardNumber` error". It **throws** it, because every
-    other parser in this domain throws and a lone returning one would make callers branch two ways.
-    US-04 (lookup by card number at the counter) is the story that may genuinely want a total
-    `tryParseCardNumber` — add it *then*, in terms of this one, not speculatively.
-  - The regex is built from the `CARD_INDEX_MARKER` constant with the `i` flag, so the marker is
-    stated once. `[1-9][0-9]*` on both parts is what rejects the leading zero and the zero itself in
-    one expression — no extra branch, so no extra coverage burden.
-  - `next` returns a fresh object; a test asserts the input is untouched. Domain value objects here
-    are `readonly` interfaces, never mutated in place.
-  - **US-002 next**: the `issueCard` use case. `nextCardNumber` deliberately does *not* decide that a
-    card is due — the application layer reads the highest issued index (US-003's `currentCard`) and
-    calls it. Validity stays derived from being the highest index; do not add a `valid` column.
+  - ISO facts verified against a scratch script rather than intuition, as the PRD demands:
+    2026 is a 53-week ISO year (1 Jan 2026 is a Thursday); 1 Jan 2023 falls in `2022-W52`;
+    1 Jan 2027 falls in `2026-W53`; `2026-W02` starts Monday 5 January 2026.
+  - The ISO year of a week is the calendar year of its **Thursday** — that single rule makes both the
+    December and the January crossovers fall out; and 28 December is always in the last week of its
+    ISO year, which is how `weeksInIsoYear` is computed.
+  - Negative parity needs `((n % 2) + 2) % 2`; a plain `n % 2` is negative in JS and would make every
+    pre-anchor week report the anchor colour.
+  - `createSettings` validates only the *shape* of `weekAnchor.isoWeek` (a regex allowing W01–W53).
+    `2025-W53` therefore passes settings validation but names no real week, so `weekColour.ts`
+    re-checks existence and raises `InvalidSettings` against the same field. **Open follow-up:** the
+    settings form (US-14) can still save such an anchor, and it would only fail when `/ausgabe`
+    renders. Worth tightening in `createSettings` when US-014 is revisited — it was left alone here
+    to keep this story to one intent.
+  - `tsconfig.json` does **not** set `noUncheckedIndexedAccess`, so `RegExpExecArray[1]` is `string`
+    and needs no guard — a guard would be an uncovered branch and fail the coverage gate.
+  - There is no `e2e/` directory yet; `npm run test:e2e` runs Playwright from `tests/e2e` per
+    `vitest.config.ts`'s comment. US-005 will have to create it.
 ---
 
-## [2026-07-23 11:40] - US-002 (issueCard use case)
-- Added `src/application/customers/issue-card.ts`: the single path by which any card comes into
-  existence. Reads the clock once, loads the customer (`CustomerNotFound`), refuses an archived one
-  (`CustomerArchived`, new error) but serves a blocked one, takes `currentCard(customerId)` + 1 via
-  `nextCardNumber` (1 when they hold none), writes the card and the audit entry under
-  `customer.card.issued` with the reason as the `why`.
-- Added the type-only `src/domain/card/card.ts`: `IssuedCard { index, issuedAt, reason }` and
-  `CardIssueReason = FIRST_ISSUE | LOST | STALE_COUNTS | OTHER`. No `valid` flag — validity is being
-  the highest index (FR-4).
-- Added the `CardRepository` port (`currentCard`, `issue`) and the `CustomerArchived` domain error.
-- 12 named tests against a new `FakeCardRepository`: first issue, second issue, a gap in the run
-  (1 and 4 → 5), earlier cards kept, clock stamping, the reason on the card, the audit entry,
-  blocked served, archived refused, nothing written when refused, unknown id refused.
-- Files changed: `src/domain/card/card.ts` (new), `src/domain/errors.ts`,
-  `src/application/ports.ts`, `src/application/customers/issue-card.ts` (new),
-  `src/application/customers/customers.test.ts`, `docs/technical_documentation.md`,
-  `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
-- Documentation: `docs/technical_documentation.md` gained `src/domain/card/card.ts` and
-  `src/application/customers/issueCard` sections; the ports table, the errors list and the file tree
-  were updated.
-- All gates green: lint, typecheck, coverage (domain + application 100%, 254 tests, up from 243),
-  build. No UI changed, so no browser verification was needed.
+## 2026-07-23 - US-002 (isDistributionDay and nextDistribution)
+- Implemented `src/domain/distribution/distributionDay.ts`: `isDistributionDay(date, weekday)` and
+  `nextDistribution(date, settings)` returning `{ date, colour }` for the next distribution at or
+  after the given date — today when today is a distribution day.
+- Written test-first: the spec was red (module missing) before the implementation existed.
+- `weekColour.ts` grew two exports, `startOfUtcDay` and `isoWeekdayOf`, replacing its two private
+  helpers so the new module reuses the same UTC/ISO arithmetic instead of duplicating it.
+- Files changed:
+  - `src/domain/distribution/distributionDay.ts` (new)
+  - `src/domain/distribution/distributionDay.test.ts` (new, 13 tests)
+  - `src/domain/distribution/weekColour.ts` (helpers exported)
+  - `docs/technical_documentation.md` (source tree + a module section)
+  - `scripts/ralph/prd.json` (US-002 passes)
+- Gate: lint, typecheck, `test:coverage` (323 tests, 100% on domain + application) and `build` all
+  green.
 - **Learnings for future iterations:**
-  - **Deviated from the PRD's port signature on purpose** (recorded in the story's `notes`): the PRD
-    writes `issue(customerId, index, reason)`, but `issuedAt` has to come from the injected clock, and
-    that signature would have left the adapter to read the wall clock. The port takes the whole
-    `IssuedCard` instead.
-  - `registerCustomer` still writes the first card inside `customers.create(…)` rather than calling
-    `issueCard`: US-01.4 requires the customer and their first card in **one transaction**, which a
-    second use-case call cannot be part of. "One card-issuing path" means one *decision* about the
-    next index, not one SQL statement. Do not refactor this without a transactional port.
-  - The `reason` column does not exist yet, so `CustomerCard` in `customer.ts` is still
-    `{ index, issuedAt }` while `IssuedCard` carries the reason. **US-003 should unify them** when it
-    adds the column — that is the story that owns the schema change, and adding the column here would
-    have been a half-migration.
-  - A type-only domain module shows as `0 | 0 | 0 | 0` in the coverage table (like `ports.ts`) and
-    still passes the 100% gate — v8 reports no statements rather than uncovered ones.
-  - **US-003 next**: `PrismaCardRepository`. It needs the `reason` column, the confirmed
-    `@@unique([customerId, index])`, and a typed error for the lost race — the port's doc comment
-    already says the adapter is the final authority on a free index.
+  - `date.getUTCDay()` is unaffected by the time of day, so the ISO weekday needs no day-normalising
+    first — only the returned *date* does.
+  - "Next occurrence of weekday W, today counting" is `(W - isoWeekday(d) + 7) % 7` days ahead; the
+    `% 7` is what makes a distribution day return itself rather than +7.
+  - One test failed first time because its comment mis-stated the calendar: 2025-W52 (22–28 Dec) is
+    **two** weeks before the anchor 2026-W02, not one — 2025-W53 does not exist, so W52 is followed
+    by 2026-W01. Check the week numbering, not just the day count.
+  - `Settings.distributionWeekday` is already narrowed to `IsoWeekday` by `createSettings`, so the
+    domain functions can take the narrow type and need no re-validation branch (which would be an
+    uncovered branch under the 100% gate).
+  - Next up (US-003) needs only `SettingsRepository` + `Clock`; the fake-based application tests in
+    `src/application/settings/settings.test.ts` are the pattern to copy.
 ---
 
-## [2026-07-23 11:50] - US-003 (Card repository with currentCard query)
-- Added `src/infrastructure/prisma/card-repository.ts`: `PrismaCardRepository` implementing the
-  `CardRepository` port. `currentCard(customerId)` is the highest-indexed row — validity is being the
-  highest index (FR-4), so there is no flag to read and none to clear; an unknown id answers `null`
-  like a customer holding no card, because whether the household exists is the use case's question.
-  `issue` translates a `P2002` naming `index` into the new `CardIndexTaken` domain error.
-- `Card` gained the `reason` column. That **unified `NewCustomer.card` with `IssuedCard`** — the
-  `CustomerCard` interface is gone — so the card written inside `customers.create` and the card
-  written by `issueCard` are one shape. `registerCustomer` now records `FIRST_ISSUE`.
-- Added `parseCardIssueReason` to `src/domain/card/card.ts` (previously type-only) with 6 named
-  tests, and `CardIndexTaken` to `errors.ts`.
-- 11 integration tests in `card-repository.test.ts`: the reason is stored, the superseded card stays
-  on file, no `valid` column exists, a taken index is `CardIndexTaken`, two simultaneous issues of
-  one index leave exactly one row, **two different customers both hold `50k1`**, `currentCard` is
-  null / highest / highest-across-a-gap, and a hand-edited reason is refused.
-- Regenerated the init migration (`20260723094018_init`) rather than stacking an `ALTER TABLE`, per
-  CLAUDE.md's disposable-history rule, and re-added the hand-written partial unique index to its
-  tail. `npm run db:reset` re-applied and re-seeded it.
-- Wired `cards: new PrismaCardRepository(prisma)` into `src/app/kunden/deps.ts`.
-- Files changed: `prisma/schema.prisma`, `prisma/migrations/20260723094018_init/migration.sql`
-  (replacing `20260722173231_init`), `src/domain/card/card.ts`, `src/domain/card/card.test.ts` (new),
-  `src/domain/errors.ts`, `src/domain/customer/customer.ts`,
-  `src/application/customers/register-customer.ts`, `src/application/customers/customers.test.ts`,
-  `src/infrastructure/prisma/card-repository.ts` (new), `src/infrastructure/prisma/card-repository.test.ts`
-  (new), `src/infrastructure/prisma/customer-repository.ts`,
-  `src/infrastructure/prisma/customer-repository.test.ts`, `src/app/kunden/deps.ts`,
-  `docs/technical_documentation.md`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
-- Documentation: `docs/technical_documentation.md` gained a
-  `src/infrastructure/prisma/card-repository.ts` section (why the constraint is per customer id and
-  not per card number, what `CardIndexTaken` means); the `card.ts` section, the ports table, the
-  errors list and the file tree were updated.
-- All gates green: lint, typecheck, coverage (domain + application 100%, 271 tests, up from 254),
-  build, and `npm run test:e2e` (6 passed, 1 skipped) since registration now writes a reason.
+## 2026-07-23 - US-003 (getWeekColour use case)
+- Implemented `src/application/distribution/get-week-colour.ts`: `getWeekColour(deps, date?)` resolves
+  the settings version in force at the asked-about date and delegates to `colourOf`, `isoWeekOf`,
+  `isDistributionDay` and `nextDistribution`. It returns a `WeekColourView` — the day, its ISO week,
+  the colour, whether FD distributes that day and the next distribution — which is exactly what the
+  US-004 banner has to state, so the page will need one call and no logic of its own.
+- Written test-first: the spec was red (module missing) before the implementation existed.
+- Only `SettingsRepository` + `Clock`; nothing is persisted, per FR-2/US-03.3.
+- Files changed:
+  - `src/application/distribution/get-week-colour.ts` (new)
+  - `src/application/distribution/distribution.test.ts` (new, 8 tests)
+  - `docs/technical_documentation.md` (source tree + an application module section)
+  - `scripts/ralph/prd.json` (US-003 passes)
+- Gate: lint, typecheck, `test:coverage` (331 tests, 100% on domain + application) and `build` all
+  green.
 - **Learnings for future iterations:**
-  - **The unique constraint is per `(customerId, index)`, deliberately not per card number.** Slot 50
-    is reassigned when a household is archived, so two customers may each legitimately hold `50k1`
-    (FR-6). Any future lookup *by card number* must resolve to the active holder — that is US-04's
-    problem, and it cannot be solved with a database constraint.
-  - Adding a column to a model forced edits in four places at once: the schema, the adapter's
-    `create`, the adapter's read mapping and every test fixture that builds a `NewCustomer`.
-    `npm run typecheck` finds all of them — run it before writing new tests.
-  - `Promise.allSettled` with two `issue` calls is enough to prove the double-issue guard; no
-    threading or transaction trickery is needed, because SQLite settles it on the unique index.
-  - A `reason` on a superseded card is the only thing its index cannot say. Keep it when US-004
-    renders "which numbers this card replaced" — the history reads as *why*, not just *what*.
-  - **US-004 next**: the card view at `/kunden/[id]/karte`. `readCustomer` already derives the counts
-    and the card number; the deps object now carries `cards`, so listing the superseded numbers needs
-    either a `listCards` port method or a widened `readCustomer` — decide there, and note that
-    `germanDate()` is still duplicated across two pages and this is the story to extract it.
+  - `readCurrentSettings` is *not* reusable for a dated lookup: it hard-codes `clock.now()`. FR-6
+    wants the anchor in force **then**, so this use case calls `resolveSettingsAt` on the history
+    itself. Any future "what did it cost / what colour was it" question needs the same shape.
+  - Settings are resolved at the asked-about **instant**, but the calendar arithmetic runs on
+    `startOfUtcDay`. Resolving at day-start instead would hide a settings change saved earlier the
+    same morning, which contradicts "a saved change is in force immediately" in CLAUDE.md.
+  - The past-vs-present anchor test is only meaningful if the two dates sit an **even** number of
+    weeks apart from the anchor — then the colours differ solely by the anchor colour in force.
+    2026-01-08 and 2026-07-23 are 28 weeks apart, which is why that pair was chosen.
+  - The application test file is named after the folder (`distribution.test.ts`), matching
+    `customers.test.ts` and `settings.test.ts`; the fakes are re-declared per file rather than shared.
+  - Next up (US-004) is the `/ausgabe` route: it does not exist yet under `src/app/`, and every string
+    it renders must be added to `src/i18n/de.ts` (German literals in components are a lint error).
 ---
 
-## [2026-07-23 12:05] - US-004 (Card view at /kunden/[id]/karte)
-- Added `src/app/kunden/[id]/karte/page.tsx`: the digital customer card. Card number and name set
-  large, the group as a coloured German pill (`Rot` / `Blau`), the two counts as big numerals, the
-  issue date and reason, then the numbers this card replaced with the reason each was issued for. A
-  screen, not a document — no print stylesheet and no PDF, because FD prints through a system they
-  already own. `dynamic = "force-dynamic"`, so the counts are derived on every request.
-- Added `src/application/customers/read-card.ts` (`readCard`): the current card number, name, group,
-  composition as of `clock.now()` and the superseded numbers. Reads the whole run through one new
-  port call and takes the head as current; refuses a customer with no card at all as
-  `InvalidCustomerRecord` rather than rendering a card without a number.
-- Added `listCards(customerId)` to the `CardRepository` port, to `PrismaCardRepository` (`orderBy:
-  { index: "desc" }`) and to `FakeCardRepository`.
-- Extracted the twice-copied `germanDate` into `src/i18n/format.ts` with its own spec (padding, the
-  UTC day, 29 February), and pointed the settings page and the customer overview at it.
-- `/kunden/[id]` now links on to the card (`Kundenkarte anzeigen`). New strings:
-  `de.customers.cardView.*` and `de.customers.cardReasons` (the four `CardIssueReason` words in
-  German).
-- The PRD's "reissue card" action is present but **disabled**, with a German note that it follows —
-  its behaviour is US-09, and a button that silently did nothing would be worse than a visible gap.
-- Files changed: `src/app/kunden/[id]/karte/page.tsx` (new),
-  `src/application/customers/read-card.ts` (new), `src/i18n/format.ts` + `format.test.ts` (new),
-  `src/application/ports.ts`, `src/application/customers/customers.test.ts`,
-  `src/infrastructure/prisma/card-repository.ts` + its test, `src/app/kunden/[id]/page.tsx`,
-  `src/app/einstellungen/page.tsx`, `src/i18n/de.ts`, `docs/technical_documentation.md`,
-  `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
-- Documentation: `docs/technical_documentation.md` gained the `[id]/karte/page.tsx` and
-  `src/i18n/format.ts` sections and a `readCard` entry beside `readCustomer`; the ports table and the
-  file tree were updated.
-- All gates green: lint, typecheck, coverage (domain + application 100%, 287 tests, up from 271),
-  build, prettier, and `npm run test:e2e` (6 passed, 1 skipped).
+## 2026-07-23 - US-004 (Week colour banner and week lookup on /ausgabe)
+- Implemented the distribution screen at `/ausgabe`: a dominant banner stating today's colour, and a
+  date lookup for any past or future week showing the ISO week alongside. The screen calls
+  `getWeekColour` once for today and, when `?datum=` is present, once for that day; it decides
+  nothing itself.
+- The banner is painted in the colour it *names*. On a non-distribution day that is the **next**
+  distribution's colour — not the current week's, which would state a colour nobody collects in.
+  The colour is always written out ("Gruppe Rot") as well as painted, per the accessibility criterion.
+- Files changed:
+  - `src/app/ausgabe/page.tsx` (new)
+  - `src/app/ausgabe/deps.ts` (new — only `SettingsRepository` + `Clock`)
+  - `src/i18n/de.ts` (`de.distribution.*`, `de.home.distributionLink`)
+  - `src/app/page.tsx` (link to the new screen so it is reachable)
+  - `docs/technical_documentation.md` (source tree, status line, a route section)
+  - `scripts/ralph/prd.json` (US-004 passes)
+- Gate: lint, typecheck, `test` (331 tests, unchanged — this story adds no pure logic) and `build`
+  all green.
+- **Verification:** no browser MCP tool is configured in this environment, so the screen was driven
+  through `next dev` on port 3111 and the rendered HTML inspected. Confirmed on the seeded database
+  (today 23.07.2026, a Thursday):
+  - distribution day → "Heute ist Ausgabe / Gruppe Rot / 23.07.2026 · Kalenderwoche 2026-W30",
+    banner `bg-red-600`;
+  - `?datum=2026-07-30` → "Gruppe Blau … 2026-W31" (the alternation, visible on screen);
+  - `?datum=2028-07-20` → "Gruppe Rot … 2028-W29" (two years out, per US-005's criterion);
+  - `?datum=quatsch` → the German "not a date" sentence, banner intact;
+  - `?datum=2001-01-01` → the German "no settings" sentence, banner intact;
+  - after temporarily adding a settings version with `distributionWeekday: 5`, the off-day branch
+    rendered exactly the PRD's sentence: "Heute ist keine Ausgabe … Nächste Ausgabe: 24.07.2026,
+    Gruppe Rot". The database was reset afterwards.
 - **Learnings for future iterations:**
-  - **Verified in the browser by rendering, not by a browser tool** — no MCP browser tool is
-    configured in this sandbox. `npm run dev`, insert a customer with three cards straight through
-    Prisma, then `curl` the route and strip the tags: enough to prove the German text, the derived
-    counts (2 grown-ups / 1 child from three birthdates) and the superseded list read correctly. The
-    *visual* layout still deserves a human glance.
-  - A script importing `@prisma/client` must live **inside the project**; from `/tmp` Node cannot
-    resolve the package.
-  - The first draft read `„50k1 … ersetzt wegen: Erstausstellung“`, which attaches the reason to the
-    wrong card — a superseded card's reason says why *it* was issued, not why it was replaced. Read
-    generated German back as a sentence, not as a template.
-  - `readCard` deliberately does **not** take the current card from `customer.card`. It is the same
-    row in the real database, but two sources in the fakes drifted at once, and one read of the run
-    is the honest statement of "the highest index is the valid card".
-  - **US-005 next**: the Playwright spec. Registration still redirects to `/kunden/[id]`, not to
-    `/karte` — decide there whether the spec follows the `card-view-link` (`data-testid`) or whether
-    the redirect should change. The card view exposes `card-number`, `card-name`, `card-group`,
-    `grown-ups`, `children` and `superseded-card` as test ids.
+  - The lookup needed **no client component**: a `method="get"` form puts the day in the URL, which
+    is both simpler than `useActionState` and better behaviour — a checked colour can be reloaded or
+    passed on as a link. Reach for `"use client"` only when state has to survive without a round trip.
+  - `searchParams` is a `Promise` in Next 16 and its values are `string | string[] | undefined`. Type
+    it honestly and reject the array case; do not cast.
+  - A failing *lookup* must not take the *banner* down. Two separate `try` blocks, and the lookup
+    returns a German sentence instead of throwing — a staff member asking about 2001 should still see
+    what today is.
+  - `getWeekColour` throws `NoSettingsInForce` for any date before FD's first settings version. That
+    is reachable from the UI the moment someone picks an early date, so it is a normal answer on this
+    screen, not an error page.
+  - US-005 (E2E) needs a **test-only fixed clock**: `distributionDeps.clock` is `systemClock`, so the
+    banner assertions cannot be pinned without one. An env variable read in `src/infrastructure/
+    clock.ts` is the seam — `deps.ts` should keep choosing `systemClock` by name.
+  - The e2e specs run against `data/e2e.db` (there is already one), so US-005 can seed a known anchor
+    without disturbing the dev database.
 ---
 
-## [2026-07-23 12:20] - US-005 (E2E: card is issued on registration and displayed)
-- Added `tests/e2e/card.spec.ts`: registers a three-person household (two grown-ups, one child)
-  from `/kunden/neu` with the group **chosen by hand** rather than accepted from the suggestion,
-  follows the overview's `card-view-link` to `/kunden/[id]/karte`, and asserts the card number
-  matches `^[0-9]+k1$` *and* equals `${proposedNumber}k1`, the name and group as entered, the counts
-  derived again on that request (2 / 1), and that a first card lists no superseded numbers.
-- This is the only proof that the number the form proposed, the card the registration transaction
-  wrote and the card the view renders are one card — each half is unit-tested in isolation.
-- **Made the e2e suite serial** (`playwright.config.ts`: `workers: 1`, `fullyParallel: false`). A
-  fourth spec that *writes* to the shared `data/e2e.db` would otherwise race the registration spec
-  for the customer-number sequence.
-- Consequently `registration.spec.ts` no longer asserts the literals `1` and `2`: the happy path
-  reads the number the form proposes, and the rejection spec asserts its successor.
-- Files changed: `tests/e2e/card.spec.ts` (new), `tests/e2e/registration.spec.ts`,
-  `playwright.config.ts`, `docs/technical_documentation.md`, `scripts/ralph/prd.json`,
-  `scripts/ralph/progress.txt`.
-- Documentation: `docs/technical_documentation.md` gained a `card.spec.ts` entry and a paragraph on
-  why the suite is single-worker (and what that means for the next spec author); the
-  `registration.spec.ts` entry was corrected — it lands on the customer *overview*, not the card.
-- All gates green: lint, typecheck, coverage (domain + application 100%, 287 tests), build,
-  prettier, and `npm run test:e2e` (7 passed, 1 skipped, up from 6 passed).
+## 2026-07-23 - US-005 (E2E: week colour banner against a fixed clock)
+- Added `tests/e2e/distribution.spec.ts` (4 specs) and the test-only clock seam it needs. The banner
+  is a pure function of the calendar, so asserting it at all means deciding what day the app thinks
+  it is.
+- The seam: `FD_FIXED_NOW_FILE` names a file holding an ISO instant; `systemClock` returns that
+  instead of the wall clock and **re-reads it on every call**. One built server therefore covers
+  three different "todays" — the spec rewrites the file between navigations. The variable is read
+  once at module load, set only by `playwright.config.ts`, and an unreadable file falls back to the
+  wall clock, so a deployment can neither acquire a fixed clock nor 500 on a half-written one.
+- Asserted against the seeded anchor (`2026-W02` = RED, Thursday distributions): Thu 08.01.2026 →
+  "Heute ist Ausgabe / Gruppe Rot / 2026-W02" and no "next" line; Thu 15.01.2026 → Gruppe Blau,
+  2026-W03; Tue 13.01.2026 → "Heute ist keine Ausgabe" plus "Nächste Ausgabe: 15.01.2026, Gruppe
+  Blau"; and the lookup two years out → 20.07.2028, 2028-W29, Gruppe Rot, with today's banner
+  unchanged behind it.
+- Files changed:
+  - `tests/e2e/distribution.spec.ts` (new)
+  - `src/infrastructure/clock.ts` (the fixed-now seam)
+  - `playwright.config.ts` (`FD_FIXED_NOW_FILE` env + the file is deleted with the database)
+  - `.gitignore` (`/data/e2e-now.txt`)
+  - `docs/technical_documentation.md` (source tree, the clock section, the E2E section)
+  - `scripts/ralph/prd.json` (US-005 passes)
+- Gate: lint, typecheck, `test:coverage` (331 tests, 100% on domain + application) and `build` all
+  green; `npm run test:e2e` 11 passed, 1 skipped.
 - **Learnings for future iterations:**
-  - **A new e2e spec is a write against a shared register, not an isolated test.** Adding one that
-    registers a customer silently invalidated `registration.spec.ts`'s hard-coded numbers, and under
-    the previous `fullyParallel: true` it would have failed *intermittently* rather than every time.
-    Check what the other specs assume about the database before adding one that mutates it.
-  - Playwright orders spec **files alphabetically**; `card.spec.ts` therefore consumes customer
-    number 1 and everything downstream shifts. Deriving a number from what the screen proposes is
-    the only assertion that survives the next inserted file.
-  - Registration still redirects to `/kunden/[id]`, not to the card. That was deliberate — the
-    overview is where staff carry on, and it links to the card — so the spec clicks through rather
-    than asserting a redirect that does not exist. **US-09 (reissue) should not change the
-    redirect** without updating this spec.
-  - The group radio is `#group-<GROUP>`. Checking it explicitly keeps the assertion about *what was
-    entered*; accepting the suggestion would make the spec depend on which group happened to be
-    smaller, which the specs above it change.
-  - Kill any `npm run dev` on port 3000 before `npm run test:e2e` — `reuseExistingServer` is on
-    locally, so the suite would otherwise run against the dev database.
-  - **US-02 is complete**: all five stories pass. The next batch is a new PRD in `tasks/`.
+  - The first e2e run was red for a reason that had nothing to do with the test: `npm run start`
+    serves the existing `.next`, so the new clock code was not in the running app. Build before
+    every local e2e run.
+  - A *file* beats an env variable as the e2e clock seam. `webServer` env is fixed for the whole
+    run, so an env-only fixed clock gives one "today" per server and this story needed three —
+    the alternatives were three web servers on three ports or a per-request override, and `Clock.now`
+    is synchronous, which rules out reading a cookie (`cookies()` is async in Next 16).
+  - Anything a spec pins globally has to be undone in `afterAll` *and* in the `webServer` reset
+    command: the specs share one server and one database, and `settings.spec.ts` stamps a version
+    from the clock, so a leftover pinned today would have failed it — alphabetically it runs after
+    `distribution.spec.ts`.
+  - Spec files are ordered alphabetically and the suite is serial, so inserting one changes what the
+    later ones see. `distribution.spec.ts` writes nothing, which is what makes it safe to drop in
+    between `card` and `home`.
+  - `page.getByLabel(de.distribution.lookup.label)` reaches the `<input type="date">` through the
+    wrapping `<label>`, and `fill()` takes the ISO `YYYY-MM-DD` form there.
+  - All four expectations were verified against the domain functions in a scratch script before the
+    spec was written, per the standing rule about ISO date claims.
 ---

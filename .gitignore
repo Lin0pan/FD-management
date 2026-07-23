@@ -193,6 +193,9 @@ tmbootpicker.efi
 /data/*.db-wal
 /data/*.db-shm
 
+# FD-Management: the instant the end-to-end suite pins the app's clock to (tests/e2e/distribution.spec.ts)
+/data/e2e-now.txt
+
 # Playwright
 /test-results/
 /playwright-report/

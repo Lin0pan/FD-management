@@ -10,10 +10,10 @@ rather than repeating them:
 
 This file describes _how_ the current codebase is organised and how to work in it.
 
-> **Status:** the app boots, is fully wired for TDD and CI, and carries two features end to end
-> through every layer — US-14's policy settings (`/einstellungen`) and US-01's customer registration
-> (`/kunden/neu` and the card view at `/kunden/[id]`): domain rules, use cases, SQLite persistence,
-> seed and screens. Sections below mark clearly what exists vs. what is a documented placeholder.
+> **Status:** the app boots, is fully wired for TDD and CI, and carries three features end to end
+> through every layer — US-14's policy settings (`/einstellungen`), US-01's customer registration
+> (`/kunden/neu` and the card view at `/kunden/[id]`) and US-03's week colour (`/ausgabe`): domain
+> rules, use cases, SQLite persistence, seed and screens. Sections below mark clearly what exists vs. what is a documented placeholder.
 
 ---
 
@@ -66,6 +66,9 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── app/                          # Next.js App Router — thin adapter layer
 │   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
 │   │   ├── page.tsx                  # home page (reads strings from i18n dictionary)
+│   │   ├── ausgabe/                  # the distribution screen (US-03)
+│   │   │   ├── page.tsx              # server component: the colour banner + the week lookup
+│   │   │   └── deps.ts               # composition root: settings repository + clock
 │   │   ├── kunden/                   # the customer screens (US-01)
 │   │   │   ├── deps.ts               # composition root for both routes below
 │   │   │   ├── neu/                  # the registration screen
@@ -100,15 +103,19 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── card/card.test.ts         # its Vitest spec
 │   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
 │   │   ├── card/cardNumber.test.ts   # its Vitest spec
-│   │   ├── distribution/             # empty, reserved by the architecture
+│   │   ├── distribution/weekColour.ts  # RED/BLUE alternation derived from the ISO calendar
+│   │   ├── distribution/weekColour.test.ts  # its Vitest spec
+│   │   ├── distribution/distributionDay.ts  # is today a distribution day, and when is the next
+│   │   ├── distribution/distributionDay.test.ts  # its Vitest spec
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
 │   │   │                             #   CustomerRepository, CardRepository, AuditLog
 │   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
 │   │   │                             #   readCard, issueCard
-│   │   └── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
+│   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
+│   │   └── distribution/             # getWeekColour — the colour of any day, from history
 │   ├── infrastructure/
-│   │   ├── clock.ts                  # systemClock adapter (implements Clock port)
+│   │   ├── clock.ts                  # systemClock adapter (+ the FD_FIXED_NOW_FILE test seam)
 │   │   └── prisma/                   # Prisma client + repository implementations
 │   │       ├── client.ts             # the process-wide PrismaClient
 │   │       ├── settings-repository.ts  # PrismaSettingsRepository (implements the port)
@@ -121,6 +128,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   └── i18n/format.ts                # German value formatting (germanDate) + its spec
 ├── tests/e2e/
 │   ├── card.spec.ts                  # registration issues k1 and the card view shows it
+│   ├── distribution.spec.ts          # the week-colour banner against a fixed clock
 │   ├── home.spec.ts                  # Playwright smoke test
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
 │   └── settings.spec.ts              # settings round-trip vs. the built app
@@ -214,12 +222,39 @@ The three use cases over the policy versions:
 
 All three are tested against hand-written fakes and a fake clock in `settings.test.ts`.
 
+### `src/application/distribution/`
+
+**`getWeekColour(deps, date?)`** is the single seam the distribution screen reads. It answers for the
+clock's today by default and for a looked-up date on request, returning everything the banner states:
+the day, its ISO week (`2026-W30`), the colour, whether FD distributes that day and the next
+distribution at or after it (US-03, FR-1/4/5).
+
+Two decisions are worth knowing:
+
+- It resolves the settings **at the date asked about**, not at today, so a lookup for a past week
+  answers with the anchor that was in force _then_ (FR-6). That is why it reads the version history
+  directly rather than going through `readCurrentSettings`.
+- It resolves at the asked-about _instant_ and normalises only the calendar arithmetic to a UTC day,
+  so a settings change saved this morning is in force this morning.
+
+Nothing is persisted: a week colour is a function of the date and the anchor, so there are no week
+rows and `SettingsRepository` is the only port needed. Tested against hand-written fakes and a fake
+clock in `distribution.test.ts`.
+
 ### `src/infrastructure/clock.ts`
 
 `systemClock` — the real, wall-clock implementation of the `Clock` port and the **only** place
 `new Date()` is called. Every time-dependent rule (13th-birthday reclassification, certificate
 expiry, week-colour alternation, stamping a settings change) reads "now" through this port so a
 settable fake clock can drive deterministic tests.
+
+It also carries the one seam end-to-end tests need, since they drive the built app from outside and
+cannot pass a fake: if the environment variable **`FD_FIXED_NOW_FILE`** names a file, `now()` returns
+the ISO instant that file holds instead of the wall clock. The file is re-read on every call, so a
+spec can move the app's today from one distribution week to the next without restarting the server,
+and deleting it hands the wall clock straight back. The variable is read once at module load, is set
+only by `playwright.config.ts` (to `data/e2e-now.txt`, git-ignored), and an unreadable or unparsable
+file falls back to the wall clock rather than failing a request.
 
 ### `src/domain/errors.ts`
 
@@ -370,6 +405,47 @@ problems for staff, and only the first is this error.
 Card numbers are **not unique across the archive**: slot 50 can be reassigned once a household is
 archived, so `50k1` may name a different person later (FR-6). Nothing keys a row or a foreign key by
 a card number.
+
+### `src/domain/distribution/weekColour.ts`
+
+Which of the two groups collects in a given week. `colourOf(date, anchor)` counts ISO weeks from the
+configured anchor week and returns the anchor's colour on an even difference, the other colour on an
+odd one — so the RED/BLUE alternation is **derived from the calendar**, never typed in per week
+(US-03, FR-2). That is the whole point: a per-week table could hold two RED weeks in a row, which FD
+considers unfair, whereas two dates seven days apart land on opposite parities by construction. A
+skipped distribution (holiday, weather) therefore does not shift the cycle — the rule is calendar
+parity, not "every week FD actually opened".
+
+The arithmetic is **ISO-8601**: weeks start Monday, and week 1 of an ISO year is the one containing 4
+January, which is why 1 January 2023 belongs to `2022-W52` and 1 January 2027 to `2026-W53`. All of
+it runs on UTC day instants, so the time of day cannot decide a colour and no local-time or DST
+boundary enters the calculation. `colourOf` is total in both directions: the week difference goes
+negative before the anchor and the parity is taken with a non-negative modulo, so a lookup for a week
+that predates the configuration answers instead of failing.
+
+`isoWeekOf(date)` writes the ISO week as `2026-W30` — what the lookup control shows beside a colour
+so staff can check it against a wall calendar.
+
+The anchor is validated here as well as in `createSettings`, and for a reason the shape check cannot
+cover: `2025-W53` is well-formed but 2025 has only 52 ISO weeks. Both raise `InvalidSettings` against
+`weekAnchor.isoWeek`, so the settings screen marks the same input either way.
+
+The two calendar helpers the module needs are exported rather than kept private, because the
+distribution-day rules are the same arithmetic: `startOfUtcDay(date)` drops the time of day and
+`isoWeekdayOf(date)` numbers weekdays the ISO way (Monday = 1 … Sunday = 7) rather than `Date`'s
+Sunday = 0.
+
+### `src/domain/distribution/distributionDay.ts`
+
+When FD hands out food. `isDistributionDay(date, weekday)` compares the ISO weekday of a date against
+the configured `distributionWeekday`, and `nextDistribution(date, settings)` returns the next
+distribution **at or after** that date together with the colour of the week it falls in (US-03,
+FR-5). "At or after" is the rule that matters in the hall: on a distribution day it answers _today_,
+not a week hence. On any other day the screen can say which colour is next and when, instead of going
+blank.
+
+A skipped week shifts nothing here either — the next distribution is simply the next occurrence of
+the configured weekday, and its colour comes from `colourOf`, so the parity is the calendar's.
 
 ### `src/application/customers/registerCustomer`
 
@@ -572,6 +648,26 @@ screen and from 0 in the domain.
 renders the component after the function has returned, so the `catch` would never fire. Await the
 read into a variable inside the `try` and build the JSX after it.
 
+### `src/app/ausgabe/` — the distribution screen
+
+The screen that answers the question the counter asks first: which group collects (US-03.4).
+
+- **`deps.ts`** needs only `SettingsRepository` and `Clock`. A week colour is derived from the
+  calendar, never stored, so there is no repository of weeks to reach for.
+- **`page.tsx`** calls `getWeekColour` once for today and, when a date was submitted, once more for
+  that day. Both questions are the same use case; the page arranges the answers and decides nothing.
+- The **banner** is the dominant element and is painted in the colour it _names_ — on a day without a
+  distribution that is the **next** distribution's colour, which need not be the current week's. The
+  colour is always written out in words ("Gruppe Rot") as well as painted: several staff share one
+  screen in variable lighting, so colour alone is never the message.
+- The **lookup** is a plain `method="get"` form, so the looked-up day lands in `?datum=` and a colour
+  someone has checked can be reloaded or passed on as a URL. It needs no client component.
+- A lookup fails **on its own**: an unreadable date, or a day before FD had any settings, renders a
+  German sentence beside the form and leaves today's banner standing. "Unreadable" includes a day
+  the calendar does not have (`?datum=2026-13-45`): the Zod schema checks the shape _and_ that the
+  parsed date is a date, because an Invalid Date's NaN survives the calendar arithmetic silently and
+  would be rendered as a week `NaN-WNaN` in a confidently-named colour.
+
 ### `src/i18n/de.ts`
 
 A single `const de = {…} as const` dictionary of German UI strings, plus the derived `Dictionary`
@@ -708,11 +804,24 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   counts derived again on that request (2 grown-ups / 1 child) and no superseded numbers. It is the
   only proof that the number the form proposed, the card the registration transaction wrote and the
   card the view renders are the same card.
-- The distribution-day flows are added alongside the features they cover.
+- `distribution.spec.ts` covers US-03 end to end (§US-03.5). The banner is a pure function of the
+  calendar, so the spec first decides what day the app thinks it is: it writes an ISO instant to
+  `data/e2e-now.txt`, the file `FD_FIXED_NOW_FILE` points `systemClock` at (see
+  `src/infrastructure/clock.ts`). Against the seeded anchor `2026-W02` = RED and Thursday
+  distributions it asserts the banner on a RED distribution day (08.01.2026), on the BLUE one a week
+  later, and on the Tuesday between them — where the banner must state the _next_ distribution and
+  its colour — then looks up a week two years out (20.07.2028, `2028-W29`, RED) through the date
+  control. It is **serial**, writes nothing to the database, and deletes the pinned-now file in
+  `afterAll`: a frozen today would otherwise reach the settings specs, which stamp a version with
+  the clock. The `webServer` command deletes that file too, so an aborted run cannot poison the next
+  one.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.
-- Run: `npm run test:e2e` (first time locally: `npx playwright install --with-deps chromium`).
+- Run: `npm run test:e2e` (first time locally: `npx playwright install --with-deps chromium`). The
+  web server runs `npm run start`, which serves whatever `.next` already holds — it does **not**
+  build. Run `npm run build` first after changing anything the app renders, or the suite will assert
+  against the previous build. CI has this right by construction: `e2e-tests` builds in the job.
 
 ### TDD approach per layer
 

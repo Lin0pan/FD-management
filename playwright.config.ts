@@ -36,14 +36,21 @@ export default defineConfig({
   webServer: {
     // The database is deleted first so every run starts from the seed. The settings specs append a
     // version dated *today*, and a version dated on or before the latest one is refused — without
-    // the reset, a second run on the same day would fail against its own leftovers.
+    // the reset, a second run on the same day would fail against its own leftovers. The pinned-now
+    // file goes with it: a leftover from an aborted run would freeze the app's today for every
+    // spec, not just the distribution one.
     command:
-      "node -e \"for (const s of ['','-journal','-wal','-shm']) require('fs').rmSync('data/e2e.db'+s,{force:true})\" && npx prisma migrate deploy && npm run db:seed && npm run start",
+      "node -e \"for (const s of ['','-journal','-wal','-shm']) require('fs').rmSync('data/e2e.db'+s,{force:true}); require('fs').rmSync('data/e2e-now.txt',{force:true})\" && npx prisma migrate deploy && npm run db:seed && npm run start",
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
       DATABASE_URL: "file:../data/e2e.db",
+      // The test-only clock seam (src/infrastructure/clock.ts). While this file holds an ISO
+      // instant the app believes it is that moment, which is how the week-colour banner — a pure
+      // function of the calendar — can be asserted at all. No spec but the distribution one writes
+      // it, and that one deletes it again.
+      FD_FIXED_NOW_FILE: "data/e2e-now.txt",
     },
   },
 });
