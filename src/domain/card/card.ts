@@ -9,6 +9,8 @@
  * The module is pure: it says what a card is, not how one is stored or when a new one falls due.
  */
 
+import { InvalidCustomerRecord } from "../errors";
+
 /**
  * Why a card was issued. A closed set, because the audit log is read by people who did not make the
  * change and a free-text reason would tell them less than one of these four words.
@@ -18,6 +20,28 @@
  * `OTHER` covers a damaged card or anything the counter meets that these do not name.
  */
 export type CardIssueReason = "FIRST_ISSUE" | "LOST" | "STALE_COUNTS" | "OTHER";
+
+/** Every reason a stored card can carry. */
+const CARD_ISSUE_REASONS: ReadonlyArray<CardIssueReason> = [
+  "FIRST_ISSUE",
+  "LOST",
+  "STALE_COUNTS",
+  "OTHER",
+];
+
+/**
+ * Read a stored reason word back as a {@link CardIssueReason}. SQLite has no enum type, so the word
+ * is checked rather than trusted — the same treatment `group` and `status` get on the way in.
+ *
+ * @throws {InvalidCustomerRecord} for anything that is not one of the four known words.
+ */
+export function parseCardIssueReason(value: string): CardIssueReason {
+  const reason = CARD_ISSUE_REASONS.find((candidate) => candidate === value);
+  if (reason === undefined) {
+    throw new InvalidCustomerRecord("card reason", value);
+  }
+  return reason;
+}
 
 /** One issued card of one customer. The card *number* is derived from it — see `cardNumber.ts`. */
 export interface IssuedCard {

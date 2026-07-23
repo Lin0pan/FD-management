@@ -224,7 +224,7 @@ function storedCustomer(status: CustomerStatus): NewCustomer {
     group: "RED",
     status,
     reminderCount: 0,
-    card: { index: 1, issuedAt: new Date(TODAY) },
+    card: { index: 1, issuedAt: new Date(TODAY), reason: "FIRST_ISSUE" },
   };
 }
 

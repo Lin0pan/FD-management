@@ -161,6 +161,14 @@ model Card {
   index    Int
   issuedAt DateTime
 
+  /// Why this card was handed over: `FIRST_ISSUE`, `LOST`, `STALE_COUNTS` or `OTHER`. SQLite has no
+  /// enum type, so the word is a string the domain validates on the way in and out. It is the one
+  /// thing about a superseded card that its index cannot say — why the household needed another one.
+  reason String
+
+  /// The rule behind "exactly one valid card" (US-02, FR-3): validity is *being* the highest index,
+  /// so two cards sharing one would leave no current card at all. This constraint, not the
+  /// application, is the final authority on whether an index was still free when the write landed.
   @@unique([customerId, index])
 }
 

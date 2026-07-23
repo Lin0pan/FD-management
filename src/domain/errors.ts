@@ -19,6 +19,7 @@ export type DomainErrorCode =
   | "BirthDateInFuture"
   | "WrongGroupForWeek"
   | "InvalidCardNumber"
+  | "CardIndexTaken"
   | "DuplicateAttendance"
   | "InvalidSettings"
   | "NoSettingsInForce"
@@ -238,6 +239,27 @@ export class InvalidCardNumber extends DomainError {
   constructor(text: string) {
     super(`"${text}" is not a card number such as 50k3`);
     this.text = text;
+  }
+}
+
+/**
+ * Two card issues raced for the same index and this one lost. Carries the customer and the index it
+ * tried to take, so a retry can read the run again and count on from what is now there.
+ *
+ * Raised by the repository, which owns the `@@unique([customerId, index])` constraint that is the
+ * final authority on a free index — the same division of labour as {@link CustomerNumberTaken}. It
+ * is what keeps "exactly one valid card" true (FR-3): if both writes landed, two cards would share
+ * the highest index and neither would be *the* current one.
+ */
+export class CardIndexTaken extends DomainError {
+  readonly code = "CardIndexTaken";
+  readonly customerId: number;
+  readonly index: number;
+
+  constructor(customerId: number, index: number) {
+    super(`Card index ${index} of customer ${customerId} was taken by another issue`);
+    this.customerId = customerId;
+    this.index = index;
   }
 }
 

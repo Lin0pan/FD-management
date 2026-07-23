@@ -92,7 +92,7 @@ export async function registerCustomer(
         group,
         status: "ACTIVE",
         reminderCount: 0,
-        card: { index: 1, issuedAt: now },
+        card: { index: 1, issuedAt: now, reason: "FIRST_ISSUE" },
       });
       await deps.audit.append({
         what: CUSTOMER_REGISTERED,

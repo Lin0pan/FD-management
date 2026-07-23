@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { CustomerCounter, CustomerRepository } from "@/application/ports";
+import { parseCardIssueReason } from "@/domain/card/card";
 import {
   parseCustomerStatus,
   type NewCustomer,
@@ -102,7 +103,11 @@ export class PrismaCustomerRepository implements CustomerRepository {
       group: parseGroup(row.group),
       status: parseCustomerStatus(row.status),
       reminderCount: row.reminderCount,
-      card: { index: card.index, issuedAt: card.issuedAt },
+      card: {
+        index: card.index,
+        issuedAt: card.issuedAt,
+        reason: parseCardIssueReason(card.reason),
+      },
       details: {
         firstName: row.firstName,
         lastName: row.lastName,
@@ -160,7 +165,11 @@ export class PrismaCustomerRepository implements CustomerRepository {
             create: { type: details.certificate.type, validUntil: details.certificate.validUntil },
           },
           cards: {
-            create: { index: customer.card.index, issuedAt: customer.card.issuedAt },
+            create: {
+              index: customer.card.index,
+              issuedAt: customer.card.issuedAt,
+              reason: customer.card.reason,
+            },
           },
         },
         select: { id: true },

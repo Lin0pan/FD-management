@@ -1,6 +1,13 @@
-import type { AuditLog, Clock, CustomerRepository, SettingsRepository } from "@/application/ports";
+import type {
+  AuditLog,
+  CardRepository,
+  Clock,
+  CustomerRepository,
+  SettingsRepository,
+} from "@/application/ports";
 import { systemClock } from "@/infrastructure/clock";
 import { PrismaAuditLog } from "@/infrastructure/prisma/audit-log";
+import { PrismaCardRepository } from "@/infrastructure/prisma/card-repository";
 import { prisma } from "@/infrastructure/prisma/client";
 import { PrismaCustomerRepository } from "@/infrastructure/prisma/customer-repository";
 import { PrismaSettingsRepository } from "@/infrastructure/prisma/settings-repository";
@@ -13,11 +20,13 @@ import { PrismaSettingsRepository } from "@/infrastructure/prisma/settings-repos
  */
 export const customerDeps: {
   readonly customers: CustomerRepository;
+  readonly cards: CardRepository;
   readonly settings: SettingsRepository;
   readonly clock: Clock;
   readonly audit: AuditLog;
 } = {
   customers: new PrismaCustomerRepository(prisma),
+  cards: new PrismaCardRepository(prisma),
   settings: new PrismaSettingsRepository(prisma),
   clock: systemClock,
   audit: new PrismaAuditLog(prisma),

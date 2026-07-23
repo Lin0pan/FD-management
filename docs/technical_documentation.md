@@ -95,7 +95,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customer/group.test.ts     # its Vitest spec
 │   │   ├── customer/customer.ts       # the customer record, validated on construction
 │   │   ├── customer/customer.test.ts  # its Vitest spec
-│   │   ├── card/card.ts              # what an issued card is + why it was issued (type-only)
+│   │   ├── card/card.ts              # what an issued card is + why it was issued
+│   │   ├── card/card.test.ts         # its Vitest spec
 │   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
 │   │   ├── card/cardNumber.test.ts   # its Vitest spec
 │   │   ├── distribution/             # empty, reserved by the architecture
@@ -111,6 +112,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │       ├── client.ts             # the process-wide PrismaClient
 │   │       ├── settings-repository.ts  # PrismaSettingsRepository (implements the port)
 │   │       ├── customer-repository.ts  # PrismaCustomerRepository + PrismaCustomerCounter
+│   │       ├── card-repository.ts    # PrismaCardRepository — the (customer, index) constraint
 │   │       ├── audit-log.ts          # PrismaAuditLog — append-only, no actor column
 │   │       ├── seed.ts               # provisional settings version, inserted only if none exists
 │   │       └── *.test.ts             # integration specs, throwaway SQLite file
@@ -180,14 +182,14 @@ The interfaces the application layer depends on. Per the TDD approach, ports **e
 needs** rather than being designed up front. Type-only, so it adds no runtime code to the
 coverage-measured layers.
 
-| Port                 | Shape                                                       | Notes                                                                                      |
-| -------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `Clock`              | `now(): Date`                                               | The one seam to the wall clock.                                                            |
-| `SettingsRepository` | `listVersions()`, `append(version)`                         | No update/delete — policy history is append-only.                                          |
-| `CustomerCounter`    | `countActive()`                                             | The reality the quota `N` may not fall below.                                              |
-| `CustomerRepository` | `takenActiveNumbers()`, `groupCounts()`, `create(customer)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`. |
-| `CardRepository`     | `currentCard(customerId)`, `issue(customerId, card)`        | `currentCard` is the highest index — there is no `valid` flag to read.                     |
-| `AuditLog`           | `append(entry)`                                             | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                  |
+| Port                 | Shape                                                       | Notes                                                                                                                   |
+| -------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `Clock`              | `now(): Date`                                               | The one seam to the wall clock.                                                                                         |
+| `SettingsRepository` | `listVersions()`, `append(version)`                         | No update/delete — policy history is append-only.                                                                       |
+| `CustomerCounter`    | `countActive()`                                             | The reality the quota `N` may not fall below.                                                                           |
+| `CustomerRepository` | `takenActiveNumbers()`, `groupCounts()`, `create(customer)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                              |
+| `CardRepository`     | `currentCard(customerId)`, `issue(customerId, card)`        | `currentCard` is the highest index — there is no `valid` flag to read; `issue` reports a lost race as `CardIndexTaken`. |
+| `AuditLog`           | `append(entry)`                                             | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                               |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
 
@@ -222,7 +224,8 @@ The `DomainErrorCode` union — the closed set of failure modes — plus an abst
 class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
 `QuotaBelowActiveCustomers`, `MissingAuditReason`, `EmptyHousehold`, `BirthDateInFuture`,
 `NoFreeCustomerNumber`, `CustomerNumberTaken`, `CustomerNotFound`, `CustomerArchived`,
-`InvalidCustomerRecord`, `MissingRequiredField`, `InvalidCardNumber`, `InvalidEuroAmount` today).
+`InvalidCustomerRecord`, `MissingRequiredField`, `InvalidCardNumber`, `CardIndexTaken`,
+`InvalidEuroAmount` today).
 Each carries the values that made it fail, so the UI can render a
 German message naming concrete numbers without re-deriving them, and callers switch on `code`
 instead of parsing strings.
@@ -321,8 +324,13 @@ slot (US-08), an archived one releases it (US-10).
 ### `src/domain/card/card.ts`
 
 What an issued card _is_: `IssuedCard` = `index` + `issuedAt` + `reason`, and `CardIssueReason` =
-`FIRST_ISSUE | LOST | STALE_COUNTS | OTHER`. Type-only, so it adds no runtime code to the
-coverage-measured layer.
+`FIRST_ISSUE | LOST | STALE_COUNTS | OTHER`. `parseCardIssueReason(value)` reads a stored reason word
+back — SQLite has no enum type, so the word is checked rather than trusted, exactly as `group` and
+`status` are, and an unknown one raises `InvalidCustomerRecord` instead of quietly becoming `OTHER`.
+
+It is the **one** shape of a card in the system: `NewCustomer.card` is an `IssuedCard` too, so the
+card written with a registration and the card written by `issueCard` cannot drift into two row
+shapes.
 
 There is deliberately **no `valid` flag**. A card is current _because_ it carries the highest index
 the customer has been issued (FR-4), so validity cannot drift away from the cards that actually
@@ -405,8 +413,8 @@ legibly months later.
 
 The registration card is still written inside `customers.create(…)` rather than through this use
 case, because the customer and their first card must land in **one transaction** (US-01.4) and a
-second write could not. It is a `FIRST_ISSUE` in every sense but the stored word: the `reason` column
-arrives with the card repository (US-02.3), which is where the two paths converge on one row shape.
+second write could not. It records `FIRST_ISSUE` on the same `IssuedCard` shape this use case writes,
+so the two paths differ only in the transaction they belong to.
 
 ### `src/application/customers/proposeRegistration` and `readCustomer`
 
@@ -460,6 +468,25 @@ CREATE UNIQUE INDEX "Customer_customerNumber_onRegister_key"
 It is the final authority on a free number: the application reads the taken numbers and then writes,
 and only the database can settle the race in between. **Regenerating the migration drops it** — re-add
 it, or the slot rule is enforced by application code alone.
+
+### `src/infrastructure/prisma/card-repository.ts`
+
+`PrismaCardRepository` (the `CardRepository` port). It stores cards and reads them back and decides
+nothing: `currentCard(customerId)` is the highest-indexed row, because that _is_ what valid means
+(FR-4), and there is no flag to set when a replacement supersedes it. An unknown customer id answers
+`null` like a customer who simply holds no card — whether the household exists is the use case's
+question, asked once of the customer register.
+
+`issue` translates a `P2002` naming `index` into the domain's `CardIndexTaken`. The constraint behind
+it is `@@unique([customerId, index])`, and it is what makes "exactly one valid card" (FR-3) true
+under two simultaneous issues: if both writes landed, two cards would share the highest index and
+neither would be the current one. The constraint is per **customer id**, deliberately not per card
+number: slot 50 is reassigned when a household is archived, so two customers may each legitimately
+hold `50k1` (FR-6).
+
+The `Card.reason` column is the one thing a superseded card's index cannot say — why the household
+needed another one. It is a plain string, narrowed back through `parseCardIssueReason` on the way
+out.
 
 ### `src/app/einstellungen/` — the settings screen
 
