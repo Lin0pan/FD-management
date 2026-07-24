@@ -20,3 +20,15 @@ Started: Fri Jul 24 14:11:17 CEST 2026
   - No escalation/threshold anywhere is a hard non-goal (PRD §5) — resist adding one in application or UI stories.
   - Deliberate duplication: `utcDay` is private in both householdComposition.ts and certificate.ts; the project prefers boring duplication of a 3-line helper over a shared date module.
 ---
+## 2026-07-24 14:25 - US-002 (recordReminder and renewCertificate use cases)
+- Implemented `recordReminder(deps, {customerId})` (returns the new count) and `renewCertificate(deps, {customerId, type, validUntil})` in `src/application/customers/`, TDD red→green against hand-written fakes and a fake clock (14 tests).
+- New ports in ports.ts: `ReminderLogRepository` (findOnDay/record; record is transactional entry+count, adapter reports lost race as `ReminderAlreadyLoggedToday`) and `CertificateRepository` (renew appends cert + resets count to 0 in one transaction). New domain errors: `ReminderAlreadyLoggedToday`, `CertificateStillValid`, `CertificateValidUntilInPast`.
+- Files changed: src/application/customers/record-reminder.ts (new), renew-certificate.ts (new), certificate-reminder.test.ts (new), src/application/ports.ts, src/domain/errors.ts, docs/technical_documentation.md (tree, ports table, new module section).
+- Quality: lint ✓, typecheck ✓, test:coverage ✓ (461 tests, application at 100%), build ✓.
+- **Learnings for future iterations:**
+  - The reminder day-key is the **Berlin** day via `berlinDayKey` from `@/domain/distribution/attendance` — US-06.3's `ReminderLog.loggedOn` column must be filled by the same function (`YYYY-MM-DD`), mirroring `DistributionRecord.dayKey`.
+  - The reminder audit entry records the resulting count in `why` (`reminderCount=2`) — the AuditEntry shape has no other slot; the `why` doc in ports.ts was updated to name this one machine-written case. US-06.4's UI should not re-derive it.
+  - `renewCertificate` accepts `validUntil` = today (valid through its last day, same `isExpired` rule); rejects blank type with `MissingRequiredField("certificate.type")` — matches registration's field naming.
+  - Current Prisma `Certificate` model is one-per-customer (`customerId @unique`, "renewal replaces the dates") — US-06.3 must flip it to appended rows + `recordedAt`, update the model comment, and regenerate the pre-release migration (delete prisma/migrations, `npx prisma migrate dev --name init`, re-add the hand-written partial unique index for customerNumber!, then `npm run db:reset`).
+  - New DomainError classes don't need errors.test.ts entries when application tests construct them — domain coverage stays 100% through those.
+---

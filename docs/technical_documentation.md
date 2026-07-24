@@ -120,9 +120,11 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── distribution/distributionRecord.ts  # the hand-out record type (id, paid, priceCents)
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, CustomerRepository,
-│   │   │                             #   CardRepository, DistributionRecordRepository, AuditLog
+│   │   │                             #   CardRepository, DistributionRecordRepository,
+│   │   │                             #   ReminderLogRepository, CertificateRepository, AuditLog
 │   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
-│   │   │                             #   readCard, issueCard, lookupCustomer (the counter lookup)
+│   │   │                             #   readCard, issueCard, lookupCustomer (the counter lookup),
+│   │   │                             #   recordReminder / renewCertificate (US-06)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
@@ -209,15 +211,17 @@ The interfaces the application layer depends on. Per the TDD approach, ports **e
 needs** rather than being designed up front. Type-only, so it adds no runtime code to the
 coverage-measured layers.
 
-| Port                           | Shape                                                                                      | Notes                                                                                                                                                                          |
-| ------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Clock`                        | `now(): Date`                                                                              | The one seam to the wall clock.                                                                                                                                                |
-| `SettingsRepository`           | `listVersions()`, `append(version)`                                                        | No update/delete — policy history is append-only.                                                                                                                              |
-| `CustomerCounter`              | `countActive()`                                                                            | The reality the quota `N` may not fall below.                                                                                                                                  |
-| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                                | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                                                                                     |
-| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issue(customerId, card)`              | `currentCard` is the highest index — there is no `valid` flag to read; `issue` reports a lost race as `CardIndexTaken`.                                                        |
-| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)` | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade). |
-| `AuditLog`                     | `append(entry)`                                                                            | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                      |
+| Port                           | Shape                                                                                      | Notes                                                                                                                                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Clock`                        | `now(): Date`                                                                              | The one seam to the wall clock.                                                                                                                                                                                          |
+| `SettingsRepository`           | `listVersions()`, `append(version)`                                                        | No update/delete — policy history is append-only.                                                                                                                                                                        |
+| `CustomerCounter`              | `countActive()`                                                                            | The reality the quota `N` may not fall below.                                                                                                                                                                            |
+| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                                | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                                                                                                                               |
+| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issue(customerId, card)`              | `currentCard` is the highest index — there is no `valid` flag to read; `issue` reports a lost race as `CardIndexTaken`.                                                                                                  |
+| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)` | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                           |
+| `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                             | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3). |
+| `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                               | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                       |
+| `AuditLog`                     | `append(entry)`                                                                            | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
 
@@ -580,6 +584,34 @@ The two read-side use cases the customer screens sit on:
 `number | null` for callers that only want to _show_ the next number, and `lowestFreeNumber` throwing
 `NoFreeCustomerNumber` for the caller that is about to allocate one. The second is written in terms
 of the first, so there is still one statement of the rule.
+
+### `src/application/customers/recordReminder` and `renewCertificate`
+
+The two writes of the certificate reminder trail (US-06), which makes the grace period **documented
+rather than remembered**. An expired certificate never blocks a hand-out; it starts a conversation
+at the counter, and these use cases record its two possible outcomes.
+
+- **`recordReminder(deps, { customerId })`** logs that the customer was reminded today and returns
+  the resulting count. Two guards stand before the write: the certificate must actually have lapsed
+  (`isExpired`; otherwise `CertificateStillValid` — there is nothing to remind about), and no
+  reminder may exist on today's **Berlin** day (`berlinDayKey`, the same notion of "the same day"
+  the attendance rule uses; otherwise `ReminderAlreadyLoggedToday`, writing nothing — a mis-click
+  must not consume the grace period). The audit entry goes under `customer.reminder.logged` and
+  records the resulting count in its `why` (`reminderCount=2`), so the log alone tells the trail's
+  state. Deliberately absent: any threshold or escalation. What a count of three means is a staff
+  judgement (PRD §5), so the count is returned, shown, and never acted on.
+- **`renewCertificate(deps, { customerId, type, validUntil })`** records the renewed certificate
+  and resets the reminder count to zero — one repository call, one transaction, because a renewal
+  that landed without its reset would show a customer still owing what they just brought. A blank
+  type is refused (`MissingRequiredField`) and so is an end date that has already lapsed
+  (`CertificateValidUntilInPast`), decided by the same `isExpired` rule the counter reads — an end
+  date of today is accepted, because a certificate is valid through its last day. The certificate
+  is appended, never overwritten (FR-8), and the reminder _log_ is untouched: only the running
+  count starts over. The audit entry (`customer.certificate.renewed`) needs no reason — the
+  changed fields already say it.
+
+Both are tested against hand-written fakes and a fake clock (`certificate-reminder.test.ts`),
+including the Berlin-midnight boundary and the valid-through-its-last-day boundary.
 
 ### `src/infrastructure/prisma/audit-log.ts`
 
