@@ -151,6 +151,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── home.spec.ts                  # Playwright smoke test
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
+│   ├── reminders.spec.ts             # the reminder trail: three visits, three reminders, renewal
 │   ├── serve.spec.ts                 # record a hand-out, block a duplicate, store an unpaid one
 │   └── settings.spec.ts              # settings round-trip vs. the built app
 ├── eslint.config.mjs  .prettierrc.json  .prettierignore
@@ -1075,6 +1076,17 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   are inserted straight through Prisma and it deletes the pinned-now file in `afterAll`, as the
   distribution and counter specs do. This is the `ALREADY_SERVED_TODAY` case the counter spec noted
   it could not yet reach.
+- `reminders.spec.ts` covers US-06 end to end (§US-06.5): the reminder trail across three
+  consecutive RED distribution days (08.01., 22.01., 05.02.2026 — every second Thursday, because the
+  one in between is BLUE). On each pinned day one household with a lapsed certificate is served as
+  normal and one reminder is logged; the spec asserts the count climbs 1 → 2 → 3 on the screen and
+  in `ReminderLog`, that a same-day second attempt is refused _by the server_ (it submits the form
+  underneath the disabled button — the stale-second-tab race the button cannot prevent) and writes
+  nothing, that a count of 3 leaves the household `ACTIVE` with the same serve-and-remind verdict —
+  archiving is US-10's staff decision — and that recording the renewal resets the displayed and
+  stored count to 0, appends the certificate rather than overwriting it, and keeps all three log
+  entries. Its household (customer number 231) is inserted straight through Prisma and the
+  pinned-now file goes in `afterAll`, as in the neighbouring specs.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.
