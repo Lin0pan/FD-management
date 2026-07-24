@@ -66,12 +66,13 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── app/                          # Next.js App Router — thin adapter layer
 │   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
 │   │   ├── page.tsx                  # home page (reads strings from i18n dictionary)
-│   │   ├── ausgabe/                  # the distribution screen (US-03), counter (US-04), hand-out (US-05)
+│   │   ├── ausgabe/                  # distribution screen (US-03), counter (US-04), hand-out (US-05), reminder (US-06)
 │   │   │   ├── page.tsx              # server component: colour banner, counter lookup, week lookup
 │   │   │   ├── counter-lookup.tsx    # the verdict banner + the customer details below it (US-04.4)
 │   │   │   ├── serve-controls.tsx    # client: record a hand-out, correct/remove today's record (US-05.4)
-│   │   │   ├── actions.ts            # "use server": Zod → recordAttendance / correctAttendance
-│   │   │   ├── serve-state.ts        # the state the serve/correct forms exchange with their actions
+│   │   │   ├── certificate-controls.tsx  # client: log today's reminder, record a renewal (US-06.4)
+│   │   │   ├── actions.ts            # "use server": Zod → the serve/correct/reminder/renewal use cases
+│   │   │   ├── serve-state.ts        # the state the counter's forms exchange with their actions
 │   │   │   └── deps.ts               # composition roots: the read deps and the write (audit) deps
 │   │   ├── kunden/                   # the customer screens (US-01)
 │   │   │   ├── deps.ts               # composition root for both routes below
@@ -790,10 +791,12 @@ The screen that answers the question the counter asks first — which group coll
 then the question it asks about every person in the queue: may _this_ one collect (US-04.4).
 
 - **`deps.ts`** holds two composition roots. `distributionDeps` — the page's — carries
-  `CustomerRepository`, `SettingsRepository`, the **reading** side of `DistributionRecordRepository`
-  (for the hand-out already made today, shown beside the serve action) and `Clock`, and deliberately
-  **no audit log**: everything the page renders is a read (US-04, FR-4). `counterActionDeps` — the
-  serve and correct actions' — adds the audit log and is the one object here that writes.
+  `CustomerRepository`, `SettingsRepository`, the **reading** sides of `DistributionRecordRepository`
+  (for the hand-out already made today, shown beside the serve action) and `ReminderLogRepository`
+  (for whether today's reminder is already logged, so the button stays disabled) and `Clock`, and
+  deliberately **no audit log**: everything the page renders is a read (US-04, FR-4).
+  `counterActionDeps` — the server actions' — adds the audit log, the certificate history and the
+  writable stores, and is the one object here that writes.
 - **`page.tsx`** calls `getWeekColour` once for today and, when a date was submitted, once more for
   that day. Both questions are the same use case; the page arranges the answers and decides nothing.
 - The **banner** is the dominant element and is painted in the colour it _names_ — on a day without a
@@ -846,6 +849,27 @@ then the question it asks about every person in the queue: may _this_ one collec
   that deletes, so no single click drops a record. Correcting is the only mutation of the history
   besides recording; both go through the use cases, which own the once-per-day and same-day-only
   rules — the hidden serve button is a courtesy, not the guard (FR-8).
+
+#### The certificate reminder and renewal (`certificate-controls.tsx`, `actions.ts`)
+
+- On the expired-certificate verdict the amber banner already states the fact; below it,
+  `CertificateControls` offers the two writes US-06.4 adds: **"Erinnerung erfassen"**, which logs
+  today's reminder and confirms the resulting count, and the **renewal form** (type + end date),
+  which appends the certificate and resets the count to 0 in one transaction behind
+  `renewCertificate`.
+- `lookupCustomer` reads whether today's reminder is already on file (`reminderLoggedToday`) in the
+  same pass as the verdict, so after a log — or a fresh lookup any time later that day — the button
+  is **disabled with an explanatory label** ("Erinnerung heute bereits erfasst"). The disabled state
+  comes from the store, not from client memory; the once-per-day rule itself lives in
+  `recordReminder` and, as the race-proof backstop, in the database's unique `(customerId, loggedOn)`
+  constraint (FR-5).
+- Both actions revalidate `/ausgabe`, so the count beside the expiry status, the certificate's new
+  end date and the verdict all come back from the store. The component is **keyed by customer id** in
+  the page, so a confirmation from one lookup cannot survive into the next customer's screen — while
+  within one customer it stays mounted across the revalidation, which is what keeps the renewal
+  confirmation ("… zurückgesetzt: 0.") visible once the verdict has turned green again.
+- The screen states facts and offers actions — it never advises what a count should mean, prompts an
+  archive or applies a threshold, because that judgement is deliberately the staff's (FR-6, FR-7).
 
 ### `src/i18n/de.ts`
 

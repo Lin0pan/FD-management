@@ -268,6 +268,40 @@ export const de = {
         unknown: "Die Ausgabe konnte nicht gespeichert werden. Bitte erneut versuchen.",
       },
     },
+    /**
+     * The certificate actions at the counter (tasks/prd-us-06-certificate-reminder.md §US-06.4):
+     * logging the verbal reminder an expired certificate prompts, and recording the renewal that
+     * resets the count. The screen states facts and offers the two actions — it never advises what
+     * the count should mean, because that judgement is deliberately the staff's (FR-6).
+     */
+    certificate: {
+      reminder: {
+        submit: "Erinnerung erfassen",
+        /** The explanatory label the disabled button carries for the rest of the day (FR-5). */
+        loggedToday: "Erinnerung heute bereits erfasst",
+        confirmed: (count: number): string =>
+          `Erinnerung erfasst. Bisherige Erinnerungen: ${count}.`,
+        errors: {
+          alreadyLogged: "Für diesen Haushalt ist heute bereits eine Erinnerung erfasst.",
+          stillValid: "Der Bedarfsnachweis ist noch gültig. Es gibt nichts zu erinnern.",
+          unknown: "Die Erinnerung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+        },
+      },
+      renewal: {
+        heading: "Neuen Bedarfsnachweis erfassen",
+        hint:
+          "Bringt der Haushalt den verlängerten Nachweis mit, hier eintragen. Die Erinnerungen " +
+          "werden dabei auf 0 zurückgesetzt.",
+        submit: "Nachweis speichern",
+        saved: "Nachweis gespeichert. Erinnerungen zurückgesetzt: 0.",
+        errors: {
+          validUntilInPast:
+            "Das Datum „gültig bis“ liegt in der Vergangenheit. Bitte das Datum prüfen.",
+          notADate: "Bitte ein Datum im Format TT.MM.JJJJ auswählen.",
+          unknown: "Der Nachweis konnte nicht gespeichert werden. Bitte erneut versuchen.",
+        },
+      },
+    },
     lookup: {
       heading: "Andere Woche nachschlagen",
       hint: "Zeigt die Gruppe einer beliebigen vergangenen oder künftigen Woche.",
