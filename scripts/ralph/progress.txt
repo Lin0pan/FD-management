@@ -213,3 +213,10 @@ Started: Fri Jul 24 12:34:28 CEST 2026
   - The confirmation/record time is Berlin wall-clock: 09:00Z on 08.01.2026 renders as 10:00 (UTC+1
     in January). Compute it with the app's own `germanTime(new Date(TODAY))` rather than hard-coding.
 ---
+## [2026-07-24] - Batch close-out
+- All five stories already passed; this iteration only landed the batch: committed the run
+  housekeeping (US-04 archive, .gitignore entry for machine-local .claude/local-rules/), pushed
+  ralph/us-05-record-attendance, opened PR #32 and enabled auto-squash-merge.
+- **Learnings for future iterations:**
+  - None beyond the existing patterns; the PR body is the batch summary.
+---
