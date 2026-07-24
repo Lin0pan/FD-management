@@ -1,11 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { AlreadyServedToday } from "../errors";
-import { canCorrect, canRecord, type AttendanceRecord } from "./attendance";
+import { canCorrect, canRecord, recordForDay, type AttendanceRecord } from "./attendance";
 
 /** A record made at a precise UTC instant — the fixture reasons in UTC and asserts the Berlin day. */
 function recordAt(iso: string): AttendanceRecord {
   return { date: new Date(iso) };
 }
+
+describe("recordForDay", () => {
+  it("returns null when the customer has no records at all", () => {
+    expect(recordForDay([], new Date("2026-07-23T09:00:00Z"))).toBeNull();
+  });
+
+  it("returns null when every record is from an earlier day", () => {
+    const lastWeek = [recordAt("2026-07-16T09:00:00Z")];
+    expect(recordForDay(lastWeek, new Date("2026-07-23T09:00:00Z"))).toBeNull();
+  });
+
+  it("returns the record made on today's Berlin day, picked out from other days", () => {
+    const today = recordAt("2026-07-23T08:00:00Z");
+    const records = [recordAt("2026-07-02T08:00:00Z"), today, recordAt("2026-07-09T08:00:00Z")];
+    expect(recordForDay(records, new Date("2026-07-23T18:00:00Z"))).toBe(today);
+  });
+
+  // Same Berlin-midnight boundary as canRecord's: 21:59Z is 23:59 Berlin (summer) and 22:01Z is
+  // 00:01 the next Berlin day, so a record from just before midnight is not today's just after.
+  it("does not count a record from just before Berlin midnight as today's", () => {
+    const beforeMidnight = recordAt("2026-07-15T21:59:00Z");
+    expect(recordForDay([beforeMidnight], new Date("2026-07-15T22:01:00Z"))).toBeNull();
+  });
+});
 
 describe("canRecord", () => {
   it("permits recording when the customer has no records at all", () => {

@@ -48,6 +48,23 @@ export function berlinDayKey(instant: Date): string {
 }
 
 /**
+ * The record the customer already holds for `today`'s Berlin calendar day, or `null` when they hold
+ * none yet.
+ *
+ * The counter reads it to decide what to offer: a customer with no record today may be served, and
+ * one who already has a record is shown it — with the control to correct or remove it (US-05.4). The
+ * duplicate check {@link canRecord} is the same question phrased for the write path; both defer to
+ * this one comparison so "already served today" cannot mean two different days.
+ */
+export function recordForDay<T extends AttendanceRecord>(
+  recordsForCustomer: ReadonlyArray<T>,
+  today: Date,
+): T | null {
+  const todayKey = berlinDayKey(today);
+  return recordsForCustomer.find((record) => berlinDayKey(record.date) === todayKey) ?? null;
+}
+
+/**
  * Whether the customer may be recorded on `today`, given every record they already hold.
  *
  * @returns `"OK"` when no record shares `today`'s Berlin calendar day, otherwise an
@@ -57,9 +74,8 @@ export function canRecord(
   existingRecordsForCustomer: ReadonlyArray<AttendanceRecord>,
   today: Date,
 ): Recordability {
-  const todayKey = berlinDayKey(today);
-  const clash = existingRecordsForCustomer.find((record) => berlinDayKey(record.date) === todayKey);
-  return clash === undefined ? "OK" : new AlreadyServedToday(clash.date);
+  const clash = recordForDay(existingRecordsForCustomer, today);
+  return clash === null ? "OK" : new AlreadyServedToday(clash.date);
 }
 
 /**

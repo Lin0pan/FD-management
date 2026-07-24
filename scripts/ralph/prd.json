@@ -72,8 +72,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Extended lookupCustomer to read today's record in the same pass (added records port to its deps; new customerId + todaysRecord on CounterLookup; new domain helper attendance.recordForDay, with canRecord refactored onto it). Added src/app/ausgabe/actions.ts (recordServe/correctServe server actions), serve-state.ts, and the ServeControls client component: a pre-checked 'Bezahlt' checkbox + 'Ausgabe erfassen' button when the verdict permits serving; on success it revalidates, the branch switches to the already-served view (with the record's Berlin time via new germanTime), a green confirmation shows and the #counter-input clears+refocuses. Correction control (change paid / remove) with a native <details> confirmation step before removal. deps.ts now exposes read deps (no audit) + counterActionDeps (write, with audit). All strings in de.ts under distribution.serve. Gates green (lint/typecheck/build, 440 tests, 100% domain+application coverage). Runtime-verified by curl: CLEAR_TO_SERVE renders the serve button; after a recorded hand-out the same number renders 'Heute bereits versorgt um 13:10 Uhr (nicht bezahlt)' + correct/remove controls with the serve button gone. Full interactive flow (focus, checkbox, revalidate) is covered by US-005's Playwright spec — no dev-browser skill/MCP is configured here."
     },
     {
       "id": "US-005",

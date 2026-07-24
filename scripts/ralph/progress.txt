@@ -35,6 +35,18 @@ Started: Fri Jul 24 12:34:28 CEST 2026
   `data/fd.db`). Do NOT override it with `file:./data/fd.db` on the command line — that resolves to
   `prisma/data/fd.db`, a stray untracked DB the `.gitignore` (`/data/*.db`) does not catch. Let the
   `.env` value stand; only tests pass a tmp URL.
+- **Server-action forms on the counter (US-05.4 pattern).** A `"use server"` `actions.ts` beside the
+  page holds the write actions; a plain non-server module (`serve-state.ts`) holds the useActionState
+  state types (a `"use server"` module may export only async functions). A `<input type="checkbox">`
+  submits nothing when unchecked, so a boolean flag is read as **presence**:
+  `formData.get("paid") !== null` — and the box is pre-checked in markup to match the default. Split
+  the composition root into a read deps object (no audit log) and a write deps object (`+ audit`) so
+  the page physically cannot write. A native `<details>`/second-submit-button gives a keyboard-only
+  confirmation step with no client JS. After a write, `revalidatePath` re-renders the page and the
+  client component may switch its rendered branch, but its `useActionState` state persists (same
+  instance) — rely on that to keep a confirmation + a focus `useEffect` firing across the switch.
+- **`next build` touches `next-env.d.ts`** — `git checkout next-env.d.ts` before committing so the
+  generated file does not land in the diff.
 
 ## [2026-07-24] - US-001 (attendance domain rules)
 - Implemented `src/domain/distribution/attendance.ts`: `canRecord(existingRecordsForCustomer, today)`
@@ -122,4 +134,42 @@ Started: Fri Jul 24 12:34:28 CEST 2026
     coverage-gated, so no test forces a non-P2002/P2025 Prisma error.
   - See the new Codebase Patterns entries on regenerating the init migration (re-add the partial slot
     index!) and on NOT overriding DATABASE_URL to `./data/fd.db` (creates an untracked stray DB).
+---
+
+## [2026-07-24] - US-004 (Serve action on the counter screen)
+- Extended `lookupCustomer` (application) to surface `customerId` and `todaysRecord` on
+  `CounterLookup`, reading the day's record in the same pass as the verdict (US-04.3) — added the
+  `records: DistributionRecordRepository` port to its deps. New domain helper
+  `attendance.recordForDay(records, today)` (pure, Berlin-day); `canRecord` refactored onto it so the
+  two "same day" notions cannot drift.
+- New `src/app/ausgabe/`: `actions.ts` (`recordServe` / `correctServe` server actions, `"use server"`),
+  `serve-state.ts` (useActionState state types), `serve-controls.tsx` (client). ServeControls shows a
+  pre-checked "Bezahlt" checkbox + "Ausgabe erfassen" button when the verdict permits serving; on
+  success it revalidates `/ausgabe`, the branch flips to the already-served view (record's Berlin time
+  via new `germanTime`, green confirmation), and a `useEffect` clears + refocuses `#counter-input`.
+  Correction control (SET_PAID checkbox / REMOVE) with a native `<details>` confirmation step before
+  removal.
+- `deps.ts` now exports two roots: `distributionDeps` (read: customers, settings, records, clock — no
+  audit) and `counterActionDeps` (write: + audit). New `germanTime` in `src/i18n/format.ts`; all UI
+  strings under `de.distribution.serve`. Docs: file tree + counter section in technical_documentation.md.
+- Files: src/domain/distribution/attendance.ts (+test), src/application/customers/lookup-customer.ts
+  (+test), src/app/ausgabe/{page.tsx,deps.ts,actions.ts,serve-state.ts,serve-controls.tsx},
+  src/i18n/{de.ts,format.ts}, docs/technical_documentation.md.
+- **Learnings for future iterations:**
+  - **US-005 (Playwright) can drive this now.** Test ids: `serve-button`, `serve-paid`,
+    `serve-confirmation`, `serve-error`, `already-served`, `already-served-message`, `correct-paid`,
+    `correct-save`, `correct-remove`. The paid checkbox is read as *presence* server-side
+    (`formData.get("paid") !== null`), so an unchecked box stores `paid=false`.
+  - The serve/correct forms both call `useActionState`; after a serve the page revalidates and the
+    component's rendered branch switches from serve → already-served, but the `useActionState` state
+    persists (same instance), which is how the confirmation + focus effect still fire in the new branch.
+  - Recording needs the surrogate **id**, which `lookupCustomer` now returns as `customerId` (null on
+    NOT_FOUND) — the counter number alone is not enough; the server action passes it via a hidden field.
+  - No dev-browser skill/MCP is configured in this sandbox. Runtime-smoke instead: `npm run db:reset`,
+    register a customer + record one via a throwaway `tsx` script importing the use cases with real
+    Prisma deps (`@/`-aliased imports resolve under tsx), then `curl "/ausgabe?nummer=1"` and grep the
+    HTML. Confirmed CLEAR_TO_SERVE → serve button, and after a hand-out → "Heute bereits versorgt um
+    13:10 Uhr (nicht bezahlt)" + correct/remove, serve button gone. `germanTime` gave 13:10 from 11:10Z
+    (Berlin +2), proving the Berlin offset.
+  - `next-env.d.ts` gets touched by `next build`; `git checkout` it before committing.
 ---

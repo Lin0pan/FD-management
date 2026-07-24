@@ -66,10 +66,13 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── app/                          # Next.js App Router — thin adapter layer
 │   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
 │   │   ├── page.tsx                  # home page (reads strings from i18n dictionary)
-│   │   ├── ausgabe/                  # the distribution screen (US-03) and the counter (US-04)
+│   │   ├── ausgabe/                  # the distribution screen (US-03), counter (US-04), hand-out (US-05)
 │   │   │   ├── page.tsx              # server component: colour banner, counter lookup, week lookup
 │   │   │   ├── counter-lookup.tsx    # the verdict banner + the customer details below it (US-04.4)
-│   │   │   └── deps.ts               # composition root: customer + settings repositories, clock
+│   │   │   ├── serve-controls.tsx    # client: record a hand-out, correct/remove today's record (US-05.4)
+│   │   │   ├── actions.ts            # "use server": Zod → recordAttendance / correctAttendance
+│   │   │   ├── serve-state.ts        # the state the serve/correct forms exchange with their actions
+│   │   │   └── deps.ts               # composition roots: the read deps and the write (audit) deps
 │   │   ├── kunden/                   # the customer screens (US-01)
 │   │   │   ├── deps.ts               # composition root for both routes below
 │   │   │   ├── neu/                  # the registration screen
@@ -714,9 +717,11 @@ read into a variable inside the `try` and build the JSX after it.
 The screen that answers the question the counter asks first — which group collects (US-03.4) — and
 then the question it asks about every person in the queue: may _this_ one collect (US-04.4).
 
-- **`deps.ts`** holds `CustomerRepository`, `SettingsRepository` and `Clock`. Deliberately **no audit
-  log and no card repository**: everything this screen does is a read, and turning someone away
-  records nothing (US-04, FR-4), so a port it does not hold is a write it cannot make.
+- **`deps.ts`** holds two composition roots. `distributionDeps` — the page's — carries
+  `CustomerRepository`, `SettingsRepository`, the **reading** side of `DistributionRecordRepository`
+  (for the hand-out already made today, shown beside the serve action) and `Clock`, and deliberately
+  **no audit log**: everything the page renders is a read (US-04, FR-4). `counterActionDeps` — the
+  serve and correct actions' — adds the audit log and is the one object here that writes.
 - **`page.tsx`** calls `getWeekColour` once for today and, when a date was submitted, once more for
   that day. Both questions are the same use case; the page arranges the answers and decides nothing.
 - The **banner** is the dominant element and is painted in the colour it _names_ — on a day without a
@@ -751,6 +756,25 @@ then the question it asks about every person in the queue: may _this_ one collec
 - A number that is **not a number** (`?nummer=abc`) renders a German sentence beside the form; an
   unassigned one renders the `NOT_FOUND` banner, because that is an answer rather than a failure.
 
+#### Recording the hand-out (`serve-controls.tsx`, `actions.ts`)
+
+- `lookupCustomer` now reads today's record in the same pass as the verdict (US-04.3), so the page
+  hands `ServeControls` the surrogate id, whether the verdict permits serving, and today's record if
+  one exists. Which control it shows is a fact of the day, not a click: **no record → the serve
+  action**, **a record → that record with the controls to correct or remove it**.
+- **`serve-controls.tsx`** is a client component for exactly two browser needs: `useActionState`
+  reports a rejection beside the button, and after a successful hand-out an effect **clears and
+  re-focuses** the number field (reached by `id="counter-input"`) so the queue keeps moving without
+  the mouse. The **paid** checkbox is pre-checked and read by the action as mere presence, the HTML
+  idiom for a boolean an unchecked box omits.
+- Recording revalidates `/ausgabe`, so the just-served customer immediately shows the already-served
+  message with the record's time, a green confirmation, and the correction control — the same view a
+  second lookup of that number would produce.
+- **Removal has a confirmation step**: a native `<details>` reveals the warning and the one button
+  that deletes, so no single click drops a record. Correcting is the only mutation of the history
+  besides recording; both go through the use cases, which own the once-per-day and same-day-only
+  rules — the hidden serve button is a courtesy, not the guard (FR-8).
+
 ### `src/i18n/de.ts`
 
 A single `const de = {…} as const` dictionary of German UI strings, plus the derived `Dictionary`
@@ -763,7 +787,10 @@ The shapes values are written in for German-speaking staff, beside the dictionar
 words. `germanDate(date)` writes `TT.MM.JJJJ` and reads the date **in UTC**, because dates here are
 calendar days stored at midnight UTC — formatting in the server's zone would show the day before for
 anyone west of Greenwich. It lives here rather than in a page because it was copied into two of
-them, and two copies is how two screens start rendering the same date two ways.
+them, and two copies is how two screens start rendering the same date two ways. `germanTime(instant)`
+writes `HH:MM` and reads the instant **in Europe/Berlin**: a hand-out is a moment, not a day, so its
+time must read as the wall clock staff saw — the same zone `berlinDayKey` counts the day in, so
+"served at 23:59" and "already served today" cannot disagree about the day.
 
 ---
 
