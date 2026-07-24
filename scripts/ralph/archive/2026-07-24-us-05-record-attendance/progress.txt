@@ -1,0 +1,222 @@
+# Ralph Progress Log
+Started: Fri Jul 24 12:34:28 CEST 2026
+
+## Codebase Patterns
+- Domain errors: add a `code` to the `DomainErrorCode` union in `src/domain/errors.ts` AND a class
+  whose `readonly code` matches (convention is code === className); carry the values that made it
+  fail so the UI can render German without re-deriving. Throw with `throw new X(...)`, never
+  `throw new Error(...)`.
+- Calendar-day comparisons come in TWO flavours. Week colour and distribution-day rules compare the
+  **UTC** day via `startOfUtcDay` (weekColour.ts) — a configured week where the minute is irrelevant.
+  **Attendance** (once-per-day, same-day correction) compares the **Europe/Berlin** wall-clock day via
+  `Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", ... }).format()` giving a `YYYY-MM-DD`
+  key. `Intl` is pure and allowed in the domain (no wall-clock read, no I/O). Pick the right one.
+- Time is a parameter in domain/application (`today: Date`, `deps.clock.now()`); a zero-arg
+  `new Date()` is an ESLint error there. `new Date(someValue)` is fine.
+- Domain modules return discriminated unions or typed sentinels for verdicts (see counterVerdict's
+  `Verdict`, attendance's `"OK" | AlreadyServedToday`), rather than throwing, when the caller must
+  branch on the outcome. The application layer decides whether to throw.
+- Coverage on domain/ and application/ is gated at 100% — every branch of a new pure function needs a
+  named test. UI/infra are not gated.
+- German UI strings live only in `src/i18n/de.ts`. The counter already has
+  `ausgabe.verdicts.alreadyServedToday` (headline "Heute bereits ausgegeben").
+- Prisma adapters live in `src/infrastructure/prisma/<name>-repository.ts` and implement a port from
+  `application/ports.ts`. Map a `P2002` unique-constraint violation to a domain error by
+  `JSON.stringify(error.meta ?? {}).includes("<column>")` (see card/customer/distribution repos); map
+  `P2025` (record-not-found on update/delete) to the not-found domain error. Integration tests migrate
+  a throwaway SQLite file in `beforeAll` (`prisma migrate deploy` with a tmp `DATABASE_URL`), delete
+  rows in `beforeEach`, and use Faker with a fixed seed. Infra is NOT coverage-gated.
+- **The `init` migration is regenerated, never amended** (pre-release, history disposable). To add a
+  table: edit schema.prisma, `rm -rf` the old `prisma/migrations/*_init`, run
+  `npx prisma migrate dev --name init --create-only`, then **re-add the hand-written partial unique
+  slot index** (`Customer_customerNumber_onRegister_key`) at the end of the new migration.sql — Prisma
+  cannot express it and regenerating drops it. Finish with `npm run db:reset`.
+- **DATABASE_URL is `file:../data/fd.db` in `.env`** (relative to `prisma/`, resolving to repo-root
+  `data/fd.db`). Do NOT override it with `file:./data/fd.db` on the command line — that resolves to
+  `prisma/data/fd.db`, a stray untracked DB the `.gitignore` (`/data/*.db`) does not catch. Let the
+  `.env` value stand; only tests pass a tmp URL.
+- **Server-action forms on the counter (US-05.4 pattern).** A `"use server"` `actions.ts` beside the
+  page holds the write actions; a plain non-server module (`serve-state.ts`) holds the useActionState
+  state types (a `"use server"` module may export only async functions). A `<input type="checkbox">`
+  submits nothing when unchecked, so a boolean flag is read as **presence**:
+  `formData.get("paid") !== null` — and the box is pre-checked in markup to match the default. Split
+  the composition root into a read deps object (no audit log) and a write deps object (`+ audit`) so
+  the page physically cannot write. A native `<details>`/second-submit-button gives a keyboard-only
+  confirmation step with no client JS. After a write, `revalidatePath` re-renders the page and the
+  client component may switch its rendered branch, but its `useActionState` state persists (same
+  instance) — rely on that to keep a confirmation + a focus `useEffect` firing across the switch.
+- **`next build` touches `next-env.d.ts`** — `git checkout next-env.d.ts` before committing so the
+  generated file does not land in the diff.
+- **E2E specs share one `data/e2e.db` and own disjoint customer-number ranges.** A spec that seeds
+  rows through Prisma must pick numbers no other spec uses (counter: 201-206 + 239; portions: 211;
+  serve: 221-222) — grep `tests/e2e/*.spec.ts` first. `customerNumber` is NOT a Prisma `findUnique`
+  key (uniqueness is a hand-written partial index), so read seeded rows back with `findFirst`. The
+  clock is pinned by writing an ISO instant to `data/e2e-now.txt` (`FD_FIXED_NOW_FILE`); delete it in
+  `afterAll` or the settings specs freeze. Off-CI, `reuseExistingServer` reuses a running server
+  WITHOUT resetting the db (reset is in the webServer boot command) — free port 3000 or use `CI=1`
+  for a clean boot, and run `--retries=0` when debugging, because a retry re-runs `beforeAll` and
+  surfaces the real failure as a bogus unique-customerNumber seed collision.
+
+## [2026-07-24] - US-001 (attendance domain rules)
+- Implemented `src/domain/distribution/attendance.ts`: `canRecord(existingRecordsForCustomer, today)`
+  returns `"OK"` or a typed `AlreadyServedToday` carrying the existing record's date; `canCorrect(record,
+  today)` is true only when the record was made on the same Europe/Berlin calendar day as `today`.
+- Added the `AlreadyServedToday` domain error (replacing the reserved-but-unused `DuplicateAttendance`
+  code, which nothing referenced) in `src/domain/errors.ts`, carrying `existingDate`.
+- Tests (`attendance.test.ts`) cover: no records, earlier-day record, same-day duplicate, the
+  same-day record among several, a Berlin-midnight boundary (two instants 2 min apart on the same UTC
+  day but different Berlin days), a fall-back DST correction, and a spring-forward same-day check.
+- Updated the file tree in `docs/technical_documentation.md`.
+- Files changed: src/domain/distribution/attendance.ts (new), attendance.test.ts (new),
+  src/domain/errors.ts, docs/technical_documentation.md.
+- **Learnings for future iterations:**
+  - The next stories build on this: US-002 (`recordAttendance`/`correctAttendance` use cases) will
+    `throw` the `AlreadyServedToday` this returns and add a `RecordNoLongerCorrectable` error; it must
+    re-run `evaluateAtCounter` (counterVerdict.ts) before writing and refuse ARCHIVED/BLOCKED/WRONG_GROUP.
+  - US-003 must repeat the once-per-day rule as a DB unique constraint on a normalised day-key column
+    — and that day-key must be the **Berlin** day to agree with `canRecord`, not a UTC/naive date.
+  - The `AttendanceRecord` domain interface here is minimal (`{ date }`); the fuller record (id, paid,
+    priceCents) is the infra/application concern.
+  - Verified Berlin offsets with a throwaway `node -e` + `Intl` snippet before hard-coding the DST
+    boundary timestamps in tests — cheap and avoids guessing +1 vs +2.
+---
+
+## [2026-07-24] - US-002 (recordAttendance / correctAttendance use cases)
+- Implemented `src/application/distribution/record-attendance.ts` and `correct-attendance.ts`.
+  - `recordAttendance(deps, {customerId, paid?})`: one clock read → findById (CustomerNotFound) →
+    re-run `evaluateAtCounter` (refuse ARCHIVED/BLOCKED/WRONG_GROUP with new `NotClearToServe`) →
+    `canRecord` (throw `AlreadyServedToday`, write nothing) → price via `describeAllowance(now)` →
+    `records.create` → no-actor audit `distribution.recorded`. `paid` defaults true.
+  - `correctAttendance(deps, {recordId, action})`: discriminated input `SET_PAID`|`REMOVE`, guarded by
+    `canCorrect` (`RecordNoLongerCorrectable` for older, `DistributionRecordNotFound` when absent);
+    audits `distribution.corrected` / `distribution.removed`, no reason.
+- New domain type `src/domain/distribution/distributionRecord.ts` (`NewDistributionRecord`,
+  `DistributionRecord`: id, customerId, date, showedUp, paid, priceCents). New `DistributionRecordRepository`
+  port (listForCustomer / findById / create / setPaid / remove). New errors: `NotClearToServe` (carries
+  the refusing Verdict), `DistributionRecordNotFound`, `RecordNoLongerCorrectable`.
+- Files: record-attendance.ts (+test), correct-attendance.ts (+test), distributionRecord.ts, ports.ts,
+  errors.ts, docs/technical_documentation.md.
+- **Learnings for future iterations:**
+  - US-003 (persistence) must supply the `DistributionRecordRepository` adapter and enforce the Berlin
+    day-key unique `(customerId, dayKey)` constraint — the adapter reports a lost race as
+    `AlreadyServedToday`, mirroring how the Customer/Card repos own `CustomerNumberTaken`/`CardIndexTaken`.
+    The day-key MUST be the Berlin calendar day (same rule as `canRecord`), not a naive/UTC date.
+  - `errors.ts` now `import type { Verdict }`s from `counterVerdict.ts`; that closes a *type-only* import
+    cycle (counterVerdict → customer → errors → counterVerdict). Type-only imports are erased at runtime,
+    so no runtime cycle — fine, and tsc/eslint accept it.
+  - Building a `CounterCustomer` from a `RegisteredCustomer` is now duplicated in lookup-customer.ts and
+    record-attendance.ts (blockReason: null until US-08). If a third caller appears, extract a mapper.
+  - When picking a "next distribution day" test date, remember RED/BLUE alternate weekly: the same RED
+    customer only collects two weeks on (used 2026-08-06, not 2026-07-30, for the next-day case).
+  - Type-only files (ports.ts, distributionRecord.ts) show 0/0 in the v8 coverage table — that is "no
+    executable statements", not a coverage miss; the 100% gate still passes.
+---
+
+## [2026-07-24] - US-003 (DistributionRecord persistence + one-per-day constraint)
+- Added the Prisma `DistributionRecord` model (id, customerId FK, date, dayKey, showedUp, paid,
+  priceCents Int) with `@@unique([customerId, dayKey])`, `@@index([date])`, `@@index([customerId,
+  date])`, and NO `onDelete: Cascade` (generates ON DELETE RESTRICT) so records outlive customer
+  status changes. Schema comments record priceCents as deliberate redundancy and dayKey as the Berlin
+  calendar day.
+- Exported `berlinDayKey` from `src/domain/distribution/attendance.ts` so the adapter fills the
+  day-key column with the *same* rule `canRecord` uses — the DB constraint and the domain guard cannot
+  drift to two notions of "today".
+- Added `src/infrastructure/prisma/distribution-record-repository.ts`
+  (`PrismaDistributionRecordRepository`) implementing the port: create maps P2002-on-dayKey to
+  `AlreadyServedToday`; setPaid/remove map P2025 to `DistributionRecordNotFound`; listForCustomer is
+  oldest-first.
+- Integration test (15 cases) proves: the duplicate constraint fires as AlreadyServedToday (same
+  Berlin day, two instants), the Berlin-midnight boundary two minutes apart is two distinct days
+  (not UTC), the constraint is per-customer, a lost race leaves exactly one record, archiving keeps
+  the record, and a hard-delete of a customer holding records is refused (RESTRICT, no cascade).
+- Regenerated the disposable `init` migration (now `20260724105101_init`) and re-added the
+  hand-written partial slot unique index.
+- Files: prisma/schema.prisma, prisma/migrations/20260724105101_init/migration.sql (renamed),
+  src/domain/distribution/attendance.ts, src/infrastructure/prisma/distribution-record-repository.ts
+  (+test), docs/technical_documentation.md.
+- **Learnings for future iterations:**
+  - US-004 (UI serve action) and US-005 (E2E) can now wire `PrismaDistributionRecordRepository` into
+    the /ausgabe server actions alongside recordAttendance/correctAttendance. de.ts already has
+    `ausgabe.verdicts.alreadyServedToday`; US-004 needs a serve button + paid checkbox + correct
+    control, all strings in de.ts.
+  - The adapter's generic `throw error` rethrow branches are intentionally uncovered — infra is not
+    coverage-gated, so no test forces a non-P2002/P2025 Prisma error.
+  - See the new Codebase Patterns entries on regenerating the init migration (re-add the partial slot
+    index!) and on NOT overriding DATABASE_URL to `./data/fd.db` (creates an untracked stray DB).
+---
+
+## [2026-07-24] - US-004 (Serve action on the counter screen)
+- Extended `lookupCustomer` (application) to surface `customerId` and `todaysRecord` on
+  `CounterLookup`, reading the day's record in the same pass as the verdict (US-04.3) — added the
+  `records: DistributionRecordRepository` port to its deps. New domain helper
+  `attendance.recordForDay(records, today)` (pure, Berlin-day); `canRecord` refactored onto it so the
+  two "same day" notions cannot drift.
+- New `src/app/ausgabe/`: `actions.ts` (`recordServe` / `correctServe` server actions, `"use server"`),
+  `serve-state.ts` (useActionState state types), `serve-controls.tsx` (client). ServeControls shows a
+  pre-checked "Bezahlt" checkbox + "Ausgabe erfassen" button when the verdict permits serving; on
+  success it revalidates `/ausgabe`, the branch flips to the already-served view (record's Berlin time
+  via new `germanTime`, green confirmation), and a `useEffect` clears + refocuses `#counter-input`.
+  Correction control (SET_PAID checkbox / REMOVE) with a native `<details>` confirmation step before
+  removal.
+- `deps.ts` now exports two roots: `distributionDeps` (read: customers, settings, records, clock — no
+  audit) and `counterActionDeps` (write: + audit). New `germanTime` in `src/i18n/format.ts`; all UI
+  strings under `de.distribution.serve`. Docs: file tree + counter section in technical_documentation.md.
+- Files: src/domain/distribution/attendance.ts (+test), src/application/customers/lookup-customer.ts
+  (+test), src/app/ausgabe/{page.tsx,deps.ts,actions.ts,serve-state.ts,serve-controls.tsx},
+  src/i18n/{de.ts,format.ts}, docs/technical_documentation.md.
+- **Learnings for future iterations:**
+  - **US-005 (Playwright) can drive this now.** Test ids: `serve-button`, `serve-paid`,
+    `serve-confirmation`, `serve-error`, `already-served`, `already-served-message`, `correct-paid`,
+    `correct-save`, `correct-remove`. The paid checkbox is read as *presence* server-side
+    (`formData.get("paid") !== null`), so an unchecked box stores `paid=false`.
+  - The serve/correct forms both call `useActionState`; after a serve the page revalidates and the
+    component's rendered branch switches from serve → already-served, but the `useActionState` state
+    persists (same instance), which is how the confirmation + focus effect still fire in the new branch.
+  - Recording needs the surrogate **id**, which `lookupCustomer` now returns as `customerId` (null on
+    NOT_FOUND) — the counter number alone is not enough; the server action passes it via a hidden field.
+  - No dev-browser skill/MCP is configured in this sandbox. Runtime-smoke instead: `npm run db:reset`,
+    register a customer + record one via a throwaway `tsx` script importing the use cases with real
+    Prisma deps (`@/`-aliased imports resolve under tsx), then `curl "/ausgabe?nummer=1"` and grep the
+    HTML. Confirmed CLEAR_TO_SERVE → serve button, and after a hand-out → "Heute bereits versorgt um
+    13:10 Uhr (nicht bezahlt)" + correct/remove, serve button gone. `germanTime` gave 13:10 from 11:10Z
+    (Berlin +2), proving the Berlin offset.
+  - `next-env.d.ts` gets touched by `next build`; `git checkout` it before committing.
+---
+
+## [2026-07-24] - US-005 (E2E: distribution-day happy path)
+- Added `tests/e2e/serve.spec.ts` (serial, 3 tests) covering the counter's serve loop through the
+  built app against the real `data/e2e.db`: record a paid hand-out (confirmation + switch to today's
+  record + one row, paid=true, Berlin dayKey), a blocked duplicate (button gone, "Heute bereits
+  versorgt", still one row), and an unpaid hand-out (box cleared → paid=false).
+- Pins today to the RED distribution Thursday 08.01.2026 via `FD_FIXED_NOW_FILE` (data/e2e-now.txt),
+  removed in `afterAll` so the settings specs are not frozen in January — same seam as the
+  distribution/counter specs.
+- Files changed: tests/e2e/serve.spec.ts (new), docs/technical_documentation.md (file tree + E2E
+  section entry).
+- **Learnings for future iterations:**
+  - **E2E customer-number ownership is a shared-db contract.** Every spec that inserts rows straight
+    through Prisma owns a number range in the shared `data/e2e.db`, and they MUST NOT overlap: counter
+    owns 201-206 + 239, portions owns **211**, serve now owns 221-222. Picking 211/212 first silently
+    collided with portions.spec — grep `tests/e2e/*.spec.ts` for your intended numbers before seeding.
+  - **A retry masks the real E2E failure as a seed collision.** With CI retries=2, a failing test
+    re-runs `beforeAll`, whose `prisma.customer.create` then hits the unique customerNumber from the
+    first attempt — so the surfaced error is "Unique constraint failed on customerNumber" at the seed
+    line, not the actual assertion. Re-run with `--retries=0` (and a fresh server) to see the true
+    first failure.
+  - **`customerNumber` is not a Prisma `findUnique` key** — its uniqueness is a hand-written partial
+    index Prisma's schema cannot see. Read a seeded row back with `findFirst({ where: { customerNumber } })`.
+  - **Leftover `next start` servers break local re-runs.** `reuseExistingServer` is true off-CI, so a
+    server left from a prior run is reused *without* resetting the db (the reset is in the webServer
+    boot command). Free port 3000 (`for pid in $(lsof -ti:3000); do kill -9 $pid; done`) before a
+    clean local run, or use `CI=1` to force a fresh reset boot. `pkill -f next` exited 144 in this
+    sandbox — kill by pid from `lsof -ti:3000` instead.
+  - The confirmation/record time is Berlin wall-clock: 09:00Z on 08.01.2026 renders as 10:00 (UTC+1
+    in January). Compute it with the app's own `germanTime(new Date(TODAY))` rather than hard-coding.
+---
+## [2026-07-24] - Batch close-out
+- All five stories already passed; this iteration only landed the batch: committed the run
+  housekeeping (US-04 archive, .gitignore entry for machine-local .claude/local-rules/), pushed
+  ralph/us-05-record-attendance, opened PR #32 and enabled auto-squash-merge.
+- **Learnings for future iterations:**
+  - None beyond the existing patterns; the PR body is the batch summary.
+---

@@ -1,0 +1,93 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-06-certificate-reminder",
+  "description": "US-06 Check the Certificate and Log a Reminder — Certificate expiry never blocks a hand-out; reminders are logged at most once per day; the reminder count is shown so staff can judge what to do. No threshold exists: archiving is US-10's manual decision.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Certificate validity rule",
+      "description": "As a developer, I need the expiry rule as a pure function, so the grace period behaves identically everywhere. Source: tasks/prd-us-06-certificate-reminder.md §US-06.1",
+      "acceptanceCriteria": [
+        "src/domain/customer/certificate.ts exports isExpired(certificate, today)",
+        "A certificate is valid on its validUntil date and expired the day after — tested for the day before, the day of and the day after, plus 29 February",
+        "No escalation function and no threshold: what a reminder count means is a staff judgement, so the domain exposes only the count and the expiry",
+        "today is a parameter — no clock and no settings lookup in the module",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "recordReminder and renewCertificate use cases",
+      "description": "As a staff member, I want to log a reminder and record a renewed certificate, so the reminder history is documented rather than remembered. Source: tasks/prd-us-06-certificate-reminder.md §US-06.2",
+      "acceptanceCriteria": [
+        "recordReminder(deps, {customerId}) increments reminderCount by one and returns the new count",
+        "It rejects with a typed ReminderAlreadyLoggedToday error when a reminder exists for that customer on the same calendar day, and writes nothing",
+        "It rejects when the certificate is not expired",
+        "renewCertificate(deps, {customerId, type, validUntil}) records the new certificate and resets reminderCount to 0 in the same transaction",
+        "renewCertificate rejects a validUntil in the past with a typed error",
+        "Both write audit entries; the reminder entry records the resulting count",
+        "Tested against fakes and a fake clock: first reminder, same-day repeat, next-day reminder, reminder on a valid certificate, renewal resetting a count of 3",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "ReminderLog schema and appended certificate history",
+      "description": "As a developer, I need reminders capped at one per day by the database and certificate renewals preserved as history. Source: tasks/prd-us-06-certificate-reminder.md §US-06.3",
+      "acceptanceCriteria": [
+        "Prisma model ReminderLog: id, customerId (FK to Customer.id), loggedOn day-key, resultingCount",
+        "Unique constraint on (customerId, loggedOn)",
+        "Certificate rows are appended, never overwritten; the current certificate is the latest by recordedAt",
+        "Integration test proves the per-day constraint fires",
+        "Migration committed under prisma/migrations/",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Certificate status, reminder action and renewal form",
+      "description": "As a staff member, I want the counter screen to tell me the certificate is expired and let me log the reminder without leaving the screen. Source: tasks/prd-us-06-certificate-reminder.md §US-06.4",
+      "acceptanceCriteria": [
+        "The counter screen shows the expiry date and, when expired, an unmissable German note that the customer is served this time but must bring a renewal",
+        "An 'Erinnerung erfassen' action logs the reminder and shows the new count immediately",
+        "After the action, the button is disabled for the rest of the day with an explanatory label",
+        "The reminder count is shown next to the expiry status whenever it is greater than zero; the screen never prompts, advises or archives on its own",
+        "A renewed-certificate form captures type and validity end date and, on save, shows the reset count of 0",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "E2E: expired certificate through to the third reminder",
+      "description": "As a developer, I need a Playwright spec covering the full reminder trail. Source: tasks/prd-us-06-certificate-reminder.md §US-06.5",
+      "acceptanceCriteria": [
+        "Spec with a controllable clock serves a customer with an expired certificate on three consecutive distribution days, logging one reminder each time",
+        "Spec asserts a second reminder attempt on the same day is refused",
+        "Spec asserts the screen shows a count of 3 after the third reminder and that the customer is still active — nothing archives without a staff decision",
+        "Spec asserts recording a renewed certificate resets the displayed count to 0",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
