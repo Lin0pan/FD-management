@@ -35,8 +35,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added recordAttendance + correctAttendance use cases (src/application/distribution/). recordAttendance re-runs evaluateAtCounter (refuses ARCHIVED/BLOCKED/WRONG_GROUP via new NotClearToServe error carrying the verdict), runs canRecord (throws AlreadyServedToday, writes nothing), resolves priceCents via describeAllowance at now, writes one record + a no-actor audit entry (distribution.recorded); paid defaults true. correctAttendance takes a discriminated {action:'SET_PAID'|'REMOVE'} input, guarded by canCorrect (RecordNoLongerCorrectable for older records, DistributionRecordNotFound when absent). New domain type src/domain/distribution/distributionRecord.ts; new DistributionRecordRepository port. Tested against hand-written fakes + fake clock incl. same-day duplicate and next-day correction. All gates green (417 tests, 100% coverage)."
     },
     {
       "id": "US-003",

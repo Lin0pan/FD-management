@@ -10,6 +10,10 @@
 import type { IssuedCard } from "@/domain/card/card";
 import type { NewCustomer, RegisteredCustomer } from "@/domain/customer/customer";
 import type { GroupCounts } from "@/domain/customer/group";
+import type {
+  DistributionRecord,
+  NewDistributionRecord,
+} from "@/domain/distribution/distributionRecord";
 import type { SettingsVersion } from "@/domain/policy/settings";
 
 /** Injectable time source. Every time-dependent domain rule reads "now" through this port. */
@@ -91,6 +95,33 @@ export interface CardRepository {
   listCards(customerId: number): Promise<ReadonlyArray<IssuedCard>>;
   /** Write one card for a customer, and hand it back as it was stored. */
   issue(customerId: number, card: IssuedCard): Promise<IssuedCard>;
+}
+
+/**
+ * The distribution records — the append-many history of hand-outs (US-05).
+ *
+ * The store keeps records; it does not decide the once-per-day rule. That lives in the domain
+ * (`attendance.canRecord`) and, as a backstop the use case cannot bypass, in the database's unique
+ * day-key constraint (US-05.3): the adapter — not the caller — is the final authority on whether a
+ * record for the day already existed when the write landed, and reports a lost race as
+ * {@link AlreadyServedToday}. Records outlive customer status changes and are never cascade-deleted;
+ * only a same-day correction removes one.
+ */
+export interface DistributionRecordRepository {
+  /** Every record ever written for the customer — the raw material the duplicate check reads. */
+  listForCustomer(customerId: number): Promise<ReadonlyArray<DistributionRecord>>;
+  /** The record with this surrogate id, or `null` if the id belongs to none. */
+  findById(recordId: number): Promise<DistributionRecord | null>;
+  /**
+   * Write one hand-out and hand it back as stored, with its assigned id.
+   *
+   * @throws {AlreadyServedToday} if a record for the customer's day already existed when this landed.
+   */
+  create(record: NewDistributionRecord): Promise<DistributionRecord>;
+  /** Amend the paid flag of a record made today, and return it as stored. */
+  setPaid(recordId: number, paid: boolean): Promise<DistributionRecord>;
+  /** Remove a record made today — the one deletion the history permits (US-05, FR-7). */
+  remove(recordId: number): Promise<void>;
 }
 
 /**

@@ -44,3 +44,34 @@ Started: Fri Jul 24 12:34:28 CEST 2026
   - Verified Berlin offsets with a throwaway `node -e` + `Intl` snippet before hard-coding the DST
     boundary timestamps in tests — cheap and avoids guessing +1 vs +2.
 ---
+
+## [2026-07-24] - US-002 (recordAttendance / correctAttendance use cases)
+- Implemented `src/application/distribution/record-attendance.ts` and `correct-attendance.ts`.
+  - `recordAttendance(deps, {customerId, paid?})`: one clock read → findById (CustomerNotFound) →
+    re-run `evaluateAtCounter` (refuse ARCHIVED/BLOCKED/WRONG_GROUP with new `NotClearToServe`) →
+    `canRecord` (throw `AlreadyServedToday`, write nothing) → price via `describeAllowance(now)` →
+    `records.create` → no-actor audit `distribution.recorded`. `paid` defaults true.
+  - `correctAttendance(deps, {recordId, action})`: discriminated input `SET_PAID`|`REMOVE`, guarded by
+    `canCorrect` (`RecordNoLongerCorrectable` for older, `DistributionRecordNotFound` when absent);
+    audits `distribution.corrected` / `distribution.removed`, no reason.
+- New domain type `src/domain/distribution/distributionRecord.ts` (`NewDistributionRecord`,
+  `DistributionRecord`: id, customerId, date, showedUp, paid, priceCents). New `DistributionRecordRepository`
+  port (listForCustomer / findById / create / setPaid / remove). New errors: `NotClearToServe` (carries
+  the refusing Verdict), `DistributionRecordNotFound`, `RecordNoLongerCorrectable`.
+- Files: record-attendance.ts (+test), correct-attendance.ts (+test), distributionRecord.ts, ports.ts,
+  errors.ts, docs/technical_documentation.md.
+- **Learnings for future iterations:**
+  - US-003 (persistence) must supply the `DistributionRecordRepository` adapter and enforce the Berlin
+    day-key unique `(customerId, dayKey)` constraint — the adapter reports a lost race as
+    `AlreadyServedToday`, mirroring how the Customer/Card repos own `CustomerNumberTaken`/`CardIndexTaken`.
+    The day-key MUST be the Berlin calendar day (same rule as `canRecord`), not a naive/UTC date.
+  - `errors.ts` now `import type { Verdict }`s from `counterVerdict.ts`; that closes a *type-only* import
+    cycle (counterVerdict → customer → errors → counterVerdict). Type-only imports are erased at runtime,
+    so no runtime cycle — fine, and tsc/eslint accept it.
+  - Building a `CounterCustomer` from a `RegisteredCustomer` is now duplicated in lookup-customer.ts and
+    record-attendance.ts (blockReason: null until US-08). If a third caller appears, extract a mapper.
+  - When picking a "next distribution day" test date, remember RED/BLUE alternate weekly: the same RED
+    customer only collects two weeks on (used 2026-08-06, not 2026-07-30, for the next-day case).
+  - Type-only files (ports.ts, distributionRecord.ts) show 0/0 in the v8 coverage table — that is "no
+    executable statements", not a coverage miss; the 100% gate still passes.
+---

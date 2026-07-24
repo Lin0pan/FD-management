@@ -7,6 +7,8 @@
  * concrete numbers without re-deriving them.
  */
 
+import type { Verdict } from "./distribution/counterVerdict";
+
 /** The closed set of domain error kinds. Extended as rules are implemented. */
 export type DomainErrorCode =
   | "NoFreeCustomerNumber"
@@ -21,6 +23,9 @@ export type DomainErrorCode =
   | "InvalidCardNumber"
   | "CardIndexTaken"
   | "AlreadyServedToday"
+  | "NotClearToServe"
+  | "DistributionRecordNotFound"
+  | "RecordNoLongerCorrectable"
   | "InvalidSettings"
   | "NoSettingsInForce"
   | "QuotaBelowActiveCustomers"
@@ -279,6 +284,63 @@ export class AlreadyServedToday extends DomainError {
   constructor(existingDate: Date) {
     super(`Already served today; a record exists from ${existingDate.toISOString()}`);
     this.existingDate = existingDate;
+  }
+}
+
+/**
+ * The counter verdict refused service, so a hand-out must not be recorded (US-05, FR-8). The UI
+ * already hides the serve action for a refusing verdict, but the use case re-evaluates it before
+ * writing — the screen is not the only guard — and this is how it says no when asked anyway.
+ *
+ * Carries the refusing {@link Verdict} (an `ARCHIVED`, `BLOCKED` or `WRONG_GROUP`), so the caller can
+ * render the same reason the counter shows without re-deriving it. `CLEAR_TO_SERVE` and its
+ * certificate-expired sibling never reach here — an expired certificate serves and reminds, it does
+ * not refuse.
+ */
+export class NotClearToServe extends DomainError {
+  readonly code = "NotClearToServe";
+  readonly verdict: Verdict;
+
+  constructor(verdict: Verdict) {
+    super(`The counter verdict "${verdict.kind}" does not permit recording a hand-out`);
+    this.verdict = verdict;
+  }
+}
+
+/**
+ * A correction named a record that does not exist. Carries the id asked for, so a stale link can be
+ * told from a genuine bug — the counter only offers to correct a record it has just shown, so this is
+ * a lost reference rather than an everyday outcome.
+ */
+export class DistributionRecordNotFound extends DomainError {
+  readonly code = "DistributionRecordNotFound";
+  readonly recordId: number;
+
+  constructor(recordId: number) {
+    super(`No distribution record has the id ${recordId}`);
+    this.recordId = recordId;
+  }
+}
+
+/**
+ * A record was corrected or removed after the day it was made, when it has already become immutable
+ * (US-05, FR-7). Carries the record's day and today so the UI can explain that only the same day's
+ * entries may still be changed. A distribution's history is not rewritten after the fact — only the
+ * hand-out being corrected on the spot is.
+ */
+export class RecordNoLongerCorrectable extends DomainError {
+  readonly code = "RecordNoLongerCorrectable";
+  readonly recordId: number;
+  readonly recordDate: Date;
+  readonly today: Date;
+
+  constructor(recordId: number, recordDate: Date, today: Date) {
+    super(
+      `Record ${recordId} from ${recordDate.toISOString()} can no longer be corrected on ${today.toISOString()}`,
+    );
+    this.recordId = recordId;
+    this.recordDate = recordDate;
+    this.today = today;
   }
 }
 

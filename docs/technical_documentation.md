@@ -112,13 +112,14 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── distribution/counterVerdict.test.ts  # its Vitest spec
 │   │   ├── distribution/attendance.ts  # canRecord/canCorrect — the once-per-Berlin-day rules
 │   │   ├── distribution/attendance.test.ts  # its Vitest spec
+│   │   ├── distribution/distributionRecord.ts  # the hand-out record type (id, paid, priceCents)
 │   ├── application/
-│   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
-│   │   │                             #   CustomerRepository, CardRepository, AuditLog
+│   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, CustomerRepository,
+│   │   │                             #   CardRepository, DistributionRecordRepository, AuditLog
 │   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
 │   │   │                             #   readCard, issueCard, lookupCustomer (the counter lookup)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
-│   │   ├── distribution/             # getWeekColour — the colour of any day, from history
+│   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (+ the FD_FIXED_NOW_FILE test seam)
@@ -244,6 +245,22 @@ Two decisions are worth knowing:
   directly rather than going through `readCurrentSettings`.
 - It resolves at the asked-about _instant_ and normalises only the calendar arithmetic to a UTC day,
   so a settings change saved this morning is in force this morning.
+
+**`recordAttendance(deps, { customerId, paid? })`** writes one distribution record — the customer
+showed up, paid (default `true`, clearable), and owed the price `describeAllowance` derives for their
+household at today's instant (US-05.2, FR-1/2). It stands two guards of its own before writing, so the
+counter screen is not the only one (FR-8): it re-runs `evaluateAtCounter` and refuses an `ARCHIVED`,
+`BLOCKED` or `WRONG_GROUP` customer with `NotClearToServe`, and it runs `canRecord` to reject a second
+record on the same Berlin day with `AlreadyServedToday`, writing nothing. A bare-number hand-out
+presents no card, so `OUTDATED_CARD` cannot arise. Both the record and the audit entry take one read
+of the clock, so the stored price, the day-key and the log all agree on "now".
+
+**`correctAttendance(deps, { recordId, action })`** amends the same day's record — `SET_PAID` flips
+the paid flag, `REMOVE` deletes it — guarded by `canCorrect`, which rejects anything older than today
+with `RecordNoLongerCorrectable` (FR-7); a missing record is `DistributionRecordNotFound`. Removal is
+the one deletion the append-only history permits. Each correction writes its own audit entry with no
+reason, because the event name and changed field already say what happened. Both use cases are tested
+against hand-written fakes and a fake clock (`record-attendance.test.ts`, `correct-attendance.test.ts`).
 
 ### `src/application/allowance/`
 
