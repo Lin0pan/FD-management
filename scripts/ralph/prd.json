@@ -54,8 +54,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added the Prisma DistributionRecord model (id, customerId FK, date, dayKey, showedUp, paid, priceCents) and PrismaDistributionRecordRepository. The unique (customerId, dayKey) index enforces once-per-day; dayKey is the Europe/Berlin calendar day written by the domain's now-exported berlinDayKey, so the DB constraint and attendance.canRecord share one rule. Indexes on date and (customerId, date) for the US-10 no-show query. Relation has no onDelete cascade (RESTRICT) — records outlive status changes; a schema comment marks priceCents as deliberate redundancy. Regenerated the disposable init migration and re-added the hand-written partial slot unique index. Integration test (15 cases) proves the duplicate constraint fires as AlreadyServedToday, the Berlin-midnight boundary is two days, the constraint is per-customer, and archiving/hard-delete never cascades records away. All gates green (432 tests, coverage/lint/typecheck/build)."
     },
     {
       "id": "US-004",

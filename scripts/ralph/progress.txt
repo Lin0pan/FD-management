@@ -20,6 +20,21 @@ Started: Fri Jul 24 12:34:28 CEST 2026
   named test. UI/infra are not gated.
 - German UI strings live only in `src/i18n/de.ts`. The counter already has
   `ausgabe.verdicts.alreadyServedToday` (headline "Heute bereits ausgegeben").
+- Prisma adapters live in `src/infrastructure/prisma/<name>-repository.ts` and implement a port from
+  `application/ports.ts`. Map a `P2002` unique-constraint violation to a domain error by
+  `JSON.stringify(error.meta ?? {}).includes("<column>")` (see card/customer/distribution repos); map
+  `P2025` (record-not-found on update/delete) to the not-found domain error. Integration tests migrate
+  a throwaway SQLite file in `beforeAll` (`prisma migrate deploy` with a tmp `DATABASE_URL`), delete
+  rows in `beforeEach`, and use Faker with a fixed seed. Infra is NOT coverage-gated.
+- **The `init` migration is regenerated, never amended** (pre-release, history disposable). To add a
+  table: edit schema.prisma, `rm -rf` the old `prisma/migrations/*_init`, run
+  `npx prisma migrate dev --name init --create-only`, then **re-add the hand-written partial unique
+  slot index** (`Customer_customerNumber_onRegister_key`) at the end of the new migration.sql — Prisma
+  cannot express it and regenerating drops it. Finish with `npm run db:reset`.
+- **DATABASE_URL is `file:../data/fd.db` in `.env`** (relative to `prisma/`, resolving to repo-root
+  `data/fd.db`). Do NOT override it with `file:./data/fd.db` on the command line — that resolves to
+  `prisma/data/fd.db`, a stray untracked DB the `.gitignore` (`/data/*.db`) does not catch. Let the
+  `.env` value stand; only tests pass a tmp URL.
 
 ## [2026-07-24] - US-001 (attendance domain rules)
 - Implemented `src/domain/distribution/attendance.ts`: `canRecord(existingRecordsForCustomer, today)`
@@ -74,4 +89,37 @@ Started: Fri Jul 24 12:34:28 CEST 2026
     customer only collects two weeks on (used 2026-08-06, not 2026-07-30, for the next-day case).
   - Type-only files (ports.ts, distributionRecord.ts) show 0/0 in the v8 coverage table — that is "no
     executable statements", not a coverage miss; the 100% gate still passes.
+---
+
+## [2026-07-24] - US-003 (DistributionRecord persistence + one-per-day constraint)
+- Added the Prisma `DistributionRecord` model (id, customerId FK, date, dayKey, showedUp, paid,
+  priceCents Int) with `@@unique([customerId, dayKey])`, `@@index([date])`, `@@index([customerId,
+  date])`, and NO `onDelete: Cascade` (generates ON DELETE RESTRICT) so records outlive customer
+  status changes. Schema comments record priceCents as deliberate redundancy and dayKey as the Berlin
+  calendar day.
+- Exported `berlinDayKey` from `src/domain/distribution/attendance.ts` so the adapter fills the
+  day-key column with the *same* rule `canRecord` uses — the DB constraint and the domain guard cannot
+  drift to two notions of "today".
+- Added `src/infrastructure/prisma/distribution-record-repository.ts`
+  (`PrismaDistributionRecordRepository`) implementing the port: create maps P2002-on-dayKey to
+  `AlreadyServedToday`; setPaid/remove map P2025 to `DistributionRecordNotFound`; listForCustomer is
+  oldest-first.
+- Integration test (15 cases) proves: the duplicate constraint fires as AlreadyServedToday (same
+  Berlin day, two instants), the Berlin-midnight boundary two minutes apart is two distinct days
+  (not UTC), the constraint is per-customer, a lost race leaves exactly one record, archiving keeps
+  the record, and a hard-delete of a customer holding records is refused (RESTRICT, no cascade).
+- Regenerated the disposable `init` migration (now `20260724105101_init`) and re-added the
+  hand-written partial slot unique index.
+- Files: prisma/schema.prisma, prisma/migrations/20260724105101_init/migration.sql (renamed),
+  src/domain/distribution/attendance.ts, src/infrastructure/prisma/distribution-record-repository.ts
+  (+test), docs/technical_documentation.md.
+- **Learnings for future iterations:**
+  - US-004 (UI serve action) and US-005 (E2E) can now wire `PrismaDistributionRecordRepository` into
+    the /ausgabe server actions alongside recordAttendance/correctAttendance. de.ts already has
+    `ausgabe.verdicts.alreadyServedToday`; US-004 needs a serve button + paid checkbox + correct
+    control, all strings in de.ts.
+  - The adapter's generic `throw error` rethrow branches are intentionally uncovered — infra is not
+    coverage-gated, so no test forces a non-P2002/P2025 Prisma error.
+  - See the new Codebase Patterns entries on regenerating the init migration (re-add the partial slot
+    index!) and on NOT overriding DATABASE_URL to `./data/fd.db` (creates an untracked stray DB).
 ---
