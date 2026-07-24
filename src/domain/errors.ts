@@ -33,6 +33,7 @@ export type DomainErrorCode =
   | "NoSettingsInForce"
   | "QuotaBelowActiveCustomers"
   | "MissingAuditReason"
+  | "IllegalStatusTransition"
   | "InvalidEuroAmount";
 
 /** Base class of every domain error. `code` lets callers switch over the closed set above. */
@@ -197,6 +198,25 @@ export class CustomerArchived extends DomainError {
   constructor(id: number) {
     super(`Customer ${id} is archived`);
     this.id = id;
+  }
+}
+
+/**
+ * A customer status change tried to move between two states the register does not connect — most of
+ * all any move *out of* `ARCHIVED` (re-registration creates a new customer, US-11) or a no-op that
+ * changes nothing (`ACTIVE → ACTIVE`). Carries both states so the screen can name the move it
+ * refused rather than reporting a bare failure. The reason-less block is a different error
+ * ({@link MissingAuditReason}) — the move is legal, the record of *why* is what is missing.
+ */
+export class IllegalStatusTransition extends DomainError {
+  readonly code = "IllegalStatusTransition";
+  readonly from: string;
+  readonly to: string;
+
+  constructor(from: string, to: string) {
+    super(`A customer cannot move from ${from} to ${to}`);
+    this.from = from;
+    this.to = to;
   }
 }
 

@@ -21,6 +21,25 @@ Started: Sat Jul 25 01:36:25 CEST 2026
 
 ---
 
+## 2026-07-25 - US-002 (Customer status transition state machine)
+- Added `src/domain/customer/status.ts`: `transition(from, to, reason?)` returning the target for the
+  four allowed moves (ACTIVE→BLOCKED, BLOCKED→ACTIVE, ACTIVE→ARCHIVED, BLOCKED→ARCHIVED) and throwing
+  otherwise. `Status` is a type alias of the existing `CustomerStatus` from customer.ts — single
+  source of truth, not a second enum.
+- New typed `IllegalStatusTransition` error in errors.ts (carries `from`/`to`) for any move out of
+  ARCHIVED and every no-op. A reason-less `→ BLOCKED` reuses the existing
+  `MissingAuditReason("customer.blocked")`, not a new class (per PRD §US-08.1).
+- Tests cover all 9 ordered pairs plus the empty/whitespace/undefined-reason branches.
+- Files changed: src/domain/customer/status.ts (+test), src/domain/errors.ts.
+- Checks: lint, typecheck, test:coverage (491 tests, 100% on pure layers), build all green.
+- **Learnings for future iterations:**
+  - `CustomerStatus` and `parseCustomerStatus` already live in `customer.ts`; don't redefine the enum
+    in status.ts — alias it. US-004 will need the `blockReason` Prisma field + invariant, and US-003
+    the blockCustomer/unblockCustomer use cases that call `transition`.
+  - Adding a domain error = add the string to the `DomainErrorCode` union AND the class; coverage on
+    errors.ts is gated at 100%, so every new error must be exercised by a test (status.test.ts does).
+---
+
 ## 2026-07-25 - US-001 (Customer detail page shell at /kunden/[id])
 - Added pure domain fn `ageInYears(birthDate, today)` with boundary tests (13th-style anniversary,
   29 Feb rollover, born-today = 0, future-birthdate rejection).

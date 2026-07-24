@@ -34,8 +34,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "src/domain/customer/status.ts adds transition(from,to,reason?) over the four allowed pairs; Status is aliased to the existing CustomerStatus in customer.ts (single source of truth). New typed IllegalStatusTransition error in errors.ts for any move out of ARCHIVED or any no-op; reason-less BLOCKED reuses MissingAuditReason(\"customer.blocked\"). All 9 ordered pairs tested. 100% coverage held."
     },
     {
       "id": "US-003",
