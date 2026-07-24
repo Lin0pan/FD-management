@@ -110,6 +110,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── distribution/distributionDay.test.ts  # its Vitest spec
 │   │   ├── distribution/counterVerdict.ts  # evaluateAtCounter — the one verdict at the counter
 │   │   ├── distribution/counterVerdict.test.ts  # its Vitest spec
+│   │   ├── distribution/attendance.ts  # canRecord/canCorrect — the once-per-Berlin-day rules
+│   │   ├── distribution/attendance.test.ts  # its Vitest spec
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
 │   │   │                             #   CustomerRepository, CardRepository, AuditLog

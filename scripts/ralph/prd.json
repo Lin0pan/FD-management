@@ -1,125 +1,94 @@
 {
   "project": "FD-Management",
-  "branchName": "ralph/us-04-lookup-customer",
-  "description": "US-04 Look Up a Customer by Card Number — The counter screen: one input, one unmissable verdict, everything needed to decide. Includes the portions/price display stories moved here from US-07, since they need this screen to exist.",
+  "branchName": "ralph/us-05-record-attendance",
+  "description": "US-05 Record Attendance and Payment — One action records customer, date, showed-up and paid, with the price that applied, derived per head. One record per customer per day, enforced by the database; records survive indefinitely.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "evaluateAtCounter — the counter verdict rule",
-      "description": "As a developer, I need a pure function returning exactly one verdict for a customer at the counter, so the decision is testable in milliseconds and cannot drift between screens. Source: tasks/prd-us-04-lookup-customer.md §US-04.1",
+      "title": "Attendance rules — duplicate prevention and same-day correction",
+      "description": "As a developer, I need the attendance rules as pure functions, so duplicate prevention and same-day correction are testable without a database. Source: tasks/prd-us-05-record-attendance.md §US-05.1",
       "acceptanceCriteria": [
-        "src/domain/distribution/counterVerdict.ts exports evaluateAtCounter(input) returning a discriminated union",
-        "Verdict cases are exactly: NOT_FOUND, ARCHIVED, BLOCKED (carries reason), WRONG_GROUP (carries customer group and today's colour), OUTDATED_CARD (carries presented and current card number), ALREADY_SERVED_TODAY, CLEAR_TO_SERVE, CLEAR_TO_SERVE_CERTIFICATE_EXPIRED (carries expiry date and reminder count)",
-        "Precedence is NOT_FOUND, ARCHIVED, BLOCKED, WRONG_GROUP, OUTDATED_CARD, certificate check, CLEAR_TO_SERVE — and every adjacent ordering pair has its own test",
-        "An expired certificate never produces a blocking verdict",
-        "today and weekColour are parameters — no clock and no I/O in the module",
+        "src/domain/distribution/attendance.ts exports canRecord(existingRecordsForCustomer, today) returning OK or a typed AlreadyServedToday error carrying the existing record's date",
+        "canCorrect(record, today) returns true only when record.date is the same calendar day as today",
+        "Day comparison is calendar-day based in Europe/Berlin and documented in a comment",
+        "Tests cover a midnight boundary and a DST change",
         "Tests pass",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": ""
+      "notes": "Implemented src/domain/distribution/attendance.ts (canRecord/canCorrect) with a Europe/Berlin calendar-day key via Intl; added AlreadyServedToday domain error (replacing the unused DuplicateAttendance code). Tests cover midnight boundary and both DST transitions. All gates green."
     },
     {
       "id": "US-002",
-      "title": "lookupCustomer use case",
-      "description": "As a developer, I need a read-only use case that resolves a typed number to a customer and returns the verdict plus everything the counter screen shows. Source: tasks/prd-us-04-lookup-customer.md §US-04.2",
+      "title": "recordAttendance and correctAttendance use cases",
+      "description": "As a staff member, I want one action that records the hand-out, so the queue keeps moving. Source: tasks/prd-us-05-record-attendance.md §US-05.2",
       "acceptanceCriteria": [
-        "Accepts a raw string and parses it as a card number (50k3) or a bare customer number (50)",
-        "A bare customer number resolves to the active holder of that slot; when only archived customers ever held it, the verdict is ARCHIVED for the most recent holder",
-        "A card index lower than the holder's current index yields OUTDATED_CARD; an unassigned customer number yields NOT_FOUND",
-        "The result carries name, customer number, group, counts, portions, priceCents, certificate expiry, status, reminder count, notes and current card number",
-        "Counts, portions and price are computed at read time — never read from stored columns",
-        "Test asserts the fake repository received no mutations for every verdict branch",
-        "Tested against hand-written fakes and a fake clock for all verdict branches",
+        "recordAttendance(deps, {customerId, paid}) writes one record with the customer's surrogate id, deps.clock.now(), showedUp true, the paid flag and priceCents resolved from the settings in force on that date",
+        "paid defaults to true and can be passed as false",
+        "A second invocation for the same customer on the same day rejects with AlreadyServedToday and writes nothing",
+        "The use case re-evaluates the counter verdict before writing and refuses ARCHIVED, BLOCKED and WRONG_GROUP — the UI is not the only guard",
+        "correctAttendance(deps, {recordId, ...}) amends or deletes a record made today; an older record rejects with a typed RecordNoLongerCorrectable error",
+        "Both write audit entries with no actor field",
+        "Tested against hand-written fakes and a fake clock, including the same-day duplicate and next-day correction cases",
         "Tests pass",
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Counter lookup queries and indexes",
-      "description": "As a developer, I need the lookup to resolve reassigned slots correctly and stay instant. Source: tasks/prd-us-04-lookup-customer.md §US-04.3",
+      "title": "DistributionRecord schema with the one-per-day constraint",
+      "description": "As a developer, I need distribution records that survive indefinitely and cannot be duplicated per day. Source: tasks/prd-us-05-record-attendance.md §US-05.3",
       "acceptanceCriteria": [
-        "findByCustomerNumber(n) returns the active holder, plus the most recent archived holder when there is no active one",
-        "Indexes exist on Customer.customerNumber and Customer.status",
-        "Household members, certificate and cards are loaded in one query — no N+1 at the counter",
-        "Integration test with an archived and an active customer both holding number 50 resolves correctly",
-        "Migration committed under prisma/migrations/ if the schema changed",
+        "Prisma model DistributionRecord: id, customerId (FK to Customer.id), date, showedUp, paid, priceCents Int",
+        "A normalised date-only day-key column carries a unique constraint on (customerId, dayKey) so the database prevents a double record",
+        "Indexes on date and on (customerId, date)",
+        "No delete cascade from customer archiving — records outlive status changes",
+        "Integration test proves the duplicate constraint fires",
+        "A schema comment records that priceCents is deliberate redundancy alongside the settings history, so it is not 'cleaned up' later",
+        "Migration committed under prisma/migrations/",
         "Tests pass",
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "The query and the indexes already landed with US-002; this story added the proof. One deviation from the wording: 'loaded in one query' is not reachable on Prisma's SQLite provider, which has no join strategy (relationLoadStrategy: 'join' is Postgres/MySQL only). A lookup is four fixed statements — the customer plus one per relation — and the test pins the invariant that actually matters, that the count does not grow with household size. No migration: the schema was already correct."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Counter lookup screen on /ausgabe",
-      "description": "As a staff member, I want to type a number and see one clear answer, so I can serve a queue quickly. Source: tasks/prd-us-04-lookup-customer.md §US-04.4",
+      "title": "Serve action on the counter screen",
+      "description": "As a staff member, I want to confirm the hand-out with one keystroke without leaving the counter screen. Source: tasks/prd-us-05-record-attendance.md §US-05.4",
       "acceptanceCriteria": [
-        "/ausgabe shows the week-colour banner and a single auto-focused number input; Enter performs the lookup and the input clears and re-focuses",
-        "The verdict renders as a full-width banner with a distinct colour AND an explicit German sentence and icon — never colour alone",
-        "Wrong group renders the send-away sentence naming both colours; outdated card names the presented and the current card number; blocked shows the reason verbatim; archived states not eligible; expired certificate states serve-and-remind; otherwise clear to serve",
-        "Below the verdict: name, customer number, group, counts, portions, price, certificate expiry, status, reminder count and notes are all visible without further clicks",
-        "An unknown number renders 'Nummer nicht gefunden' and keeps the input focused",
-        "The UI switch over the verdict union is exhaustive with a never-check in the default branch",
+        "A German 'Ausgabe erfassen' button appears on /ausgabe only when the verdict permits serving",
+        "A 'paid' checkbox is pre-checked and can be cleared before confirming",
+        "The button is keyboard-reachable and confirms with Enter; on success a short confirmation shows and the lookup input re-focuses",
+        "A second attempt shows 'Heute bereits versorgt' with the existing record's time",
+        "A correct-today's-entry control allows changing the paid flag or removing the record, with a confirmation step before removal",
         "All user-facing strings come from src/i18n/de.ts",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Verified in a real browser with a throwaway Playwright spec (no dev-browser MCP tools in this environment): CLEAR_TO_SERVE, WRONG_GROUP, CLEAR_TO_SERVE_CERTIFICATE_EXPIRED, NOT_FOUND and a nonsense entry all render, and the input is empty and focused again after Enter. The permanent spec is US-005. The serve action (PRD §US-04.4, last bullet) is not here: US-05 has not been built, so there is nothing to render."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
-      "title": "E2E: every verdict at the counter",
-      "description": "As a developer, I need a Playwright spec covering each counter verdict and proving read-only behaviour. Source: tasks/prd-us-04-lookup-customer.md §US-04.5",
+      "title": "E2E: distribution-day happy path",
+      "description": "As a developer, I need a Playwright spec covering the core distribution-day flow. Source: tasks/prd-us-05-record-attendance.md §US-05.5",
       "acceptanceCriteria": [
-        "Spec seeds one customer per verdict and asserts the banner text for each",
-        "Spec asserts that looking up a wrong-group customer and an outdated card leaves the database unchanged: no distribution record, no reminder, no status change",
-        "Spec asserts an unknown number shows the not-found message rather than an empty page",
+        "Spec with a fixed clock on a Red distribution day looks up a Red customer, records attendance with paid, and asserts the confirmation and today's record",
+        "Spec attempts a second recording and asserts the German already-served message and that only one record exists",
+        "Spec clears the paid flag for a second customer and asserts the record stores paid = false",
         "npm run test:e2e passes",
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "tests/e2e/counter.spec.ts — 8 specs, npm run test:e2e green (20 passed, 1 skipped). Two deviations from the wording. ALREADY_SERVED_TODAY has no seedable state: nothing can serve a household until US-05, so nothing can serve one twice; the other seven verdicts are covered. And 'no distribution record' has no table to assert against yet — the read-only spec snapshots statuses, reminder counts and the card and audit-entry counts instead, which is every row a lookup could touch today. Running the suite also caught a regression US-004 left behind: two submit buttons on /ausgabe both named 'Nachschlagen', fixed in its own commit."
-    },
-    {
-      "id": "US-006",
-      "title": "Display portions and price across the customer screens",
-      "description": "As a staff member, I want portions and price shown wherever I look at a customer, so I hand out the right amount without arithmetic. Source: tasks/prd-us-07-portions-and-price.md §US-07.4",
-      "acceptanceCriteria": [
-        "The counter screen, the card view and the customer detail page all show portions and price",
-        "Money renders as German-formatted euro (e.g. 2,50 €) via formatEuros from src/domain/money.ts",
-        "Each screen states these are the standard values; there is no control to adjust them",
-        "Money renders as German-formatted euro via formatEuros, derived from the counts and the settings in force",
-        "All user-facing strings come from src/i18n/de.ts",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 6,
-      "passes": true,
-      "notes": "Portions and price now render on all three screens. The counter already had them (US-004); this story added them to the card view (/kunden/[id]/karte) and the customer record (/kunden/[id]), both derived through describeAllowance so readCustomer/readCard cannot disagree with the counter. The displayed composition counts are a slice of the same allowance, not a second derivation. New i18n string de.customers.derived.standardValues carries the 'standard values, not adjustable' statement, added to all three screens (it was on none before). readCard's deps gained `settings`. Verified in a real browser with a throwaway Playwright spec (no dev-browser MCP tools here): a 2-grown-up/1-child BLUE household shows Portionen 5 and Preis 5,00 € on both the detail page and the card, with the standard-values hint. E2E permanent proof is US-007."
-    },
-    {
-      "id": "US-007",
-      "title": "E2E: portions and price follow the household",
-      "description": "As a developer, I need a Playwright spec proving the allowance is derived, not stored. Source: tasks/prd-us-07-portions-and-price.md §US-07.5",
-      "acceptanceCriteria": [
-        "Spec asserts a customer with 2 grown-ups and 1 child shows the seeded portions and price",
-        "Spec asserts adding a household member changes the portions and the price on reload",
-        "npm run test:e2e passes",
-        "Typecheck passes"
-      ],
-      "priority": 7,
-      "passes": true,
-      "notes": "tests/e2e/portions.spec.ts — seeds a 2-grown-up/1-child household straight through Prisma (customer number 211, clear of the low sequence and the counter spec's 201–206), reads 5 Portionen and 5,00 € off /kunden/[id], then adds a second child directly in the DB and reloads to 6 Portionen and 6,00 €. Also asserts the 'standard values, not adjustable' hint. One deviation: adding the member goes through Prisma, not the UI, because editing a household (US-16) has no screen yet — the reload-derives-afresh proof is what the criterion is really after. npm run test:e2e green (21 passed, 1 pre-existing skip)."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

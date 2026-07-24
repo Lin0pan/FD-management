@@ -20,7 +20,7 @@ export type DomainErrorCode =
   | "WrongGroupForWeek"
   | "InvalidCardNumber"
   | "CardIndexTaken"
-  | "DuplicateAttendance"
+  | "AlreadyServedToday"
   | "InvalidSettings"
   | "NoSettingsInForce"
   | "QuotaBelowActiveCustomers"
@@ -260,6 +260,25 @@ export class CardIndexTaken extends DomainError {
     super(`Card index ${index} of customer ${customerId} was taken by another issue`);
     this.customerId = customerId;
     this.index = index;
+  }
+}
+
+/**
+ * The customer already has a distribution record for today, so a second hand-out would be a double
+ * record (US-05, FR-5). Carries the date of the record already on file, so the counter can quote back
+ * the time the customer was served rather than a bare refusal.
+ *
+ * "Today" is a calendar day in Europe/Berlin, not a 24-hour window: two hand-outs at 09:00 and 16:00
+ * on the same distribution day collide, and the comparison is the domain rule's, not the database's —
+ * though the database repeats it as a unique constraint so the guard cannot be bypassed (US-05.3).
+ */
+export class AlreadyServedToday extends DomainError {
+  readonly code = "AlreadyServedToday";
+  readonly existingDate: Date;
+
+  constructor(existingDate: Date) {
+    super(`Already served today; a record exists from ${existingDate.toISOString()}`);
+    this.existingDate = existingDate;
   }
 }
 
