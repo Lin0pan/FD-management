@@ -53,8 +53,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "block-customer.ts and unblock-customer.ts orchestrate transition() + a new CustomerRepository.setStatus(id,status,blockReason) port + audit. Block trims the reason, refuses whitespace via MissingAuditReason and illegal moves via IllegalStatusTransition; unblock reads the reason before clearing it so the audit why records the lifted block. Added blockReason to RegisteredCustomer and pulled the Prisma column + migration forward (a port method forces infra to compile and a reason needs a column) — US-004 keeps the invariant + slot-occupancy integration tests. Fake takenActiveNumbers now derives from live status so a block keeps the slot; all four customer fakes gained setStatus. 506 tests green, 100% on pure layers, build ok."
     },
     {
       "id": "US-004",

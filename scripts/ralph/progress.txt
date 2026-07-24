@@ -3,6 +3,22 @@ Started: Sat Jul 25 01:36:25 CEST 2026
 ---
 
 ## Codebase Patterns
+- Adding a method to a port interface (e.g. CustomerRepository) forces EVERY implementer to compile:
+  the real PrismaCustomerRepository AND the hand-written fakes, which live in FOUR test files —
+  customers.test.ts, certificate-reminder.test.ts, lookup-customer.test.ts and
+  distribution/record-attendance.test.ts. `grep -rln "implements CustomerRepository" src/` before
+  you start. Miss one and typecheck fails, not lint.
+- Adding a field to RegisteredCustomer ripples the same way: every fake `create` returning
+  `{ ...customer, id }` and every `customerRecord()` builder literal needs the new field. It is on
+  RegisteredCustomer, NOT NewCustomer (registration always produces ACTIVE / null blockReason).
+- Prisma migrations are pre-release disposable but ADDITIVE changes (a new nullable column) just get
+  their own migration via `npx prisma migrate dev --name <x> --skip-generate`; no need to regenerate
+  init (which carries the hand-written partial unique index at its tail — regenerating drops it).
+  Then `npx prisma generate` so the client types pick up the column. Infra tests spin up a throwaway
+  DB with `prisma migrate deploy`, so a committed migration is what makes them see the column.
+- Status changes go through `transition(from, to, reason?)` in domain/customer/status.ts, never an
+  ad-hoc status assignment. It throws IllegalStatusTransition for illegal/no-op moves and
+  MissingAuditReason for a reason-less `→ BLOCKED`. Persist via CustomerRepository.setStatus.
 - The page at /kunden/[id] already exists (built in US-01 as the card landing). It renders
   `CustomerCardView` from `readCustomer` and links to the card view at /kunden/[id]/karte. Extend it
   rather than creating a new page.
@@ -56,4 +72,38 @@ Started: Sat Jul 25 01:36:25 CEST 2026
     not "build from scratch". Read the existing page before assuming a story is greenfield.
   - Browser verification is still outstanding: no dev-browser skill or browser MCP is wired into this
     session. Someone should click through /kunden/[id] manually (or run it when tooling is available).
+---
+
+## 2026-07-25 - US-003 (blockCustomer and unblockCustomer use cases)
+- Added `blockCustomer(deps, {customerId, reason})` and `unblockCustomer(deps, {customerId})` in
+  src/application/customers/. Both load the customer, run `transition(...)` (the state machine owns
+  legality + the mandatory-reason rule), persist via a new port method, and append one audit entry.
+  Block trims the reason and stores it; unblock reads the reason first, clears it, and records the
+  lifted reason as the audit `why` (the log is the only place a block's text survives once cleared).
+- New port `CustomerRepository.setStatus(id, status, blockReason)`: one write of status + reason so
+  they can never disagree. Implemented in PrismaCustomerRepository (`prisma.customer.update`).
+- Added `blockReason: string | null` to `RegisteredCustomer` and the `blockReason String?` column to
+  the Prisma Customer model + migration `20260724235102_customer_block_reason`. This was nominally
+  US-004's migration, pulled forward because a port method must compile against real infra and a
+  stored reason needs a column. US-004 keeps the invariant test + slot-occupancy integration test.
+- Fake CustomerRepository (customers.test.ts) `takenActiveNumbers` now derives from live status
+  (ACTIVE|BLOCKED occupy, ARCHIVED frees), which is what makes "a block does not free the slot"
+  testable; `create` stopped pushing to `taken` (competitor steals still do). Added `setStatus` and
+  `blockReason: null` to all four CustomerRepository fakes.
+- Files: src/application/customers/{block-customer,unblock-customer}.ts (+customers.test.ts),
+  src/application/ports.ts, src/domain/customer/customer.ts,
+  src/infrastructure/prisma/customer-repository.ts, prisma/schema.prisma + migration,
+  src/application/customers/{certificate-reminder,lookup-customer}.test.ts,
+  src/application/distribution/record-attendance.test.ts, docs/technical_documentation.md.
+- Checks: lint, typecheck, test:coverage (506 tests, 100% on domain/application), build — all green.
+- **Learnings for future iterations:**
+  - US-004 is now mostly the two proof tests: an invariant test (blockReason non-null iff BLOCKED)
+    and an integration test that the partial unique index treats BLOCKED as occupying the slot (the
+    ON_REGISTER `status <> ARCHIVED` behaviour already does this). The column + migration are done.
+  - US-005 (block/unblock UI) will surface `view.customer.blockReason`; readCustomer already returns
+    the whole RegisteredCustomer, so no application change is needed to show the reason — only i18n
+    keys + the detail page + the counter verdict banner (must show the reason in full, never
+    truncated). No dev-browser skill/MCP is wired in this session; browser checks stay manual.
+  - The counter serve verdict (domain/distribution/counterVerdict.ts) already turns a BLOCKED
+    customer away with NotClearToServe — US-005/US-006 need to render that reason, not re-derive it.
 ---

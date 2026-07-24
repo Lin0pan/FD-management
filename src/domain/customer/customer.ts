@@ -106,6 +106,13 @@ export interface NewCustomer {
  */
 export interface RegisteredCustomer extends NewCustomer {
   readonly id: number;
+  /**
+   * Why this customer is currently blocked, or `null` when they are not — non-null *exactly* when
+   * `status` is `BLOCKED`. A block's reason is its only current record: it is written the moment the
+   * block is applied and cleared the moment it is lifted (US-08). The audit log keeps the history;
+   * this field keeps what the counter must show today (US-08, FR-4).
+   */
+  readonly blockReason: string | null;
 }
 
 /**

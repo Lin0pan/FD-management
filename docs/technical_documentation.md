@@ -125,7 +125,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   ReminderLogRepository, CertificateRepository, AuditLog
 │   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
 │   │   │                             #   readCard, issueCard, lookupCustomer (the counter lookup),
-│   │   │                             #   recordReminder / renewCertificate (US-06)
+│   │   │                             #   recordReminder / renewCertificate (US-06),
+│   │   │                             #   blockCustomer / unblockCustomer (US-08)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
@@ -410,8 +411,10 @@ needed. The Excel sheet FD is replacing stored them, and they drifted with every
 `NewCustomer` adds what registration decides — `customerNumber`, `group`, `status`,
 `reminderCount`, the first `card` — and `RegisteredCustomer` adds the surrogate `id`, which is the
 only identity there is: a customer number is a slot another household may hold once this one is
-archived. `CustomerStatus` is `ACTIVE | BLOCKED | ARCHIVED`; a blocked customer still holds their
-slot (US-08), an archived one releases it (US-10).
+archived, plus `blockReason`, non-null **exactly** when the customer is blocked. `CustomerStatus` is
+`ACTIVE | BLOCKED | ARCHIVED`; a blocked customer still holds their slot (US-08), an archived one
+releases it (US-10). The legal moves between the three states live in `status.ts` (`transition`),
+so an illegal transition is impossible rather than merely unlikely.
 
 ### `src/domain/customer/certificate.ts`
 
@@ -617,6 +620,30 @@ at the counter, and these use cases record its two possible outcomes.
 Both are tested against hand-written fakes and a fake clock (`certificate-reminder.test.ts`),
 including the Berlin-midnight boundary and the valid-through-its-last-day boundary.
 
+### `src/application/customers/blockCustomer` and `unblockCustomer`
+
+The two writes of the manual, temporary **block** (US-08): a household paused with a mandatory
+free-text reason, lifted when staff judge the matter settled. A block keeps everything — the
+customer number, the card and the record — and does **not** free the slot; only archiving does.
+
+- **`blockCustomer(deps, { customerId, reason })`** trims the reason once, then asks the
+  `transition` state machine to move `ACTIVE → BLOCKED`. The machine settles both questions before
+  any write: an already-blocked or archived customer is an illegal move (`IllegalStatusTransition`),
+  and a whitespace-only reason is a missing record (`MissingAuditReason`, the same error the archive
+  and settings changes speak). Persistence is one `setStatus` call storing the status and reason
+  together; the audit entry (`customer.blocked`, changed fields `status`, `blockReason`) carries the
+  reason verbatim as its `why`, because with the field cleared on unblock the log is the only place
+  the text survives.
+- **`unblockCustomer(deps, { customerId })`** moves `BLOCKED → ACTIVE` (again the state machine
+  refuses lifting a block on a customer who has none) and clears the reason with `setStatus(…, null)`.
+  It reads the current reason **before** clearing it so the audit entry (`customer.unblocked`) records
+  the block that was lifted; a hand-fixed row with no reason records an empty `why` rather than
+  crashing. No new reason is asked for — lifting needs no justification of its own.
+
+Neither use case touches the customer number, the card or any distribution record. Both are tested
+against hand-written fakes (`customers.test.ts`), including that a block leaves the number in the
+taken-slots query — a block never frees a slot.
+
 ### `src/infrastructure/prisma/audit-log.ts`
 
 The **append-only audit log** (`PrismaAuditLog`). Every state change is recorded with a timestamp
@@ -639,7 +666,9 @@ number — and stating that condition twice is how a number gets handed out twic
 nested Prisma create**, which Prisma runs in a single transaction — a failure leaves neither a
 half-built household nor a consumed number. A `P2002` naming `customerNumber` is translated into the
 domain's `CustomerNumberTaken`, which is what lets `registerCustomer` retry with a fresh read; any
-other failure is rethrown as itself.
+other failure is rethrown as itself. `setStatus(id, status, blockReason)` is the one write behind
+`blockCustomer` / `unblockCustomer`: it updates the `status` and `blockReason` columns together, so
+the reason a blocked customer carries can never disagree with their status.
 
 The **partial unique index** the adapter relies on is not in `schema.prisma` — Prisma has no syntax
 for one — but hand-written at the end of the `init` migration:

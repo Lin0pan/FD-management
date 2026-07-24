@@ -8,7 +8,12 @@
  */
 
 import type { IssuedCard } from "@/domain/card/card";
-import type { NeedsCertificate, NewCustomer, RegisteredCustomer } from "@/domain/customer/customer";
+import type {
+  CustomerStatus,
+  NeedsCertificate,
+  NewCustomer,
+  RegisteredCustomer,
+} from "@/domain/customer/customer";
 import type { GroupCounts } from "@/domain/customer/group";
 import type {
   DistributionRecord,
@@ -72,6 +77,14 @@ export interface CustomerRepository {
    * @throws {CustomerNumberTaken} if another registration took the number first.
    */
   create(customer: NewCustomer): Promise<RegisteredCustomer>;
+  /**
+   * Move a customer to a new status, storing `blockReason` with it in one transaction so the two
+   * can never disagree: the trimmed reason for a move to `BLOCKED`, and `null` for any other status
+   * (lifting a block clears it). The customer number, the cards and the distribution records are
+   * left untouched — a status change is not a re-registration and frees nothing but the slot an
+   * archive releases (US-08, US-10).
+   */
+  setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void>;
 }
 
 /**
