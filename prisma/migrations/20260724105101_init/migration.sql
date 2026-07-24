@@ -59,6 +59,18 @@ CREATE TABLE "Card" (
 );
 
 -- CreateTable
+CREATE TABLE "DistributionRecord" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "customerId" INTEGER NOT NULL,
+    "date" DATETIME NOT NULL,
+    "dayKey" TEXT NOT NULL,
+    "showedUp" BOOLEAN NOT NULL,
+    "paid" BOOLEAN NOT NULL,
+    "priceCents" INTEGER NOT NULL,
+    CONSTRAINT "DistributionRecord_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "AuditEntry" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "what" TEXT NOT NULL,
@@ -84,6 +96,15 @@ CREATE UNIQUE INDEX "Certificate_customerId_key" ON "Certificate"("customerId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Card_customerId_index_key" ON "Card"("customerId", "index");
+
+-- CreateIndex
+CREATE INDEX "DistributionRecord_date_idx" ON "DistributionRecord"("date");
+
+-- CreateIndex
+CREATE INDEX "DistributionRecord_customerId_date_idx" ON "DistributionRecord"("customerId", "date");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DistributionRecord_customerId_dayKey_key" ON "DistributionRecord"("customerId", "dayKey");
 
 -- CreateIndex
 CREATE INDEX "AuditEntry_when_idx" ON "AuditEntry"("when");

@@ -58,8 +58,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 ├── data/                             # SQLite db lives here at runtime (git-ignored; .gitkeep tracked)
 ├── docs/                             # all project documentation (this file included)
 ├── prisma/
-│   ├── schema.prisma                 # datasource + models (SettingsVersion, AuditEntry,
-│   │                                 #   Customer, HouseholdMember, Certificate, Card)
+│   ├── schema.prisma                 # datasource + models (SettingsVersion, AuditEntry, Customer,
+│   │                                 #   HouseholdMember, Certificate, Card, DistributionRecord)
 │   ├── seed.ts                       # `npm run db:seed` entry point
 │   └── migrations/                   # committed migration history
 ├── src/
@@ -128,6 +128,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │       ├── settings-repository.ts  # PrismaSettingsRepository (implements the port)
 │   │       ├── customer-repository.ts  # PrismaCustomerRepository + PrismaCustomerCounter
 │   │       ├── card-repository.ts    # PrismaCardRepository — the (customer, index) constraint
+│   │       ├── distribution-record-repository.ts  # PrismaDistributionRecordRepository — (customer, Berlin dayKey)
 │   │       ├── audit-log.ts          # PrismaAuditLog — append-only, no actor column
 │   │       ├── seed.ts               # provisional settings version, inserted only if none exists
 │   │       └── *.test.ts             # integration specs, throwaway SQLite file
@@ -202,14 +203,15 @@ The interfaces the application layer depends on. Per the TDD approach, ports **e
 needs** rather than being designed up front. Type-only, so it adds no runtime code to the
 coverage-measured layers.
 
-| Port                 | Shape                                                                         | Notes                                                                                                                   |
-| -------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `Clock`              | `now(): Date`                                                                 | The one seam to the wall clock.                                                                                         |
-| `SettingsRepository` | `listVersions()`, `append(version)`                                           | No update/delete — policy history is append-only.                                                                       |
-| `CustomerCounter`    | `countActive()`                                                               | The reality the quota `N` may not fall below.                                                                           |
-| `CustomerRepository` | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                   | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                              |
-| `CardRepository`     | `currentCard(customerId)`, `listCards(customerId)`, `issue(customerId, card)` | `currentCard` is the highest index — there is no `valid` flag to read; `issue` reports a lost race as `CardIndexTaken`. |
-| `AuditLog`           | `append(entry)`                                                               | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                               |
+| Port                           | Shape                                                                                      | Notes                                                                                                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Clock`                        | `now(): Date`                                                                              | The one seam to the wall clock.                                                                                                                                                |
+| `SettingsRepository`           | `listVersions()`, `append(version)`                                                        | No update/delete — policy history is append-only.                                                                                                                              |
+| `CustomerCounter`              | `countActive()`                                                                            | The reality the quota `N` may not fall below.                                                                                                                                  |
+| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                                | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                                                                                     |
+| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issue(customerId, card)`              | `currentCard` is the highest index — there is no `valid` flag to read; `issue` reports a lost race as `CardIndexTaken`.                                                        |
+| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)` | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade). |
+| `AuditLog`                     | `append(entry)`                                                                            | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                      |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
 
@@ -782,8 +784,16 @@ them, and two copies is how two screens start rendering the same date two ways.
   `grownUps` and no `children` column** — both are derived from the household's birthdates, and
   stored they would drift with every birthday, which is exactly what the Excel sheet did.
   `Card` is unique on `(customerId, index)`; the card number staff read out is derived from the
-  customer number and the index, never stored. `DistributionRecord` follows with the stories that
-  need it.
+  customer number and the index, never stored.
+- `DistributionRecord` is the append-many history of hand-outs (US-05). It carries `date`, a
+  normalised Europe/Berlin `dayKey` (`YYYY-MM-DD`, written by the domain's `berlinDayKey`), the
+  `showedUp` and `paid` flags and `priceCents`. The unique `(customerId, dayKey)` index is the
+  database's own enforcement of once-per-day: a second hand-out on the same Berlin day cannot be
+  written even if two requests race past `attendance.canRecord`, and the adapter surfaces the lost
+  race as `AlreadyServedToday`. Indexes on `date` and `(customerId, date)` serve the no-show query
+  (US-10). `priceCents` is deliberate redundancy alongside the settings history — it makes a record
+  self-describing — and the relation has **no `onDelete: Cascade`**, so records outlive a customer's
+  status changes and are never removed by archiving.
 - **The slot rule is a partial unique index**, hand-written at the end of the `init` migration
   because Prisma cannot express one: at most one non-archived customer may hold a given
   `customerNumber`, so any number of archived rows may share one. See

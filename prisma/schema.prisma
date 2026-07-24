@@ -108,6 +108,7 @@ model Customer {
   householdMembers HouseholdMember[]
   certificate      Certificate?
   cards            Card[]
+  distributions    DistributionRecord[]
 
   @@index([customerNumber])
   @@index([status])
@@ -170,6 +171,53 @@ model Card {
   /// so two cards sharing one would leave no current card at all. This constraint, not the
   /// application, is the final authority on whether an index was still free when the write landed.
   @@unique([customerId, index])
+}
+
+/// One hand-out that actually happened: a customer showed up on a distribution day, paid or did not,
+/// and owed the price their household drew under the policy in force then (US-05, FR-1).
+///
+/// **Records outlive their customer.** There is deliberately no `onDelete: Cascade` on the relation:
+/// archiving is a status change, not a delete, and the distribution history must survive it — a report
+/// of who collected last March cannot depend on the household still being on the register (US-10,
+/// US-11). Customer data is never hard-deleted anyway, so the foreign key only ever points at a row
+/// that is still there.
+///
+/// The once-per-distribution-day rule (FR-5) lives in the domain (`attendance.canRecord`), but the
+/// database is its final authority: `dayKey` is a normalised Europe/Berlin calendar-day string
+/// (`YYYY-MM-DD`, filled by `berlinDayKey` so it matches the domain rule exactly), and the unique
+/// `(customerId, dayKey)` index means a second hand-out on the same day cannot be written even if two
+/// requests race past the use case's guard. The raw `date` instant is kept alongside it for the
+/// no-show query (US-10) and for display.
+model DistributionRecord {
+  id Int @id @default(autoincrement())
+
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  /// The instant the hand-out was recorded, from the injected clock. Its Berlin calendar day is
+  /// `dayKey`; both are stored so the once-per-day constraint never has to reinterpret the instant.
+  date DateTime
+
+  /// The Europe/Berlin calendar day of `date` as `YYYY-MM-DD`. Not derivable in SQLite (no timezone
+  /// arithmetic), so it is written by the domain's `berlinDayKey` and the unique index below rests on
+  /// it. Never a UTC or naive date — see the comment on `src/domain/distribution/attendance.ts`.
+  dayKey String
+
+  /// Whether the customer showed up. Always true today — a no-show writes no record at all (FR-6).
+  showedUp Boolean
+
+  /// Whether they paid; a flag, never an amount.
+  paid Boolean
+
+  /// What the household owed under the policy in force on `date`, in whole euro cents. This is
+  /// **deliberate redundancy** alongside the settings history (PRD §6): the price could be re-derived
+  /// by resolving the version in force then, but capturing it makes a record self-describing so later
+  /// reporting can price a past distribution with a single-table read. It is not to be "cleaned up".
+  priceCents Int
+
+  @@unique([customerId, dayKey])
+  @@index([date])
+  @@index([customerId, date])
 }
 
 /// One append-only record of a state change: *what* changed, *when* and *why* — never *who*.

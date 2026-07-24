@@ -36,8 +36,14 @@ const berlinDay = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
 });
 
-/** The calendar day `instant` falls on in Europe/Berlin, as a `YYYY-MM-DD` key safe to compare. */
-function berlinDayKey(instant: Date): string {
+/**
+ * The calendar day `instant` falls on in Europe/Berlin, as a `YYYY-MM-DD` key safe to compare.
+ *
+ * Exported so the database day-key column (US-05.3) is filled by *this* rule rather than a second,
+ * silently different notion of "the same day": the unique `(customerId, dayKey)` constraint that
+ * backstops {@link canRecord} must agree with it exactly, including across the DST changes.
+ */
+export function berlinDayKey(instant: Date): string {
   return berlinDay.format(instant);
 }
 
