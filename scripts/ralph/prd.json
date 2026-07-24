@@ -72,8 +72,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Verified in a real browser with a throwaway Playwright spec (no dev-browser MCP tools in this environment): CLEAR_TO_SERVE, WRONG_GROUP, CLEAR_TO_SERVE_CERTIFICATE_EXPIRED, NOT_FOUND and a nonsense entry all render, and the input is empty and focused again after Enter. The permanent spec is US-005. The serve action (PRD §US-04.4, last bullet) is not here: US-05 has not been built, so there is nothing to render."
     },
     {
       "id": "US-005",

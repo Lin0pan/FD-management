@@ -22,6 +22,15 @@ Started: Thu Jul 23 21:04:04 CEST 2026
 - `insertCustomer` in the repository test writes a bare row with no certificate or card: fine for
   counting/slot tests, but any read through `toRegisteredCustomer` throws `InvalidCustomerRecord`.
   Use `repository.create(newCustomer({...}))` for anything that reads a customer back.
+- Read-only screens use a plain `method="get"` form and read `searchParams` — no client component,
+  no server action. The navigation is what clears and re-focuses an `autoFocus` input, so a
+  "type → Enter → read → type again" loop needs no state at all.
+- A route's `deps.ts` is its composition root, and *what it omits is a guarantee*: a screen that
+  never writes holds no `AuditLog`. Say so in the comment — it is the enforcement.
+- Verified UI in the browser by dropping a throwaway spec into `tests/e2e/`, running
+  `npx playwright test <name>` (it builds, migrates and seeds a fresh `data/e2e.db` itself) with
+  `page.screenshot()`, then deleting it. `writeFileSync("data/e2e-now.txt", iso)` pins the app's
+  today mid-spec; delete the file afterwards or the settings specs assert against the wrong month.
 
 ---
 
@@ -120,4 +129,42 @@ Started: Thu Jul 23 21:04:04 CEST 2026
     exhaustive `never`-check switch over the `Verdict` union is an explicit criterion. All eight
     verdict cases need German strings in `src/i18n/de.ts`, `ALREADY_SERVED_TODAY` included even
     though the read-only rule never emits it yet.
+---
+
+## 2026-07-24 - US-004 (Counter lookup screen on /ausgabe)
+- Built the counter screen: type a number, read one verdict, see everything the decision rests on
+  (US-04.4). First UI story of this batch.
+- Files changed:
+  - `src/app/ausgabe/counter-lookup.tsx` (new) — `VerdictBanner` and `CustomerDetails`.
+    `statementFor(verdict)` is the one place a verdict becomes words: a `switch` ending in
+    `const unhandled: never = verdict`, so a ninth case is a compile error until it is rendered.
+    Each verdict gets an icon, a headline and a full German sentence; the colour only repeats them.
+  - `src/app/ausgabe/page.tsx` — a second `method="get"` form on `?nummer=`, calling `lookupCustomer`.
+    `InvalidCardNumber` renders a German sentence beside the form; everything else rethrows.
+  - `src/app/ausgabe/deps.ts` — added `customers`. Still no `AuditLog`, no `CardRepository`.
+  - `src/i18n/de.ts` — `de.distribution.counter` (all eight verdicts, the inflected colour forms,
+    the field labels) plus `de.customers.derived.portions` / `.price`, shared with US-006.
+  - `docs/technical_documentation.md` — file tree, the `ausgabe/` section, a counter subsection.
+- Checks: lint, typecheck, 390 tests (domain+application still 100%), build — all green.
+- Browser: verified with a throwaway Playwright spec (screenshots to /tmp), then deleted. Confirmed
+  CLEAR_TO_SERVE (3 Portionen, 3,00 €), WRONG_GROUP ("Rote Kundin / roter Kunde — blaue Woche.
+  Wegschicken, nächste Woche wieder."), CLEAR_TO_SERVE_CERTIFICATE_EXPIRED, NOT_FOUND with no
+  details block, `?nummer=abc`, and that after Enter the input is empty and focused again.
+- **Learnings for future iterations:**
+  - The `never`-check needs a *binding* (`const unhandled: never = verdict`), not a bare expression —
+    ESLint's no-unused-vars is satisfied because the binding is used in the thrown message.
+  - `type="number"` is wrong for the counter input: a card number carries a `k`. `type="text"` +
+    `inputMode="numeric"` gets the phone keypad without rejecting `50k3`.
+  - Two GET forms on one page each drop the other's query param. That is right here — a counter
+    lookup is about today — but worth knowing before adding a third.
+  - `formatEuros` (not `formatEuroAmount`) is the display form: it appends the `€`. `formatEuroAmount`
+    is for input fields, where what renders must parse back.
+  - `de.customers.derived.portions` / `.price` were added at the shared level on purpose: US-006 puts
+    the same two values on the card view and the detail page and must reuse these labels. US-006's
+    "these are the standard values" hint is *not* on the counter yet — add it to all three screens
+    together.
+  - US-005 (next) is the permanent Playwright spec. It needs one customer per verdict; the UI can
+    only produce CLEAR_TO_SERVE, WRONG_GROUP and the expired-certificate case (registration + the
+    pinned clock). ARCHIVED, BLOCKED and OUTDATED_CARD have no UI to reach them yet — seed them
+    through Prisma directly. The banner exposes `data-verdict="<kind>"` for exactly this.
 ---
