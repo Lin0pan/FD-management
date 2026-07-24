@@ -45,6 +45,7 @@ CREATE TABLE "Certificate" (
     "customerId" INTEGER NOT NULL,
     "type" TEXT NOT NULL,
     "validUntil" DATETIME NOT NULL,
+    "recordedAt" DATETIME NOT NULL,
     CONSTRAINT "Certificate_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -71,6 +72,15 @@ CREATE TABLE "DistributionRecord" (
 );
 
 -- CreateTable
+CREATE TABLE "ReminderLog" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "customerId" INTEGER NOT NULL,
+    "loggedOn" TEXT NOT NULL,
+    "resultingCount" INTEGER NOT NULL,
+    CONSTRAINT "ReminderLog_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "AuditEntry" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "what" TEXT NOT NULL,
@@ -92,7 +102,7 @@ CREATE INDEX "Customer_status_idx" ON "Customer"("status");
 CREATE INDEX "HouseholdMember_customerId_idx" ON "HouseholdMember"("customerId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Certificate_customerId_key" ON "Certificate"("customerId");
+CREATE INDEX "Certificate_customerId_recordedAt_idx" ON "Certificate"("customerId", "recordedAt");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Card_customerId_index_key" ON "Card"("customerId", "index");
@@ -105,6 +115,9 @@ CREATE INDEX "DistributionRecord_customerId_date_idx" ON "DistributionRecord"("c
 
 -- CreateIndex
 CREATE UNIQUE INDEX "DistributionRecord_customerId_dayKey_key" ON "DistributionRecord"("customerId", "dayKey");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ReminderLog_customerId_loggedOn_key" ON "ReminderLog"("customerId", "loggedOn");
 
 -- CreateIndex
 CREATE INDEX "AuditEntry_when_idx" ON "AuditEntry"("when");

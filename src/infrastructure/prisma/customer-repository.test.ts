@@ -126,7 +126,7 @@ describe("PrismaCustomerRepository.create", () => {
 
     const row = await prisma.customer.findUniqueOrThrow({
       where: { id: registered.id },
-      include: { householdMembers: true, certificate: true, cards: true },
+      include: { householdMembers: true, certificates: true, cards: true },
     });
     expect(row.customerNumber).toBe(50);
     expect(row.firstName).toBe(customer.details.firstName);
@@ -135,7 +135,9 @@ describe("PrismaCustomerRepository.create", () => {
     expect(row.status).toBe("ACTIVE");
     expect(row.reminderCount).toBe(0);
     expect(row.householdMembers).toHaveLength(2);
-    expect(row.certificate?.validUntil).toEqual(customer.details.certificate.validUntil);
+    expect(row.certificates).toHaveLength(1);
+    expect(row.certificates[0].validUntil).toEqual(customer.details.certificate.validUntil);
+    expect(row.certificates[0].recordedAt).toEqual(TODAY);
     expect(row.cards).toHaveLength(1);
     expect(row.cards[0].index).toBe(1);
     expect(row.cards[0].issuedAt).toEqual(TODAY);

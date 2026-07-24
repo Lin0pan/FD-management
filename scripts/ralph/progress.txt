@@ -32,3 +32,15 @@ Started: Fri Jul 24 14:11:17 CEST 2026
   - Current Prisma `Certificate` model is one-per-customer (`customerId @unique`, "renewal replaces the dates") — US-06.3 must flip it to appended rows + `recordedAt`, update the model comment, and regenerate the pre-release migration (delete prisma/migrations, `npx prisma migrate dev --name init`, re-add the hand-written partial unique index for customerNumber!, then `npm run db:reset`).
   - New DomainError classes don't need errors.test.ts entries when application tests construct them — domain coverage stays 100% through those.
 ---
+## 2026-07-24 14:35 - US-003 (ReminderLog schema and appended certificate history)
+- Added the `ReminderLog` model (id, customerId FK, Berlin `loggedOn` day-key, `resultingCount`, unique `(customerId, loggedOn)`, deliberately no cascade like DistributionRecord) and flipped `Certificate` from one-per-customer to **appended rows**: dropped `customerId @unique`, added `recordedAt` + `@@index([customerId, recordedAt])`; the certificate on file is the latest by `recordedAt`.
+- Regenerated the pre-release migration (deleted prisma/migrations, `npx prisma migrate dev --name init`, re-appended the hand-written partial unique index for customerNumber, `npm run db:reset`).
+- New adapters: `PrismaReminderLogRepository` (`record` = entry + count in one $transaction, P2002 on loggedOn → `ReminderAlreadyLoggedToday`) and `PrismaCertificateRepository` (`renew` = append cert + reset count in one $transaction). Integration tests prove the per-day constraint fires (incl. a Promise.allSettled race), the append keeps history, and the counter reads the latest cert back.
+- Files changed: prisma/schema.prisma, prisma/migrations/ (regenerated), src/infrastructure/prisma/{reminder-log-repository,certificate-repository}.ts+tests (new), customer-repository.ts+test (certificates relation), tests/e2e/{counter,portions,serve}.spec.ts (fixture relation rename), docs/technical_documentation.md.
+- Quality: lint ✓, typecheck ✓, test:coverage ✓ (470 tests), build ✓, test:e2e ✓ (24 passed).
+- **Learnings for future iterations:**
+  - Renaming a Prisma relation breaks **e2e fixtures** too — tests/e2e/*.spec.ts create customers with nested `certificates:`/`cards:` writes; typecheck catches them, but remember `recordedAt` is now required on every certificate create.
+  - `prisma migrate dev` refuses while the old migration is applied — delete `data/fd.db*` first (the db:reset one-liner), then regenerate; afterwards re-append the partial index **before** `npm run db:reset`.
+  - Registration's first certificate row is stamped `recordedAt = card.issuedAt` in customer-repository.create — both come from the same registration instant; US-06.4's deps wiring can hand the two new adapters straight to recordReminder/renewCertificate.
+  - `CUSTOMER_INCLUDE` orders certificates `[{recordedAt: desc}, {id: desc}]` — the id tie-break mirrors "the later row wins" for same-millisecond writes.
+---

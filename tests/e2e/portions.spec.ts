@@ -89,10 +89,11 @@ test("portions and price are derived from the household, not stored", async ({ p
           },
         ],
       },
-      certificate: {
+      certificates: {
         create: {
           type: "Jobcenter-Bescheid",
           validUntil: utcMidnight(CERTIFICATE_VALID_UNTIL),
+          recordedAt: utcMidnight("2026-01-02"),
         },
       },
       cards: {

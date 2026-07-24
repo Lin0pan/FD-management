@@ -106,9 +106,10 @@ model Customer {
   notes String @default("")
 
   householdMembers HouseholdMember[]
-  certificate      Certificate?
+  certificates     Certificate[]
   cards            Card[]
   distributions    DistributionRecord[]
+  reminderLogs     ReminderLog[]
 
   @@index([customerNumber])
   @@index([status])
@@ -133,12 +134,14 @@ model HouseholdMember {
 
 /// The proof of need that entitles a household to shop, e.g. a Jobcenter notice.
 ///
-/// One per customer — a renewal replaces the dates rather than stacking a second row, because FD
-/// only ever asks whether the certificate on file is still valid (US-06).
+/// Rows are **appended, never overwritten**: a renewal stacks a new row rather than editing the
+/// dates, so the history of renewals stays readable (US-06.3, FR-8). The certificate *on file* is
+/// the latest by `recordedAt` — the counter only ever reads that one, but the trail behind it says
+/// when each renewal was brought.
 model Certificate {
   id Int @id @default(autoincrement())
 
-  customerId Int      @unique
+  customerId Int
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   /// What kind of notice it is, as staff typed it.
@@ -146,6 +149,12 @@ model Certificate {
 
   /// The day it stops entitling the household. What the reminder in US-06 counts down to.
   validUntil DateTime
+
+  /// The instant this certificate was recorded, from the injected clock — the registration for the
+  /// first row, the renewal for every later one. What "latest" is decided by.
+  recordedAt DateTime
+
+  @@index([customerId, recordedAt])
 }
 
 /// A shopping card handed to a customer.
@@ -218,6 +227,35 @@ model DistributionRecord {
   @@unique([customerId, dayKey])
   @@index([date])
   @@index([customerId, date])
+}
+
+/// One logged certificate reminder — a day of the documented trail an expired certificate starts at
+/// the counter (US-06).
+///
+/// Entries are appended, never amended: a reminder that was given stays given, and a renewed
+/// certificate resets the customer's *count*, not this log. `resultingCount` repeats the count as it
+/// stood after the entry, so the trail is readable on its own without replaying it.
+///
+/// The once-per-day rule lives in the use case (`recordReminder`), but the unique
+/// `(customerId, loggedOn)` index below is its final authority: a second reminder on the same day
+/// cannot be written even if two requests race past the guard (US-06.3). Like `DistributionRecord`,
+/// there is deliberately no `onDelete: Cascade` — the trail outlives status changes, and customer
+/// data is never hard-deleted anyway.
+model ReminderLog {
+  id Int @id @default(autoincrement())
+
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  /// The Europe/Berlin calendar day the reminder was given, as `YYYY-MM-DD`. Written by the domain's
+  /// `berlinDayKey` — the same notion of "the same day" the attendance rule uses — and never a UTC
+  /// or naive date, so the constraint and the guard cannot drift to two notions of "today".
+  loggedOn String
+
+  /// The customer's reminder count after this entry.
+  resultingCount Int
+
+  @@unique([customerId, loggedOn])
 }
 
 /// One append-only record of a state change: *what* changed, *when* and *why* — never *who*.
