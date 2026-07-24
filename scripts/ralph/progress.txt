@@ -220,3 +220,10 @@ Started: Fri Jul 24 12:34:28 CEST 2026
 - **Learnings for future iterations:**
   - None beyond the existing patterns; the PR body is the batch summary.
 ---
+## [2026-07-24] - Batch archive (US-05)
+- No stories left (all five passed and PR #32 merged); this iteration only copied the completed
+  batch state to scripts/ralph/prds/done/07-us-05-record-attendance.json via PR #34
+  (auto-squash-merge enabled), mirroring the #33 close-out for US-04.
+- prd.json was NOT rotated to batch 08 — per prds/README.md the operator copies the next batch in
+  and ralph.sh archives this run (branchName change vs .last-branch) on the next start.
+---
