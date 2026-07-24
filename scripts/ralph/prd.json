@@ -1,94 +1,93 @@
 {
   "project": "FD-Management",
-  "branchName": "ralph/us-05-record-attendance",
-  "description": "US-05 Record Attendance and Payment — One action records customer, date, showed-up and paid, with the price that applied, derived per head. One record per customer per day, enforced by the database; records survive indefinitely.",
+  "branchName": "ralph/us-06-certificate-reminder",
+  "description": "US-06 Check the Certificate and Log a Reminder — Certificate expiry never blocks a hand-out; reminders are logged at most once per day; the reminder count is shown so staff can judge what to do. No threshold exists: archiving is US-10's manual decision.",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Attendance rules — duplicate prevention and same-day correction",
-      "description": "As a developer, I need the attendance rules as pure functions, so duplicate prevention and same-day correction are testable without a database. Source: tasks/prd-us-05-record-attendance.md §US-05.1",
+      "title": "Certificate validity rule",
+      "description": "As a developer, I need the expiry rule as a pure function, so the grace period behaves identically everywhere. Source: tasks/prd-us-06-certificate-reminder.md §US-06.1",
       "acceptanceCriteria": [
-        "src/domain/distribution/attendance.ts exports canRecord(existingRecordsForCustomer, today) returning OK or a typed AlreadyServedToday error carrying the existing record's date",
-        "canCorrect(record, today) returns true only when record.date is the same calendar day as today",
-        "Day comparison is calendar-day based in Europe/Berlin and documented in a comment",
-        "Tests cover a midnight boundary and a DST change",
+        "src/domain/customer/certificate.ts exports isExpired(certificate, today)",
+        "A certificate is valid on its validUntil date and expired the day after — tested for the day before, the day of and the day after, plus 29 February",
+        "No escalation function and no threshold: what a reminder count means is a staff judgement, so the domain exposes only the count and the expiry",
+        "today is a parameter — no clock and no settings lookup in the module",
         "Tests pass",
         "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Implemented src/domain/distribution/attendance.ts (canRecord/canCorrect) with a Europe/Berlin calendar-day key via Intl; added AlreadyServedToday domain error (replacing the unused DuplicateAttendance code). Tests cover midnight boundary and both DST transitions. All gates green."
+      "notes": ""
     },
     {
       "id": "US-002",
-      "title": "recordAttendance and correctAttendance use cases",
-      "description": "As a staff member, I want one action that records the hand-out, so the queue keeps moving. Source: tasks/prd-us-05-record-attendance.md §US-05.2",
+      "title": "recordReminder and renewCertificate use cases",
+      "description": "As a staff member, I want to log a reminder and record a renewed certificate, so the reminder history is documented rather than remembered. Source: tasks/prd-us-06-certificate-reminder.md §US-06.2",
       "acceptanceCriteria": [
-        "recordAttendance(deps, {customerId, paid}) writes one record with the customer's surrogate id, deps.clock.now(), showedUp true, the paid flag and priceCents resolved from the settings in force on that date",
-        "paid defaults to true and can be passed as false",
-        "A second invocation for the same customer on the same day rejects with AlreadyServedToday and writes nothing",
-        "The use case re-evaluates the counter verdict before writing and refuses ARCHIVED, BLOCKED and WRONG_GROUP — the UI is not the only guard",
-        "correctAttendance(deps, {recordId, ...}) amends or deletes a record made today; an older record rejects with a typed RecordNoLongerCorrectable error",
-        "Both write audit entries with no actor field",
-        "Tested against hand-written fakes and a fake clock, including the same-day duplicate and next-day correction cases",
+        "recordReminder(deps, {customerId}) increments reminderCount by one and returns the new count",
+        "It rejects with a typed ReminderAlreadyLoggedToday error when a reminder exists for that customer on the same calendar day, and writes nothing",
+        "It rejects when the certificate is not expired",
+        "renewCertificate(deps, {customerId, type, validUntil}) records the new certificate and resets reminderCount to 0 in the same transaction",
+        "renewCertificate rejects a validUntil in the past with a typed error",
+        "Both write audit entries; the reminder entry records the resulting count",
+        "Tested against fakes and a fake clock: first reminder, same-day repeat, next-day reminder, reminder on a valid certificate, renewal resetting a count of 3",
         "Tests pass",
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Added recordAttendance + correctAttendance use cases (src/application/distribution/). recordAttendance re-runs evaluateAtCounter (refuses ARCHIVED/BLOCKED/WRONG_GROUP via new NotClearToServe error carrying the verdict), runs canRecord (throws AlreadyServedToday, writes nothing), resolves priceCents via describeAllowance at now, writes one record + a no-actor audit entry (distribution.recorded); paid defaults true. correctAttendance takes a discriminated {action:'SET_PAID'|'REMOVE'} input, guarded by canCorrect (RecordNoLongerCorrectable for older records, DistributionRecordNotFound when absent). New domain type src/domain/distribution/distributionRecord.ts; new DistributionRecordRepository port. Tested against hand-written fakes + fake clock incl. same-day duplicate and next-day correction. All gates green (417 tests, 100% coverage)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
-      "title": "DistributionRecord schema with the one-per-day constraint",
-      "description": "As a developer, I need distribution records that survive indefinitely and cannot be duplicated per day. Source: tasks/prd-us-05-record-attendance.md §US-05.3",
+      "title": "ReminderLog schema and appended certificate history",
+      "description": "As a developer, I need reminders capped at one per day by the database and certificate renewals preserved as history. Source: tasks/prd-us-06-certificate-reminder.md §US-06.3",
       "acceptanceCriteria": [
-        "Prisma model DistributionRecord: id, customerId (FK to Customer.id), date, showedUp, paid, priceCents Int",
-        "A normalised date-only day-key column carries a unique constraint on (customerId, dayKey) so the database prevents a double record",
-        "Indexes on date and on (customerId, date)",
-        "No delete cascade from customer archiving — records outlive status changes",
-        "Integration test proves the duplicate constraint fires",
-        "A schema comment records that priceCents is deliberate redundancy alongside the settings history, so it is not 'cleaned up' later",
+        "Prisma model ReminderLog: id, customerId (FK to Customer.id), loggedOn day-key, resultingCount",
+        "Unique constraint on (customerId, loggedOn)",
+        "Certificate rows are appended, never overwritten; the current certificate is the latest by recordedAt",
+        "Integration test proves the per-day constraint fires",
         "Migration committed under prisma/migrations/",
         "Tests pass",
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Added the Prisma DistributionRecord model (id, customerId FK, date, dayKey, showedUp, paid, priceCents) and PrismaDistributionRecordRepository. The unique (customerId, dayKey) index enforces once-per-day; dayKey is the Europe/Berlin calendar day written by the domain's now-exported berlinDayKey, so the DB constraint and attendance.canRecord share one rule. Indexes on date and (customerId, date) for the US-10 no-show query. Relation has no onDelete cascade (RESTRICT) — records outlive status changes; a schema comment marks priceCents as deliberate redundancy. Regenerated the disposable init migration and re-added the hand-written partial slot unique index. Integration test (15 cases) proves the duplicate constraint fires as AlreadyServedToday, the Berlin-midnight boundary is two days, the constraint is per-customer, and archiving/hard-delete never cascades records away. All gates green (432 tests, coverage/lint/typecheck/build)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Serve action on the counter screen",
-      "description": "As a staff member, I want to confirm the hand-out with one keystroke without leaving the counter screen. Source: tasks/prd-us-05-record-attendance.md §US-05.4",
+      "title": "Certificate status, reminder action and renewal form",
+      "description": "As a staff member, I want the counter screen to tell me the certificate is expired and let me log the reminder without leaving the screen. Source: tasks/prd-us-06-certificate-reminder.md §US-06.4",
       "acceptanceCriteria": [
-        "A German 'Ausgabe erfassen' button appears on /ausgabe only when the verdict permits serving",
-        "A 'paid' checkbox is pre-checked and can be cleared before confirming",
-        "The button is keyboard-reachable and confirms with Enter; on success a short confirmation shows and the lookup input re-focuses",
-        "A second attempt shows 'Heute bereits versorgt' with the existing record's time",
-        "A correct-today's-entry control allows changing the paid flag or removing the record, with a confirmation step before removal",
+        "The counter screen shows the expiry date and, when expired, an unmissable German note that the customer is served this time but must bring a renewal",
+        "An 'Erinnerung erfassen' action logs the reminder and shows the new count immediately",
+        "After the action, the button is disabled for the rest of the day with an explanatory label",
+        "The reminder count is shown next to the expiry status whenever it is greater than zero; the screen never prompts, advises or archives on its own",
+        "A renewed-certificate form captures type and validity end date and, on save, shows the reset count of 0",
         "All user-facing strings come from src/i18n/de.ts",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Extended lookupCustomer to read today's record in the same pass (added records port to its deps; new customerId + todaysRecord on CounterLookup; new domain helper attendance.recordForDay, with canRecord refactored onto it). Added src/app/ausgabe/actions.ts (recordServe/correctServe server actions), serve-state.ts, and the ServeControls client component: a pre-checked 'Bezahlt' checkbox + 'Ausgabe erfassen' button when the verdict permits serving; on success it revalidates, the branch switches to the already-served view (with the record's Berlin time via new germanTime), a green confirmation shows and the #counter-input clears+refocuses. Correction control (change paid / remove) with a native <details> confirmation step before removal. deps.ts now exposes read deps (no audit) + counterActionDeps (write, with audit). All strings in de.ts under distribution.serve. Gates green (lint/typecheck/build, 440 tests, 100% domain+application coverage). Runtime-verified by curl: CLEAR_TO_SERVE renders the serve button; after a recorded hand-out the same number renders 'Heute bereits versorgt um 13:10 Uhr (nicht bezahlt)' + correct/remove controls with the serve button gone. Full interactive flow (focus, checkbox, revalidate) is covered by US-005's Playwright spec — no dev-browser skill/MCP is configured here."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
-      "title": "E2E: distribution-day happy path",
-      "description": "As a developer, I need a Playwright spec covering the core distribution-day flow. Source: tasks/prd-us-05-record-attendance.md §US-05.5",
+      "title": "E2E: expired certificate through to the third reminder",
+      "description": "As a developer, I need a Playwright spec covering the full reminder trail. Source: tasks/prd-us-06-certificate-reminder.md §US-06.5",
       "acceptanceCriteria": [
-        "Spec with a fixed clock on a Red distribution day looks up a Red customer, records attendance with paid, and asserts the confirmation and today's record",
-        "Spec attempts a second recording and asserts the German already-served message and that only one record exists",
-        "Spec clears the paid flag for a second customer and asserts the record stores paid = false",
+        "Spec with a controllable clock serves a customer with an expired certificate on three consecutive distribution days, logging one reminder each time",
+        "Spec asserts a second reminder attempt on the same day is refused",
+        "Spec asserts the screen shows a count of 3 after the third reminder and that the customer is still active — nothing archives without a staff decision",
+        "Spec asserts recording a renewed certificate resets the displayed count to 0",
         "npm run test:e2e passes",
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Added tests/e2e/serve.spec.ts (serial, three cases) driving the distribution-day happy path through the built app against the real e2e SQLite file. Pinned to the RED Thursday 08.01.2026 via the FD_FIXED_NOW_FILE seam: looks up a RED household, presses 'Ausgabe erfassen' with the pre-checked Bezahlt box, asserts the German confirmation (Ausgabe um 10:00 Uhr — Berlin is UTC+1 in January) and the switch to today's record, then reads the row straight from Prisma to assert one record, paid=true, dayKey 2026-01-08. A second lookup finds the serve button gone and 'Heute bereits versorgt' in its place with still exactly one row (duplicate refused). A second household served with the box cleared stores paid=false. Households take numbers 221-222 to stay clear of counter.spec (201-206/239) and portions.spec (211) in the shared db. Gotcha: customerNumber is unique only via a hand-written partial index Prisma cannot see, so the DB read uses findFirst, not findUnique. All gates green: lint, typecheck, test:coverage (100% domain+application), build, and npm run test:e2e (24 passed, 1 pre-existing skip)."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

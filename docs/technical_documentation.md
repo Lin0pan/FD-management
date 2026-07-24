@@ -103,6 +103,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customer/group.test.ts     # its Vitest spec
 │   │   ├── customer/customer.ts       # the customer record, validated on construction
 │   │   ├── customer/customer.test.ts  # its Vitest spec
+│   │   ├── customer/certificate.ts    # certificate expiry as of a given day (US-06)
+│   │   ├── customer/certificate.test.ts  # its Vitest spec
 │   │   ├── card/card.ts              # what an issued card is + why it was issued
 │   │   ├── card/card.test.ts         # its Vitest spec
 │   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
@@ -402,6 +404,19 @@ needed. The Excel sheet FD is replacing stored them, and they drifted with every
 only identity there is: a customer number is a slot another household may hold once this one is
 archived. `CustomerStatus` is `ACTIVE | BLOCKED | ARCHIVED`; a blocked customer still holds their
 slot (US-08), an archived one releases it (US-10).
+
+### `src/domain/customer/certificate.ts`
+
+`isExpired(certificate, today)` is the whole expiry rule: a needs certificate is still valid **on**
+its `validUntil` day — the printed end date is the last day it counts — and expired the day after.
+Both dates are compared as UTC calendar days, so the time of day either value was recorded cannot
+change the verdict. Expiry never blocks a hand-out; it starts the reminder trail at the counter
+(US-06).
+
+Deliberately absent is any escalation function or reminder threshold. FD reminds "about three times"
+as a habit, but every case is a staff judgement, so the domain exposes only the expiry and the
+running `reminderCount` — encoding a threshold would misrepresent a judgement as a rule and is a
+named non-goal of US-06.
 
 ### `src/domain/card/card.ts`
 
