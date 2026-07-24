@@ -234,7 +234,10 @@ export const de = {
       heading: "Andere Woche nachschlagen",
       hint: "Zeigt die Gruppe einer beliebigen vergangenen oder künftigen Woche.",
       label: "Datum",
-      submit: "Nachschlagen",
+      // Named after what it looks up, not just "Nachschlagen": the counter form above it is a
+      // lookup too, and two buttons with the same accessible name are indistinguishable to anyone
+      // reading the page by keyboard or screen reader.
+      submit: "Woche nachschlagen",
       reset: "Zurück zu heute",
       result: (date: string, isoWeek: string, colour: string): string =>
         `${date} (Kalenderwoche ${isoWeek}): Gruppe ${colour}`,
