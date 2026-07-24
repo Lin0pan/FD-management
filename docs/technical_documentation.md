@@ -132,6 +132,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   └── i18n/format.ts                # German value formatting (germanDate) + its spec
 ├── tests/e2e/
 │   ├── card.spec.ts                  # registration issues k1 and the card view shows it
+│   ├── counter.spec.ts               # every counter verdict, and that a lookup writes nothing
 │   ├── distribution.spec.ts          # the week-colour banner against a fixed clock
 │   ├── home.spec.ts                  # Playwright smoke test
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
@@ -835,8 +836,11 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   them write to it — a registration consumes a customer number, a settings save appends a version.
   Two workers would interleave those writes and each spec would assert against a register the other
   one had moved. The suite runs in a few seconds; a flaky gate is worth less than a slow one. The
-  consequence for a new spec: **never name a customer number outright** — read the one the screen
-  proposes, or inserting a spec file alphabetically above another one breaks it.
+  consequence for a new spec: **never name a customer number the allocator will hand out** — read
+  the one the screen proposes, or inserting a spec file alphabetically above another one breaks it.
+  A spec that inserts its own rows instead of registering them (`counter.spec.ts`) may name numbers,
+  provided it takes a block high in the range: allocation is always the _lowest_ free slot, so the
+  low sequence the other specs assert against stays untouched.
 - `webServer` **deletes `data/e2e.db`**, then runs `npx prisma migrate deploy && npm run db:seed &&
 npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` is on locally, off
   in CI. The delete matters locally: the settings specs edit the seeded price and then assert the
@@ -870,6 +874,23 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   `afterAll`: a frozen today would otherwise reach the settings specs, which stamp a version with
   the clock. The `webServer` command deletes that file too, so an aborted run cannot poison the next
   one.
+- `counter.spec.ts` covers US-04 end to end (§US-04.5): every verdict the counter can hand down,
+  asserted as the **German sentence** a staff member reads rather than as a `data-verdict` alone —
+  clear to serve, an expired certificate, the wrong group, a superseded card, blocked, archived and
+  a number nobody holds. It pins today to the RED distribution Thursday 08.01.2026, which is what
+  makes a RED household clear and a BLUE one sent away, and deletes the pinned-now file in
+  `afterAll` like the distribution spec.
+  Its six households are inserted **straight through Prisma**, not through the registration form:
+  archiving (US-10), blocking (US-08) and a second card (US-09) have no screen yet, so there is no
+  other way to reach half of these states. That is also why it may name customer numbers — see the
+  note above.
+  The second half of the spec is FR-4, that a lookup only ever _reads_. It snapshots the statuses,
+  the reminder counts and the card and audit-entry counts, performs the two refusals staff hit most
+  often plus one successful lookup, and asserts the snapshot is unchanged. There is no distribution
+  table yet — serving arrives with US-05 — so the snapshot pins every row a lookup could touch
+  today and should widen with the schema.
+  `ALREADY_SERVED_TODAY` is the one verdict it cannot cover: nothing can serve a household yet, so
+  nothing can serve one twice.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.
