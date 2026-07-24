@@ -16,8 +16,8 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Implemented src/domain/distribution/attendance.ts (canRecord/canCorrect) with a Europe/Berlin calendar-day key via Intl; added AlreadyServedToday domain error (replacing the unused DuplicateAttendance code). Tests cover midnight boundary and both DST transitions. All gates green."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -35,8 +35,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Added recordAttendance + correctAttendance use cases (src/application/distribution/). recordAttendance re-runs evaluateAtCounter (refuses ARCHIVED/BLOCKED/WRONG_GROUP via new NotClearToServe error carrying the verdict), runs canRecord (throws AlreadyServedToday, writes nothing), resolves priceCents via describeAllowance at now, writes one record + a no-actor audit entry (distribution.recorded); paid defaults true. correctAttendance takes a discriminated {action:'SET_PAID'|'REMOVE'} input, guarded by canCorrect (RecordNoLongerCorrectable for older records, DistributionRecordNotFound when absent). New domain type src/domain/distribution/distributionRecord.ts; new DistributionRecordRepository port. Tested against hand-written fakes + fake clock incl. same-day duplicate and next-day correction. All gates green (417 tests, 100% coverage)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -54,8 +54,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Added the Prisma DistributionRecord model (id, customerId FK, date, dayKey, showedUp, paid, priceCents) and PrismaDistributionRecordRepository. The unique (customerId, dayKey) index enforces once-per-day; dayKey is the Europe/Berlin calendar day written by the domain's now-exported berlinDayKey, so the DB constraint and attendance.canRecord share one rule. Indexes on date and (customerId, date) for the US-10 no-show query. Relation has no onDelete cascade (RESTRICT) — records outlive status changes; a schema comment marks priceCents as deliberate redundancy. Regenerated the disposable init migration and re-added the hand-written partial slot unique index. Integration test (15 cases) proves the duplicate constraint fires as AlreadyServedToday, the Berlin-midnight boundary is two days, the constraint is per-customer, and archiving/hard-delete never cascades records away. All gates green (432 tests, coverage/lint/typecheck/build)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -72,8 +72,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Extended lookupCustomer to read today's record in the same pass (added records port to its deps; new customerId + todaysRecord on CounterLookup; new domain helper attendance.recordForDay, with canRecord refactored onto it). Added src/app/ausgabe/actions.ts (recordServe/correctServe server actions), serve-state.ts, and the ServeControls client component: a pre-checked 'Bezahlt' checkbox + 'Ausgabe erfassen' button when the verdict permits serving; on success it revalidates, the branch switches to the already-served view (with the record's Berlin time via new germanTime), a green confirmation shows and the #counter-input clears+refocuses. Correction control (change paid / remove) with a native <details> confirmation step before removal. deps.ts now exposes read deps (no audit) + counterActionDeps (write, with audit). All strings in de.ts under distribution.serve. Gates green (lint/typecheck/build, 440 tests, 100% domain+application coverage). Runtime-verified by curl: CLEAR_TO_SERVE renders the serve button; after a recorded hand-out the same number renders 'Heute bereits versorgt um 13:10 Uhr (nicht bezahlt)' + correct/remove controls with the serve button gone. Full interactive flow (focus, checkbox, revalidate) is covered by US-005's Playwright spec — no dev-browser skill/MCP is configured here."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
@@ -87,8 +87,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Added tests/e2e/serve.spec.ts (serial, three cases) driving the distribution-day happy path through the built app against the real e2e SQLite file. Pinned to the RED Thursday 08.01.2026 via the FD_FIXED_NOW_FILE seam: looks up a RED household, presses 'Ausgabe erfassen' with the pre-checked Bezahlt box, asserts the German confirmation (Ausgabe um 10:00 Uhr — Berlin is UTC+1 in January) and the switch to today's record, then reads the row straight from Prisma to assert one record, paid=true, dayKey 2026-01-08. A second lookup finds the serve button gone and 'Heute bereits versorgt' in its place with still exactly one row (duplicate refused). A second household served with the box cleared stores paid=false. Households take numbers 221-222 to stay clear of counter.spec (201-206/239) and portions.spec (211) in the shared db. Gotcha: customerNumber is unique only via a hand-written partial index Prisma cannot see, so the DB read uses findFirst, not findUnique. All gates green: lint, typecheck, test:coverage (100% domain+application), build, and npm run test:e2e (24 passed, 1 pre-existing skip)."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

@@ -19,3 +19,21 @@ export function germanDate(date: Date): string {
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
   return `${day}.${month}.${date.getUTCFullYear()}`;
 }
+
+/**
+ * A time of day as `HH:MM`, read in Europe/Berlin — the wall-clock the counter runs on.
+ *
+ * Unlike {@link germanDate}, a hand-out is an *instant*, not a day: the time a customer was served
+ * has to read as the local clock the staff saw, so it follows the Berlin offset (and its DST
+ * changes) rather than UTC. The same zone the attendance rules count the day in (`berlinDayKey`), so
+ * "served at 23:59" and "already served today" cannot disagree about which day that was.
+ */
+const berlinTime = new Intl.DateTimeFormat("de-DE", {
+  timeZone: "Europe/Berlin",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+export function germanTime(instant: Date): string {
+  return berlinTime.format(instant);
+}

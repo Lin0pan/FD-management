@@ -8,9 +8,18 @@ import type {
   RegisteredCustomer,
 } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
+import type {
+  DistributionRecord,
+  NewDistributionRecord,
+} from "@/domain/distribution/distributionRecord";
 import { InvalidCardNumber } from "@/domain/errors";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
-import type { Clock, CustomerRepository, SettingsRepository } from "../ports";
+import type {
+  Clock,
+  CustomerRepository,
+  DistributionRecordRepository,
+  SettingsRepository,
+} from "../ports";
 import { lookupCustomer } from "./lookup-customer";
 
 /**
@@ -86,6 +95,67 @@ class FakeCustomerRepository implements CustomerRepository {
     this.holders.push(registered);
     return Promise.resolve(registered);
   }
+}
+
+/**
+ * A distribution store the lookup only ever reads from. `writes` counts every mutation so a test can
+ * prove the read-only lookup calls no write method on it either, the same guard the customer and
+ * settings fakes carry.
+ */
+class FakeDistributionRecordRepository implements DistributionRecordRepository {
+  readonly records: DistributionRecord[] = [];
+  writes = 0;
+
+  constructor(...records: DistributionRecord[]) {
+    this.records.push(...records);
+  }
+
+  listForCustomer(customerId: number): Promise<ReadonlyArray<DistributionRecord>> {
+    return Promise.resolve(this.records.filter((record) => record.customerId === customerId));
+  }
+
+  findById(recordId: number): Promise<DistributionRecord | null> {
+    return Promise.resolve(this.records.find((record) => record.id === recordId) ?? null);
+  }
+
+  create(record: NewDistributionRecord): Promise<DistributionRecord> {
+    this.writes += 1;
+    const stored = { ...record, id: this.records.length + 1 };
+    this.records.push(stored);
+    return Promise.resolve(stored);
+  }
+
+  setPaid(recordId: number, paid: boolean): Promise<DistributionRecord> {
+    this.writes += 1;
+    const record = this.records.find((candidate) => candidate.id === recordId);
+    if (record === undefined) throw new Error("unreachable in these tests");
+    const updated = { ...record, paid };
+    this.records.splice(this.records.indexOf(record), 1, updated);
+    return Promise.resolve(updated);
+  }
+
+  remove(recordId: number): Promise<void> {
+    this.writes += 1;
+    const record = this.records.find((candidate) => candidate.id === recordId);
+    if (record !== undefined) this.records.splice(this.records.indexOf(record), 1);
+    return Promise.resolve();
+  }
+}
+
+/** A stored hand-out for customer id 1 on the given instant — the day's record the counter reads. */
+function distributionRecord(
+  iso: string,
+  overrides: Partial<DistributionRecord> = {},
+): DistributionRecord {
+  return {
+    id: 7,
+    customerId: 1,
+    date: new Date(iso),
+    showedUp: true,
+    paid: true,
+    priceCents: 500,
+    ...overrides,
+  };
 }
 
 function fakeClock(iso: string): Clock {
@@ -164,14 +234,16 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
 describe("lookupCustomer", () => {
   let customers: FakeCustomerRepository;
   let settings: FakeSettingsRepository;
+  let records: FakeDistributionRecordRepository;
 
   function deps(today = TODAY) {
-    return { customers, settings, clock: fakeClock(today) };
+    return { customers, settings, records, clock: fakeClock(today) };
   }
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
     settings = new FakeSettingsRepository(version());
+    records = new FakeDistributionRecordRepository();
   });
 
   it("reports an unassigned number as not found, not as an error", async () => {
@@ -322,9 +394,50 @@ describe("lookupCustomer", () => {
     for (const [repository, query] of branches) {
       customers = repository;
       settings = new FakeSettingsRepository(version());
+      records = new FakeDistributionRecordRepository();
       await lookupCustomer(deps(), query);
       expect(repository.writes).toBe(0);
       expect(settings.appended).toBe(0);
+      expect(records.writes).toBe(0);
     }
+  });
+
+  it("carries the surrogate id the serve action records against", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ id: 42 }));
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customerId).toBe(42);
+  });
+
+  it("has no surrogate id and no record for an unassigned number", async () => {
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customerId).toBeNull();
+    expect(result.todaysRecord).toBeNull();
+  });
+
+  it("reports no record for today when the customer has none yet", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
+    records = new FakeDistributionRecordRepository(distributionRecord("2026-07-16T09:00:00.000Z"));
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.todaysRecord).toBeNull();
+  });
+
+  it("surfaces today's record — its id, time and paid flag — when one is already on file", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
+    records = new FakeDistributionRecordRepository(
+      distributionRecord("2026-07-23T07:30:00.000Z", { id: 7, paid: false }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.todaysRecord).toEqual({
+      recordId: 7,
+      at: new Date("2026-07-23T07:30:00.000Z"),
+      paid: false,
+    });
   });
 });

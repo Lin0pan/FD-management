@@ -58,18 +58,21 @@ This file describes _how_ the current codebase is organised and how to work in i
 ├── data/                             # SQLite db lives here at runtime (git-ignored; .gitkeep tracked)
 ├── docs/                             # all project documentation (this file included)
 ├── prisma/
-│   ├── schema.prisma                 # datasource + models (SettingsVersion, AuditEntry,
-│   │                                 #   Customer, HouseholdMember, Certificate, Card)
+│   ├── schema.prisma                 # datasource + models (SettingsVersion, AuditEntry, Customer,
+│   │                                 #   HouseholdMember, Certificate, Card, DistributionRecord)
 │   ├── seed.ts                       # `npm run db:seed` entry point
 │   └── migrations/                   # committed migration history
 ├── src/
 │   ├── app/                          # Next.js App Router — thin adapter layer
 │   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
 │   │   ├── page.tsx                  # home page (reads strings from i18n dictionary)
-│   │   ├── ausgabe/                  # the distribution screen (US-03) and the counter (US-04)
+│   │   ├── ausgabe/                  # the distribution screen (US-03), counter (US-04), hand-out (US-05)
 │   │   │   ├── page.tsx              # server component: colour banner, counter lookup, week lookup
 │   │   │   ├── counter-lookup.tsx    # the verdict banner + the customer details below it (US-04.4)
-│   │   │   └── deps.ts               # composition root: customer + settings repositories, clock
+│   │   │   ├── serve-controls.tsx    # client: record a hand-out, correct/remove today's record (US-05.4)
+│   │   │   ├── actions.ts            # "use server": Zod → recordAttendance / correctAttendance
+│   │   │   ├── serve-state.ts        # the state the serve/correct forms exchange with their actions
+│   │   │   └── deps.ts               # composition roots: the read deps and the write (audit) deps
 │   │   ├── kunden/                   # the customer screens (US-01)
 │   │   │   ├── deps.ts               # composition root for both routes below
 │   │   │   ├── neu/                  # the registration screen
@@ -110,13 +113,16 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── distribution/distributionDay.test.ts  # its Vitest spec
 │   │   ├── distribution/counterVerdict.ts  # evaluateAtCounter — the one verdict at the counter
 │   │   ├── distribution/counterVerdict.test.ts  # its Vitest spec
+│   │   ├── distribution/attendance.ts  # canRecord/canCorrect — the once-per-Berlin-day rules
+│   │   ├── distribution/attendance.test.ts  # its Vitest spec
+│   │   ├── distribution/distributionRecord.ts  # the hand-out record type (id, paid, priceCents)
 │   ├── application/
-│   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
-│   │   │                             #   CustomerRepository, CardRepository, AuditLog
+│   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, CustomerRepository,
+│   │   │                             #   CardRepository, DistributionRecordRepository, AuditLog
 │   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
 │   │   │                             #   readCard, issueCard, lookupCustomer (the counter lookup)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
-│   │   ├── distribution/             # getWeekColour — the colour of any day, from history
+│   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (+ the FD_FIXED_NOW_FILE test seam)
@@ -125,6 +131,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │       ├── settings-repository.ts  # PrismaSettingsRepository (implements the port)
 │   │       ├── customer-repository.ts  # PrismaCustomerRepository + PrismaCustomerCounter
 │   │       ├── card-repository.ts    # PrismaCardRepository — the (customer, index) constraint
+│   │       ├── distribution-record-repository.ts  # PrismaDistributionRecordRepository — (customer, Berlin dayKey)
 │   │       ├── audit-log.ts          # PrismaAuditLog — append-only, no actor column
 │   │       ├── seed.ts               # provisional settings version, inserted only if none exists
 │   │       └── *.test.ts             # integration specs, throwaway SQLite file
@@ -137,6 +144,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── home.spec.ts                  # Playwright smoke test
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
+│   ├── serve.spec.ts                 # record a hand-out, block a duplicate, store an unpaid one
 │   └── settings.spec.ts              # settings round-trip vs. the built app
 ├── eslint.config.mjs  .prettierrc.json  .prettierignore
 ├── vitest.config.ts   playwright.config.ts
@@ -199,14 +207,15 @@ The interfaces the application layer depends on. Per the TDD approach, ports **e
 needs** rather than being designed up front. Type-only, so it adds no runtime code to the
 coverage-measured layers.
 
-| Port                 | Shape                                                                         | Notes                                                                                                                   |
-| -------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `Clock`              | `now(): Date`                                                                 | The one seam to the wall clock.                                                                                         |
-| `SettingsRepository` | `listVersions()`, `append(version)`                                           | No update/delete — policy history is append-only.                                                                       |
-| `CustomerCounter`    | `countActive()`                                                               | The reality the quota `N` may not fall below.                                                                           |
-| `CustomerRepository` | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                   | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                              |
-| `CardRepository`     | `currentCard(customerId)`, `listCards(customerId)`, `issue(customerId, card)` | `currentCard` is the highest index — there is no `valid` flag to read; `issue` reports a lost race as `CardIndexTaken`. |
-| `AuditLog`           | `append(entry)`                                                               | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                               |
+| Port                           | Shape                                                                                      | Notes                                                                                                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Clock`                        | `now(): Date`                                                                              | The one seam to the wall clock.                                                                                                                                                |
+| `SettingsRepository`           | `listVersions()`, `append(version)`                                                        | No update/delete — policy history is append-only.                                                                                                                              |
+| `CustomerCounter`              | `countActive()`                                                                            | The reality the quota `N` may not fall below.                                                                                                                                  |
+| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                                | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                                                                                     |
+| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issue(customerId, card)`              | `currentCard` is the highest index — there is no `valid` flag to read; `issue` reports a lost race as `CardIndexTaken`.                                                        |
+| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)` | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade). |
+| `AuditLog`                     | `append(entry)`                                                                            | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                      |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
 
@@ -242,6 +251,22 @@ Two decisions are worth knowing:
   directly rather than going through `readCurrentSettings`.
 - It resolves at the asked-about _instant_ and normalises only the calendar arithmetic to a UTC day,
   so a settings change saved this morning is in force this morning.
+
+**`recordAttendance(deps, { customerId, paid? })`** writes one distribution record — the customer
+showed up, paid (default `true`, clearable), and owed the price `describeAllowance` derives for their
+household at today's instant (US-05.2, FR-1/2). It stands two guards of its own before writing, so the
+counter screen is not the only one (FR-8): it re-runs `evaluateAtCounter` and refuses an `ARCHIVED`,
+`BLOCKED` or `WRONG_GROUP` customer with `NotClearToServe`, and it runs `canRecord` to reject a second
+record on the same Berlin day with `AlreadyServedToday`, writing nothing. A bare-number hand-out
+presents no card, so `OUTDATED_CARD` cannot arise. Both the record and the audit entry take one read
+of the clock, so the stored price, the day-key and the log all agree on "now".
+
+**`correctAttendance(deps, { recordId, action })`** amends the same day's record — `SET_PAID` flips
+the paid flag, `REMOVE` deletes it — guarded by `canCorrect`, which rejects anything older than today
+with `RecordNoLongerCorrectable` (FR-7); a missing record is `DistributionRecordNotFound`. Removal is
+the one deletion the append-only history permits. Each correction writes its own audit entry with no
+reason, because the event name and changed field already say what happened. Both use cases are tested
+against hand-written fakes and a fake clock (`record-attendance.test.ts`, `correct-attendance.test.ts`).
 
 ### `src/application/allowance/`
 
@@ -693,9 +718,11 @@ read into a variable inside the `try` and build the JSX after it.
 The screen that answers the question the counter asks first — which group collects (US-03.4) — and
 then the question it asks about every person in the queue: may _this_ one collect (US-04.4).
 
-- **`deps.ts`** holds `CustomerRepository`, `SettingsRepository` and `Clock`. Deliberately **no audit
-  log and no card repository**: everything this screen does is a read, and turning someone away
-  records nothing (US-04, FR-4), so a port it does not hold is a write it cannot make.
+- **`deps.ts`** holds two composition roots. `distributionDeps` — the page's — carries
+  `CustomerRepository`, `SettingsRepository`, the **reading** side of `DistributionRecordRepository`
+  (for the hand-out already made today, shown beside the serve action) and `Clock`, and deliberately
+  **no audit log**: everything the page renders is a read (US-04, FR-4). `counterActionDeps` — the
+  serve and correct actions' — adds the audit log and is the one object here that writes.
 - **`page.tsx`** calls `getWeekColour` once for today and, when a date was submitted, once more for
   that day. Both questions are the same use case; the page arranges the answers and decides nothing.
 - The **banner** is the dominant element and is painted in the colour it _names_ — on a day without a
@@ -730,6 +757,25 @@ then the question it asks about every person in the queue: may _this_ one collec
 - A number that is **not a number** (`?nummer=abc`) renders a German sentence beside the form; an
   unassigned one renders the `NOT_FOUND` banner, because that is an answer rather than a failure.
 
+#### Recording the hand-out (`serve-controls.tsx`, `actions.ts`)
+
+- `lookupCustomer` now reads today's record in the same pass as the verdict (US-04.3), so the page
+  hands `ServeControls` the surrogate id, whether the verdict permits serving, and today's record if
+  one exists. Which control it shows is a fact of the day, not a click: **no record → the serve
+  action**, **a record → that record with the controls to correct or remove it**.
+- **`serve-controls.tsx`** is a client component for exactly two browser needs: `useActionState`
+  reports a rejection beside the button, and after a successful hand-out an effect **clears and
+  re-focuses** the number field (reached by `id="counter-input"`) so the queue keeps moving without
+  the mouse. The **paid** checkbox is pre-checked and read by the action as mere presence, the HTML
+  idiom for a boolean an unchecked box omits.
+- Recording revalidates `/ausgabe`, so the just-served customer immediately shows the already-served
+  message with the record's time, a green confirmation, and the correction control — the same view a
+  second lookup of that number would produce.
+- **Removal has a confirmation step**: a native `<details>` reveals the warning and the one button
+  that deletes, so no single click drops a record. Correcting is the only mutation of the history
+  besides recording; both go through the use cases, which own the once-per-day and same-day-only
+  rules — the hidden serve button is a courtesy, not the guard (FR-8).
+
 ### `src/i18n/de.ts`
 
 A single `const de = {…} as const` dictionary of German UI strings, plus the derived `Dictionary`
@@ -742,7 +788,10 @@ The shapes values are written in for German-speaking staff, beside the dictionar
 words. `germanDate(date)` writes `TT.MM.JJJJ` and reads the date **in UTC**, because dates here are
 calendar days stored at midnight UTC — formatting in the server's zone would show the day before for
 anyone west of Greenwich. It lives here rather than in a page because it was copied into two of
-them, and two copies is how two screens start rendering the same date two ways.
+them, and two copies is how two screens start rendering the same date two ways. `germanTime(instant)`
+writes `HH:MM` and reads the instant **in Europe/Berlin**: a hand-out is a moment, not a day, so its
+time must read as the wall clock staff saw — the same zone `berlinDayKey` counts the day in, so
+"served at 23:59" and "already served today" cannot disagree about the day.
 
 ---
 
@@ -763,8 +812,16 @@ them, and two copies is how two screens start rendering the same date two ways.
   `grownUps` and no `children` column** — both are derived from the household's birthdates, and
   stored they would drift with every birthday, which is exactly what the Excel sheet did.
   `Card` is unique on `(customerId, index)`; the card number staff read out is derived from the
-  customer number and the index, never stored. `DistributionRecord` follows with the stories that
-  need it.
+  customer number and the index, never stored.
+- `DistributionRecord` is the append-many history of hand-outs (US-05). It carries `date`, a
+  normalised Europe/Berlin `dayKey` (`YYYY-MM-DD`, written by the domain's `berlinDayKey`), the
+  `showedUp` and `paid` flags and `priceCents`. The unique `(customerId, dayKey)` index is the
+  database's own enforcement of once-per-day: a second hand-out on the same Berlin day cannot be
+  written even if two requests race past `attendance.canRecord`, and the adapter surfaces the lost
+  race as `AlreadyServedToday`. Indexes on `date` and `(customerId, date)` serve the no-show query
+  (US-10). `priceCents` is deliberate redundancy alongside the settings history — it makes a record
+  self-describing — and the relation has **no `onDelete: Cascade`**, so records outlive a customer's
+  status changes and are never removed by archiving.
 - **The slot rule is a partial unique index**, hand-written at the end of the `init` migration
   because Prisma cannot express one: at most one non-archived customer may hold a given
   `customerNumber`, so any number of archived rows may share one. See
@@ -903,6 +960,17 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   off `/kunden/[id]`, adds a second child straight in the database, and reloads to 6 Portionen and
   6,00 €. The member is added through Prisma rather than the UI because editing a household (US-16)
   has no screen yet; the reload deriving a new value is the proof the criterion asks for.
+- `serve.spec.ts` covers US-05 end to end (§US-05.5): the distribution-day counter loop against a
+  real database. Pinned to the RED Thursday 08.01.2026, it looks up a RED household, presses
+  **Ausgabe erfassen** with the pre-checked _Bezahlt_ box, and asserts the German confirmation naming
+  the Berlin time (10:00 Uhr) while the serve action gives way to today's record — then reads the row
+  straight from Prisma to confirm one record, `paid = true`, the Berlin `dayKey`. A second lookup of
+  the same number finds the serve button gone and _Heute bereits versorgt_ in its place, with the
+  database still holding exactly one row (the duplicate is refused, not stacked). A second household
+  served with the box **cleared** stores `paid = false`. Its two households (customer numbers 221–222)
+  are inserted straight through Prisma and it deletes the pinned-now file in `afterAll`, as the
+  distribution and counter specs do. This is the `ALREADY_SERVED_TODAY` case the counter spec noted
+  it could not yet reach.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

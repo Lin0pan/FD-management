@@ -231,6 +231,43 @@ export const de = {
           "oder 50k3.",
       },
     },
+    /**
+     * Recording the hand-out — the one write the counter makes (tasks/prd-us-05-record-attendance.md
+     * §US-05.4). The serve action appears only for a verdict that permits it; once a record exists
+     * for today, the same place shows it and the controls to correct or remove it.
+     */
+    serve: {
+      submit: "Ausgabe erfassen",
+      paid: "Bezahlt",
+      /** Shown after a successful hand-out, while the number field is focused for the next customer. */
+      confirmed: (time: string): string =>
+        `Ausgabe um ${time} Uhr erfasst. Nächste Nummer eingeben.`,
+      /** Shown on a customer who already has a record today, in place of the serve action. */
+      alreadyServed: (time: string): string => `Heute bereits versorgt um ${time} Uhr.`,
+      paidState: {
+        paid: "bezahlt",
+        unpaid: "nicht bezahlt",
+      },
+      correct: {
+        heading: "Heutigen Eintrag korrigieren",
+        save: "Bezahlt-Status speichern",
+        saved: "Eintrag aktualisiert.",
+        remove: "Eintrag entfernen",
+        removeConfirm:
+          "Diesen Eintrag wirklich entfernen? Die Ausgabe gilt dann als nicht erfolgt.",
+        removeConfirmButton: "Ja, entfernen",
+        removeCancel: "Abbrechen",
+        removed: "Eintrag entfernt. Der Haushalt kann heute erneut erfasst werden.",
+      },
+      errors: {
+        notClearToServe: "Ausgabe nicht möglich. Bitte den Hinweis oben beachten.",
+        alreadyServed: "Dieser Haushalt hat heute bereits eine Ausgabe erhalten.",
+        noLongerCorrectable:
+          "Dieser Eintrag stammt nicht von heute und kann nicht mehr geändert werden.",
+        notFound: "Der Eintrag wurde nicht gefunden. Bitte die Seite neu laden.",
+        unknown: "Die Ausgabe konnte nicht gespeichert werden. Bitte erneut versuchen.",
+      },
+    },
     lookup: {
       heading: "Andere Woche nachschlagen",
       hint: "Zeigt die Gruppe einer beliebigen vergangenen oder künftigen Woche.",

@@ -16,12 +16,23 @@ import Link from "next/link";
 import { z } from "zod";
 import { lookupCustomer, type CounterLookup } from "@/application/customers/lookup-customer";
 import { getWeekColour, type WeekColourView } from "@/application/distribution/get-week-colour";
+import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { DomainError } from "@/domain/errors";
 import type { WeekColour } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
-import { germanDate } from "@/i18n/format";
+import { germanDate, germanTime } from "@/i18n/format";
 import { CustomerDetails, VerdictBanner } from "./counter-lookup";
 import { distributionDeps } from "./deps";
+import { ServeControls } from "./serve-controls";
+
+/**
+ * Whether a verdict permits recording a hand-out. Only the two clear-to-serve outcomes do — an
+ * expired certificate serves and reminds, it does not refuse (US-06) — and the use case re-checks
+ * this before writing, so hiding the button here is a courtesy, not the guard (FR-8).
+ */
+function permitsServing(verdict: Verdict): boolean {
+  return verdict.kind === "CLEAR_TO_SERVE" || verdict.kind === "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED";
+}
 
 /** The colour turns over at midnight and settings change under the screen, so never cache it. */
 export const dynamic = "force-dynamic";
@@ -234,6 +245,7 @@ export default async function DistributionPage({
               // Not `type="number"`: a card number carries a `k`, and a spinner has no meaning here.
               type="text"
               name="nummer"
+              id="counter-input"
               inputMode="numeric"
               autoComplete="off"
               autoFocus
@@ -257,6 +269,21 @@ export default async function DistributionPage({
             <VerdictBanner verdict={counter.lookup.verdict} />
             {counter.lookup.customer === null ? null : (
               <CustomerDetails customer={counter.lookup.customer} />
+            )}
+            {counter.lookup.customerId === null ? null : (
+              <ServeControls
+                customerId={counter.lookup.customerId}
+                canServe={permitsServing(counter.lookup.verdict)}
+                todaysRecord={
+                  counter.lookup.todaysRecord === null
+                    ? null
+                    : {
+                        recordId: counter.lookup.todaysRecord.recordId,
+                        time: germanTime(counter.lookup.todaysRecord.at),
+                        paid: counter.lookup.todaysRecord.paid,
+                      }
+                }
+              />
             )}
           </>
         )}
