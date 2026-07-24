@@ -47,6 +47,15 @@ Started: Fri Jul 24 12:34:28 CEST 2026
   instance) — rely on that to keep a confirmation + a focus `useEffect` firing across the switch.
 - **`next build` touches `next-env.d.ts`** — `git checkout next-env.d.ts` before committing so the
   generated file does not land in the diff.
+- **E2E specs share one `data/e2e.db` and own disjoint customer-number ranges.** A spec that seeds
+  rows through Prisma must pick numbers no other spec uses (counter: 201-206 + 239; portions: 211;
+  serve: 221-222) — grep `tests/e2e/*.spec.ts` first. `customerNumber` is NOT a Prisma `findUnique`
+  key (uniqueness is a hand-written partial index), so read seeded rows back with `findFirst`. The
+  clock is pinned by writing an ISO instant to `data/e2e-now.txt` (`FD_FIXED_NOW_FILE`); delete it in
+  `afterAll` or the settings specs freeze. Off-CI, `reuseExistingServer` reuses a running server
+  WITHOUT resetting the db (reset is in the webServer boot command) — free port 3000 or use `CI=1`
+  for a clean boot, and run `--retries=0` when debugging, because a retry re-runs `beforeAll` and
+  surfaces the real failure as a bogus unique-customerNumber seed collision.
 
 ## [2026-07-24] - US-001 (attendance domain rules)
 - Implemented `src/domain/distribution/attendance.ts`: `canRecord(existingRecordsForCustomer, today)`
@@ -172,4 +181,35 @@ Started: Fri Jul 24 12:34:28 CEST 2026
     13:10 Uhr (nicht bezahlt)" + correct/remove, serve button gone. `germanTime` gave 13:10 from 11:10Z
     (Berlin +2), proving the Berlin offset.
   - `next-env.d.ts` gets touched by `next build`; `git checkout` it before committing.
+---
+
+## [2026-07-24] - US-005 (E2E: distribution-day happy path)
+- Added `tests/e2e/serve.spec.ts` (serial, 3 tests) covering the counter's serve loop through the
+  built app against the real `data/e2e.db`: record a paid hand-out (confirmation + switch to today's
+  record + one row, paid=true, Berlin dayKey), a blocked duplicate (button gone, "Heute bereits
+  versorgt", still one row), and an unpaid hand-out (box cleared → paid=false).
+- Pins today to the RED distribution Thursday 08.01.2026 via `FD_FIXED_NOW_FILE` (data/e2e-now.txt),
+  removed in `afterAll` so the settings specs are not frozen in January — same seam as the
+  distribution/counter specs.
+- Files changed: tests/e2e/serve.spec.ts (new), docs/technical_documentation.md (file tree + E2E
+  section entry).
+- **Learnings for future iterations:**
+  - **E2E customer-number ownership is a shared-db contract.** Every spec that inserts rows straight
+    through Prisma owns a number range in the shared `data/e2e.db`, and they MUST NOT overlap: counter
+    owns 201-206 + 239, portions owns **211**, serve now owns 221-222. Picking 211/212 first silently
+    collided with portions.spec — grep `tests/e2e/*.spec.ts` for your intended numbers before seeding.
+  - **A retry masks the real E2E failure as a seed collision.** With CI retries=2, a failing test
+    re-runs `beforeAll`, whose `prisma.customer.create` then hits the unique customerNumber from the
+    first attempt — so the surfaced error is "Unique constraint failed on customerNumber" at the seed
+    line, not the actual assertion. Re-run with `--retries=0` (and a fresh server) to see the true
+    first failure.
+  - **`customerNumber` is not a Prisma `findUnique` key** — its uniqueness is a hand-written partial
+    index Prisma's schema cannot see. Read a seeded row back with `findFirst({ where: { customerNumber } })`.
+  - **Leftover `next start` servers break local re-runs.** `reuseExistingServer` is true off-CI, so a
+    server left from a prior run is reused *without* resetting the db (the reset is in the webServer
+    boot command). Free port 3000 (`for pid in $(lsof -ti:3000); do kill -9 $pid; done`) before a
+    clean local run, or use `CI=1` to force a fresh reset boot. `pkill -f next` exited 144 in this
+    sandbox — kill by pid from `lsof -ti:3000` instead.
+  - The confirmation/record time is Berlin wall-clock: 09:00Z on 08.01.2026 renders as 10:00 (UTC+1
+    in January). Compute it with the app's own `germanTime(new Date(TODAY))` rather than hard-coding.
 ---

@@ -87,8 +87,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added tests/e2e/serve.spec.ts (serial, three cases) driving the distribution-day happy path through the built app against the real e2e SQLite file. Pinned to the RED Thursday 08.01.2026 via the FD_FIXED_NOW_FILE seam: looks up a RED household, presses 'Ausgabe erfassen' with the pre-checked Bezahlt box, asserts the German confirmation (Ausgabe um 10:00 Uhr — Berlin is UTC+1 in January) and the switch to today's record, then reads the row straight from Prisma to assert one record, paid=true, dayKey 2026-01-08. A second lookup finds the serve button gone and 'Heute bereits versorgt' in its place with still exactly one row (duplicate refused). A second household served with the box cleared stores paid=false. Households take numbers 221-222 to stay clear of counter.spec (201-206/239) and portions.spec (211) in the shared db. Gotcha: customerNumber is unique only via a hand-written partial index Prisma cannot see, so the DB read uses findFirst, not findUnique. All gates green: lint, typecheck, test:coverage (100% domain+application), build, and npm run test:e2e (24 passed, 1 pre-existing skip)."
     }
   ]
 }
