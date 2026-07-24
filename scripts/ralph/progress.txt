@@ -44,3 +44,16 @@ Started: Fri Jul 24 14:11:17 CEST 2026
   - Registration's first certificate row is stamped `recordedAt = card.issuedAt` in customer-repository.create — both come from the same registration instant; US-06.4's deps wiring can hand the two new adapters straight to recordReminder/renewCertificate.
   - `CUSTOMER_INCLUDE` orders certificates `[{recordedAt: desc}, {id: desc}]` — the id tie-break mirrors "the later row wins" for same-millisecond writes.
 ---
+## 2026-07-24 14:55 - US-004 (Certificate status, reminder action and renewal form)
+- Added `CertificateControls` (client) to the counter: "Erinnerung erfassen" logs the reminder via a new `logReminder` server action and confirms the resulting count; the button is then disabled for the rest of the day with the label "Erinnerung heute bereits erfasst". A renewal form (type + end date) calls `recordRenewal` → `renewCertificate` and confirms "…zurückgesetzt: 0" while the revalidated page shows count 0 and a green verdict again.
+- Extended `lookupCustomer` (TDD, 3 new tests) with `reminderLoggedToday`, read via `reminders.findOnDay(customerId, berlinDayKey(today))` in the same pass as today's record — the disabled state survives reloads/re-lookups because it comes from the store, not client memory. `LookupCustomerDeps` now requires `ReminderLogRepository`.
+- Files changed: src/app/ausgabe/certificate-controls.tsx (new), actions.ts, deps.ts (both roots grew reminder/certificate adapters), page.tsx, serve-state.ts (ReminderState/RenewalState), src/application/customers/lookup-customer.ts+test, src/i18n/de.ts (de.distribution.certificate.*), docs/technical_documentation.md.
+- Quality: lint ✓, typecheck ✓, test:coverage ✓ (473 tests, application 100%), build ✓, test:e2e ✓ (24 passed).
+- Browser-verified against the dev server with a seeded expired-certificate customer (Playwright drive, screenshots /tmp/us06-{1,2,3}-*.png): expired banner → log reminder (count 1, button disabled, survives fresh lookup) → renewal (count 0, verdict green, new date shown). Dev db reset afterwards.
+- **Learnings for future iterations:**
+  - `CertificateControls` is rendered *unconditionally* for a resolved customer and hides itself; it must stay mounted through the post-renewal render so the "0" confirmation survives the verdict turning green. It is `key={customerId}`-ed in page.tsx so state cannot leak into the next looked-up customer — use the same pattern for any future per-customer client control on /ausgabe.
+  - US-005's spec can drive everything by testid: `reminder-button`, `reminder-confirmation`, `reminder-error`, `renewal-type`, `renewal-valid-until`, `renewal-save`, `renewal-confirmation`, `counter-reminder-count` (grid value, always rendered — shows "0" after renewal).
+  - The e2e clock pin (`FD_FIXED_NOW_FILE` → data/e2e-now.txt, written by `pinToday()` in counter.spec.ts) is per-request — US-005's three consecutive distribution days just rewrite the file between page loads.
+  - tsx scripts can't resolve node_modules from /tmp — put throwaway scripts in the repo root and delete them.
+  - The dev seed creates settings only; browser checks need a hand-seeded customer (nested create incl. `certificates.create.recordedAt` and `cards.create`), and `npm run db:reset` cleans up afterwards.
+---
