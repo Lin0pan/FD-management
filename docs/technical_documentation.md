@@ -135,6 +135,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── counter.spec.ts               # every counter verdict, and that a lookup writes nothing
 │   ├── distribution.spec.ts          # the week-colour banner against a fixed clock
 │   ├── home.spec.ts                  # Playwright smoke test
+│   ├── portions.spec.ts              # portions and price follow the household, not a stored column
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
 │   └── settings.spec.ts              # settings round-trip vs. the built app
 ├── eslint.config.mjs  .prettierrc.json  .prettierignore
@@ -896,6 +897,12 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   today and should widen with the schema.
   `ALREADY_SERVED_TODAY` is the one verdict it cannot cover: nothing can serve a household yet, so
   nothing can serve one twice.
+- `portions.spec.ts` covers US-07 end to end (§US-07.5): that the portions and the price on the
+  customer record are **derived on the request**, never a stored column. It seeds a two-grown-up,
+  one-child household through Prisma (5 Portionen, 5,00 € against the seeded settings), reads both
+  off `/kunden/[id]`, adds a second child straight in the database, and reloads to 6 Portionen and
+  6,00 €. The member is added through Prisma rather than the UI because editing a household (US-16)
+  has no screen yet; the reload deriving a new value is the proof the criterion asks for.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

@@ -118,8 +118,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "tests/e2e/portions.spec.ts — seeds a 2-grown-up/1-child household straight through Prisma (customer number 211, clear of the low sequence and the counter spec's 201–206), reads 5 Portionen and 5,00 € off /kunden/[id], then adds a second child directly in the DB and reloads to 6 Portionen and 6,00 €. Also asserts the 'standard values, not adjustable' hint. One deviation: adding the member goes through Prisma, not the UI, because editing a household (US-16) has no screen yet — the reload-derives-afresh proof is what the criterion is really after. npm run test:e2e green (21 passed, 1 pre-existing skip)."
     }
   ]
 }

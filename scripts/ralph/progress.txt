@@ -258,3 +258,26 @@ Started: Thu Jul 23 21:04:04 CEST 2026
     (the pattern counter.spec.ts uses: `new PrismaClient({ datasourceUrl: "file:" + resolve(...) })`)
     and the page reloaded. Data-testids `portions` and `price` exist on both the card and the record.
 ---
+
+## 2026-07-24 - US-007 (E2E: portions and price follow the household)
+- Added the Playwright spec proving the customer record's portions and price are derived on the
+  request, not read from a stored column (US-07.5 / tasks/prd-us-07-portions-and-price.md).
+- Files changed:
+  - `tests/e2e/portions.spec.ts` (new) — seeds a 2-grown-up/1-child household through Prisma
+    (customer number 211), reads 5 Portionen / 5,00 € off `/kunden/[id]`, adds a second child
+    directly in the DB, reloads to 6 Portionen / 6,00 €, and asserts the standard-values hint.
+  - `docs/technical_documentation.md` — listed the new spec in the file tree and the E2E prose.
+- **Learnings for future iterations:**
+  - The customer record derives its composition from `householdMembers` only — the applicant is
+    itself the first member row (a registration mirrors it there). The customer's own `birthDate`
+    column is not counted a second time. Seeded settings: 2 portions/200c per grown-up, 1
+    portion/100c per child, so 2+1 → 5 portions / 5,00 €, and +1 child → 6 / 6,00 €.
+  - `/kunden/[id]` keys off the surrogate `Customer.id` (Int autoincrement), not the customer
+    number — capture `customer.id` from the `prisma.customer.create` result to build the URL.
+  - Adding a household member has no screen (US-16 unbuilt); the documented "open the DB a second
+    time" pattern covers it — `prisma.householdMember.create({ data: { customerId, ... } })`, then
+    `page.reload()`. No `pinToday` needed if birthdates are robust across any run day (grown-ups in
+    the 80s, children in the early 20s), same as card.spec.ts.
+  - Reading a customer back needs a certificate and a card, or `toRegisteredCustomer` throws
+    `InvalidCustomerRecord` — include both in the seed even when the test only reads portions.
+---
