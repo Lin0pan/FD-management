@@ -669,6 +669,25 @@ describe("readCustomer", () => {
     expect(view.allowance.priceCents).toBe(300);
   });
 
+  it("gives each household member their current age as of today", async () => {
+    const registered = await registerCustomer(
+      deps(),
+      registerInput({
+        householdMembers: [
+          member({ firstName: "Ada", birthDate: new Date("1990-04-05T00:00:00.000Z") }),
+          member({ firstName: "Bo", birthDate: new Date("2020-06-01T00:00:00.000Z") }),
+        ],
+      }),
+    );
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.household.map((m) => ({ firstName: m.firstName, age: m.age }))).toEqual([
+      { firstName: "Ada", age: 36 },
+      { firstName: "Bo", age: 6 },
+    ]);
+  });
+
   it("refuses an id that belongs to nobody rather than showing an empty card", async () => {
     await expect(readCustomer(deps(), 404)).rejects.toThrow(CustomerNotFound);
   });

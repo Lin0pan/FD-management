@@ -39,7 +39,7 @@ function NotFound(): React.ReactElement {
 }
 
 function CustomerCard({ view }: { view: CustomerCardView }): React.ReactElement {
-  const { customer, composition, cardNumber, allowance } = view;
+  const { customer, composition, household, cardNumber, allowance } = view;
   const { details } = customer;
 
   return (
@@ -109,10 +109,11 @@ function CustomerCard({ view }: { view: CustomerCardView }): React.ReactElement 
           </p>
         </div>
         <ul className="flex flex-col gap-1">
-          {details.householdMembers.map((member, index) => (
+          {household.map((member, index) => (
             // Two members can share a name and a birthdate, so the position is the only key there is.
             <li key={index} data-testid="household-member" className="text-foreground/80">
-              {member.firstName} {member.lastName} — {germanDate(member.birthDate)}
+              {member.firstName} {member.lastName} — {germanDate(member.birthDate)} (
+              {de.customers.card.memberAge(member.age)})
             </li>
           ))}
         </ul>
@@ -125,6 +126,12 @@ function CustomerCard({ view }: { view: CustomerCardView }): React.ReactElement 
         <p>
           {details.certificate.type} — {de.customers.card.validUntil}{" "}
           {germanDate(details.certificate.validUntil)}
+        </p>
+        <p className="text-foreground/80">
+          <span className="text-sm text-foreground/70">{de.customers.card.reminderCount}: </span>
+          <span data-testid="reminder-count" className="font-medium tabular-nums">
+            {customer.reminderCount}
+          </span>
         </p>
       </section>
 

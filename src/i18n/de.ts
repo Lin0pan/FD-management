@@ -117,8 +117,11 @@ export const de = {
       certificateHeading: "Bedarfsnachweis",
       validUntil: "gültig bis",
       registered: "Aufgenommen",
+      reminderCount: "Erinnerungen an den Nachweis",
       backToHome: "Zur Startseite",
       cardViewLink: "Kundenkarte anzeigen",
+      /** A member's age beside their birthdate; German inflects the year at one. */
+      memberAge: (age: number): string => (age === 1 ? "1 Jahr" : `${age} Jahre`),
     },
     /** Why a card was handed over — the four reasons `CardIssueReason` names. */
     cardReasons: {

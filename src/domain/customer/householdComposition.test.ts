@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BirthDateInFuture, EmptyHousehold } from "../errors";
-import { composition, type HouseholdMember } from "./householdComposition";
+import { ageInYears, composition, type HouseholdMember } from "./householdComposition";
 
 /** A household member is nothing but a birthdate as far as this rule is concerned. */
 function bornOn(isoDate: string): HouseholdMember {
@@ -90,5 +90,38 @@ describe("composition", () => {
       expect(error).toBeInstanceOf(BirthDateInFuture);
       expect((error as BirthDateInFuture).birthDate).toEqual(on("2026-07-23"));
     }
+  });
+});
+
+describe("ageInYears", () => {
+  it("counts a full year only once the birthday has come round", () => {
+    expect(ageInYears(on("1990-06-15"), on("2026-06-14"))).toBe(35);
+  });
+
+  it("ticks the age over on the birthday itself", () => {
+    expect(ageInYears(on("1990-06-15"), on("2026-06-15"))).toBe(36);
+  });
+
+  it("keeps the higher age the day after the birthday", () => {
+    expect(ageInYears(on("1990-06-15"), on("2026-06-16"))).toBe(36);
+  });
+
+  it("reports a member born today as nought years old", () => {
+    expect(ageInYears(on("2026-07-22"), on("2026-07-22"))).toBe(0);
+  });
+
+  it("holds a 29 February birthday back to 1 March in a non-leap year", () => {
+    expect(ageInYears(on("2012-02-29"), on("2025-02-28"))).toBe(12);
+    expect(ageInYears(on("2012-02-29"), on("2025-03-01"))).toBe(13);
+  });
+
+  it("ignores the time of day on both the birthdate and today", () => {
+    const birthDate = new Date("1990-06-15T23:30:00.000Z");
+    const today = new Date("2026-06-15T00:15:00.000Z");
+    expect(ageInYears(birthDate, today)).toBe(36);
+  });
+
+  it("rejects a birthdate in the future rather than reporting a negative age", () => {
+    expect(() => ageInYears(on("2026-07-23"), on("2026-07-22"))).toThrow(BirthDateInFuture);
   });
 });
