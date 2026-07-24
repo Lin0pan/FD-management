@@ -27,6 +27,14 @@ Started: Thu Jul 23 21:04:04 CEST 2026
   "type → Enter → read → type again" loop needs no state at all.
 - A route's `deps.ts` is its composition root, and *what it omits is a guarantee*: a screen that
   never writes holds no `AuditLog`. Say so in the comment — it is the enforcement.
+- E2E specs share one `data/e2e.db` and run serially in **alphabetical file order**. Never name a
+  customer number the *allocator* will hand out — but a spec that inserts its own rows may reserve a
+  high block (200s), because allocation is always the lowest free slot.
+- A spec needing states no screen can reach yet (archived, blocked, a second card) opens the app's
+  own database a second time: `new PrismaClient({ datasourceUrl: "file:" + resolve("data/e2e.db") })`.
+  Absolute — a relative SQLite url resolves against `prisma/`, not the working directory.
+- **Run `npm run test:e2e` after any change to a route, even a "UI-only" one.** US-004 added a
+  second `Nachschlagen` button and broke the distribution spec; nothing else in the gate sees it.
 - Verified UI in the browser by dropping a throwaway spec into `tests/e2e/`, running
   `npx playwright test <name>` (it builds, migrates and seeds a fresh `data/e2e.db` itself) with
   `page.screenshot()`, then deleting it. `writeFileSync("data/e2e-now.txt", iso)` pins the app's
@@ -167,4 +175,41 @@ Started: Thu Jul 23 21:04:04 CEST 2026
     only produce CLEAR_TO_SERVE, WRONG_GROUP and the expired-certificate case (registration + the
     pinned clock). ARCHIVED, BLOCKED and OUTDATED_CARD have no UI to reach them yet — seed them
     through Prisma directly. The banner exposes `data-verdict="<kind>"` for exactly this.
+---
+
+## 2026-07-24 - US-005 (E2E: every verdict at the counter)
+- Added the permanent Playwright spec for the counter (US-04.5) and fixed a regression it found.
+- Files changed:
+  - `tests/e2e/counter.spec.ts` (new) — 8 specs. Seven verdicts asserted as the German *sentence*
+    (headline + detail from `de.distribution.counter.verdicts`), not just `data-verdict`; plus a
+    read-only spec that snapshots statuses, reminder counts and the card/audit-entry counts, runs
+    the two common refusals and one successful lookup, and asserts the snapshot is unchanged.
+    Six households seeded straight through Prisma, numbers 201–206, today pinned to 08.01.2026.
+  - `src/i18n/de.ts` — `distribution.lookup.submit` is now "Woche nachschlagen" (own commit).
+  - `docs/technical_documentation.md` — file tree, a `counter.spec.ts` section, and the
+    customer-number rule for e2e specs corrected.
+- Checks: lint, typecheck, `test:coverage` (390 tests, domain+application 100%), build, and
+  `npm run test:e2e` (20 passed, 1 skipped) — all green.
+- **Learnings for future iterations:**
+  - **US-004 left `npm run test:e2e` red and nobody noticed**: it put a second submit button on
+    `/ausgabe`, so `getByRole("button", { name: "Nachschlagen", exact: true })` in
+    `distribution.spec.ts` hit a strict-mode violation. Two buttons with the same accessible name
+    are also a real a11y defect, so the fix was to rename the week one rather than to reach for a
+    test id — the existing spec then passed untouched. Run the e2e gate after every route change.
+  - Seeding through Prisma from a spec works and is the only way to reach ARCHIVED, BLOCKED and a
+    superseded card before US-08/09/10 exist. `datasourceUrl` (not the deprecated `datasources`)
+    with an **absolute** path; two processes on one SQLite file was not a problem because the spec
+    writes only in `beforeAll`, while the server is idle.
+  - 08.01.2026 is the useful pinned day for counter work: a RED distribution Thursday under the
+    seeded anchor, so a RED household is CLEAR_TO_SERVE and a BLUE one WRONG_GROUP in one run.
+  - Asserting an *absence* (FR-4: a lookup writes nothing) is only possible from outside the app.
+    A JSON snapshot of the rows a write would touch, compared before and after, says it in one
+    assertion and widens naturally when US-05 adds the distribution table.
+  - Two criteria could not be met literally and are recorded in the story's `notes` rather than
+    quietly claimed: ALREADY_SERVED_TODAY has no seedable state until US-05, and there is no
+    distribution record to assert the absence of yet.
+  - US-006 (next) puts portions and price on the card view and the customer detail page. The
+    counter already renders both via `de.customers.derived.portions` / `.price`; the story's
+    "these are the standard values" hint is on *none* of the three screens yet — add it to all
+    three together.
 ---

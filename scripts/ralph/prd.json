@@ -87,8 +87,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "tests/e2e/counter.spec.ts — 8 specs, npm run test:e2e green (20 passed, 1 skipped). Two deviations from the wording. ALREADY_SERVED_TODAY has no seedable state: nothing can serve a household until US-05, so nothing can serve one twice; the other seven verdicts are covered. And 'no distribution record' has no table to assert against yet — the read-only spec snapshots statuses, reminder counts and the card and audit-entry counts instead, which is every row a lookup could touch today. Running the suite also caught a regression US-004 left behind: two submit buttons on /ausgabe both named 'Nachschlagen', fixed in its own commit."
     },
     {
       "id": "US-006",
