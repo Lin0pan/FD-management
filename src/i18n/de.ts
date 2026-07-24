@@ -68,6 +68,8 @@ export const de = {
     derived: {
       grownUps: "Erwachsene (ab 13 Jahren)",
       children: "Kinder (unter 13 Jahren)",
+      portions: "Portionen",
+      price: "Preis",
       hint: "Berechnet aus den Geburtsdaten — nicht eingebbar.",
       unknown: "—",
     },
@@ -158,6 +160,75 @@ export const de = {
       noDistributionDay: "Heute ist keine Ausgabe",
       next: (date: string, colour: string): string => `Nächste Ausgabe: ${date}, Gruppe ${colour}`,
       week: (isoWeek: string): string => `Kalenderwoche ${isoWeek}`,
+    },
+    /**
+     * The counter lookup — the most-read text in the product. Every verdict is stated as a full
+     * German sentence, because the banner's colour is only ever a repetition of what the words
+     * already say (tasks/prd-us-04-lookup-customer.md §US-04.4).
+     */
+    counter: {
+      heading: "Kundin oder Kunde nachschlagen",
+      hint: "Kundennummer (50) oder Kartennummer (50k3) eingeben und mit der Eingabetaste bestätigen.",
+      label: "Nummer",
+      submit: "Nachschlagen",
+      /** How the colour reads of a person: the group they belong to, named in words. */
+      customerOfColour: {
+        RED: "Rote Kundin / roter Kunde",
+        BLUE: "Blaue Kundin / blauer Kunde",
+      },
+      /** How the colour reads of a week — the inflected form the send-away sentence needs. */
+      weekOfColour: {
+        RED: "rote Woche",
+        BLUE: "blaue Woche",
+      },
+      verdicts: {
+        notFound: {
+          headline: "Nummer nicht gefunden",
+          detail: "Zu dieser Nummer gibt es keinen Haushalt. Bitte die Nummer prüfen.",
+        },
+        archived: {
+          headline: "Archiviert",
+          detail: "Dieser Haushalt ist archiviert und nicht mehr bezugsberechtigt. Nicht ausgeben.",
+        },
+        blocked: {
+          headline: "Gesperrt",
+          noReason: "Es ist kein Grund hinterlegt. Bitte in der Kundenakte nachsehen.",
+        },
+        wrongGroup: {
+          headline: "Falsche Gruppe",
+          detail: (customer: string, week: string): string =>
+            `${customer} — ${week}. Wegschicken, nächste Woche wieder.`,
+        },
+        outdatedCard: {
+          headline: "Karte ungültig",
+          detail: (presented: string, current: string): string =>
+            `Karte ${presented} ist ungültig, aktuelle Karte ist ${current}.`,
+        },
+        alreadyServedToday: {
+          headline: "Heute bereits ausgegeben",
+          detail: "Dieser Haushalt hat heute schon Lebensmittel erhalten. Keine zweite Ausgabe.",
+        },
+        clearToServe: {
+          headline: "Ausgabe frei",
+          detail: "Alles in Ordnung. Portionen und Preis stehen unten.",
+        },
+        certificateExpired: {
+          headline: "Ausgabe frei — Nachweis abgelaufen",
+          detail: (validUntil: string, reminderCount: number): string =>
+            `Der Bedarfsnachweis war gültig bis ${validUntil}. Ausgeben, an die Verlängerung ` +
+            `erinnern und die Erinnerung eintragen. Bisherige Erinnerungen: ${reminderCount}.`,
+        },
+      },
+      details: {
+        heading: "Angaben zum Haushalt",
+        reminderCount: "Erinnerungen an den Nachweis",
+        noNotes: "Keine Bemerkung hinterlegt.",
+      },
+      errors: {
+        notANumber:
+          "Das ist keine Kundennummer und keine Kartennummer. Erwartet werden zum Beispiel 50 " +
+          "oder 50k3.",
+      },
     },
     lookup: {
       heading: "Andere Woche nachschlagen",

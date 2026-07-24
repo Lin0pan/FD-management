@@ -66,9 +66,10 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── app/                          # Next.js App Router — thin adapter layer
 │   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
 │   │   ├── page.tsx                  # home page (reads strings from i18n dictionary)
-│   │   ├── ausgabe/                  # the distribution screen (US-03)
-│   │   │   ├── page.tsx              # server component: the colour banner + the week lookup
-│   │   │   └── deps.ts               # composition root: settings repository + clock
+│   │   ├── ausgabe/                  # the distribution screen (US-03) and the counter (US-04)
+│   │   │   ├── page.tsx              # server component: colour banner, counter lookup, week lookup
+│   │   │   ├── counter-lookup.tsx    # the verdict banner + the customer details below it (US-04.4)
+│   │   │   └── deps.ts               # composition root: customer + settings repositories, clock
 │   │   ├── kunden/                   # the customer screens (US-01)
 │   │   │   ├── deps.ts               # composition root for both routes below
 │   │   │   ├── neu/                  # the registration screen
@@ -680,12 +681,14 @@ screen and from 0 in the domain.
 renders the component after the function has returned, so the `catch` would never fire. Await the
 read into a variable inside the `try` and build the JSX after it.
 
-### `src/app/ausgabe/` — the distribution screen
+### `src/app/ausgabe/` — the distribution screen and the counter
 
-The screen that answers the question the counter asks first: which group collects (US-03.4).
+The screen that answers the question the counter asks first — which group collects (US-03.4) — and
+then the question it asks about every person in the queue: may _this_ one collect (US-04.4).
 
-- **`deps.ts`** needs only `SettingsRepository` and `Clock`. A week colour is derived from the
-  calendar, never stored, so there is no repository of weeks to reach for.
+- **`deps.ts`** holds `CustomerRepository`, `SettingsRepository` and `Clock`. Deliberately **no audit
+  log and no card repository**: everything this screen does is a read, and turning someone away
+  records nothing (US-04, FR-4), so a port it does not hold is a write it cannot make.
 - **`page.tsx`** calls `getWeekColour` once for today and, when a date was submitted, once more for
   that day. Both questions are the same use case; the page arranges the answers and decides nothing.
 - The **banner** is the dominant element and is painted in the colour it _names_ — on a day without a
@@ -699,6 +702,26 @@ The screen that answers the question the counter asks first: which group collect
   the calendar does not have (`?datum=2026-13-45`): the Zod schema checks the shape _and_ that the
   parsed date is a date, because an Invalid Date's NaN survives the calendar arithmetic silently and
   would be rendered as a week `NaN-WNaN` in a confidently-named colour.
+
+#### The counter lookup (`counter-lookup.tsx`)
+
+- The typed number lands in `?nummer=` through a second `method="get"` form, for the same reason the
+  week lookup uses one — and for one more: a form navigation brings the input back **empty and
+  autofocused**, which is the whole keyboard loop the counter needs (type, Enter, read, type again).
+  No client component, no state to reset.
+- **`statementFor(verdict)`** is the only place a verdict becomes words. Its `switch` ends in a
+  `const unhandled: never = verdict`, so adding a case to the union is a _compile error_ until the
+  counter renders it — a new verdict can never appear as a blank banner.
+- Each verdict carries an icon, a headline and a full German sentence naming the action; the banner's
+  colour only repeats what the words already say. Wrong group names **both** colours, and the
+  inflected forms ("blaue Kundin / blauer Kunde", "rote Woche") are dictionary data keyed by the
+  colour, not sentences assembled in the component.
+- An **expired certificate is amber, not red**: the verdict is still serve — the reminder is a
+  conversation, never grounds to refuse food.
+- Everything below the banner is on screen at once (FR-2). All of it is derived by `lookupCustomer`:
+  the counts from the birthdates, portions and price from the settings in force today.
+- A number that is **not a number** (`?nummer=abc`) renders a German sentence beside the form; an
+  unassigned one renders the `NOT_FOUND` banner, because that is an answer rather than a failure.
 
 ### `src/i18n/de.ts`
 

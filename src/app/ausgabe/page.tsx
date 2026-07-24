@@ -1,21 +1,26 @@
 /**
- * The distribution screen.
+ * The distribution screen — the counter.
  *
- * Its whole job is to make one fact unmissable: which group collects. Staff read it across a shared
- * screen in variable lighting, so the colour is stated in words *and* painted, never painted alone
- * (tasks/prd-us-03-week-colour.md §US-03.4).
+ * Two questions are answered here, both unmissably. Which group collects today: stated in words
+ * *and* painted, never painted alone, because staff read it across a shared screen in variable
+ * lighting (tasks/prd-us-03-week-colour.md §US-03.4). And: may *this* person collect, for the number
+ * a staff member just typed (tasks/prd-us-04-lookup-customer.md §US-04.4).
  *
- * Nothing is computed here. `getWeekColour` answers for today and, when a date is submitted, for
- * that day as well — the same use case twice, once per question.
+ * Nothing is computed here. `getWeekColour` and `lookupCustomer` answer; this page lays the answers
+ * out. Both are reads — turning someone away records nothing (FR-4) — so a plain GET form carries
+ * the query in the URL, which also means Enter reloads the page with the input empty and focused
+ * again, ready for the next customer in the queue.
  */
 
 import Link from "next/link";
 import { z } from "zod";
+import { lookupCustomer, type CounterLookup } from "@/application/customers/lookup-customer";
 import { getWeekColour, type WeekColourView } from "@/application/distribution/get-week-colour";
 import { DomainError } from "@/domain/errors";
 import type { WeekColour } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
+import { CustomerDetails, VerdictBanner } from "./counter-lookup";
 import { distributionDeps } from "./deps";
 
 /** The colour turns over at midnight and settings change under the screen, so never cache it. */
@@ -139,6 +144,32 @@ function LookupResult({ lookup }: { lookup: Lookup }): React.ReactElement {
  * The lookup fails on its own: an unreadable date, or a day before FD had any settings, must leave
  * today's banner standing rather than take the screen down with it.
  */
+/** The counter answer for a typed number, or the German sentence explaining why there is none. */
+type CounterResult =
+  | { readonly lookup: CounterLookup; readonly error: null }
+  | { readonly lookup: null; readonly error: string };
+
+/**
+ * The verdict for a typed number, or `null` when nothing was typed.
+ *
+ * Only a number that is not a number is caught: an unassigned one is `NOT_FOUND`, which is an answer
+ * rather than a failure. Anything else — no settings in force, an unreadable stored record — is a
+ * fault of the installation, not of what was typed, and belongs on the error screen.
+ */
+async function lookUpNumber(raw: string | string[] | undefined): Promise<CounterResult | null> {
+  if (typeof raw !== "string" || raw.trim() === "") {
+    return null;
+  }
+  try {
+    return { lookup: await lookupCustomer(distributionDeps, raw), error: null };
+  } catch (error: unknown) {
+    if (error instanceof DomainError && error.code === "InvalidCardNumber") {
+      return { lookup: null, error: de.distribution.counter.errors.notANumber };
+    }
+    throw error;
+  }
+}
+
 async function lookUp(raw: string | string[] | undefined): Promise<Lookup | null> {
   if (typeof raw !== "string" || raw === "") {
     return null;
@@ -160,9 +191,9 @@ async function lookUp(raw: string | string[] | undefined): Promise<Lookup | null
 export default async function DistributionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ datum?: string | string[] }>;
+  searchParams: Promise<{ datum?: string | string[]; nummer?: string | string[] }>;
 }): Promise<React.ReactElement> {
-  const { datum } = await searchParams;
+  const { datum, nummer } = await searchParams;
 
   let today: WeekColourView;
   try {
@@ -182,13 +213,54 @@ export default async function DistributionPage({
     throw error;
   }
 
-  const lookup = await lookUp(datum);
+  const [lookup, counter] = await Promise.all([lookUp(datum), lookUpNumber(nummer)]);
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 p-8">
       <h1 className="text-3xl font-semibold">{de.distribution.heading}</h1>
 
       <Banner view={today} />
+
+      {/* The counter loop, keyboard only: type the number, press Enter, read the verdict. The form
+          navigates, so the input comes back empty and — being autofocused — ready for the next
+          customer without touching the mouse. */}
+      <section className="flex flex-col gap-4">
+        <h2 className="text-xl font-semibold">{de.distribution.counter.heading}</h2>
+        <p className="max-w-prose text-foreground/70">{de.distribution.counter.hint}</p>
+        <form method="get" className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-sm text-foreground/70">{de.distribution.counter.label}</span>
+            <input
+              // Not `type="number"`: a card number carries a `k`, and a spinner has no meaning here.
+              type="text"
+              name="nummer"
+              inputMode="numeric"
+              autoComplete="off"
+              autoFocus
+              data-testid="counter-input"
+              className="w-40 rounded border border-foreground/20 px-3 py-2 text-2xl tabular-nums"
+            />
+          </label>
+          <button
+            type="submit"
+            className="rounded border border-foreground/20 px-4 py-2 font-medium"
+          >
+            {de.distribution.counter.submit}
+          </button>
+        </form>
+        {counter === null ? null : counter.lookup === null ? (
+          <p data-testid="counter-error" className="max-w-prose text-foreground/80">
+            {counter.error}
+          </p>
+        ) : (
+          <>
+            <VerdictBanner verdict={counter.lookup.verdict} />
+            {counter.lookup.customer === null ? null : (
+              <CustomerDetails customer={counter.lookup.customer} />
+            )}
+          </>
+        )}
+      </section>
 
       {/* A plain GET form: the looked-up day belongs in the URL, so a colour staff have checked can
           be reloaded or shared without re-typing it. */}
