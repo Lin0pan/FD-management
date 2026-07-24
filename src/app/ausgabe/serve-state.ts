@@ -24,3 +24,22 @@ export type CorrectState =
   | { readonly status: "error"; readonly message: string };
 
 export const initialCorrectState: CorrectState = { status: "idle" };
+
+/**
+ * What the reminder action shows after a submission. `logged` carries the resulting count so the
+ * confirmation can state it immediately, before the revalidated page catches up (US-06.4).
+ */
+export type ReminderState =
+  | { readonly status: "idle" }
+  | { readonly status: "logged"; readonly count: number }
+  | { readonly status: "error"; readonly message: string };
+
+export const initialReminderState: ReminderState = { status: "idle" };
+
+/** What the renewed-certificate form shows after a submission. */
+export type RenewalState =
+  | { readonly status: "idle" }
+  | { readonly status: "saved" }
+  | { readonly status: "error"; readonly message: string };
+
+export const initialRenewalState: RenewalState = { status: "idle" };

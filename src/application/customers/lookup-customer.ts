@@ -4,9 +4,9 @@
  *
  * This is the single most-used read in the product, and it is *only* a read — turning someone away
  * for the wrong group or an outdated card records nothing (FR-4). It takes no audit log, and it calls
- * only the reading method of the distribution store (`listForCustomer`, for the day's record it shows
- * beside the serve action): the write path that records a hand-out lives in `recordAttendance`, not
- * here, so this use case still cannot change state.
+ * only the reading methods of its stores (`listForCustomer` for the day's record beside the serve
+ * action, `findOnDay` for whether today's reminder is already logged): the write paths live in
+ * `recordAttendance` and `recordReminder`, not here, so this use case still cannot change state.
  *
  * Nothing on the screen is stored. The counts come from the birthdates, the portions and the price
  * from the settings in force today, and the card number from the slot and the current card index —
@@ -18,7 +18,7 @@
 import { formatCardNumber, parseCounterQuery } from "@/domain/card/cardNumber";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
-import { recordForDay } from "@/domain/distribution/attendance";
+import { berlinDayKey, recordForDay } from "@/domain/distribution/attendance";
 import { evaluateAtCounter, type Verdict } from "@/domain/distribution/counterVerdict";
 import type { Cents } from "@/domain/money";
 import { describeAllowance } from "../allowance/describe-allowance";
@@ -27,6 +27,7 @@ import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  ReminderLogRepository,
   SettingsRepository,
 } from "../ports";
 
@@ -34,6 +35,7 @@ export interface LookupCustomerDeps {
   readonly customers: CustomerRepository;
   readonly settings: SettingsRepository;
   readonly records: DistributionRecordRepository;
+  readonly reminders: ReminderLogRepository;
   readonly clock: Clock;
 }
 
@@ -87,6 +89,12 @@ export interface CounterLookup {
   readonly customer: CounterCustomerView | null;
   readonly customerId: number | null;
   readonly todaysRecord: TodaysRecordView | null;
+  /**
+   * Whether a certificate reminder is already on file for today's Berlin day (US-06.4). Read here so
+   * the reminder action stays disabled for the rest of the day across reloads and re-lookups — the
+   * screen must not offer an action the once-per-day rule is bound to refuse. `false` on `NOT_FOUND`.
+   */
+  readonly reminderLoggedToday: boolean;
 }
 
 /**
@@ -132,12 +140,23 @@ export async function lookupCustomer(
   });
 
   if (customer === null) {
-    return { verdict, customer: null, customerId: null, todaysRecord: null };
+    return {
+      verdict,
+      customer: null,
+      customerId: null,
+      todaysRecord: null,
+      reminderLoggedToday: false,
+    };
   }
 
-  // The day's record is loaded with the customer, not on a later click, so the screen can offer the
-  // serve action or the correction of an existing record in one render (US-04.3, US-05.4).
-  const existing = recordForDay(await deps.records.listForCustomer(customer.id), today);
+  // The day's record and today's reminder are loaded with the customer, not on a later click, so the
+  // screen can offer the serve action, the correction of an existing record and the reminder action
+  // in one render (US-04.3, US-05.4, US-06.4).
+  const [recordsForCustomer, todaysReminder] = await Promise.all([
+    deps.records.listForCustomer(customer.id),
+    deps.reminders.findOnDay(customer.id, berlinDayKey(today)),
+  ]);
+  const existing = recordForDay(recordsForCustomer, today);
   const todaysRecord =
     existing === null ? null : { recordId: existing.id, at: existing.date, paid: existing.paid };
 
@@ -146,6 +165,7 @@ export async function lookupCustomer(
     verdict,
     customerId: customer.id,
     todaysRecord,
+    reminderLoggedToday: todaysReminder !== null,
     customer: {
       firstName: customer.details.firstName,
       lastName: customer.details.lastName,

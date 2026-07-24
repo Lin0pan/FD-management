@@ -8,7 +8,7 @@
  */
 
 import type { IssuedCard } from "@/domain/card/card";
-import type { NewCustomer, RegisteredCustomer } from "@/domain/customer/customer";
+import type { NeedsCertificate, NewCustomer, RegisteredCustomer } from "@/domain/customer/customer";
 import type { GroupCounts } from "@/domain/customer/group";
 import type {
   DistributionRecord,
@@ -125,6 +125,57 @@ export interface DistributionRecordRepository {
 }
 
 /**
+ * One logged certificate reminder — a day of the documented trail an expired certificate starts at
+ * the counter (US-06). `resultingCount` repeats the customer's count as it stood after this entry,
+ * so the trail is readable on its own without replaying it.
+ */
+export interface ReminderLogEntry {
+  /**
+   * The Berlin calendar day the reminder was given, as the `YYYY-MM-DD` key `berlinDayKey` writes —
+   * the same notion of "the same day" the attendance rule uses, because both happen at the counter
+   * at a local moment (US-05.3 for the precedent).
+   */
+  readonly loggedOn: string;
+  /** The customer's reminder count after this entry. */
+  readonly resultingCount: number;
+}
+
+/**
+ * The reminder trail (US-06). Entries are appended, never amended: a reminder that was given stays
+ * given, and the one legitimate reset — a renewed certificate — resets the *count*, not the log.
+ *
+ * `record` is **one transaction**: the log entry and the customer's new `reminderCount` are written
+ * together or not at all, so the count can never disagree with the trail. The adapter — not the
+ * caller — is the final authority on at most one reminder per customer per day, because the database
+ * holds the unique `(customerId, loggedOn)` constraint that decides it (US-06.3), and reports a lost
+ * race as `ReminderAlreadyLoggedToday`.
+ */
+export interface ReminderLogRepository {
+  /** The reminder logged for the customer on the given Berlin day, or `null` when there is none. */
+  findOnDay(customerId: number, loggedOn: string): Promise<ReminderLogEntry | null>;
+  /**
+   * Write the entry and set the customer's `reminderCount` to its `resultingCount`, transactionally.
+   *
+   * @throws {ReminderAlreadyLoggedToday} if a reminder for that customer and day landed first.
+   */
+  record(customerId: number, entry: ReminderLogEntry): Promise<void>;
+}
+
+/**
+ * The certificates a customer has presented over time.
+ *
+ * `renew` is **one transaction**: the renewed certificate and the reset of `reminderCount` to zero
+ * are written together or not at all (US-06, FR-4) — a renewal that landed without its reset would
+ * show a customer still owing a renewal they have just brought. Certificates are appended, never
+ * overwritten; the current one is the latest on record (US-06.3), so the history of renewals stays
+ * readable.
+ */
+export interface CertificateRepository {
+  /** Append the renewed certificate at `recordedAt` and reset the customer's count to zero. */
+  renew(customerId: number, certificate: NeedsCertificate, recordedAt: Date): Promise<void>;
+}
+
+/**
  * One append-only audit record: *what* changed, *when* and *why* — never *who*. FD has ruled out
  * login, so the system cannot tell its staff apart and the log deliberately has no actor field
  * (docs/tech_stack_architecture_sketch.md §5.2).
@@ -135,7 +186,11 @@ export interface AuditEntry {
   /** The names of the fields this change touched. */
   readonly changedFields: ReadonlyArray<string>;
   readonly when: Date;
-  /** The reason a human gave for the change, or `""` where none was required. */
+  /**
+   * The reason a human gave for the change, or `""` where none was required. The one machine-written
+   * value: a logged reminder records its resulting count here (`reminderCount=2`), because the entry
+   * must tell the trail's state on its own and no human reason is asked for (US-06.2).
+   */
   readonly why: string;
 }
 

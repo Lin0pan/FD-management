@@ -66,12 +66,13 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── app/                          # Next.js App Router — thin adapter layer
 │   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
 │   │   ├── page.tsx                  # home page (reads strings from i18n dictionary)
-│   │   ├── ausgabe/                  # the distribution screen (US-03), counter (US-04), hand-out (US-05)
+│   │   ├── ausgabe/                  # distribution screen (US-03), counter (US-04), hand-out (US-05), reminder (US-06)
 │   │   │   ├── page.tsx              # server component: colour banner, counter lookup, week lookup
 │   │   │   ├── counter-lookup.tsx    # the verdict banner + the customer details below it (US-04.4)
 │   │   │   ├── serve-controls.tsx    # client: record a hand-out, correct/remove today's record (US-05.4)
-│   │   │   ├── actions.ts            # "use server": Zod → recordAttendance / correctAttendance
-│   │   │   ├── serve-state.ts        # the state the serve/correct forms exchange with their actions
+│   │   │   ├── certificate-controls.tsx  # client: log today's reminder, record a renewal (US-06.4)
+│   │   │   ├── actions.ts            # "use server": Zod → the serve/correct/reminder/renewal use cases
+│   │   │   ├── serve-state.ts        # the state the counter's forms exchange with their actions
 │   │   │   └── deps.ts               # composition roots: the read deps and the write (audit) deps
 │   │   ├── kunden/                   # the customer screens (US-01)
 │   │   │   ├── deps.ts               # composition root for both routes below
@@ -103,6 +104,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customer/group.test.ts     # its Vitest spec
 │   │   ├── customer/customer.ts       # the customer record, validated on construction
 │   │   ├── customer/customer.test.ts  # its Vitest spec
+│   │   ├── customer/certificate.ts    # certificate expiry as of a given day (US-06)
+│   │   ├── customer/certificate.test.ts  # its Vitest spec
 │   │   ├── card/card.ts              # what an issued card is + why it was issued
 │   │   ├── card/card.test.ts         # its Vitest spec
 │   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
@@ -118,9 +121,11 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── distribution/distributionRecord.ts  # the hand-out record type (id, paid, priceCents)
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, CustomerRepository,
-│   │   │                             #   CardRepository, DistributionRecordRepository, AuditLog
+│   │   │                             #   CardRepository, DistributionRecordRepository,
+│   │   │                             #   ReminderLogRepository, CertificateRepository, AuditLog
 │   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
-│   │   │                             #   readCard, issueCard, lookupCustomer (the counter lookup)
+│   │   │                             #   readCard, issueCard, lookupCustomer (the counter lookup),
+│   │   │                             #   recordReminder / renewCertificate (US-06)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
@@ -132,6 +137,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │       ├── customer-repository.ts  # PrismaCustomerRepository + PrismaCustomerCounter
 │   │       ├── card-repository.ts    # PrismaCardRepository — the (customer, index) constraint
 │   │       ├── distribution-record-repository.ts  # PrismaDistributionRecordRepository — (customer, Berlin dayKey)
+│   │       ├── reminder-log-repository.ts  # PrismaReminderLogRepository — (customer, loggedOn) cap
+│   │       ├── certificate-repository.ts   # PrismaCertificateRepository — appends renewals
 │   │       ├── audit-log.ts          # PrismaAuditLog — append-only, no actor column
 │   │       ├── seed.ts               # provisional settings version, inserted only if none exists
 │   │       └── *.test.ts             # integration specs, throwaway SQLite file
@@ -144,6 +151,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── home.spec.ts                  # Playwright smoke test
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
+│   ├── reminders.spec.ts             # the reminder trail: three visits, three reminders, renewal
 │   ├── serve.spec.ts                 # record a hand-out, block a duplicate, store an unpaid one
 │   └── settings.spec.ts              # settings round-trip vs. the built app
 ├── eslint.config.mjs  .prettierrc.json  .prettierignore
@@ -207,15 +215,17 @@ The interfaces the application layer depends on. Per the TDD approach, ports **e
 needs** rather than being designed up front. Type-only, so it adds no runtime code to the
 coverage-measured layers.
 
-| Port                           | Shape                                                                                      | Notes                                                                                                                                                                          |
-| ------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Clock`                        | `now(): Date`                                                                              | The one seam to the wall clock.                                                                                                                                                |
-| `SettingsRepository`           | `listVersions()`, `append(version)`                                                        | No update/delete — policy history is append-only.                                                                                                                              |
-| `CustomerCounter`              | `countActive()`                                                                            | The reality the quota `N` may not fall below.                                                                                                                                  |
-| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                                | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                                                                                     |
-| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issue(customerId, card)`              | `currentCard` is the highest index — there is no `valid` flag to read; `issue` reports a lost race as `CardIndexTaken`.                                                        |
-| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)` | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade). |
-| `AuditLog`                     | `append(entry)`                                                                            | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                      |
+| Port                           | Shape                                                                                      | Notes                                                                                                                                                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Clock`                        | `now(): Date`                                                                              | The one seam to the wall clock.                                                                                                                                                                                          |
+| `SettingsRepository`           | `listVersions()`, `append(version)`                                                        | No update/delete — policy history is append-only.                                                                                                                                                                        |
+| `CustomerCounter`              | `countActive()`                                                                            | The reality the quota `N` may not fall below.                                                                                                                                                                            |
+| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                                | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                                                                                                                               |
+| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issue(customerId, card)`              | `currentCard` is the highest index — there is no `valid` flag to read; `issue` reports a lost race as `CardIndexTaken`.                                                                                                  |
+| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)` | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                           |
+| `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                             | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3). |
+| `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                               | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                       |
+| `AuditLog`                     | `append(entry)`                                                                            | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
 
@@ -403,6 +413,19 @@ only identity there is: a customer number is a slot another household may hold o
 archived. `CustomerStatus` is `ACTIVE | BLOCKED | ARCHIVED`; a blocked customer still holds their
 slot (US-08), an archived one releases it (US-10).
 
+### `src/domain/customer/certificate.ts`
+
+`isExpired(certificate, today)` is the whole expiry rule: a needs certificate is still valid **on**
+its `validUntil` day — the printed end date is the last day it counts — and expired the day after.
+Both dates are compared as UTC calendar days, so the time of day either value was recorded cannot
+change the verdict. Expiry never blocks a hand-out; it starts the reminder trail at the counter
+(US-06).
+
+Deliberately absent is any escalation function or reminder threshold. FD reminds "about three times"
+as a habit, but every case is a staff judgement, so the domain exposes only the expiry and the
+running `reminderCount` — encoding a threshold would misrepresent a judgement as a rule and is a
+named non-goal of US-06.
+
 ### `src/domain/card/card.ts`
 
 What an issued card _is_: `IssuedCard` = `index` + `issuedAt` + `reason`, and `CardIssueReason` =
@@ -566,6 +589,34 @@ The two read-side use cases the customer screens sit on:
 `NoFreeCustomerNumber` for the caller that is about to allocate one. The second is written in terms
 of the first, so there is still one statement of the rule.
 
+### `src/application/customers/recordReminder` and `renewCertificate`
+
+The two writes of the certificate reminder trail (US-06), which makes the grace period **documented
+rather than remembered**. An expired certificate never blocks a hand-out; it starts a conversation
+at the counter, and these use cases record its two possible outcomes.
+
+- **`recordReminder(deps, { customerId })`** logs that the customer was reminded today and returns
+  the resulting count. Two guards stand before the write: the certificate must actually have lapsed
+  (`isExpired`; otherwise `CertificateStillValid` — there is nothing to remind about), and no
+  reminder may exist on today's **Berlin** day (`berlinDayKey`, the same notion of "the same day"
+  the attendance rule uses; otherwise `ReminderAlreadyLoggedToday`, writing nothing — a mis-click
+  must not consume the grace period). The audit entry goes under `customer.reminder.logged` and
+  records the resulting count in its `why` (`reminderCount=2`), so the log alone tells the trail's
+  state. Deliberately absent: any threshold or escalation. What a count of three means is a staff
+  judgement (PRD §5), so the count is returned, shown, and never acted on.
+- **`renewCertificate(deps, { customerId, type, validUntil })`** records the renewed certificate
+  and resets the reminder count to zero — one repository call, one transaction, because a renewal
+  that landed without its reset would show a customer still owing what they just brought. A blank
+  type is refused (`MissingRequiredField`) and so is an end date that has already lapsed
+  (`CertificateValidUntilInPast`), decided by the same `isExpired` rule the counter reads — an end
+  date of today is accepted, because a certificate is valid through its last day. The certificate
+  is appended, never overwritten (FR-8), and the reminder _log_ is untouched: only the running
+  count starts over. The audit entry (`customer.certificate.renewed`) needs no reason — the
+  changed fields already say it.
+
+Both are tested against hand-written fakes and a fake clock (`certificate-reminder.test.ts`),
+including the Berlin-midnight boundary and the valid-through-its-last-day boundary.
+
 ### `src/infrastructure/prisma/audit-log.ts`
 
 The **append-only audit log** (`PrismaAuditLog`). Every state change is recorded with a timestamp
@@ -636,6 +687,28 @@ hold `50k1` (FR-6).
 The `Card.reason` column is the one thing a superseded card's index cannot say — why the household
 needed another one. It is a plain string, narrowed back through `parseCardIssueReason` on the way
 out.
+
+### `src/infrastructure/prisma/reminder-log-repository.ts` and `certificate-repository.ts`
+
+The two adapters behind the certificate reminder trail (US-06.3).
+
+`PrismaReminderLogRepository` (the `ReminderLogRepository` port) stores the trail and decides
+nothing: the once-per-day rule is the use case's (`recordReminder`), and what the adapter owns is
+the unique `(customerId, loggedOn)` constraint that settles which of two simultaneous reminders on
+one day got written. `loggedOn` is the **Berlin** calendar day the use case derives with
+`berlinDayKey`, mirroring `DistributionRecord.dayKey`, so the constraint and the guard share one
+notion of "today". `record` writes the log entry and the customer's new `reminderCount` in **one
+transaction**, so the count can never disagree with the trail — a rejected entry moves no count —
+and translates a `P2002` naming `loggedOn` into the domain's `ReminderAlreadyLoggedToday`. Like
+`DistributionRecord`, the relation has no `onDelete: Cascade`: a reminder that was given stays
+given.
+
+`PrismaCertificateRepository` (the `CertificateRepository` port) **appends** a renewal as a new
+`Certificate` row rather than editing the one on file, so the history of renewals stays readable
+(FR-8); the certificate _on file_ is the latest by `recordedAt`, which is how the customer
+repository's `CUSTOMER_INCLUDE` resolves it. The append and the reset of `reminderCount` to zero go
+out in one transaction — a renewal that landed without its reset would show a customer still owing
+what they have just brought.
 
 ### `src/app/einstellungen/` — the settings screen
 
@@ -719,10 +792,12 @@ The screen that answers the question the counter asks first — which group coll
 then the question it asks about every person in the queue: may _this_ one collect (US-04.4).
 
 - **`deps.ts`** holds two composition roots. `distributionDeps` — the page's — carries
-  `CustomerRepository`, `SettingsRepository`, the **reading** side of `DistributionRecordRepository`
-  (for the hand-out already made today, shown beside the serve action) and `Clock`, and deliberately
-  **no audit log**: everything the page renders is a read (US-04, FR-4). `counterActionDeps` — the
-  serve and correct actions' — adds the audit log and is the one object here that writes.
+  `CustomerRepository`, `SettingsRepository`, the **reading** sides of `DistributionRecordRepository`
+  (for the hand-out already made today, shown beside the serve action) and `ReminderLogRepository`
+  (for whether today's reminder is already logged, so the button stays disabled) and `Clock`, and
+  deliberately **no audit log**: everything the page renders is a read (US-04, FR-4).
+  `counterActionDeps` — the server actions' — adds the audit log, the certificate history and the
+  writable stores, and is the one object here that writes.
 - **`page.tsx`** calls `getWeekColour` once for today and, when a date was submitted, once more for
   that day. Both questions are the same use case; the page arranges the answers and decides nothing.
 - The **banner** is the dominant element and is painted in the colour it _names_ — on a day without a
@@ -776,6 +851,27 @@ then the question it asks about every person in the queue: may _this_ one collec
   besides recording; both go through the use cases, which own the once-per-day and same-day-only
   rules — the hidden serve button is a courtesy, not the guard (FR-8).
 
+#### The certificate reminder and renewal (`certificate-controls.tsx`, `actions.ts`)
+
+- On the expired-certificate verdict the amber banner already states the fact; below it,
+  `CertificateControls` offers the two writes US-06.4 adds: **"Erinnerung erfassen"**, which logs
+  today's reminder and confirms the resulting count, and the **renewal form** (type + end date),
+  which appends the certificate and resets the count to 0 in one transaction behind
+  `renewCertificate`.
+- `lookupCustomer` reads whether today's reminder is already on file (`reminderLoggedToday`) in the
+  same pass as the verdict, so after a log — or a fresh lookup any time later that day — the button
+  is **disabled with an explanatory label** ("Erinnerung heute bereits erfasst"). The disabled state
+  comes from the store, not from client memory; the once-per-day rule itself lives in
+  `recordReminder` and, as the race-proof backstop, in the database's unique `(customerId, loggedOn)`
+  constraint (FR-5).
+- Both actions revalidate `/ausgabe`, so the count beside the expiry status, the certificate's new
+  end date and the verdict all come back from the store. The component is **keyed by customer id** in
+  the page, so a confirmation from one lookup cannot survive into the next customer's screen — while
+  within one customer it stays mounted across the revalidation, which is what keeps the renewal
+  confirmation ("… zurückgesetzt: 0.") visible once the verdict has turned green again.
+- The screen states facts and offers actions — it never advises what a count should mean, prompts an
+  archive or applies a threshold, because that judgement is deliberately the staff's (FR-6, FR-7).
+
 ### `src/i18n/de.ts`
 
 A single `const de = {…} as const` dictionary of German UI strings, plus the derived `Dictionary`
@@ -812,7 +908,16 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   `grownUps` and no `children` column** — both are derived from the household's birthdates, and
   stored they would drift with every birthday, which is exactly what the Excel sheet did.
   `Card` is unique on `(customerId, index)`; the card number staff read out is derived from the
-  customer number and the index, never stored.
+  customer number and the index, never stored. `Certificate` rows are **appended, never
+  overwritten** (US-06.3): a renewal stacks a new row stamped `recordedAt`, the certificate on file
+  is the latest by that instant, and the trail behind it says when each renewal was brought.
+- `ReminderLog` is the documented trail an expired certificate starts at the counter (US-06). One
+  row per reminder, keyed by the Berlin day `loggedOn` (`YYYY-MM-DD`, written by the domain's
+  `berlinDayKey` like `DistributionRecord.dayKey`); the unique `(customerId, loggedOn)` index is
+  the database's own cap of one reminder per customer per day, surfaced by the adapter as
+  `ReminderAlreadyLoggedToday`. `resultingCount` repeats the customer's count as it stood after the
+  entry, so the trail reads on its own; a renewal resets the _count_, never this log. Like
+  `DistributionRecord`, the relation has no `onDelete: Cascade`.
 - `DistributionRecord` is the append-many history of hand-outs (US-05). It carries `date`, a
   normalised Europe/Berlin `dayKey` (`YYYY-MM-DD`, written by the domain's `berlinDayKey`), the
   `showedUp` and `paid` flags and `priceCents`. The unique `(customerId, dayKey)` index is the
@@ -971,6 +1076,17 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   are inserted straight through Prisma and it deletes the pinned-now file in `afterAll`, as the
   distribution and counter specs do. This is the `ALREADY_SERVED_TODAY` case the counter spec noted
   it could not yet reach.
+- `reminders.spec.ts` covers US-06 end to end (§US-06.5): the reminder trail across three
+  consecutive RED distribution days (08.01., 22.01., 05.02.2026 — every second Thursday, because the
+  one in between is BLUE). On each pinned day one household with a lapsed certificate is served as
+  normal and one reminder is logged; the spec asserts the count climbs 1 → 2 → 3 on the screen and
+  in `ReminderLog`, that a same-day second attempt is refused _by the server_ (it submits the form
+  underneath the disabled button — the stale-second-tab race the button cannot prevent) and writes
+  nothing, that a count of 3 leaves the household `ACTIVE` with the same serve-and-remind verdict —
+  archiving is US-10's staff decision — and that recording the renewal resets the displayed and
+  stored count to 0, appends the certificate rather than overwriting it, and keeps all three log
+  entries. Its household (customer number 231) is inserted straight through Prisma and the
+  pinned-now file goes in `afterAll`, as in the neighbouring specs.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

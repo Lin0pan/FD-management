@@ -21,6 +21,7 @@ import { DomainError } from "@/domain/errors";
 import type { WeekColour } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { germanDate, germanTime } from "@/i18n/format";
+import { CertificateControls } from "./certificate-controls";
 import { CustomerDetails, VerdictBanner } from "./counter-lookup";
 import { distributionDeps } from "./deps";
 import { ServeControls } from "./serve-controls";
@@ -271,19 +272,31 @@ export default async function DistributionPage({
               <CustomerDetails customer={counter.lookup.customer} />
             )}
             {counter.lookup.customerId === null ? null : (
-              <ServeControls
-                customerId={counter.lookup.customerId}
-                canServe={permitsServing(counter.lookup.verdict)}
-                todaysRecord={
-                  counter.lookup.todaysRecord === null
-                    ? null
-                    : {
-                        recordId: counter.lookup.todaysRecord.recordId,
-                        time: germanTime(counter.lookup.todaysRecord.at),
-                        paid: counter.lookup.todaysRecord.paid,
-                      }
-                }
-              />
+              <>
+                {/* Keyed by customer so a confirmation from one lookup cannot survive into the
+                    next customer's screen; within one customer the state rides out revalidation,
+                    which is what keeps the renewal confirmation visible once the certificate
+                    reads as valid again. */}
+                <CertificateControls
+                  key={counter.lookup.customerId}
+                  customerId={counter.lookup.customerId}
+                  expired={counter.lookup.verdict.kind === "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED"}
+                  reminderLoggedToday={counter.lookup.reminderLoggedToday}
+                />
+                <ServeControls
+                  customerId={counter.lookup.customerId}
+                  canServe={permitsServing(counter.lookup.verdict)}
+                  todaysRecord={
+                    counter.lookup.todaysRecord === null
+                      ? null
+                      : {
+                          recordId: counter.lookup.todaysRecord.recordId,
+                          time: germanTime(counter.lookup.todaysRecord.at),
+                          paid: counter.lookup.todaysRecord.paid,
+                        }
+                  }
+                />
+              </>
             )}
           </>
         )}

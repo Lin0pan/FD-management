@@ -18,6 +18,8 @@ import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  ReminderLogEntry,
+  ReminderLogRepository,
   SettingsRepository,
 } from "../ports";
 import { lookupCustomer } from "./lookup-customer";
@@ -142,6 +144,32 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
   }
 }
 
+/**
+ * A reminder trail the lookup only ever reads from — it answers whether today's reminder is already
+ * on file (US-06.4), and `writes` proves the read-only lookup never logged one itself.
+ */
+class FakeReminderLogRepository implements ReminderLogRepository {
+  readonly entries: Array<{ customerId: number; entry: ReminderLogEntry }> = [];
+  writes = 0;
+
+  constructor(...entries: Array<{ customerId: number; entry: ReminderLogEntry }>) {
+    this.entries.push(...entries);
+  }
+
+  findOnDay(customerId: number, loggedOn: string): Promise<ReminderLogEntry | null> {
+    const found = this.entries.find(
+      (candidate) => candidate.customerId === customerId && candidate.entry.loggedOn === loggedOn,
+    );
+    return Promise.resolve(found?.entry ?? null);
+  }
+
+  record(customerId: number, entry: ReminderLogEntry): Promise<void> {
+    this.writes += 1;
+    this.entries.push({ customerId, entry });
+    return Promise.resolve();
+  }
+}
+
 /** A stored hand-out for customer id 1 on the given instant — the day's record the counter reads. */
 function distributionRecord(
   iso: string,
@@ -235,15 +263,17 @@ describe("lookupCustomer", () => {
   let customers: FakeCustomerRepository;
   let settings: FakeSettingsRepository;
   let records: FakeDistributionRecordRepository;
+  let reminders: FakeReminderLogRepository;
 
   function deps(today = TODAY) {
-    return { customers, settings, records, clock: fakeClock(today) };
+    return { customers, settings, records, reminders, clock: fakeClock(today) };
   }
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
     settings = new FakeSettingsRepository(version());
     records = new FakeDistributionRecordRepository();
+    reminders = new FakeReminderLogRepository();
   });
 
   it("reports an unassigned number as not found, not as an error", async () => {
@@ -395,10 +425,12 @@ describe("lookupCustomer", () => {
       customers = repository;
       settings = new FakeSettingsRepository(version());
       records = new FakeDistributionRecordRepository();
+      reminders = new FakeReminderLogRepository();
       await lookupCustomer(deps(), query);
       expect(repository.writes).toBe(0);
       expect(settings.appended).toBe(0);
       expect(records.writes).toBe(0);
+      expect(reminders.writes).toBe(0);
     }
   });
 
@@ -424,6 +456,40 @@ describe("lookupCustomer", () => {
     const result = await lookupCustomer(deps(), "50");
 
     expect(result.todaysRecord).toBeNull();
+  });
+
+  it("reports a reminder already logged today, so the action stays disabled for the day", async () => {
+    customers = new FakeCustomerRepository(
+      customerRecord({ id: 1, certificateValidUntil: "2026-07-01T00:00:00.000Z" }),
+    );
+    reminders = new FakeReminderLogRepository({
+      customerId: 1,
+      entry: { loggedOn: "2026-07-23", resultingCount: 1 },
+    });
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.reminderLoggedToday).toBe(true);
+  });
+
+  it("reports no reminder for today when the trail holds only earlier days", async () => {
+    customers = new FakeCustomerRepository(
+      customerRecord({ id: 1, certificateValidUntil: "2026-07-01T00:00:00.000Z" }),
+    );
+    reminders = new FakeReminderLogRepository({
+      customerId: 1,
+      entry: { loggedOn: "2026-07-16", resultingCount: 1 },
+    });
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.reminderLoggedToday).toBe(false);
+  });
+
+  it("reports no reminder logged today for an unassigned number", async () => {
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.reminderLoggedToday).toBe(false);
   });
 
   it("surfaces today's record — its id, time and paid flag — when one is already on file", async () => {

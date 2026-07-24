@@ -100,10 +100,11 @@ async function seedHousehold(customerNumber: number): Promise<void> {
           },
         ],
       },
-      certificate: {
+      certificates: {
         create: {
           type: "Jobcenter-Bescheid",
           validUntil: new Date(`${VALID_CERTIFICATE}T00:00:00.000Z`),
+          recordedAt: new Date("2026-01-02T00:00:00.000Z"),
         },
       },
       cards: {

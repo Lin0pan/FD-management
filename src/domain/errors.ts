@@ -23,6 +23,9 @@ export type DomainErrorCode =
   | "InvalidCardNumber"
   | "CardIndexTaken"
   | "AlreadyServedToday"
+  | "ReminderAlreadyLoggedToday"
+  | "CertificateStillValid"
+  | "CertificateValidUntilInPast"
   | "NotClearToServe"
   | "DistributionRecordNotFound"
   | "RecordNoLongerCorrectable"
@@ -284,6 +287,69 @@ export class AlreadyServedToday extends DomainError {
   constructor(existingDate: Date) {
     super(`Already served today; a record exists from ${existingDate.toISOString()}`);
     this.existingDate = existingDate;
+  }
+}
+
+/**
+ * A reminder for this customer already exists on this calendar day, so a second one would double-log
+ * what was one conversation — and a mis-click must not consume a customer's grace period (US-06,
+ * FR-5). Carries the customer and the Berlin day key of the entry already on file, so the counter can
+ * say the reminder is today's rather than refuse blankly.
+ *
+ * The use case raises it after reading the day's log; the repository repeats it for a race that
+ * slips past that read, because the database's unique `(customerId, loggedOn)` constraint is the
+ * final authority on the day being taken (US-06.3) — the same division of labour as
+ * {@link AlreadyServedToday}.
+ */
+export class ReminderAlreadyLoggedToday extends DomainError {
+  readonly code = "ReminderAlreadyLoggedToday";
+  readonly customerId: number;
+  /** The Berlin calendar day of the reminder already on file, as a `YYYY-MM-DD` key. */
+  readonly loggedOn: string;
+
+  constructor(customerId: number, loggedOn: string) {
+    super(`Customer ${customerId} already has a reminder logged on ${loggedOn}`);
+    this.customerId = customerId;
+    this.loggedOn = loggedOn;
+  }
+}
+
+/**
+ * A reminder was requested while the certificate still proves the household's need — there is
+ * nothing to remind about, and logging one would start the documented trail (US-06) on a customer
+ * who owes no renewal. Carries the certificate's end date and today, so the screen can show the
+ * date the certificate is in fact valid until.
+ */
+export class CertificateStillValid extends DomainError {
+  readonly code = "CertificateStillValid";
+  readonly validUntil: Date;
+  readonly today: Date;
+
+  constructor(validUntil: Date, today: Date) {
+    super(
+      `The certificate is still valid until ${validUntil.toISOString()} as of ${today.toISOString()}`,
+    );
+    this.validUntil = validUntil;
+    this.today = today;
+  }
+}
+
+/**
+ * A renewed certificate arrived already expired. A renewal exists to restore the proof of need
+ * (US-06, FR-4), so an end date in the past is a typo — most likely a wrong year — rather than a
+ * record worth appending. Carries both dates so the form can quote the date it read back.
+ */
+export class CertificateValidUntilInPast extends DomainError {
+  readonly code = "CertificateValidUntilInPast";
+  readonly validUntil: Date;
+  readonly today: Date;
+
+  constructor(validUntil: Date, today: Date) {
+    super(
+      `A renewed certificate must outlive today: ${validUntil.toISOString()} lies before ${today.toISOString()}`,
+    );
+    this.validUntil = validUntil;
+    this.today = today;
   }
 }
 

@@ -30,7 +30,9 @@ const ON_REGISTER = { status: { not: "ARCHIVED" } } as const;
  */
 const CUSTOMER_INCLUDE = {
   householdMembers: { orderBy: { id: "asc" } },
-  certificate: true,
+  // The latest-recorded certificate is the one on file; renewals stack behind it as history
+  // (US-06.3). The id breaks a same-instant tie the same way "the later row wins" does elsewhere.
+  certificates: { orderBy: [{ recordedAt: "desc" }, { id: "desc" }], take: 1 },
   // The highest index is the card the customer actually holds; a reissue supersedes the earlier
   // one, which stays on file so an old card can be recognised at the counter (US-09).
   cards: { orderBy: { index: "desc" }, take: 1 },
@@ -43,9 +45,9 @@ type CustomerRow = Prisma.CustomerGetPayload<{ include: typeof CUSTOMER_INCLUDE 
  * Whether a failed write was the partial unique index rejecting a customer number that had been
  * taken in the meantime.
  *
- * The other unique constraints reachable from `create` — one certificate per customer, one card per
- * `(customer, index)` — cannot collide on a row that is being inserted for the first time, so the
- * target is checked anyway rather than assuming: a future constraint should surface as itself.
+ * The other unique constraint reachable from `create` — one card per `(customer, index)` — cannot
+ * collide on a row that is being inserted for the first time, so the target is checked anyway
+ * rather than assuming: a future constraint should surface as itself.
  */
 function isCustomerNumberCollision(error: unknown): boolean {
   return (
@@ -141,11 +143,11 @@ export class PrismaCustomerRepository implements CustomerRepository {
    *   a hand-edited database — and a card view inventing either would be worse than refusing.
    */
   private toRegisteredCustomer(row: CustomerRow): RegisteredCustomer {
-    const certificate = row.certificate;
+    const certificate = row.certificates[0];
     const card = row.cards[0];
-    if (certificate === null || card === undefined) {
+    if (certificate === undefined || card === undefined) {
       throw new InvalidCustomerRecord(
-        certificate === null ? "certificate" : "card",
+        certificate === undefined ? "certificate" : "card",
         String(row.id),
       );
     }
@@ -214,8 +216,14 @@ export class PrismaCustomerRepository implements CustomerRepository {
               birthDate: member.birthDate,
             })),
           },
-          certificate: {
-            create: { type: details.certificate.type, validUntil: details.certificate.validUntil },
+          certificates: {
+            // The first row of the append-only trail, recorded at the registration instant — the
+            // same one the first card carries, because both were written by the same decision.
+            create: {
+              type: details.certificate.type,
+              validUntil: details.certificate.validUntil,
+              recordedAt: customer.card.issuedAt,
+            },
           },
           cards: {
             create: {
