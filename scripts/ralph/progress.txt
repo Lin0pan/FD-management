@@ -57,3 +57,14 @@ Started: Fri Jul 24 14:11:17 CEST 2026
   - tsx scripts can't resolve node_modules from /tmp — put throwaway scripts in the repo root and delete them.
   - The dev seed creates settings only; browser checks need a hand-seeded customer (nested create incl. `certificates.create.recordedAt` and `cards.create`), and `npm run db:reset` cleans up afterwards.
 ---
+## 2026-07-24 15:15 - US-005 (E2E: expired certificate through to the third reminder)
+- Added `tests/e2e/reminders.spec.ts`: one RED household (number 231, certificate lapsed 31.12.2025) walked through its three consecutive distribution days on the pinned clock (08.01., 22.01., 05.02.2026 — every second Thursday, the one between is BLUE). Each day it is served *and* one reminder logged; asserts count 1→2→3 on screen and in ReminderLog, the same-day second attempt refused, status still ACTIVE after three reminders, and the renewal resetting the displayed/stored count to 0 while appending the certificate and keeping all three log entries.
+- The "second attempt refused" test bypasses the disabled button with `button.closest("form")?.requestSubmit()` — simulating the stale second tab whose button was still enabled — so the *server's* refusal (`reminder-error`, nothing written) is what is asserted, not the greyed-out courtesy.
+- Files changed: tests/e2e/reminders.spec.ts (new), docs/technical_documentation.md (tree + spec section), scripts/ralph/prd.json.
+- Quality: lint ✓, typecheck ✓, test:coverage ✓ (473 tests), build ✓, test:e2e ✓ (29 passed, 1 pre-existing skip).
+- **Learnings for future iterations:**
+  - `lookupCustomer` never returns `ALREADY_SERVED_TODAY` — the verdict stays `CLEAR_TO_SERVE(_CERTIFICATE_EXPIRED)` and today's record travels separately in `todaysRecord`. So the certificate controls stay usable after a hand-out; only `ServeControls` switches to the already-served view.
+  - Consecutive distribution days for one group are **fortnightly**: with anchor 2026-W02=RED and weekday 4, RED's run is 08.01 → 22.01 → 05.02. A weekly step would land the household in a BLUE week as WRONG_GROUP with the controls hidden.
+  - To e2e-test a server-side guard hidden behind a disabled button, `locator.evaluate((b) => b.closest("form")?.requestSubmit())` fires React 19's form action for real — cleaner than a second browser context and deterministic.
+  - E2E customer numbers claimed so far: 201–206 + 239 (counter), 211 (portions), 221–222 (serve), 231 (reminders).
+---
