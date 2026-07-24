@@ -66,9 +66,10 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── app/                          # Next.js App Router — thin adapter layer
 │   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
 │   │   ├── page.tsx                  # home page (reads strings from i18n dictionary)
-│   │   ├── ausgabe/                  # the distribution screen (US-03)
-│   │   │   ├── page.tsx              # server component: the colour banner + the week lookup
-│   │   │   └── deps.ts               # composition root: settings repository + clock
+│   │   ├── ausgabe/                  # the distribution screen (US-03) and the counter (US-04)
+│   │   │   ├── page.tsx              # server component: colour banner, counter lookup, week lookup
+│   │   │   ├── counter-lookup.tsx    # the verdict banner + the customer details below it (US-04.4)
+│   │   │   └── deps.ts               # composition root: customer + settings repositories, clock
 │   │   ├── kunden/                   # the customer screens (US-01)
 │   │   │   ├── deps.ts               # composition root for both routes below
 │   │   │   ├── neu/                  # the registration screen
@@ -107,11 +108,13 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── distribution/weekColour.test.ts  # its Vitest spec
 │   │   ├── distribution/distributionDay.ts  # is today a distribution day, and when is the next
 │   │   ├── distribution/distributionDay.test.ts  # its Vitest spec
+│   │   ├── distribution/counterVerdict.ts  # evaluateAtCounter — the one verdict at the counter
+│   │   ├── distribution/counterVerdict.test.ts  # its Vitest spec
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter,
 │   │   │                             #   CustomerRepository, CardRepository, AuditLog
 │   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
-│   │   │                             #   readCard, issueCard
+│   │   │                             #   readCard, issueCard, lookupCustomer (the counter lookup)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour — the colour of any day, from history
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
@@ -129,8 +132,10 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   └── i18n/format.ts                # German value formatting (germanDate) + its spec
 ├── tests/e2e/
 │   ├── card.spec.ts                  # registration issues k1 and the card view shows it
+│   ├── counter.spec.ts               # every counter verdict, and that a lookup writes nothing
 │   ├── distribution.spec.ts          # the week-colour banner against a fixed clock
 │   ├── home.spec.ts                  # Playwright smoke test
+│   ├── portions.spec.ts              # portions and price follow the household, not a stored column
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
 │   └── settings.spec.ts              # settings round-trip vs. the built app
 ├── eslint.config.mjs  .prettierrc.json  .prettierignore
@@ -518,11 +523,13 @@ The two read-side use cases the customer screens sit on:
   throw), the suggested group, both group sizes and the day to judge birthdates against. Read-only —
   it reserves nothing.
 - **`readCustomer`** answers what the customer overview shows: the customer plus everything
-  derivable from them, worked out here rather than in the page — the household counts from the
-  birthdates and the card number from the slot and the card index. It throws `CustomerNotFound` for
-  an id nobody holds.
+  derivable from them, worked out here rather than in the page — the card number from the slot and
+  the card index, and the household counts, portions and price from `describeAllowance` (US-07.4), so
+  the counts on the record are a slice of the same allowance the counter reads. It throws
+  `CustomerNotFound` for an id nobody holds.
 - **`readCard`** answers what the _card_ shows (US-02.4): the current card number, the name, the
-  group, the counts as of today, and the numbers this card replaced. It reads the customer's whole
+  group, the counts, portions and price as of today (all via `describeAllowance`), and the numbers
+  this card replaced. It reads the customer's whole
   run of cards in **one** `listCards` call and takes the head as the current card — asking twice,
   once for the current card and once for the rest, would let two answers come from two moments. A
   customer with no card at all is refused as an `InvalidCustomerRecord` rather than shown a card
@@ -569,6 +576,22 @@ CREATE UNIQUE INDEX "Customer_customerNumber_onRegister_key"
 It is the final authority on a free number: the application reads the taken numbers and then writes,
 and only the database can settle the race in between. **Regenerating the migration drops it** — re-add
 it, or the slot rule is enforced by application code alone.
+
+`findByCustomerNumber(n)` is the counter's read (US-04). Because a customer number is a slot rather
+than an identity, it is deliberately **two queries and not one `orderBy`**: an active holder wins over
+an archived one whenever there is one, and only when the slot stands empty does recency pick the most
+recently archived holder. A reassigned number therefore resolves to its current holder, never to the
+household it was taken from. `Customer.customerNumber` and `Customer.status` are both indexed so the
+query stays instant while staff work through a queue.
+
+`findById` and `findByCustomerNumber` share one `CUSTOMER_INCLUDE`, which pulls the household, the
+certificate and the current card along with the customer. Prisma's SQLite provider has **no join
+strategy** (`relationLoadStrategy: "join"` is Postgres/MySQL only), so a lookup is four statements —
+the customer plus one per relation — rather than literally one. The property that matters at the
+counter is that the number is _fixed_: a ten-person household costs the same four reads as a
+two-person one, so there is no N+1. An integration test pins that by measuring the query count for two
+household sizes and asserting they are equal, rather than asserting a magic number that a future
+relation would invalidate.
 
 ### `src/infrastructure/prisma/card-repository.ts`
 
@@ -638,15 +661,18 @@ beyond it:
   blank must reach the domain and be rejected there rather than vanishing on the way. `redirect()`
   is called **outside** the `try`: it works by throwing, and catching it would turn a successful
   registration into "could not be saved".
-- **`[id]/page.tsx`** renders what `readCustomer` already derived — the counts from the birthdates
-  and the card number from the slot and the card index. A non-numeric id and an id nobody holds give
-  the same German answer: there is no such customer. It links on to the card view.
+- **`[id]/page.tsx`** renders what `readCustomer` already derived — the counts from the birthdates,
+  the standard portions and price (US-07.4), and the card number from the slot and the card index. A
+  non-numeric id and an id nobody holds give the same German answer: there is no such customer. It
+  links on to the card view.
 - **`[id]/karte/page.tsx`** is the **digital customer card** (US-02.4): the number, the name, the
-  group as a coloured German label and the two counts, set large enough to read across a desk, plus
-  the numbers this card replaced and why each was issued. It is a screen, not a document — FD prints
-  through a system they already own, so there is deliberately **no print stylesheet and no PDF**.
-  The counts come from `readCard`, derived per request (`dynamic = "force-dynamic"`), so a birthday
-  can never leave a stale number on screen. The "Karte neu ausstellen" button is present but
+  group as a coloured German label, the two counts and the standard portions and price (US-07.4),
+  set large enough to read across a desk, plus the numbers this card replaced and why each was
+  issued. It is a screen, not a document — FD prints through a system they already own, so there is
+  deliberately **no print stylesheet and no PDF**. The counts, portions and price come from
+  `readCard`, derived per request (`dynamic = "force-dynamic"`), so a birthday can never leave a
+  stale number on screen. Both screens state the portions and price are the **standard** values,
+  with no control to adjust them — counter-side adjustments are out of scope. The "Karte neu ausstellen" button is present but
   disabled: FD expects the action here, and its behaviour is specified in US-09.
 
 ⚠️ **Dates cross the form boundary as UTC calendar days.** `<input type="date">` submits `YYYY-MM-DD`
@@ -662,12 +688,14 @@ screen and from 0 in the domain.
 renders the component after the function has returned, so the `catch` would never fire. Await the
 read into a variable inside the `try` and build the JSX after it.
 
-### `src/app/ausgabe/` — the distribution screen
+### `src/app/ausgabe/` — the distribution screen and the counter
 
-The screen that answers the question the counter asks first: which group collects (US-03.4).
+The screen that answers the question the counter asks first — which group collects (US-03.4) — and
+then the question it asks about every person in the queue: may _this_ one collect (US-04.4).
 
-- **`deps.ts`** needs only `SettingsRepository` and `Clock`. A week colour is derived from the
-  calendar, never stored, so there is no repository of weeks to reach for.
+- **`deps.ts`** holds `CustomerRepository`, `SettingsRepository` and `Clock`. Deliberately **no audit
+  log and no card repository**: everything this screen does is a read, and turning someone away
+  records nothing (US-04, FR-4), so a port it does not hold is a write it cannot make.
 - **`page.tsx`** calls `getWeekColour` once for today and, when a date was submitted, once more for
   that day. Both questions are the same use case; the page arranges the answers and decides nothing.
 - The **banner** is the dominant element and is painted in the colour it _names_ — on a day without a
@@ -681,6 +709,26 @@ The screen that answers the question the counter asks first: which group collect
   the calendar does not have (`?datum=2026-13-45`): the Zod schema checks the shape _and_ that the
   parsed date is a date, because an Invalid Date's NaN survives the calendar arithmetic silently and
   would be rendered as a week `NaN-WNaN` in a confidently-named colour.
+
+#### The counter lookup (`counter-lookup.tsx`)
+
+- The typed number lands in `?nummer=` through a second `method="get"` form, for the same reason the
+  week lookup uses one — and for one more: a form navigation brings the input back **empty and
+  autofocused**, which is the whole keyboard loop the counter needs (type, Enter, read, type again).
+  No client component, no state to reset.
+- **`statementFor(verdict)`** is the only place a verdict becomes words. Its `switch` ends in a
+  `const unhandled: never = verdict`, so adding a case to the union is a _compile error_ until the
+  counter renders it — a new verdict can never appear as a blank banner.
+- Each verdict carries an icon, a headline and a full German sentence naming the action; the banner's
+  colour only repeats what the words already say. Wrong group names **both** colours, and the
+  inflected forms ("blaue Kundin / blauer Kunde", "rote Woche") are dictionary data keyed by the
+  colour, not sentences assembled in the component.
+- An **expired certificate is amber, not red**: the verdict is still serve — the reminder is a
+  conversation, never grounds to refuse food.
+- Everything below the banner is on screen at once (FR-2). All of it is derived by `lookupCustomer`:
+  the counts from the birthdates, portions and price from the settings in force today.
+- A number that is **not a number** (`?nummer=abc`) renders a German sentence beside the form; an
+  unassigned one renders the `NOT_FOUND` banner, because that is an answer rather than a failure.
 
 ### `src/i18n/de.ts`
 
@@ -794,8 +842,11 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   them write to it — a registration consumes a customer number, a settings save appends a version.
   Two workers would interleave those writes and each spec would assert against a register the other
   one had moved. The suite runs in a few seconds; a flaky gate is worth less than a slow one. The
-  consequence for a new spec: **never name a customer number outright** — read the one the screen
-  proposes, or inserting a spec file alphabetically above another one breaks it.
+  consequence for a new spec: **never name a customer number the allocator will hand out** — read
+  the one the screen proposes, or inserting a spec file alphabetically above another one breaks it.
+  A spec that inserts its own rows instead of registering them (`counter.spec.ts`) may name numbers,
+  provided it takes a block high in the range: allocation is always the _lowest_ free slot, so the
+  low sequence the other specs assert against stays untouched.
 - `webServer` **deletes `data/e2e.db`**, then runs `npx prisma migrate deploy && npm run db:seed &&
 npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` is on locally, off
   in CI. The delete matters locally: the settings specs edit the seeded price and then assert the
@@ -829,6 +880,29 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   `afterAll`: a frozen today would otherwise reach the settings specs, which stamp a version with
   the clock. The `webServer` command deletes that file too, so an aborted run cannot poison the next
   one.
+- `counter.spec.ts` covers US-04 end to end (§US-04.5): every verdict the counter can hand down,
+  asserted as the **German sentence** a staff member reads rather than as a `data-verdict` alone —
+  clear to serve, an expired certificate, the wrong group, a superseded card, blocked, archived and
+  a number nobody holds. It pins today to the RED distribution Thursday 08.01.2026, which is what
+  makes a RED household clear and a BLUE one sent away, and deletes the pinned-now file in
+  `afterAll` like the distribution spec.
+  Its six households are inserted **straight through Prisma**, not through the registration form:
+  archiving (US-10), blocking (US-08) and a second card (US-09) have no screen yet, so there is no
+  other way to reach half of these states. That is also why it may name customer numbers — see the
+  note above.
+  The second half of the spec is FR-4, that a lookup only ever _reads_. It snapshots the statuses,
+  the reminder counts and the card and audit-entry counts, performs the two refusals staff hit most
+  often plus one successful lookup, and asserts the snapshot is unchanged. There is no distribution
+  table yet — serving arrives with US-05 — so the snapshot pins every row a lookup could touch
+  today and should widen with the schema.
+  `ALREADY_SERVED_TODAY` is the one verdict it cannot cover: nothing can serve a household yet, so
+  nothing can serve one twice.
+- `portions.spec.ts` covers US-07 end to end (§US-07.5): that the portions and the price on the
+  customer record are **derived on the request**, never a stored column. It seeds a two-grown-up,
+  one-child household through Prisma (5 Portionen, 5,00 € against the seeded settings), reads both
+  off `/kunden/[id]`, adds a second child straight in the database, and reloads to 6 Portionen and
+  6,00 €. The member is added through Prisma rather than the UI because editing a household (US-16)
+  has no screen yet; the reload deriving a new value is the proof the criterion asks for.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

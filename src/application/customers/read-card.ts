@@ -13,13 +13,15 @@
 import type { IssuedCard } from "@/domain/card/card";
 import { formatCardNumber } from "@/domain/card/cardNumber";
 import type { Group } from "@/domain/customer/group";
-import { composition, type HouseholdComposition } from "@/domain/customer/householdComposition";
+import type { HouseholdComposition } from "@/domain/customer/householdComposition";
 import { CustomerNotFound, InvalidCustomerRecord } from "@/domain/errors";
-import type { CardRepository, Clock, CustomerRepository } from "../ports";
+import { describeAllowance, type Allowance } from "../allowance/describe-allowance";
+import type { CardRepository, Clock, CustomerRepository, SettingsRepository } from "../ports";
 
 export interface ReadCardDeps {
   readonly customers: CustomerRepository;
   readonly cards: CardRepository;
+  readonly settings: SettingsRepository;
   readonly clock: Clock;
 }
 
@@ -41,6 +43,12 @@ export interface CardView {
   readonly card: IssuedCard;
   /** Derived from the birthdates as of today; there is no stored count to fall behind them. */
   readonly composition: HouseholdComposition;
+  /**
+   * The standard portions and price for this household as of today — derived through the same seam
+   * the counter reads (`describeAllowance`), so the card and the counter can never disagree. The
+   * counts above are a slice of it.
+   */
+  readonly allowance: Allowance;
   /** The numbers this card replaced, newest first. Empty for a household's first card. */
   readonly superseded: ReadonlyArray<SupersededCard>;
 }
@@ -70,6 +78,8 @@ export async function readCard(deps: ReadCardDeps, id: number): Promise<CardView
   const numberOf = (card: IssuedCard): string =>
     formatCardNumber(customer.customerNumber, card.index);
 
+  const allowance = await describeAllowance(deps, customer.details.householdMembers);
+
   return {
     customerId: customer.id,
     firstName: customer.details.firstName,
@@ -77,7 +87,8 @@ export async function readCard(deps: ReadCardDeps, id: number): Promise<CardView
     group: customer.group,
     cardNumber: numberOf(current),
     card: current,
-    composition: composition(customer.details.householdMembers, deps.clock.now()),
+    composition: { grownUps: allowance.grownUps, children: allowance.children },
+    allowance,
     superseded: replaced.map((card) => ({ number: numberOf(card), card })),
   };
 }

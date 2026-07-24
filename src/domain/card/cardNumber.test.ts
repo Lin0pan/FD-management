@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DomainError, InvalidCardNumber } from "../errors";
-import { formatCardNumber, nextCardNumber, parseCardNumber } from "./cardNumber";
+import { formatCardNumber, nextCardNumber, parseCardNumber, parseCounterQuery } from "./cardNumber";
 
 describe("formatCardNumber", () => {
   it("joins the customer number and the card index with a k", () => {
@@ -100,6 +100,63 @@ describe("parseCardNumber", () => {
     expect(error.code).toBe("InvalidCardNumber");
     expect(error.text).toBe("50k3x");
     expect(error.message).toContain("50k3x");
+  });
+});
+
+describe("parseCounterQuery", () => {
+  it("reads a full card number as a customer number and a presented index", () => {
+    expect(parseCounterQuery("50k3")).toEqual({ customerNumber: 50, cardIndex: 3 });
+  });
+
+  it("reads a bare customer number, which names the current card rather than any index", () => {
+    expect(parseCounterQuery("50")).toEqual({ customerNumber: 50, cardIndex: null });
+  });
+
+  it("accepts an uppercase K, like the card-number reader staff also use", () => {
+    expect(parseCounterQuery("50K3")).toEqual({ customerNumber: 50, cardIndex: 3 });
+  });
+
+  it("ignores whitespace around a number typed at the counter", () => {
+    expect(parseCounterQuery("  50  ")).toEqual({ customerNumber: 50, cardIndex: null });
+  });
+
+  it("rejects an empty entry rather than reading it as customer 0", () => {
+    expect(() => parseCounterQuery("")).toThrow(InvalidCardNumber);
+  });
+
+  it("rejects customer number 0, because customer numbers start at 1", () => {
+    expect(() => parseCounterQuery("0")).toThrow(InvalidCardNumber);
+  });
+
+  it("rejects a padded customer number — 050 is a typo, not customer 50", () => {
+    expect(() => parseCounterQuery("050")).toThrow(InvalidCardNumber);
+  });
+
+  it("rejects a k without an index, so a half-typed card is not read as customer 50", () => {
+    expect(() => parseCounterQuery("50k")).toThrow(InvalidCardNumber);
+  });
+
+  it("rejects index 0, because the first card a customer holds is k1", () => {
+    expect(() => parseCounterQuery("50k0")).toThrow(InvalidCardNumber);
+  });
+
+  it("rejects a name or anything that is not a number", () => {
+    expect(() => parseCounterQuery("Müller")).toThrow(InvalidCardNumber);
+  });
+
+  it("quotes the entry back so the UI can name what was typed", () => {
+    const error = (() => {
+      try {
+        parseCounterQuery("50k3x");
+        return undefined;
+      } catch (caught) {
+        return caught;
+      }
+    })();
+
+    expect(error).toBeInstanceOf(InvalidCardNumber);
+    if (!(error instanceof InvalidCardNumber)) throw new Error("unreachable");
+    expect(error.text).toBe("50k3x");
   });
 });
 

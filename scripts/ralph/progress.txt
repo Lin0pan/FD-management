@@ -1,76 +1,283 @@
 # Ralph Progress Log
-Started: Thu Jul 23 20:41:04 CEST 2026
+Started: Thu Jul 23 21:04:04 CEST 2026
 ---
 
 ## Codebase Patterns
-- Domain policy modules live in `src/domain/policy/`. Per-head derivations (price, portions) are
-  pure functions that take the counts and the settings values as parameters — NO baked-in defaults,
-  because policy values are configuration (CLAUDE.md). Reuse `HouseholdComposition` ({grownUps,
-  children}) from `src/domain/customer/householdComposition.ts` and `Pick<Settings, ...>` for the
-  settings-derived params rather than redeclaring `{grownUps, children}` shapes.
-- `priceFor(settings, grownUps, children)` already lives in `src/domain/policy/settings.ts` (per-head,
-  returns integer cents) — US-002 is effectively implemented and tested on main; just needs marking.
-- Coverage is gated at 100% on domain/ + application/ (`vitest.config.ts`). TDD: write the
-  invariant-named test first. Test files sit beside the module (`foo.ts` + `foo.test.ts`).
-- Application helpers that must answer historically (price, week colour) take an optional `date?` and
-  resolve settings AND any date-dependent derivation at that same instant (`date ?? clock.now()`),
-  reading `settings.listVersions()` + `resolveSettingsAt` directly rather than `readCurrentSettings`.
-  See `distribution/get-week-colour.ts` and `allowance/describe-allowance.ts`.
-- Quality gate command: `npm run lint && npm run typecheck && npm run test:coverage && npm run build`.
+- Domain modules are pure: `today` (and `weekColour`, settings) are always parameters — never
+  `new Date()`. Day-boundary comparisons go through `startOfUtcDay` (exported from
+  `domain/distribution/weekColour.ts`) so a rule never turns on the time of day.
+- Domain tests use relative imports (`./counterVerdict`); application/infra use the `@/` alias.
+- Domain/application coverage is gated at 100% — avoid `?? ""`-style fallback branches you cannot
+  exercise; pass values straight through (e.g. `reason: string | null`) instead.
+- Test helper convention: an `on("2026-07-23")` → UTC-midnight `Date`, and a `customer(overrides)`
+  factory that returns the happy-path value so each test overrides only the field its rule turns on.
+- Verdicts/statuses/reasons are discriminated unions with a `kind`/enum discriminator; the UI switch
+  is meant to be exhaustive with a `never`-check (US-04.4).
+- Infra tests migrate a throwaway SQLite file in `beforeAll` (`mkdtempSync` + `prisma migrate
+  deploy`) and `deleteMany()` in `beforeEach`; keep the temp `url` at module scope if a test needs a
+  second client. Cascades mean deleting customers clears households/cards/certificates too.
+- Prisma's SQLite provider has **no join strategy**, so `include` costs one statement per relation.
+  Assert query counts are *equal across input sizes* (no fan-out), never a magic number — a new
+  relation would break the latter for no reason.
+- `insertCustomer` in the repository test writes a bare row with no certificate or card: fine for
+  counting/slot tests, but any read through `toRegisteredCustomer` throws `InvalidCustomerRecord`.
+  Use `repository.create(newCustomer({...}))` for anything that reads a customer back.
+- Read-only screens use a plain `method="get"` form and read `searchParams` — no client component,
+  no server action. The navigation is what clears and re-focuses an `autoFocus` input, so a
+  "type → Enter → read → type again" loop needs no state at all.
+- A route's `deps.ts` is its composition root, and *what it omits is a guarantee*: a screen that
+  never writes holds no `AuditLog`. Say so in the comment — it is the enforcement.
+- Counts, portions and price all come from `describeAllowance(deps, household)` — one seam, so the
+  counter, the card view and the record can't disagree. Call it once and read `composition` as a
+  slice of its result; never call `composition()` again alongside it. It defaults its date to
+  `deps.clock.now()`. Any use case needing it just adds `settings` to its deps interface; the
+  customer routes' `customerDeps` already wires every port, so the composition root is untouched.
+- E2E specs share one `data/e2e.db` and run serially in **alphabetical file order**. Never name a
+  customer number the *allocator* will hand out — but a spec that inserts its own rows may reserve a
+  high block (200s), because allocation is always the lowest free slot.
+- A spec needing states no screen can reach yet (archived, blocked, a second card) opens the app's
+  own database a second time: `new PrismaClient({ datasourceUrl: "file:" + resolve("data/e2e.db") })`.
+  Absolute — a relative SQLite url resolves against `prisma/`, not the working directory.
+- **Run `npm run test:e2e` after any change to a route, even a "UI-only" one.** US-004 added a
+  second `Nachschlagen` button and broke the distribution spec; nothing else in the gate sees it.
+- Verified UI in the browser by dropping a throwaway spec into `tests/e2e/`, running
+  `npx playwright test <name>` (it builds, migrates and seeds a fresh `data/e2e.db` itself) with
+  `page.screenshot()`, then deleting it. `writeFileSync("data/e2e-now.txt", iso)` pins the app's
+  today mid-spec; delete the file afterwards or the settings specs assert against the wrong month.
+
 ---
 
-## 2026-07-23 21:00 - US-003 (describeAllowance)
-- Implemented `describeAllowance(deps, household, date?)` in
-  `src/application/allowance/describe-allowance.ts`: resolves settings at the evaluated instant
-  (given `date`, else `clock.now()`), derives the split via `composition(household, at)` at that same
-  instant, then combines `portionsFor` + `priceFor` into `{grownUps, children, portions, priceCents}`.
-- Files: src/application/allowance/describe-allowance.ts (new),
-  describe-allowance.test.ts (new), docs/technical_documentation.md (dir tree + new section).
-- Tests (FakeSettingsRepository + fake clock): today path, single-person per-head pricing, historical
-  older-version pricing (proves a past date uses the version in force then), birthday changes the
-  allowance (counts derived as-of the date), NoSettingsInForce propagation. 100% coverage; all gates
-  green (lint, typecheck, test:coverage, build).
+## 2026-07-23 - US-001 (evaluateAtCounter — the counter verdict rule)
+- Implemented the pure `evaluateAtCounter(input): Verdict` counter-verdict rule (US-04.1).
+- Files changed:
+  - `src/domain/distribution/counterVerdict.ts` (new) — `Verdict` discriminated union
+    (NOT_FOUND, ARCHIVED, BLOCKED, WRONG_GROUP, OUTDATED_CARD, ALREADY_SERVED_TODAY, CLEAR_TO_SERVE,
+    CLEAR_TO_SERVE_CERTIFICATE_EXPIRED), `CounterCustomer`/`CounterInput` inputs, and the function.
+  - `src/domain/distribution/counterVerdict.test.ts` (new) — precedence, card matching, wrong group
+    and certificate-boundary tests (day before/of/after + 29 Feb).
+  - `docs/technical_documentation.md` — added the module to the file tree.
 - **Learnings for future iterations:**
-  - Resolving BOTH counts and settings at the same instant `at` is the whole point — a past
-    distribution must be priced with the ages and prices as they stood then. Pass a `date` to get
-    historical values; omit it for today. This mirrors `getWeekColour`'s instant-resolution pattern.
-  - `portionsFor` takes `Pick<Settings, "portionsPerGrownUp"|"portionsPerChild">`, so a full
-    `Settings` is assignable — no need to destructure before calling.
-  - The household input is `ReadonlyArray<HouseholdMember>` (birthdates only), not the full customer
-    entity — keeps the helper decoupled and trivially testable. Consumers pass
-    `customer.details.householdMembers`.
-  - US-07's remaining stories (US-07.4 display, US-07.5 E2E) are presentation and moved into the
-    US-04 batch — not in this PRD. This PRD (domain + application) is now complete.
+  - Precedence is fixed: NOT_FOUND → ARCHIVED → BLOCKED → WRONG_GROUP → OUTDATED_CARD → certificate
+    check → CLEAR_TO_SERVE. Status values (ACTIVE/BLOCKED/ARCHIVED) are mutually exclusive, so the
+    "adjacent pair" tests for the status verdicts show the higher status winning over a *lower*
+    condition (e.g. an archived/blocked customer also in the wrong group) rather than over each other.
+  - `ALREADY_SERVED_TODAY` is declared in the union but the read-only rule never emits it — US-05's
+    serve/duplicate-prevention will. It exists now so US-004's exhaustive UI switch already covers it.
+  - `OUTDATED_CARD` only fires for a *presented* index strictly `< currentCardIndex`; a bare customer
+    number (`presentedCardIndex: null`) always means the current card. `currentCardIndex` is the
+    highest issued card index — the application layer derives it from the card run (US-04.2/US-04.3).
+  - `BLOCKED.reason` / `CounterCustomer.blockReason` are `string | null` (US-08 not built yet; the
+    use case will pass `null` until blocks exist). Kept nullable to avoid an unexercisable fallback.
+  - Certificate expiry is a calendar-day comparison via `startOfUtcDay`; valid *through* validUntil.
 ---
 
-## 2026-07-23 20:44 - US-002 (PricePolicy)
-- Verified `priceFor(settings, grownUps, children)` in `src/domain/policy/settings.ts` (already on
-  branch): derives `grownUps*pricePerGrownUp + children*pricePerChild` as integer cents. Per-head
-  derivation, so it never interpolates/extrapolates and every household size is priceable (empty=0).
-- No code change needed. Tests in `settings.test.ts` cover exact per-head, single-person, arbitrary
-  size, empty household, and a valid zero-cent price. Flipped `passes: true`.
-- All gates green: lint, typecheck, 100% coverage, build.
+## 2026-07-23 - US-002 (lookupCustomer use case)
+- Implemented the read-only counter lookup use case (US-04.2).
+- Files changed:
+  - `src/application/customers/lookup-customer.ts` (new) — `lookupCustomer(deps, rawQuery)`
+    returns `{ verdict, customer }`. Parses the query, resolves the slot via
+    `findByCustomerNumber`, evaluates `evaluateAtCounter`, and (unless NOT_FOUND) assembles the
+    view via `describeAllowance` (counts/portions/price) + `getWeekColour` (week colour) + derived
+    card number. Takes no writable port — the only way it could mutate is not to exist.
+  - `src/application/customers/lookup-customer.test.ts` (new) — a branch per verdict, a derived-
+    counts test, a "carries every field" test, an InvalidCardNumber test, and a loop asserting
+    zero repository writes on every verdict branch.
+  - `src/domain/card/cardNumber.ts` (+ test) — `parseCounterQuery(text)` reads `50k3` or bare `50`
+    in one regex `^([1-9][0-9]*)(?:k([1-9][0-9]*))?$` (case-insensitive, no leading zeros),
+    returning `{ customerNumber, cardIndex: number | null }`. `null` index means "current card".
+  - `src/application/ports.ts` — added `CustomerRepository.findByCustomerNumber(n)`.
+  - `src/infrastructure/prisma/customer-repository.ts` — implemented `findByCustomerNumber`
+    (active holder, else most-recent archived), extracted `CUSTOMER_INCLUDE` + a shared
+    `toRegisteredCustomer` mapper reused by `findById`. Schema already had the needed indexes
+    (`@@index([customerNumber])`, `@@index([status])`) and the partial-unique-active-number index.
+  - `docs/technical_documentation.md` — noted lookupCustomer in the application/customers line.
 - **Learnings for future iterations:**
-  - US-002's AC talks of an "exact (grownUps, children) row" / "no match" — that is legacy
-    table-lookup wording. The domain uses per-head derivation, which subsumes it: no row table to
-    keep in step, so "no match" simply can't occur. Don't reintroduce a lookup table.
-  - Only US-003 (`describeAllowance`, application layer) remains. Build an app helper that resolves
-    settings at a date (settings repo + fake clock), derives counts from birthdates
-    (`householdComposition`), then combines `portionsFor` and `priceFor`. Follow the fake-repo +
-    fake-clock pattern in `src/application/settings/` and `distribution/get-week-colour.ts`.
+  - `RegisteredCustomer.card` already carries the *current* (highest) card — loaded in one query by
+    the repository — so the counter reads `customer.card.index` as `currentCardIndex`; no separate
+    CardRepository call, no N+1. This is what US-04.3's "one query" criterion already relies on.
+  - Compose use cases rather than re-derive: lookupCustomer calls `describeAllowance` and
+    `getWeekColour` (both read settings history), passing an explicit `today` so all three reads
+    (verdict, allowance, colour) agree on one instant.
+  - Adding a method to a port interface breaks every `implements CustomerRepository` — the fake in
+    `customers.test.ts` AND `PrismaCustomerRepository`. Update all implementers in the same commit
+    or typecheck/build fails.
+  - `blockReason` is passed as `null` until US-08 stores a reason (a BLOCKED verdict then carries
+    it). `2026-07-23` is a RED week under the default `2026-W02` RED anchor (even week offset), so a
+    RED customer is CLEAR and a BLUE one is WRONG_GROUP — handy for counter tests.
+  - US-003 (next, infra) is mostly satisfied already: the indexes exist and `findByCustomerNumber`
+    is implemented. That story still needs the integration test for a reassigned slot (an archived
+    + an active holder of number 50 resolving to the active one) and a check that no migration is
+    needed.
 ---
 
-## 2026-07-23 20:42 - US-001 (PortionPolicy)
-- Implemented `portionsFor({grownUps, children}, {portionsPerGrownUp, portionsPerChild})` in
-  `src/domain/policy/portions.ts`, deriving portions per head with no baked-in defaults.
-- Files changed: src/domain/policy/portions.ts (new), src/domain/policy/portions.test.ts (new).
-- Tests cover single-person household, household with children, zero children, and portionsPerChild=0.
-- All gates green: lint, typecheck, 335 tests, 100% coverage, build.
+## 2026-07-23 - US-003 (Counter lookup queries and indexes)
+- Proved the counter's persistence read (US-04.3). The implementation had already landed with
+  US-002 — `findByCustomerNumber`, `CUSTOMER_INCLUDE` and both indexes existed — so this story was
+  the integration tests plus one corrected claim, and **no migration** (the schema was already right).
+- Files changed:
+  - `src/infrastructure/prisma/customer-repository.test.ts` — six specs for `findByCustomerNumber`
+    (reassigned slot resolves to the active holder; a blocked holder still holds the slot; the most
+    recently archived holder when the slot stands empty; null for an unheld number; relations read
+    back whole; and a no-fan-out spec) plus one asserting the two counter indexes exist via
+    `PRAGMA index_list("Customer")`.
+  - `src/infrastructure/prisma/customer-repository.ts` — corrected the `CUSTOMER_INCLUDE` comment,
+    which claimed a "single query".
+  - `docs/technical_documentation.md` — documented why `findByCustomerNumber` is two queries and
+    what the N+1 guarantee actually is.
+- Checks: lint, typecheck, `test:coverage` (390 tests, domain+application still 100%) and build all
+  green. No UI change, so no browser verification was needed.
 - **Learnings for future iterations:**
-  - US-002 (`priceFor`) is ALREADY implemented + tested in settings.ts (lines ~202, tests in
-    settings.test.ts) — next iteration only needs to verify and flip `passes: true`, no code.
-  - US-003 (`describeAllowance`, application) still needs building: an app helper resolving settings
-    at a date via the settings repo/clock and returning {grownUps, children, portions, priceCents}.
-    Look at `src/application/settings/read-current-settings.ts` and `distribution/get-week-colour.ts`
-    for the fake-repo + fake-clock test pattern.
+  - The PRD's "loaded in one query" is not achievable on SQLite: `relationLoadStrategy: "join"` is
+    Postgres/MySQL only, so Prisma issues the customer plus one SELECT per relation — four for a
+    counter lookup. I measured it with a throwaway `PrismaClient({ log: [{ emit: "event", level:
+    "query" }] })` before writing the assertion. The real invariant is that the count is constant in
+    household size, so the test compares a 7-person household against a 2-person one. Recorded the
+    deviation in the story's `notes` rather than quietly claiming the criterion.
+  - A query listener cannot be detached (`$on` has no `$off` in this Prisma version), so a test that
+    counts queries needs a fresh client per measurement, disconnected afterwards.
+  - `findByCustomerNumber` is deliberately two round trips, not one `orderBy`: an active holder must
+    beat an archived one regardless of row age, and recency only decides *among* archived holders.
+    A single ordered query cannot say that.
+  - US-004 (next) is the first UI story of this batch: `/ausgabe` already exists as a route, and the
+    exhaustive `never`-check switch over the `Verdict` union is an explicit criterion. All eight
+    verdict cases need German strings in `src/i18n/de.ts`, `ALREADY_SERVED_TODAY` included even
+    though the read-only rule never emits it yet.
+---
+
+## 2026-07-24 - US-004 (Counter lookup screen on /ausgabe)
+- Built the counter screen: type a number, read one verdict, see everything the decision rests on
+  (US-04.4). First UI story of this batch.
+- Files changed:
+  - `src/app/ausgabe/counter-lookup.tsx` (new) — `VerdictBanner` and `CustomerDetails`.
+    `statementFor(verdict)` is the one place a verdict becomes words: a `switch` ending in
+    `const unhandled: never = verdict`, so a ninth case is a compile error until it is rendered.
+    Each verdict gets an icon, a headline and a full German sentence; the colour only repeats them.
+  - `src/app/ausgabe/page.tsx` — a second `method="get"` form on `?nummer=`, calling `lookupCustomer`.
+    `InvalidCardNumber` renders a German sentence beside the form; everything else rethrows.
+  - `src/app/ausgabe/deps.ts` — added `customers`. Still no `AuditLog`, no `CardRepository`.
+  - `src/i18n/de.ts` — `de.distribution.counter` (all eight verdicts, the inflected colour forms,
+    the field labels) plus `de.customers.derived.portions` / `.price`, shared with US-006.
+  - `docs/technical_documentation.md` — file tree, the `ausgabe/` section, a counter subsection.
+- Checks: lint, typecheck, 390 tests (domain+application still 100%), build — all green.
+- Browser: verified with a throwaway Playwright spec (screenshots to /tmp), then deleted. Confirmed
+  CLEAR_TO_SERVE (3 Portionen, 3,00 €), WRONG_GROUP ("Rote Kundin / roter Kunde — blaue Woche.
+  Wegschicken, nächste Woche wieder."), CLEAR_TO_SERVE_CERTIFICATE_EXPIRED, NOT_FOUND with no
+  details block, `?nummer=abc`, and that after Enter the input is empty and focused again.
+- **Learnings for future iterations:**
+  - The `never`-check needs a *binding* (`const unhandled: never = verdict`), not a bare expression —
+    ESLint's no-unused-vars is satisfied because the binding is used in the thrown message.
+  - `type="number"` is wrong for the counter input: a card number carries a `k`. `type="text"` +
+    `inputMode="numeric"` gets the phone keypad without rejecting `50k3`.
+  - Two GET forms on one page each drop the other's query param. That is right here — a counter
+    lookup is about today — but worth knowing before adding a third.
+  - `formatEuros` (not `formatEuroAmount`) is the display form: it appends the `€`. `formatEuroAmount`
+    is for input fields, where what renders must parse back.
+  - `de.customers.derived.portions` / `.price` were added at the shared level on purpose: US-006 puts
+    the same two values on the card view and the detail page and must reuse these labels. US-006's
+    "these are the standard values" hint is *not* on the counter yet — add it to all three screens
+    together.
+  - US-005 (next) is the permanent Playwright spec. It needs one customer per verdict; the UI can
+    only produce CLEAR_TO_SERVE, WRONG_GROUP and the expired-certificate case (registration + the
+    pinned clock). ARCHIVED, BLOCKED and OUTDATED_CARD have no UI to reach them yet — seed them
+    through Prisma directly. The banner exposes `data-verdict="<kind>"` for exactly this.
+---
+
+## 2026-07-24 - US-005 (E2E: every verdict at the counter)
+- Added the permanent Playwright spec for the counter (US-04.5) and fixed a regression it found.
+- Files changed:
+  - `tests/e2e/counter.spec.ts` (new) — 8 specs. Seven verdicts asserted as the German *sentence*
+    (headline + detail from `de.distribution.counter.verdicts`), not just `data-verdict`; plus a
+    read-only spec that snapshots statuses, reminder counts and the card/audit-entry counts, runs
+    the two common refusals and one successful lookup, and asserts the snapshot is unchanged.
+    Six households seeded straight through Prisma, numbers 201–206, today pinned to 08.01.2026.
+  - `src/i18n/de.ts` — `distribution.lookup.submit` is now "Woche nachschlagen" (own commit).
+  - `docs/technical_documentation.md` — file tree, a `counter.spec.ts` section, and the
+    customer-number rule for e2e specs corrected.
+- Checks: lint, typecheck, `test:coverage` (390 tests, domain+application 100%), build, and
+  `npm run test:e2e` (20 passed, 1 skipped) — all green.
+- **Learnings for future iterations:**
+  - **US-004 left `npm run test:e2e` red and nobody noticed**: it put a second submit button on
+    `/ausgabe`, so `getByRole("button", { name: "Nachschlagen", exact: true })` in
+    `distribution.spec.ts` hit a strict-mode violation. Two buttons with the same accessible name
+    are also a real a11y defect, so the fix was to rename the week one rather than to reach for a
+    test id — the existing spec then passed untouched. Run the e2e gate after every route change.
+  - Seeding through Prisma from a spec works and is the only way to reach ARCHIVED, BLOCKED and a
+    superseded card before US-08/09/10 exist. `datasourceUrl` (not the deprecated `datasources`)
+    with an **absolute** path; two processes on one SQLite file was not a problem because the spec
+    writes only in `beforeAll`, while the server is idle.
+  - 08.01.2026 is the useful pinned day for counter work: a RED distribution Thursday under the
+    seeded anchor, so a RED household is CLEAR_TO_SERVE and a BLUE one WRONG_GROUP in one run.
+  - Asserting an *absence* (FR-4: a lookup writes nothing) is only possible from outside the app.
+    A JSON snapshot of the rows a write would touch, compared before and after, says it in one
+    assertion and widens naturally when US-05 adds the distribution table.
+  - Two criteria could not be met literally and are recorded in the story's `notes` rather than
+    quietly claimed: ALREADY_SERVED_TODAY has no seedable state until US-05, and there is no
+    distribution record to assert the absence of yet.
+  - US-006 (next) puts portions and price on the card view and the customer detail page. The
+    counter already renders both via `de.customers.derived.portions` / `.price`; the story's
+    "these are the standard values" hint is on *none* of the three screens yet — add it to all
+    three together.
+---
+
+## 2026-07-24 - US-006 (Display portions and price across the customer screens)
+- Put the standard portions and price on the two screens that lacked them — the card view and the
+  customer record — so all three customer screens now show the household's allowance (US-07.4).
+- Files changed:
+  - `src/application/customers/read-customer.ts` — `CustomerCardView` gains `allowance: Allowance`;
+    added `settings` to the deps and derive counts+portions+price through `describeAllowance`. The
+    view's `composition` is now a slice of that allowance, not a second `composition()` call.
+  - `src/application/customers/read-card.ts` — same: `CardView.allowance`, `settings` in the deps,
+    one `describeAllowance` call feeding both the counts and the portions/price.
+  - `src/application/customers/customers.test.ts` — `readCard`'s test `deps()` now carries
+    `settings`; one new derived-allowance test in each of the `readCustomer` and `readCard` blocks
+    (1 grown-up + 1 child → 3 Portionen, 300c).
+  - `src/i18n/de.ts` — `de.customers.derived.standardValues` ("Standard-Portionen und -Preis; am
+    Ausgabetisch nicht anpassbar."), the "these are the standard values" statement.
+  - `src/app/ausgabe/counter-lookup.tsx`, `src/app/kunden/[id]/page.tsx`,
+    `src/app/kunden/[id]/karte/page.tsx` — render portions (`formatEuros` for the price) and the
+    standardValues hint. The counter already showed the numbers; it only needed the hint.
+  - `docs/technical_documentation.md` — readCustomer/readCard and the two page descriptions.
+- Checks: lint, typecheck, `test:coverage` (392 tests, domain+application 100%), build, and
+  `npm run test:e2e` (20 passed, 1 skipped) — all green.
+- Browser: verified with a throwaway Playwright spec (registered a 2-grown-up/1-child BLUE
+  household, asserted Portionen 5 / Preis 5,00 € and the standard-values hint on both the detail
+  page and the card, screenshots to /tmp), then deleted it.
+- **Learnings for future iterations:**
+  - `describeAllowance` is the single seam for counts+portions+price; call it once and take
+    `composition` as `{ grownUps, children }` off its result rather than calling `composition()` a
+    second time — the two would be a re-derivation that could drift, which is the whole point of the
+    seam. It defaults its date to `deps.clock.now()`, so a read use case need not pass one.
+  - Adding `settings` to a read use case's deps is free at the route: `customerDeps` already carries
+    every port (`customers`, `cards`, `settings`, `clock`, `audit`), so the composition root needed
+    no change — only the use case's own deps interface and its test's `deps()` helper.
+  - `de.customers.derived.portions` / `.price` / `.standardValues` are shared across all three
+    customer screens on purpose; reuse them rather than adding screen-local copies.
+  - US-007 (next, last of this batch) is the permanent Playwright spec for US-07.5: a 2-grown-up +
+    1-child household shows the seeded portions/price, and adding a member changes both on reload.
+    Adding a household member has no UI yet (US-16), so the member is added straight through Prisma
+    (the pattern counter.spec.ts uses: `new PrismaClient({ datasourceUrl: "file:" + resolve(...) })`)
+    and the page reloaded. Data-testids `portions` and `price` exist on both the card and the record.
+---
+
+## 2026-07-24 - US-007 (E2E: portions and price follow the household)
+- Added the Playwright spec proving the customer record's portions and price are derived on the
+  request, not read from a stored column (US-07.5 / tasks/prd-us-07-portions-and-price.md).
+- Files changed:
+  - `tests/e2e/portions.spec.ts` (new) — seeds a 2-grown-up/1-child household through Prisma
+    (customer number 211), reads 5 Portionen / 5,00 € off `/kunden/[id]`, adds a second child
+    directly in the DB, reloads to 6 Portionen / 6,00 €, and asserts the standard-values hint.
+  - `docs/technical_documentation.md` — listed the new spec in the file tree and the E2E prose.
+- **Learnings for future iterations:**
+  - The customer record derives its composition from `householdMembers` only — the applicant is
+    itself the first member row (a registration mirrors it there). The customer's own `birthDate`
+    column is not counted a second time. Seeded settings: 2 portions/200c per grown-up, 1
+    portion/100c per child, so 2+1 → 5 portions / 5,00 €, and +1 child → 6 / 6,00 €.
+  - `/kunden/[id]` keys off the surrogate `Customer.id` (Int autoincrement), not the customer
+    number — capture `customer.id` from the `prisma.customer.create` result to build the URL.
+  - Adding a household member has no screen (US-16 unbuilt); the documented "open the DB a second
+    time" pattern covers it — `prisma.householdMember.create({ data: { customerId, ... } })`, then
+    `page.reload()`. No `pinToday` needed if birthdates are robust across any run day (grown-ups in
+    the 80s, children in the early 20s), same as card.spec.ts.
+  - Reading a customer back needs a certificate and a card, or `toRegisteredCustomer` throws
+    `InvalidCustomerRecord` — include both in the seed even when the test only reads portions.
 ---

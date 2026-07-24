@@ -9,6 +9,7 @@
 import Link from "next/link";
 import { readCustomer, type CustomerCardView } from "@/application/customers/read-customer";
 import { DomainError } from "@/domain/errors";
+import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { customerDeps } from "../deps";
@@ -38,7 +39,7 @@ function NotFound(): React.ReactElement {
 }
 
 function CustomerCard({ view }: { view: CustomerCardView }): React.ReactElement {
-  const { customer, composition, cardNumber } = view;
+  const { customer, composition, cardNumber, allowance } = view;
   const { details } = customer;
 
   return (
@@ -94,6 +95,18 @@ function CustomerCard({ view }: { view: CustomerCardView }): React.ReactElement 
               {composition.children}
             </span>
           </p>
+          <p className="rounded border border-foreground/15 px-3 py-2">
+            <span className="text-sm text-foreground/70">{de.customers.derived.portions}: </span>
+            <span data-testid="portions" className="font-semibold tabular-nums">
+              {allowance.portions}
+            </span>
+          </p>
+          <p className="rounded border border-foreground/15 px-3 py-2">
+            <span className="text-sm text-foreground/70">{de.customers.derived.price}: </span>
+            <span data-testid="price" className="font-semibold tabular-nums">
+              {formatEuros(allowance.priceCents)}
+            </span>
+          </p>
         </div>
         <ul className="flex flex-col gap-1">
           {details.householdMembers.map((member, index) => (
@@ -104,6 +117,7 @@ function CustomerCard({ view }: { view: CustomerCardView }): React.ReactElement 
           ))}
         </ul>
         <p className="text-xs text-foreground/60">{de.customers.derived.hint}</p>
+        <p className="text-xs text-foreground/60">{de.customers.derived.standardValues}</p>
       </section>
 
       <section className="flex flex-col gap-2">

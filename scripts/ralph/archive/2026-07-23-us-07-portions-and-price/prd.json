@@ -17,7 +17,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -36,7 +36,7 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -53,8 +53,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "The query and the indexes already landed with US-002; this story added the proof. One deviation from the wording: 'loaded in one query' is not reachable on Prisma's SQLite provider, which has no join strategy (relationLoadStrategy: 'join' is Postgres/MySQL only). A lookup is four fixed statements — the customer plus one per relation — and the test pins the invariant that actually matters, that the count does not grow with household size. No migration: the schema was already correct."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -72,8 +72,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Verified in a real browser with a throwaway Playwright spec (no dev-browser MCP tools in this environment): CLEAR_TO_SERVE, WRONG_GROUP, CLEAR_TO_SERVE_CERTIFICATE_EXPIRED, NOT_FOUND and a nonsense entry all render, and the input is empty and focused again after Enter. The permanent spec is US-005. The serve action (PRD §US-04.4, last bullet) is not here: US-05 has not been built, so there is nothing to render."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
@@ -87,8 +87,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "tests/e2e/counter.spec.ts — 8 specs, npm run test:e2e green (20 passed, 1 skipped). Two deviations from the wording. ALREADY_SERVED_TODAY has no seedable state: nothing can serve a household until US-05, so nothing can serve one twice; the other seven verdicts are covered. And 'no distribution record' has no table to assert against yet — the read-only spec snapshots statuses, reminder counts and the card and audit-entry counts instead, which is every row a lookup could touch today. Running the suite also caught a regression US-004 left behind: two submit buttons on /ausgabe both named 'Nachschlagen', fixed in its own commit."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-006",
@@ -104,8 +104,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "Portions and price now render on all three screens. The counter already had them (US-004); this story added them to the card view (/kunden/[id]/karte) and the customer record (/kunden/[id]), both derived through describeAllowance so readCustomer/readCard cannot disagree with the counter. The displayed composition counts are a slice of the same allowance, not a second derivation. New i18n string de.customers.derived.standardValues carries the 'standard values, not adjustable' statement, added to all three screens (it was on none before). readCard's deps gained `settings`. Verified in a real browser with a throwaway Playwright spec (no dev-browser MCP tools here): a 2-grown-up/1-child BLUE household shows Portionen 5 and Preis 5,00 € on both the detail page and the card, with the standard-values hint. E2E permanent proof is US-007."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-007",
@@ -118,8 +118,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "tests/e2e/portions.spec.ts — seeds a 2-grown-up/1-child household straight through Prisma (customer number 211, clear of the low sequence and the counter spec's 201–206), reads 5 Portionen and 5,00 € off /kunden/[id], then adds a second child directly in the DB and reloads to 6 Portionen and 6,00 €. Also asserts the 'standard values, not adjustable' hint. One deviation: adding the member goes through Prisma, not the UI, because editing a household (US-16) has no screen yet — the reload-derives-afresh proof is what the criterion is really after. npm run test:e2e green (21 passed, 1 pre-existing skip)."
+      "passes": false,
+      "notes": ""
     }
   ]
 }
