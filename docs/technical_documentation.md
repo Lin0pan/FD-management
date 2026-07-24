@@ -144,6 +144,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── home.spec.ts                  # Playwright smoke test
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
+│   ├── serve.spec.ts                 # record a hand-out, block a duplicate, store an unpaid one
 │   └── settings.spec.ts              # settings round-trip vs. the built app
 ├── eslint.config.mjs  .prettierrc.json  .prettierignore
 ├── vitest.config.ts   playwright.config.ts
@@ -959,6 +960,17 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   off `/kunden/[id]`, adds a second child straight in the database, and reloads to 6 Portionen and
   6,00 €. The member is added through Prisma rather than the UI because editing a household (US-16)
   has no screen yet; the reload deriving a new value is the proof the criterion asks for.
+- `serve.spec.ts` covers US-05 end to end (§US-05.5): the distribution-day counter loop against a
+  real database. Pinned to the RED Thursday 08.01.2026, it looks up a RED household, presses
+  **Ausgabe erfassen** with the pre-checked _Bezahlt_ box, and asserts the German confirmation naming
+  the Berlin time (10:00 Uhr) while the serve action gives way to today's record — then reads the row
+  straight from Prisma to confirm one record, `paid = true`, the Berlin `dayKey`. A second lookup of
+  the same number finds the serve button gone and _Heute bereits versorgt_ in its place, with the
+  database still holding exactly one row (the duplicate is refused, not stacked). A second household
+  served with the box **cleared** stores `paid = false`. Its two households (customer numbers 221–222)
+  are inserted straight through Prisma and it deletes the pinned-now file in `afterAll`, as the
+  distribution and counter specs do. This is the `ALREADY_SERVED_TODAY` case the counter spec noted
+  it could not yet reach.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.
