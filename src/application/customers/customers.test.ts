@@ -651,6 +651,24 @@ describe("readCustomer", () => {
     expect(view.composition).toEqual({ grownUps: 1, children: 0 });
   });
 
+  it("derives the standard portions and price from the counts and the settings in force", async () => {
+    const registered = await registerCustomer(
+      deps(),
+      registerInput({
+        householdMembers: [
+          member({ birthDate: new Date("1990-04-05T00:00:00.000Z") }),
+          member({ birthDate: new Date("2020-06-01T00:00:00.000Z") }),
+        ],
+      }),
+    );
+
+    const view = await readCustomer(deps(), registered.id);
+
+    // 1 grown-up + 1 child under the seeded 2/1 portions and 200c/100c prices.
+    expect(view.allowance.portions).toBe(3);
+    expect(view.allowance.priceCents).toBe(300);
+  });
+
   it("refuses an id that belongs to nobody rather than showing an empty card", async () => {
     await expect(readCustomer(deps(), 404)).rejects.toThrow(CustomerNotFound);
   });
@@ -663,7 +681,7 @@ describe("readCard", () => {
   let audit: FakeAuditLog;
 
   function deps(today = TODAY) {
-    return { customers, cards, clock: fakeClock(today), audit };
+    return { customers, cards, settings, clock: fakeClock(today), audit };
   }
 
   function registerDeps(today = TODAY) {
@@ -768,6 +786,21 @@ describe("readCard", () => {
     expect(view.firstName).toBe("Mira");
     expect(view.lastName).toBe("Aalto");
     expect(view.group).toBe("BLUE");
+  });
+
+  it("derives the standard portions and price for the card's household", async () => {
+    const customer = await registered({
+      householdMembers: [
+        member({ birthDate: new Date("1990-04-05T00:00:00.000Z") }),
+        member({ birthDate: new Date("2020-06-01T00:00:00.000Z") }),
+      ],
+    });
+
+    const view = await readCard(deps(), customer.id);
+
+    // 1 grown-up + 1 child under the seeded 2/1 portions and 200c/100c prices.
+    expect(view.allowance.portions).toBe(3);
+    expect(view.allowance.priceCents).toBe(300);
   });
 
   it("refuses an id that belongs to nobody rather than showing an empty card", async () => {

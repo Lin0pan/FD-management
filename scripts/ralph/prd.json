@@ -104,8 +104,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Portions and price now render on all three screens. The counter already had them (US-004); this story added them to the card view (/kunden/[id]/karte) and the customer record (/kunden/[id]), both derived through describeAllowance so readCustomer/readCard cannot disagree with the counter. The displayed composition counts are a slice of the same allowance, not a second derivation. New i18n string de.customers.derived.standardValues carries the 'standard values, not adjustable' statement, added to all three screens (it was on none before). readCard's deps gained `settings`. Verified in a real browser with a throwaway Playwright spec (no dev-browser MCP tools here): a 2-grown-up/1-child BLUE household shows Portionen 5 and Preis 5,00 € on both the detail page and the card, with the standard-values hint. E2E permanent proof is US-007."
     },
     {
       "id": "US-007",

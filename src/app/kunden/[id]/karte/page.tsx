@@ -13,6 +13,7 @@
 import Link from "next/link";
 import { readCard, type CardView } from "@/application/customers/read-card";
 import { DomainError } from "@/domain/errors";
+import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { customerDeps } from "../../deps";
@@ -94,7 +95,20 @@ function Card({ view }: { view: CardView }): React.ReactElement {
           value={view.composition.children}
           testId="children"
         />
+        <Count
+          label={de.customers.derived.portions}
+          value={view.allowance.portions}
+          testId="portions"
+        />
+        <div className="flex flex-col gap-1">
+          <span className="text-sm text-foreground/70">{de.customers.derived.price}</span>
+          <span data-testid="price" className="text-4xl font-semibold tabular-nums">
+            {formatEuros(view.allowance.priceCents)}
+          </span>
+        </div>
       </div>
+
+      <p className="text-xs text-foreground/70">{de.customers.derived.standardValues}</p>
 
       <dl className="grid gap-2 text-sm text-foreground/70 sm:grid-cols-2">
         <div>

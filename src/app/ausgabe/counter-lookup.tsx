@@ -211,6 +211,7 @@ export function CustomerDetails({
           testId="counter-reminder-count"
         />
       </div>
+      <p className="text-xs text-foreground/60">{de.customers.derived.standardValues}</p>
       <div className="flex flex-col gap-1">
         <span className="text-sm text-foreground/70">{de.customers.fields.notes}</span>
         <p data-testid="counter-notes" className="max-w-prose">

@@ -27,6 +27,11 @@ Started: Thu Jul 23 21:04:04 CEST 2026
   "type → Enter → read → type again" loop needs no state at all.
 - A route's `deps.ts` is its composition root, and *what it omits is a guarantee*: a screen that
   never writes holds no `AuditLog`. Say so in the comment — it is the enforcement.
+- Counts, portions and price all come from `describeAllowance(deps, household)` — one seam, so the
+  counter, the card view and the record can't disagree. Call it once and read `composition` as a
+  slice of its result; never call `composition()` again alongside it. It defaults its date to
+  `deps.clock.now()`. Any use case needing it just adds `settings` to its deps interface; the
+  customer routes' `customerDeps` already wires every port, so the composition root is untouched.
 - E2E specs share one `data/e2e.db` and run serially in **alphabetical file order**. Never name a
   customer number the *allocator* will hand out — but a spec that inserts its own rows may reserve a
   high block (200s), because allocation is always the lowest free slot.
@@ -212,4 +217,44 @@ Started: Thu Jul 23 21:04:04 CEST 2026
     counter already renders both via `de.customers.derived.portions` / `.price`; the story's
     "these are the standard values" hint is on *none* of the three screens yet — add it to all
     three together.
+---
+
+## 2026-07-24 - US-006 (Display portions and price across the customer screens)
+- Put the standard portions and price on the two screens that lacked them — the card view and the
+  customer record — so all three customer screens now show the household's allowance (US-07.4).
+- Files changed:
+  - `src/application/customers/read-customer.ts` — `CustomerCardView` gains `allowance: Allowance`;
+    added `settings` to the deps and derive counts+portions+price through `describeAllowance`. The
+    view's `composition` is now a slice of that allowance, not a second `composition()` call.
+  - `src/application/customers/read-card.ts` — same: `CardView.allowance`, `settings` in the deps,
+    one `describeAllowance` call feeding both the counts and the portions/price.
+  - `src/application/customers/customers.test.ts` — `readCard`'s test `deps()` now carries
+    `settings`; one new derived-allowance test in each of the `readCustomer` and `readCard` blocks
+    (1 grown-up + 1 child → 3 Portionen, 300c).
+  - `src/i18n/de.ts` — `de.customers.derived.standardValues` ("Standard-Portionen und -Preis; am
+    Ausgabetisch nicht anpassbar."), the "these are the standard values" statement.
+  - `src/app/ausgabe/counter-lookup.tsx`, `src/app/kunden/[id]/page.tsx`,
+    `src/app/kunden/[id]/karte/page.tsx` — render portions (`formatEuros` for the price) and the
+    standardValues hint. The counter already showed the numbers; it only needed the hint.
+  - `docs/technical_documentation.md` — readCustomer/readCard and the two page descriptions.
+- Checks: lint, typecheck, `test:coverage` (392 tests, domain+application 100%), build, and
+  `npm run test:e2e` (20 passed, 1 skipped) — all green.
+- Browser: verified with a throwaway Playwright spec (registered a 2-grown-up/1-child BLUE
+  household, asserted Portionen 5 / Preis 5,00 € and the standard-values hint on both the detail
+  page and the card, screenshots to /tmp), then deleted it.
+- **Learnings for future iterations:**
+  - `describeAllowance` is the single seam for counts+portions+price; call it once and take
+    `composition` as `{ grownUps, children }` off its result rather than calling `composition()` a
+    second time — the two would be a re-derivation that could drift, which is the whole point of the
+    seam. It defaults its date to `deps.clock.now()`, so a read use case need not pass one.
+  - Adding `settings` to a read use case's deps is free at the route: `customerDeps` already carries
+    every port (`customers`, `cards`, `settings`, `clock`, `audit`), so the composition root needed
+    no change — only the use case's own deps interface and its test's `deps()` helper.
+  - `de.customers.derived.portions` / `.price` / `.standardValues` are shared across all three
+    customer screens on purpose; reuse them rather than adding screen-local copies.
+  - US-007 (next, last of this batch) is the permanent Playwright spec for US-07.5: a 2-grown-up +
+    1-child household shows the seeded portions/price, and adding a member changes both on reload.
+    Adding a household member has no UI yet (US-16), so the member is added straight through Prisma
+    (the pattern counter.spec.ts uses: `new PrismaClient({ datasourceUrl: "file:" + resolve(...) })`)
+    and the page reloaded. Data-testids `portions` and `price` exist on both the card and the record.
 ---

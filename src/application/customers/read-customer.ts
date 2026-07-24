@@ -8,12 +8,14 @@
 
 import { formatCardNumber } from "@/domain/card/cardNumber";
 import type { RegisteredCustomer } from "@/domain/customer/customer";
-import { composition, type HouseholdComposition } from "@/domain/customer/householdComposition";
+import type { HouseholdComposition } from "@/domain/customer/householdComposition";
 import { CustomerNotFound } from "@/domain/errors";
-import type { Clock, CustomerRepository } from "../ports";
+import { describeAllowance, type Allowance } from "../allowance/describe-allowance";
+import type { Clock, CustomerRepository, SettingsRepository } from "../ports";
 
 export interface ReadCustomerDeps {
   readonly customers: CustomerRepository;
+  readonly settings: SettingsRepository;
   readonly clock: Clock;
 }
 
@@ -23,6 +25,12 @@ export interface CustomerCardView {
   readonly composition: HouseholdComposition;
   /** The number printed on the card, e.g. `12k1`. Derived from the slot and the card index. */
   readonly cardNumber: string;
+  /**
+   * The standard portions and price for this household as of today — derived through the same seam
+   * the counter reads (`describeAllowance`), so the two screens can never disagree. The counts here
+   * are a slice of it, not a second derivation.
+   */
+  readonly allowance: Allowance;
 }
 
 /**
@@ -36,9 +44,12 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
     throw new CustomerNotFound(id);
   }
 
+  const allowance = await describeAllowance(deps, customer.details.householdMembers);
+
   return {
     customer,
-    composition: composition(customer.details.householdMembers, deps.clock.now()),
+    composition: { grownUps: allowance.grownUps, children: allowance.children },
     cardNumber: formatCardNumber(customer.customerNumber, customer.card.index),
+    allowance,
   };
 }

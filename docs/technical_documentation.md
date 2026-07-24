@@ -522,11 +522,13 @@ The two read-side use cases the customer screens sit on:
   throw), the suggested group, both group sizes and the day to judge birthdates against. Read-only —
   it reserves nothing.
 - **`readCustomer`** answers what the customer overview shows: the customer plus everything
-  derivable from them, worked out here rather than in the page — the household counts from the
-  birthdates and the card number from the slot and the card index. It throws `CustomerNotFound` for
-  an id nobody holds.
+  derivable from them, worked out here rather than in the page — the card number from the slot and
+  the card index, and the household counts, portions and price from `describeAllowance` (US-07.4), so
+  the counts on the record are a slice of the same allowance the counter reads. It throws
+  `CustomerNotFound` for an id nobody holds.
 - **`readCard`** answers what the _card_ shows (US-02.4): the current card number, the name, the
-  group, the counts as of today, and the numbers this card replaced. It reads the customer's whole
+  group, the counts, portions and price as of today (all via `describeAllowance`), and the numbers
+  this card replaced. It reads the customer's whole
   run of cards in **one** `listCards` call and takes the head as the current card — asking twice,
   once for the current card and once for the rest, would let two answers come from two moments. A
   customer with no card at all is refused as an `InvalidCustomerRecord` rather than shown a card
@@ -658,15 +660,18 @@ beyond it:
   blank must reach the domain and be rejected there rather than vanishing on the way. `redirect()`
   is called **outside** the `try`: it works by throwing, and catching it would turn a successful
   registration into "could not be saved".
-- **`[id]/page.tsx`** renders what `readCustomer` already derived — the counts from the birthdates
-  and the card number from the slot and the card index. A non-numeric id and an id nobody holds give
-  the same German answer: there is no such customer. It links on to the card view.
+- **`[id]/page.tsx`** renders what `readCustomer` already derived — the counts from the birthdates,
+  the standard portions and price (US-07.4), and the card number from the slot and the card index. A
+  non-numeric id and an id nobody holds give the same German answer: there is no such customer. It
+  links on to the card view.
 - **`[id]/karte/page.tsx`** is the **digital customer card** (US-02.4): the number, the name, the
-  group as a coloured German label and the two counts, set large enough to read across a desk, plus
-  the numbers this card replaced and why each was issued. It is a screen, not a document — FD prints
-  through a system they already own, so there is deliberately **no print stylesheet and no PDF**.
-  The counts come from `readCard`, derived per request (`dynamic = "force-dynamic"`), so a birthday
-  can never leave a stale number on screen. The "Karte neu ausstellen" button is present but
+  group as a coloured German label, the two counts and the standard portions and price (US-07.4),
+  set large enough to read across a desk, plus the numbers this card replaced and why each was
+  issued. It is a screen, not a document — FD prints through a system they already own, so there is
+  deliberately **no print stylesheet and no PDF**. The counts, portions and price come from
+  `readCard`, derived per request (`dynamic = "force-dynamic"`), so a birthday can never leave a
+  stale number on screen. Both screens state the portions and price are the **standard** values,
+  with no control to adjust them — counter-side adjustments are out of scope. The "Karte neu ausstellen" button is present but
   disabled: FD expects the action here, and its behaviour is specified in US-09.
 
 ⚠️ **Dates cross the form boundary as UTC calendar days.** `<input type="date">` submits `YYYY-MM-DD`

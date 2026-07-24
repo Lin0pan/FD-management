@@ -71,6 +71,7 @@ export const de = {
       portions: "Portionen",
       price: "Preis",
       hint: "Berechnet aus den Geburtsdaten — nicht eingebbar.",
+      standardValues: "Standard-Portionen und -Preis; am Ausgabetisch nicht anpassbar.",
       unknown: "—",
     },
     assignment: {
