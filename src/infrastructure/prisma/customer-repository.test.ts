@@ -206,6 +206,67 @@ describe("the customer number slot constraint", () => {
 
     await expect(insertCustomer(50, "ACTIVE")).rejects.toThrow();
   });
+
+  it("refuses a blocked customer sharing an active customer's number — a block occupies the slot", async () => {
+    await insertCustomer(50, "ACTIVE");
+
+    await expect(insertCustomer(50, "BLOCKED")).rejects.toThrow();
+  });
+
+  it("refuses two blocked customers on the same number — only archiving is exempt", async () => {
+    await insertCustomer(50, "BLOCKED");
+
+    await expect(insertCustomer(50, "BLOCKED")).rejects.toThrow();
+  });
+
+  it("lets a blocked customer hold the number an archived household released", async () => {
+    await insertCustomer(50, "ARCHIVED");
+
+    await insertCustomer(50, "BLOCKED");
+
+    const rows = await prisma.customer.findMany({ where: { customerNumber: 50 } });
+    expect(rows.map((row) => row.status).sort()).toEqual(["ARCHIVED", "BLOCKED"]);
+  });
+});
+
+describe("PrismaCustomerRepository.setStatus", () => {
+  /**
+   * The invariant US-08 rests on: a customer carries a block reason exactly while they are blocked.
+   * `setStatus` writes the status and the reason in one statement, so blocking stores the reason and
+   * unblocking (or archiving) clears it — a row can never be left BLOCKED without a why, nor
+   * ACTIVE/ARCHIVED with a stale one. `(blockReason !== null) === (status === "BLOCKED")` is the
+   * invariant said literally.
+   */
+  const holdsInvariant = (row: { status: string; blockReason: string | null }): boolean =>
+    (row.blockReason !== null) === (row.status === "BLOCKED");
+
+  it("holds blockReason non-null exactly while BLOCKED — set on block, cleared on unblock", async () => {
+    const { id } = await repository.create(newCustomer());
+
+    await repository.setStatus(id, "BLOCKED", "Ausweis wiederholt vergessen");
+    const blocked = await prisma.customer.findUniqueOrThrow({ where: { id } });
+    expect(blocked.status).toBe("BLOCKED");
+    expect(blocked.blockReason).toBe("Ausweis wiederholt vergessen");
+    expect(holdsInvariant(blocked)).toBe(true);
+
+    await repository.setStatus(id, "ACTIVE", null);
+    const unblocked = await prisma.customer.findUniqueOrThrow({ where: { id } });
+    expect(unblocked.status).toBe("ACTIVE");
+    expect(unblocked.blockReason).toBeNull();
+    expect(holdsInvariant(unblocked)).toBe(true);
+  });
+
+  it("leaves no block reason behind when a blocked customer is archived", async () => {
+    const { id } = await repository.create(newCustomer());
+    await repository.setStatus(id, "BLOCKED", "vorübergehend gesperrt");
+
+    await repository.setStatus(id, "ARCHIVED", null);
+
+    const archived = await prisma.customer.findUniqueOrThrow({ where: { id } });
+    expect(archived.status).toBe("ARCHIVED");
+    expect(archived.blockReason).toBeNull();
+    expect(holdsInvariant(archived)).toBe(true);
+  });
 });
 
 describe("PrismaCustomerRepository.takenActiveNumbers", () => {

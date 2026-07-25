@@ -69,8 +69,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The blockReason column + migration landed in US-003; US-004 is the two proof tests. Added a setStatus invariant integration test proving (blockReason !== null) === (status === BLOCKED) is held across block → unblock and block → archive — it also pins that setStatus clears a stale reason, not just the status. Strengthened the slot-constraint tests: the active-number partial unique index refuses a BLOCKED row sharing an ACTIVE holder's number and refuses two BLOCKED on one number, while a BLOCKED and an ARCHIVED row may share a number (only ARCHIVED is exempt). No production change — the invariant is enforced by transition() + the use cases and the sole write path (setStatus writes both columns in one statement); the tests prove it. 511 tests green, 100% on pure layers."
     },
     {
       "id": "US-005",
