@@ -118,7 +118,11 @@ export function VerdictBanner({ verdict }: { verdict: Verdict }): React.ReactEle
         <p data-testid="counter-verdict-headline" className="text-4xl font-bold sm:text-5xl">
           {headline}
         </p>
-        <p data-testid="counter-verdict-detail" className="max-w-prose text-xl">
+        {/* `whitespace-pre-line` because a block reason is typed by hand into a multi-line field and
+            is shown verbatim (US-08, FR-4): the paragraphs a colleague wrote have to survive to the
+            counter, not collapse into one run-on line. Every other detail here is a single sentence
+            from the dictionary, so it renders identically either way. */}
+        <p data-testid="counter-verdict-detail" className="max-w-prose text-xl whitespace-pre-line">
           {detail}
         </p>
       </div>

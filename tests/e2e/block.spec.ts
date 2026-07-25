@@ -188,6 +188,10 @@ test.describe("Kunde sperren und entsperren", () => {
     await expect(page.getByTestId("counter-verdict-headline")).toHaveText(words.blocked.headline);
     await expect(page.getByTestId("counter-verdict-detail")).toHaveText(BLOCK_REASON);
     await expect(page.getByTestId("counter-verdict-detail")).not.toHaveText(words.blocked.noReason);
+    // `toHaveText` normalises whitespace, so it cannot tell a reason shown as written from one
+    // collapsed into a single run-on line. The line breaks a colleague typed are part of "verbatim
+    // and in full", so the rendering itself is asserted: the banner must preserve them.
+    await expect(page.getByTestId("counter-verdict-detail")).toHaveCSS("white-space", "pre-line");
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.BLOCKED);
     await expect(page.getByTestId("counter-name")).toHaveText(name);
     await expect(page.getByTestId("serve-button")).toHaveCount(0);

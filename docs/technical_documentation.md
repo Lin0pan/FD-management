@@ -870,6 +870,11 @@ then the question it asks about every person in the queue: may _this_ one collec
   colour, not sentences assembled in the component.
 - An **expired certificate is amber, not red**: the verdict is still serve — the reminder is a
   conversation, never grounds to refuse food.
+- The detail line is `whitespace-pre-line`. Every verdict but one is a single dictionary sentence,
+  which renders the same either way; the exception is the **block reason** (US-08), typed by hand
+  into a multi-line field and shown verbatim, so the paragraphs a colleague wrote have to survive to
+  the counter rather than collapse into one run-on line. The e2e asserts the rule itself, because
+  Playwright's `toHaveText` normalises whitespace and cannot see the difference.
 - Everything below the banner is on screen at once (FR-2). All of it is derived by `lookupCustomer`:
   the counts from the birthdates, portions and price from the settings in force today.
 - A number that is **not a number** (`?nummer=abc`) renders a German sentence beside the form; an
