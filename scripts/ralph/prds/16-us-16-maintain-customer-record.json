@@ -72,6 +72,7 @@
         "Destructive actions (reissue card, block/unblock, archive) are grouped in a clearly separated section, each with its own confirmation",
         "Distribution history is listed newest first with date, showed-up, paid and the price that applied",
         "Each household member shows their current age next to their birthdate",
+        "The counter screen (/ausgabe) links to this record and offers 'Sperren' / 'Sperre aufheben' there — carried over from US-08.4, which shipped both controls on the record only",
         "An archived customer's record renders fully read-only",
         "All user-facing strings come from src/i18n/de.ts",
         "Typecheck passes",
