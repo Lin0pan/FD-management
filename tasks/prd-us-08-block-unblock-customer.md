@@ -78,6 +78,12 @@ so illegal transitions are impossible rather than merely unlikely.
 - [ ] All strings from `src/i18n/de.ts`
 - [ ] Verify in browser using dev-browser skill
 
+> **Shipped with two criteria outstanding.** Both controls live on the customer record only; the
+> counter screen shows a block and its reason but offers no way to set or lift one, and has no link to
+> the record either. Deferred to **US-16**, which owns the record's actions and is the natural place to
+> add the counter's route into it. The **filterable blocked badge** is deferred to **US-15**, which
+> introduces the customer list. Neither is a change of mind about the requirement.
+
 ### US-08.5: E2E — blocked customer at the counter
 
 **Acceptance Criteria:**

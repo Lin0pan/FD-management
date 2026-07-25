@@ -17,8 +17,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Detail page at /kunden/[id] already existed from US-01 as the card landing; extended it with per-member current age (new pure domain fn ageInYears) and reminder count. Browser check pending: no dev-browser skill/MCP available this session."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -34,8 +34,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "src/domain/customer/status.ts adds transition(from,to,reason?) over the four allowed pairs; Status is aliased to the existing CustomerStatus in customer.ts (single source of truth). New typed IllegalStatusTransition error in errors.ts for any move out of ARCHIVED or any no-op; reason-less BLOCKED reuses MissingAuditReason(\"customer.blocked\"). All 9 ordered pairs tested. 100% coverage held."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -53,8 +53,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "block-customer.ts and unblock-customer.ts orchestrate transition() + a new CustomerRepository.setStatus(id,status,blockReason) port + audit. Block trims the reason, refuses whitespace via MissingAuditReason and illegal moves via IllegalStatusTransition; unblock reads the reason before clearing it so the audit why records the lifted block. Added blockReason to RegisteredCustomer and pulled the Prisma column + migration forward (a port method forces infra to compile and a reason needs a column) — US-004 keeps the invariant + slot-occupancy integration tests. Fake takenActiveNumbers now derives from live status so a block keeps the slot; all four customer fakes gained setStatus. 506 tests green, 100% on pure layers, build ok."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -69,8 +69,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "The blockReason column + migration landed in US-003; US-004 is the two proof tests. Added a setStatus invariant integration test proving (blockReason !== null) === (status === BLOCKED) is held across block → unblock and block → archive — it also pins that setStatus clears a stale reason, not just the status. Strengthened the slot-constraint tests: the active-number partial unique index refuses a BLOCKED row sharing an ACTIVE holder's number and refuses two BLOCKED on one number, while a BLOCKED and an ARCHIVED row may share a number (only ARCHIVED is exempt). No production change — the invariant is enforced by transition() + the use cases and the sole write path (setStatus writes both columns in one statement); the tests prove it. 511 tests green, 100% on pure layers."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
@@ -85,8 +85,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Block/unblock UI on /kunden/[id]. New client component block-controls.tsx: an ACTIVE customer gets a 'Sperren' disclosure with a required multi-line textarea whose submit stays disabled until reason.trim() is non-empty (useState); a BLOCKED customer gets the current reason verbatim plus a confirming 'Sperre aufheben' disclosure that shows the reason being lifted before the button; an ARCHIVED customer gets nothing (no transition out of archived). actions.ts (blockCustomerAction/unblockCustomerAction) relays to the use cases, maps MissingAuditReason/IllegalStatusTransition to German, and revalidatePath's the record. The counter verdict banner already shows the reason verbatim/in full (US-04), so no change there. New i18n under customers.block. Browser check pending: no dev-browser skill/MCP this session."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-006",
@@ -100,8 +100,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "tests/e2e/block.spec.ts (customer 241, RED/active, pinned to the RED distribution day 08.01.2026): blocks the household on /kunden/[id] with a multi-line reason, then reads it back verbatim/in full in the counter verdict banner with no serve-button offered; asserts an empty AND a whitespace-only reason leave block-submit disabled (FR-1); lifts the block via the confirming 'Sperre aufheben' and proves the household is CLEAR_TO_SERVE again on the same customer number and card (241k1). Surfaced a wiring gap: lookup-customer.ts hard-coded blockReason:null (a US-04-era TODO), so the counter always showed 'kein Grund hinterlegt' even for a reasoned block — now passes customer.blockReason through, with the lookup-customer 'blocks a blocked customer' unit test strengthened to assert {kind:'BLOCKED',reason:'gesperrt'}. E2E reuses a running server serving the OLD build (reuseExistingServer), so npm run build BEFORE npm run test:e2e when an app-layer change must reach the browser. Full e2e suite green (32 passed, 1 pre-existing skip); 511 unit tests, 100% on pure layers."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

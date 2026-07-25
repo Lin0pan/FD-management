@@ -87,6 +87,9 @@ customer.
 - [ ] An archived customer's record renders fully read-only with the archived banner
 - [ ] Distribution history is listed newest first with date, showed-up and paid, and the price that
       applied
+- [ ] The counter screen (US-04) links to this record, and offers "Sperren" / "Sperre aufheben"
+      there — carried over from US-08.4, which shipped both controls on the record only, leaving a
+      staff member who decides at the counter with no route off that screen
 - [ ] All strings from `src/i18n/de.ts`
 - [ ] Verify in browser using dev-browser skill
 

@@ -117,8 +117,39 @@ export const de = {
       certificateHeading: "Bedarfsnachweis",
       validUntil: "gültig bis",
       registered: "Aufgenommen",
+      reminderCount: "Erinnerungen an den Nachweis",
       backToHome: "Zur Startseite",
       cardViewLink: "Kundenkarte anzeigen",
+      /** A member's age beside their birthdate; German inflects the year at one. */
+      memberAge: (age: number): string => (age === 1 ? "1 Jahr" : `${age} Jahre`),
+    },
+    /**
+     * Blocking and unblocking a customer from their record (US-08). A block pauses a household
+     * without freeing their slot; the reason is its only record and is shown verbatim at the counter.
+     */
+    block: {
+      heading: "Sperre",
+      currentReason: "Sperrgrund",
+      action: "Sperren",
+      reasonLabel: "Grund der Sperre",
+      reasonHint:
+        "Der Grund wird an der Ausgabe wortwörtlich angezeigt und ist die einzige Notiz zur " +
+        "Sperre. Bitte so schreiben, dass jede Kollegin und jeder Kollege sie versteht.",
+      submit: "Sperren",
+      submitting: "Wird gesperrt …",
+      unblock: "Sperre aufheben",
+      unblockConfirm: (reason: string): string =>
+        `Diese Sperre wird aufgehoben: „${reason}“. Die Kundin oder der Kunde ist danach wieder ` +
+        `bezugsberechtigt.`,
+      unblockSubmit: "Sperre jetzt aufheben",
+      unblocking: "Wird aufgehoben …",
+      errors: {
+        missingReason: "Bitte einen Grund für die Sperre angeben.",
+        notBlockable:
+          "Diese Kundin oder dieser Kunde kann nicht gesperrt werden. Bitte die Seite neu laden.",
+        notBlocked: "Diese Kundin oder dieser Kunde ist nicht gesperrt. Bitte die Seite neu laden.",
+        unknown: "Die Änderung konnte nicht gespeichert werden.",
+      },
     },
     /** Why a card was handed over — the four reasons `CardIssueReason` names. */
     cardReasons: {

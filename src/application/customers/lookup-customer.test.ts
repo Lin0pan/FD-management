@@ -93,9 +93,15 @@ class FakeCustomerRepository implements CustomerRepository {
 
   create(customer: NewCustomer): Promise<RegisteredCustomer> {
     this.writes += 1;
-    const registered = { ...customer, id: this.holders.length + 1 };
+    const registered = { ...customer, id: this.holders.length + 1, blockReason: null };
     this.holders.push(registered);
     return Promise.resolve(registered);
+  }
+
+  setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    this.holders[index] = { ...this.holders[index], status, blockReason };
+    return Promise.resolve();
   }
 }
 
@@ -253,6 +259,7 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
     customerNumber: overrides.customerNumber ?? 50,
     group: overrides.group ?? "RED",
     status: overrides.status ?? "ACTIVE",
+    blockReason: overrides.status === "BLOCKED" ? "gesperrt" : null,
     reminderCount: overrides.reminderCount ?? 0,
     card: { index: overrides.cardIndex ?? 1, issuedAt: new Date(TODAY), reason: "FIRST_ISSUE" },
     details,
@@ -304,12 +311,14 @@ describe("lookupCustomer", () => {
     expect(result.customer?.notes).toBe("current archived holder");
   });
 
-  it("blocks a blocked customer, ahead of any other reason", async () => {
+  it("blocks a blocked customer, ahead of any other reason, carrying the stored reason", async () => {
     customers = new FakeCustomerRepository(customerRecord({ status: "BLOCKED", group: "BLUE" }));
 
     const result = await lookupCustomer(deps(), "50");
 
-    expect(result.verdict.kind).toBe("BLOCKED");
+    // The reason recorded when the customer was blocked (US-08) reaches the verdict verbatim, so the
+    // counter shows why rather than the "no reason on file" fallback.
+    expect(result.verdict).toEqual({ kind: "BLOCKED", reason: "gesperrt" });
   });
 
   it("sends away a customer of the wrong colour for the week", async () => {

@@ -1,77 +1,220 @@
 # Ralph Progress Log
-Started: Fri Jul 24 14:11:17 CEST 2026
+Started: Sat Jul 25 01:36:25 CEST 2026
 ---
 
 ## Codebase Patterns
-- Domain date rules compare **UTC calendar days** via a local `utcDay(date)` helper (`Date.UTC(y, m, d)`) — see householdComposition.ts and certificate.ts. Never compare raw timestamps; add a named "ignores the time of day" test.
-- Domain test style: tiny ISO-string builders (`on("2026-08-31")`, `bornOn(...)`) returning `new Date(\`${iso}T00:00:00.000Z\`)`; one `it` per business rule, named after the rule.
-- Boundary tests always cover: day before, day of, day after, plus 29 February (both directions where meaningful).
-- `docs/technical_documentation.md` enumerates every module twice: in the source-tree listing (~line 90) and as a `### src/...` section — update both when adding a module.
-- Coverage gate: 100% on domain/ and application/; type-only modules (e.g. distributionRecord.ts) show 0% but are excluded from thresholds.
-- Ralph batch bookkeeping (archive dir, .last-branch, new prd.json) may sit uncommitted at iteration start — commit it as a separate `chore(ralph)` commit, not mixed into the feat.
+- Adding a method to a port interface (e.g. CustomerRepository) forces EVERY implementer to compile:
+  the real PrismaCustomerRepository AND the hand-written fakes, which live in FOUR test files —
+  customers.test.ts, certificate-reminder.test.ts, lookup-customer.test.ts and
+  distribution/record-attendance.test.ts. `grep -rln "implements CustomerRepository" src/` before
+  you start. Miss one and typecheck fails, not lint.
+- Adding a field to RegisteredCustomer ripples the same way: every fake `create` returning
+  `{ ...customer, id }` and every `customerRecord()` builder literal needs the new field. It is on
+  RegisteredCustomer, NOT NewCustomer (registration always produces ACTIVE / null blockReason).
+- Prisma migrations are pre-release disposable but ADDITIVE changes (a new nullable column) just get
+  their own migration via `npx prisma migrate dev --name <x> --skip-generate`; no need to regenerate
+  init (which carries the hand-written partial unique index at its tail — regenerating drops it).
+  Then `npx prisma generate` so the client types pick up the column. Infra tests spin up a throwaway
+  DB with `prisma migrate deploy`, so a committed migration is what makes them see the column.
+- Status changes go through `transition(from, to, reason?)` in domain/customer/status.ts, never an
+  ad-hoc status assignment. It throws IllegalStatusTransition for illegal/no-op moves and
+  MissingAuditReason for a reason-less `→ BLOCKED`. Persist via CustomerRepository.setStatus.
+- The page at /kunden/[id] already exists (built in US-01 as the card landing). It renders
+  `CustomerCardView` from `readCustomer` and links to the card view at /kunden/[id]/karte. Extend it
+  rather than creating a new page.
+- Derive-don't-store: age is a pure domain fn `ageInYears(birthDate, today)` in
+  `src/domain/customer/householdComposition.ts`, sharing the anniversary/§188 BGB rollover convention
+  with `composition`/`grownUpFrom` (29 Feb → 1 Mar in non-leap years). The application layer
+  (`read-customer.ts`) derives ages via `deps.clock.now()` and hands them to the page ready to render.
+- `RegisteredCustomer.reminderCount` already lives on the customer entity — the page reads
+  `view.customer.reminderCount` directly, no application change needed.
+- German UI strings only in `src/i18n/de.ts`. Inflected forms (e.g. "1 Jahr" vs "N Jahre") are
+  functions in the dictionary, never in components.
+- Coverage is gated at 100% on domain/ and application/. Any new branch needs a named boundary test.
+- e2e specs (tests/e2e/*.spec.ts) are not run by `npm run test:coverage`; run `npm run test:e2e`
+  separately. Existing registration.spec asserts household-member *count*, not text, so a rendered
+  age suffix is safe.
+- App-layer write screens follow one shape: a `"use server"` `actions.ts` (Zod-parse the hidden
+  `customerId` via the `surrogateId` regex, call ONE use case, map typed domain errors to German,
+  `revalidatePath("/<route>/<id>")`), a `*-state.ts` holding the form-state type+initial (a
+  `"use server"` module may export only async functions), and a `"use client"` component using
+  `useActionState`. `customerDeps` already bundles customers+cards+settings+clock+audit, so it
+  satisfies most use-case Deps structurally with no new composition root.
+- Block/unblock UI lives on `/kunden/[id]` (block-controls.tsx). Its Playwright testids: block-open,
+  block-reason, block-submit, block-error, block-reason-current, unblock-open, unblock-submit. The
+  counter verdict banner (ausgabe/counter-lookup.tsx) renders a BLOCKED reason verbatim/in full via
+  `counter-verdict-detail` — don't re-derive it on the record. lookup-customer.ts now passes
+  `customer.blockReason` into `evaluateAtCounter` (was a hard-coded `null` TODO from US-04).
+- The e2e webServer is `npm run start` (the BUILT app) with `reuseExistingServer: !CI`. An app-layer
+  or component change only reaches the browser after `npm run build`; a stale `.next` (or a leftover
+  running server) will pass unit tests but fail the e2e against the old code. Build before test:e2e.
+- e2e specs seed straight through Prisma with a customer number and navigate the record page by the
+  SURROGATE `id` (`/kunden/${id}`), not the number — `prisma.customer.create({..., select:{id:true}})`
+  hands it back. Owned number ranges so the shared `data/e2e.db` sequence stays predictable: counter
+  201-206/239, portions 211, serve 221-222, reminders 231, block 241.
 
-## 2026-07-24 14:15 - US-001 (Certificate validity rule)
-- Implemented `isExpired(certificate, today)` in `src/domain/customer/certificate.ts` (TDD, red→green): valid **on** `validUntil`, expired the day after, UTC-day comparison, no clock/settings. Reuses the existing `NeedsCertificate` type from customer.ts.
-- Files changed: src/domain/customer/certificate.ts (new), src/domain/customer/certificate.test.ts (new, 7 tests), docs/technical_documentation.md (tree + module section).
-- Quality: lint ✓, typecheck ✓, test:coverage ✓ (447 tests, domain at 100%), build ✓.
-- **Learnings for future iterations:**
-  - `NeedsCertificate` already exists in customer.ts (`{ type, validUntil }`) — don't invent a new certificate type in later US-06 stories.
-  - `Customer.reminderCount` already exists on `NewCustomer` (US-01 schema) — US-06.3 only needs to confirm it, plus add the `ReminderLog` model.
-  - No escalation/threshold anywhere is a hard non-goal (PRD §5) — resist adding one in application or UI stories.
-  - Deliberate duplication: `utcDay` is private in both householdComposition.ts and certificate.ts; the project prefers boring duplication of a 3-line helper over a shared date module.
 ---
-## 2026-07-24 14:25 - US-002 (recordReminder and renewCertificate use cases)
-- Implemented `recordReminder(deps, {customerId})` (returns the new count) and `renewCertificate(deps, {customerId, type, validUntil})` in `src/application/customers/`, TDD red→green against hand-written fakes and a fake clock (14 tests).
-- New ports in ports.ts: `ReminderLogRepository` (findOnDay/record; record is transactional entry+count, adapter reports lost race as `ReminderAlreadyLoggedToday`) and `CertificateRepository` (renew appends cert + resets count to 0 in one transaction). New domain errors: `ReminderAlreadyLoggedToday`, `CertificateStillValid`, `CertificateValidUntilInPast`.
-- Files changed: src/application/customers/record-reminder.ts (new), renew-certificate.ts (new), certificate-reminder.test.ts (new), src/application/ports.ts, src/domain/errors.ts, docs/technical_documentation.md (tree, ports table, new module section).
-- Quality: lint ✓, typecheck ✓, test:coverage ✓ (461 tests, application at 100%), build ✓.
+
+## 2026-07-25 - US-005 (Block and unblock UI)
+- Added the block/unblock UI to the customer record at `/kunden/[id]`. A blocked customer's counter
+  screen already showed the reason verbatim and in full (US-04 `VerdictBanner`, `max-w-prose text-xl`,
+  no truncation) — the reason is not re-derived on the record, that banner owns it.
+- New client component `src/app/kunden/[id]/block-controls.tsx`:
+  - ACTIVE → a `<details>` "Sperren" holding a required multi-line `<textarea>`; the submit stays
+    disabled until `reason.trim() !== ""` (controlled `useState`) — an empty reason is impossible to
+    send (FR-1), with `blockCustomer` as the server-side backstop.
+  - BLOCKED → the current reason shown verbatim on the record + a `<details>` "Sperre aufheben" whose
+    body shows the reason being lifted before the confirm button (mirrors serve-controls' remove step).
+  - ARCHIVED → nothing; there is no transition out of archived.
+- New `src/app/kunden/[id]/actions.ts` (`blockCustomerAction`, `unblockCustomerAction`): Zod-parse the
+  hidden `customerId`, call the use case, map `MissingAuditReason`/`IllegalStatusTransition` to a
+  German sentence, and `revalidatePath("/kunden/<id>")` so the new status/reason/controls come from
+  the store. `src/app/kunden/[id]/block-state.ts` holds the shared form state (a `"use server"` module
+  may export only async functions, so the type/initial value live outside actions.ts).
+- New i18n under `customers.block` (heading, action, reason label+hint, submit/submitting, unblock,
+  unblockConfirm(reason), unblockSubmit/unblocking, errors). Detail page renders a "Sperre" section
+  (hidden for ARCHIVED) with the reason and `<BlockControls />`.
+- Files: src/app/kunden/[id]/{actions.ts,block-state.ts,block-controls.tsx} (new),
+  src/app/kunden/[id]/page.tsx, src/i18n/de.ts, docs/technical_documentation.md.
+- Checks: lint, typecheck, test:coverage (511 tests, 100% on pure layers), build — all green.
 - **Learnings for future iterations:**
-  - The reminder day-key is the **Berlin** day via `berlinDayKey` from `@/domain/distribution/attendance` — US-06.3's `ReminderLog.loggedOn` column must be filled by the same function (`YYYY-MM-DD`), mirroring `DistributionRecord.dayKey`.
-  - The reminder audit entry records the resulting count in `why` (`reminderCount=2`) — the AuditEntry shape has no other slot; the `why` doc in ports.ts was updated to name this one machine-written case. US-06.4's UI should not re-derive it.
-  - `renewCertificate` accepts `validUntil` = today (valid through its last day, same `isExpired` rule); rejects blank type with `MissingRequiredField("certificate.type")` — matches registration's field naming.
-  - Current Prisma `Certificate` model is one-per-customer (`customerId @unique`, "renewal replaces the dates") — US-06.3 must flip it to appended rows + `recordedAt`, update the model comment, and regenerate the pre-release migration (delete prisma/migrations, `npx prisma migrate dev --name init`, re-add the hand-written partial unique index for customerNumber!, then `npm run db:reset`).
-  - New DomainError classes don't need errors.test.ts entries when application tests construct them — domain coverage stays 100% through those.
+  - `customerDeps` (src/app/kunden/deps.ts) already carries customers+audit+clock, so it satisfies
+    `BlockCustomerDeps`/`UnblockCustomerDeps` as-is — no new composition root for these actions.
+  - The app layer has no vitest coverage gate (covered by Playwright), so a new server action/client
+    component needs no unit test to keep the 100% bar — but US-006 (next) is the Playwright spec that
+    drives exactly these testids: block-open, block-reason, block-submit, block-error,
+    block-reason-current, unblock-open, unblock-submit.
+  - `revalidatePath` with the concrete path string (`/kunden/<id>`) refreshes the force-dynamic record
+    after an action without a navigation, so useActionState can return to `idle` on success and the
+    page re-renders with the new status.
 ---
-## 2026-07-24 14:35 - US-003 (ReminderLog schema and appended certificate history)
-- Added the `ReminderLog` model (id, customerId FK, Berlin `loggedOn` day-key, `resultingCount`, unique `(customerId, loggedOn)`, deliberately no cascade like DistributionRecord) and flipped `Certificate` from one-per-customer to **appended rows**: dropped `customerId @unique`, added `recordedAt` + `@@index([customerId, recordedAt])`; the certificate on file is the latest by `recordedAt`.
-- Regenerated the pre-release migration (deleted prisma/migrations, `npx prisma migrate dev --name init`, re-appended the hand-written partial unique index for customerNumber, `npm run db:reset`).
-- New adapters: `PrismaReminderLogRepository` (`record` = entry + count in one $transaction, P2002 on loggedOn → `ReminderAlreadyLoggedToday`) and `PrismaCertificateRepository` (`renew` = append cert + reset count in one $transaction). Integration tests prove the per-day constraint fires (incl. a Promise.allSettled race), the append keeps history, and the counter reads the latest cert back.
-- Files changed: prisma/schema.prisma, prisma/migrations/ (regenerated), src/infrastructure/prisma/{reminder-log-repository,certificate-repository}.ts+tests (new), customer-repository.ts+test (certificates relation), tests/e2e/{counter,portions,serve}.spec.ts (fixture relation rename), docs/technical_documentation.md.
-- Quality: lint ✓, typecheck ✓, test:coverage ✓ (470 tests), build ✓, test:e2e ✓ (24 passed).
+
+## 2026-07-25 - US-002 (Customer status transition state machine)
+- Added `src/domain/customer/status.ts`: `transition(from, to, reason?)` returning the target for the
+  four allowed moves (ACTIVE→BLOCKED, BLOCKED→ACTIVE, ACTIVE→ARCHIVED, BLOCKED→ARCHIVED) and throwing
+  otherwise. `Status` is a type alias of the existing `CustomerStatus` from customer.ts — single
+  source of truth, not a second enum.
+- New typed `IllegalStatusTransition` error in errors.ts (carries `from`/`to`) for any move out of
+  ARCHIVED and every no-op. A reason-less `→ BLOCKED` reuses the existing
+  `MissingAuditReason("customer.blocked")`, not a new class (per PRD §US-08.1).
+- Tests cover all 9 ordered pairs plus the empty/whitespace/undefined-reason branches.
+- Files changed: src/domain/customer/status.ts (+test), src/domain/errors.ts.
+- Checks: lint, typecheck, test:coverage (491 tests, 100% on pure layers), build all green.
 - **Learnings for future iterations:**
-  - Renaming a Prisma relation breaks **e2e fixtures** too — tests/e2e/*.spec.ts create customers with nested `certificates:`/`cards:` writes; typecheck catches them, but remember `recordedAt` is now required on every certificate create.
-  - `prisma migrate dev` refuses while the old migration is applied — delete `data/fd.db*` first (the db:reset one-liner), then regenerate; afterwards re-append the partial index **before** `npm run db:reset`.
-  - Registration's first certificate row is stamped `recordedAt = card.issuedAt` in customer-repository.create — both come from the same registration instant; US-06.4's deps wiring can hand the two new adapters straight to recordReminder/renewCertificate.
-  - `CUSTOMER_INCLUDE` orders certificates `[{recordedAt: desc}, {id: desc}]` — the id tie-break mirrors "the later row wins" for same-millisecond writes.
+  - `CustomerStatus` and `parseCustomerStatus` already live in `customer.ts`; don't redefine the enum
+    in status.ts — alias it. US-004 will need the `blockReason` Prisma field + invariant, and US-003
+    the blockCustomer/unblockCustomer use cases that call `transition`.
+  - Adding a domain error = add the string to the `DomainErrorCode` union AND the class; coverage on
+    errors.ts is gated at 100%, so every new error must be exercised by a test (status.test.ts does).
 ---
-## 2026-07-24 14:55 - US-004 (Certificate status, reminder action and renewal form)
-- Added `CertificateControls` (client) to the counter: "Erinnerung erfassen" logs the reminder via a new `logReminder` server action and confirms the resulting count; the button is then disabled for the rest of the day with the label "Erinnerung heute bereits erfasst". A renewal form (type + end date) calls `recordRenewal` → `renewCertificate` and confirms "…zurückgesetzt: 0" while the revalidated page shows count 0 and a green verdict again.
-- Extended `lookupCustomer` (TDD, 3 new tests) with `reminderLoggedToday`, read via `reminders.findOnDay(customerId, berlinDayKey(today))` in the same pass as today's record — the disabled state survives reloads/re-lookups because it comes from the store, not client memory. `LookupCustomerDeps` now requires `ReminderLogRepository`.
-- Files changed: src/app/ausgabe/certificate-controls.tsx (new), actions.ts, deps.ts (both roots grew reminder/certificate adapters), page.tsx, serve-state.ts (ReminderState/RenewalState), src/application/customers/lookup-customer.ts+test, src/i18n/de.ts (de.distribution.certificate.*), docs/technical_documentation.md.
-- Quality: lint ✓, typecheck ✓, test:coverage ✓ (473 tests, application 100%), build ✓, test:e2e ✓ (24 passed).
-- Browser-verified against the dev server with a seeded expired-certificate customer (Playwright drive, screenshots /tmp/us06-{1,2,3}-*.png): expired banner → log reminder (count 1, button disabled, survives fresh lookup) → renewal (count 0, verdict green, new date shown). Dev db reset afterwards.
+
+## 2026-07-25 - US-001 (Customer detail page shell at /kunden/[id])
+- Added pure domain fn `ageInYears(birthDate, today)` with boundary tests (13th-style anniversary,
+  29 Feb rollover, born-today = 0, future-birthdate rejection).
+- Extended `readCustomer` / `CustomerCardView` with a `household` array carrying each member's derived
+  age; page now shows "Name — DD.MM.YYYY (N Jahre)" per member and the reminder count in the
+  certificate section.
+- Added i18n keys `customers.card.memberAge` (inflected) and `customers.card.reminderCount`.
+- Files changed: src/domain/customer/householdComposition.ts (+test),
+  src/application/customers/read-customer.ts (+customers.test.ts), src/app/kunden/[id]/page.tsx,
+  src/i18n/de.ts.
+- Checks: lint, typecheck, test:coverage (481 tests, 100% on pure layers), build all green.
 - **Learnings for future iterations:**
-  - `CertificateControls` is rendered *unconditionally* for a resolved customer and hides itself; it must stay mounted through the post-renewal render so the "0" confirmation survives the verdict turning green. It is `key={customerId}`-ed in page.tsx so state cannot leak into the next looked-up customer — use the same pattern for any future per-customer client control on /ausgabe.
-  - US-005's spec can drive everything by testid: `reminder-button`, `reminder-confirmation`, `reminder-error`, `renewal-type`, `renewal-valid-until`, `renewal-save`, `renewal-confirmation`, `counter-reminder-count` (grid value, always rendered — shows "0" after renewal).
-  - The e2e clock pin (`FD_FIXED_NOW_FILE` → data/e2e-now.txt, written by `pinToday()` in counter.spec.ts) is per-request — US-005's three consecutive distribution days just rewrite the file between page loads.
-  - tsx scripts can't resolve node_modules from /tmp — put throwaway scripts in the repo root and delete them.
-  - The dev seed creates settings only; browser checks need a hand-seeded customer (nested create incl. `certificates.create.recordedAt` and `cards.create`), and `npm run db:reset` cleans up afterwards.
+  - The detail page was already present; US-001 was really "finish it off" (age + reminder count),
+    not "build from scratch". Read the existing page before assuming a story is greenfield.
+  - Browser verification is still outstanding: no dev-browser skill or browser MCP is wired into this
+    session. Someone should click through /kunden/[id] manually (or run it when tooling is available).
 ---
-## 2026-07-24 15:15 - US-005 (E2E: expired certificate through to the third reminder)
-- Added `tests/e2e/reminders.spec.ts`: one RED household (number 231, certificate lapsed 31.12.2025) walked through its three consecutive distribution days on the pinned clock (08.01., 22.01., 05.02.2026 — every second Thursday, the one between is BLUE). Each day it is served *and* one reminder logged; asserts count 1→2→3 on screen and in ReminderLog, the same-day second attempt refused, status still ACTIVE after three reminders, and the renewal resetting the displayed/stored count to 0 while appending the certificate and keeping all three log entries.
-- The "second attempt refused" test bypasses the disabled button with `button.closest("form")?.requestSubmit()` — simulating the stale second tab whose button was still enabled — so the *server's* refusal (`reminder-error`, nothing written) is what is asserted, not the greyed-out courtesy.
-- Files changed: tests/e2e/reminders.spec.ts (new), docs/technical_documentation.md (tree + spec section), scripts/ralph/prd.json.
-- Quality: lint ✓, typecheck ✓, test:coverage ✓ (473 tests), build ✓, test:e2e ✓ (29 passed, 1 pre-existing skip).
+
+## 2026-07-25 - US-003 (blockCustomer and unblockCustomer use cases)
+- Added `blockCustomer(deps, {customerId, reason})` and `unblockCustomer(deps, {customerId})` in
+  src/application/customers/. Both load the customer, run `transition(...)` (the state machine owns
+  legality + the mandatory-reason rule), persist via a new port method, and append one audit entry.
+  Block trims the reason and stores it; unblock reads the reason first, clears it, and records the
+  lifted reason as the audit `why` (the log is the only place a block's text survives once cleared).
+- New port `CustomerRepository.setStatus(id, status, blockReason)`: one write of status + reason so
+  they can never disagree. Implemented in PrismaCustomerRepository (`prisma.customer.update`).
+- Added `blockReason: string | null` to `RegisteredCustomer` and the `blockReason String?` column to
+  the Prisma Customer model + migration `20260724235102_customer_block_reason`. This was nominally
+  US-004's migration, pulled forward because a port method must compile against real infra and a
+  stored reason needs a column. US-004 keeps the invariant test + slot-occupancy integration test.
+- Fake CustomerRepository (customers.test.ts) `takenActiveNumbers` now derives from live status
+  (ACTIVE|BLOCKED occupy, ARCHIVED frees), which is what makes "a block does not free the slot"
+  testable; `create` stopped pushing to `taken` (competitor steals still do). Added `setStatus` and
+  `blockReason: null` to all four CustomerRepository fakes.
+- Files: src/application/customers/{block-customer,unblock-customer}.ts (+customers.test.ts),
+  src/application/ports.ts, src/domain/customer/customer.ts,
+  src/infrastructure/prisma/customer-repository.ts, prisma/schema.prisma + migration,
+  src/application/customers/{certificate-reminder,lookup-customer}.test.ts,
+  src/application/distribution/record-attendance.test.ts, docs/technical_documentation.md.
+- Checks: lint, typecheck, test:coverage (506 tests, 100% on domain/application), build — all green.
 - **Learnings for future iterations:**
-  - `lookupCustomer` never returns `ALREADY_SERVED_TODAY` — the verdict stays `CLEAR_TO_SERVE(_CERTIFICATE_EXPIRED)` and today's record travels separately in `todaysRecord`. So the certificate controls stay usable after a hand-out; only `ServeControls` switches to the already-served view.
-  - Consecutive distribution days for one group are **fortnightly**: with anchor 2026-W02=RED and weekday 4, RED's run is 08.01 → 22.01 → 05.02. A weekly step would land the household in a BLUE week as WRONG_GROUP with the controls hidden.
-  - To e2e-test a server-side guard hidden behind a disabled button, `locator.evaluate((b) => b.closest("form")?.requestSubmit())` fires React 19's form action for real — cleaner than a second browser context and deterministic.
-  - E2E customer numbers claimed so far: 201–206 + 239 (counter), 211 (portions), 221–222 (serve), 231 (reminders).
+  - US-004 is now mostly the two proof tests: an invariant test (blockReason non-null iff BLOCKED)
+    and an integration test that the partial unique index treats BLOCKED as occupying the slot (the
+    ON_REGISTER `status <> ARCHIVED` behaviour already does this). The column + migration are done.
+  - US-005 (block/unblock UI) will surface `view.customer.blockReason`; readCustomer already returns
+    the whole RegisteredCustomer, so no application change is needed to show the reason — only i18n
+    keys + the detail page + the counter verdict banner (must show the reason in full, never
+    truncated). No dev-browser skill/MCP is wired in this session; browser checks stay manual.
+  - The counter serve verdict (domain/distribution/counterVerdict.ts) already turns a BLOCKED
+    customer away with NotClearToServe — US-005/US-006 need to render that reason, not re-derive it.
 ---
-## [2026-07-24] - Batch archive (US-05)
-- No stories left (all five passed and PR #32 merged); this iteration only copied the completed
-  batch state to scripts/ralph/prds/done/07-us-05-record-attendance.json via PR #34
-  (auto-squash-merge enabled), mirroring the #33 close-out for US-04.
-- prd.json was NOT rotated to batch 08 — per prds/README.md the operator copies the next batch in
-  and ralph.sh archives this run (branchName change vs .last-branch) on the next start.
+
+## 2026-07-25 - US-004 (Block fields and slot-occupancy invariant)
+- The `blockReason String?` column and its migration were pulled forward in US-003, so this story is
+  the two proof tests the PRD (§US-08.3) asks for — both in the SQLite integration suite.
+- Invariant test (`PrismaCustomerRepository.setStatus`): drives one customer through
+  block → unblock and block → archive, asserting `(blockReason !== null) === (status === "BLOCKED")`
+  after every write. This also pins that `setStatus` *clears* a stale reason on unblock/archive, not
+  just the status word — the write puts both columns in one statement, so they cannot disagree.
+- Slot-occupancy tests (`the customer number slot constraint`): the active-number partial unique
+  index refuses a BLOCKED row sharing an ACTIVE holder's number and refuses two BLOCKED rows on one
+  number, while a BLOCKED and an ARCHIVED row may share a number — proving BLOCKED occupies the slot
+  and only ARCHIVED is exempt, straight at the index rather than via the create/CustomerNumberTaken path.
+- No production code change: the invariant is guaranteed by `transition()` (mandatory reason for
+  → BLOCKED) plus the use cases, and `setStatus` is the sole mutation path. docs/technical_documentation.md
+  already states the invariant ("blockReason non-null exactly when blocked"), so no doc change.
+- Files changed: src/infrastructure/prisma/customer-repository.test.ts.
+- Checks: lint, typecheck, test:coverage (511 tests, 100% on domain/application), build — all green.
+- **Learnings for future iterations:**
+  - Infra integration tests insert states no use case can reach via `insertCustomer(number, status)`
+    (raw Prisma create). Use it to hit the partial unique index directly; `repository.create` only
+    reaches it through the CustomerNumberTaken translation.
+  - US-005 (block/unblock UI) is next: `readCustomer` already returns the whole RegisteredCustomer
+    incl. `blockReason`, so no application change — only i18n keys + the /kunden/[id] detail page
+    (Sperren with a required multi-line reason, Sperre aufheben with a confirm showing the current
+    reason) + the counter verdict banner showing the reason in full (never truncated). No dev-browser
+    skill/MCP this session, so US-005's browser check stays manual.
+---
+
+## 2026-07-25 - US-006 (E2E: blocked customer at the counter)
+- Added `tests/e2e/block.spec.ts`, the Playwright proof that a block is visible at the counter and
+  reversible (tasks/prd-us-08-block-unblock-customer.md §US-08.5). Seeds one RED/active household
+  (customer 241) straight through Prisma, pins the RED distribution day 08.01.2026, and drives the
+  real screen:
+  - empty AND whitespace-only reason leave `block-submit` disabled — FR-1, a block's only record
+    can't be empty;
+  - block with a multi-line reason on `/kunden/[id]`, then look the household up at `/ausgabe` and
+    assert `counter-verdict` = BLOCKED with `counter-verdict-detail` = the reason verbatim/in full
+    (explicitly NOT the "kein Grund hinterlegt" fallback) and NO `serve-button`;
+  - lift via the confirming "Sperre aufheben", then assert CLEAR_TO_SERVE with `serve-button` back
+    and the SAME customer number and card (241k1) — a block pauses a slot, never renumbers it.
+- Surfaced and fixed a wiring gap the unit gates couldn't see: `lookup-customer.ts` hard-coded
+  `blockReason: null` when building the counter customer (a US-04-era TODO), so the counter showed
+  "kein Grund hinterlegt" even after US-08 stored a reason. Now passes `customer.blockReason`
+  through; strengthened the `lookupCustomer` "blocks a blocked customer" unit test to assert
+  `{ kind: "BLOCKED", reason: "gesperrt" }` so the 100% gate pins the flow.
+- Files changed: tests/e2e/block.spec.ts (new), src/application/customers/lookup-customer.ts,
+  src/application/customers/lookup-customer.test.ts, docs/technical_documentation.md (e2e tree),
+  scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: lint, typecheck, test:coverage (511 unit tests, 100% on domain/application), build, and
+  the FULL e2e suite (32 passed, 1 pre-existing skip) — all green.
+- **Learnings for future iterations:**
+  - The e2e webServer runs the BUILT app (`npm run start`) and reuses a running server, so an
+    app-layer change needs `npm run build` before `npm run test:e2e` or the browser sees old code.
+  - An E2E is the only gate that catches an inter-layer TODO like the counter's `blockReason: null`:
+    each unit passed in isolation, the wire between them was dead. Grep the codebase for `// until`
+    / hard-coded `null` when a story finally makes a cross-layer field real.
+  - Record page is addressed by the surrogate `id`, not the customer number; a seeded row hands it
+    back via `select: { id: true }`. This is US-08's last story — all six now pass.
 ---

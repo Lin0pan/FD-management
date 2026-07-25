@@ -99,6 +99,12 @@ model Customer {
   /// holds its slot; only archiving releases it. Customer data is never hard-deleted (US-10, US-11).
   status String
 
+  /// Why the household is currently blocked, or null when it is not — non-null **exactly** when
+  /// `status` is `BLOCKED`. A block's reason is its only current record (US-08, FR-1); it is written
+  /// when the block goes on and cleared when it is lifted. The audit log keeps the history, this
+  /// column keeps what the counter must show today.
+  blockReason String?
+
   /// How many certificate reminders have gone out (US-06).
   reminderCount Int @default(0)
 

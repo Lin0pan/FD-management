@@ -77,9 +77,15 @@ class FakeCustomerRepository implements CustomerRepository {
   }
 
   create(customer: NewCustomer): Promise<RegisteredCustomer> {
-    const registered = { ...customer, id: this.holders.length + 1 };
+    const registered = { ...customer, id: this.holders.length + 1, blockReason: null };
     this.holders.push(registered);
     return Promise.resolve(registered);
+  }
+
+  setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    this.holders[index] = { ...this.holders[index], status, blockReason };
+    return Promise.resolve();
   }
 }
 
@@ -185,6 +191,7 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
     customerNumber: 50,
     group: overrides.group ?? "RED",
     status: overrides.status ?? "ACTIVE",
+    blockReason: overrides.status === "BLOCKED" ? "gesperrt" : null,
     reminderCount: 0,
     card: { index: 1, issuedAt: new Date(TODAY), reason: "FIRST_ISSUE" },
     details,

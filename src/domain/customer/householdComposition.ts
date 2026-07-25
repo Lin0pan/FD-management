@@ -87,3 +87,33 @@ export function composition(
 
   return { grownUps, children };
 }
+
+/**
+ * A member's age in completed years as of `today`.
+ *
+ * Shares {@link composition}'s anniversary convention: the age ticks over **on** the birthday, and a
+ * 29 February birthdate rolls its anniversary to 1 March in a non-leap year (§ 188 Abs. 3 BGB). The
+ * customer record shows this beside each birthdate so staff read a household at a glance without
+ * doing the arithmetic (tasks/prd-us-16-maintain-customer-record.md §US-16.5). It is derived on every
+ * read, never stored, for the same reason the counts are.
+ *
+ * @throws {BirthDateInFuture} if `birthDate` lies after `today` — a negative age is a data-entry
+ *   mistake, not a number worth showing.
+ */
+export function ageInYears(birthDate: Date, today: Date): number {
+  const asOf = utcDay(today);
+  if (utcDay(birthDate) > asOf) {
+    throw new BirthDateInFuture(birthDate, today);
+  }
+
+  let age = today.getUTCFullYear() - birthDate.getUTCFullYear();
+  const anniversary = Date.UTC(
+    birthDate.getUTCFullYear() + age,
+    birthDate.getUTCMonth(),
+    birthDate.getUTCDate(),
+  );
+  if (anniversary > asOf) {
+    age -= 1;
+  }
+  return age;
+}

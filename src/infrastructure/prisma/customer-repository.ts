@@ -3,6 +3,7 @@ import type { CustomerCounter, CustomerRepository } from "@/application/ports";
 import { parseCardIssueReason } from "@/domain/card/card";
 import {
   parseCustomerStatus,
+  type CustomerStatus,
   type NewCustomer,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
@@ -157,6 +158,7 @@ export class PrismaCustomerRepository implements CustomerRepository {
       customerNumber: row.customerNumber,
       group: parseGroup(row.group),
       status: parseCustomerStatus(row.status),
+      blockReason: row.blockReason,
       reminderCount: row.reminderCount,
       card: {
         index: card.index,
@@ -235,13 +237,23 @@ export class PrismaCustomerRepository implements CustomerRepository {
         },
         select: { id: true },
       });
-      return { ...customer, id: row.id };
+      // A newly registered customer is always active, so their block reason is null (US-08).
+      return { ...customer, id: row.id, blockReason: null };
     } catch (error: unknown) {
       if (isCustomerNumberCollision(error)) {
         throw new CustomerNumberTaken(customer.customerNumber);
       }
       throw error;
     }
+  }
+
+  /**
+   * Move a customer to a new status, writing `blockReason` alongside it in the same statement — the
+   * trimmed reason for a block, `null` for anything else. The number, cards and distribution records
+   * are untouched: only the status column (and its reason) change (US-08).
+   */
+  async setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
+    await this.prisma.customer.update({ where: { id }, data: { status, blockReason } });
   }
 }
 

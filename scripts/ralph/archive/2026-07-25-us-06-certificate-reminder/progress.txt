@@ -1,0 +1,77 @@
+# Ralph Progress Log
+Started: Fri Jul 24 14:11:17 CEST 2026
+---
+
+## Codebase Patterns
+- Domain date rules compare **UTC calendar days** via a local `utcDay(date)` helper (`Date.UTC(y, m, d)`) — see householdComposition.ts and certificate.ts. Never compare raw timestamps; add a named "ignores the time of day" test.
+- Domain test style: tiny ISO-string builders (`on("2026-08-31")`, `bornOn(...)`) returning `new Date(\`${iso}T00:00:00.000Z\`)`; one `it` per business rule, named after the rule.
+- Boundary tests always cover: day before, day of, day after, plus 29 February (both directions where meaningful).
+- `docs/technical_documentation.md` enumerates every module twice: in the source-tree listing (~line 90) and as a `### src/...` section — update both when adding a module.
+- Coverage gate: 100% on domain/ and application/; type-only modules (e.g. distributionRecord.ts) show 0% but are excluded from thresholds.
+- Ralph batch bookkeeping (archive dir, .last-branch, new prd.json) may sit uncommitted at iteration start — commit it as a separate `chore(ralph)` commit, not mixed into the feat.
+
+## 2026-07-24 14:15 - US-001 (Certificate validity rule)
+- Implemented `isExpired(certificate, today)` in `src/domain/customer/certificate.ts` (TDD, red→green): valid **on** `validUntil`, expired the day after, UTC-day comparison, no clock/settings. Reuses the existing `NeedsCertificate` type from customer.ts.
+- Files changed: src/domain/customer/certificate.ts (new), src/domain/customer/certificate.test.ts (new, 7 tests), docs/technical_documentation.md (tree + module section).
+- Quality: lint ✓, typecheck ✓, test:coverage ✓ (447 tests, domain at 100%), build ✓.
+- **Learnings for future iterations:**
+  - `NeedsCertificate` already exists in customer.ts (`{ type, validUntil }`) — don't invent a new certificate type in later US-06 stories.
+  - `Customer.reminderCount` already exists on `NewCustomer` (US-01 schema) — US-06.3 only needs to confirm it, plus add the `ReminderLog` model.
+  - No escalation/threshold anywhere is a hard non-goal (PRD §5) — resist adding one in application or UI stories.
+  - Deliberate duplication: `utcDay` is private in both householdComposition.ts and certificate.ts; the project prefers boring duplication of a 3-line helper over a shared date module.
+---
+## 2026-07-24 14:25 - US-002 (recordReminder and renewCertificate use cases)
+- Implemented `recordReminder(deps, {customerId})` (returns the new count) and `renewCertificate(deps, {customerId, type, validUntil})` in `src/application/customers/`, TDD red→green against hand-written fakes and a fake clock (14 tests).
+- New ports in ports.ts: `ReminderLogRepository` (findOnDay/record; record is transactional entry+count, adapter reports lost race as `ReminderAlreadyLoggedToday`) and `CertificateRepository` (renew appends cert + resets count to 0 in one transaction). New domain errors: `ReminderAlreadyLoggedToday`, `CertificateStillValid`, `CertificateValidUntilInPast`.
+- Files changed: src/application/customers/record-reminder.ts (new), renew-certificate.ts (new), certificate-reminder.test.ts (new), src/application/ports.ts, src/domain/errors.ts, docs/technical_documentation.md (tree, ports table, new module section).
+- Quality: lint ✓, typecheck ✓, test:coverage ✓ (461 tests, application at 100%), build ✓.
+- **Learnings for future iterations:**
+  - The reminder day-key is the **Berlin** day via `berlinDayKey` from `@/domain/distribution/attendance` — US-06.3's `ReminderLog.loggedOn` column must be filled by the same function (`YYYY-MM-DD`), mirroring `DistributionRecord.dayKey`.
+  - The reminder audit entry records the resulting count in `why` (`reminderCount=2`) — the AuditEntry shape has no other slot; the `why` doc in ports.ts was updated to name this one machine-written case. US-06.4's UI should not re-derive it.
+  - `renewCertificate` accepts `validUntil` = today (valid through its last day, same `isExpired` rule); rejects blank type with `MissingRequiredField("certificate.type")` — matches registration's field naming.
+  - Current Prisma `Certificate` model is one-per-customer (`customerId @unique`, "renewal replaces the dates") — US-06.3 must flip it to appended rows + `recordedAt`, update the model comment, and regenerate the pre-release migration (delete prisma/migrations, `npx prisma migrate dev --name init`, re-add the hand-written partial unique index for customerNumber!, then `npm run db:reset`).
+  - New DomainError classes don't need errors.test.ts entries when application tests construct them — domain coverage stays 100% through those.
+---
+## 2026-07-24 14:35 - US-003 (ReminderLog schema and appended certificate history)
+- Added the `ReminderLog` model (id, customerId FK, Berlin `loggedOn` day-key, `resultingCount`, unique `(customerId, loggedOn)`, deliberately no cascade like DistributionRecord) and flipped `Certificate` from one-per-customer to **appended rows**: dropped `customerId @unique`, added `recordedAt` + `@@index([customerId, recordedAt])`; the certificate on file is the latest by `recordedAt`.
+- Regenerated the pre-release migration (deleted prisma/migrations, `npx prisma migrate dev --name init`, re-appended the hand-written partial unique index for customerNumber, `npm run db:reset`).
+- New adapters: `PrismaReminderLogRepository` (`record` = entry + count in one $transaction, P2002 on loggedOn → `ReminderAlreadyLoggedToday`) and `PrismaCertificateRepository` (`renew` = append cert + reset count in one $transaction). Integration tests prove the per-day constraint fires (incl. a Promise.allSettled race), the append keeps history, and the counter reads the latest cert back.
+- Files changed: prisma/schema.prisma, prisma/migrations/ (regenerated), src/infrastructure/prisma/{reminder-log-repository,certificate-repository}.ts+tests (new), customer-repository.ts+test (certificates relation), tests/e2e/{counter,portions,serve}.spec.ts (fixture relation rename), docs/technical_documentation.md.
+- Quality: lint ✓, typecheck ✓, test:coverage ✓ (470 tests), build ✓, test:e2e ✓ (24 passed).
+- **Learnings for future iterations:**
+  - Renaming a Prisma relation breaks **e2e fixtures** too — tests/e2e/*.spec.ts create customers with nested `certificates:`/`cards:` writes; typecheck catches them, but remember `recordedAt` is now required on every certificate create.
+  - `prisma migrate dev` refuses while the old migration is applied — delete `data/fd.db*` first (the db:reset one-liner), then regenerate; afterwards re-append the partial index **before** `npm run db:reset`.
+  - Registration's first certificate row is stamped `recordedAt = card.issuedAt` in customer-repository.create — both come from the same registration instant; US-06.4's deps wiring can hand the two new adapters straight to recordReminder/renewCertificate.
+  - `CUSTOMER_INCLUDE` orders certificates `[{recordedAt: desc}, {id: desc}]` — the id tie-break mirrors "the later row wins" for same-millisecond writes.
+---
+## 2026-07-24 14:55 - US-004 (Certificate status, reminder action and renewal form)
+- Added `CertificateControls` (client) to the counter: "Erinnerung erfassen" logs the reminder via a new `logReminder` server action and confirms the resulting count; the button is then disabled for the rest of the day with the label "Erinnerung heute bereits erfasst". A renewal form (type + end date) calls `recordRenewal` → `renewCertificate` and confirms "…zurückgesetzt: 0" while the revalidated page shows count 0 and a green verdict again.
+- Extended `lookupCustomer` (TDD, 3 new tests) with `reminderLoggedToday`, read via `reminders.findOnDay(customerId, berlinDayKey(today))` in the same pass as today's record — the disabled state survives reloads/re-lookups because it comes from the store, not client memory. `LookupCustomerDeps` now requires `ReminderLogRepository`.
+- Files changed: src/app/ausgabe/certificate-controls.tsx (new), actions.ts, deps.ts (both roots grew reminder/certificate adapters), page.tsx, serve-state.ts (ReminderState/RenewalState), src/application/customers/lookup-customer.ts+test, src/i18n/de.ts (de.distribution.certificate.*), docs/technical_documentation.md.
+- Quality: lint ✓, typecheck ✓, test:coverage ✓ (473 tests, application 100%), build ✓, test:e2e ✓ (24 passed).
+- Browser-verified against the dev server with a seeded expired-certificate customer (Playwright drive, screenshots /tmp/us06-{1,2,3}-*.png): expired banner → log reminder (count 1, button disabled, survives fresh lookup) → renewal (count 0, verdict green, new date shown). Dev db reset afterwards.
+- **Learnings for future iterations:**
+  - `CertificateControls` is rendered *unconditionally* for a resolved customer and hides itself; it must stay mounted through the post-renewal render so the "0" confirmation survives the verdict turning green. It is `key={customerId}`-ed in page.tsx so state cannot leak into the next looked-up customer — use the same pattern for any future per-customer client control on /ausgabe.
+  - US-005's spec can drive everything by testid: `reminder-button`, `reminder-confirmation`, `reminder-error`, `renewal-type`, `renewal-valid-until`, `renewal-save`, `renewal-confirmation`, `counter-reminder-count` (grid value, always rendered — shows "0" after renewal).
+  - The e2e clock pin (`FD_FIXED_NOW_FILE` → data/e2e-now.txt, written by `pinToday()` in counter.spec.ts) is per-request — US-005's three consecutive distribution days just rewrite the file between page loads.
+  - tsx scripts can't resolve node_modules from /tmp — put throwaway scripts in the repo root and delete them.
+  - The dev seed creates settings only; browser checks need a hand-seeded customer (nested create incl. `certificates.create.recordedAt` and `cards.create`), and `npm run db:reset` cleans up afterwards.
+---
+## 2026-07-24 15:15 - US-005 (E2E: expired certificate through to the third reminder)
+- Added `tests/e2e/reminders.spec.ts`: one RED household (number 231, certificate lapsed 31.12.2025) walked through its three consecutive distribution days on the pinned clock (08.01., 22.01., 05.02.2026 — every second Thursday, the one between is BLUE). Each day it is served *and* one reminder logged; asserts count 1→2→3 on screen and in ReminderLog, the same-day second attempt refused, status still ACTIVE after three reminders, and the renewal resetting the displayed/stored count to 0 while appending the certificate and keeping all three log entries.
+- The "second attempt refused" test bypasses the disabled button with `button.closest("form")?.requestSubmit()` — simulating the stale second tab whose button was still enabled — so the *server's* refusal (`reminder-error`, nothing written) is what is asserted, not the greyed-out courtesy.
+- Files changed: tests/e2e/reminders.spec.ts (new), docs/technical_documentation.md (tree + spec section), scripts/ralph/prd.json.
+- Quality: lint ✓, typecheck ✓, test:coverage ✓ (473 tests), build ✓, test:e2e ✓ (29 passed, 1 pre-existing skip).
+- **Learnings for future iterations:**
+  - `lookupCustomer` never returns `ALREADY_SERVED_TODAY` — the verdict stays `CLEAR_TO_SERVE(_CERTIFICATE_EXPIRED)` and today's record travels separately in `todaysRecord`. So the certificate controls stay usable after a hand-out; only `ServeControls` switches to the already-served view.
+  - Consecutive distribution days for one group are **fortnightly**: with anchor 2026-W02=RED and weekday 4, RED's run is 08.01 → 22.01 → 05.02. A weekly step would land the household in a BLUE week as WRONG_GROUP with the controls hidden.
+  - To e2e-test a server-side guard hidden behind a disabled button, `locator.evaluate((b) => b.closest("form")?.requestSubmit())` fires React 19's form action for real — cleaner than a second browser context and deterministic.
+  - E2E customer numbers claimed so far: 201–206 + 239 (counter), 211 (portions), 221–222 (serve), 231 (reminders).
+---
+## [2026-07-24] - Batch archive (US-05)
+- No stories left (all five passed and PR #32 merged); this iteration only copied the completed
+  batch state to scripts/ralph/prds/done/07-us-05-record-attendance.json via PR #34
+  (auto-squash-merge enabled), mirroring the #33 close-out for US-04.
+- prd.json was NOT rotated to batch 08 — per prds/README.md the operator copies the next batch in
+  and ralph.sh archives this run (branchName change vs .last-branch) on the next start.
+---

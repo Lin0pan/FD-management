@@ -8,7 +8,7 @@
 
 import { formatCardNumber } from "@/domain/card/cardNumber";
 import type { RegisteredCustomer } from "@/domain/customer/customer";
-import type { HouseholdComposition } from "@/domain/customer/householdComposition";
+import { ageInYears, type HouseholdComposition } from "@/domain/customer/householdComposition";
 import { CustomerNotFound } from "@/domain/errors";
 import { describeAllowance, type Allowance } from "../allowance/describe-allowance";
 import type { Clock, CustomerRepository, SettingsRepository } from "../ports";
@@ -19,10 +19,21 @@ export interface ReadCustomerDeps {
   readonly clock: Clock;
 }
 
+/** A household member with their age worked out, so the screen renders it rather than deriving it. */
+export interface HouseholdMemberView {
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly birthDate: Date;
+  /** Completed years as of today — derived on every read, never stored. */
+  readonly age: number;
+}
+
 export interface CustomerCardView {
   readonly customer: RegisteredCustomer;
   /** Derived from the birthdates as of today — never read from a stored count, which there is none of. */
   readonly composition: HouseholdComposition;
+  /** The household, each member carrying their current age. Same order as on the record. */
+  readonly household: ReadonlyArray<HouseholdMemberView>;
   /** The number printed on the card, e.g. `12k1`. Derived from the slot and the card index. */
   readonly cardNumber: string;
   /**
@@ -44,11 +55,18 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
     throw new CustomerNotFound(id);
   }
 
+  const today = deps.clock.now();
   const allowance = await describeAllowance(deps, customer.details.householdMembers);
 
   return {
     customer,
     composition: { grownUps: allowance.grownUps, children: allowance.children },
+    household: customer.details.householdMembers.map((member) => ({
+      firstName: member.firstName,
+      lastName: member.lastName,
+      birthDate: member.birthDate,
+      age: ageInYears(member.birthDate, today),
+    })),
     cardNumber: formatCardNumber(customer.customerNumber, customer.card.index),
     allowance,
   };

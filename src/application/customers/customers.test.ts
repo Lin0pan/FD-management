@@ -14,7 +14,9 @@ import {
   CustomerArchived,
   CustomerNumberTaken,
   EmptyHousehold,
+  IllegalStatusTransition,
   InvalidCustomerRecord,
+  MissingAuditReason,
   MissingRequiredField,
   CustomerNotFound,
   NoFreeCustomerNumber,
@@ -29,11 +31,13 @@ import type {
   CustomerRepository,
   SettingsRepository,
 } from "../ports";
+import { blockCustomer } from "./block-customer";
 import { issueCard } from "./issue-card";
 import { proposeRegistration } from "./propose-registration";
 import { readCard } from "./read-card";
 import { readCustomer } from "./read-customer";
 import { registerCustomer, type RegisterCustomerInput } from "./register-customer";
+import { unblockCustomer } from "./unblock-customer";
 
 /**
  * Hand-written fakes, per the testing standard, and synthetic data only — never a real name, address
@@ -92,7 +96,13 @@ class FakeCustomerRepository implements CustomerRepository {
   }
 
   takenActiveNumbers(): Promise<ReadonlyArray<number>> {
-    return Promise.resolve([...this.taken]);
+    // Derived from live status, like the real partial index: a customer holds their slot while they
+    // are ACTIVE or BLOCKED and releases it only when ARCHIVED, so a block never frees a number.
+    // `taken` carries the seeded numbers and any a concurrent registration stole.
+    const held = this.created
+      .filter((customer) => customer.status !== "ARCHIVED")
+      .map((customer) => customer.customerNumber);
+    return Promise.resolve([...this.taken, ...held]);
   }
 
   groupCounts(): Promise<GroupCounts> {
@@ -116,14 +126,24 @@ class FakeCustomerRepository implements CustomerRepository {
   create(customer: NewCustomer): Promise<RegisteredCustomer> {
     if (this.stealsLeft > 0) {
       this.stealsLeft -= 1;
+      // A concurrent registration wins the number; it now belongs to no created row, so it lives in
+      // `taken` where `takenActiveNumbers` still counts it.
       this.taken.push(customer.customerNumber);
       return Promise.reject(new CustomerNumberTaken(customer.customerNumber));
     }
-    this.taken.push(customer.customerNumber);
-    const registered: RegisteredCustomer = { ...customer, id: this.nextId };
+    const registered: RegisteredCustomer = { ...customer, id: this.nextId, blockReason: null };
     this.nextId += 1;
     this.created.push(registered);
     return Promise.resolve(registered);
+  }
+
+  setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
+    const index = this.created.findIndex((customer) => customer.id === id);
+    if (index === -1) {
+      return Promise.reject(new CustomerNotFound(id));
+    }
+    this.created[index] = { ...this.created[index], status, blockReason };
+    return Promise.resolve();
   }
 }
 
@@ -669,6 +689,25 @@ describe("readCustomer", () => {
     expect(view.allowance.priceCents).toBe(300);
   });
 
+  it("gives each household member their current age as of today", async () => {
+    const registered = await registerCustomer(
+      deps(),
+      registerInput({
+        householdMembers: [
+          member({ firstName: "Ada", birthDate: new Date("1990-04-05T00:00:00.000Z") }),
+          member({ firstName: "Bo", birthDate: new Date("2020-06-01T00:00:00.000Z") }),
+        ],
+      }),
+    );
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.household.map((m) => ({ firstName: m.firstName, age: m.age }))).toEqual([
+      { firstName: "Ada", age: 36 },
+      { firstName: "Bo", age: 6 },
+    ]);
+  });
+
   it("refuses an id that belongs to nobody rather than showing an empty card", async () => {
     await expect(readCustomer(deps(), 404)).rejects.toThrow(CustomerNotFound);
   });
@@ -811,5 +850,189 @@ describe("readCard", () => {
     const customer = await registerCustomer(registerDeps(), registerInput());
 
     await expect(readCard(deps(), customer.id)).rejects.toThrow(InvalidCustomerRecord);
+  });
+});
+
+describe("blockCustomer", () => {
+  let customers: FakeCustomerRepository;
+  let audit: FakeAuditLog;
+
+  function deps(today = TODAY) {
+    return { customers, audit, clock: fakeClock(today) };
+  }
+
+  /** Put a customer of the given status in the register and hand back their id. */
+  async function seed(status: CustomerStatus): Promise<number> {
+    const customer = await customers.create(storedCustomer(status));
+    return customer.id;
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository();
+    audit = new FakeAuditLog();
+  });
+
+  it("blocks an active customer and stores the reason, trimmed", async () => {
+    const customerId = await seed("ACTIVE");
+
+    await blockCustomer(deps(), { customerId, reason: "  suspected misuse  " });
+
+    const after = await customers.findById(customerId);
+    expect(after?.status).toBe("BLOCKED");
+    expect(after?.blockReason).toBe("suspected misuse");
+  });
+
+  it("keeps the customer on the register — a block does not free the slot", async () => {
+    const customerId = await seed("ACTIVE");
+
+    await blockCustomer(deps(), { customerId, reason: "under review" });
+
+    // 50 is the customer number storedCustomer holds; it must still be taken after a block.
+    await expect(customers.takenActiveNumbers()).resolves.toContain(50);
+  });
+
+  it("leaves the customer number and the current card untouched", async () => {
+    const customerId = await seed("ACTIVE");
+    const before = await customers.findById(customerId);
+
+    await blockCustomer(deps(), { customerId, reason: "under review" });
+
+    const after = await customers.findById(customerId);
+    expect(after?.customerNumber).toBe(before?.customerNumber);
+    expect(after?.card).toEqual(before?.card);
+  });
+
+  it("records the block under a stable event name, with the reason as the why and no actor", async () => {
+    const customerId = await seed("ACTIVE");
+
+    await blockCustomer(deps(), { customerId, reason: "  suspected misuse  " });
+
+    expect(audit.entries).toHaveLength(1);
+    expect(audit.entries[0].what).toBe("customer.blocked");
+    expect(audit.entries[0].changedFields).toEqual(["status", "blockReason"]);
+    expect(audit.entries[0].why).toBe("suspected misuse");
+    expect(Object.keys(audit.entries[0])).not.toContain("who");
+  });
+
+  it("refuses a reason that is only whitespace and writes nothing", async () => {
+    const customerId = await seed("ACTIVE");
+
+    await expect(blockCustomer(deps(), { customerId, reason: "   " })).rejects.toThrow(
+      MissingAuditReason,
+    );
+
+    const after = await customers.findById(customerId);
+    expect(after?.status).toBe("ACTIVE");
+    expect(after?.blockReason).toBeNull();
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("refuses to block an already-blocked customer", async () => {
+    const customerId = await seed("BLOCKED");
+
+    await expect(blockCustomer(deps(), { customerId, reason: "again" })).rejects.toThrow(
+      IllegalStatusTransition,
+    );
+  });
+
+  it("refuses to block an archived customer, whose slot may already be someone else's", async () => {
+    const customerId = await seed("ARCHIVED");
+
+    await expect(blockCustomer(deps(), { customerId, reason: "too late" })).rejects.toThrow(
+      IllegalStatusTransition,
+    );
+  });
+
+  it("refuses an id that belongs to nobody rather than blocking the void", async () => {
+    await expect(blockCustomer(deps(), { customerId: 404, reason: "who?" })).rejects.toThrow(
+      CustomerNotFound,
+    );
+    expect(audit.entries).toHaveLength(0);
+  });
+});
+
+describe("unblockCustomer", () => {
+  let customers: FakeCustomerRepository;
+  let audit: FakeAuditLog;
+
+  function deps(today = TODAY) {
+    return { customers, audit, clock: fakeClock(today) };
+  }
+
+  async function seed(status: CustomerStatus): Promise<number> {
+    const customer = await customers.create(storedCustomer(status));
+    return customer.id;
+  }
+
+  /** Block a freshly-seeded active customer through the use case and hand back their id. */
+  async function seedBlocked(reason: string): Promise<number> {
+    const customerId = await seed("ACTIVE");
+    await blockCustomer(deps(), { customerId, reason });
+    return customerId;
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository();
+    audit = new FakeAuditLog();
+  });
+
+  it("returns a blocked customer to active and clears the reason", async () => {
+    const customerId = await seedBlocked("under review");
+
+    await unblockCustomer(deps(), { customerId });
+
+    const after = await customers.findById(customerId);
+    expect(after?.status).toBe("ACTIVE");
+    expect(after?.blockReason).toBeNull();
+  });
+
+  it("records the lift under a stable event name, carrying the lifted reason as the why", async () => {
+    const customerId = await seedBlocked("under review");
+
+    await unblockCustomer(deps(), { customerId });
+
+    const lift = audit.entries[1];
+    expect(lift.what).toBe("customer.unblocked");
+    expect(lift.changedFields).toEqual(["status", "blockReason"]);
+    expect(lift.why).toBe("under review");
+    expect(Object.keys(lift)).not.toContain("who");
+  });
+
+  it("keeps the customer number and the current card — lifting re-activates, it does not re-register", async () => {
+    const customerId = await seedBlocked("under review");
+    const before = await customers.findById(customerId);
+
+    await unblockCustomer(deps(), { customerId });
+
+    const after = await customers.findById(customerId);
+    expect(after?.customerNumber).toBe(before?.customerNumber);
+    expect(after?.card).toEqual(before?.card);
+  });
+
+  it("records an empty why when the blocked row carried no reason", async () => {
+    // A blocked row with no reason can only come from a hand-fixed database; lifting it must record
+    // an empty why rather than crash on the missing text.
+    const customerId = await seed("BLOCKED");
+
+    await unblockCustomer(deps(), { customerId });
+
+    expect(audit.entries[0].what).toBe("customer.unblocked");
+    expect(audit.entries[0].why).toBe("");
+  });
+
+  it("refuses to unblock a customer who is already active", async () => {
+    const customerId = await seed("ACTIVE");
+
+    await expect(unblockCustomer(deps(), { customerId })).rejects.toThrow(IllegalStatusTransition);
+  });
+
+  it("refuses to unblock an archived customer", async () => {
+    const customerId = await seed("ARCHIVED");
+
+    await expect(unblockCustomer(deps(), { customerId })).rejects.toThrow(IllegalStatusTransition);
+  });
+
+  it("refuses an id that belongs to nobody rather than lifting nothing", async () => {
+    await expect(unblockCustomer(deps(), { customerId: 404 })).rejects.toThrow(CustomerNotFound);
   });
 });
