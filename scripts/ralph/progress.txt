@@ -34,7 +34,51 @@ Started: Sat Jul 25 01:36:25 CEST 2026
 - e2e specs (tests/e2e/*.spec.ts) are not run by `npm run test:coverage`; run `npm run test:e2e`
   separately. Existing registration.spec asserts household-member *count*, not text, so a rendered
   age suffix is safe.
+- App-layer write screens follow one shape: a `"use server"` `actions.ts` (Zod-parse the hidden
+  `customerId` via the `surrogateId` regex, call ONE use case, map typed domain errors to German,
+  `revalidatePath("/<route>/<id>")`), a `*-state.ts` holding the form-state type+initial (a
+  `"use server"` module may export only async functions), and a `"use client"` component using
+  `useActionState`. `customerDeps` already bundles customers+cards+settings+clock+audit, so it
+  satisfies most use-case Deps structurally with no new composition root.
+- Block/unblock UI lives on `/kunden/[id]` (block-controls.tsx). Its Playwright testids: block-open,
+  block-reason, block-submit, block-error, block-reason-current, unblock-open, unblock-submit. The
+  counter verdict banner (ausgabe/counter-lookup.tsx) already renders a BLOCKED reason verbatim/in
+  full — don't re-derive it on the record.
 
+---
+
+## 2026-07-25 - US-005 (Block and unblock UI)
+- Added the block/unblock UI to the customer record at `/kunden/[id]`. A blocked customer's counter
+  screen already showed the reason verbatim and in full (US-04 `VerdictBanner`, `max-w-prose text-xl`,
+  no truncation) — the reason is not re-derived on the record, that banner owns it.
+- New client component `src/app/kunden/[id]/block-controls.tsx`:
+  - ACTIVE → a `<details>` "Sperren" holding a required multi-line `<textarea>`; the submit stays
+    disabled until `reason.trim() !== ""` (controlled `useState`) — an empty reason is impossible to
+    send (FR-1), with `blockCustomer` as the server-side backstop.
+  - BLOCKED → the current reason shown verbatim on the record + a `<details>` "Sperre aufheben" whose
+    body shows the reason being lifted before the confirm button (mirrors serve-controls' remove step).
+  - ARCHIVED → nothing; there is no transition out of archived.
+- New `src/app/kunden/[id]/actions.ts` (`blockCustomerAction`, `unblockCustomerAction`): Zod-parse the
+  hidden `customerId`, call the use case, map `MissingAuditReason`/`IllegalStatusTransition` to a
+  German sentence, and `revalidatePath("/kunden/<id>")` so the new status/reason/controls come from
+  the store. `src/app/kunden/[id]/block-state.ts` holds the shared form state (a `"use server"` module
+  may export only async functions, so the type/initial value live outside actions.ts).
+- New i18n under `customers.block` (heading, action, reason label+hint, submit/submitting, unblock,
+  unblockConfirm(reason), unblockSubmit/unblocking, errors). Detail page renders a "Sperre" section
+  (hidden for ARCHIVED) with the reason and `<BlockControls />`.
+- Files: src/app/kunden/[id]/{actions.ts,block-state.ts,block-controls.tsx} (new),
+  src/app/kunden/[id]/page.tsx, src/i18n/de.ts, docs/technical_documentation.md.
+- Checks: lint, typecheck, test:coverage (511 tests, 100% on pure layers), build — all green.
+- **Learnings for future iterations:**
+  - `customerDeps` (src/app/kunden/deps.ts) already carries customers+audit+clock, so it satisfies
+    `BlockCustomerDeps`/`UnblockCustomerDeps` as-is — no new composition root for these actions.
+  - The app layer has no vitest coverage gate (covered by Playwright), so a new server action/client
+    component needs no unit test to keep the 100% bar — but US-006 (next) is the Playwright spec that
+    drives exactly these testids: block-open, block-reason, block-submit, block-error,
+    block-reason-current, unblock-open, unblock-submit.
+  - `revalidatePath` with the concrete path string (`/kunden/<id>`) refreshes the force-dynamic record
+    after an action without a navigation, so useActionState can return to `idle` on success and the
+    page re-renders with the new status.
 ---
 
 ## 2026-07-25 - US-002 (Customer status transition state machine)

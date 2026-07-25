@@ -13,6 +13,7 @@ import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { customerDeps } from "../deps";
+import { BlockControls } from "./block-controls";
 
 /** The card shows data the registration form writes, so it must never be served from a cache. */
 export const dynamic = "force-dynamic";
@@ -139,6 +140,29 @@ function CustomerCard({ view }: { view: CustomerCardView }): React.ReactElement 
         <section className="flex flex-col gap-2">
           <h2 className="text-xl font-semibold">{de.customers.fields.notes}</h2>
           <p className="max-w-prose text-foreground/80">{details.notes}</p>
+        </section>
+      )}
+
+      {/* Blocking pauses a household without freeing their slot; an archived customer cannot be
+          blocked or unblocked, so the section only appears while there is a transition to offer. */}
+      {customer.status === "ARCHIVED" ? null : (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-xl font-semibold">{de.customers.block.heading}</h2>
+          {customer.status === "BLOCKED" ? (
+            <p className="max-w-prose rounded border border-red-500/40 bg-red-500/10 px-3 py-2 whitespace-pre-line">
+              <span className="text-sm text-foreground/70">
+                {de.customers.block.currentReason}:{" "}
+              </span>
+              <span data-testid="block-reason-current" className="font-medium">
+                {customer.blockReason}
+              </span>
+            </p>
+          ) : null}
+          <BlockControls
+            customerId={customer.id}
+            status={customer.status}
+            blockReason={customer.blockReason}
+          />
         </section>
       )}
 

@@ -81,7 +81,10 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   │   ├── registration-form.tsx  # client component: repeatable rows + live counts
 │   │   │   │   ├── actions.ts        # "use server": Zod → registerCustomer → redirect
 │   │   │   │   └── register-customer-state.ts  # form state (not exportable from actions.ts)
-│   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on
+│   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on; hosts the block controls
+│   │   │   ├── [id]/block-controls.tsx  # client: Sperren / Sperre aufheben (US-08.4)
+│   │   │   ├── [id]/actions.ts       # "use server": Zod → blockCustomer / unblockCustomer
+│   │   │   ├── [id]/block-state.ts   # the block/unblock form state (not exportable from actions.ts)
 │   │   │   └── [id]/karte/page.tsx   # the digital customer card (US-02.4)
 │   │   ├── einstellungen/            # the settings screen (US-14)
 │   │   │   ├── page.tsx              # server component: current values + version history
@@ -791,7 +794,17 @@ beyond it:
 - **`[id]/page.tsx`** renders what `readCustomer` already derived — the counts from the birthdates,
   the standard portions and price (US-07.4), and the card number from the slot and the card index. A
   non-numeric id and an id nobody holds give the same German answer: there is no such customer. It
-  links on to the card view.
+  links on to the card view. It also hosts the **block controls** (US-08.4): an active customer sees
+  a "Sperre" section showing the current reason verbatim when blocked.
+- **`[id]/block-controls.tsx`** is a client component (`useActionState`, and the save control stays
+  disabled until a reason is typed — a block's reason is its only record, so an empty one must be
+  impossible to submit). It shows "Sperren" with a required multi-line reason for an `ACTIVE`
+  customer, the current reason plus a confirming "Sperre aufheben" for a `BLOCKED` one, and nothing
+  for an `ARCHIVED` one — there is no transition out of archived. **`[id]/actions.ts`** relays a
+  block or unblock to `blockCustomer` / `unblockCustomer`, translates the typed error into German,
+  and `revalidatePath`s the record so the new status, reason and controls come from the store. The
+  reason itself is shown verbatim and in full at the counter by the US-04 verdict banner — it is not
+  re-derived here.
 - **`[id]/karte/page.tsx`** is the **digital customer card** (US-02.4): the number, the name, the
   group as a coloured German label, the two counts and the standard portions and price (US-07.4),
   set large enough to read across a desk, plus the numbers this card replaced and why each was
@@ -1078,9 +1091,10 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   makes a RED household clear and a BLUE one sent away, and deletes the pinned-now file in
   `afterAll` like the distribution spec.
   Its six households are inserted **straight through Prisma**, not through the registration form:
-  archiving (US-10), blocking (US-08) and a second card (US-09) have no screen yet, so there is no
-  other way to reach half of these states. That is also why it may name customer numbers — see the
-  note above.
+  archiving (US-10) and a second card (US-09) have no screen yet, so there is no other way to reach
+  half of these states, and the blocked one is seeded the same way to keep the fixture self-contained
+  even though blocking now has a record screen (US-08, `blockCustomerAction` on `/kunden/[id]`). That
+  is also why it may name customer numbers — see the note above.
   The second half of the spec is FR-4, that a lookup only ever _reads_. It snapshots the statuses,
   the reminder counts and the card and audit-entry counts, performs the two refusals staff hit most
   often plus one successful lookup, and asserts the snapshot is unchanged. There is no distribution

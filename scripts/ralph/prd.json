@@ -85,8 +85,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Block/unblock UI on /kunden/[id]. New client component block-controls.tsx: an ACTIVE customer gets a 'Sperren' disclosure with a required multi-line textarea whose submit stays disabled until reason.trim() is non-empty (useState); a BLOCKED customer gets the current reason verbatim plus a confirming 'Sperre aufheben' disclosure that shows the reason being lifted before the button; an ARCHIVED customer gets nothing (no transition out of archived). actions.ts (blockCustomerAction/unblockCustomerAction) relays to the use cases, maps MissingAuditReason/IllegalStatusTransition to German, and revalidatePath's the record. The counter verdict banner already shows the reason verbatim/in full (US-04), so no change there. New i18n under customers.block. Browser check pending: no dev-browser skill/MCP this session."
     },
     {
       "id": "US-006",
