@@ -311,12 +311,14 @@ describe("lookupCustomer", () => {
     expect(result.customer?.notes).toBe("current archived holder");
   });
 
-  it("blocks a blocked customer, ahead of any other reason", async () => {
+  it("blocks a blocked customer, ahead of any other reason, carrying the stored reason", async () => {
     customers = new FakeCustomerRepository(customerRecord({ status: "BLOCKED", group: "BLUE" }));
 
     const result = await lookupCustomer(deps(), "50");
 
-    expect(result.verdict.kind).toBe("BLOCKED");
+    // The reason recorded when the customer was blocked (US-08) reaches the verdict verbatim, so the
+    // counter shows why rather than the "no reason on file" fallback.
+    expect(result.verdict).toEqual({ kind: "BLOCKED", reason: "gesperrt" });
   });
 
   it("sends away a customer of the wrong colour for the week", async () => {

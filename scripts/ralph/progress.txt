@@ -42,8 +42,16 @@ Started: Sat Jul 25 01:36:25 CEST 2026
   satisfies most use-case Deps structurally with no new composition root.
 - Block/unblock UI lives on `/kunden/[id]` (block-controls.tsx). Its Playwright testids: block-open,
   block-reason, block-submit, block-error, block-reason-current, unblock-open, unblock-submit. The
-  counter verdict banner (ausgabe/counter-lookup.tsx) already renders a BLOCKED reason verbatim/in
-  full — don't re-derive it on the record.
+  counter verdict banner (ausgabe/counter-lookup.tsx) renders a BLOCKED reason verbatim/in full via
+  `counter-verdict-detail` — don't re-derive it on the record. lookup-customer.ts now passes
+  `customer.blockReason` into `evaluateAtCounter` (was a hard-coded `null` TODO from US-04).
+- The e2e webServer is `npm run start` (the BUILT app) with `reuseExistingServer: !CI`. An app-layer
+  or component change only reaches the browser after `npm run build`; a stale `.next` (or a leftover
+  running server) will pass unit tests but fail the e2e against the old code. Build before test:e2e.
+- e2e specs seed straight through Prisma with a customer number and navigate the record page by the
+  SURROGATE `id` (`/kunden/${id}`), not the number — `prisma.customer.create({..., select:{id:true}})`
+  hands it back. Owned number ranges so the shared `data/e2e.db` sequence stays predictable: counter
+  201-206/239, portions 211, serve 221-222, reminders 231, block 241.
 
 ---
 
@@ -177,4 +185,36 @@ Started: Sat Jul 25 01:36:25 CEST 2026
     (Sperren with a required multi-line reason, Sperre aufheben with a confirm showing the current
     reason) + the counter verdict banner showing the reason in full (never truncated). No dev-browser
     skill/MCP this session, so US-005's browser check stays manual.
+---
+
+## 2026-07-25 - US-006 (E2E: blocked customer at the counter)
+- Added `tests/e2e/block.spec.ts`, the Playwright proof that a block is visible at the counter and
+  reversible (tasks/prd-us-08-block-unblock-customer.md §US-08.5). Seeds one RED/active household
+  (customer 241) straight through Prisma, pins the RED distribution day 08.01.2026, and drives the
+  real screen:
+  - empty AND whitespace-only reason leave `block-submit` disabled — FR-1, a block's only record
+    can't be empty;
+  - block with a multi-line reason on `/kunden/[id]`, then look the household up at `/ausgabe` and
+    assert `counter-verdict` = BLOCKED with `counter-verdict-detail` = the reason verbatim/in full
+    (explicitly NOT the "kein Grund hinterlegt" fallback) and NO `serve-button`;
+  - lift via the confirming "Sperre aufheben", then assert CLEAR_TO_SERVE with `serve-button` back
+    and the SAME customer number and card (241k1) — a block pauses a slot, never renumbers it.
+- Surfaced and fixed a wiring gap the unit gates couldn't see: `lookup-customer.ts` hard-coded
+  `blockReason: null` when building the counter customer (a US-04-era TODO), so the counter showed
+  "kein Grund hinterlegt" even after US-08 stored a reason. Now passes `customer.blockReason`
+  through; strengthened the `lookupCustomer` "blocks a blocked customer" unit test to assert
+  `{ kind: "BLOCKED", reason: "gesperrt" }` so the 100% gate pins the flow.
+- Files changed: tests/e2e/block.spec.ts (new), src/application/customers/lookup-customer.ts,
+  src/application/customers/lookup-customer.test.ts, docs/technical_documentation.md (e2e tree),
+  scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: lint, typecheck, test:coverage (511 unit tests, 100% on domain/application), build, and
+  the FULL e2e suite (32 passed, 1 pre-existing skip) — all green.
+- **Learnings for future iterations:**
+  - The e2e webServer runs the BUILT app (`npm run start`) and reuses a running server, so an
+    app-layer change needs `npm run build` before `npm run test:e2e` or the browser sees old code.
+  - An E2E is the only gate that catches an inter-layer TODO like the counter's `blockReason: null`:
+    each unit passed in isolation, the wire between them was dead. Grep the codebase for `// until`
+    / hard-coded `null` when a story finally makes a cross-layer field real.
+  - Record page is addressed by the surrogate `id`, not the customer number; a seeded row hands it
+    back via `select: { id: true }`. This is US-08's last story — all six now pass.
 ---

@@ -100,8 +100,8 @@
         "Typecheck passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "tests/e2e/block.spec.ts (customer 241, RED/active, pinned to the RED distribution day 08.01.2026): blocks the household on /kunden/[id] with a multi-line reason, then reads it back verbatim/in full in the counter verdict banner with no serve-button offered; asserts an empty AND a whitespace-only reason leave block-submit disabled (FR-1); lifts the block via the confirming 'Sperre aufheben' and proves the household is CLEAR_TO_SERVE again on the same customer number and card (241k1). Surfaced a wiring gap: lookup-customer.ts hard-coded blockReason:null (a US-04-era TODO), so the counter always showed 'kein Grund hinterlegt' even for a reasoned block — now passes customer.blockReason through, with the lookup-customer 'blocks a blocked customer' unit test strengthened to assert {kind:'BLOCKED',reason:'gesperrt'}. E2E reuses a running server serving the OLD build (reuseExistingServer), so npm run build BEFORE npm run test:e2e when an app-layer change must reach the browser. Full e2e suite green (32 passed, 1 pre-existing skip); 511 unit tests, 100% on pure layers."
     }
   ]
 }

@@ -120,8 +120,8 @@ export async function lookupCustomer(
 
   const verdict = evaluateAtCounter({
     // The current card index is the highest the customer holds, loaded with the row rather than
-    // read separately — the counter never issues a second query (US-04.3). A block will carry its
-    // reason once US-08 stores one; until then a blocked customer has none to pass.
+    // read separately — the counter never issues a second query (US-04.3). A blocked customer
+    // carries the reason recorded when they were blocked (US-08), shown verbatim in the verdict.
     customer:
       customer === null
         ? null
@@ -129,7 +129,7 @@ export async function lookupCustomer(
             customerNumber: customer.customerNumber,
             status: customer.status,
             group: customer.group,
-            blockReason: null,
+            blockReason: customer.blockReason,
             currentCardIndex: customer.card.index,
             certificateValidUntil: customer.details.certificate.validUntil,
             reminderCount: customer.reminderCount,
