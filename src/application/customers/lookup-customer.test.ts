@@ -82,6 +82,10 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve(this.holders.find((customer) => customer.id === id) ?? null);
   }
 
+  listWithStatus(status: CustomerStatus): Promise<ReadonlyArray<RegisteredCustomer>> {
+    return Promise.resolve(this.holders.filter((customer) => customer.status === status));
+  }
+
   takenActiveNumbers(): Promise<ReadonlyArray<number>> {
     return Promise.resolve(
       this.holders.filter((c) => c.status !== "ARCHIVED").map((c) => c.customerNumber),

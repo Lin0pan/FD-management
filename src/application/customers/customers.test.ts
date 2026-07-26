@@ -123,6 +123,14 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve(this.created.find((customer) => customer.id === id) ?? null);
   }
 
+  listWithStatus(status: CustomerStatus): Promise<ReadonlyArray<RegisteredCustomer>> {
+    return Promise.resolve(
+      this.created
+        .filter((customer) => customer.status === status)
+        .sort((a, b) => a.customerNumber - b.customerNumber),
+    );
+  }
+
   findByCustomerNumber(customerNumber: number): Promise<RegisteredCustomer | null> {
     const holders = this.created.filter((customer) => customer.customerNumber === customerNumber);
     const active = holders.find((customer) => customer.status !== "ARCHIVED");

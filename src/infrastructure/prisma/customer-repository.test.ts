@@ -17,6 +17,7 @@ import { join } from "node:path";
 import { faker } from "@faker-js/faker";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { listCardsDueForReissue } from "@/application/customers/cards-due-for-reissue";
 import { createCustomerDetails, type NewCustomer } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
 import { CustomerNumberTaken } from "@/domain/errors";
@@ -404,6 +405,78 @@ describe("PrismaCustomerCounter", () => {
     await insertCustomer(3, "ARCHIVED");
 
     expect(await counter.countActive()).toBe(2);
+  });
+});
+
+describe("PrismaCustomerRepository.listWithStatus", () => {
+  it("returns only the customers in the status asked for", async () => {
+    await repository.create(newCustomer({ customerNumber: 1 }));
+    await repository.create(newCustomer({ customerNumber: 2, status: "BLOCKED" }));
+    await repository.create(newCustomer({ customerNumber: 3, status: "ARCHIVED" }));
+
+    const active = await repository.listWithStatus("ACTIVE");
+
+    expect(active.map((customer) => customer.customerNumber)).toEqual([1]);
+  });
+
+  it("orders by customer number, so the screen does not have to sort", async () => {
+    await repository.create(newCustomer({ customerNumber: 70 }));
+    await repository.create(newCustomer({ customerNumber: 12 }));
+    await repository.create(newCustomer({ customerNumber: 51 }));
+
+    const active = await repository.listWithStatus("ACTIVE");
+
+    expect(active.map((customer) => customer.customerNumber)).toEqual([12, 51, 70]);
+  });
+
+  it("attaches the household and the card each customer holds", async () => {
+    await repository.create(newCustomer());
+    await prisma.card.create({
+      data: {
+        customerId: (await repository.findByCustomerNumber(50))?.id ?? 0,
+        index: 2,
+        issuedAt: TODAY,
+        reason: "LOST",
+        grownUpsAtIssue: 2,
+        childrenAtIssue: 0,
+      },
+    });
+
+    const [customer] = await repository.listWithStatus("ACTIVE");
+
+    expect(customer.details.householdMembers).toHaveLength(2);
+    expect(customer.card.index).toBe(2);
+    expect(customer.card.countsAtIssue).toEqual({ grownUps: 2, children: 0 });
+  });
+
+  it("is empty for an empty register", async () => {
+    expect(await repository.listWithStatus("ACTIVE")).toEqual([]);
+  });
+});
+
+describe("the cards-due-for-reissue list over the real register", () => {
+  it("puts a household on the list once their card's printed counts fall behind a birthday", async () => {
+    // Registered with one grown-up and a child born 2019-09-02, so the card printed 1/1 (US-13.3).
+    await repository.create(newCustomer());
+    const deps = { customers: repository, clock: { now: () => TODAY } };
+
+    const beforeTheBirthday = await listCardsDueForReissue(deps);
+    // The child's 13th birthday, with nothing written to the database in between.
+    const afterTheBirthday = await listCardsDueForReissue({
+      ...deps,
+      clock: { now: () => new Date("2032-09-02T09:00:00.000Z") },
+    });
+
+    expect(beforeTheBirthday).toEqual([]);
+    expect(afterTheBirthday).toMatchObject([
+      {
+        customerNumber: 50,
+        cardNumber: "50k1",
+        countsOnCard: { grownUps: 1, children: 1 },
+        countsToday: { grownUps: 2, children: 0 },
+        reason: "AGE_13",
+      },
+    ]);
   });
 });
 

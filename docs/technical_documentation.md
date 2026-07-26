@@ -118,6 +118,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── card/card.test.ts         # its Vitest spec
 │   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
 │   │   ├── card/cardNumber.test.ts   # its Vitest spec
+│   │   ├── card/staleCounts.ts       # do the printed counts still match, and what changed (US-13)
+│   │   ├── card/staleCounts.test.ts  # its Vitest spec
 │   │   ├── distribution/weekColour.ts  # RED/BLUE alternation derived from the ISO calendar
 │   │   ├── distribution/weekColour.test.ts  # its Vitest spec
 │   │   ├── distribution/distributionDay.ts  # is today a distribution day, and when is the next
@@ -139,7 +141,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   blockCustomer / unblockCustomer (US-08),
 │   │   │                             #   reissueCard (US-09, delegates to issueCard),
 │   │   │                             #   archiveCustomer (US-10, frees the slot),
-│   │   │                             #   countNoShows (US-10, the seam both read models use)
+│   │   │                             #   countNoShows (US-10, the seam both read models use),
+│   │   │                             #   listCardsDueForReissue (US-13, cards a birthday overtook)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
@@ -234,17 +237,17 @@ The interfaces the application layer depends on. Per the TDD approach, ports **e
 needs** rather than being designed up front. Type-only, so it adds no runtime code to the
 coverage-measured layers.
 
-| Port                           | Shape                                                                                                    | Notes                                                                                                                                                                                                                    |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Clock`                        | `now(): Date`                                                                                            | The one seam to the wall clock.                                                                                                                                                                                          |
-| `SettingsRepository`           | `listVersions()`, `append(version)`                                                                      | No update/delete — policy history is append-only.                                                                                                                                                                        |
-| `CustomerCounter`              | `countActive()`                                                                                          | The reality the quota `N` may not fall below.                                                                                                                                                                            |
-| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                                              | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                                                                                                                               |
-| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issueCounts(customerId)`, `issue(customerId, card)` | `currentCard` is the highest index — there is no `valid` flag to read; `issueCounts` counts the run and its losses in one aggregate (US-09.2); `issue` reports a lost race as `CardIndexTaken`.                          |
-| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`               | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                           |
-| `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                                           | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3). |
-| `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                                             | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                       |
-| `AuditLog`                     | `append(entry)`                                                                                          | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                |
+| Port                           | Shape                                                                                                                                                          | Notes                                                                                                                                                                                                                              |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Clock`                        | `now(): Date`                                                                                                                                                  | The one seam to the wall clock.                                                                                                                                                                                                    |
+| `SettingsRepository`           | `listVersions()`, `append(version)`                                                                                                                            | No update/delete — policy history is append-only.                                                                                                                                                                                  |
+| `CustomerCounter`              | `countActive()`                                                                                                                                                | The reality the quota `N` may not fall below.                                                                                                                                                                                      |
+| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `findById(id)`, `findByCustomerNumber(n)`, `listWithStatus(status)`, `create(customer)`, `setStatus(…)`, `archive(…)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`. `listWithStatus` is the one whole-register read — lowest number first, households and cards attached, for the cards-due list (US-13.2). |
+| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issueCounts(customerId)`, `issue(customerId, card)`                                                       | `currentCard` is the highest index — there is no `valid` flag to read; `issueCounts` counts the run and its losses in one aggregate (US-09.2); `issue` reports a lost race as `CardIndexTaken`.                                    |
+| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`                                                                     | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                                     |
+| `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                                                                                                 | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3).           |
+| `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                                                                                                   | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                                 |
+| `AuditLog`                     | `append(entry)`                                                                                                                                                | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                          |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
 
@@ -501,6 +504,22 @@ exist — the same argument that keeps the household counts derived. The reason 
 than free text because the audit log is read by people who did not make the change, and four words
 they can scan tell them more than a sentence typed to get past a form.
 
+### `src/domain/card/staleCounts.ts`
+
+The counterpart to `countsAtIssue`: `staleCountsReason(printedOnCard, today)` answers `null` when the
+card still prints what the household is, and otherwise names what changed —
+`AGE_13 | HOUSEHOLD_CHANGE`.
+
+A birthday is blamed only when it is the **whole** explanation: the household is the same size and
+grown-ups have gone up, so the same people are on the card and one or more crossed 13. A different
+size means somebody joined or left, and grown-ups going down is something no birthday can do; both
+are changes a human made to the record, and reporting them as `AGE_13` would tell staff a story that
+did not happen. The distinction is shown on the reissue list so it reads as "the software moved these
+numbers" rather than as an accusation that a record was filled in wrongly.
+
+The module takes **no clock and no members** — both sides are already-derived counts, so deciding
+_when_ "today" is stays with the caller and this rule cannot acquire a second opinion about it.
+
 ### `src/domain/card/cardNumber.ts`
 
 The card number staff read out at the counter, `<customer number>k<index>` — `12k1` is the first
@@ -677,6 +696,33 @@ There is **no limit check** (FR-4): the tenth reissue is written exactly like th
 household loses cards too often is a judgement staff make from a count the software shows them, never
 one it makes for them. Nothing but the card run changes — status, customer number, group, reminder
 count and the distribution history are untouched, which is what the use case's tests pin.
+
+### `src/application/customers/listCardsDueForReissue`
+
+Which households hold a card whose printed counts no longer match them (US-13.2). It writes nothing
+and reclassifies nobody: a child becomes a grown-up because `composition` derives the counts from the
+birthdates on every read — no job, no trigger, no event. What this adds is the _consequence_, that
+the piece of card in the household's pocket still shows the old numbers.
+
+`listCardsDueForReissue(deps)` reads the clock once, asks `customers.listWithStatus("ACTIVE")` for the
+register, and for each household compares `card.countsAtIssue` with `composition(members, today)`
+through `staleCountsReason`. Each entry carries the surrogate id (what a reissue is written against),
+the customer number, the name, the card number, **both** count sets and the reason. The repository's
+order — lowest customer number first — is handed on untouched rather than sorted again here.
+
+**Only active households.** A blocked one is not collecting (US-08), so listing them would ask staff
+to print a card nobody is coming for; an archived one holds no slot and may not be issued a card at
+all (US-10). Neither exclusion loses anything, because the list is derived on every read: a household
+returning to `ACTIVE` reappears on it by itself.
+
+The whole active register is read and compared in application code rather than filtered in SQL,
+because the comparison is **not expressible as a query** — one side of it is a rule over birthdates
+that changes answer as the clock moves without any row changing. At FD's ~240 customers that is one
+query and a few hundred date comparisons on a screen nobody stands at, which is the deliberate choice
+US-13.3 asks to be recorded rather than a limitation to work around.
+
+Nothing acts on this list on its own. It is a to-do list, not an alert queue: a stale card is never
+grounds to turn anyone away (FR-5).
 
 ### `src/application/customers/proposeRegistration` and `readCustomer`
 

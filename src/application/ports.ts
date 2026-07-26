@@ -72,6 +72,17 @@ export interface CustomerRepository {
    */
   findByCustomerNumber(customerNumber: number): Promise<RegisteredCustomer | null>;
   /**
+   * Every customer in one status, **lowest customer number first**, each with the household and the
+   * current card the record carries. Ordering is the adapter's job because the database can do it.
+   *
+   * The status is asked for rather than assumed: "which households does this concern" is a decision
+   * of the use case, and a method that quietly meant one particular status would hide it (US-13.2
+   * wants active households only). At FD's ~240 customers a whole-register read is one query of a
+   * few hundred rows, which is why no narrower query exists — see `listCardsDueForReissue` for why
+   * the filtering it feeds cannot be pushed into SQL at all.
+   */
+  listWithStatus(status: CustomerStatus): Promise<ReadonlyArray<RegisteredCustomer>>;
+  /**
    * Persist a new customer with everything that belongs to them.
    *
    * @throws {CustomerNumberTaken} if another registration took the number first.
