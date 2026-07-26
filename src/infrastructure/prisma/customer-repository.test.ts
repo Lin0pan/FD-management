@@ -15,12 +15,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { faker } from "@faker-js/faker";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createCustomerDetails, type NewCustomer } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
 import { CustomerNumberTaken } from "@/domain/errors";
 import { PrismaCustomerCounter, PrismaCustomerRepository } from "./customer-repository";
+import { clearRegister } from "./test-support";
 
 faker.seed(20260722);
 
@@ -50,7 +51,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await prisma.customer.deleteMany();
+  await clearRegister(prisma);
 });
 
 /** A registrable two-person household: one grown-up and one child, with fixed birthdates. */
@@ -321,6 +322,46 @@ describe("PrismaCustomerRepository.archive", () => {
   });
 });
 
+/**
+ * Archiving is the only way out of the register, so no relation in schema.prisma cascades on delete
+ * (US-10.3). These specs prove the database itself refuses the hard delete rather than trusting that
+ * no code will ever ask for one — a cascade left in place would take the household's members,
+ * certificates and cards with it silently the first time something did.
+ */
+describe("a household that cannot be hard-deleted", () => {
+  it("refuses to delete a customer who owns members, certificates and cards", async () => {
+    const { id } = await repository.create(newCustomer());
+
+    await expect(prisma.customer.delete({ where: { id } })).rejects.toBeInstanceOf(
+      Prisma.PrismaClientKnownRequestError,
+    );
+  });
+
+  it("leaves the refused household's rows untouched — the delete takes nothing with it", async () => {
+    const { id } = await repository.create(newCustomer());
+
+    await expect(prisma.customer.delete({ where: { id } })).rejects.toThrow();
+
+    const row = await prisma.customer.findUniqueOrThrow({
+      where: { id },
+      include: { householdMembers: true, certificates: true, cards: true },
+    });
+    expect(row.householdMembers).toHaveLength(2);
+    expect(row.certificates).toHaveLength(1);
+    expect(row.cards).toHaveLength(1);
+  });
+
+  it("refuses it just the same once the household is archived", async () => {
+    const { id } = await repository.create(newCustomer());
+    await repository.archive(id, "verzogen", new Date("2026-07-22T11:30:00.000Z"));
+
+    await expect(prisma.customer.delete({ where: { id } })).rejects.toBeInstanceOf(
+      Prisma.PrismaClientKnownRequestError,
+    );
+    expect(await prisma.customer.count({ where: { id } })).toBe(1);
+  });
+});
+
 describe("PrismaCustomerRepository.takenActiveNumbers", () => {
   it("is empty for an empty register", async () => {
     expect(await repository.takenActiveNumbers()).toEqual([]);
@@ -453,7 +494,7 @@ describe("PrismaCustomerRepository.findByCustomerNumber", () => {
 
   it("costs the same number of queries however large the household — the counter never fans out", async () => {
     const queriesForHousehold = async (memberCount: number): Promise<number> => {
-      await prisma.customer.deleteMany();
+      await clearRegister(prisma);
       const created = await repository.create(newCustomer());
       await prisma.householdMember.createMany({
         data: Array.from({ length: memberCount - 2 }, () => ({

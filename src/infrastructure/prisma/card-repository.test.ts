@@ -21,6 +21,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { formatCardNumber } from "@/domain/card/cardNumber";
 import { CardIndexTaken, InvalidCustomerRecord } from "@/domain/errors";
 import { PrismaCardRepository } from "./card-repository";
+import { clearRegister } from "./test-support";
 
 faker.seed(20260723);
 
@@ -48,7 +49,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await prisma.customer.deleteMany();
+  await clearRegister(prisma);
 });
 
 /** A customer holding the given slot, written straight through Prisma — cards are what is tested. */

@@ -56,8 +56,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The columns, their migration and the two number-invariant tests had already landed with US-002; the work left was removing the last three onDelete: Cascade relations. That contradicts the init migration, so per CLAUDE.md the pre-release history was collapsed back to a single init (the hand-written partial unique index re-appended by hand). Run npm run db:reset on an existing checkout."
     },
     {
       "id": "US-004",

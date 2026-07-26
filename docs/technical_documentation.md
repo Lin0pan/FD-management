@@ -151,7 +151,9 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │       ├── certificate-repository.ts   # PrismaCertificateRepository — appends renewals
 │   │       ├── audit-log.ts          # PrismaAuditLog — append-only, no actor column
 │   │       ├── seed.ts               # provisional settings version, inserted only if none exists
-│   │       └── *.test.ts             # integration specs, throwaway SQLite file
+│   │       ├── test-support.ts       # clearRegister — the children-first teardown the specs share
+│   │       └── *.test.ts             # integration specs, throwaway SQLite file (schema.test.ts
+│   │                                 #   reads the schema and migrations instead of a database)
 │   ├── i18n/de.ts                    # single German UI-string dictionary
 │   └── i18n/format.ts                # German value formatting (germanDate) + its spec
 ├── tests/e2e/
@@ -841,9 +843,8 @@ one day got written. `loggedOn` is the **Berlin** calendar day the use case deri
 `berlinDayKey`, mirroring `DistributionRecord.dayKey`, so the constraint and the guard share one
 notion of "today". `record` writes the log entry and the customer's new `reminderCount` in **one
 transaction**, so the count can never disagree with the trail — a rejected entry moves no count —
-and translates a `P2002` naming `loggedOn` into the domain's `ReminderAlreadyLoggedToday`. Like
-`DistributionRecord`, the relation has no `onDelete: Cascade`: a reminder that was given stays
-given.
+and translates a `P2002` naming `loggedOn` into the domain's `ReminderAlreadyLoggedToday`. Like every relation in the schema, this one does not cascade on
+delete: a reminder that was given stays given.
 
 `PrismaCertificateRepository` (the `CertificateRepository` port) **appends** a renewal as a new
 `Certificate` row rather than editing the one on file, so the history of renewals stays readable
@@ -1089,8 +1090,7 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   `berlinDayKey` like `DistributionRecord.dayKey`); the unique `(customerId, loggedOn)` index is
   the database's own cap of one reminder per customer per day, surfaced by the adapter as
   `ReminderAlreadyLoggedToday`. `resultingCount` repeats the customer's count as it stood after the
-  entry, so the trail reads on its own; a renewal resets the _count_, never this log. Like
-  `DistributionRecord`, the relation has no `onDelete: Cascade`.
+  entry, so the trail reads on its own; a renewal resets the _count_, never this log.
 - `DistributionRecord` is the append-many history of hand-outs (US-05). It carries `date`, a
   normalised Europe/Berlin `dayKey` (`YYYY-MM-DD`, written by the domain's `berlinDayKey`), the
   `showedUp` and `paid` flags and `priceCents`. The unique `(customerId, dayKey)` index is the
@@ -1098,8 +1098,19 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   written even if two requests race past `attendance.canRecord`, and the adapter surfaces the lost
   race as `AlreadyServedToday`. Indexes on `date` and `(customerId, date)` serve the no-show query
   (US-10). `priceCents` is deliberate redundancy alongside the settings history — it makes a record
-  self-describing — and the relation has **no `onDelete: Cascade`**, so records outlive a customer's
-  status changes and are never removed by archiving.
+  self-describing — and like every relation in the schema it does not cascade, so records outlive a
+  customer's status changes and are never removed by archiving.
+- **Nothing cascades on delete.** No relation in the schema carries `onDelete: Cascade`, so every
+  foreign key is `ON DELETE RESTRICT` and SQLite _refuses_ to remove a customer who still owns
+  household members, a certificate, a card, a distribution record or a reminder log (US-10.3). The
+  only way out of the register is archiving, a status change. A cascade would be harmless for as
+  long as nothing ever called `delete` — which is why it is the wrong thing to leave in place: the
+  day a clean-up script or a mistyped test did call it, the household's history would go with it
+  silently, and the audit log has no way to say what was lost. `src/infrastructure/prisma/schema.test.ts`
+  guards the rule against the schema _and_ the committed migration SQL; the customer repository
+  specs prove the refusal against a real database. The cost is that a test tearing the register down
+  must delete children first — `clearRegister` in `src/infrastructure/prisma/test-support.ts` states
+  that order once.
 - **The slot rule is a partial unique index**, hand-written at the end of the `init` migration
   because Prisma cannot express one: at most one non-archived customer may hold a given
   `customerNumber`, so any number of archived rows may share one. See

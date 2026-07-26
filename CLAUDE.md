@@ -114,7 +114,11 @@ settings screen reporting that nothing is configured.
 
 - ❌ Don't put business rules in a server action, React component or Prisma query.
 - ❌ Don't hard-code a price, portion count or threshold.
-- ❌ Don't hard-delete customer data — archive (status change) and keep it queryable.
+- ❌ Don't hard-delete customer data — archive (status change) and keep it queryable. **No relation
+  in `schema.prisma` may carry `onDelete: Cascade`**, so the database refuses the delete rather than
+  trusting that no one calls it; `src/infrastructure/prisma/schema.test.ts` fails if one reappears.
+  An integration test that clears the register therefore deletes children first — use
+  `clearRegister` from `src/infrastructure/prisma/test-support.ts`.
 - ❌ Don't skip the audit entry on a state change (archive, block, group move, card reissue, policy
   edit). With no login, the log is the only accountability the system has — and it records _what,
   when and why_, never _who_. The _why_ is required where it is the record (archive, block) and

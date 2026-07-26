@@ -21,6 +21,7 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaCertificateRepository } from "./certificate-repository";
 import { PrismaCustomerRepository } from "./customer-repository";
+import { clearRegister } from "./test-support";
 
 faker.seed(20260724);
 
@@ -50,8 +51,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await prisma.certificate.deleteMany();
-  await prisma.customer.deleteMany();
+  await clearRegister(prisma);
 });
 
 /**

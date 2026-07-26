@@ -172,3 +172,57 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
     `customerDeps` already satisfies `ArchiveCustomerDeps` structurally.
   - `MissingAuditReason` is thrown from the domain now, so the app layer maps it to German once and
     both the block and the archive screens get the same message.
+
+## 2026-07-26 - US-003 (Archive fields and no-delete invariants)
+- Three of the six criteria were already met by US-002's spillover: `archiveReason`/`archivedAt`, a
+  committed migration, and the two number-invariant tests (`takenActiveNumbers` skips archived rows,
+  customer-repository.test.ts ~329; two archived rows may share number 50, ~196). The real work was
+  the fourth: **no cascading deletes anywhere**.
+- `HouseholdMember`, `Certificate` and `Card` still carried `onDelete: Cascade`; the two younger
+  models (DistributionRecord, ReminderLog) never did. All five foreign keys are now
+  `ON DELETE RESTRICT`, so SQLite refuses to delete a household that owns anything. The reasoning is
+  in schema.prisma on `Customer` and in docs/technical_documentation.md §5: a cascade is harmless
+  only for as long as nothing calls `delete`, which is exactly why it should not be left lying about
+  — the day a clean-up script or a mistyped test calls it, the history goes silently and the audit
+  log cannot say what was lost.
+- **The migration history was collapsed, not extended.** Removing a cascade contradicts `init`, and
+  CLAUDE.md's pre-release rule is that such a change *replaces* it: `rm -rf prisma/migrations`,
+  `npx prisma migrate dev --name init --skip-generate`, re-append the hand-written partial unique
+  index (Prisma cannot express it and regenerating drops it — schema.prisma says so at the top),
+  `npx prisma generate`, `npm run db:reset`. Three migrations became one
+  `20260726150653_init`. **Anyone with an existing checkout must run `npm run db:reset`** or
+  `migrate deploy` reports a history that does not match.
+- The delete refusal has a price: `prisma.customer.deleteMany()` in a `beforeEach` is now a foreign
+  key error in any spec that registered a household. `clearRegister` in the new
+  `src/infrastructure/prisma/test-support.ts` states the children-first order once and all five
+  repository specs call it.
+- New `src/infrastructure/prisma/schema.test.ts` (5 tests, no database — reads the files): no
+  `onDelete: Cascade`/`SetNull`/`SetDefault` in the schema, no `ON DELETE CASCADE` in any committed
+  migration, and the two hand-written/US-05.3 indexes still present. Comments in schema.prisma say
+  the words "onDelete: Cascade" on purpose, so the test strips comment lines first.
+- Three new repository tests prove the refusal against a real database: a delete is rejected with
+  `Prisma.PrismaClientKnownRequestError`, it takes nothing with it (members/certificates/cards
+  counted afterwards), and it is refused just the same once the household is archived.
+- Files changed: prisma/schema.prisma, prisma/migrations/ (three deleted, one added),
+  src/infrastructure/prisma/test-support.ts (new), schema.test.ts (new), the five repository specs,
+  CLAUDE.md (the hard-delete Don't now names the rule and the helper),
+  docs/technical_documentation.md (§2 tree, §5 — the no-cascade note moved from two per-model
+  mentions to one rule about the whole schema), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: format, lint, typecheck, test:coverage (579 tests, 35 files, 100% on domain/application),
+  build, and test:e2e (36 passed, 1 skipped) — all green. e2e was run deliberately: it rebuilds
+  data/e2e.db from the migrations, so it is what proves the regenerated init still carries the
+  partial unique index. No UI in this story.
+- **Learnings for future iterations:**
+  - After ANY migration-history rewrite, run `npm run test:e2e` as well as the unit suite. The unit
+    infra specs migrate a throwaway file, but only the e2e run exercises `migrate deploy` against a
+    seeded database the app then reads — the same path a developer's checkout takes.
+  - `prisma migrate dev` refuses to regenerate while `data/fd.db` still has the old history applied;
+    delete the file first (the one-liner from `db:reset`) rather than answering its reset prompt,
+    which the sandbox cannot do.
+  - Prisma writes `ON UPDATE CASCADE` on every foreign key by default and there is no schema syntax
+    to turn it off. That is not a delete cascade and ids are never updated, so it is left alone —
+    assert on `ON DELETE CASCADE` specifically, or the guard test fails on Prisma's own output.
+  - US-004 (the UI) needs the no-show count on the read models. `consecutiveNoShows` wants the
+    customer's distribution records; `DistributionRecordRepository.listForCustomer(id)` already
+    exists and is backed by the `(customerId, date)` index, so no new query is needed —
+    `registeredOn` still has to come from the first card's `issuedAt`.
