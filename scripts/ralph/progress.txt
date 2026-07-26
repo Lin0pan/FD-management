@@ -74,6 +74,23 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   the same trick the e2e specs use. Repositories the use case does not depend on are handed to the
   test's `deps()` anyway as witnesses; excess-property checking does not apply because `deps()`
   returns a variable rather than an object literal at the call site.
+- A value every read path needs and that follows from RELATED rows (registeredOn, from the first
+  card) belongs on `RegisteredCustomer`, derived once in the Prisma adapter — not fetched per use
+  case. The adapter's include already loads the relation; widening it (`take: 1` → the whole run) is
+  cheaper than a second port, and the counter's fixed statement count survives. Cost: every fake's
+  `create` and every RegisteredCustomer literal needs the field (4 test files, as always).
+- A client control that TWO route trees render lives one level above the deeper one —
+  `src/app/kunden/archive-controls.tsx`, imported by `[id]/page.tsx` and by `/ausgabe/page.tsx`. A
+  non-route file in the app directory creates no route (`deps.ts` is the precedent), and it avoids
+  importing across a bracketed `[id]/` path. Its action revalidates BOTH screens.
+- A read model shared by two screens gets its derived numbers from ONE application seam
+  (`countNoShows`, like `describeAllowance` before it), never from each use case calling the domain
+  itself — that is how the record and the counter come to disagree.
+- Verifying UI in the browser without the e2e harness: `DATABASE_URL=file:../data/<scratch>.db npx
+  prisma migrate deploy && npm run db:seed`, seed a household with a tsx script FROM THE REPO ROOT
+  (a script in /tmp cannot resolve @prisma/client), point `FD_FIXED_NOW_FILE` at a file holding an
+  ISO instant, `PORT=3100 npm run start`, then drive it with a plain `chromium.launch()` script.
+  Delete the scratch db, the now-file and the scripts afterwards.
 
 ---
 
@@ -226,3 +243,58 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
     customer's distribution records; `DistributionRecordRepository.listForCustomer(id)` already
     exists and is backed by the `(customerId, date)` index, so no new query is needed —
     `registeredOn` still has to come from the first card's `issuedAt`.
+
+## 2026-07-26 - US-004 (Archive UI and no-show visibility)
+- The archive action, the no-show count and the archived record, on both screens that need them.
+- **The archive control is shared, not duplicated.** Both triggers for archiving (a certificate
+  still expired after several reminders, a household that stopped coming) show up at the COUNTER, so
+  `ArchiveControls` is rendered by the customer record and by /ausgabe — one component, one action,
+  one confirmation. It therefore lives at `src/app/kunden/` (archive-controls.tsx,
+  archive-actions.ts, archive-state.ts) rather than under `[id]/`, one level above the deeper of the
+  two route trees; `archiveCustomerAction` revalidates `/kunden/[id]` AND `/ausgabe`, so the
+  counter's next lookup of that number answers ARCHIVED.
+- It is a CLOSED disclosure with the confirmation inside it — never a dialog, never a prompt, and
+  nothing opens by itself (PRD §6): at the counter the queue is waiting. The confirmation names the
+  customer number and says the two things staff would otherwise learn from a support call — the
+  number is free at once and may be reassigned, and the record is kept in full. Save stays disabled
+  until a non-whitespace reason is typed.
+- **`registeredOn` on `RegisteredCustomer`** was the story's one structural change. The no-show
+  count needs the day the household joined and there is no registration column, so it is derived in
+  the Prisma adapter from their FIRST card: `CUSTOMER_INCLUDE` now loads the whole run of cards
+  (highest index first) and takes the tail. Side effect worth having: the record's "Aufgenommen"
+  field showed the CURRENT card's date, so a reissue used to read as a later registration.
+- `countNoShows` (application) is the single seam both read models use — it adds the one decision
+  the pure module cannot make, which settings version the count is read against — and takes the
+  records as an argument, because the counter already holds them (US-04.3).
+- `readCustomer` gained the read side of `DistributionRecordRepository`, so `customerDeps` did too.
+  `CounterCustomerView` gained `consecutiveNoShows`; both screens show it only when it is > 0.
+- An archived record renders read-only: block, reissue and archive sections are all absent (the card
+  view was already gated), behind a banner naming the day and the reason, placed FIRST on the page —
+  every action below it is gone and the reader has to know why before looking for one.
+- Files changed: src/domain/customer/customer.ts, src/application/customers/count-no-shows.ts (new),
+  read-customer.ts, lookup-customer.ts, the four fake-holding test files,
+  src/infrastructure/prisma/customer-repository.ts(+.test.ts), src/app/kunden/archive-{controls.tsx,
+  actions.ts,state.ts} (new), src/app/kunden/deps.ts, src/app/kunden/[id]/page.tsx,
+  src/app/ausgabe/page.tsx, src/app/ausgabe/counter-lookup.tsx, src/i18n/de.ts,
+  docs/technical_documentation.md, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: format:check, lint, typecheck, test:coverage (585 tests, 35 files, 100% on
+  domain/application), build, test:e2e (36 passed, 1 skipped) — all green.
+- **Browser-verified** against a scratch database (no dev-browser MCP here; a plain Playwright
+  script drove the built app). A RED household registered 2026-05-01 with today pinned to
+  2026-07-22 shows "Ausgaben in Folge verpasst: 5 Ausgaben" on the record AND at the counter; the
+  save button is disabled for an empty and a whitespace-only reason; archiving FROM THE COUNTER
+  flipped the verdict to "Archiviert" in place; the record then showed the banner
+  ("Archiviert am 22.07.2026. Grund: …"), "Aufgenommen: 01.05.2026" and no write control anywhere.
+- **Learnings for future iterations:**
+  - US-005 (the e2e spec) has everything it needs: the testids are `archive-open`,
+    `archive-confirm`, `archive-reason`, `archive-submit`, `archive-error`, `archived-banner`,
+    `archived-reason`, `no-shows` (record) and `counter-no-shows` (counter). Archiving is reachable
+    from the counter, which is the shortest path for the spec: look the number up, archive, look it
+    up again. Take customer numbers from 261 up, per the owned-number convention.
+  - A whitespace-only reason cannot be submitted through the UI at all (the button is disabled), so
+    the "archiving without a reason is refused" criterion has to be driven either by submitting the
+    form with the field emptied via JS/`page.evaluate`, or by asserting the disabled state — the
+    use case's refusal is already covered by customers.test.ts.
+  - `resolveSettingsAt` is called three times per counter lookup now (week colour, allowance,
+    no-shows). That is three reads of a table with a handful of rows and it keeps each seam
+    self-contained; if it ever matters, resolve once in `lookupCustomer` and pass `Settings` down.

@@ -74,8 +74,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The archive control is shared by the record and the counter, so it lives at src/app/kunden/ (archive-controls.tsx + archive-actions.ts + archive-state.ts) rather than under [id]/ — /ausgabe imports it. The no-show count needed the household's start day: RegisteredCustomer now carries registeredOn, derived in the Prisma adapter from the FIRST card, which also fixes the record's \"Aufgenommen\" field after a reissue. Both read models get the count through one application seam, countNoShows."
     },
     {
       "id": "US-005",
