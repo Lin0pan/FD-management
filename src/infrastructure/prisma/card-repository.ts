@@ -1,5 +1,5 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
-import type { CardRepository } from "@/application/ports";
+import type { CardIssueCounts, CardRepository } from "@/application/ports";
 import { parseCardIssueReason, type IssuedCard } from "@/domain/card/card";
 import { CardIndexTaken } from "@/domain/errors";
 
@@ -73,6 +73,35 @@ export class PrismaCardRepository implements CardRepository {
       issuedAt: row.issuedAt,
       reason: parseCardIssueReason(row.reason),
     }));
+  }
+
+  /**
+   * How many cards the customer has been through and how many of those a loss caused — one grouped
+   * aggregate, whatever the length of the run (US-09.2).
+   *
+   * Grouping by reason rather than counting twice keeps it to a single round trip: the highest index
+   * is the largest of the groups' maxima, and the loss count is the size of the `LOST` group. The
+   * reason word is parsed rather than compared as a string, so a hand-edited row fails here exactly
+   * as it does in `currentCard` instead of quietly dropping out of the loss count.
+   */
+  async issueCounts(customerId: number): Promise<CardIssueCounts> {
+    const groups = await this.prisma.card.groupBy({
+      by: ["reason"],
+      where: { customerId },
+      _count: { _all: true },
+      _max: { index: true },
+    });
+
+    return groups.reduce<CardIssueCounts>(
+      (counts, group) => ({
+        cardsIssued: Math.max(counts.cardsIssued, group._max.index ?? 0),
+        reissuesForLoss:
+          parseCardIssueReason(group.reason) === "LOST"
+            ? counts.reissuesForLoss + group._count._all
+            : counts.reissuesForLoss,
+      }),
+      { cardsIssued: 0, reissuesForLoss: 0 },
+    );
   }
 
   /**

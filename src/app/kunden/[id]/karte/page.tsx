@@ -17,6 +17,7 @@ import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { customerDeps } from "../../deps";
+import { ReissueControls } from "../reissue-controls";
 
 /** The counts are derived per request, so a cached card could show numbers a birthday has passed. */
 export const dynamic = "force-dynamic";
@@ -147,6 +148,36 @@ function Superseded({ view }: { view: CardView }): React.ReactElement {
   );
 }
 
+/**
+ * How many cards this household has been through, and how many of those replaced a lost one.
+ *
+ * The two are shown side by side because they answer different questions — a card replaced because a
+ * birthday overtook the printed counts (US-13) is not a loss, and reading them as one number would
+ * count the software's own reissue against the household. Both are stated and nothing more: there is
+ * no threshold here, no colour that changes and no sentence that appears at a high count, because
+ * whether a number means anything is FD's judgement (§FR-4, §FR-5).
+ */
+function Issued({ view }: { view: CardView }): React.ReactElement {
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="text-xl font-semibold">{de.customers.cardView.issuedHeading}</h2>
+      <div className="grid gap-6 sm:grid-cols-2">
+        <Count
+          label={de.customers.cardView.issuedCount}
+          value={view.cardsIssued}
+          testId="cards-issued"
+        />
+        <Count
+          label={de.customers.cardView.lossCount}
+          value={view.reissuesForLoss}
+          testId="reissues-for-loss"
+        />
+      </div>
+      <p className="max-w-prose text-xs text-foreground/60">{de.customers.cardView.issuedHint}</p>
+    </section>
+  );
+}
+
 export default async function CardPage({
   params,
 }: {
@@ -180,18 +211,20 @@ export default async function CardPage({
       <Superseded view={view} />
       <p className="text-xs text-foreground/60">{de.customers.cardView.countsHint}</p>
 
-      {/* The action FD expects to find here; what it does is specified in US-09, so it is visibly
-          not yet available rather than silently missing. */}
-      <div className="flex flex-col gap-1">
-        <button
-          type="button"
-          disabled
-          className="w-fit rounded border border-foreground/20 px-4 py-2 text-foreground/50"
-        >
-          {de.customers.cardView.reissue}
-        </button>
-        <span className="text-xs text-foreground/60">{de.customers.cardView.reissueHint}</span>
-      </div>
+      <Issued view={view} />
+
+      {/* An archived household holds no slot, so `reissueCard` refuses them a card — offering the
+          button would only be a way of finding that out. */}
+      {view.status === "ARCHIVED" ? null : (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-xl font-semibold">{de.customers.reissue.heading}</h2>
+          <ReissueControls
+            customerId={view.customerId}
+            cardNumber={view.cardNumber}
+            nextCardNumber={view.nextCardNumber}
+          />
+        </section>
+      )}
 
       <Link href={`/kunden/${view.customerId}`} className="underline underline-offset-4">
         {de.customers.cardView.backToCustomer}

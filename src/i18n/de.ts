@@ -173,9 +173,39 @@ export const de = {
       supersededEntry: (number: string, date: string, reason: string): string =>
         `${number} — ausgestellt am ${date}, Grund: ${reason}`,
       countsHint: "Erwachsene und Kinder werden bei jedem Aufruf aus den Geburtsdaten berechnet.",
-      reissue: "Karte neu ausstellen",
-      reissueHint: "Die Neuausstellung folgt in einem späteren Schritt.",
+      issuedHeading: "Ausgestellte Karten",
+      issuedCount: "Karten insgesamt",
+      lossCount: "davon nach Verlust",
+      // Stated as plainly as the numbers themselves: FD decides case by case whether a household
+      // loses cards too often, and the software must not tilt that judgement with a warning
+      // (tasks/prd-us-09-reissue-card-after-loss.md §FR-4).
+      issuedHint:
+        "Die Zahlen dienen nur der Information. Neuausstellungen sind unbegrenzt möglich; die " +
+        "Anwendung begrenzt und mahnt nichts an.",
       backToCustomer: "Zurück zur Kundenübersicht",
+    },
+    /**
+     * Reissuing a card after a loss (US-09). The action is offered on the customer record and on the
+     * card view; both name the old and the new number before anything is written, because the new
+     * number is what staff have to copy onto the physical card.
+     */
+    reissue: {
+      heading: "Kartenverlust",
+      action: "Karte neu ausstellen (Verlust)",
+      confirm: (current: string, next: string): string =>
+        `Die Karte ${current} wird damit ungültig und darf an der Ausgabe nicht mehr angenommen ` +
+        `werden. Ausgestellt wird die Nummer ${next}.`,
+      hint:
+        "Status, Kundennummer, Gruppe und bisherige Ausgaben bleiben unverändert. Ein Kartenverlust " +
+        "kostet den Haushalt nichts.",
+      submit: "Neue Karte jetzt ausstellen",
+      submitting: "Wird ausgestellt …",
+      errors: {
+        archived:
+          "Diese Kundin oder dieser Kunde ist archiviert und erhält keine neue Karte. Bitte die " +
+          "Seite neu laden.",
+        unknown: "Die neue Karte konnte nicht ausgestellt werden.",
+      },
     },
   },
   /** The distribution screen at /ausgabe — which group collects, today and in any other week. */

@@ -14,6 +14,7 @@ import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { customerDeps } from "../deps";
 import { BlockControls } from "./block-controls";
+import { ReissueControls } from "./reissue-controls";
 
 /** The card shows data the registration form writes, so it must never be served from a cache. */
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ function NotFound(): React.ReactElement {
 }
 
 function CustomerCard({ view }: { view: CustomerCardView }): React.ReactElement {
-  const { customer, composition, household, cardNumber, allowance } = view;
+  const { customer, composition, household, cardNumber, nextCardNumber, allowance } = view;
   const { details } = customer;
 
   return (
@@ -162,6 +163,20 @@ function CustomerCard({ view }: { view: CustomerCardView }): React.ReactElement 
             customerId={customer.id}
             status={customer.status}
             blockReason={customer.blockReason}
+          />
+        </section>
+      )}
+
+      {/* A lost card is replaced from here as well as from the card view, because staff reach for
+          whichever screen is already open. An archived household holds no slot and is issued no
+          card, so they are offered no button. */}
+      {customer.status === "ARCHIVED" ? null : (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-xl font-semibold">{de.customers.reissue.heading}</h2>
+          <ReissueControls
+            customerId={customer.id}
+            cardNumber={cardNumber}
+            nextCardNumber={nextCardNumber}
           />
         </section>
       )}

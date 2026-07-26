@@ -81,11 +81,13 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   │   ├── registration-form.tsx  # client component: repeatable rows + live counts
 │   │   │   │   ├── actions.ts        # "use server": Zod → registerCustomer → redirect
 │   │   │   │   └── register-customer-state.ts  # form state (not exportable from actions.ts)
-│   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on; hosts the block controls
+│   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on; hosts the block + reissue controls
 │   │   │   ├── [id]/block-controls.tsx  # client: Sperren / Sperre aufheben (US-08.4)
-│   │   │   ├── [id]/actions.ts       # "use server": Zod → blockCustomer / unblockCustomer
+│   │   │   ├── [id]/reissue-controls.tsx  # client: Karte neu ausstellen (Verlust) (US-09.3)
+│   │   │   ├── [id]/actions.ts       # "use server": Zod → blockCustomer / unblockCustomer / reissueCard
 │   │   │   ├── [id]/block-state.ts   # the block/unblock form state (not exportable from actions.ts)
-│   │   │   └── [id]/karte/page.tsx   # the digital customer card (US-02.4)
+│   │   │   ├── [id]/reissue-state.ts # the reissue form state (not exportable from actions.ts)
+│   │   │   └── [id]/karte/page.tsx   # the digital customer card (US-02.4) + the issued-card counts (US-09.3)
 │   │   ├── einstellungen/            # the settings screen (US-14)
 │   │   │   ├── page.tsx              # server component: current values + version history
 │   │   │   ├── settings-form.tsx     # client component: the form and its save-result state
@@ -129,7 +131,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
 │   │   │                             #   readCard, issueCard, lookupCustomer (the counter lookup),
 │   │   │                             #   recordReminder / renewCertificate (US-06),
-│   │   │                             #   blockCustomer / unblockCustomer (US-08)
+│   │   │                             #   blockCustomer / unblockCustomer (US-08),
+│   │   │                             #   reissueCard (US-09, delegates to issueCard)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
@@ -156,6 +159,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── home.spec.ts                  # Playwright smoke test
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
+│   ├── reissue.spec.ts               # a lost card is replaced and stops working at the counter
 │   ├── reminders.spec.ts             # the reminder trail: three visits, three reminders, renewal
 │   ├── serve.spec.ts                 # record a hand-out, block a duplicate, store an unpaid one
 │   └── settings.spec.ts              # settings round-trip vs. the built app
@@ -220,17 +224,17 @@ The interfaces the application layer depends on. Per the TDD approach, ports **e
 needs** rather than being designed up front. Type-only, so it adds no runtime code to the
 coverage-measured layers.
 
-| Port                           | Shape                                                                                      | Notes                                                                                                                                                                                                                    |
-| ------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Clock`                        | `now(): Date`                                                                              | The one seam to the wall clock.                                                                                                                                                                                          |
-| `SettingsRepository`           | `listVersions()`, `append(version)`                                                        | No update/delete — policy history is append-only.                                                                                                                                                                        |
-| `CustomerCounter`              | `countActive()`                                                                            | The reality the quota `N` may not fall below.                                                                                                                                                                            |
-| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                                | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                                                                                                                               |
-| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issue(customerId, card)`              | `currentCard` is the highest index — there is no `valid` flag to read; `issue` reports a lost race as `CardIndexTaken`.                                                                                                  |
-| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)` | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                           |
-| `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                             | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3). |
-| `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                               | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                       |
-| `AuditLog`                     | `append(entry)`                                                                            | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                |
+| Port                           | Shape                                                                                                    | Notes                                                                                                                                                                                                                    |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Clock`                        | `now(): Date`                                                                                            | The one seam to the wall clock.                                                                                                                                                                                          |
+| `SettingsRepository`           | `listVersions()`, `append(version)`                                                                      | No update/delete — policy history is append-only.                                                                                                                                                                        |
+| `CustomerCounter`              | `countActive()`                                                                                          | The reality the quota `N` may not fall below.                                                                                                                                                                            |
+| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                                              | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                                                                                                                               |
+| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issueCounts(customerId)`, `issue(customerId, card)` | `currentCard` is the highest index — there is no `valid` flag to read; `issueCounts` counts the run and its losses in one aggregate (US-09.2); `issue` reports a lost race as `CardIndexTaken`.                          |
+| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`               | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                           |
+| `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                                           | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3). |
+| `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                                             | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                       |
+| `AuditLog`                     | `append(entry)`                                                                                          | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
 
@@ -569,6 +573,25 @@ case, because the customer and their first card must land in **one transaction**
 second write could not. It records `FIRST_ISSUE` on the same `IssuedCard` shape this use case writes,
 so the two paths differ only in the transaction they belong to.
 
+### `src/application/customers/reissueCard`
+
+The counter's answer to "I lost my card" (US-09.1) — and deliberately **not** a second implementation
+of it. `reissueCard(deps, { customerId, reason })` hands straight to `issueCard`, so a replacement is
+written by the same code as a first issue: the new card takes the next index, and because the highest
+index _is_ what valid means, every earlier number stops working as a consequence of that one write
+rather than through a second step someone could forget (FR-2). A parallel issuing path is exactly how
+the "exactly one valid card" invariant would break.
+
+What delegation alone cannot say is added by the narrower `ReissueReason` — every `CardIssueReason`
+except `FIRST_ISSUE`, which belongs to the registration and nothing else. A replacement filed as a
+first issue would vanish from the count of losses the card view shows staff (FR-5), and the type makes
+it unrepresentable.
+
+There is **no limit check** (FR-4): the tenth reissue is written exactly like the second. Whether a
+household loses cards too often is a judgement staff make from a count the software shows them, never
+one it makes for them. Nothing but the card run changes — status, customer number, group, reminder
+count and the distribution history are untouched, which is what the use case's tests pin.
+
 ### `src/application/customers/proposeRegistration` and `readCustomer`
 
 The two read-side use cases the customer screens sit on:
@@ -581,7 +604,9 @@ The two read-side use cases the customer screens sit on:
   derivable from them, worked out here rather than in the page — the card number from the slot and
   the card index, and the household counts, portions and price from `describeAllowance` (US-07.4), so
   the counts on the record are a slice of the same allowance the counter reads. It throws
-  `CustomerNotFound` for an id nobody holds.
+  `CustomerNotFound` for an id nobody holds. It also names `nextCardNumber` — the number a
+  replacement would carry, from `nextCardNumber()` in the domain — so the record's reissue
+  confirmation states the number it is about to hand out without the page working it out (US-09.3).
 - **`readCard`** answers what the _card_ shows (US-02.4): the current card number, the name, the
   group, the counts, portions and price as of today (all via `describeAllowance`), and the numbers
   this card replaced. It reads the customer's whole
@@ -589,7 +614,15 @@ The two read-side use cases the customer screens sit on:
   once for the current card and once for the rest, would let two answers come from two moments. A
   customer with no card at all is refused as an `InvalidCustomerRecord` rather than shown a card
   without a number: registration writes the first card in the same transaction as the customer, so
-  an empty run can only come from a hand-edited database.
+  an empty run can only come from a hand-edited database. It also carries `cardsIssued` (the current
+  index — how many numbers the household has been through) and `reissuesForLoss`, which come from
+  `cards.issueCounts` rather than from filtering the run it already holds (US-09.2): counting here
+  would state a second time which reason is a loss, and the two statements would drift the day US-13
+  adds one. The counts are shown and never acted on — no threshold, no warning (§FR-4, §FR-5). Two
+  further fields serve the reissue control (US-09.3): `nextCardNumber`, the number a replacement
+  would carry, and `status`, which is on the card view for the single reason that an archived
+  household is offered no replacement — the card itself is not a permission, and a blocked household
+  still holds theirs.
 
 `customerNumber.ts` therefore exports the rule in **two forms**: `findLowestFreeNumber` returning
 `number | null` for callers that only want to _show_ the next number, and `lowestFreeNumber` throwing
@@ -721,6 +754,12 @@ The `Card.reason` column is the one thing a superseded card's index cannot say �
 needed another one. It is a plain string, narrowed back through `parseCardIssueReason` on the way
 out.
 
+`issueCounts(customerId)` answers both numbers behind the reissue count (US-09.2) in a **single**
+`groupBy(["reason"])`: the highest index is the largest of the groups' maxima and the loss count is
+the size of the `LOST` group, so the query costs the same for a household on its first card as for
+one on its eleventh. The reason word is parsed rather than string-compared, so a hand-edited row
+fails here as loudly as it does in `currentCard` instead of quietly dropping out of the loss count.
+
 ### `src/infrastructure/prisma/reminder-log-repository.ts` and `certificate-repository.ts`
 
 The two adapters behind the certificate reminder trail (US-06.3).
@@ -796,7 +835,8 @@ beyond it:
   the standard portions and price (US-07.4), and the card number from the slot and the card index. A
   non-numeric id and an id nobody holds give the same German answer: there is no such customer. It
   links on to the card view. It also hosts the **block controls** (US-08.4): an active customer sees
-  a "Sperre" section showing the current reason verbatim when blocked.
+  a "Sperre" section showing the current reason verbatim when blocked — and the **reissue control**
+  (US-09.3), because staff reach for whichever of the two screens is already open.
 - **`[id]/block-controls.tsx`** is a client component (`useActionState`, and the save control stays
   disabled until a reason is typed — a block's reason is its only record, so an empty one must be
   impossible to submit). It shows "Sperren" with a required multi-line reason for an `ACTIVE`
@@ -806,6 +846,16 @@ beyond it:
   and `revalidatePath`s the record so the new status, reason and controls come from the store. The
   reason itself is shown verbatim and in full at the counter by the US-04 verdict banner — it is not
   re-derived here.
+- **`[id]/reissue-controls.tsx`** is the "Karte neu ausstellen (Verlust)" control, rendered by
+  **both** the record and the card view (US-09.3). It is a disclosure holding a confirmation that
+  names the number being invalidated and the number about to be issued, then the button. The
+  confirmation is not a guard — `reissueCard` decides whether a card may be issued — it is there
+  because a reissue cannot be taken back and because the new number is what staff copy onto the
+  physical card. Both numbers come off the read model; nothing is counted, compared or warned about
+  in the component. **`reissueCardAction`** (in `[id]/actions.ts`) fixes the reason to `LOST` rather
+  than reading it off the form: this control is the _loss_ control, and that is what makes the loss
+  count mean what it says. It revalidates the record **and** the card view, so whichever screen the
+  reissue was started from shows the new number and the other one does too when next opened.
 - **`[id]/karte/page.tsx`** is the **digital customer card** (US-02.4): the number, the name, the
   group as a coloured German label, the two counts and the standard portions and price (US-07.4),
   set large enough to read across a desk, plus the numbers this card replaced and why each was
@@ -813,8 +863,13 @@ beyond it:
   deliberately **no print stylesheet and no PDF**. The counts, portions and price come from
   `readCard`, derived per request (`dynamic = "force-dynamic"`), so a birthday can never leave a
   stale number on screen. Both screens state the portions and price are the **standard** values,
-  with no control to adjust them — counter-side adjustments are out of scope. The "Karte neu ausstellen" button is present but
-  disabled: FD expects the action here, and its behaviour is specified in US-09.
+  with no control to adjust them — counter-side adjustments are out of scope. Below the card it
+  shows **"Ausgestellte Karten"** (US-09.3): the number of cards the household has been through and,
+  beside it and separately, how many of those replaced a lost one — a card replaced because a
+  birthday overtook the printed counts (US-13) is not a loss, and one number would count the
+  software's own reissue against the household. Nothing on the screen reacts to either figure: no
+  threshold, no colour that changes, no sentence that appears at a high count. Whether a number means
+  anything is FD's judgement (§FR-4).
 
 ⚠️ **Dates cross the form boundary as UTC calendar days.** `<input type="date">` submits `YYYY-MM-DD`
 and the adapter pins it to `T00:00:00.000Z`, because the domain compares birthdates as UTC calendar
@@ -1097,9 +1152,10 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   makes a RED household clear and a BLUE one sent away, and deletes the pinned-now file in
   `afterAll` like the distribution spec.
   Its six households are inserted **straight through Prisma**, not through the registration form:
-  archiving (US-10) and a second card (US-09) have no screen yet, so there is no other way to reach
-  half of these states, and the blocked one is seeded the same way to keep the fixture self-contained
-  even though blocking now has a record screen (US-08, `blockCustomerAction` on `/kunden/[id]`). That
+  archiving (US-10) has no screen yet, so there is no other way to reach some of these states, and
+  the blocked and reissued ones are seeded the same way to keep the fixture self-contained even
+  though both now have a record screen (US-08's `blockCustomerAction` and US-09's
+  `reissueCardAction` on `/kunden/[id]`). That
   is also why it may name customer numbers — see the note above.
   The second half of the spec is FR-4, that a lookup only ever _reads_. It snapshots the statuses,
   the reminder counts and the card and audit-entry counts, performs the two refusals staff hit most
@@ -1136,6 +1192,19 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   stored count to 0, appends the certificate rather than overwriting it, and keeps all three log
   entries. Its household (customer number 231) is inserted straight through Prisma and the
   pinned-now file goes in `afterAll`, as in the neighbouring specs.
+- `reissue.spec.ts` covers US-09 end to end (§US-09.4): one household (customer number 251) followed
+  from a lost card to a working one. It reissues from `/kunden/[id]`, asserting the confirmation
+  names both the number being invalidated and the number about to be issued, then reads `251k2` off
+  the card view with `251k1` listed as replaced and the counts at 2 / 1. Presenting `251k1` at the
+  counter gives the German `OUTDATED_CARD` sentence naming both numbers and no serve action;
+  presenting `251k2` is clear to serve on the same day — which is the point the unit gates cannot
+  reach, because the write and the two verdicts live on three different screens. Two further
+  reissues driven from the **card view** (the same `ReissueControls`) take the loss count to 3 with
+  nothing standing in the way, and the reissue control still on offer — FR-4 is asserted as the
+  absence of a warning, not as a threshold. The FR-3 half mirrors the counter spec's: the refused
+  lookup is bracketed by a Prisma snapshot of the household's status, cards, distribution records and
+  the audit-entry count, so a refusal that blocked, archived or recorded anything would fail. Pinned
+  to the RED Thursday 08.01.2026 and deletes the pinned-now file in `afterAll`, like its neighbours.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

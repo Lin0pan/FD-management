@@ -19,8 +19,8 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "reissueCard delegates to issueCard and narrows the reason to Exclude<CardIssueReason,'FIRST_ISSUE'> so a replacement can never be filed as a first issue. 11 tests in customers.test.ts (incl. two reissues in a row and ten in a row)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -35,8 +35,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "CardRepository gained issueCounts(customerId) -> { cardsIssued, reissuesForLoss }, one prisma.card.groupBy(['reason']) with _count/_max. readCard's CardView carries both (the card view is where US-09.3 displays them); it calls the aggregate rather than filtering the run it already loads. 4 application tests + 6 integration tests incl. the mixed FIRST_ISSUE/LOST/STALE_COUNTS/LOST history."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -53,8 +53,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "One `ReissueControls` client component rendered by both /kunden/[id] and /kunden/[id]/karte: a disclosure whose confirmation names the number being invalidated and the number about to be issued, then the button. The confirmation numbers come from a new `nextCardNumber` on both read models (derived through the domain's nextCardNumber()), never counted in the page. `reissueCardAction` fixes reason LOST and revalidates both paths. The card view gained an 'Ausgestellte Karten' section showing cardsIssued beside reissuesForLoss with a neutral hint — no threshold, no colour change, no warning. CardView also gained `status` so an archived household is offered no button. Verified in a real browser (Playwright, throwaway spec): confirmation text on both screens, 251k1 → 251k2 → 251k3, counts 3/2, old number OUTDATED_CARD at the counter."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -69,8 +69,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "tests/e2e/reissue.spec.ts — one household (251) in 4 serial specs: reissue from /kunden/[id] asserting the confirmation names 251k1 and 251k2, then 251k2 on the card view with 251k1 listed as replaced and counts 2/1; 251k1 at the counter gives the German OUTDATED_CARD sentence naming both numbers with no serve action, bracketed by a Prisma snapshot (status, cards, distributionRecord, auditEntry counts) proving nothing was recorded, blocked or archived; 251k2 is clear to serve the same day; two more reissues from the CARD VIEW take reissues-for-loss to 3 (cards-issued 4) with the control still offered and no warning. Full suite: 36 passed, 1 skipped."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

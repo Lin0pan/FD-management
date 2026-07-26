@@ -6,7 +6,7 @@
  * nothing left to work out, which is what keeps the rules out of the presentation layer.
  */
 
-import { formatCardNumber } from "@/domain/card/cardNumber";
+import { formatCardNumber, nextCardNumber } from "@/domain/card/cardNumber";
 import type { RegisteredCustomer } from "@/domain/customer/customer";
 import { ageInYears, type HouseholdComposition } from "@/domain/customer/householdComposition";
 import { CustomerNotFound } from "@/domain/errors";
@@ -37,6 +37,13 @@ export interface CustomerCardView {
   /** The number printed on the card, e.g. `12k1`. Derived from the slot and the card index. */
   readonly cardNumber: string;
   /**
+   * The number a replacement would carry, e.g. `12k2` — the same slot, the next index. The record
+   * names it before a reissue is written so staff confirm the number they are about to hand out
+   * (tasks/prd-us-09-reissue-card-after-loss.md §US-09.3); issuing it is what makes it real, so
+   * showing it changes nothing.
+   */
+  readonly nextCardNumber: string;
+  /**
    * The standard portions and price for this household as of today — derived through the same seam
    * the counter reads (`describeAllowance`), so the two screens can never disagree. The counts here
    * are a slice of it, not a second derivation.
@@ -58,6 +65,9 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
   const today = deps.clock.now();
   const allowance = await describeAllowance(deps, customer.details.householdMembers);
 
+  const held = { customerNumber: customer.customerNumber, index: customer.card.index };
+  const next = nextCardNumber(held);
+
   return {
     customer,
     composition: { grownUps: allowance.grownUps, children: allowance.children },
@@ -67,7 +77,8 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
       birthDate: member.birthDate,
       age: ageInYears(member.birthDate, today),
     })),
-    cardNumber: formatCardNumber(customer.customerNumber, customer.card.index),
+    cardNumber: formatCardNumber(held.customerNumber, held.index),
+    nextCardNumber: formatCardNumber(next.customerNumber, next.index),
     allowance,
   };
 }

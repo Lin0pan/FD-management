@@ -9,6 +9,10 @@ import {
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
 import type { GroupCounts } from "@/domain/customer/group";
+import type {
+  DistributionRecord,
+  NewDistributionRecord,
+} from "@/domain/distribution/distributionRecord";
 import {
   BirthDateInFuture,
   CustomerArchived,
@@ -26,9 +30,11 @@ import { createSettings, type SettingsInput, type SettingsVersion } from "@/doma
 import type {
   AuditEntry,
   AuditLog,
+  CardIssueCounts,
   CardRepository,
   Clock,
   CustomerRepository,
+  DistributionRecordRepository,
   SettingsRepository,
 } from "../ports";
 import { blockCustomer } from "./block-customer";
@@ -37,6 +43,7 @@ import { proposeRegistration } from "./propose-registration";
 import { readCard } from "./read-card";
 import { readCustomer } from "./read-customer";
 import { registerCustomer, type RegisterCustomerInput } from "./register-customer";
+import { reissueCard } from "./reissue-card";
 import { unblockCustomer } from "./unblock-customer";
 
 /**
@@ -181,6 +188,16 @@ class FakeCardRepository implements CardRepository {
     return Promise.resolve([...this.cardsOf(customerId)].sort((a, b) => b.index - a.index));
   }
 
+  // The adapter counts in SQL; the fake counts in memory. Both answer off the cards that exist, so
+  // neither can report a loss the run does not contain.
+  issueCounts(customerId: number): Promise<CardIssueCounts> {
+    const cards = this.cardsOf(customerId);
+    return Promise.resolve({
+      cardsIssued: cards.reduce((highest, card) => Math.max(highest, card.index), 0),
+      reissuesForLoss: cards.filter((card) => card.reason === "LOST").length,
+    });
+  }
+
   issue(customerId: number, card: IssuedCard): Promise<IssuedCard> {
     this.cardsOf(customerId).push(card);
     return Promise.resolve(card);
@@ -190,6 +207,53 @@ class FakeCardRepository implements CardRepository {
     const cards = this.cards.get(customerId) ?? [];
     this.cards.set(customerId, cards);
     return cards;
+  }
+}
+
+/**
+ * A hand-out history that counts what was done to it. `reissueCard` has no distribution repository
+ * in its dependencies at all, so it is handed one here purely so the test can state the rule as
+ * behaviour: a replacement card leaves the record of what the household has already collected
+ * exactly as it found it (US-09.1). A use case that ever grew a write would fail these counters.
+ */
+class FakeDistributionRecordRepository implements DistributionRecordRepository {
+  readonly records: DistributionRecord[] = [];
+  writes = 0;
+
+  constructor(...records: DistributionRecord[]) {
+    this.records.push(...records);
+  }
+
+  listForCustomer(customerId: number): Promise<ReadonlyArray<DistributionRecord>> {
+    return Promise.resolve(this.records.filter((record) => record.customerId === customerId));
+  }
+
+  findById(recordId: number): Promise<DistributionRecord | null> {
+    return Promise.resolve(this.records.find((record) => record.id === recordId) ?? null);
+  }
+
+  create(record: NewDistributionRecord): Promise<DistributionRecord> {
+    this.writes += 1;
+    const stored = { ...record, id: this.records.length + 1 };
+    this.records.push(stored);
+    return Promise.resolve(stored);
+  }
+
+  setPaid(recordId: number, paid: boolean): Promise<DistributionRecord> {
+    this.writes += 1;
+    const index = this.records.findIndex((record) => record.id === recordId);
+    const updated = { ...this.records[index], paid };
+    this.records[index] = updated;
+    return Promise.resolve(updated);
+  }
+
+  remove(recordId: number): Promise<void> {
+    this.writes += 1;
+    this.records.splice(
+      this.records.findIndex((record) => record.id === recordId),
+      1,
+    );
+    return Promise.resolve();
   }
 }
 
@@ -559,6 +623,155 @@ describe("issueCard", () => {
   });
 });
 
+describe("reissueCard", () => {
+  let customers: FakeCustomerRepository;
+  let cards: FakeCardRepository;
+  let audit: FakeAuditLog;
+  let distribution: FakeDistributionRecordRepository;
+
+  function deps(today = TODAY) {
+    return { customers, cards, clock: fakeClock(today), audit, distribution };
+  }
+
+  /**
+   * A customer who already holds card 1 and has a reminder on file — the state a household is in
+   * when they come back having lost the card, so "nothing else changed" has something to be about.
+   */
+  async function holderOfCardOne(status: CustomerStatus = "ACTIVE"): Promise<number> {
+    const customer = await customers.create({ ...storedCustomer(status), reminderCount: 2 });
+    cards.place(customer.id, 1);
+    return customer.id;
+  }
+
+  function collected(customerId: number): DistributionRecord {
+    return {
+      id: 1,
+      customerId,
+      date: new Date(TODAY),
+      showedUp: true,
+      paid: true,
+      priceCents: 500,
+    };
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository();
+    cards = new FakeCardRepository();
+    audit = new FakeAuditLog();
+    distribution = new FakeDistributionRecordRepository();
+  });
+
+  it("issues the index after the current card, so the lost one is no longer the highest", async () => {
+    const customerId = await holderOfCardOne();
+
+    const card = await reissueCard(deps(), { customerId, reason: "LOST" });
+
+    expect(card.index).toBe(2);
+    await expect(cards.currentCard(customerId)).resolves.toEqual(card);
+  });
+
+  it("goes through issueCard rather than a second issuing path of its own", async () => {
+    const customerId = await holderOfCardOne();
+
+    const card = await reissueCard(deps(), { customerId, reason: "LOST" });
+
+    // The one card-issuing path is recognisable by what it leaves behind: the card stamped with the
+    // injected clock and exactly one entry under the card-issued event.
+    expect(card.issuedAt).toEqual(new Date(TODAY));
+    expect(audit.entries).toHaveLength(1);
+    expect(audit.entries[0].what).toBe("customer.card.issued");
+    expect(audit.entries[0].changedFields).toEqual(["card"]);
+  });
+
+  it("records the reissue with LOST as the why, so the log tells losses from birthdays apart", async () => {
+    const customerId = await holderOfCardOne();
+
+    await reissueCard(deps(), { customerId, reason: "LOST" });
+
+    expect(audit.entries[0].why).toBe("LOST");
+  });
+
+  it("keeps the superseded card on record — it is invalid only by being outranked", async () => {
+    const customerId = await holderOfCardOne();
+
+    await reissueCard(deps(), { customerId, reason: "LOST" });
+
+    await expect(cards.listCards(customerId)).resolves.toMatchObject([{ index: 2 }, { index: 1 }]);
+  });
+
+  it("counts on again when a replacement is lost in its turn", async () => {
+    const customerId = await holderOfCardOne();
+
+    await reissueCard(deps(), { customerId, reason: "LOST" });
+    const card = await reissueCard(deps(), { customerId, reason: "LOST" });
+
+    expect(card.index).toBe(3);
+    await expect(cards.currentCard(customerId)).resolves.toEqual(card);
+  });
+
+  it("never limits reissues — the tenth succeeds exactly like the second", async () => {
+    const customerId = await holderOfCardOne();
+
+    for (let issue = 0; issue < 10; issue += 1) {
+      await reissueCard(deps(), { customerId, reason: "LOST" });
+    }
+
+    await expect(cards.currentCard(customerId)).resolves.toMatchObject({ index: 11 });
+  });
+
+  it("leaves status, customer number, group and reminder count as they were", async () => {
+    const customerId = await holderOfCardOne();
+    const before = await customers.findById(customerId);
+
+    await reissueCard(deps(), { customerId, reason: "LOST" });
+
+    const after = await customers.findById(customerId);
+    expect(after).toMatchObject({
+      status: before?.status,
+      customerNumber: before?.customerNumber,
+      group: before?.group,
+      reminderCount: before?.reminderCount,
+    });
+  });
+
+  it("leaves the hand-out history alone — losing a card costs the household nothing", async () => {
+    const customerId = await holderOfCardOne();
+    distribution = new FakeDistributionRecordRepository(collected(customerId));
+
+    await reissueCard(deps(), { customerId, reason: "LOST" });
+
+    await expect(distribution.listForCustomer(customerId)).resolves.toEqual([
+      collected(customerId),
+    ]);
+    expect(distribution.writes).toBe(0);
+  });
+
+  it("reissues to a blocked customer — a block pauses the counter, not the card", async () => {
+    const customerId = await holderOfCardOne("BLOCKED");
+
+    const card = await reissueCard(deps(), { customerId, reason: "LOST" });
+
+    expect(card.index).toBe(2);
+  });
+
+  it("refuses a reissue to an archived customer, whose slot may already be someone else's", async () => {
+    const customerId = await holderOfCardOne("ARCHIVED");
+
+    await expect(reissueCard(deps(), { customerId, reason: "LOST" })).rejects.toThrow(
+      CustomerArchived,
+    );
+  });
+
+  it("writes neither card nor audit entry when the customer is archived", async () => {
+    const customerId = await holderOfCardOne("ARCHIVED");
+
+    await reissueCard(deps(), { customerId, reason: "LOST" }).catch(() => undefined);
+
+    await expect(cards.currentCard(customerId)).resolves.toMatchObject({ index: 1 });
+    expect(audit.entries).toHaveLength(0);
+  });
+});
+
 describe("proposeRegistration", () => {
   let customers: FakeCustomerRepository;
   let settings: FakeSettingsRepository;
@@ -640,6 +853,14 @@ describe("readCustomer", () => {
 
     expect(view.cardNumber).toBe("1k1");
     expect(view.customer.id).toBe(registered.id);
+  });
+
+  it("names the number a replacement would carry, so a reissue is confirmed before it is written", async () => {
+    const registered = await registerCustomer(deps(), registerInput());
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.nextCardNumber).toBe("1k2");
   });
 
   it("derives the household counts from the birthdates as of today", async () => {
@@ -840,6 +1061,76 @@ describe("readCard", () => {
     // 1 grown-up + 1 child under the seeded 2/1 portions and 200c/100c prices.
     expect(view.allowance.portions).toBe(3);
     expect(view.allowance.priceCents).toBe(300);
+  });
+
+  it("counts the household's first card as one issued and no loss", async () => {
+    const customer = await registered();
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.cardsIssued).toBe(1);
+    expect(view.reissuesForLoss).toBe(0);
+  });
+
+  it("counts every card the household has been through, the one they hold included", async () => {
+    const customer = await registered();
+    await reissueCard(deps(), { customerId: customer.id, reason: "LOST" });
+    await reissueCard(deps(), { customerId: customer.id, reason: "STALE_COUNTS" });
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.cardsIssued).toBe(3);
+  });
+
+  it("keeps a stale-counts reissue out of the loss count, which is not the household's doing", async () => {
+    const customer = await registered();
+    await reissueCard(deps(), { customerId: customer.id, reason: "LOST" });
+    await reissueCard(deps(), { customerId: customer.id, reason: "STALE_COUNTS" });
+    await reissueCard(deps(), { customerId: customer.id, reason: "LOST" });
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.cardsIssued).toBe(4);
+    expect(view.reissuesForLoss).toBe(2);
+  });
+
+  it("reports the tenth loss without a word of warning — the judgement is the staff's", async () => {
+    const customer = await registered();
+    for (let reissue = 0; reissue < 10; reissue += 1) {
+      await reissueCard(deps(), { customerId: customer.id, reason: "LOST" });
+    }
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.cardsIssued).toBe(11);
+    expect(view.reissuesForLoss).toBe(10);
+  });
+
+  it("names the number a replacement would carry, so a reissue is confirmed before it is written", async () => {
+    const customer = await registered();
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.nextCardNumber).toBe("1k2");
+  });
+
+  it("counts the next number on from the card held, not from the first one ever issued", async () => {
+    const customer = await registered();
+    await reissueCard(deps(), { customerId: customer.id, reason: "LOST" });
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.cardNumber).toBe("1k2");
+    expect(view.nextCardNumber).toBe("1k3");
+  });
+
+  it("carries the household's status, so an archived one is offered no replacement card", async () => {
+    const customer = await registered();
+    await blockCustomer(deps(), { customerId: customer.id, reason: "Nachweis fehlt" });
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.status).toBe("BLOCKED");
   });
 
   it("refuses an id that belongs to nobody rather than showing an empty card", async () => {
