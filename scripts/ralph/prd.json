@@ -36,8 +36,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Modelled as `IssuedCard.countsAtIssue: HouseholdComposition` in the domain, mapped to the two flat Int columns in the adapter — the comparison US-003 needs is then one value-object equality rather than four field reads. Written by issueCard AND by the registration's first card (customers.create), because a first card and a replacement are the same object. The init migration was regenerated rather than corrected: the columns are NOT NULL with no honest default, so a stacked ALTER would describe a system no one ever ran; the hand-written partial unique index was re-appended. Required-field ripple hit 9 test files plus 6 e2e specs."
     },
     {
       "id": "US-003",

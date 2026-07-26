@@ -148,3 +148,51 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
     passes instants at or near UTC midday, which is the same day in Berlin. Only 22:00-24:00 UTC
     instants move, so watch for that when writing e2e fixed clocks.
 ---
+
+## 2026-07-26 - US-002 (card count snapshot fields)
+- `Card.grownUpsAtIssue` / `Card.childrenAtIssue` added to prisma/schema.prisma with the comment the
+  AC asks for: they are a snapshot of the PRINTED card, not household truth, never updated, and the
+  reason `Customer` still has no count column. Mirrored in the domain as
+  `IssuedCard.countsAtIssue: HouseholdComposition` — one value object rather than two loose numbers,
+  so US-003's "card vs today" comparison is a single equality.
+- Written by `issueCard` from `composition(customer.details.householdMembers, now)` — derived at the
+  moment of the issue, not at registration — and by `registerCustomer`, whose first card goes out
+  inside `customers.create`'s transaction. Both paths now print the same thing.
+- The Prisma adapter maps the two flat columns through one private `toCard(row)` that `currentCard`,
+  `listCards` and `issue` all share; `customer-repository.ts` maps the card it loads with the row.
+- New named tests: registration prints the household counts on the first card and stores no count on
+  the record; issueCard prints the counts as they stand at the issue; a card issued after a member's
+  13th birthday prints 2/0 where the one before it printed 1/1; a superseded card keeps what it said.
+  Integration: a seeded 1/1 card against a household whose member has since turned 13 — the
+  difference is visible from the database alone — plus one proving the two counts are their own
+  columns.
+- Migration: the init migration was REGENERATED, not corrected. Two NOT NULL columns with no honest
+  default cannot be added by a stacked ALTER on SQLite (Prisma emits a table rebuild whose INSERT
+  omits them), and CLAUDE.md forbids stacking a corrective migration onto a schema no one has run.
+  The hand-written partial unique index was re-appended by hand afterwards.
+- Files changed: prisma/schema.prisma, prisma/migrations/*_init/migration.sql (renamed),
+  src/domain/card/card.ts, src/application/customers/{issue-card,register-customer}.ts,
+  src/infrastructure/prisma/{card-repository,customer-repository}.ts, 6 test files, 6 e2e specs,
+  docs/technical_documentation.md, CLAUDE.md.
+- Checks: format, lint, typecheck, test:coverage (598 tests, 35 files, 100% on domain/application),
+  build and `npm run test:e2e` (41 passed, 1 skipped) — all green. No UI in this story.
+- Left alone deliberately: `scripts/ralph/prds/done/11-us-10-archive-customer.json` is untracked
+  bookkeeping from the previous batch's archive step and is not part of this story's commit.
+- **Learnings for future iterations:**
+  - Adding a REQUIRED field to `IssuedCard` is the widest ripple in this codebase so far: 6 unit test
+    files, 6 e2e specs and both Prisma adapters. `npx tsc --noEmit` lists every site — work the list
+    top to bottom rather than grepping, because the Prisma `*CreateInput` errors and the domain
+    literal errors read completely differently for the same cause.
+  - `npx prisma migrate dev` refuses to regenerate `init` while the dev DB still has the old
+    migration applied. Delete `data/fd.db` FIRST (the one-liner from `db:reset`), then regenerate,
+    then re-append the partial unique index, then run `npm run db:reset` — the index is not in the
+    DB otherwise, because `migrate dev` applied the migration before you edited it.
+  - Copy the hand-written index block out with a marker, not `tail -N`: `tail -25` also grabbed three
+    preceding `CREATE INDEX` statements and the re-applied migration died on "index already exists".
+  - To prove a snapshot is taken at the right MOMENT, one test is not enough — issue twice against
+    two clock values across a 13th birthday and assert both. Reverting the derivation to
+    `customer.card.issuedAt` makes exactly those two go red, which is how the pair was checked.
+  - Domain value objects flattened into SQLite columns belong in ONE private mapper on the adapter
+    (`PrismaCardRepository.toCard`); three inline reconstructions is how two readings of one snapshot
+    get born.
+---
