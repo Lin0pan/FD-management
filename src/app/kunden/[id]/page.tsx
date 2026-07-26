@@ -12,6 +12,7 @@ import { DomainError } from "@/domain/errors";
 import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
+import { ArchiveControls } from "../archive-controls";
 import { customerDeps } from "../deps";
 import { BlockControls } from "./block-controls";
 import { ReissueControls } from "./reissue-controls";
@@ -40,9 +41,40 @@ function NotFound(): React.ReactElement {
   );
 }
 
+/**
+ * What an archived record says about itself: when it happened, why, and that nothing on the screen
+ * can be changed any more. It is the first thing on the page rather than a note further down —
+ * every action below it is gone, and a reader has to know why before they look for one (US-10.4).
+ */
+function ArchivedBanner({
+  archivedAt,
+  reason,
+}: {
+  archivedAt: Date | null;
+  reason: string | null;
+}): React.ReactElement {
+  return (
+    <section
+      data-testid="archived-banner"
+      className="flex flex-col gap-2 rounded-xl border border-foreground/30 bg-foreground/10 p-6"
+    >
+      <p className="text-2xl font-bold">{de.customers.archive.bannerHeading}</p>
+      <p data-testid="archived-reason" className="max-w-prose text-lg whitespace-pre-line">
+        {/* The pair is written together and never cleared (US-10.2), so only a hand-edited row can
+            arrive with one of them missing — and then the record says so rather than inventing one. */}
+        {archivedAt === null || reason === null
+          ? de.customers.archive.bannerNoReason
+          : de.customers.archive.bannerDetail(germanDate(archivedAt), reason)}
+      </p>
+      <p className="max-w-prose text-foreground/80">{de.customers.archive.bannerReadOnly}</p>
+    </section>
+  );
+}
+
 function CustomerCard({ view }: { view: CustomerCardView }): React.ReactElement {
   const { customer, composition, household, cardNumber, nextCardNumber, allowance } = view;
   const { details } = customer;
+  const archived = customer.status === "ARCHIVED";
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 p-8">
@@ -52,6 +84,10 @@ function CustomerCard({ view }: { view: CustomerCardView }): React.ReactElement 
           {details.firstName} {details.lastName}
         </p>
       </header>
+
+      {archived ? (
+        <ArchivedBanner archivedAt={customer.archivedAt} reason={customer.archiveReason} />
+      ) : null}
 
       <section className="grid gap-4 sm:grid-cols-2">
         <Field label={de.customers.fields.customerNumber} value={String(customer.customerNumber)} />
@@ -68,8 +104,20 @@ function CustomerCard({ view }: { view: CustomerCardView }): React.ReactElement 
           </span>
         </p>
         <Field label={de.customers.fields.group} value={de.customers.groups[customer.group]} />
-        <Field label={de.customers.card.registered} value={germanDate(customer.card.issuedAt)} />
+        {/* The household's start is their first card, not the one they hold: a card replaced after a
+            loss must not read as a later registration date (US-10.1). */}
+        <Field label={de.customers.card.registered} value={germanDate(customer.registeredOn)} />
         <Field label={de.customers.fields.birthDate} value={germanDate(details.birthDate)} />
+        {/* Shown only when there is something to see. A zero would be one more number to read past
+            on every record, and it says nothing an archiving decision could rest on (PRD §5). */}
+        {view.consecutiveNoShows === 0 ? null : (
+          <p className="rounded border border-foreground/15 px-3 py-2">
+            <span className="text-sm text-foreground/70">{de.customers.derived.noShows}: </span>
+            <span data-testid="no-shows" className="font-semibold tabular-nums">
+              {de.customers.derived.noShowsValue(view.consecutiveNoShows)}
+            </span>
+          </p>
+        )}
       </section>
 
       <section className="flex flex-col gap-2">
@@ -146,7 +194,7 @@ function CustomerCard({ view }: { view: CustomerCardView }): React.ReactElement 
 
       {/* Blocking pauses a household without freeing their slot; an archived customer cannot be
           blocked or unblocked, so the section only appears while there is a transition to offer. */}
-      {customer.status === "ARCHIVED" ? null : (
+      {archived ? null : (
         <section className="flex flex-col gap-3">
           <h2 className="text-xl font-semibold">{de.customers.block.heading}</h2>
           {customer.status === "BLOCKED" ? (
@@ -170,13 +218,26 @@ function CustomerCard({ view }: { view: CustomerCardView }): React.ReactElement 
       {/* A lost card is replaced from here as well as from the card view, because staff reach for
           whichever screen is already open. An archived household holds no slot and is issued no
           card, so they are offered no button. */}
-      {customer.status === "ARCHIVED" ? null : (
+      {archived ? null : (
         <section className="flex flex-col gap-3">
           <h2 className="text-xl font-semibold">{de.customers.reissue.heading}</h2>
           <ReissueControls
             customerId={customer.id}
             cardNumber={cardNumber}
             nextCardNumber={nextCardNumber}
+          />
+        </section>
+      )}
+
+      {/* The last section on the record, and the only one that frees anything. An archived household
+          is offered nothing here: there is no way back out of ARCHIVED (FR-7). */}
+      {archived ? null : (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-xl font-semibold">{de.customers.archive.heading}</h2>
+          <ArchiveControls
+            customerId={customer.id}
+            customerNumber={customer.customerNumber}
+            status={customer.status}
           />
         </section>
       )}

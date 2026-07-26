@@ -21,6 +21,7 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ReminderAlreadyLoggedToday } from "@/domain/errors";
 import { PrismaReminderLogRepository } from "./reminder-log-repository";
+import { clearRegister } from "./test-support";
 
 faker.seed(20260724);
 
@@ -48,8 +49,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await prisma.reminderLog.deleteMany();
-  await prisma.customer.deleteMany();
+  await clearRegister(prisma);
 });
 
 /** A customer holding the given slot, written straight through Prisma — the trail is what is tested. */

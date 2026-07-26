@@ -24,6 +24,7 @@ import type { NewDistributionRecord } from "@/domain/distribution/distributionRe
 import { AlreadyServedToday, DistributionRecordNotFound } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 import { PrismaDistributionRecordRepository } from "./distribution-record-repository";
+import { clearRegister } from "./test-support";
 
 faker.seed(20260724);
 
@@ -57,8 +58,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await prisma.distributionRecord.deleteMany();
-  await prisma.customer.deleteMany();
+  await clearRegister(prisma);
 });
 
 /** A customer holding the given slot, written straight through Prisma — records are what is tested. */

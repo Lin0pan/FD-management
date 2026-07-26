@@ -93,14 +93,35 @@ class FakeCustomerRepository implements CustomerRepository {
 
   create(customer: NewCustomer): Promise<RegisteredCustomer> {
     this.writes += 1;
-    const registered = { ...customer, id: this.holders.length + 1, blockReason: null };
+    const registered = {
+      ...customer,
+      id: this.holders.length + 1,
+      blockReason: null,
+      archiveReason: null,
+      archivedAt: null,
+      registeredOn: customer.card.issuedAt,
+    };
     this.holders.push(registered);
     return Promise.resolve(registered);
   }
 
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
+    this.writes += 1;
     const index = this.holders.findIndex((customer) => customer.id === id);
     this.holders[index] = { ...this.holders[index], status, blockReason };
+    return Promise.resolve();
+  }
+
+  archive(id: number, reason: string, archivedAt: Date): Promise<void> {
+    this.writes += 1;
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    this.holders[index] = {
+      ...this.holders[index],
+      status: "ARCHIVED",
+      blockReason: null,
+      archiveReason: reason,
+      archivedAt,
+    };
     return Promise.resolve();
   }
 }
@@ -238,6 +259,8 @@ interface CustomerOverrides {
   readonly notes?: string;
   readonly householdMembers?: ReadonlyArray<HouseholdMemberDetails>;
   readonly id?: number;
+  /** The day the household joined, when a test needs distributions to lie behind them. */
+  readonly registeredOn?: string;
 }
 
 /** A customer as the register already holds them — built directly so the status is the test's to set. */
@@ -260,8 +283,13 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
     group: overrides.group ?? "RED",
     status: overrides.status ?? "ACTIVE",
     blockReason: overrides.status === "BLOCKED" ? "gesperrt" : null,
+    archiveReason: overrides.status === "ARCHIVED" ? "archiviert" : null,
+    archivedAt: overrides.status === "ARCHIVED" ? new Date(TODAY) : null,
     reminderCount: overrides.reminderCount ?? 0,
     card: { index: overrides.cardIndex ?? 1, issuedAt: new Date(TODAY), reason: "FIRST_ISSUE" },
+    // Registered today unless a test says otherwise, so no distribution lies behind the household
+    // and the no-show count of an unrelated case is zero rather than incidental.
+    registeredOn: new Date(overrides.registeredOn ?? TODAY),
     details,
   };
 }
@@ -499,6 +527,31 @@ describe("lookupCustomer", () => {
     const result = await lookupCustomer(deps(), "50");
 
     expect(result.reminderLoggedToday).toBe(false);
+  });
+
+  /**
+   * The RED distributions behind `TODAY` (a RED Thursday) run 05-14, 05-28, 06-11, 06-25, 07-09 —
+   * today's own hand-out is never a miss, so a household registered on 05-01 has five behind them.
+   */
+  it("counts the household's own distributions missed in a row, so staff see the pattern", async () => {
+    customers = new FakeCustomerRepository(
+      customerRecord({ id: 1, registeredOn: "2026-05-01T09:00:00.000Z" }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.consecutiveNoShows).toBe(5);
+  });
+
+  it("counts no no-shows for a household that collected at the last distribution", async () => {
+    customers = new FakeCustomerRepository(
+      customerRecord({ id: 1, registeredOn: "2026-05-01T09:00:00.000Z" }),
+    );
+    records = new FakeDistributionRecordRepository(distributionRecord("2026-07-09T09:00:00.000Z"));
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.consecutiveNoShows).toBe(0);
   });
 
   it("surfaces today's record — its id, time and paid flag — when one is already on file", async () => {

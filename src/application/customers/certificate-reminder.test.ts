@@ -59,7 +59,14 @@ class FakeCustomerRepository implements CustomerRepository {
   }
 
   create(customer: NewCustomer): Promise<RegisteredCustomer> {
-    const registered = { ...customer, id: this.holders.length + 1, blockReason: null };
+    const registered = {
+      ...customer,
+      id: this.holders.length + 1,
+      blockReason: null,
+      archiveReason: null,
+      archivedAt: null,
+      registeredOn: customer.card.issuedAt,
+    };
     this.holders.push(registered);
     return Promise.resolve(registered);
   }
@@ -67,6 +74,18 @@ class FakeCustomerRepository implements CustomerRepository {
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
     const index = this.holders.findIndex((customer) => customer.id === id);
     this.holders[index] = { ...this.holders[index], status, blockReason };
+    return Promise.resolve();
+  }
+
+  archive(id: number, reason: string, archivedAt: Date): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    this.holders[index] = {
+      ...this.holders[index],
+      status: "ARCHIVED",
+      blockReason: null,
+      archiveReason: reason,
+      archivedAt,
+    };
     return Promise.resolve();
   }
 }
@@ -162,8 +181,11 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
     group: "RED",
     status: "ACTIVE",
     blockReason: null,
+    archiveReason: null,
+    archivedAt: null,
     reminderCount: overrides.reminderCount ?? 0,
     card: { index: 1, issuedAt: new Date(TODAY), reason: "FIRST_ISSUE" },
+    registeredOn: new Date(TODAY),
     details,
   };
 }

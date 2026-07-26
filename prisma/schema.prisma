@@ -74,6 +74,13 @@ model SettingsVersion {
 /// household's birthdates wherever they are needed (`src/domain/customer/householdComposition.ts`);
 /// stored, they would drift with every birthday — which is exactly what they did in the sheet.
 ///
+/// **Nothing a household owns cascades.** No relation in this file carries `onDelete: Cascade`, so
+/// SQLite *refuses* to delete a customer who has members, a certificate, a card, a distribution
+/// record or a reminder log — the row must be archived instead (US-10.3). A cascade would be
+/// harmless as long as no code ever calls `delete`, which is precisely why it is the wrong thing to
+/// leave lying about: the day a clean-up script or a mistyped test does call it, the household's
+/// history goes with it silently. Refusing the delete turns that into a loud error.
+///
 /// SQLite has no enum type, so `group` and `status` are strings the domain validates on the way in.
 model Customer {
   id Int @id @default(autoincrement())
@@ -105,6 +112,14 @@ model Customer {
   /// column keeps what the counter must show today.
   blockReason String?
 
+  /// Why this household was archived and when, or null while it is not — non-null **exactly** when
+  /// `status` is `ARCHIVED`. Archiving is irreversible (US-10, FR-7), so unlike `blockReason` the
+  /// pair is written once and never cleared: it is what the archived record shows about itself long
+  /// after the audit entry has scrolled out of sight. Neither frees the slot — the partial unique
+  /// index does that off `status` alone, and `customerNumber` stays for the historical record.
+  archiveReason String?
+  archivedAt    DateTime?
+
   /// How many certificate reminders have gone out (US-06).
   reminderCount Int @default(0)
 
@@ -125,11 +140,14 @@ model Customer {
 ///
 /// Only a name and a birthdate: the birthdate is what every rule that counts heads reads, and no
 /// count is stored anywhere.
+///
+/// Like every other relation in this file there is **no `onDelete: Cascade`** — see the note on
+/// `Customer`.
 model HouseholdMember {
   id Int @id @default(autoincrement())
 
   customerId Int
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id])
 
   firstName String
   lastName  String
@@ -148,7 +166,7 @@ model Certificate {
   id Int @id @default(autoincrement())
 
   customerId Int
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id])
 
   /// What kind of notice it is, as staff typed it.
   type String
@@ -172,7 +190,7 @@ model Card {
   id Int @id @default(autoincrement())
 
   customerId Int
-  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer   Customer @relation(fields: [customerId], references: [id])
 
   index    Int
   issuedAt DateTime

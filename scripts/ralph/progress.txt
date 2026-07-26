@@ -1,8 +1,10 @@
 # Ralph Progress Log
-Started: Sun Jul 26 11:18:49 CEST 2026
+Started: Sun Jul 26 16:22:01 CEST 2026
 ---
 
 ## Codebase Patterns
+(Carried forward by hand from the US-09 log — the archive rotation wipes this file, so the patterns
+block has to be pasted into the fresh one. The other durable channel is the CLAUDE.md files.)
 - Adding a method to a port interface (e.g. CustomerRepository) forces EVERY implementer to compile:
   the real Prisma adapter AND the hand-written fakes, which live in several test files —
   customers.test.ts, certificate-reminder.test.ts, lookup-customer.test.ts and
@@ -18,7 +20,9 @@ Started: Sun Jul 26 11:18:49 CEST 2026
   `npx prisma generate`. Infra tests spin a throwaway DB with `prisma migrate deploy`, so only a
   committed migration makes them see the column.
 - Status changes go through `transition(from, to, reason?)` in domain/customer/status.ts, never an
-  ad-hoc status assignment; persist via CustomerRepository.setStatus.
+  ad-hoc status assignment; persist via CustomerRepository.setStatus — except the archive, which has
+  its own `archive(id, reason, archivedAt)` write because it stamps three columns and clears
+  blockReason in one statement.
 - Derive-don't-store: household counts, ages, card validity and the card number are all derived on
   read (readCustomer / readCard / describeAllowance), never stored.
 - German UI strings only in `src/i18n/de.ts`; inflected forms are functions in the dictionary.
@@ -28,8 +32,8 @@ Started: Sun Jul 26 11:18:49 CEST 2026
   needs `npm run build` first or the browser sees old code.
 - e2e specs seed straight through Prisma and navigate by the SURROGATE id (`/kunden/${id}`), not the
   customer number. Owned number ranges keep the shared data/e2e.db predictable: counter 201-206/239,
-  portions 211, serve 221-222, reminders 231, block 241, reissue 251. Take the NEXT free range up;
-  never a number the allocator would hand out, or the registration specs' assertions move.
+  portions 211, serve 221-222, reminders 231, block 241, reissue 251 — so US-10 takes 261 up. Never a
+  number the allocator would hand out, or the registration specs' assertions move.
 - Assert that a refusal wrote NOTHING by bracketing it with one Prisma snapshot helper returning
   `JSON.stringify({ status, cards, records, auditEntries })` and comparing before/after, rather than
   asserting each field. One equality covers every table the screen could have touched, and a future
@@ -42,203 +46,311 @@ Started: Sun Jul 26 11:18:49 CEST 2026
   `*-state.ts` holding the form-state type + initial value (a `"use server"` module may export only
   async functions), and a `"use client"` component using `useActionState`. `customerDeps` already
   bundles customers+cards+settings+clock+audit and satisfies most use-case Deps structurally.
-- The customer record page is `/kunden/[id]` (page.tsx + block-controls.tsx); the card view is
-  `/kunden/[id]/karte`. Extend them rather than adding pages.
+- The customer record page is `/kunden/[id]` (page.tsx + block-controls.tsx + reissue-controls.tsx);
+  the card view is `/kunden/[id]/karte`. Extend them rather than adding pages. One client control can
+  serve two screens — its action should `revalidatePath` both.
 - A count the UI shows belongs in the repository as an aggregate, not as a `.filter()` over a list
-  the read model already holds: the filter is a second statement of the rule (which reason counts as
-  a loss) and drifts the day a reason is added. `prisma.card.groupBy` with `_count`/`_max` is the
-  shape — one round trip, constant cost.
+  the read model already holds: the filter is a second statement of the rule and drifts the day a
+  case is added. `prisma.card.groupBy` with `_count`/`_max` is the shape — one round trip.
 - A number the confirmation text of a write screen has to name (the next card number, a computed
   total) belongs on the READ MODEL, not in the page: `app/` is thin and "the next index is the
-  current one plus one" is a rule. Both readCustomer and readCard now carry `nextCardNumber`,
-  derived through the domain's `nextCardNumber()` so the rule has one statement.
-- One client control can serve two screens. `[id]/reissue-controls.tsx` is imported by both
-  `[id]/page.tsx` and `[id]/karte/page.tsx`; its action `revalidatePath`s BOTH routes, so whichever
-  screen was used shows the new state and the other one does when next opened.
+  current one plus one" is a rule.
 - Reason/status/group words come out of SQLite as plain strings and are narrowed by a `parse*`
   function (`parseCardIssueReason`) that THROWS `InvalidCustomerRecord`. Do this in aggregates too —
   a bare `=== "LOST"` would let a hand-edited row silently vanish from a count.
+- "The same day" is ALWAYS `berlinDayKey` (domain/distribution/attendance.ts) — never a UTC date and
+  never a 24-hour window. Week colours and distribution days, by contrast, are UTC day instants
+  (`startOfUtcDay`). Mixing the two is the standing trap in domain/distribution.
+- There is no registration-date column. A household's start is its FIRST card (`index` 1,
+  `FIRST_ISSUE`), written with the registration — that is where `registeredOn` comes from.
+- Prettier reformats markdown TABLES and wraps long `expect(...)` chains on `npm run format`; run it
+  before committing so `format:check` in CI does not fail on whitespace.
+- A rule about WHICH state changes need a reason belongs in `transition()` (domain/customer/status.ts),
+  not in the use case: the machine refuses the move and names the audit event
+  (`customer.blocked`, `customer.archived`) so the caller never restates it. A use case that
+  re-checked the reason would be a second statement of the rule.
+- A use case proves "nothing was deleted" by taking ONE JSON snapshot of everything the household
+  owns (cards, records, number, group, reminderCount, details) before and after and comparing them —
+  the same trick the e2e specs use. Repositories the use case does not depend on are handed to the
+  test's `deps()` anyway as witnesses; excess-property checking does not apply because `deps()`
+  returns a variable rather than an object literal at the call site.
+- A value every read path needs and that follows from RELATED rows (registeredOn, from the first
+  card) belongs on `RegisteredCustomer`, derived once in the Prisma adapter — not fetched per use
+  case. The adapter's include already loads the relation; widening it (`take: 1` → the whole run) is
+  cheaper than a second port, and the counter's fixed statement count survives. Cost: every fake's
+  `create` and every RegisteredCustomer literal needs the field (4 test files, as always).
+- A client control that TWO route trees render lives one level above the deeper one —
+  `src/app/kunden/archive-controls.tsx`, imported by `[id]/page.tsx` and by `/ausgabe/page.tsx`. A
+  non-route file in the app directory creates no route (`deps.ts` is the precedent), and it avoids
+  importing across a bracketed `[id]/` path. Its action revalidates BOTH screens.
+- A read model shared by two screens gets its derived numbers from ONE application seam
+  (`countNoShows`, like `describeAllowance` before it), never from each use case calling the domain
+  itself — that is how the record and the counter come to disagree.
+- An e2e spec may either SEED its household through Prisma (then it owns a high number block) or
+  REGISTER it through the form (then it must never name a number — read `proposed-number` off the
+  screen). Mixing the two in one spec is what breaks the shared sequence. Registering is the right
+  choice only when the allocator itself is under test.
+- A "the button is disabled" assertion does not prove the SERVER refuses. To reach the real guard,
+  type a valid value (so React enables the button), then blank the field in the DOM without telling
+  React — `locator.evaluate((f) => { f.value = "   "; })`. React serialises a `<form action={…}>`
+  from the DOM, so the whitespace reaches the action; use spaces rather than "" or the field's
+  `required` attribute stops the submit before it leaves the browser.
+- Verifying UI in the browser without the e2e harness: `DATABASE_URL=file:../data/<scratch>.db npx
+  prisma migrate deploy && npm run db:seed`, seed a household with a tsx script FROM THE REPO ROOT
+  (a script in /tmp cannot resolve @prisma/client), point `FD_FIXED_NOW_FILE` at a file holding an
+  ISO instant, `PORT=3100 npm run start`, then drive it with a plain `chromium.launch()` script.
+  Delete the scratch db, the now-file and the scripts afterwards.
 
 ---
 
-## 2026-07-26 - US-001 (reissueCard use case)
-- Added `src/application/customers/reissue-card.ts`: `reissueCard(deps, { customerId, reason })`
-  hands straight to `issueCard`, so a replacement card is written by the same code as a first issue
-  (tasks/prd-us-09-reissue-card-after-loss.md §US-09.1, §6). No limit check exists anywhere — FR-4.
-- The only thing the module adds over delegation is the type `ReissueReason =
-  Exclude<CardIssueReason, "FIRST_ISSUE">`: a replacement filed as a FIRST_ISSUE would disappear
-  from the loss count US-002 is about to expose (FR-5), so it is made unrepresentable rather than
-  checked at runtime. `ReissueCardDeps` is an alias of `IssueCardDeps` — no new port, no new fake.
-- 11 tests in `customers.test.ts` under `describe("reissueCard")`: next index after the current card,
-  the superseded card still on record, two reissues in a row (→ index 3), ten in a row (→ index 11),
-  status/customerNumber/group/reminderCount unchanged, hand-out history untouched, audit entry under
-  `customer.card.issued` with `why: "LOST"`, blocked customer served, archived refused with nothing
-  written.
-- To state "the distribution history is unchanged" as behaviour rather than as a type-level fact, the
-  test file gained a `FakeDistributionRecordRepository` with a `writes` counter that is handed to the
-  use case in `deps()` even though `ReissueCardDeps` has no such port. A use case that ever grew a
-  write to it fails the counter.
-- Files changed: src/application/customers/reissue-card.ts (new),
-  src/application/customers/customers.test.ts, docs/technical_documentation.md (module section +
-  repo-layout tree), scripts/ralph/prd.json, scripts/ralph/progress.txt.
-- Checks: lint, typecheck, test:coverage (522 tests, 33 files, 100% on domain/application incl. the
-  new module), build — all green. No UI in this story, so no browser check applies.
+## 2026-07-26 - US-001 (consecutiveNoShows counting rule)
+- `src/domain/distribution/noShows.ts` (new): `consecutiveNoShows({ records, customerGroup,
+  registeredOn, settings, today })` walks back one two-week cycle at a time from the last distribution
+  of the customer's OWN colour and stops at the first one they attended, or at their registration day
+  (tasks/prd-us-10-archive-customer.md §US-10.1). Pure — `today`, `settings` and `registeredOn` are
+  parameters, no clock, no I/O.
+- The four boundaries, each a decision rather than an implementation detail:
+  - the other group's weeks are not candidates (they were never this household's days);
+  - TODAY's own distribution never counts — it may still be in progress, and a count that included it
+    would read "1 no-show" to the staff member serving the customer;
+  - the registration DAY itself never counts: the card is handed over at registration and whether that
+    day's hand-out had already finished is nowhere on record;
+  - weeks the customer was BLOCKED do count (PRD §9, still to confirm with FD) — excluding them would
+    hide the pattern the count exists to show, and it would need a block *history*, which the record
+    does not keep. The decision is a comment in the module and a named test.
+- Records are matched to a candidate day by `berlinDayKey`, the same notion of "the day" as the
+  once-per-day attendance rule and the DB's unique index. Candidate days are UTC midnights, which map
+  to the same Berlin date year-round (Berlin is always ahead of UTC), so the two agree.
+- `lastOwnDistributionBefore` stayed PRIVATE rather than becoming a `previousDistribution` sibling in
+  distributionDay.ts: `nextDistribution` there is inclusive of today, and a neighbour that excluded it
+  would be a trap. The exclusion belongs to this rule.
+- 17 tests in `noShows.test.ts`: never attended (0 and 3), attended last time, missed one, missed
+  three, stops at the most recent attendance rather than the longest gap, the other group's weeks
+  ignored, today not counted, the day after a missed distribution, registered mid-cycle, registered ON
+  a distribution day, a group change mid-history (counted on the NEW group's schedule), blocked weeks
+  counted, a 23:45-Berlin attendance matched, an after-midnight one not, 29 February crossed without
+  drift, and the time of day of `today` ignored.
+- Files changed: src/domain/distribution/noShows.ts (new), src/domain/distribution/noShows.test.ts
+  (new), docs/technical_documentation.md (repo-layout tree + a module section with the boundary
+  table), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: format:check, lint, typecheck, test:coverage (553 tests, 34 files, 100% on
+  domain/application incl. the new module), build — all green. No UI in this story, so no browser
+  check applies.
 - **Learnings for future iterations:**
-  - `FakeCustomerRepository.findById` returns the customer as it was *created*, so the fake's
-    `customer.card` does NOT follow a reissue — only the real adapter derives it from the highest
-    card row (`cards: { orderBy: { index: "desc" }, take: 1 }` in CUSTOMER_INCLUDE). Assert a
-    reissue's new index through `cards.currentCard`/`listCards`, never through `findById(...).card`,
-    and don't `toEqual` the whole customer before/after.
-  - `FakeCardRepository.place(customerId, ...indices)` seeds cards without going through a use case
-    and always stamps them `FIRST_ISSUE` — US-002 needs a mixed-reason history, so it will want a
-    reason parameter (or a second seeding helper) rather than a fresh fake.
-  - Passing an object with extra properties to a narrower Deps parameter is fine as long as it comes
-    from a function's return value (`reissueCard(deps(), …)`) — TypeScript's excess-property check
-    only fires on a fresh object literal at the call site.
-  - Next up, US-002 exposes `cardsIssued` (current index) and `reissuesForLoss` (count of LOST cards)
-    on the customer read model. The criterion demands ONE aggregate query, so it wants a new
-    `CardRepository` method (e.g. `issueCounts(customerId)`) backed by `prisma.card.count`/`groupBy`
-    — not `listCards().filter(...)` in application code. Remember: adding to CardRepository means
-    updating every `implements CardRepository` fake.
+  - Written TDD-first: the test file was committed red (module missing) before a line of the module
+    existed, which is what the domain layer's rule demands.
+  - The 2026 Thursday/colour table is worth copying into the next spec that needs one: with anchor
+    `2026-W02` RED and Thursdays, RED falls on 01-08, 01-22, 02-05, 02-19, 03-05 and BLUE on 01-01,
+    01-15, 01-29, 02-12, 02-26. 2028-03-02 is a RED Thursday, which is how the 29 February case is
+    reached.
+  - Next up, US-002 (`archiveCustomer`): reuse `MissingAuditReason("customer.archived")` from
+    errors.ts — do NOT add an error class — and go through `transition()` in domain/customer/status.ts.
+    The test has to prove the freed number comes back from `lowestFreeNumber` and that no row anywhere
+    was removed; count rows before and after on the fakes rather than trusting the type.
+  - US-003 then adds `archiveReason`/`archivedAt` columns (additive migration) and US-004 needs
+    `registeredOn` on the read model — derive it from the first card's `issuedAt`, since no
+    registration-date column exists.
 ---
 
-## 2026-07-26 - US-003 (card reissue UI)
-- `src/app/kunden/[id]/reissue-controls.tsx` (new, "use client"): the
-  "Karte neu ausstellen (Verlust)" disclosure. Its confirmation names the number being invalidated
-  and the number about to be issued, then the button — a reissue cannot be taken back and the new
-  number is what staff copy onto the physical card, so both are stated before the write (§US-09.3).
-  It is NOT a guard; `reissueCard` decides. Rendered by BOTH `/kunden/[id]` and `/kunden/[id]/karte`,
-  because staff reach for whichever screen is already open.
-- `reissueCardAction` in `[id]/actions.ts` + `[id]/reissue-state.ts` (new), following the established
-  actions.ts / *-state.ts / "use client" shape. The reason is FIXED to `LOST` in the action rather
-  than read off the form: this is the loss control, and that is what makes `reissuesForLoss` mean
-  what it says — US-13's reissue will carry its own reason. `CustomerArchived` is the one refusal and
-  comes back as a German sentence; both `/kunden/[id]` and `/kunden/[id]/karte` are revalidated.
-- Both read models gained `nextCardNumber` (via the domain's `nextCardNumber()`), so the pages state
-  the number rather than working it out — `app/` stays thin. `CardView` also gained `status`, for the
-  single reason that an archived household must be offered no button (the button is hidden on both
-  screens, mirroring how the block controls disappear for archived).
-- The card view gained an "Ausgestellte Karten" section: `cardsIssued` beside `reissuesForLoss`, two
-  figures side by side, with a hint that says the numbers are information only and that reissues are
-  unlimited. Nothing reacts to either figure — no threshold, no colour change, no sentence at a high
-  count (§FR-4). The old disabled placeholder button and `cardView.reissueHint` are gone.
-- Files changed: src/app/kunden/[id]/reissue-controls.tsx (new),
-  src/app/kunden/[id]/reissue-state.ts (new), src/app/kunden/[id]/actions.ts,
-  src/app/kunden/[id]/page.tsx, src/app/kunden/[id]/karte/page.tsx, src/i18n/de.ts,
-  src/application/customers/read-card.ts, src/application/customers/read-customer.ts,
-  src/application/customers/customers.test.ts, docs/technical_documentation.md,
-  scripts/ralph/prd.json, scripts/ralph/progress.txt.
-- Checks: format, lint, typecheck, test:coverage (536 tests, 33 files, 100% on domain/application),
-  build — all green.
-- **Browser verification: done.** No browser MCP is configured, so the flow was driven through a
-  THROWAWAY Playwright spec against the built app (seeded customer 251), then deleted — US-004 owns
-  the committed spec. It proved: the confirmation text on both screens, 251k1 → 251k2 from the
-  record, 251k2 → 251k3 from the card view, the counts reaching 3 / 2, status still ACTIVE, and
-  251k1 giving `OUTDATED_CARD` at the counter.
+## 2026-07-26 - US-002 (archiveCustomer use case)
+- `src/application/customers/archive-customer.ts` (new): `archiveCustomer(deps, { customerId,
+  reason })` trims the reason, asks `transition()` to move `ACTIVE|BLOCKED → ARCHIVED`, then writes
+  it through one new port call and appends the audit entry (`customer.archived`, changed fields
+  `status`/`archiveReason`/`archivedAt`, the reason as the why).
+- TDD order was: domain test red → `transition()` green → application test red (module missing) →
+  use case green → adapter and fakes.
+- The mandatory reason went into the STATE MACHINE, not the use case (this is the one design call of
+  the story). `REASON_REQUIRED` maps the reason-carrying target states to their audit event names, so
+  `→ BLOCKED` and `→ ARCHIVED` are both refused reason-less with `MissingAuditReason` naming the
+  event. errors.ts already documented the archive as one of its raisers; the use case would have been
+  a second statement of the rule. Two existing status tests changed (`transition("ACTIVE",
+  "ARCHIVED")` now needs a reason) — a deliberate behaviour change, not a fix.
+- New port method `CustomerRepository.archive(id, reason, archivedAt)` rather than a wider
+  `setStatus`: the archive writes three columns and clears `blockReason` in the same statement, and
+  the invariant `(blockReason !== null) === (status === "BLOCKED")` that the infra tests pin has to
+  survive archiving a blocked customer.
+- Because a port method forces every implementer to compile, this story also carried what US-003
+  lists: `Customer.archiveReason String?` / `archivedAt DateTime?`, the additive migration
+  `20260726145943_customer_archive_fields`, and `archiveReason`/`archivedAt` on `RegisteredCustomer`.
+  US-003 still owns the repository invariant tests, the no-cascade check and the `(customerId, date)`
+  index — note that `takenActiveNumbers` excluding archived rows and two archived customers sharing a
+  number are ALREADY covered in customer-repository.test.ts (lines ~196 and ~277).
+- Four fakes needed the new method and the two new fields: customers.test.ts,
+  lookup-customer.test.ts, certificate-reminder.test.ts, distribution/record-attendance.test.ts —
+  plus the two `RegisteredCustomer` builder literals in the last two.
+- 11 application tests: reason trimmed and stamped, the freed number offered by `lowestFreeNumber`
+  on the next call, the number kept on the archived row, one before/after snapshot proving nothing
+  was deleted, a blocked customer archived with the block reason cleared, the audit entry, an empty
+  and a whitespace reason refused writing nothing, the slot still taken after a refusal, an
+  already-archived customer refused, and an unknown id refused. 4 infra tests cover the adapter.
+- Files changed: src/application/customers/archive-customer.ts (new), src/application/ports.ts,
+  src/domain/customer/status.ts, src/domain/customer/customer.ts, the four fake-holding test files,
+  src/infrastructure/prisma/customer-repository.ts(+.test.ts), prisma/schema.prisma, the new
+  migration, docs/technical_documentation.md, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: format, lint, typecheck, test:coverage (571 tests, 34 files, 100% on domain/application),
+  build — all green. No UI in this story, so no browser check applies; the screens arrive in US-004.
 - **Learnings for future iterations:**
-  - Playwright browsers ARE installed here and `npx playwright test <name-fragment>` works, so a UI
-    story can be verified for real. Put a throwaway spec in `tests/e2e/` (the config's `testDir`),
-    run it, delete it. Don't clean up seeded rows in `afterAll` — `customerNumber` is NOT a unique
-    key in the Prisma schema, so `delete({ where: { customerNumber } })` fails validation, and
-    `data/e2e.db` is rebuilt from the seed on every run anyway.
-  - `data/e2e-now.txt` pins the app's today. Always remove it in `afterAll` or the settings specs
-    save a version stamped in the wrong month.
-  - US-09's e2e number range is free from 251 up; the ranges already owned are counter 201-206/239,
-    portions 211, serve 221-222, reminders 231, block 241.
-  - Next up, US-004 is the committed Playwright spec: reissue Nk1 → Nk2, look Nk1 up for the German
-    OUTDATED_CARD verdict naming Nk2 with no distribution/block/archive resulting, look Nk2 up for
-    clear to serve, then reissue twice more and assert `[data-testid=reissues-for-loss]` reads 3.
-    The test ids to drive it are `reissue-open`, `reissue-confirm`, `reissue-submit`,
-    `cards-issued`, `reissues-for-loss` and the existing `card-number`.
----
+  - US-004 now has everything it needs on the read path: `RegisteredCustomer` carries
+    `archiveReason`/`archivedAt` and the adapter maps them, so the archived banner is a read model
+    field away rather than a new query. `readCustomer`'s read model does NOT expose them yet.
+  - The app-layer action for US-004 follows the block precedent exactly: `[id]/actions.ts` →
+    `archiveCustomer`, a `*-state.ts` for the form state, a client control beside block-controls.tsx.
+    `customerDeps` already satisfies `ArchiveCustomerDeps` structurally.
+  - `MissingAuditReason` is thrown from the domain now, so the app layer maps it to German once and
+    both the block and the archive screens get the same message.
 
-## 2026-07-26 - US-002 (reissue counts on the read model)
-- `CardRepository` gained `issueCounts(customerId): Promise<CardIssueCounts>` with
-  `{ cardsIssued, reissuesForLoss }` (new type in ports.ts). `cardsIssued` is the CURRENT INDEX, not
-  the row count — the PRD defines it that way and a gap in the run must not shrink it.
-- `PrismaCardRepository.issueCounts` is ONE `prisma.card.groupBy({ by: ["reason"], _count: {_all},
-  _max: {index} })`, reduced in the adapter: highest index = largest group max, loss count = size of
-  the LOST group. Constant cost whatever the length of the run (US-09.2 forbids load-all-and-count).
-- `readCard`'s `CardView` now carries `cardsIssued` and `reissuesForLoss`. Read "the customer read
-  model" as the CARD read model: US-09.3 puts the display on the card view, and `ReadCustomerDeps`
-  has no `cards` port, so putting it on `readCustomer` would have meant a new dependency for a screen
-  that does not show it. It calls the aggregate instead of filtering `superseded`.
-- Tests: 4 in customers.test.ts (`readCard` describe) — first card = 1/0, three cards through two
-  reissues, the mixed history keeping STALE_COUNTS out of the loss count, and ten losses reported
-  without a warning; 6 in card-repository.test.ts — the PRD's FIRST_ISSUE/LOST/STALE_COUNTS/LOST
-  history asserting 4 and 2, first card, no card, a gapped run, scoping to one customer, and a
-  hand-edited reason refused.
-- Files changed: src/application/ports.ts, src/application/customers/read-card.ts,
-  src/application/customers/customers.test.ts, src/infrastructure/prisma/card-repository.ts,
-  src/infrastructure/prisma/card-repository.test.ts, docs/technical_documentation.md (ports table,
-  readCard section, card adapter section), scripts/ralph/prd.json, scripts/ralph/progress.txt.
-- Checks: lint, typecheck, test:coverage (532 tests, 33 files, 100% on domain/application), build,
-  prettier — all green. No UI in this story, so no browser check applies.
+## 2026-07-26 - US-003 (Archive fields and no-delete invariants)
+- Three of the six criteria were already met by US-002's spillover: `archiveReason`/`archivedAt`, a
+  committed migration, and the two number-invariant tests (`takenActiveNumbers` skips archived rows,
+  customer-repository.test.ts ~329; two archived rows may share number 50, ~196). The real work was
+  the fourth: **no cascading deletes anywhere**.
+- `HouseholdMember`, `Certificate` and `Card` still carried `onDelete: Cascade`; the two younger
+  models (DistributionRecord, ReminderLog) never did. All five foreign keys are now
+  `ON DELETE RESTRICT`, so SQLite refuses to delete a household that owns anything. The reasoning is
+  in schema.prisma on `Customer` and in docs/technical_documentation.md §5: a cascade is harmless
+  only for as long as nothing calls `delete`, which is exactly why it should not be left lying about
+  — the day a clean-up script or a mistyped test calls it, the history goes silently and the audit
+  log cannot say what was lost.
+- **The migration history was collapsed, not extended.** Removing a cascade contradicts `init`, and
+  CLAUDE.md's pre-release rule is that such a change *replaces* it: `rm -rf prisma/migrations`,
+  `npx prisma migrate dev --name init --skip-generate`, re-append the hand-written partial unique
+  index (Prisma cannot express it and regenerating drops it — schema.prisma says so at the top),
+  `npx prisma generate`, `npm run db:reset`. Three migrations became one
+  `20260726150653_init`. **Anyone with an existing checkout must run `npm run db:reset`** or
+  `migrate deploy` reports a history that does not match.
+- The delete refusal has a price: `prisma.customer.deleteMany()` in a `beforeEach` is now a foreign
+  key error in any spec that registered a household. `clearRegister` in the new
+  `src/infrastructure/prisma/test-support.ts` states the children-first order once and all five
+  repository specs call it.
+- New `src/infrastructure/prisma/schema.test.ts` (5 tests, no database — reads the files): no
+  `onDelete: Cascade`/`SetNull`/`SetDefault` in the schema, no `ON DELETE CASCADE` in any committed
+  migration, and the two hand-written/US-05.3 indexes still present. Comments in schema.prisma say
+  the words "onDelete: Cascade" on purpose, so the test strips comment lines first.
+- Three new repository tests prove the refusal against a real database: a delete is rejected with
+  `Prisma.PrismaClientKnownRequestError`, it takes nothing with it (members/certificates/cards
+  counted afterwards), and it is refused just the same once the household is archived.
+- Files changed: prisma/schema.prisma, prisma/migrations/ (three deleted, one added),
+  src/infrastructure/prisma/test-support.ts (new), schema.test.ts (new), the five repository specs,
+  CLAUDE.md (the hard-delete Don't now names the rule and the helper),
+  docs/technical_documentation.md (§2 tree, §5 — the no-cascade note moved from two per-model
+  mentions to one rule about the whole schema), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: format, lint, typecheck, test:coverage (579 tests, 35 files, 100% on domain/application),
+  build, and test:e2e (36 passed, 1 skipped) — all green. e2e was run deliberately: it rebuilds
+  data/e2e.db from the migrations, so it is what proves the regenerated init still carries the
+  partial unique index. No UI in this story.
 - **Learnings for future iterations:**
-  - `FakeCardRepository` (customers.test.ts) is the ONLY `implements CardRepository` fake, so a port
-    addition costs one file — unlike CustomerRepository, which has four.
-  - The readCard tests seed reissues through `reissueCard(deps(), …)`; `cards.place()` still stamps
-    everything FIRST_ISSUE, so it is useless for a reason-mixed history. Don't extend it — go through
-    the use case, which is what the counts are meant to reflect anyway.
-  - `groupBy` typing: `group._count._all` needs `_count: { _all: true }` (a bare `_count: true` types
-    as a number and reads differently). `group._max.index` is `number | null` — coalesce it.
-  - Prettier reformats markdown TABLES on `npm run format`; widening a cell rewrites every row of the
-    table, which is noise in the diff but expected. Run `npm run format` before committing docs.
-  - Next up, US-003 renders these on `/kunden/[id]/karte` plus a reissue action there and on
-    `/kunden/[id]`, with a confirmation step naming the old and the next number. The next number is
-    `cardsIssued + 1` — already on the view, so the page needs no extra query. All strings via
-    src/i18n/de.ts; the action follows the actions.ts + *-state.ts + "use client" shape.
----
+  - After ANY migration-history rewrite, run `npm run test:e2e` as well as the unit suite. The unit
+    infra specs migrate a throwaway file, but only the e2e run exercises `migrate deploy` against a
+    seeded database the app then reads — the same path a developer's checkout takes.
+  - `prisma migrate dev` refuses to regenerate while `data/fd.db` still has the old history applied;
+    delete the file first (the one-liner from `db:reset`) rather than answering its reset prompt,
+    which the sandbox cannot do.
+  - Prisma writes `ON UPDATE CASCADE` on every foreign key by default and there is no schema syntax
+    to turn it off. That is not a delete cascade and ids are never updated, so it is left alone —
+    assert on `ON DELETE CASCADE` specifically, or the guard test fails on Prisma's own output.
+  - US-004 (the UI) needs the no-show count on the read models. `consecutiveNoShows` wants the
+    customer's distribution records; `DistributionRecordRepository.listForCustomer(id)` already
+    exists and is backed by the `(customerId, date)` index, so no new query is needed —
+    `registeredOn` still has to come from the first card's `issuedAt`.
 
-## 2026-07-26 - US-004 (e2e: old card refused, new card works)
-- `tests/e2e/reissue.spec.ts` (new): one household (customer number 251, RED, active, current
-  certificate, one card) followed through the whole loss loop in 4 serial specs, against the BUILT
-  app. Pinned to Thursday 08.01.2026 — a RED distribution day, which is what makes the replacement
-  clear to serve *today* rather than merely on file.
-  1. Reissue from `/kunden/[id]`: the confirmation is asserted (naming 251k1 and 251k2) rather than
-     clicked past, then the card view shows 251k2, 251k1 listed as replaced with its own date and
-     reason, and the counts at 2 / 1.
-  2. 251k1 at the counter: `data-verdict=OUTDATED_CARD`, the German detail sentence naming both
-     numbers, and no serve button.
-  3. 251k2 at the counter the same day: `CLEAR_TO_SERVE`, still ACTIVE, same number and group.
-  4. Two more reissues driven from the CARD VIEW (the same `ReissueControls`) take the loss count to
-     3 (cards-issued 4), with the hint present, the reissue control still offered, three superseded
-     numbers on record, and 251k4 clear to serve.
-- FR-3 is asserted as an ABSENCE: spec 2 brackets the refused lookup with `snapshotHousehold(id)` —
-  a JSON snapshot of status, group, reminderCount, card count, distribution-record count and the
-  global audit-entry count — and compares byte-for-byte. A refusal that blocked, archived, recorded
-  a hand-out or logged anything fails. FR-4 is asserted the same way: the absence of a warning at
-  three losses, not a threshold.
-- Files changed: tests/e2e/reissue.spec.ts (new), docs/technical_documentation.md (the spec tree
-  listing + a `reissue.spec.ts` entry in the E2E section explaining what the unit gates cannot
-  reach), scripts/ralph/prd.json, scripts/ralph/progress.txt.
-- Checks: format:check, lint, typecheck, test:coverage (536 tests, 33 files, 100% on
-  domain/application), build, and **test:e2e — 36 passed, 1 skipped** (the skip is the pre-existing
-  conditional quota spec in settings.spec.ts). No production code changed in this story.
+## 2026-07-26 - US-004 (Archive UI and no-show visibility)
+- The archive action, the no-show count and the archived record, on both screens that need them.
+- **The archive control is shared, not duplicated.** Both triggers for archiving (a certificate
+  still expired after several reminders, a household that stopped coming) show up at the COUNTER, so
+  `ArchiveControls` is rendered by the customer record and by /ausgabe — one component, one action,
+  one confirmation. It therefore lives at `src/app/kunden/` (archive-controls.tsx,
+  archive-actions.ts, archive-state.ts) rather than under `[id]/`, one level above the deeper of the
+  two route trees; `archiveCustomerAction` revalidates `/kunden/[id]` AND `/ausgabe`, so the
+  counter's next lookup of that number answers ARCHIVED.
+- It is a CLOSED disclosure with the confirmation inside it — never a dialog, never a prompt, and
+  nothing opens by itself (PRD §6): at the counter the queue is waiting. The confirmation names the
+  customer number and says the two things staff would otherwise learn from a support call — the
+  number is free at once and may be reassigned, and the record is kept in full. Save stays disabled
+  until a non-whitespace reason is typed.
+- **`registeredOn` on `RegisteredCustomer`** was the story's one structural change. The no-show
+  count needs the day the household joined and there is no registration column, so it is derived in
+  the Prisma adapter from their FIRST card: `CUSTOMER_INCLUDE` now loads the whole run of cards
+  (highest index first) and takes the tail. Side effect worth having: the record's "Aufgenommen"
+  field showed the CURRENT card's date, so a reissue used to read as a later registration.
+- `countNoShows` (application) is the single seam both read models use — it adds the one decision
+  the pure module cannot make, which settings version the count is read against — and takes the
+  records as an argument, because the counter already holds them (US-04.3).
+- `readCustomer` gained the read side of `DistributionRecordRepository`, so `customerDeps` did too.
+  `CounterCustomerView` gained `consecutiveNoShows`; both screens show it only when it is > 0.
+- An archived record renders read-only: block, reissue and archive sections are all absent (the card
+  view was already gated), behind a banner naming the day and the reason, placed FIRST on the page —
+  every action below it is gone and the reader has to know why before looking for one.
+- Files changed: src/domain/customer/customer.ts, src/application/customers/count-no-shows.ts (new),
+  read-customer.ts, lookup-customer.ts, the four fake-holding test files,
+  src/infrastructure/prisma/customer-repository.ts(+.test.ts), src/app/kunden/archive-{controls.tsx,
+  actions.ts,state.ts} (new), src/app/kunden/deps.ts, src/app/kunden/[id]/page.tsx,
+  src/app/ausgabe/page.tsx, src/app/ausgabe/counter-lookup.tsx, src/i18n/de.ts,
+  docs/technical_documentation.md, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: format:check, lint, typecheck, test:coverage (585 tests, 35 files, 100% on
+  domain/application), build, test:e2e (36 passed, 1 skipped) — all green.
+- **Browser-verified** against a scratch database (no dev-browser MCP here; a plain Playwright
+  script drove the built app). A RED household registered 2026-05-01 with today pinned to
+  2026-07-22 shows "Ausgaben in Folge verpasst: 5 Ausgaben" on the record AND at the counter; the
+  save button is disabled for an empty and a whitespace-only reason; archiving FROM THE COUNTER
+  flipped the verdict to "Archiviert" in place; the record then showed the banner
+  ("Archiviert am 22.07.2026. Grund: …"), "Aufgenommen: 01.05.2026" and no write control anywhere.
 - **Learnings for future iterations:**
-  - This iteration STARTED with the previous one's work uncommitted: the spec was untracked and
-    prd.json/docs were modified with `passes: true` already set, but no commit and no progress entry
-    existed. Before picking a story, run `git status` — a story marked passing in prd.json is not
-    necessarily committed, and re-verifying (run the gates, then commit) is the right move rather
-    than assuming it landed or redoing the work.
-  - A test-only story is a `test(e2e): …` commit, not `feat(...)`. The scope list in CLAUDE.md
-    ("usually the layer, or docs/ci") is about scope, not about forcing the `feat` type.
-  - `prisma.auditEntry.count()` has no customer relation to filter on, so snapshot it GLOBALLY.
-    That works because the specs are serial and nothing else writes during the bracket — but it does
-    mean a snapshot bracket must never span another spec's write.
-  - The card view's superseded list is one testid per row (`superseded-card`), so `toHaveText` works
-    for a single replaced card and `toHaveCount(n)` for the run. Don't add index-suffixed testids.
-  - US-09 is now complete (all four stories). Next PRD batch: US-13's reissue carries its own reason
-    (STALE_COUNTS), which is why `reissueCardAction` fixes LOST rather than reading it off the form —
-    it will want a second action or a reason parameter, NOT a change to what `reissuesForLoss` counts.
----
+  - US-005 (the e2e spec) has everything it needs: the testids are `archive-open`,
+    `archive-confirm`, `archive-reason`, `archive-submit`, `archive-error`, `archived-banner`,
+    `archived-reason`, `no-shows` (record) and `counter-no-shows` (counter). Archiving is reachable
+    from the counter, which is the shortest path for the spec: look the number up, archive, look it
+    up again. Take customer numbers from 261 up, per the owned-number convention.
+  - A whitespace-only reason cannot be submitted through the UI at all (the button is disabled), so
+    the "archiving without a reason is refused" criterion has to be driven either by submitting the
+    form with the field emptied via JS/`page.evaluate`, or by asserting the disabled state — the
+    use case's refusal is already covered by customers.test.ts.
+  - `resolveSettingsAt` is called three times per counter lookup now (week colour, allowance,
+    no-shows). That is three reads of a table with a handful of rows and it keeps each seam
+    self-contained; if it ever matters, resolve once in `lookupCustomer` and pass `Settings` down.
 
-## [2026-07-26] - Batch archive (US-09)
-- No stories left (all four passed and PR #37 merged as 4a34e03); this iteration only copied the
-  completed batch state to scripts/ralph/prds/done/10-us-09-reissue-card-after-loss.json,
-  mirroring the #34 close-out for US-05.
-- prd.json was NOT rotated to batch 11 — per prds/README.md the operator copies the next batch in
-  and ralph.sh archives this run (branchName change vs .last-branch) on the next start. Note that
-  the archive wipes this progress.txt, Codebase Patterns included: the durable channel is the
-  CLAUDE.md files, or paste the patterns block into the fresh log.
----
+## 2026-07-26 - US-005 (E2E: archiving frees the customer number)
+- `tests/e2e/archive.spec.ts` (new, 5 serial tests): the slot-reuse mechanic driven through the
+  built app (tasks/prd-us-10-archive-customer.md §US-10.5). It is the only claim about archiving no
+  unit gate can reach — two customers, three screens and the allocator in between.
+- **It registers its household through the FORM, unlike every other spec here, which seeds through
+  Prisma.** That is the whole point: the freed number is only interesting because the allocator
+  handed it out, gave it back and handed it out again. So the spec names no customer number of its
+  own — it reads `proposed-number` off the screen, as registration.spec.ts and card.spec.ts do — and
+  it consumes one number net, leaving an archived row behind on it.
+- The five tests: (1) register a RED household and serve them on the pinned RED Thursday
+  08.01.2026, so the archive has a distribution record to keep; (2) archiving without a reason is
+  refused; (3) archiving with one renders the record read-only and deletes nothing; (4) the archived
+  household is refused at the counter; (5) the freed number goes to the next registration while the
+  archived record stays.
+- FR-1 is asserted twice over. The disabled save button is the courtesy, and it is checked for an
+  empty and a whitespace-only reason — but the RULE lives in `transition()`, so the courtesy is
+  stepped around: type "x" (React enables the button), then blank the field in the DOM without
+  telling React, and the action answers with the German `missingReason` sentence. Spaces, not "",
+  because the textarea's `required` would otherwise stop the submit in the browser.
+- "Nothing is deleted" is proved by comparing ONE `belongings(id)` JSON snapshot — number, name,
+  group, reminder count, members, certificates, cards, distribution records — either side of the
+  archive, the same trick the reissue and counter specs use for refusals. A second `state(id)`
+  snapshot (status, blockReason, archiveReason, archivedAt, audit-entry count) brackets the two
+  refusals, so a refusal that wrote anything at all fails.
+- "Still findable" is asserted through the record URL. Once the number is reassigned it names its
+  NEW holder at the counter (`findByCustomerNumber` prefers the active row), so the surrogate id is
+  the only find path there is until US-15's customer search exists — that is stated in the spec's
+  header rather than left as a gap.
+- Files changed: tests/e2e/archive.spec.ts (new), docs/technical_documentation.md (the repo-layout
+  tree and a spec paragraph in the Playwright section), scripts/ralph/prd.json,
+  scripts/ralph/progress.txt.
+- Checks: format:check, lint, typecheck, test:coverage (585 tests, 35 files, 100% on
+  domain/application), build, test:e2e (41 passed, 1 skipped — 5 new) — all green. `npm run build`
+  was run before `test:e2e`, as the harness serves the built app.
+- **Learnings for future iterations:**
+  - The spec file sorts FIRST alphabetically in tests/e2e, so it now runs before every other one and
+    takes the lowest free number. That is safe only because registration.spec.ts and card.spec.ts
+    read the proposal instead of hard-coding — check that assumption before adding another spec that
+    registers, and never hard-code a low number in a new one.
+  - Playwright's `webServer` has `reuseExistingServer` on locally: a stale server from an earlier
+    run serves the OLD build and the OLD database. If a new spec fails inexplicably, kill the server
+    on :3000 first, then re-run — the harness re-seeds `data/e2e.db` only when it boots the server
+    itself.
+  - US-10 is complete: all five stories pass. What the PRD leaves open for FD is whether weeks a
+    household was blocked should count as no-shows (§9, decided "yes" in US-001 and documented as a
+    comment in domain/distribution/noShows.ts).

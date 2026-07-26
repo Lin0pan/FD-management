@@ -25,6 +25,9 @@ CREATE TABLE "Customer" (
     "city" TEXT NOT NULL,
     "group" TEXT NOT NULL,
     "status" TEXT NOT NULL,
+    "blockReason" TEXT,
+    "archiveReason" TEXT,
+    "archivedAt" DATETIME,
     "reminderCount" INTEGER NOT NULL DEFAULT 0,
     "notes" TEXT NOT NULL DEFAULT ''
 );
@@ -36,7 +39,7 @@ CREATE TABLE "HouseholdMember" (
     "firstName" TEXT NOT NULL,
     "lastName" TEXT NOT NULL,
     "birthDate" DATETIME NOT NULL,
-    CONSTRAINT "HouseholdMember_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT "HouseholdMember_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -46,7 +49,7 @@ CREATE TABLE "Certificate" (
     "type" TEXT NOT NULL,
     "validUntil" DATETIME NOT NULL,
     "recordedAt" DATETIME NOT NULL,
-    CONSTRAINT "Certificate_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT "Certificate_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -56,7 +59,7 @@ CREATE TABLE "Card" (
     "index" INTEGER NOT NULL,
     "issuedAt" DATETIME NOT NULL,
     "reason" TEXT NOT NULL,
-    CONSTRAINT "Card_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT "Card_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 -- CreateTable

@@ -15,12 +15,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { faker } from "@faker-js/faker";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createCustomerDetails, type NewCustomer } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
 import { CustomerNumberTaken } from "@/domain/errors";
 import { PrismaCustomerCounter, PrismaCustomerRepository } from "./customer-repository";
+import { clearRegister } from "./test-support";
 
 faker.seed(20260722);
 
@@ -50,7 +51,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await prisma.customer.deleteMany();
+  await clearRegister(prisma);
 });
 
 /** A registrable two-person household: one grown-up and one child, with fixed birthdates. */
@@ -269,6 +270,98 @@ describe("PrismaCustomerRepository.setStatus", () => {
   });
 });
 
+describe("PrismaCustomerRepository.archive", () => {
+  const ARCHIVED_AT = new Date("2026-07-22T11:30:00.000Z");
+
+  it("writes the status, the reason and the instant, and clears any block reason", async () => {
+    const { id } = await repository.create(newCustomer());
+    await repository.setStatus(id, "BLOCKED", "vorübergehend gesperrt");
+
+    await repository.archive(id, "nach Hamburg verzogen", ARCHIVED_AT);
+
+    const row = await prisma.customer.findUniqueOrThrow({ where: { id } });
+    expect(row.status).toBe("ARCHIVED");
+    expect(row.archiveReason).toBe("nach Hamburg verzogen");
+    expect(row.archivedAt).toEqual(ARCHIVED_AT);
+    expect(row.blockReason).toBeNull();
+  });
+
+  it("keeps the number and every related row — archiving is a status change, not a delete", async () => {
+    const { id } = await repository.create(newCustomer());
+
+    await repository.archive(id, "verzogen", ARCHIVED_AT);
+
+    const row = await prisma.customer.findUniqueOrThrow({
+      where: { id },
+      include: { householdMembers: true, certificates: true, cards: true },
+    });
+    expect(row.customerNumber).toBe(50);
+    expect(row.householdMembers).toHaveLength(2);
+    expect(row.certificates).toHaveLength(1);
+    expect(row.cards).toHaveLength(1);
+  });
+
+  it("frees the slot at once — the next registration may take the number", async () => {
+    const { id } = await repository.create(newCustomer());
+
+    await repository.archive(id, "verzogen", ARCHIVED_AT);
+
+    const successor = await repository.create(newCustomer());
+    expect(successor.customerNumber).toBe(50);
+    expect(await repository.takenActiveNumbers()).toEqual([50]);
+  });
+
+  it("reads the archive reason and date back on the record", async () => {
+    const { id } = await repository.create(newCustomer());
+
+    await repository.archive(id, "verzogen", ARCHIVED_AT);
+
+    const found = await repository.findById(id);
+    expect(found?.archiveReason).toBe("verzogen");
+    expect(found?.archivedAt).toEqual(ARCHIVED_AT);
+  });
+});
+
+/**
+ * Archiving is the only way out of the register, so no relation in schema.prisma cascades on delete
+ * (US-10.3). These specs prove the database itself refuses the hard delete rather than trusting that
+ * no code will ever ask for one — a cascade left in place would take the household's members,
+ * certificates and cards with it silently the first time something did.
+ */
+describe("a household that cannot be hard-deleted", () => {
+  it("refuses to delete a customer who owns members, certificates and cards", async () => {
+    const { id } = await repository.create(newCustomer());
+
+    await expect(prisma.customer.delete({ where: { id } })).rejects.toBeInstanceOf(
+      Prisma.PrismaClientKnownRequestError,
+    );
+  });
+
+  it("leaves the refused household's rows untouched — the delete takes nothing with it", async () => {
+    const { id } = await repository.create(newCustomer());
+
+    await expect(prisma.customer.delete({ where: { id } })).rejects.toThrow();
+
+    const row = await prisma.customer.findUniqueOrThrow({
+      where: { id },
+      include: { householdMembers: true, certificates: true, cards: true },
+    });
+    expect(row.householdMembers).toHaveLength(2);
+    expect(row.certificates).toHaveLength(1);
+    expect(row.cards).toHaveLength(1);
+  });
+
+  it("refuses it just the same once the household is archived", async () => {
+    const { id } = await repository.create(newCustomer());
+    await repository.archive(id, "verzogen", new Date("2026-07-22T11:30:00.000Z"));
+
+    await expect(prisma.customer.delete({ where: { id } })).rejects.toBeInstanceOf(
+      Prisma.PrismaClientKnownRequestError,
+    );
+    expect(await prisma.customer.count({ where: { id } })).toBe(1);
+  });
+});
+
 describe("PrismaCustomerRepository.takenActiveNumbers", () => {
   it("is empty for an empty register", async () => {
     expect(await repository.takenActiveNumbers()).toEqual([]);
@@ -351,6 +444,22 @@ describe("PrismaCustomerRepository.findById", () => {
 
     expect((await repository.findById(created.id))?.card.index).toBe(2);
   });
+
+  it("dates the household's start from their first card, not from the one a reissue gave them", async () => {
+    const created = await repository.create(newCustomer());
+    await prisma.card.create({
+      data: {
+        customerId: created.id,
+        index: 2,
+        issuedAt: new Date("2026-08-06T09:00:00.000Z"),
+        reason: "LOST",
+      },
+    });
+
+    // The registration wrote card 1 on `TODAY`; the replacement two weeks later must not move the
+    // household's start, which is what the no-show count counts back to (US-10.1).
+    expect((await repository.findById(created.id))?.registeredOn).toEqual(TODAY);
+  });
 });
 
 describe("PrismaCustomerRepository.findByCustomerNumber", () => {
@@ -401,7 +510,7 @@ describe("PrismaCustomerRepository.findByCustomerNumber", () => {
 
   it("costs the same number of queries however large the household — the counter never fans out", async () => {
     const queriesForHousehold = async (memberCount: number): Promise<number> => {
-      await prisma.customer.deleteMany();
+      await clearRegister(prisma);
       const created = await repository.create(newCustomer());
       await prisma.householdMember.createMany({
         data: Array.from({ length: memberCount - 2 }, () => ({

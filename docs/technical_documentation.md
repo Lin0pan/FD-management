@@ -76,12 +76,15 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   └── deps.ts               # composition roots: the read deps and the write (audit) deps
 │   │   ├── kunden/                   # the customer screens (US-01)
 │   │   │   ├── deps.ts               # composition root for both routes below
+│   │   │   ├── archive-controls.tsx  # client: Archivieren — shared by the record AND the counter (US-10.4)
+│   │   │   ├── archive-actions.ts    # "use server": Zod → archiveCustomer, revalidates both screens
+│   │   │   ├── archive-state.ts      # the archive form state (not exportable from an action module)
 │   │   │   ├── neu/                  # the registration screen
 │   │   │   │   ├── page.tsx          # server component: reads the proposal, renders the form
 │   │   │   │   ├── registration-form.tsx  # client component: repeatable rows + live counts
 │   │   │   │   ├── actions.ts        # "use server": Zod → registerCustomer → redirect
 │   │   │   │   └── register-customer-state.ts  # form state (not exportable from actions.ts)
-│   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on; hosts the block + reissue controls
+│   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on; hosts the block, reissue + archive controls
 │   │   │   ├── [id]/block-controls.tsx  # client: Sperren / Sperre aufheben (US-08.4)
 │   │   │   ├── [id]/reissue-controls.tsx  # client: Karte neu ausstellen (Verlust) (US-09.3)
 │   │   │   ├── [id]/actions.ts       # "use server": Zod → blockCustomer / unblockCustomer / reissueCard
@@ -123,6 +126,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── distribution/counterVerdict.test.ts  # its Vitest spec
 │   │   ├── distribution/attendance.ts  # canRecord/canCorrect — the once-per-Berlin-day rules
 │   │   ├── distribution/attendance.test.ts  # its Vitest spec
+│   │   ├── distribution/noShows.ts    # consecutiveNoShows — own distributions missed in a row
+│   │   ├── distribution/noShows.test.ts  # its Vitest spec
 │   │   ├── distribution/distributionRecord.ts  # the hand-out record type (id, paid, priceCents)
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, CustomerRepository,
@@ -132,7 +137,9 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   readCard, issueCard, lookupCustomer (the counter lookup),
 │   │   │                             #   recordReminder / renewCertificate (US-06),
 │   │   │                             #   blockCustomer / unblockCustomer (US-08),
-│   │   │                             #   reissueCard (US-09, delegates to issueCard)
+│   │   │                             #   reissueCard (US-09, delegates to issueCard),
+│   │   │                             #   archiveCustomer (US-10, frees the slot),
+│   │   │                             #   countNoShows (US-10, the seam both read models use)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
@@ -148,10 +155,13 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │       ├── certificate-repository.ts   # PrismaCertificateRepository — appends renewals
 │   │       ├── audit-log.ts          # PrismaAuditLog — append-only, no actor column
 │   │       ├── seed.ts               # provisional settings version, inserted only if none exists
-│   │       └── *.test.ts             # integration specs, throwaway SQLite file
+│   │       ├── test-support.ts       # clearRegister — the children-first teardown the specs share
+│   │       └── *.test.ts             # integration specs, throwaway SQLite file (schema.test.ts
+│   │                                 #   reads the schema and migrations instead of a database)
 │   ├── i18n/de.ts                    # single German UI-string dictionary
 │   └── i18n/format.ts                # German value formatting (germanDate) + its spec
 ├── tests/e2e/
+│   ├── archive.spec.ts               # archiving frees the number and keeps the record findable
 │   ├── block.spec.ts                 # block shows its reason at the counter and is reversible
 │   ├── card.spec.ts                  # registration issues k1 and the card view shows it
 │   ├── counter.spec.ts               # every counter verdict, and that a lookup writes nothing
@@ -419,10 +429,19 @@ needed. The Excel sheet FD is replacing stored them, and they drifted with every
 `NewCustomer` adds what registration decides — `customerNumber`, `group`, `status`,
 `reminderCount`, the first `card` — and `RegisteredCustomer` adds the surrogate `id`, which is the
 only identity there is: a customer number is a slot another household may hold once this one is
-archived, plus `blockReason`, non-null **exactly** when the customer is blocked. `CustomerStatus` is
-`ACTIVE | BLOCKED | ARCHIVED`; a blocked customer still holds their slot (US-08), an archived one
-releases it (US-10). The legal moves between the three states live in `status.ts` (`transition`),
-so an illegal transition is impossible rather than merely unlikely.
+archived, plus `blockReason`, non-null **exactly** when the customer is blocked, and
+`archiveReason`/`archivedAt`, non-null **exactly** when they are archived. It also carries
+`registeredOn`, the day the household joined: there is no registration column, so it is **derived on
+read** from their _first_ card — the one handed over with the registration — and a card replaced
+after a loss therefore cannot move a household's start (US-10.1). The block reason is
+cleared when the block is lifted; the archive pair never is, because there is no way back out of
+`ARCHIVED` (US-10, FR-7). `CustomerStatus` is `ACTIVE | BLOCKED | ARCHIVED`; a blocked customer still
+holds their slot (US-08), an archived one releases it (US-10). The legal moves between the three
+states live in `status.ts` (`transition`), so an illegal transition is impossible rather than merely
+unlikely — and the two moves that turn on a human judgement, `→ BLOCKED` and `→ ARCHIVED`, are
+refused there without a reason (`MissingAuditReason`, naming `customer.blocked` or
+`customer.archived`). Stating that in the machine rather than in each use case is what stops a future
+caller from writing a reason-less archive.
 
 ### `src/domain/customer/certificate.ts`
 
@@ -525,6 +544,39 @@ blank.
 A skipped week shifts nothing here either — the next distribution is simply the next occurrence of
 the configured weekday, and its colour comes from `colourOf`, so the parity is the calendar's.
 
+### `src/domain/distribution/noShows.ts`
+
+How many of their own distributions in a row a household has missed — one of the two triggers that put
+archiving in front of staff (US-10, FR-3). `consecutiveNoShows({ records, customerGroup, registeredOn,
+settings, today })` walks backwards one two-week cycle at a time from the last distribution of the
+customer's colour and stops at the first one they attended, or at their registration day.
+
+A no-show is the **absence** of a record, so it cannot be read off the history alone: the history says
+which days the customer came and the calendar says which days were theirs. This is the one module where
+the week-colour rule (US-03) and the attendance history (US-05) meet — which is why it takes the
+settings rather than a list of dates.
+
+Four boundaries decide what the number means:
+
+| Boundary                         | Counted? | Why                                                                                                                |
+| -------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
+| The other group's weeks          | no       | They were never this household's days; counting them would double every figure.                                    |
+| Today's own distribution         | no       | It may still be in progress — the count must not read "1 no-show" to the staff member serving them.                |
+| The day the household registered | no       | The card is handed over at registration and whether that day's hand-out had finished is nowhere on record.         |
+| Weeks the household was blocked  | yes      | PRD §9, **to be confirmed with FD**: excluding them would hide the pattern, and no block _history_ is kept anyway. |
+
+Records are matched to a distribution day by the **Europe/Berlin** calendar day, through the same
+`berlinDayKey` the once-per-day attendance rule and the database's unique index use — so a hand-out
+entered at 23:45 belongs to the day the staff member lived through, and one entered after Berlin
+midnight belongs to the next.
+
+Nothing in the module reacts to the value it returns: there is no threshold here and no configurable one
+anywhere (PRD §5). Three consecutive misses are emphasis on a screen; the archive decision is human.
+
+`registeredOn` is a parameter because the domain has no notion of storage — there is no registration-date
+column, and the application layer supplies the day from the household's first card (`index` 1), which is
+issued with the registration.
+
 ### `src/application/customers/registerCustomer`
 
 The one use case that turns a filled-in form into a customer: it reads the clock **once**, builds
@@ -607,6 +659,10 @@ The two read-side use cases the customer screens sit on:
   `CustomerNotFound` for an id nobody holds. It also names `nextCardNumber` — the number a
   replacement would carry, from `nextCardNumber()` in the domain — so the record's reissue
   confirmation states the number it is about to hand out without the page working it out (US-09.3).
+  It also carries `consecutiveNoShows` (US-10.4) — the household's own distributions missed in a row,
+  through the `countNoShows` seam below — which is why it takes the read side of
+  `DistributionRecordRepository`: a no-show is the absence of a record, so the history has to be read
+  to count one.
 - **`readCard`** answers what the _card_ shows (US-02.4): the current card number, the name, the
   group, the counts, portions and price as of today (all via `describeAllowance`), and the numbers
   this card replaced. It reads the customer's whole
@@ -681,6 +737,43 @@ Neither use case touches the customer number, the card or any distribution recor
 against hand-written fakes (`customers.test.ts`), including that a block leaves the number in the
 taken-slots query — a block never frees a slot.
 
+### `src/application/customers/archiveCustomer`
+
+How a household **leaves the register** (US-10.2) — and the only write in the system that frees
+something: the customer number becomes available to the next registration the moment it lands
+(FR-4), which is what makes archiving the answer to a waiting list rather than a tidy-up.
+
+`archiveCustomer(deps, { customerId, reason })` trims the reason once and asks the same `transition`
+state machine to move `→ ARCHIVED`, from `ACTIVE` or from `BLOCKED` — a paused household can still
+leave. The machine settles both questions before any write: archiving an already-archived customer is
+an illegal move (`IllegalStatusTransition`, and not a no-op, because their slot may by now be someone
+else's), and a whitespace-only reason is a missing record (`MissingAuditReason("customer.archived")`).
+Persistence is one `archive(id, reason, archivedAt)` call writing the status, the reason and the
+instant together and clearing any block reason with them; the audit entry (`customer.archived`,
+changed fields `status`, `archiveReason`, `archivedAt`) carries the reason verbatim as its `why`.
+
+Everything else stays. The customer number remains **on the archived row** for the historical record
+— the slot is freed by the status alone, through the partial unique index that exempts archived rows
+(PRD §7) — and cards, certificates, distribution records, reminder logs and notes are untouched,
+because nothing about a customer is ever hard-deleted. The fakes prove it as behaviour rather than
+signature: `customers.test.ts` snapshots everything the household owns before and after the archive
+and compares the two, and asserts that the freed number is what `lowestFreeNumber` offers next.
+There is no un-archive; a returning household is registered anew (FR-7, US-11).
+
+### `src/application/customers/countNoShows`
+
+The seam both screens that show the no-show count read (US-10.4), so the customer record and the
+counter can never disagree about it. The rule itself is `consecutiveNoShows` in the domain; this adds
+the one decision the pure module cannot make — **which settings the count is read against**, namely
+the version in force at the instant asked about, because the schedule the misses are counted on (the
+distribution weekday and the week-colour anchor) is policy FD can change (US-14).
+
+The customer's records are **passed in** rather than loaded here. The counter already holds them from
+its single pass over the register (US-04.3), and fetching them again would put a second query on the
+busiest screen in the product for a number it has the raw material for; the customer record reads them
+alongside the allowance in the same `Promise.all`. `registeredOn` comes off the customer record, where
+it is derived from the first card.
+
 ### `src/infrastructure/prisma/audit-log.ts`
 
 The **append-only audit log** (`PrismaAuditLog`). Every state change is recorded with a timestamp
@@ -707,6 +800,11 @@ other failure is rethrown as itself. `setStatus(id, status, blockReason)` is the
 `blockCustomer` / `unblockCustomer`: it updates the `status` and `blockReason` columns together, so
 the reason a blocked customer carries can never disagree with their status.
 
+`archive(id, reason, archivedAt)` is the one write behind `archiveCustomer` (US-10): status, reason
+and instant in a single statement, with any block reason cleared alongside them. It is a plain
+`WHERE id` update and nothing more — no related row is touched and the customer number stays put,
+because freeing the slot is entirely the partial unique index's doing.
+
 The **partial unique index** the adapter relies on is not in `schema.prisma` — Prisma has no syntax
 for one — but hand-written at the end of the `init` migration:
 
@@ -718,6 +816,13 @@ CREATE UNIQUE INDEX "Customer_customerNumber_onRegister_key"
 It is the final authority on a free number: the application reads the taken numbers and then writes,
 and only the database can settle the race in between. **Regenerating the migration drops it** — re-add
 it, or the slot rule is enforced by application code alone.
+
+The include loads the **whole run of cards**, highest index first, rather than only the top one: the
+head is the card the household holds and the tail is their _first_ card, whose `issuedAt` is
+`registeredOn` (US-10.1). A household's run is two or three rows, so this costs less than a second
+query for one date on the counter's hot path — and the number of statements per lookup stays fixed,
+which is the invariant the integration test pins. A row with no card at all is refused as an
+`InvalidCustomerRecord`: registration writes the first card in the same transaction as the customer.
 
 `findByCustomerNumber(n)` is the counter's read (US-04). Because a customer number is a slot rather
 than an identity, it is deliberately **two queries and not one `orderBy`**: an active holder wins over
@@ -771,9 +876,8 @@ one day got written. `loggedOn` is the **Berlin** calendar day the use case deri
 `berlinDayKey`, mirroring `DistributionRecord.dayKey`, so the constraint and the guard share one
 notion of "today". `record` writes the log entry and the customer's new `reminderCount` in **one
 transaction**, so the count can never disagree with the trail — a rejected entry moves no count —
-and translates a `P2002` naming `loggedOn` into the domain's `ReminderAlreadyLoggedToday`. Like
-`DistributionRecord`, the relation has no `onDelete: Cascade`: a reminder that was given stays
-given.
+and translates a `P2002` naming `loggedOn` into the domain's `ReminderAlreadyLoggedToday`. Like every relation in the schema, this one does not cascade on
+delete: a reminder that was given stays given.
 
 `PrismaCertificateRepository` (the `CertificateRepository` port) **appends** a renewal as a new
 `Certificate` row rather than editing the one on file, so the history of renewals stays readable
@@ -836,7 +940,14 @@ beyond it:
   non-numeric id and an id nobody holds give the same German answer: there is no such customer. It
   links on to the card view. It also hosts the **block controls** (US-08.4): an active customer sees
   a "Sperre" section showing the current reason verbatim when blocked — and the **reissue control**
-  (US-09.3), because staff reach for whichever of the two screens is already open.
+  (US-09.3), because staff reach for whichever of the two screens is already open. It shows the
+  **consecutive-no-show count** only when it is greater than zero (US-10.4): a zero is one more number
+  to read past on every record and says nothing a decision could rest on. An **archived** record
+  renders read-only — the block, reissue and archive sections are all absent, because there is no
+  transition out of `ARCHIVED` — behind a banner naming the day and the reason, stated before anything
+  else on the page: every action below it is gone and the reader has to know why before looking for
+  one. "Aufgenommen" is the household's `registeredOn`, so a reissued card does not read as a later
+  registration.
 - **`[id]/block-controls.tsx`** is a client component (`useActionState`, and the save control stays
   disabled until a reason is typed — a block's reason is its only record, so an empty one must be
   impossible to submit). It shows "Sperren" with a required multi-line reason for an `ACTIVE`
@@ -856,6 +967,19 @@ beyond it:
   than reading it off the form: this control is the _loss_ control, and that is what makes the loss
   count mean what it says. It revalidates the record **and** the card view, so whichever screen the
   reissue was started from shows the new number and the other one does too when next opened.
+- **`archive-controls.tsx`** is the "Archivieren" control (US-10.4), and it sits one level above
+  `[id]/` because it is rendered by **both** the customer record and the **counter** — archiving has to
+  be reachable where staff meet the household who has stopped coming (FR-2), and one component means it
+  cannot come to mean two different things depending on where it was started. It is a **closed
+  disclosure with the confirmation inside it**, never a dialog and never a prompt: at the counter the
+  queue is waiting, and an archive suggestion that had to be dismissed before the next customer could be
+  served would be worse than none (PRD §6). The confirmation names the customer number and states the
+  two things staff would otherwise learn from a support call — the number is freed at once and may be
+  reassigned, and the record is kept in full. The save control stays disabled until a non-whitespace
+  reason is typed; the reason is the whole record of an irreversible decision. **`archive-actions.ts`**
+  relays it to `archiveCustomer`, maps `MissingAuditReason` and `IllegalStatusTransition` to German,
+  and revalidates the record **and** `/ausgabe`, so the counter's next lookup of that number answers
+  `ARCHIVED`.
 - **`[id]/karte/page.tsx`** is the **digital customer card** (US-02.4): the number, the name, the
   group as a coloured German label, the two counts and the standard portions and price (US-07.4),
   set large enough to read across a desk, plus the numbers this card replaced and why each was
@@ -924,7 +1048,13 @@ then the question it asks about every person in the queue: may _this_ one collec
   inflected forms ("blaue Kundin / blauer Kunde", "rote Woche") are dictionary data keyed by the
   colour, not sentences assembled in the component.
 - An **expired certificate is amber, not red**: the verdict is still serve — the reminder is a
-  conversation, never grounds to refuse food.
+  conversation, never grounds to refuse food. The reminder count stands beside it in the household
+  details and inside the verdict sentence itself (US-06, US-10.4), because it is what makes the
+  archiving question askable at the counter at all.
+- The **consecutive-no-show count** appears in the household details when it is greater than zero
+  (US-10.4), and the **archive control** last on the screen, below the serve action — an ordinary
+  collapsed disclosure like every other control here. Neither reacts to any threshold: the two
+  archiving triggers are made visible and the decision stays human (US-10, FR-1, PRD §5).
 - The detail line is `whitespace-pre-line`. Every verdict but one is a single dictionary sentence,
   which renders the same either way; the exception is the **block reason** (US-08), typed by hand
   into a multi-line field and shown verbatim, so the paragraphs a colleague wrote have to survive to
@@ -1019,8 +1149,7 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   `berlinDayKey` like `DistributionRecord.dayKey`); the unique `(customerId, loggedOn)` index is
   the database's own cap of one reminder per customer per day, surfaced by the adapter as
   `ReminderAlreadyLoggedToday`. `resultingCount` repeats the customer's count as it stood after the
-  entry, so the trail reads on its own; a renewal resets the _count_, never this log. Like
-  `DistributionRecord`, the relation has no `onDelete: Cascade`.
+  entry, so the trail reads on its own; a renewal resets the _count_, never this log.
 - `DistributionRecord` is the append-many history of hand-outs (US-05). It carries `date`, a
   normalised Europe/Berlin `dayKey` (`YYYY-MM-DD`, written by the domain's `berlinDayKey`), the
   `showedUp` and `paid` flags and `priceCents`. The unique `(customerId, dayKey)` index is the
@@ -1028,8 +1157,19 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   written even if two requests race past `attendance.canRecord`, and the adapter surfaces the lost
   race as `AlreadyServedToday`. Indexes on `date` and `(customerId, date)` serve the no-show query
   (US-10). `priceCents` is deliberate redundancy alongside the settings history — it makes a record
-  self-describing — and the relation has **no `onDelete: Cascade`**, so records outlive a customer's
-  status changes and are never removed by archiving.
+  self-describing — and like every relation in the schema it does not cascade, so records outlive a
+  customer's status changes and are never removed by archiving.
+- **Nothing cascades on delete.** No relation in the schema carries `onDelete: Cascade`, so every
+  foreign key is `ON DELETE RESTRICT` and SQLite _refuses_ to remove a customer who still owns
+  household members, a certificate, a card, a distribution record or a reminder log (US-10.3). The
+  only way out of the register is archiving, a status change. A cascade would be harmless for as
+  long as nothing ever called `delete` — which is why it is the wrong thing to leave in place: the
+  day a clean-up script or a mistyped test did call it, the household's history would go with it
+  silently, and the audit log has no way to say what was lost. `src/infrastructure/prisma/schema.test.ts`
+  guards the rule against the schema _and_ the committed migration SQL; the customer repository
+  specs prove the refusal against a real database. The cost is that a test tearing the register down
+  must delete children first — `clearRegister` in `src/infrastructure/prisma/test-support.ts` states
+  that order once.
 - **The slot rule is a partial unique index**, hand-written at the end of the `init` migration
   because Prisma cannot express one: at most one non-archived customer may hold a given
   `customerNumber`, so any number of archived rows may share one. See
@@ -1205,6 +1345,23 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   lookup is bracketed by a Prisma snapshot of the household's status, cards, distribution records and
   the audit-entry count, so a refusal that blocked, archived or recorded anything would fail. Pinned
   to the RED Thursday 08.01.2026 and deletes the pinned-now file in `afterAll`, like its neighbours.
+- `archive.spec.ts` covers US-10 end to end (§US-10.5): the slot-reuse mechanic, which is the one
+  claim about archiving no unit gate can reach — it spans two customers, three screens and the
+  allocator in between. It is the only spec here that **registers its household through the form**
+  rather than inserting it, because the freed number is only interesting if the allocator handed it
+  out: it registers a RED household, serves them on the pinned RED Thursday 08.01.2026 (the hand-out
+  is what the archive must keep), archives them from the record with a multi-line reason, and then
+  asserts that `/kunden/neu` proposes their number again and the next registration is given it. The
+  archived household is refused at the counter (`ARCHIVED`, no serve action, nothing left to
+  archive), and once the number has moved on the counter answers its **new** holder while the old
+  record is still reachable by its surrogate id — the only find path until the customer search of
+  US-15 exists. FR-1 is asserted twice over: the save control stays disabled for an empty and a
+  whitespace-only reason, and then that courtesy is stepped around by blanking the field in the DOM
+  without telling React, so the rule in `transition()` has to answer for itself with the German
+  `missingReason` sentence. Both refusals are bracketed by Prisma snapshots — the household's own
+  state plus the audit-entry count, and everything it owns — and the same "belongings" snapshot is
+  compared either side of the successful archive, which is how "nothing is deleted" is proved rather
+  than asserted field by field.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

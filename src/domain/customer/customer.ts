@@ -113,6 +113,24 @@ export interface RegisteredCustomer extends NewCustomer {
    * this field keeps what the counter must show today (US-08, FR-4).
    */
   readonly blockReason: string | null;
+  /**
+   * Why this household was archived, or `null` while it is not — non-null *exactly* when `status` is
+   * `ARCHIVED`. Archiving is always a judgement someone made (US-10, FR-1) and there is no way back
+   * out of `ARCHIVED`, so the pair below is written once and never cleared: it is what the archived
+   * record shows about itself long after the audit entry has scrolled away.
+   */
+  readonly archiveReason: string | null;
+  /** When the household was archived, or `null` while it is not. Non-null with `archiveReason`. */
+  readonly archivedAt: Date | null;
+  /**
+   * The day the household joined the register — the issue date of their **first** card, because a
+   * card is handed over with the registration and there is no registration column (US-01.4). It is
+   * derived on read like the counts and the card number, never stored: a reissue writes a new card
+   * and must not be able to move a household's start, which is what a stored copy would eventually
+   * do. The no-show count needs it, since no distribution before it was ever theirs to attend
+   * (tasks/prd-us-10-archive-customer.md §US-10.1).
+   */
+  readonly registeredOn: Date;
 }
 
 /**

@@ -19,7 +19,7 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -39,8 +39,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "The mandatory reason went into transition() beside the block's, so the machine names the refused event (customer.blocked / customer.archived). Customer.archiveReason/archivedAt and their migration landed here because the new CustomerRepository.archive port method forces the Prisma adapter to compile — US-003 keeps the repository invariant tests."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -56,8 +56,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "The columns, their migration and the two number-invariant tests had already landed with US-002; the work left was removing the last three onDelete: Cascade relations. That contradicts the init migration, so per CLAUDE.md the pre-release history was collapsed back to a single init (the hand-written partial unique index re-appended by hand). Run npm run db:reset on an existing checkout."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -74,8 +74,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "The archive control is shared by the record and the counter, so it lives at src/app/kunden/ (archive-controls.tsx + archive-actions.ts + archive-state.ts) rather than under [id]/ — /ausgabe imports it. The no-show count needed the household's start day: RegisteredCustomer now carries registeredOn, derived in the Prisma adapter from the FIRST card, which also fixes the record's \"Aufgenommen\" field after a reissue. Both read models get the count through one application seam, countNoShows."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
@@ -90,8 +90,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "The only spec in tests/e2e that registers its household through the FORM rather than seeding it — the freed number is only interesting because the allocator handed it out, gave it back and handed it out again, so it names no customer number of its own. \"Still findable\" is asserted through the record URL: the number is no longer a way back once it is reassigned, and US-15's search does not exist yet."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

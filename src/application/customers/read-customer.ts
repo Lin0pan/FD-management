@@ -11,11 +11,19 @@ import type { RegisteredCustomer } from "@/domain/customer/customer";
 import { ageInYears, type HouseholdComposition } from "@/domain/customer/householdComposition";
 import { CustomerNotFound } from "@/domain/errors";
 import { describeAllowance, type Allowance } from "../allowance/describe-allowance";
-import type { Clock, CustomerRepository, SettingsRepository } from "../ports";
+import type {
+  Clock,
+  CustomerRepository,
+  DistributionRecordRepository,
+  SettingsRepository,
+} from "../ports";
+import { countNoShows } from "./count-no-shows";
 
 export interface ReadCustomerDeps {
   readonly customers: CustomerRepository;
   readonly settings: SettingsRepository;
+  /** Read only, for the no-show count: a hand-out history is what says which days were not missed. */
+  readonly records: DistributionRecordRepository;
   readonly clock: Clock;
 }
 
@@ -49,6 +57,12 @@ export interface CustomerCardView {
    * are a slice of it, not a second derivation.
    */
   readonly allowance: Allowance;
+  /**
+   * How many of their own distributions the household has missed in a row (US-10.1) — one of the two
+   * situations in which staff may decide to archive. It is shown and nothing more: no threshold lives
+   * here and no action follows from any value (PRD §5).
+   */
+  readonly consecutiveNoShows: number;
 }
 
 /**
@@ -63,7 +77,10 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
   }
 
   const today = deps.clock.now();
-  const allowance = await describeAllowance(deps, customer.details.householdMembers);
+  const [allowance, records] = await Promise.all([
+    describeAllowance(deps, customer.details.householdMembers),
+    deps.records.listForCustomer(customer.id),
+  ]);
 
   const held = { customerNumber: customer.customerNumber, index: customer.card.index };
   const next = nextCardNumber(held);
@@ -80,5 +97,6 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
     cardNumber: formatCardNumber(held.customerNumber, held.index),
     nextCardNumber: formatCardNumber(next.customerNumber, next.index),
     allowance,
+    consecutiveNoShows: await countNoShows(deps, customer, records, today),
   };
 }

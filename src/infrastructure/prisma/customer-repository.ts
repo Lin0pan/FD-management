@@ -35,8 +35,11 @@ const CUSTOMER_INCLUDE = {
   // (US-06.3). The id breaks a same-instant tie the same way "the later row wins" does elsewhere.
   certificates: { orderBy: [{ recordedAt: "desc" }, { id: "desc" }], take: 1 },
   // The highest index is the card the customer actually holds; a reissue supersedes the earlier
-  // one, which stays on file so an old card can be recognised at the counter (US-09).
-  cards: { orderBy: { index: "desc" }, take: 1 },
+  // one, which stays on file so an old card can be recognised at the counter (US-09). The whole run
+  // is loaded rather than only the top one, because the *first* card is the household's start date
+  // (`registeredOn`) — there is no registration column, and a second query for one date on the
+  // counter's hot path would cost more than the two or three rows a household's run ever holds.
+  cards: { orderBy: { index: "desc" } },
 } as const satisfies Prisma.CustomerInclude;
 
 /** A customer row with the {@link CUSTOMER_INCLUDE} relations attached. */
@@ -146,7 +149,10 @@ export class PrismaCustomerRepository implements CustomerRepository {
   private toRegisteredCustomer(row: CustomerRow): RegisteredCustomer {
     const certificate = row.certificates[0];
     const card = row.cards[0];
-    if (certificate === undefined || card === undefined) {
+    // The run is ordered highest index first, so its last element is the card handed over with the
+    // registration — the day the household joined. A reissue therefore cannot move their start.
+    const firstCard = row.cards.at(-1);
+    if (certificate === undefined || card === undefined || firstCard === undefined) {
       throw new InvalidCustomerRecord(
         certificate === undefined ? "certificate" : "card",
         String(row.id),
@@ -159,12 +165,15 @@ export class PrismaCustomerRepository implements CustomerRepository {
       group: parseGroup(row.group),
       status: parseCustomerStatus(row.status),
       blockReason: row.blockReason,
+      archiveReason: row.archiveReason,
+      archivedAt: row.archivedAt,
       reminderCount: row.reminderCount,
       card: {
         index: card.index,
         issuedAt: card.issuedAt,
         reason: parseCardIssueReason(card.reason),
       },
+      registeredOn: firstCard.issuedAt,
       details: {
         firstName: row.firstName,
         lastName: row.lastName,
@@ -237,8 +246,17 @@ export class PrismaCustomerRepository implements CustomerRepository {
         },
         select: { id: true },
       });
-      // A newly registered customer is always active, so their block reason is null (US-08).
-      return { ...customer, id: row.id, blockReason: null };
+      // A newly registered customer is always active, so they carry neither a block reason (US-08)
+      // nor an archive one (US-10), and the card just written is both their current and their first —
+      // which is what makes today their `registeredOn`.
+      return {
+        ...customer,
+        id: row.id,
+        blockReason: null,
+        archiveReason: null,
+        archivedAt: null,
+        registeredOn: customer.card.issuedAt,
+      };
     } catch (error: unknown) {
       if (isCustomerNumberCollision(error)) {
         throw new CustomerNumberTaken(customer.customerNumber);
@@ -254,6 +272,22 @@ export class PrismaCustomerRepository implements CustomerRepository {
    */
   async setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
     await this.prisma.customer.update({ where: { id }, data: { status, blockReason } });
+  }
+
+  /**
+   * Archive a customer: status, reason and instant in one statement, with any block reason cleared
+   * alongside them, so an archived row can never be left without its why nor with a stale block.
+   *
+   * Nothing else is written — the customer number stays put and no related row is touched. The slot
+   * is freed by the status alone, because the partial unique index in the init migration exempts
+   * archived rows; that is the whole mechanism (US-10, PRD §7), and it is why archiving is a `WHERE
+   * id` update rather than anything larger.
+   */
+  async archive(id: number, reason: string, archivedAt: Date): Promise<void> {
+    await this.prisma.customer.update({
+      where: { id },
+      data: { status: "ARCHIVED", blockReason: null, archiveReason: reason, archivedAt },
+    });
   }
 }
 
