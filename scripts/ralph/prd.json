@@ -86,8 +86,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "tests/e2e/age-13.spec.ts, customer number 271, child born 2013-01-15. The clock moves between two RED distribution Thursdays — 08.01.2026 (child 12) and 22.01.2026 (child 13) — so the group, the calendar and the certificate are all held still and only the age moves; both days follow from the seeded anchor 2026-W02=RED, weekday 4. \"No user action in between\" is asserted as an absence: one Prisma snapshot of the household's row, members, cards, distribution records and the audit-entry count, taken either side of the clock change and compared, so the four figures on the record cannot have come from a write. The home badge counts the whole shared register, so it is only ever compared with itself (before + 1, then back), and the row is addressed by data-customer-number rather than by index — the neighbouring specs leave stale households behind (portions.spec adds a member after its card was printed)."
     }
   ]
 }

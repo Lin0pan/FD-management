@@ -32,8 +32,10 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   needs `npm run build` first or the browser sees old code.
 - e2e specs seed straight through Prisma and navigate by the SURROGATE id (`/kunden/${id}`), not the
   customer number. Owned number ranges keep the shared data/e2e.db predictable: counter 201-206/239,
-  portions 211, serve 221-222, reminders 231, block 241, reissue 251 — so US-10 takes 261 up. Never a
-  number the allocator would hand out, or the registration specs' assertions move.
+  portions 211, serve 221-222, reminders 231, block 241, reissue 251, age-13 271 — so the next spec
+  takes 281 up (US-10's archive spec registers through the form and owns no number, which is why 261
+  is still free). Never a number the allocator would hand out, or the registration specs' assertions
+  move.
 - Assert that a refusal wrote NOTHING by bracketing it with one Prisma snapshot helper returning
   `JSON.stringify({ status, cards, records, auditEntries })` and comparing before/after, rather than
   asserting each field. One equality covers every table the screen could have touched, and a future
@@ -123,6 +125,19 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   neither screen can file a write under the other's reason.
 - A badge counting what a list shows asks by taking the list's `.length` through one application
   seam (`countCardsDueForReissue`), not by counting separately — the two can then never disagree.
+- An e2e assertion about a REGISTER-WIDE screen (the cards-due list, the home badge) may never name
+  an absolute figure: every other spec seeds into the same `data/e2e.db` and some leave a stale
+  household behind (portions.spec adds a member after its card was printed). Address your own row by
+  a data attribute (`[data-customer-number="271"]`) and compare a count only WITH ITSELF — read it
+  before, expect before + 1, expect before again.
+- To prove an e2e claim about time alone, move `data/e2e-now.txt` BETWEEN two tests of a serial
+  describe and reload the same URL. The pair of days must differ in nothing else: pick two
+  distribution Thursdays of the same colour (08.01. and 22.01.2026 are both RED under the seeded
+  anchor) so the group, the calendar and the certificate are held still.
+- "Nothing was written" is asserted the same way everywhere in this repo — one JSON snapshot of
+  everything the household owns, taken either side and compared. Widen it to the ROWS, not just the
+  counts, when what you are disproving is a stored derivation: `cards` must carry
+  `grownUpsAtIssue`/`childrenAtIssue`, or a rewritten snapshot would pass.
 
 ---
 
@@ -322,4 +337,50 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
     be re-runnable: keep a tiny `scratch-reset.ts` that deletes cards with `index > 1`, or the
     second run finds an empty list. Scripts must live in the repo root (a /tmp script cannot resolve
     @prisma/client) and be deleted afterwards, along with the scratch db and the now-file.
+---
+
+## 2026-07-26 - US-005 (E2E: a birthday changes the numbers with no user action)
+- New spec `tests/e2e/age-13.spec.ts` (customer number 271), the last story of the US-13 batch. One
+  RED household: a grown-up born 1985-02-11, a child born 2013-01-15, a current certificate, and a
+  card printed `1 / 1` — true on the day it was issued.
+- The clock moves between two RED distribution Thursdays, 08.01.2026 (child 12) and 22.01.2026
+  (child 13, birthday 15.01. in between). Both follow from the seeded anchor alone (2026-W02 = RED,
+  weekday 4), which is the point of choosing them: the group, the calendar and the certificate are
+  all held still and the ONLY thing that differs between the two readings is the age.
+- Five tests: (1) the record shows 1 Erwachsener / 1 Kind / 3 Portionen / 3,00 €, the household is
+  absent from the cards-due list and the counter shows no note; (2) the now-file is rewritten and the
+  SAME url reloaded — 2 / 0 / 4 Portionen / 4,00 €; (3) the row appears with both count sets and
+  "13. Geburtstag", and the badge is one higher; (4) the outdated `271k1` is still CLEAR_TO_SERVE
+  with the serve button and the grey note beside it, on today's figures; (5) a reissue from the list
+  hands out `271k2`, the row goes, the badge returns and the note is gone.
+- "With no user action in between" is asserted as an ABSENCE, the way the reissue and archive specs
+  assert a refusal: one JSON snapshot of the household's row, its members, its CARDS (including
+  `grownUpsAtIssue`/`childrenAtIssue`), its distribution records and the audit-entry count, taken
+  before the clock moves and compared after the reload. If any of the four figures on the record had
+  come from a write rather than a derivation, the two snapshots differ.
+- The household is never actually served: "still servable" is the verdict plus the serve button, and
+  recording a hand-out would drag the quota and the same-day rule into a spec about ages.
+- Files changed: tests/e2e/age-13.spec.ts (new), docs/technical_documentation.md, scripts/ralph/
+  prd.json, scripts/ralph/progress.txt. No production code — the story is a proof, not a feature.
+- Checks: format, lint, typecheck, test:coverage (624 tests, 37 files, 100% on domain/application),
+  build, and `npm run test:e2e` (47 tests: 46 passed, 1 skipped) — all green. The spec IS the browser
+  verification; US-004's screens were driven by hand in a real browser last iteration.
+- **Learnings for future iterations:**
+  - A spec asserting a register-wide screen cannot name an absolute number. `data/e2e.db` is shared
+    and portions.spec leaves a permanently stale household behind (it adds a member after its card
+    was printed), so the cards-due list is not empty even on a fresh run. Scope to your own row with
+    `[data-testid="cards-due-row"][data-customer-number="271"]` and compare the badge only with
+    itself.
+  - Playwright runs the specs in alphabetical file order, so `age-13.spec.ts` runs FIRST. Do not
+    build on that — it is a filename away from changing — but do expect a new spec named early in
+    the alphabet to see a cleaner register than the numbers in the older specs suggest.
+  - Moving the pinned clock between two tests of a `describe.configure({ mode: "serial" })` block is
+    the whole mechanism for a time-only claim; `writeFileSync` is enough, nothing needs restarting,
+    because `systemClock` reads the file per request.
+  - Pick the two days so nothing but the age differs. Two RED Thursdays two weeks apart cost nothing
+    and remove every alternative explanation for a changed verdict; consecutive Thursdays would have
+    flipped the colour and made the counter half of the spec untrue for the wrong reason.
+  - `npm run test:e2e` reuses a running server (`reuseExistingServer`), so a stale `next start` from
+    an earlier session serves OLD code and the DB is never reset. If a run behaves impossibly, kill
+    it — but `pkill -f "next start"` also kills the tool call's own shell (exit 144); run it alone.
 ---

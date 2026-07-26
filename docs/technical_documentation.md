@@ -169,6 +169,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── i18n/de.ts                    # single German UI-string dictionary
 │   └── i18n/format.ts                # German value formatting (germanDate) + its spec
 ├── tests/e2e/
+│   ├── age-13.spec.ts                # a 13th birthday moves the numbers with nobody touching them
 │   ├── archive.spec.ts               # archiving frees the number and keeps the record findable
 │   ├── block.spec.ts                 # block shows its reason at the counter and is reversible
 │   ├── card.spec.ts                  # registration issues k1 and the card view shows it
@@ -1502,6 +1503,23 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   state plus the audit-entry count, and everything it owns — and the same "belongings" snapshot is
   compared either side of the successful archive, which is how "nothing is deleted" is proved rather
   than asserted field by field.
+- `age-13.spec.ts` covers US-13 end to end (§US-13.5): that the reclassification at 13 is
+  **automatic**. One household (customer number 271) is seeded with a grown-up and a child born
+  15.01.2013, and a card printed `1 / 1` — true on the day it was issued. The spec pins today to the
+  RED Thursday 08.01.2026, reads 1 Erwachsener, 1 Kind, 3 Portionen and 3,00 € off `/kunden/[id]`,
+  then moves the pinned-now file to the RED Thursday 22.01.2026 and reloads **the same screen**: 2,
+  0, 4 Portionen, 4,00 €. Nothing happened in between, and that is the claim — so the household's
+  row, members, cards, distribution records and the audit-entry count are snapshotted either side of
+  the clock change and compared, which fails if any of those four figures came from a write rather
+  than a derivation. The second half is FR-5: the household now appears on `/karten-neuausstellung`
+  with both count sets and _13. Geburtstag_, and the home badge counts one more — but presenting the
+  outdated `271k1` at the counter is still `CLEAR_TO_SERVE`, with the grey note beside the serve
+  button rather than instead of it. A reissue from the list hands out `271k2`, after which the row is
+  gone, the badge is back where it started and the counter has no note left to make. The badge is
+  only ever compared **with itself** (before + 1, then back), because it counts the whole shared
+  register and the neighbouring specs may leave households on the list; the row itself is addressed
+  by `data-customer-number` for the same reason. Pinned-now file deleted in `afterAll`, like its
+  neighbours.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.
