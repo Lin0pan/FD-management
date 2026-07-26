@@ -232,3 +232,13 @@ Started: Sun Jul 26 11:18:49 CEST 2026
     (STALE_COUNTS), which is why `reissueCardAction` fixes LOST rather than reading it off the form —
     it will want a second action or a reason parameter, NOT a change to what `reissuesForLoss` counts.
 ---
+
+## [2026-07-26] - Batch archive (US-09)
+- No stories left (all four passed and PR #37 merged as 4a34e03); this iteration only copied the
+  completed batch state to scripts/ralph/prds/done/10-us-09-reissue-card-after-loss.json,
+  mirroring the #34 close-out for US-05.
+- prd.json was NOT rotated to batch 11 — per prds/README.md the operator copies the next batch in
+  and ralph.sh archives this run (branchName change vs .last-branch) on the next start. Note that
+  the archive wipes this progress.txt, Codebase Patterns included: the durable channel is the
+  CLAUDE.md files, or paste the patterns block into the fresh log.
+---
