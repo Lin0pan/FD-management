@@ -10,6 +10,7 @@ import {
 } from "@/domain/customer/customer";
 import { lowestFreeNumber } from "@/domain/customer/customerNumber";
 import type { GroupCounts } from "@/domain/customer/group";
+import { composition } from "@/domain/customer/householdComposition";
 import type {
   DistributionRecord,
   NewDistributionRecord,
@@ -199,6 +200,10 @@ class FakeCardRepository implements CardRepository {
         index,
         issuedAt: new Date(TODAY),
         reason: "FIRST_ISSUE",
+        // What was printed on a card placed straight onto the run is beside the point of these
+        // tests — they are about which index falls due — so every placed card prints the shape
+        // `storedCustomer` builds: one grown-up, one child.
+        countsAtIssue: { grownUps: 1, children: 1 },
       });
     }
   }
@@ -347,15 +352,30 @@ function registerInput(overrides: Partial<RegisterCustomerInput> = {}): Register
 /**
  * A customer as the register already holds them, built without going through registration — the
  * status is the point of these, and registration only ever produces `ACTIVE`.
+ *
+ * `members` replaces the household where a test turns on who lives in it; the default is
+ * `registerInput`'s one grown-up and one child.
  */
-function storedCustomer(status: CustomerStatus): NewCustomer {
+function storedCustomer(
+  status: CustomerStatus,
+  members?: ReadonlyArray<HouseholdMemberDetails>,
+): NewCustomer {
+  const details = createCustomerDetails(
+    members === undefined ? registerInput() : registerInput({ householdMembers: members }),
+    new Date(TODAY),
+  );
   return {
-    details: createCustomerDetails(registerInput(), new Date(TODAY)),
+    details,
     customerNumber: 50,
     group: "RED",
     status,
     reminderCount: 0,
-    card: { index: 1, issuedAt: new Date(TODAY), reason: "FIRST_ISSUE" },
+    card: {
+      index: 1,
+      issuedAt: new Date(TODAY),
+      reason: "FIRST_ISSUE",
+      countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
+    },
   };
 }
 
@@ -403,6 +423,20 @@ describe("registerCustomer", () => {
     expect(customer.status).toBe("ACTIVE");
     expect(customer.reminderCount).toBe(0);
     expect(customer.card.index).toBe(1);
+  });
+
+  it("prints the household counts on the first card, derived as of the registration", async () => {
+    const customer = await registerCustomer(deps(), registerInput());
+
+    // registerInput's household is one grown-up and one child; nothing typed says so.
+    expect(customer.card.countsAtIssue).toEqual({ grownUps: 1, children: 1 });
+  });
+
+  it("stores no count on the record itself — only on the card that was printed", async () => {
+    const customer = await registerCustomer(deps(), registerInput());
+
+    expect(Object.keys(customer)).not.toContain("grownUps");
+    expect(Object.keys(customer.details)).not.toContain("grownUps");
   });
 
   it("stamps the first card with the clock, so the card and the audit entry agree", async () => {
@@ -545,8 +579,11 @@ describe("issueCard", () => {
   }
 
   /** Put a customer of the given status in the register and hand back their id. */
-  async function customerWith(status: CustomerStatus): Promise<number> {
-    const customer = await customers.create(storedCustomer(status));
+  async function customerWith(
+    status: CustomerStatus,
+    members?: ReadonlyArray<HouseholdMemberDetails>,
+  ): Promise<number> {
+    const customer = await customers.create(storedCustomer(status, members));
     return customer.id;
   }
 
@@ -599,6 +636,47 @@ describe("issueCard", () => {
 
     expect(card.issuedAt).toEqual(new Date(TODAY));
     expect(audit.entries[0].when).toEqual(new Date(TODAY));
+  });
+
+  it("prints the household counts on the card as they stand at the issue", async () => {
+    const customerId = await customerWith("ACTIVE");
+
+    const card = await issueCard(deps(), { customerId, reason: "FIRST_ISSUE" });
+
+    expect(card.countsAtIssue).toEqual({ grownUps: 1, children: 1 });
+  });
+
+  it("prints the counts of the day it was issued, not of the day the household was registered", async () => {
+    // Born 1 August 2013: a child on 22 July 2026, a grown-up from 1 August 2026.
+    const customerId = await customerWith("ACTIVE", [
+      member(),
+      member({ birthDate: new Date("2013-08-01T00:00:00.000Z") }),
+    ]);
+
+    const before = await issueCard(deps(), { customerId, reason: "FIRST_ISSUE" });
+    const after = await issueCard(deps("2026-08-01T09:00:00.000Z"), {
+      customerId,
+      reason: "STALE_COUNTS",
+    });
+
+    expect(before.countsAtIssue).toEqual({ grownUps: 1, children: 1 });
+    expect(after.countsAtIssue).toEqual({ grownUps: 2, children: 0 });
+  });
+
+  it("leaves the counts printed on a superseded card exactly as they were", async () => {
+    const customerId = await customerWith("ACTIVE", [
+      member(),
+      member({ birthDate: new Date("2013-08-01T00:00:00.000Z") }),
+    ]);
+    await issueCard(deps(), { customerId, reason: "FIRST_ISSUE" });
+
+    await issueCard(deps("2026-08-01T09:00:00.000Z"), { customerId, reason: "STALE_COUNTS" });
+
+    const run = await cards.listCards(customerId);
+    expect(run.map((card) => card.countsAtIssue)).toEqual([
+      { grownUps: 2, children: 0 },
+      { grownUps: 1, children: 1 },
+    ]);
   });
 
   it("keeps the reason on the card, so a later reissue can be explained", async () => {
@@ -887,7 +965,10 @@ describe("readCustomer", () => {
     return customers.create({
       ...storedCustomer("ACTIVE"),
       group: "RED",
-      card: { index: 1, issuedAt: new Date("2026-05-01T09:00:00.000Z"), reason: "FIRST_ISSUE" },
+      card: {
+        ...storedCustomer("ACTIVE").card,
+        issuedAt: new Date("2026-05-01T09:00:00.000Z"),
+      },
     });
   }
 

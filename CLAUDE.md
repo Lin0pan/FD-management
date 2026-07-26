@@ -52,7 +52,11 @@ deliberately and say why in the commit; do not add an inline disable.
   `src/infrastructure/clock.ts`. (A zero-argument `new Date()` is a lint error in domain and
   application; `new Date(someValue)` is fine — it transforms a value that was passed in.)
 - **Derive, don't store** anything computable — grown-up/children counts, portion allowance, card
-  validity. Two sources of truth is the Excel failure we are replacing.
+  validity. Two sources of truth is the Excel failure we are replacing. The single exception is
+  `Card.grownUpsAtIssue` / `childrenAtIssue`: a snapshot of what was _printed_ on a physical card, so
+  a birthday that overtook it can be spotted (US-13). It is never read as the household's counts and
+  never updated — a reissue is how a change is recorded. Any further "just store it" needs an
+  argument of that kind.
 - **Money is integer cents**, never a float. Format via `src/domain/money.ts`.
 - **Policy values are data, not constants** — the prices per head, portions and the quota `N` live
   in settings, editable in the UI. A saved change is in force immediately; superseded versions are

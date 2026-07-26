@@ -19,11 +19,19 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { formatCardNumber } from "@/domain/card/cardNumber";
+import { composition } from "@/domain/customer/householdComposition";
 import { CardIndexTaken, InvalidCustomerRecord } from "@/domain/errors";
 import { PrismaCardRepository } from "./card-repository";
 import { clearRegister } from "./test-support";
 
 faker.seed(20260723);
+
+/**
+ * The counts printed on a card in these tests. Which numbers they are does not matter here — the
+ * rules about when they go stale live in src/application — only that the adapter stores them and
+ * reads them back unchanged.
+ */
+const PRINTED = { grownUps: 1, children: 1 };
 
 const TODAY = new Date("2026-07-23T09:00:00.000Z");
 const LATER = new Date("2026-09-01T09:00:00.000Z");
@@ -74,6 +82,57 @@ async function insertCustomer(customerNumber: number, status = "ACTIVE"): Promis
   return row.id;
 }
 
+/** Put household members on a customer, so a stored card can be compared with a real household. */
+async function insertMembers(customerId: number, ...birthDates: string[]): Promise<void> {
+  await prisma.householdMember.createMany({
+    data: birthDates.map((birthDate) => ({
+      customerId,
+      firstName: faker.person.firstName(),
+      lastName: faker.person.lastName(),
+      birthDate: new Date(`${birthDate}T00:00:00.000Z`),
+    })),
+  });
+}
+
+describe("the counts printed on a card", () => {
+  it("keeps what the card printed while the household moves on past a 13th birthday", async () => {
+    const customerId = await insertCustomer(50);
+    // A grown-up and a member who turns 13 on 1 August 2026 — a child on the day the card was
+    // printed, a grown-up a week later, with nothing written in between.
+    await insertMembers(customerId, "1990-01-01", "2013-08-01");
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: { grownUps: 1, children: 1 },
+    });
+
+    const card = await repository.currentCard(customerId);
+    const members = await prisma.householdMember.findMany({ where: { customerId } });
+    const today = composition(members, new Date("2026-08-08T09:00:00.000Z"));
+
+    expect(card?.countsAtIssue).toEqual({ grownUps: 1, children: 1 });
+    expect(today).toEqual({ grownUps: 2, children: 0 });
+    // The point of storing the snapshot: the difference is visible from the database alone, which is
+    // what the cards-due-for-reissue list reads (US-13.2).
+    expect(card?.countsAtIssue).not.toEqual(today);
+  });
+
+  it("stores the two counts as their own columns, so a query can compare them", async () => {
+    const customerId = await insertCustomer(50);
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: { grownUps: 3, children: 2 },
+    });
+
+    const row = await prisma.card.findFirstOrThrow({ where: { customerId } });
+    expect(row.grownUpsAtIssue).toBe(3);
+    expect(row.childrenAtIssue).toBe(2);
+  });
+});
+
 describe("PrismaCardRepository.issue", () => {
   it("stores the index, the issue date and the reason the card was handed over", async () => {
     const customerId = await insertCustomer(50);
@@ -82,9 +141,15 @@ describe("PrismaCardRepository.issue", () => {
       index: 1,
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
     });
 
-    expect(card).toEqual({ index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" });
+    expect(card).toEqual({
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+    });
     const rows = await prisma.card.findMany({ where: { customerId } });
     expect(rows).toHaveLength(1);
     expect(rows[0].reason).toBe("FIRST_ISSUE");
@@ -92,16 +157,31 @@ describe("PrismaCardRepository.issue", () => {
 
   it("keeps the superseded card on file, so an old card is recognisable at the counter", async () => {
     const customerId = await insertCustomer(50);
-    await repository.issue(customerId, { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" });
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+    });
 
-    await repository.issue(customerId, { index: 2, issuedAt: LATER, reason: "LOST" });
+    await repository.issue(customerId, {
+      index: 2,
+      issuedAt: LATER,
+      reason: "LOST",
+      countsAtIssue: PRINTED,
+    });
 
     expect(await prisma.card.count({ where: { customerId } })).toBe(2);
   });
 
   it("stores no valid flag — validity is being the highest index", async () => {
     const customerId = await insertCustomer(50);
-    await repository.issue(customerId, { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" });
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+    });
 
     const [row] = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
       `SELECT * FROM "Card" WHERE "customerId" = ${customerId}`,
@@ -111,10 +191,20 @@ describe("PrismaCardRepository.issue", () => {
 
   it("refuses a second card on an index another issue took, as CardIndexTaken", async () => {
     const customerId = await insertCustomer(50);
-    await repository.issue(customerId, { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" });
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+    });
 
     await expect(
-      repository.issue(customerId, { index: 1, issuedAt: LATER, reason: "LOST" }),
+      repository.issue(customerId, {
+        index: 1,
+        issuedAt: LATER,
+        reason: "LOST",
+        countsAtIssue: PRINTED,
+      }),
     ).rejects.toBeInstanceOf(CardIndexTaken);
   });
 
@@ -122,8 +212,18 @@ describe("PrismaCardRepository.issue", () => {
     const customerId = await insertCustomer(50);
 
     const results = await Promise.allSettled([
-      repository.issue(customerId, { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" }),
-      repository.issue(customerId, { index: 1, issuedAt: TODAY, reason: "LOST" }),
+      repository.issue(customerId, {
+        index: 1,
+        issuedAt: TODAY,
+        reason: "FIRST_ISSUE",
+        countsAtIssue: PRINTED,
+      }),
+      repository.issue(customerId, {
+        index: 1,
+        issuedAt: TODAY,
+        reason: "LOST",
+        countsAtIssue: PRINTED,
+      }),
     ]);
 
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
@@ -138,8 +238,18 @@ describe("the card number across customers", () => {
     const first = await insertCustomer(50, "ARCHIVED");
     const second = await insertCustomer(50);
 
-    await repository.issue(first, { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" });
-    await repository.issue(second, { index: 1, issuedAt: LATER, reason: "FIRST_ISSUE" });
+    await repository.issue(first, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+    });
+    await repository.issue(second, {
+      index: 1,
+      issuedAt: LATER,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+    });
 
     const [firstCard, secondCard] = await Promise.all([
       repository.currentCard(first),
@@ -161,20 +271,41 @@ describe("PrismaCardRepository.currentCard", () => {
 
   it("reports the highest index, so a reissued card supersedes the first", async () => {
     const customerId = await insertCustomer(50);
-    await repository.issue(customerId, { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" });
-    await repository.issue(customerId, { index: 2, issuedAt: LATER, reason: "LOST" });
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+    });
+    await repository.issue(customerId, {
+      index: 2,
+      issuedAt: LATER,
+      reason: "LOST",
+      countsAtIssue: PRINTED,
+    });
 
     expect(await repository.currentCard(customerId)).toEqual({
       index: 2,
       issuedAt: LATER,
       reason: "LOST",
+      countsAtIssue: PRINTED,
     });
   });
 
   it("reports the highest index even where the run has a gap", async () => {
     const customerId = await insertCustomer(50);
-    await repository.issue(customerId, { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" });
-    await repository.issue(customerId, { index: 4, issuedAt: LATER, reason: "OTHER" });
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+    });
+    await repository.issue(customerId, {
+      index: 4,
+      issuedAt: LATER,
+      reason: "OTHER",
+      countsAtIssue: PRINTED,
+    });
 
     expect((await repository.currentCard(customerId))?.index).toBe(4);
   });
@@ -182,7 +313,14 @@ describe("PrismaCardRepository.currentCard", () => {
   it("refuses a hand-edited reason rather than quietly reading it as OTHER", async () => {
     const customerId = await insertCustomer(50);
     await prisma.card.create({
-      data: { customerId, index: 1, issuedAt: TODAY, reason: "VERLOREN" },
+      data: {
+        customerId,
+        index: 1,
+        issuedAt: TODAY,
+        reason: "VERLOREN",
+        grownUpsAtIssue: 1,
+        childrenAtIssue: 1,
+      },
     });
 
     await expect(repository.currentCard(customerId)).rejects.toBeInstanceOf(InvalidCustomerRecord);
@@ -192,8 +330,18 @@ describe("PrismaCardRepository.currentCard", () => {
 describe("PrismaCardRepository.listCards", () => {
   it("hands back the whole run highest index first, so the head is the current card", async () => {
     const customerId = await insertCustomer(50);
-    await repository.issue(customerId, { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" });
-    await repository.issue(customerId, { index: 2, issuedAt: LATER, reason: "LOST" });
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+    });
+    await repository.issue(customerId, {
+      index: 2,
+      issuedAt: LATER,
+      reason: "LOST",
+      countsAtIssue: PRINTED,
+    });
 
     const cards = await repository.listCards(customerId);
 
@@ -204,9 +352,24 @@ describe("PrismaCardRepository.listCards", () => {
   it("lists only the cards of the customer asked about", async () => {
     const one = await insertCustomer(50);
     const other = await insertCustomer(51);
-    await repository.issue(one, { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" });
-    await repository.issue(other, { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" });
-    await repository.issue(other, { index: 2, issuedAt: LATER, reason: "LOST" });
+    await repository.issue(one, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+    });
+    await repository.issue(other, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+    });
+    await repository.issue(other, {
+      index: 2,
+      issuedAt: LATER,
+      reason: "LOST",
+      countsAtIssue: PRINTED,
+    });
 
     expect(await repository.listCards(one)).toHaveLength(1);
   });
@@ -221,7 +384,14 @@ describe("PrismaCardRepository.issueCounts", () => {
   async function issueRun(customerId: number, ...reasons: string[]): Promise<void> {
     for (const [position, reason] of reasons.entries()) {
       await prisma.card.create({
-        data: { customerId, index: position + 1, issuedAt: TODAY, reason },
+        data: {
+          customerId,
+          index: position + 1,
+          issuedAt: TODAY,
+          reason,
+          grownUpsAtIssue: 1,
+          childrenAtIssue: 1,
+        },
       });
     }
   }
@@ -255,8 +425,18 @@ describe("PrismaCardRepository.issueCounts", () => {
 
   it("reports the current index rather than the number of rows where the run has a gap", async () => {
     const customerId = await insertCustomer(50);
-    await repository.issue(customerId, { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" });
-    await repository.issue(customerId, { index: 4, issuedAt: LATER, reason: "LOST" });
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+    });
+    await repository.issue(customerId, {
+      index: 4,
+      issuedAt: LATER,
+      reason: "LOST",
+      countsAtIssue: PRINTED,
+    });
 
     expect(await repository.issueCounts(customerId)).toEqual({
       cardsIssued: 4,

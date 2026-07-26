@@ -80,7 +80,15 @@ async function insertCustomer(customerNumber: number, reminderCount = 0): Promis
           recordedAt: REGISTERED_AT,
         },
       },
-      cards: { create: { index: 1, issuedAt: REGISTERED_AT, reason: "FIRST_ISSUE" } },
+      cards: {
+        create: {
+          index: 1,
+          issuedAt: REGISTERED_AT,
+          reason: "FIRST_ISSUE",
+          grownUpsAtIssue: 1,
+          childrenAtIssue: 0,
+        },
+      },
     },
     select: { id: true },
   });

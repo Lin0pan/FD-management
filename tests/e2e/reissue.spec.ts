@@ -118,7 +118,15 @@ async function seedHousehold(): Promise<number> {
         },
       },
       cards: {
-        create: [{ index: 1, issuedAt: new Date(SEEDED_CARD_ISSUED_AT), reason: "FIRST_ISSUE" }],
+        create: [
+          {
+            index: 1,
+            issuedAt: new Date(SEEDED_CARD_ISSUED_AT),
+            reason: "FIRST_ISSUE",
+            grownUpsAtIssue: 1,
+            childrenAtIssue: 1,
+          },
+        ],
       },
     },
     select: { id: true },

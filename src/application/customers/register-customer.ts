@@ -16,6 +16,7 @@ import {
 } from "@/domain/customer/customer";
 import { lowestFreeNumber } from "@/domain/customer/customerNumber";
 import { suggestGroup, type Group } from "@/domain/customer/group";
+import { composition } from "@/domain/customer/householdComposition";
 import type { AuditLog, Clock, CustomerRepository, SettingsRepository } from "../ports";
 import { readCurrentSettings } from "../settings/read-current-settings";
 
@@ -78,6 +79,10 @@ export async function registerCustomer(
   const details = createCustomerDetails(input, now);
   const settings = await readCurrentSettings({ settings: deps.settings, clock: deps.clock });
   const group = input.group ?? suggestGroup(await deps.customers.groupCounts());
+  // The counts printed on the card handed over with the registration — the same snapshot `issueCard`
+  // takes, because a first card and a replacement are the same object (US-13.3). Derived, not stored:
+  // the record itself still carries no count.
+  const countsAtIssue = composition(details.householdMembers, now);
 
   let attemptsLeft = MAX_ATTEMPTS;
   for (;;) {
@@ -92,7 +97,7 @@ export async function registerCustomer(
         group,
         status: "ACTIVE",
         reminderCount: 0,
-        card: { index: 1, issuedAt: now, reason: "FIRST_ISSUE" },
+        card: { index: 1, issuedAt: now, reason: "FIRST_ISSUE", countsAtIssue },
       });
       await deps.audit.append({
         what: CUSTOMER_REGISTERED,

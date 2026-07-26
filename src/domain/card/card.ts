@@ -9,6 +9,7 @@
  * The module is pure: it says what a card is, not how one is stored or when a new one falls due.
  */
 
+import type { HouseholdComposition } from "../customer/householdComposition";
 import { InvalidCustomerRecord } from "../errors";
 
 /**
@@ -49,4 +50,18 @@ export interface IssuedCard {
   readonly index: number;
   readonly issuedAt: Date;
   readonly reason: CardIssueReason;
+  /**
+   * The household counts as they were **printed on this piece of card** when it was handed over.
+   *
+   * This is the one place a count is kept rather than derived, and it is not an exception to
+   * "derive, don't store" but the reason that rule needs a counterpart: the physical card is a real
+   * object out in the world with two numbers written on it, and those numbers stop being true the
+   * moment a child turns 13. Nothing reads this to answer *what the household is* — that is always
+   * `composition(members, today)`. It is read only to answer *what the card in the customer's pocket
+   * claims*, so the two can be compared and a reissue proposed (US-13.2).
+   *
+   * Never update it. A card whose printed counts changed is a different card, and issuing one is how
+   * the change is recorded.
+   */
+  readonly countsAtIssue: HouseholdComposition;
 }

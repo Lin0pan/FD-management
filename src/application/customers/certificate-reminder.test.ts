@@ -5,6 +5,7 @@ import type {
   NewCustomer,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
+import { composition } from "@/domain/customer/householdComposition";
 import {
   CertificateStillValid,
   CertificateValidUntilInPast,
@@ -184,7 +185,12 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
     archiveReason: null,
     archivedAt: null,
     reminderCount: overrides.reminderCount ?? 0,
-    card: { index: 1, issuedAt: new Date(TODAY), reason: "FIRST_ISSUE" },
+    card: {
+      index: 1,
+      issuedAt: new Date(TODAY),
+      reason: "FIRST_ISSUE",
+      countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
+    },
     registeredOn: new Date(TODAY),
     details,
   };

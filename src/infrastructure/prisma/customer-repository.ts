@@ -172,6 +172,9 @@ export class PrismaCustomerRepository implements CustomerRepository {
         index: card.index,
         issuedAt: card.issuedAt,
         reason: parseCardIssueReason(card.reason),
+        // What is printed on the card the household holds, not what their household is today — the
+        // two part company on a 13th birthday, which is the whole point of storing it (US-13.3).
+        countsAtIssue: { grownUps: card.grownUpsAtIssue, children: card.childrenAtIssue },
       },
       registeredOn: firstCard.issuedAt,
       details: {
@@ -241,6 +244,8 @@ export class PrismaCustomerRepository implements CustomerRepository {
               index: customer.card.index,
               issuedAt: customer.card.issuedAt,
               reason: customer.card.reason,
+              grownUpsAtIssue: customer.card.countsAtIssue.grownUps,
+              childrenAtIssue: customer.card.countsAtIssue.children,
             },
           },
         },

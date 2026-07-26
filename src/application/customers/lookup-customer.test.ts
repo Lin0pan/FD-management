@@ -8,6 +8,7 @@ import type {
   RegisteredCustomer,
 } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
+import { composition } from "@/domain/customer/householdComposition";
 import type {
   DistributionRecord,
   NewDistributionRecord,
@@ -286,7 +287,12 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
     archiveReason: overrides.status === "ARCHIVED" ? "archiviert" : null,
     archivedAt: overrides.status === "ARCHIVED" ? new Date(TODAY) : null,
     reminderCount: overrides.reminderCount ?? 0,
-    card: { index: overrides.cardIndex ?? 1, issuedAt: new Date(TODAY), reason: "FIRST_ISSUE" },
+    card: {
+      index: overrides.cardIndex ?? 1,
+      issuedAt: new Date(TODAY),
+      reason: "FIRST_ISSUE",
+      countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
+    },
     // Registered today unless a test says otherwise, so no distribution lies behind the household
     // and the no-show count of an unrelated case is zero rather than incidental.
     registeredOn: new Date(overrides.registeredOn ?? TODAY),

@@ -146,6 +146,10 @@ async function seedHousehold(household: Household): Promise<string> {
           index,
           issuedAt: new Date("2026-01-02T00:00:00.000Z"),
           reason: index === 1 ? "FIRST_ISSUE" : "LOST",
+          // The seeded household is one grown-up and one child, and the printed card says so — no
+          // spec here is about a card that has gone stale (US-13).
+          grownUpsAtIssue: 1,
+          childrenAtIssue: 1,
         })),
       },
     },

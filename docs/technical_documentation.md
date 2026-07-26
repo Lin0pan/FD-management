@@ -476,10 +476,20 @@ named non-goal of US-06.
 
 ### `src/domain/card/card.ts`
 
-What an issued card _is_: `IssuedCard` = `index` + `issuedAt` + `reason`, and `CardIssueReason` =
-`FIRST_ISSUE | LOST | STALE_COUNTS | OTHER`. `parseCardIssueReason(value)` reads a stored reason word
-back — SQLite has no enum type, so the word is checked rather than trusted, exactly as `group` and
-`status` are, and an unknown one raises `InvalidCustomerRecord` instead of quietly becoming `OTHER`.
+What an issued card _is_: `IssuedCard` = `index` + `issuedAt` + `reason` + `countsAtIssue`, and
+`CardIssueReason` = `FIRST_ISSUE | LOST | STALE_COUNTS | OTHER`. `parseCardIssueReason(value)` reads a
+stored reason word back — SQLite has no enum type, so the word is checked rather than trusted, exactly
+as `group` and `status` are, and an unknown one raises `InvalidCustomerRecord` instead of quietly
+becoming `OTHER`.
+
+`countsAtIssue` is a `HouseholdComposition` and is **the one count stored anywhere in the system**.
+It is not an exception to "derive, don't store" but its counterpart: the physical card is a real
+object out in the world with two numbers written on it, and those numbers stop being true the moment
+a child turns 13 (US-13.3). Nothing reads it to answer _what the household is_ — that is always
+`composition(members, today)`. It is read only to answer _what the card in the customer's pocket
+claims_, so the two can be compared and a reissue proposed. It is never updated: a card whose printed
+counts have been overtaken is replaced by a new card with reason `STALE_COUNTS`, and the reissue _is_
+how the change is recorded.
 
 It is the **one** shape of a card in the system: `NewCustomer.card` is an `IssuedCard` too, so the
 card written with a registration and the card written by `issueCard` cannot drift into two row
@@ -631,6 +641,12 @@ unregistering them (US-08). The new index is `currentCard(customerId)` + 1, aske
 `nextCardNumber` so "the next card is the next index" is stated once, or 1 when the customer holds
 none yet. Reading the _highest_ index rather than counting rows is what makes a gap in the run
 harmless.
+
+The counts printed on the card are derived here, from the household's birthdates at the moment of the
+issue, and written _with_ the card: from then on the household can change and the printed pair cannot,
+which is exactly what makes a stale card detectable (US-13.3). A card issued a week after a member's
+13th birthday therefore prints 2/0 where the one before it printed 1/1, and the superseded card keeps
+what it said.
 
 Earlier cards are left on record: the history is how a reissue is explained, and every one of them is
 invalid by the only definition there is — not being the highest. The audit entry goes under
@@ -876,6 +892,13 @@ hold `50k1` (FR-6).
 The `Card.reason` column is the one thing a superseded card's index cannot say — why the household
 needed another one. It is a plain string, narrowed back through `parseCardIssueReason` on the way
 out.
+
+`Card.grownUpsAtIssue` and `Card.childrenAtIssue` are flat columns in SQLite and one
+`HouseholdComposition` in the domain, so the shape is put back together in a single private
+`toCard(row)` that `currentCard`, `listCards` and `issue` all go through — two mappings would be two
+readings of the same snapshot. They are the **only** stored counts in the schema and are documented in
+`schema.prisma` as a snapshot of the printed card rather than household truth, so a future maintainer
+does not "fix" the duplication; `Customer` still has no count column.
 
 `issueCounts(customerId)` answers both numbers behind the reissue count (US-09.2) in a **single**
 `groupBy(["reason"])`: the highest index is the largest of the groups' maxima and the loss count is
@@ -1159,7 +1182,11 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   `grownUps` and no `children` column** — both are derived from the household's birthdates, and
   stored they would drift with every birthday, which is exactly what the Excel sheet did.
   `Card` is unique on `(customerId, index)`; the card number staff read out is derived from the
-  customer number and the index, never stored. `Certificate` rows are **appended, never
+  customer number and the index, never stored. Its `grownUpsAtIssue` / `childrenAtIssue` are the
+  system's **only stored counts** and the one deliberate denormalisation in the model: a snapshot of
+  what was _printed_ on that piece of card, kept because the physical card is a real artefact whose
+  numbers a 13th birthday overtakes, and the cards-due-for-reissue list (US-13) needs something to
+  compare today's derivation against. They are written once, never updated. `Certificate` rows are **appended, never
   overwritten** (US-06.3): a renewal stacks a new row stamped `recordedAt`, the certificate on file
   is the latest by that instant, and the trail behind it says when each renewal was brought.
 - `ReminderLog` is the documented trail an expired certificate starts at the counter (US-06). One

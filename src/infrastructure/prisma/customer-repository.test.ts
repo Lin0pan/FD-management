@@ -90,7 +90,12 @@ function newCustomer(overrides: Partial<Omit<NewCustomer, "details">> = {}): New
     group: "RED",
     status: "ACTIVE",
     reminderCount: 0,
-    card: { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" },
+    card: {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: { grownUps: 1, children: 1 },
+    },
     ...overrides,
   };
 }
@@ -439,7 +444,14 @@ describe("PrismaCustomerRepository.findById", () => {
   it("reports the highest card index, so a reissued card supersedes the first", async () => {
     const created = await repository.create(newCustomer());
     await prisma.card.create({
-      data: { customerId: created.id, index: 2, issuedAt: TODAY, reason: "LOST" },
+      data: {
+        customerId: created.id,
+        index: 2,
+        issuedAt: TODAY,
+        reason: "LOST",
+        grownUpsAtIssue: 1,
+        childrenAtIssue: 1,
+      },
     });
 
     expect((await repository.findById(created.id))?.card.index).toBe(2);
@@ -453,6 +465,8 @@ describe("PrismaCustomerRepository.findById", () => {
         index: 2,
         issuedAt: new Date("2026-08-06T09:00:00.000Z"),
         reason: "LOST",
+        grownUpsAtIssue: 1,
+        childrenAtIssue: 1,
       },
     });
 
@@ -498,7 +512,14 @@ describe("PrismaCustomerRepository.findByCustomerNumber", () => {
     const written = newCustomer();
     const created = await repository.create(written);
     await prisma.card.create({
-      data: { customerId: created.id, index: 2, issuedAt: TODAY, reason: "LOST" },
+      data: {
+        customerId: created.id,
+        index: 2,
+        issuedAt: TODAY,
+        reason: "LOST",
+        grownUpsAtIssue: 1,
+        childrenAtIssue: 1,
+      },
     });
 
     const found = await repository.findByCustomerNumber(50);
