@@ -41,6 +41,26 @@ export class PrismaCardRepository implements CardRepository {
   }
 
   /**
+   * One stored row as an {@link IssuedCard}. The two count columns are flat in SQLite and a value
+   * object in the domain, so the shape is put back together here — in one place, so `currentCard`
+   * and `listCards` cannot come to read the snapshot differently.
+   */
+  private static toCard(row: {
+    index: number;
+    issuedAt: Date;
+    reason: string;
+    grownUpsAtIssue: number;
+    childrenAtIssue: number;
+  }): IssuedCard {
+    return {
+      index: row.index,
+      issuedAt: row.issuedAt,
+      reason: parseCardIssueReason(row.reason),
+      countsAtIssue: { grownUps: row.grownUpsAtIssue, children: row.childrenAtIssue },
+    };
+  }
+
+  /**
    * The customer's highest-indexed card — the one they actually hold — or `null` if they hold none.
    *
    * An unknown customer id also answers `null`: whether the household exists is the use case's
@@ -55,7 +75,7 @@ export class PrismaCardRepository implements CardRepository {
     if (row === null) {
       return null;
     }
-    return { index: row.index, issuedAt: row.issuedAt, reason: parseCardIssueReason(row.reason) };
+    return PrismaCardRepository.toCard(row);
   }
 
   /**
@@ -68,11 +88,7 @@ export class PrismaCardRepository implements CardRepository {
       where: { customerId },
       orderBy: { index: "desc" },
     });
-    return rows.map((row) => ({
-      index: row.index,
-      issuedAt: row.issuedAt,
-      reason: parseCardIssueReason(row.reason),
-    }));
+    return rows.map((row) => PrismaCardRepository.toCard(row));
   }
 
   /**
@@ -117,9 +133,11 @@ export class PrismaCardRepository implements CardRepository {
           index: card.index,
           issuedAt: card.issuedAt,
           reason: card.reason,
+          grownUpsAtIssue: card.countsAtIssue.grownUps,
+          childrenAtIssue: card.countsAtIssue.children,
         },
       });
-      return { index: row.index, issuedAt: row.issuedAt, reason: parseCardIssueReason(row.reason) };
+      return PrismaCardRepository.toCard(row);
     } catch (error: unknown) {
       if (isCardIndexCollision(error)) {
         throw new CardIndexTaken(customerId, card.index);

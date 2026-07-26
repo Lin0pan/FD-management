@@ -8,6 +8,7 @@ import type {
   RegisteredCustomer,
 } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
+import { composition } from "@/domain/customer/householdComposition";
 import type {
   DistributionRecord,
   NewDistributionRecord,
@@ -66,6 +67,10 @@ class FakeCustomerRepository implements CustomerRepository {
 
   findByCustomerNumber(): Promise<RegisteredCustomer | null> {
     return Promise.resolve(null);
+  }
+
+  listWithStatus(status: CustomerStatus): Promise<ReadonlyArray<RegisteredCustomer>> {
+    return Promise.resolve(this.holders.filter((customer) => customer.status === status));
   }
 
   takenActiveNumbers(): Promise<ReadonlyArray<number>> {
@@ -214,7 +219,12 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
     archiveReason: overrides.status === "ARCHIVED" ? "archiviert" : null,
     archivedAt: overrides.status === "ARCHIVED" ? new Date(TODAY) : null,
     reminderCount: 0,
-    card: { index: 1, issuedAt: new Date(TODAY), reason: "FIRST_ISSUE" },
+    card: {
+      index: 1,
+      issuedAt: new Date(TODAY),
+      reason: "FIRST_ISSUE",
+      countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
+    },
     registeredOn: new Date(TODAY),
     details,
   };

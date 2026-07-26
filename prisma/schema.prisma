@@ -195,6 +195,23 @@ model Card {
   index    Int
   issuedAt DateTime
 
+  /// The grown-up and children counts **as they were printed on this piece of card**, derived from
+  /// the household's birthdates at the moment it was issued.
+  ///
+  /// This is the only count stored anywhere in this file, and it is deliberate: it is a **snapshot
+  /// of a physical object**, not the household's truth. `Customer` still has no count column and
+  /// never will — what the household *is* today is always derived from the birthdates
+  /// (`src/domain/customer/householdComposition.ts`). These two columns exist because the printed
+  /// card is out in the world and its numbers stop being true the moment a child turns 13; without
+  /// them there is nothing to compare against, and the cards-due-for-reissue list (US-13.2) could
+  /// not exist.
+  ///
+  /// So: do not "fix" this duplication, and never update these values in place. A card whose
+  /// printed counts have been overtaken is replaced by a new card with reason `STALE_COUNTS` — the
+  /// reissue *is* how the change is recorded.
+  grownUpsAtIssue Int
+  childrenAtIssue Int
+
   /// Why this card was handed over: `FIRST_ISSUE`, `LOST`, `STALE_COUNTS` or `OTHER`. SQLite has no
   /// enum type, so the word is a string the domain validates on the way in and out. It is the one
   /// thing about a superseded card that its index cannot say — why the household needed another one.

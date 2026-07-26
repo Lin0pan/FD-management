@@ -16,8 +16,10 @@
  */
 
 import { formatCardNumber, parseCounterQuery } from "@/domain/card/cardNumber";
+import { staleCountsReason, type StaleCountsReason } from "@/domain/card/staleCounts";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
+import type { HouseholdComposition } from "@/domain/customer/householdComposition";
 import { berlinDayKey, recordForDay } from "@/domain/distribution/attendance";
 import { evaluateAtCounter, type Verdict } from "@/domain/distribution/counterVerdict";
 import type { Cents } from "@/domain/money";
@@ -67,6 +69,22 @@ export interface CounterCustomerView {
   readonly notes: string;
   /** The number of the card the customer holds today, e.g. `50k3`. */
   readonly cardNumber: string;
+  /**
+   * What is printed on the piece of card the household holds — the snapshot taken when it was
+   * issued (US-13.3). Read so the counter's note can name it, and for nothing else: what the
+   * household *is* is `grownUps`/`children` above, derived from the birthdates like everywhere.
+   */
+  readonly countsOnCard: HouseholdComposition;
+  /**
+   * Why the card in the household's pocket prints counts that are no longer true, or `null` when it
+   * still matches them (US-13.4). It is compared against the counts just derived above, so the note
+   * and the numbers beside it can never tell different stories.
+   *
+   * Nothing follows from it. A stale card is never grounds to turn anyone away (FR-5): the verdict
+   * is decided by `evaluateAtCounter`, which never sees this field, and the screen states it as a
+   * quiet note beside the household's data rather than as a warning.
+   */
+  readonly staleCounts: StaleCountsReason | null;
 }
 
 /**
@@ -191,6 +209,11 @@ export async function lookupCustomer(
       consecutiveNoShows,
       notes: customer.details.notes,
       cardNumber: formatCardNumber(customer.customerNumber, customer.card.index),
+      countsOnCard: customer.card.countsAtIssue,
+      staleCounts: staleCountsReason(customer.card.countsAtIssue, {
+        grownUps: allowance.grownUps,
+        children: allowance.children,
+      }),
     },
   };
 }

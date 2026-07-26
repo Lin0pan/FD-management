@@ -226,6 +226,22 @@ export function CustomerDetails({
         )}
       </div>
       <p className="text-xs text-foreground/60">{de.customers.derived.standardValues}</p>
+      {/* The stale-card note (US-13.4). Deliberately the smallest, quietest thing on the screen —
+          the same grey as the hint above it, no border, no icon, no colour — because it is neither a
+          verdict nor a warning: the verdict is the banner, and the serve action below is untouched
+          by this. A card that has fallen behind is never grounds to turn anyone away (FR-5). */}
+      {customer.staleCounts === null ? null : (
+        <p data-testid="counter-stale-card" className="max-w-prose text-xs text-foreground/60">
+          {de.distribution.counter.staleCard(
+            customer.cardNumber,
+            de.customers.derived.countsValue(
+              customer.countsOnCard.grownUps,
+              customer.countsOnCard.children,
+            ),
+            de.customers.derived.countsValue(customer.grownUps, customer.children),
+          )}
+        </p>
+      )}
       <div className="flex flex-col gap-1">
         <span className="text-sm text-foreground/70">{de.customers.fields.notes}</span>
         <p data-testid="counter-notes" className="max-w-prose">

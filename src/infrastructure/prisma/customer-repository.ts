@@ -138,6 +138,25 @@ export class PrismaCustomerRepository implements CustomerRepository {
   }
 
   /**
+   * Every customer in one status, lowest customer number first, each with their household,
+   * certificate and current card attached.
+   *
+   * This is the one whole-register read in the product, and it exists for the cards-due-for-reissue
+   * list, which compares each household's birthdates against what their card has printed on it
+   * (US-13.2). That comparison cannot be a `WHERE` clause — one side of it is a rule over dates that
+   * changes answer as the clock moves — so the rows come out and the domain decides. At FD's ~240
+   * customers this is a few hundred rows loaded once on a screen nobody stands at.
+   */
+  async listWithStatus(status: CustomerStatus): Promise<ReadonlyArray<RegisteredCustomer>> {
+    const rows = await this.prisma.customer.findMany({
+      where: { status },
+      orderBy: { customerNumber: "asc" },
+      include: CUSTOMER_INCLUDE,
+    });
+    return rows.map((row) => this.toRegisteredCustomer(row));
+  }
+
+  /**
    * Map a loaded row into the domain record, validating the stored `group` and `status` strings on
    * the way back in — a hand-edited row fails loudly rather than quietly becoming an active RED
    * household.
@@ -172,6 +191,9 @@ export class PrismaCustomerRepository implements CustomerRepository {
         index: card.index,
         issuedAt: card.issuedAt,
         reason: parseCardIssueReason(card.reason),
+        // What is printed on the card the household holds, not what their household is today — the
+        // two part company on a 13th birthday, which is the whole point of storing it (US-13.3).
+        countsAtIssue: { grownUps: card.grownUpsAtIssue, children: card.childrenAtIssue },
       },
       registeredOn: firstCard.issuedAt,
       details: {
@@ -241,6 +263,8 @@ export class PrismaCustomerRepository implements CustomerRepository {
               index: customer.card.index,
               issuedAt: customer.card.issuedAt,
               reason: customer.card.reason,
+              grownUpsAtIssue: customer.card.countsAtIssue.grownUps,
+              childrenAtIssue: customer.card.countsAtIssue.children,
             },
           },
         },

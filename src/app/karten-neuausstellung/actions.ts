@@ -1,0 +1,63 @@
+"use server";
+
+/**
+ * The cards-due screen's one write: replacing a card whose printed counts the household has outgrown
+ * (tasks/prd-us-13-age-13-reclassification.md §US-13.4).
+ *
+ * It is the same act as the reissue on the customer record, and it goes through the same use case —
+ * `reissueCard`, and therefore `issueCard`, the one path by which a card comes into existence. What
+ * differs is the reason, and like the loss control this one *fixes* it rather than reading it off the
+ * form: `STALE_COUNTS` is what this screen is, and a reason arriving from the browser would let a
+ * reissue file itself under the wrong one. That distinction is not cosmetic — the loss count on the
+ * card view is only readable because each reissue says why it happened.
+ *
+ * Nothing is decided here. Whether the customer may be issued a card is `reissueCard`'s judgement,
+ * and the only refusal it can give this screen is an archived household — which can reach it only via
+ * a list rendered before somebody else archived them.
+ */
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { reissueCard } from "@/application/customers/reissue-card";
+import { CustomerArchived } from "@/domain/errors";
+import { de } from "@/i18n/de";
+import { customerDeps } from "../kunden/deps";
+import { initialStaleReissueState, type StaleReissueState } from "./reissue-state";
+
+/** A surrogate id as a hidden form field carries it — a positive whole number, or the form is stale. */
+const surrogateId = z
+  .string()
+  .regex(/^\d+$/)
+  .transform((value): number => Number(value));
+
+/**
+ * Issue a new card for the household named by the hidden `customerId`, recording `STALE_COUNTS`.
+ *
+ * On success four screens are revalidated: this list (the row is gone, because the new card prints
+ * today's counts), the household's record and card view (they name the new number), and the home
+ * screen (its badge counts this list).
+ */
+export async function reissueStaleCardAction(
+  _previous: StaleReissueState,
+  formData: FormData,
+): Promise<StaleReissueState> {
+  const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
+  if (!customerId.success) {
+    return { status: "error", message: de.customers.reissue.errors.unknown };
+  }
+
+  try {
+    await reissueCard(customerDeps, { customerId: customerId.data, reason: "STALE_COUNTS" });
+  } catch (error: unknown) {
+    if (error instanceof CustomerArchived) {
+      return { status: "error", message: de.customers.reissue.errors.archived };
+    }
+    return { status: "error", message: de.customers.reissue.errors.unknown };
+  }
+
+  revalidatePath("/karten-neuausstellung");
+  revalidatePath(`/kunden/${customerId.data}`);
+  revalidatePath(`/kunden/${customerId.data}/karte`);
+  revalidatePath("/");
+  return initialStaleReissueState;
+}

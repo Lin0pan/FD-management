@@ -65,7 +65,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 ├── src/
 │   ├── app/                          # Next.js App Router — thin adapter layer
 │   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
-│   │   ├── page.tsx                  # home page (reads strings from i18n dictionary)
+│   │   ├── page.tsx                  # home page: the links + the cards-due badge (US-13.4)
 │   │   ├── ausgabe/                  # distribution screen (US-03), counter (US-04), hand-out (US-05), reminder (US-06)
 │   │   │   ├── page.tsx              # server component: colour banner, counter lookup, week lookup
 │   │   │   ├── counter-lookup.tsx    # the verdict banner + the customer details below it (US-04.4)
@@ -91,6 +91,11 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   ├── [id]/block-state.ts   # the block/unblock form state (not exportable from actions.ts)
 │   │   │   ├── [id]/reissue-state.ts # the reissue form state (not exportable from actions.ts)
 │   │   │   └── [id]/karte/page.tsx   # the digital customer card (US-02.4) + the issued-card counts (US-09.3)
+│   │   ├── karten-neuausstellung/    # the cards-due-for-reissue screen (US-13.4)
+│   │   │   ├── page.tsx              # server component: one row per household, both count sets
+│   │   │   ├── stale-card-controls.tsx  # client: Karte neu ausstellen, reason STALE_COUNTS
+│   │   │   ├── actions.ts            # "use server": Zod → reissueCard(STALE_COUNTS)
+│   │   │   └── reissue-state.ts      # the row's form state (not exportable from actions.ts)
 │   │   ├── einstellungen/            # the settings screen (US-14)
 │   │   │   ├── page.tsx              # server component: current values + version history
 │   │   │   ├── settings-form.tsx     # client component: the form and its save-result state
@@ -118,6 +123,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── card/card.test.ts         # its Vitest spec
 │   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
 │   │   ├── card/cardNumber.test.ts   # its Vitest spec
+│   │   ├── card/staleCounts.ts       # do the printed counts still match, and what changed (US-13)
+│   │   ├── card/staleCounts.test.ts  # its Vitest spec
 │   │   ├── distribution/weekColour.ts  # RED/BLUE alternation derived from the ISO calendar
 │   │   ├── distribution/weekColour.test.ts  # its Vitest spec
 │   │   ├── distribution/distributionDay.ts  # is today a distribution day, and when is the next
@@ -139,7 +146,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   blockCustomer / unblockCustomer (US-08),
 │   │   │                             #   reissueCard (US-09, delegates to issueCard),
 │   │   │                             #   archiveCustomer (US-10, frees the slot),
-│   │   │                             #   countNoShows (US-10, the seam both read models use)
+│   │   │                             #   countNoShows (US-10, the seam both read models use),
+│   │   │                             #   listCardsDueForReissue (US-13, cards a birthday overtook)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
@@ -161,6 +169,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── i18n/de.ts                    # single German UI-string dictionary
 │   └── i18n/format.ts                # German value formatting (germanDate) + its spec
 ├── tests/e2e/
+│   ├── age-13.spec.ts                # a 13th birthday moves the numbers with nobody touching them
 │   ├── archive.spec.ts               # archiving frees the number and keeps the record findable
 │   ├── block.spec.ts                 # block shows its reason at the counter and is reversible
 │   ├── card.spec.ts                  # registration issues k1 and the card view shows it
@@ -234,17 +243,17 @@ The interfaces the application layer depends on. Per the TDD approach, ports **e
 needs** rather than being designed up front. Type-only, so it adds no runtime code to the
 coverage-measured layers.
 
-| Port                           | Shape                                                                                                    | Notes                                                                                                                                                                                                                    |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Clock`                        | `now(): Date`                                                                                            | The one seam to the wall clock.                                                                                                                                                                                          |
-| `SettingsRepository`           | `listVersions()`, `append(version)`                                                                      | No update/delete — policy history is append-only.                                                                                                                                                                        |
-| `CustomerCounter`              | `countActive()`                                                                                          | The reality the quota `N` may not fall below.                                                                                                                                                                            |
-| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                                              | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                                                                                                                               |
-| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issueCounts(customerId)`, `issue(customerId, card)` | `currentCard` is the highest index — there is no `valid` flag to read; `issueCounts` counts the run and its losses in one aggregate (US-09.2); `issue` reports a lost race as `CardIndexTaken`.                          |
-| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`               | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                           |
-| `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                                           | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3). |
-| `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                                             | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                       |
-| `AuditLog`                     | `append(entry)`                                                                                          | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                |
+| Port                           | Shape                                                                                                                                                          | Notes                                                                                                                                                                                                                              |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Clock`                        | `now(): Date`                                                                                                                                                  | The one seam to the wall clock.                                                                                                                                                                                                    |
+| `SettingsRepository`           | `listVersions()`, `append(version)`                                                                                                                            | No update/delete — policy history is append-only.                                                                                                                                                                                  |
+| `CustomerCounter`              | `countActive()`                                                                                                                                                | The reality the quota `N` may not fall below.                                                                                                                                                                                      |
+| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `findById(id)`, `findByCustomerNumber(n)`, `listWithStatus(status)`, `create(customer)`, `setStatus(…)`, `archive(…)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`. `listWithStatus` is the one whole-register read — lowest number first, households and cards attached, for the cards-due list (US-13.2). |
+| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issueCounts(customerId)`, `issue(customerId, card)`                                                       | `currentCard` is the highest index — there is no `valid` flag to read; `issueCounts` counts the run and its losses in one aggregate (US-09.2); `issue` reports a lost race as `CardIndexTaken`.                                    |
+| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`                                                                     | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                                     |
+| `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                                                                                                 | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3).           |
+| `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                                                                                                   | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                                 |
+| `AuditLog`                     | `append(entry)`                                                                                                                                                | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                          |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
 
@@ -368,17 +377,35 @@ counts as new.
 ### `src/domain/customer/householdComposition.ts`
 
 `composition(members, today)` derives the grown-up/children split of a household from the members'
-birthdates. A member is a grown-up **on** their 13th birthday and a child the day before; both
-dates are compared as UTC calendar days, so the time of day a record was written cannot change a
-count. A 29 February birthdate has no anniversary in a non-leap year and rolls over to 1 March,
-following § 188 Abs. 3 BGB — thirteen years after a leap year is never itself a leap year, so this
-happens every time.
+birthdates. A member is a grown-up **on** their 13th birthday and a child the day before, so the
+counts, the portion allowance and the price follow a birthday with **no staff action** — the age-13
+reclassification (US-13) is this read-time derivation and nothing else: no job, no trigger, no event.
+
+The two sides of the comparison are read as calendar days, so the time of day cannot change a count,
+but they are read in different calendars, and deliberately so. A **birthdate** is a stored calendar
+day, anchored at UTC midnight by the registration form, and is compared as its UTC day. **`today`**
+is the one real moment involved — it comes from the clock while somebody is standing at the counter
+in Germany — so the day it belongs to is the **Europe/Berlin** one, taken from the same `berlinDayKey`
+the attendance rules count the day with. A member born on the 15th is therefore a grown-up from 00:00
+Berlin on the 15th, not from 01:00 (CET) or 02:00 (CEST) as a UTC-only comparison would have it.
+
+A 29 February birthdate has no anniversary in a non-leap year and rolls over to 1 March, following
+§ 188 Abs. 3 BGB — thirteen years after a leap year is never itself a leap year, so a 29 February
+child comes of age on 1 March every time; a leap-year anniversary is only ever observable on a later
+birthday, which `ageInYears` covers.
 
 The counts are **never stored**: they drive the portion allowance and the price (US-07), and the
 Excel sheet FD is replacing kept them as typed-in numbers that drifted with every birthday. An empty
 household raises `EmptyHousehold` rather than answering `{ 0, 0 }` (which would read as a household
 that owes nothing), and a birthdate after `today` raises `BirthDateInFuture` carrying the offending
 date so the UI can point at the row.
+
+`ageInYears(birthDate, today)` answers the same question in years rather than in a split — the age
+the customer record shows beside each birthdate (US-16.5) — and shares every convention above: the
+Berlin day, the anniversary on the birthday itself, and the 1 March roll-over. Both are pinned by
+boundary tests at the day before, the day of, the day after, 29 February in a leap and a non-leap
+year, and hour by hour across a birthday, where the answer must flip exactly once, at Berlin
+midnight (US-13.1).
 
 ### `src/domain/customer/customerNumber.ts`
 
@@ -458,10 +485,20 @@ named non-goal of US-06.
 
 ### `src/domain/card/card.ts`
 
-What an issued card _is_: `IssuedCard` = `index` + `issuedAt` + `reason`, and `CardIssueReason` =
-`FIRST_ISSUE | LOST | STALE_COUNTS | OTHER`. `parseCardIssueReason(value)` reads a stored reason word
-back — SQLite has no enum type, so the word is checked rather than trusted, exactly as `group` and
-`status` are, and an unknown one raises `InvalidCustomerRecord` instead of quietly becoming `OTHER`.
+What an issued card _is_: `IssuedCard` = `index` + `issuedAt` + `reason` + `countsAtIssue`, and
+`CardIssueReason` = `FIRST_ISSUE | LOST | STALE_COUNTS | OTHER`. `parseCardIssueReason(value)` reads a
+stored reason word back — SQLite has no enum type, so the word is checked rather than trusted, exactly
+as `group` and `status` are, and an unknown one raises `InvalidCustomerRecord` instead of quietly
+becoming `OTHER`.
+
+`countsAtIssue` is a `HouseholdComposition` and is **the one count stored anywhere in the system**.
+It is not an exception to "derive, don't store" but its counterpart: the physical card is a real
+object out in the world with two numbers written on it, and those numbers stop being true the moment
+a child turns 13 (US-13.3). Nothing reads it to answer _what the household is_ — that is always
+`composition(members, today)`. It is read only to answer _what the card in the customer's pocket
+claims_, so the two can be compared and a reissue proposed. It is never updated: a card whose printed
+counts have been overtaken is replaced by a new card with reason `STALE_COUNTS`, and the reissue _is_
+how the change is recorded.
 
 It is the **one** shape of a card in the system: `NewCustomer.card` is an `IssuedCard` too, so the
 card written with a registration and the card written by `issueCard` cannot drift into two row
@@ -472,6 +509,22 @@ the customer has been issued (FR-4), so validity cannot drift away from the card
 exist — the same argument that keeps the household counts derived. The reason is a closed set rather
 than free text because the audit log is read by people who did not make the change, and four words
 they can scan tell them more than a sentence typed to get past a form.
+
+### `src/domain/card/staleCounts.ts`
+
+The counterpart to `countsAtIssue`: `staleCountsReason(printedOnCard, today)` answers `null` when the
+card still prints what the household is, and otherwise names what changed —
+`AGE_13 | HOUSEHOLD_CHANGE`.
+
+A birthday is blamed only when it is the **whole** explanation: the household is the same size and
+grown-ups have gone up, so the same people are on the card and one or more crossed 13. A different
+size means somebody joined or left, and grown-ups going down is something no birthday can do; both
+are changes a human made to the record, and reporting them as `AGE_13` would tell staff a story that
+did not happen. The distinction is shown on the reissue list so it reads as "the software moved these
+numbers" rather than as an accusation that a record was filled in wrongly.
+
+The module takes **no clock and no members** — both sides are already-derived counts, so deciding
+_when_ "today" is stays with the caller and this rule cannot acquire a second opinion about it.
 
 ### `src/domain/card/cardNumber.ts`
 
@@ -614,6 +667,12 @@ unregistering them (US-08). The new index is `currentCard(customerId)` + 1, aske
 none yet. Reading the _highest_ index rather than counting rows is what makes a gap in the run
 harmless.
 
+The counts printed on the card are derived here, from the household's birthdates at the moment of the
+issue, and written _with_ the card: from then on the household can change and the printed pair cannot,
+which is exactly what makes a stale card detectable (US-13.3). A card issued a week after a member's
+13th birthday therefore prints 2/0 where the one before it printed 1/1, and the superseded card keeps
+what it said.
+
 Earlier cards are left on record: the history is how a reissue is explained, and every one of them is
 invalid by the only definition there is — not being the highest. The audit entry goes under
 `customer.card.issued`, names `card` as the changed field, and carries the reason as its `why`: it
@@ -643,6 +702,39 @@ There is **no limit check** (FR-4): the tenth reissue is written exactly like th
 household loses cards too often is a judgement staff make from a count the software shows them, never
 one it makes for them. Nothing but the card run changes — status, customer number, group, reminder
 count and the distribution history are untouched, which is what the use case's tests pin.
+
+### `src/application/customers/listCardsDueForReissue`
+
+Which households hold a card whose printed counts no longer match them (US-13.2). It writes nothing
+and reclassifies nobody: a child becomes a grown-up because `composition` derives the counts from the
+birthdates on every read — no job, no trigger, no event. What this adds is the _consequence_, that
+the piece of card in the household's pocket still shows the old numbers.
+
+`listCardsDueForReissue(deps)` reads the clock once, asks `customers.listWithStatus("ACTIVE")` for the
+register, and for each household compares `card.countsAtIssue` with `composition(members, today)`
+through `staleCountsReason`. Each entry carries the surrogate id (what a reissue is written against),
+the customer number, the name, the card number, the number a reissue would hand out, **both** count
+sets and the reason. The repository's order — lowest customer number first — is handed on untouched
+rather than sorted again here.
+
+`countCardsDueForReissue(deps)` is the same question asked for the home screen's badge, and it
+answers by taking the length of that list rather than counting anything of its own — badge and screen
+are then one statement and cannot drift apart. It is not a `COUNT(*)` for the same reason the list is
+not a `WHERE`.
+
+**Only active households.** A blocked one is not collecting (US-08), so listing them would ask staff
+to print a card nobody is coming for; an archived one holds no slot and may not be issued a card at
+all (US-10). Neither exclusion loses anything, because the list is derived on every read: a household
+returning to `ACTIVE` reappears on it by itself.
+
+The whole active register is read and compared in application code rather than filtered in SQL,
+because the comparison is **not expressible as a query** — one side of it is a rule over birthdates
+that changes answer as the clock moves without any row changing. At FD's ~240 customers that is one
+query and a few hundred date comparisons on a screen nobody stands at, which is the deliberate choice
+US-13.3 asks to be recorded rather than a limitation to work around.
+
+Nothing acts on this list on its own. It is a to-do list, not an alert queue: a stale card is never
+grounds to turn anyone away (FR-5).
 
 ### `src/application/customers/proposeRegistration` and `readCustomer`
 
@@ -858,6 +950,13 @@ hold `50k1` (FR-6).
 The `Card.reason` column is the one thing a superseded card's index cannot say — why the household
 needed another one. It is a plain string, narrowed back through `parseCardIssueReason` on the way
 out.
+
+`Card.grownUpsAtIssue` and `Card.childrenAtIssue` are flat columns in SQLite and one
+`HouseholdComposition` in the domain, so the shape is put back together in a single private
+`toCard(row)` that `currentCard`, `listCards` and `issue` all go through — two mappings would be two
+readings of the same snapshot. They are the **only** stored counts in the schema and are documented in
+`schema.prisma` as a snapshot of the printed card rather than household truth, so a future maintainer
+does not "fix" the duplication; `Customer` still has no count column.
 
 `issueCounts(customerId)` answers both numbers behind the reissue count (US-09.2) in a **single**
 `groupBy(["reason"])`: the highest index is the largest of the groups' maxima and the loss count is
@@ -1105,6 +1204,44 @@ then the question it asks about every person in the queue: may _this_ one collec
 - The screen states facts and offers actions — it never advises what a count should mean, prompts an
   archive or applies a threshold, because that judgement is deliberately the staff's (FR-6, FR-7).
 
+#### The stale-card note
+
+`lookupCustomer` compares the counts printed on the card the household holds (`countsOnCard`, the
+snapshot from US-13.3) with the ones it has just derived, and reports `staleCounts` — `AGE_13`,
+`HOUSEHOLD_CHANGE` or `null`. The counter renders it as the **smallest, quietest thing on the
+screen**: one grey line under the household's data, no border, no icon, no colour. It is neither a
+verdict nor a warning — `evaluateAtCounter` never sees the field, so nothing about serving changes,
+and the serve button stands exactly where it did. A stale card is never grounds to turn anyone away
+(US-13, FR-5), and a note that looked like a refusal is precisely the failure mode this feature has
+to avoid.
+
+### `src/app/karten-neuausstellung/` — the cards-due-for-reissue screen
+
+The to-do list of cards a birthday (or a household change) has overtaken, US-13.4. `page.tsx` calls
+`listCardsDueForReissue` and lays each entry out: name, customer number, card number, the counts
+**printed on the card** beside the counts the household **is today**, and the difference stated in
+words ("13. Geburtstag"). It is `force-dynamic`, because the list changes at midnight with nothing
+written.
+
+The tone is the feature, not decoration on it. "Das hat keine Eile … Eine veraltete Karte ist nie ein
+Grund, jemanden an der Ausgabe wegzuschicken" stands **above** the list, so it is read before the
+first row rather than after the last; nothing is coloured as a warning, nothing is counted as
+overdue, and no row asks to be dealt with before another. Anything that looked urgent would train
+staff to ignore the list — or, far worse, to turn a household away over it (PRD §6, FR-5).
+
+- **`stale-card-controls.tsx`** is a closed disclosure with the confirmation inside it, like the
+  reissue control on the customer record, and it names **both** card numbers before writing: the new
+  one is what staff copy onto the physical card. It has to be named _before_ the write, because a
+  successful reissue removes the row — and the message with it.
+- **`actions.ts`** hands to `reissueCard` with the reason **fixed** to `STALE_COUNTS`, never read off
+  the form. It is the same card path as every other issue (`issueCard`); only the recorded reason
+  differs, and that reason is what keeps the loss count on the card view readable. On success it
+  revalidates this list, the household's record and card view, and `/` — whose badge counts this very
+  list.
+- The home screen's badge (`countCardsDueForReissue`) is shown at zero too and in the same grey as
+  everything around it: "nothing to do" is the answer staff most often want from it, and a home
+  screen that looks alarmed about outdated cards is how the list stops being read.
+
 ### `src/i18n/de.ts`
 
 A single `const de = {…} as const` dictionary of German UI strings, plus the derived `Dictionary`
@@ -1141,7 +1278,11 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   `grownUps` and no `children` column** — both are derived from the household's birthdates, and
   stored they would drift with every birthday, which is exactly what the Excel sheet did.
   `Card` is unique on `(customerId, index)`; the card number staff read out is derived from the
-  customer number and the index, never stored. `Certificate` rows are **appended, never
+  customer number and the index, never stored. Its `grownUpsAtIssue` / `childrenAtIssue` are the
+  system's **only stored counts** and the one deliberate denormalisation in the model: a snapshot of
+  what was _printed_ on that piece of card, kept because the physical card is a real artefact whose
+  numbers a 13th birthday overtakes, and the cards-due-for-reissue list (US-13) needs something to
+  compare today's derivation against. They are written once, never updated. `Certificate` rows are **appended, never
   overwritten** (US-06.3): a renewal stacks a new row stamped `recordedAt`, the certificate on file
   is the latest by that instant, and the trail behind it says when each renewal was brought.
 - `ReminderLog` is the documented trail an expired certificate starts at the counter (US-06). One
@@ -1362,6 +1503,23 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   state plus the audit-entry count, and everything it owns — and the same "belongings" snapshot is
   compared either side of the successful archive, which is how "nothing is deleted" is proved rather
   than asserted field by field.
+- `age-13.spec.ts` covers US-13 end to end (§US-13.5): that the reclassification at 13 is
+  **automatic**. One household (customer number 271) is seeded with a grown-up and a child born
+  15.01.2013, and a card printed `1 / 1` — true on the day it was issued. The spec pins today to the
+  RED Thursday 08.01.2026, reads 1 Erwachsener, 1 Kind, 3 Portionen and 3,00 € off `/kunden/[id]`,
+  then moves the pinned-now file to the RED Thursday 22.01.2026 and reloads **the same screen**: 2,
+  0, 4 Portionen, 4,00 €. Nothing happened in between, and that is the claim — so the household's
+  row, members, cards, distribution records and the audit-entry count are snapshotted either side of
+  the clock change and compared, which fails if any of those four figures came from a write rather
+  than a derivation. The second half is FR-5: the household now appears on `/karten-neuausstellung`
+  with both count sets and _13. Geburtstag_, and the home badge counts one more — but presenting the
+  outdated `271k1` at the counter is still `CLEAR_TO_SERVE`, with the grey note beside the serve
+  button rather than instead of it. A reissue from the list hands out `271k2`, after which the row is
+  gone, the badge is back where it started and the counter has no note left to make. The badge is
+  only ever compared **with itself** (before + 1, then back), because it counts the whole shared
+  register and the neighbouring specs may leave households on the list; the row itself is addressed
+  by `data-customer-number` for the same reason. Pinned-now file deleted in `afterAll`, like its
+  neighbours.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

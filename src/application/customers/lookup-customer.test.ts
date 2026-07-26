@@ -8,6 +8,7 @@ import type {
   RegisteredCustomer,
 } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
+import { composition } from "@/domain/customer/householdComposition";
 import type {
   DistributionRecord,
   NewDistributionRecord,
@@ -79,6 +80,10 @@ class FakeCustomerRepository implements CustomerRepository {
 
   findById(id: number): Promise<RegisteredCustomer | null> {
     return Promise.resolve(this.holders.find((customer) => customer.id === id) ?? null);
+  }
+
+  listWithStatus(status: CustomerStatus): Promise<ReadonlyArray<RegisteredCustomer>> {
+    return Promise.resolve(this.holders.filter((customer) => customer.status === status));
   }
 
   takenActiveNumbers(): Promise<ReadonlyArray<number>> {
@@ -286,7 +291,12 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
     archiveReason: overrides.status === "ARCHIVED" ? "archiviert" : null,
     archivedAt: overrides.status === "ARCHIVED" ? new Date(TODAY) : null,
     reminderCount: overrides.reminderCount ?? 0,
-    card: { index: overrides.cardIndex ?? 1, issuedAt: new Date(TODAY), reason: "FIRST_ISSUE" },
+    card: {
+      index: overrides.cardIndex ?? 1,
+      issuedAt: new Date(TODAY),
+      reason: "FIRST_ISSUE",
+      countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
+    },
     // Registered today unless a test says otherwise, so no distribution lies behind the household
     // and the no-show count of an unrelated case is zero rather than incidental.
     registeredOn: new Date(overrides.registeredOn ?? TODAY),
@@ -416,6 +426,31 @@ describe("lookupCustomer", () => {
 
     expect(result.customer?.grownUps).toBe(1);
     expect(result.customer?.children).toBe(0);
+  });
+
+  it("notes that the card still prints counts a 13th birthday has overtaken", async () => {
+    // Printed while the member was twelve; looked up after their birthday, with nothing written in
+    // between — the counts on the screen moved, the piece of card in their pocket did not.
+    customers = new FakeCustomerRepository(
+      customerRecord({ householdMembers: [member(GROWN_UP), member("2013-08-01T00:00:00.000Z")] }),
+    );
+
+    const result = await lookupCustomer(deps("2026-08-01T09:00:00.000Z"), "50");
+
+    expect(result.customer?.staleCounts).toBe("AGE_13");
+    expect(result.customer?.countsOnCard).toEqual({ grownUps: 1, children: 1 });
+    expect(result.customer?.grownUps).toBe(2);
+    expect(result.customer?.children).toBe(0);
+  });
+
+  it("notes nothing when the card still prints what the household is", async () => {
+    customers = new FakeCustomerRepository(
+      customerRecord({ householdMembers: [member(GROWN_UP), member(CHILD)] }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.staleCounts).toBeNull();
   });
 
   it("carries everything the screen shows below the verdict", async () => {

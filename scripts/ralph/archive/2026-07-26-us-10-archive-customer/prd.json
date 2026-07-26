@@ -20,8 +20,8 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "The boundary tests exposed a defect rather than only confirming the rule: composition and ageInYears read `today` as its UTC day, so the flip happened at 01:00/02:00 Berlin. `today` is now read through berlinDayKey; the birthdate keeps its UTC day (it is a stored calendar day). No change to the 13-year threshold or the § 188 Abs. 3 BGB roll-over. The 13th birthday of a 29 February child can never fall on 29 February (leap year + 13 is never a leap year), so the leap-year anniversary is pinned on ageInYears at the 16th birthday instead."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -36,8 +36,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Modelled as `IssuedCard.countsAtIssue: HouseholdComposition` in the domain, mapped to the two flat Int columns in the adapter — the comparison US-003 needs is then one value-object equality rather than four field reads. Written by issueCard AND by the registration's first card (customers.create), because a first card and a replacement are the same object. The init migration was regenerated rather than corrected: the columns are NOT NULL with no honest default, so a stacked ALTER would describe a system no one ever ran; the hand-written partial unique index was re-appended. Required-field ripple hit 9 test files plus 6 e2e specs."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -53,8 +53,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "The comparison itself is a domain rule (`staleCountsReason` in domain/card/staleCounts.ts): AGE_13 only when the household is the same size AND grown-ups went up — a birthday is the whole explanation or it is not named as one. The use case is `listCardsDueForReissue` (application/customers/cards-due-for-reissue.ts) over one new port method, `CustomerRepository.listWithStatus(status)`, which the use case calls with \"ACTIVE\" so the blocked/archived exclusion is stated where its reason lives rather than hidden in the adapter. The register is read whole and compared in application code because one side of the comparison is a rule over birthdates — not expressible as a WHERE clause; documented in the use case, the port and the adapter. Port ripple hit 4 fake repositories."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -71,8 +71,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Route /karten-neuausstellung: page.tsx (list) + stale-card-controls.tsx (client) + actions.ts (reason fixed to STALE_COUNTS, never read off the form — the same argument the loss control makes) + reissue-state.ts. The row names the NEXT card number, which is new on the read model (`CardDueForReissue.nextCardNumber`), because a successful reissue removes the row and takes any success message with it — the number staff copy onto the card has to be shown before the write. The counter note needed two new fields on `CounterCustomerView`: `countsOnCard` (the card's snapshot, for the note to name) and `staleCounts` (the rule's answer, compared against the counts the lookup already derived, so note and numbers cannot disagree). The home badge goes through `countCardsDueForReissue`, which is `listCardsDueForReissue(...).length` — badge and screen are then one statement — and both `/` and the list are `force-dynamic`, since the answer moves at midnight with nothing written. Verified in a real browser against a scratch DB with the clock pinned past a 13th birthday: badge 1 → row with 1/1 vs 2/0 and \"13. Geburtstag\" → counter shows the grey note with the serve button still there → reissue → row gone, badge 0, card 50k2, note gone."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
@@ -86,8 +86,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "tests/e2e/age-13.spec.ts, customer number 271, child born 2013-01-15. The clock moves between two RED distribution Thursdays — 08.01.2026 (child 12) and 22.01.2026 (child 13) — so the group, the calendar and the certificate are all held still and only the age moves; both days follow from the seeded anchor 2026-W02=RED, weekday 4. \"No user action in between\" is asserted as an absence: one Prisma snapshot of the household's row, members, cards, distribution records and the audit-entry count, taken either side of the clock change and compared, so the four figures on the record cannot have come from a write. The home badge counts the whole shared register, so it is only ever compared with itself (before + 1, then back), and the row is addressed by data-customer-number rather than by index — the neighbouring specs leave stale households behind (portions.spec adds a member after its card was printed)."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

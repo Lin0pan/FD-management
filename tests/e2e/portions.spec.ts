@@ -97,7 +97,15 @@ test("portions and price are derived from the household, not stored", async ({ p
         },
       },
       cards: {
-        create: { index: 1, issuedAt: utcMidnight("2026-01-02"), reason: "FIRST_ISSUE" },
+        create: {
+          index: 1,
+          issuedAt: utcMidnight("2026-01-02"),
+          reason: "FIRST_ISSUE",
+          // The printed card matches the seeded household — two grown-ups and one child — so the
+          // portions on screen are the derivation's doing and nothing else's.
+          grownUpsAtIssue: 2,
+          childrenAtIssue: 1,
+        },
       },
     },
   });
