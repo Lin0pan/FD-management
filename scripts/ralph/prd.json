@@ -71,8 +71,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Route /karten-neuausstellung: page.tsx (list) + stale-card-controls.tsx (client) + actions.ts (reason fixed to STALE_COUNTS, never read off the form — the same argument the loss control makes) + reissue-state.ts. The row names the NEXT card number, which is new on the read model (`CardDueForReissue.nextCardNumber`), because a successful reissue removes the row and takes any success message with it — the number staff copy onto the card has to be shown before the write. The counter note needed two new fields on `CounterCustomerView`: `countsOnCard` (the card's snapshot, for the note to name) and `staleCounts` (the rule's answer, compared against the counts the lookup already derived, so note and numbers cannot disagree). The home badge goes through `countCardsDueForReissue`, which is `listCardsDueForReissue(...).length` — badge and screen are then one statement — and both `/` and the list are `force-dynamic`, since the answer moves at midnight with nothing written. Verified in a real browser against a scratch DB with the clock pinned past a 13th birthday: badge 1 → row with 1/1 vs 2/0 and \"13. Geburtstag\" → counter shows the grey note with the serve button still there → reissue → row gone, badge 0, card 50k2, note gone."
     },
     {
       "id": "US-005",

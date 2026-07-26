@@ -112,6 +112,17 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   while a birthdate stays a UTC-anchored stored day. Any new rule that asks "as of today" belongs in
   the Berlin calendar too — a UTC-only comparison silently answers yesterday's question for the first
   one or two hours of every day.
+- Any screen whose answer moves with the CLOCK while no row changes (the cards-due list, the home
+  badge, the week colour) must be `export const dynamic = "force-dynamic"` — a cached render is a
+  screen that quietly stopped being true at midnight.
+- A write whose success makes its own row disappear cannot report anything afterwards: revalidation
+  unmounts the component. Show what staff need to read (the new card number) BEFORE the action, and
+  give the form state no "saved" branch.
+- A second screen that wants an existing use case with a different reason gets its own `actions.ts`
+  fixing that reason — never a reason field on the form. Both still call the one use case, and
+  neither screen can file a write under the other's reason.
+- A badge counting what a list shows asks by taking the list's `.length` through one application
+  seam (`countCardsDueForReissue`), not by counting separately — the two can then never disagree.
 
 ---
 
@@ -252,4 +263,63 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   - Where a rule compares two derived values, put the comparison in the domain and keep the
     derivation in the use case. `staleCountsReason` never sees a member or a clock, which is why its
     eight boundary cases are a table rather than a fixture.
+---
+
+## 2026-07-26 - US-004 (cards-due-for-reissue screen)
+- New route `/karten-neuausstellung`: `page.tsx` renders one row per household from
+  `listCardsDueForReissue` — name, customer number, card number, the counts PRINTED on the card
+  beside the counts the household IS today, and the difference in words ("13. Geburtstag"). The
+  "keine Eile" sentence stands ABOVE the list, not under it: whoever opens the screen has to read
+  that nothing is urgent before the first row, not after working through it. Nothing is coloured as
+  a warning and no row asks to be dealt with first (PRD §6, FR-5).
+- `stale-card-controls.tsx` (client, `useActionState`) is the same closed disclosure as the record's
+  reissue control and reuses ITS strings (`de.customers.reissue.confirm/submit/errors`); only the
+  summary label is new. `actions.ts` fixes the reason to `STALE_COUNTS` rather than reading it off
+  the form — the argument the loss control makes for `LOST`: the recorded reason is what keeps the
+  loss count on the card view readable. It hands to `reissueCard`, so there is still one issuing
+  path, and revalidates the list, the record, the card view and `/`.
+- The row names the number the reissue will hand out. That number is new on the READ MODEL
+  (`CardDueForReissue.nextCardNumber`), not worked out in the page, and it has to be shown BEFORE
+  the write: a successful reissue removes the row and takes any success message with it, so there is
+  deliberately no "saved" state in `reissue-state.ts`.
+- The counter note needed two new fields on `CounterCustomerView`: `countsOnCard` (the card's
+  snapshot, so the sentence can name it) and `staleCounts` (`staleCountsReason` against the counts
+  the lookup has ALREADY derived, so the note and the numbers beside it cannot tell different
+  stories). Rendered as the smallest, quietest thing on the screen — one grey line, no border, no
+  icon, no colour. `evaluateAtCounter` never sees the field, so the verdict and the serve button are
+  untouched by it.
+- The home badge goes through a new `countCardsDueForReissue(deps)` = `list(...).length`, so badge
+  and screen are one statement; it cannot be a `COUNT(*)` for the reason the list cannot be a
+  `WHERE`. Both `/` and the list are `force-dynamic` — the answer changes at midnight with nothing
+  written, so a cached render is a screen that quietly stopped being true. The badge is grey and is
+  shown at zero: "nothing to do" is the answer staff most often want from it.
+- Files changed: src/app/karten-neuausstellung/{page.tsx,stale-card-controls.tsx,actions.ts,
+  reissue-state.ts} (new), src/app/page.tsx, src/app/ausgabe/counter-lookup.tsx,
+  src/application/customers/{cards-due-for-reissue,lookup-customer}.ts (+ both tests), src/i18n/de.ts,
+  docs/technical_documentation.md.
+- Checks: format, lint, typecheck, test:coverage (624 tests, 37 files, 100% on domain/application),
+  build, and `npm run test:e2e` (41 passed, 1 skipped) — all green.
+- Browser check (no e2e spec yet; that is US-005): scratch DB + clock pinned to 2026-08-20, a
+  household whose card prints 1/1 and whose child turned 13 on 2026-08-15. Badge "1 Karte" → row
+  showing 1/1 vs 2/0, "13. Geburtstag", confirmation naming 50k1 → 50k2 → counter "Ausgabe frei"
+  with the grey note AND the serve button visible, 4 Portionen / 4,00 € → reissue → row gone,
+  "Zurzeit ist keine Karte neu auszustellen", badge "0 Karten", counter on 50k2 with no note.
+- **Learnings for future iterations:**
+  - A write whose success makes its own row DISAPPEAR cannot report anything afterwards: the
+    component is unmounted by the revalidation. Put whatever staff need to read (here the new card
+    number) in the row BEFORE the action, and give the form state no "saved" branch.
+  - A second screen wanting an existing action with a different reason is not a reason to make the
+    reason a form field. Write a second `actions.ts` that fixes its own — both still call the one
+    use case, and neither screen can file a write under the other's reason.
+  - Two screens that show the same derived pair (counts on card vs counts today) must take BOTH
+    from one place. The counter note reuses `describeAllowance`'s numbers rather than calling
+    `composition` again, so the note can never contradict the fields above it.
+  - Making the home page read the database turns it `force-dynamic`; check nothing assumed it was
+    static (`next build` still lists it as ƒ, and home.spec.ts only asserts the heading).
+  - Browser-check recipe (extends the earlier note): the scratch server needs a PORT nothing else
+    holds — 3100 was already taken by a leftover, and `curl` happily answered from THAT server, so
+    check the start log rather than trusting a 200. A driver script that performs the write has to
+    be re-runnable: keep a tiny `scratch-reset.ts` that deletes cards with `index > 1`, or the
+    second run finds an empty list. Scripts must live in the repo root (a /tmp script cannot resolve
+    @prisma/client) and be deleted afterwards, along with the scratch db and the now-file.
 ---
