@@ -69,8 +69,8 @@
         "Typecheck passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "tests/e2e/reissue.spec.ts — one household (251) in 4 serial specs: reissue from /kunden/[id] asserting the confirmation names 251k1 and 251k2, then 251k2 on the card view with 251k1 listed as replaced and counts 2/1; 251k1 at the counter gives the German OUTDATED_CARD sentence naming both numbers with no serve action, bracketed by a Prisma snapshot (status, cards, distributionRecord, auditEntry counts) proving nothing was recorded, blocked or archived; 251k2 is clear to serve the same day; two more reissues from the CARD VIEW take reissues-for-loss to 3 (cards-issued 4) with the control still offered and no warning. Full suite: 36 passed, 1 skipped."
     }
   ]
 }

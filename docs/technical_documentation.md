@@ -159,6 +159,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── home.spec.ts                  # Playwright smoke test
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
+│   ├── reissue.spec.ts               # a lost card is replaced and stops working at the counter
 │   ├── reminders.spec.ts             # the reminder trail: three visits, three reminders, renewal
 │   ├── serve.spec.ts                 # record a hand-out, block a duplicate, store an unpaid one
 │   └── settings.spec.ts              # settings round-trip vs. the built app
@@ -1191,6 +1192,19 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   stored count to 0, appends the certificate rather than overwriting it, and keeps all three log
   entries. Its household (customer number 231) is inserted straight through Prisma and the
   pinned-now file goes in `afterAll`, as in the neighbouring specs.
+- `reissue.spec.ts` covers US-09 end to end (§US-09.4): one household (customer number 251) followed
+  from a lost card to a working one. It reissues from `/kunden/[id]`, asserting the confirmation
+  names both the number being invalidated and the number about to be issued, then reads `251k2` off
+  the card view with `251k1` listed as replaced and the counts at 2 / 1. Presenting `251k1` at the
+  counter gives the German `OUTDATED_CARD` sentence naming both numbers and no serve action;
+  presenting `251k2` is clear to serve on the same day — which is the point the unit gates cannot
+  reach, because the write and the two verdicts live on three different screens. Two further
+  reissues driven from the **card view** (the same `ReissueControls`) take the loss count to 3 with
+  nothing standing in the way, and the reissue control still on offer — FR-4 is asserted as the
+  absence of a warning, not as a threshold. The FR-3 half mirrors the counter spec's: the refused
+  lookup is bracketed by a Prisma snapshot of the household's status, cards, distribution records and
+  the audit-entry count, so a refusal that blocked, archived or recorded anything would fail. Pinned
+  to the RED Thursday 08.01.2026 and deletes the pinned-now file in `afterAll`, like its neighbours.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.
