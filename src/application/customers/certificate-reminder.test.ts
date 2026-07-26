@@ -65,6 +65,7 @@ class FakeCustomerRepository implements CustomerRepository {
       blockReason: null,
       archiveReason: null,
       archivedAt: null,
+      registeredOn: customer.card.issuedAt,
     };
     this.holders.push(registered);
     return Promise.resolve(registered);
@@ -184,6 +185,7 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
     archivedAt: null,
     reminderCount: overrides.reminderCount ?? 0,
     card: { index: 1, issuedAt: new Date(TODAY), reason: "FIRST_ISSUE" },
+    registeredOn: new Date(TODAY),
     details,
   };
 }

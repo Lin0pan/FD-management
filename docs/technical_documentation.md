@@ -76,12 +76,15 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   └── deps.ts               # composition roots: the read deps and the write (audit) deps
 │   │   ├── kunden/                   # the customer screens (US-01)
 │   │   │   ├── deps.ts               # composition root for both routes below
+│   │   │   ├── archive-controls.tsx  # client: Archivieren — shared by the record AND the counter (US-10.4)
+│   │   │   ├── archive-actions.ts    # "use server": Zod → archiveCustomer, revalidates both screens
+│   │   │   ├── archive-state.ts      # the archive form state (not exportable from an action module)
 │   │   │   ├── neu/                  # the registration screen
 │   │   │   │   ├── page.tsx          # server component: reads the proposal, renders the form
 │   │   │   │   ├── registration-form.tsx  # client component: repeatable rows + live counts
 │   │   │   │   ├── actions.ts        # "use server": Zod → registerCustomer → redirect
 │   │   │   │   └── register-customer-state.ts  # form state (not exportable from actions.ts)
-│   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on; hosts the block + reissue controls
+│   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on; hosts the block, reissue + archive controls
 │   │   │   ├── [id]/block-controls.tsx  # client: Sperren / Sperre aufheben (US-08.4)
 │   │   │   ├── [id]/reissue-controls.tsx  # client: Karte neu ausstellen (Verlust) (US-09.3)
 │   │   │   ├── [id]/actions.ts       # "use server": Zod → blockCustomer / unblockCustomer / reissueCard
@@ -135,7 +138,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   recordReminder / renewCertificate (US-06),
 │   │   │                             #   blockCustomer / unblockCustomer (US-08),
 │   │   │                             #   reissueCard (US-09, delegates to issueCard),
-│   │   │                             #   archiveCustomer (US-10, frees the slot)
+│   │   │                             #   archiveCustomer (US-10, frees the slot),
+│   │   │                             #   countNoShows (US-10, the seam both read models use)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
@@ -425,7 +429,10 @@ needed. The Excel sheet FD is replacing stored them, and they drifted with every
 `reminderCount`, the first `card` — and `RegisteredCustomer` adds the surrogate `id`, which is the
 only identity there is: a customer number is a slot another household may hold once this one is
 archived, plus `blockReason`, non-null **exactly** when the customer is blocked, and
-`archiveReason`/`archivedAt`, non-null **exactly** when they are archived. The block reason is
+`archiveReason`/`archivedAt`, non-null **exactly** when they are archived. It also carries
+`registeredOn`, the day the household joined: there is no registration column, so it is **derived on
+read** from their _first_ card — the one handed over with the registration — and a card replaced
+after a loss therefore cannot move a household's start (US-10.1). The block reason is
 cleared when the block is lifted; the archive pair never is, because there is no way back out of
 `ARCHIVED` (US-10, FR-7). `CustomerStatus` is `ACTIVE | BLOCKED | ARCHIVED`; a blocked customer still
 holds their slot (US-08), an archived one releases it (US-10). The legal moves between the three
@@ -651,6 +658,10 @@ The two read-side use cases the customer screens sit on:
   `CustomerNotFound` for an id nobody holds. It also names `nextCardNumber` — the number a
   replacement would carry, from `nextCardNumber()` in the domain — so the record's reissue
   confirmation states the number it is about to hand out without the page working it out (US-09.3).
+  It also carries `consecutiveNoShows` (US-10.4) — the household's own distributions missed in a row,
+  through the `countNoShows` seam below — which is why it takes the read side of
+  `DistributionRecordRepository`: a no-show is the absence of a record, so the history has to be read
+  to count one.
 - **`readCard`** answers what the _card_ shows (US-02.4): the current card number, the name, the
   group, the counts, portions and price as of today (all via `describeAllowance`), and the numbers
   this card replaced. It reads the customer's whole
@@ -748,6 +759,20 @@ signature: `customers.test.ts` snapshots everything the household owns before an
 and compares the two, and asserts that the freed number is what `lowestFreeNumber` offers next.
 There is no un-archive; a returning household is registered anew (FR-7, US-11).
 
+### `src/application/customers/countNoShows`
+
+The seam both screens that show the no-show count read (US-10.4), so the customer record and the
+counter can never disagree about it. The rule itself is `consecutiveNoShows` in the domain; this adds
+the one decision the pure module cannot make — **which settings the count is read against**, namely
+the version in force at the instant asked about, because the schedule the misses are counted on (the
+distribution weekday and the week-colour anchor) is policy FD can change (US-14).
+
+The customer's records are **passed in** rather than loaded here. The counter already holds them from
+its single pass over the register (US-04.3), and fetching them again would put a second query on the
+busiest screen in the product for a number it has the raw material for; the customer record reads them
+alongside the allowance in the same `Promise.all`. `registeredOn` comes off the customer record, where
+it is derived from the first card.
+
 ### `src/infrastructure/prisma/audit-log.ts`
 
 The **append-only audit log** (`PrismaAuditLog`). Every state change is recorded with a timestamp
@@ -790,6 +815,13 @@ CREATE UNIQUE INDEX "Customer_customerNumber_onRegister_key"
 It is the final authority on a free number: the application reads the taken numbers and then writes,
 and only the database can settle the race in between. **Regenerating the migration drops it** — re-add
 it, or the slot rule is enforced by application code alone.
+
+The include loads the **whole run of cards**, highest index first, rather than only the top one: the
+head is the card the household holds and the tail is their _first_ card, whose `issuedAt` is
+`registeredOn` (US-10.1). A household's run is two or three rows, so this costs less than a second
+query for one date on the counter's hot path — and the number of statements per lookup stays fixed,
+which is the invariant the integration test pins. A row with no card at all is refused as an
+`InvalidCustomerRecord`: registration writes the first card in the same transaction as the customer.
 
 `findByCustomerNumber(n)` is the counter's read (US-04). Because a customer number is a slot rather
 than an identity, it is deliberately **two queries and not one `orderBy`**: an active holder wins over
@@ -907,7 +939,14 @@ beyond it:
   non-numeric id and an id nobody holds give the same German answer: there is no such customer. It
   links on to the card view. It also hosts the **block controls** (US-08.4): an active customer sees
   a "Sperre" section showing the current reason verbatim when blocked — and the **reissue control**
-  (US-09.3), because staff reach for whichever of the two screens is already open.
+  (US-09.3), because staff reach for whichever of the two screens is already open. It shows the
+  **consecutive-no-show count** only when it is greater than zero (US-10.4): a zero is one more number
+  to read past on every record and says nothing a decision could rest on. An **archived** record
+  renders read-only — the block, reissue and archive sections are all absent, because there is no
+  transition out of `ARCHIVED` — behind a banner naming the day and the reason, stated before anything
+  else on the page: every action below it is gone and the reader has to know why before looking for
+  one. "Aufgenommen" is the household's `registeredOn`, so a reissued card does not read as a later
+  registration.
 - **`[id]/block-controls.tsx`** is a client component (`useActionState`, and the save control stays
   disabled until a reason is typed — a block's reason is its only record, so an empty one must be
   impossible to submit). It shows "Sperren" with a required multi-line reason for an `ACTIVE`
@@ -927,6 +966,19 @@ beyond it:
   than reading it off the form: this control is the _loss_ control, and that is what makes the loss
   count mean what it says. It revalidates the record **and** the card view, so whichever screen the
   reissue was started from shows the new number and the other one does too when next opened.
+- **`archive-controls.tsx`** is the "Archivieren" control (US-10.4), and it sits one level above
+  `[id]/` because it is rendered by **both** the customer record and the **counter** — archiving has to
+  be reachable where staff meet the household who has stopped coming (FR-2), and one component means it
+  cannot come to mean two different things depending on where it was started. It is a **closed
+  disclosure with the confirmation inside it**, never a dialog and never a prompt: at the counter the
+  queue is waiting, and an archive suggestion that had to be dismissed before the next customer could be
+  served would be worse than none (PRD §6). The confirmation names the customer number and states the
+  two things staff would otherwise learn from a support call — the number is freed at once and may be
+  reassigned, and the record is kept in full. The save control stays disabled until a non-whitespace
+  reason is typed; the reason is the whole record of an irreversible decision. **`archive-actions.ts`**
+  relays it to `archiveCustomer`, maps `MissingAuditReason` and `IllegalStatusTransition` to German,
+  and revalidates the record **and** `/ausgabe`, so the counter's next lookup of that number answers
+  `ARCHIVED`.
 - **`[id]/karte/page.tsx`** is the **digital customer card** (US-02.4): the number, the name, the
   group as a coloured German label, the two counts and the standard portions and price (US-07.4),
   set large enough to read across a desk, plus the numbers this card replaced and why each was
@@ -995,7 +1047,13 @@ then the question it asks about every person in the queue: may _this_ one collec
   inflected forms ("blaue Kundin / blauer Kunde", "rote Woche") are dictionary data keyed by the
   colour, not sentences assembled in the component.
 - An **expired certificate is amber, not red**: the verdict is still serve — the reminder is a
-  conversation, never grounds to refuse food.
+  conversation, never grounds to refuse food. The reminder count stands beside it in the household
+  details and inside the verdict sentence itself (US-06, US-10.4), because it is what makes the
+  archiving question askable at the counter at all.
+- The **consecutive-no-show count** appears in the household details when it is greater than zero
+  (US-10.4), and the **archive control** last on the screen, below the serve action — an ordinary
+  collapsed disclosure like every other control here. Neither reacts to any threshold: the two
+  archiving triggers are made visible and the decision stays human (US-10, FR-1, PRD §5).
 - The detail line is `whitespace-pre-line`. Every verdict but one is a single dictionary sentence,
   which renders the same either way; the exception is the **block reason** (US-08), typed by hand
   into a multi-line field and shown verbatim, so the paragraphs a colleague wrote have to survive to

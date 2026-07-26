@@ -70,6 +70,12 @@ export const de = {
       children: "Kinder (unter 13 Jahren)",
       portions: "Portionen",
       price: "Preis",
+      /**
+       * The consecutive-no-show count (US-10.4). Shown only when it is greater than zero, and
+       * inflected at one — the software states the number and draws no conclusion from it.
+       */
+      noShows: "Ausgaben in Folge verpasst",
+      noShowsValue: (count: number): string => (count === 1 ? "1 Ausgabe" : `${count} Ausgaben`),
       hint: "Berechnet aus den Geburtsdaten — nicht eingebbar.",
       standardValues: "Standard-Portionen und -Preis; am Ausgabetisch nicht anpassbar.",
       unknown: "—",
@@ -149,6 +155,39 @@ export const de = {
           "Diese Kundin oder dieser Kunde kann nicht gesperrt werden. Bitte die Seite neu laden.",
         notBlocked: "Diese Kundin oder dieser Kunde ist nicht gesperrt. Bitte die Seite neu laden.",
         unknown: "Die Änderung konnte nicht gespeichert werden.",
+      },
+    },
+    /**
+     * Archiving a household (US-10). It is how someone leaves the register and the only action that
+     * frees a customer number, so the confirmation says both of the things staff would otherwise
+     * learn from a support call: the number goes back into circulation, and nothing is deleted.
+     */
+    archive: {
+      heading: "Archivieren",
+      action: "Diesen Haushalt archivieren",
+      reasonLabel: "Grund der Archivierung",
+      reasonHint:
+        "Der Grund bleibt dauerhaft auf dem archivierten Datensatz stehen und ist die einzige " +
+        "Erklärung, die spätere Kolleginnen und Kollegen dazu finden.",
+      confirm: (customerNumber: number): string =>
+        `Die Kundennummer ${customerNumber} wird sofort frei und kann bei der nächsten Aufnahme ` +
+        `neu vergeben werden — möglicherweise schon morgen an einen anderen Haushalt. Der ` +
+        `Datensatz bleibt vollständig erhalten und auffindbar; gelöscht wird nichts. Rückgängig ` +
+        `machen lässt sich die Archivierung nicht: Wer zurückkommt, wird neu aufgenommen.`,
+      submit: "Jetzt archivieren",
+      submitting: "Wird archiviert …",
+      /** The banner an archived record carries — the reason and the day, on every screen it shows on. */
+      bannerHeading: "Archiviert",
+      bannerDetail: (date: string, reason: string): string =>
+        `Archiviert am ${date}. Grund: „${reason}“`,
+      bannerNoReason: "Zu dieser Archivierung ist kein Grund hinterlegt.",
+      bannerReadOnly:
+        "Der Datensatz wird nur noch angezeigt und kann nicht mehr geändert werden. Die " +
+        "Kundennummer ist freigegeben und gehört möglicherweise bereits einem anderen Haushalt.",
+      errors: {
+        missingReason: "Bitte einen Grund für die Archivierung angeben.",
+        notArchivable: "Dieser Haushalt ist bereits archiviert. Bitte die Seite neu laden.",
+        unknown: "Die Archivierung konnte nicht gespeichert werden.",
       },
     },
     /** Why a card was handed over — the four reasons `CardIssueReason` names. */

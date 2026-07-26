@@ -23,6 +23,7 @@ import { evaluateAtCounter, type Verdict } from "@/domain/distribution/counterVe
 import type { Cents } from "@/domain/money";
 import { describeAllowance } from "../allowance/describe-allowance";
 import { getWeekColour } from "../distribution/get-week-colour";
+import { countNoShows } from "./count-no-shows";
 import type {
   Clock,
   CustomerRepository,
@@ -57,6 +58,12 @@ export interface CounterCustomerView {
   readonly certificateValidUntil: Date;
   readonly status: CustomerStatus;
   readonly reminderCount: number;
+  /**
+   * How many of their own distributions this household has missed in a row (US-10.1). Read from the
+   * records the lookup has already loaded, so it costs the counter no further query. It is shown and
+   * nothing more — the archiving decision it feeds is always a human one (US-10, FR-1).
+   */
+  readonly consecutiveNoShows: number;
   readonly notes: string;
   /** The number of the card the customer holds today, e.g. `50k3`. */
   readonly cardNumber: string;
@@ -160,7 +167,10 @@ export async function lookupCustomer(
   const todaysRecord =
     existing === null ? null : { recordId: existing.id, at: existing.date, paid: existing.paid };
 
-  const allowance = await describeAllowance(deps, customer.details.householdMembers, today);
+  const [allowance, consecutiveNoShows] = await Promise.all([
+    describeAllowance(deps, customer.details.householdMembers, today),
+    countNoShows(deps, customer, recordsForCustomer, today),
+  ]);
   return {
     verdict,
     customerId: customer.id,
@@ -178,6 +188,7 @@ export async function lookupCustomer(
       certificateValidUntil: customer.details.certificate.validUntil,
       status: customer.status,
       reminderCount: customer.reminderCount,
+      consecutiveNoShows,
       notes: customer.details.notes,
       cardNumber: formatCardNumber(customer.customerNumber, customer.card.index),
     },

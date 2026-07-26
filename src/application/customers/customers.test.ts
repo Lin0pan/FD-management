@@ -146,6 +146,9 @@ class FakeCustomerRepository implements CustomerRepository {
       blockReason: null,
       archiveReason: null,
       archivedAt: null,
+      // A brand-new customer holds exactly one card, so the first card is the current one — the same
+      // derivation the adapter makes from the run of cards on file.
+      registeredOn: customer.card.issuedAt,
     };
     this.nextId += 1;
     this.created.push(registered);
@@ -860,15 +863,48 @@ describe("proposeRegistration", () => {
 describe("readCustomer", () => {
   let customers: FakeCustomerRepository;
   let settings: FakeSettingsRepository;
+  let records: FakeDistributionRecordRepository;
   let audit: FakeAuditLog;
 
+  /**
+   * A RED Thursday every fortnight from the `2026-W02` anchor: … 06-11, 06-25, 07-09, 07-23. With
+   * `TODAY` on 2026-07-22 the last own distribution behind the household is 07-09.
+   */
+  const OWN_DISTRIBUTIONS = [
+    "2026-05-14T09:00:00.000Z",
+    "2026-05-28T09:00:00.000Z",
+    "2026-06-11T09:00:00.000Z",
+    "2026-06-25T09:00:00.000Z",
+    "2026-07-09T09:00:00.000Z",
+  ];
+
   function deps(today = TODAY) {
-    return { customers, settings, clock: fakeClock(today), audit };
+    return { customers, settings, records, clock: fakeClock(today), audit };
+  }
+
+  /** A RED household registered on 2026-05-01, i.e. with five own distributions behind them. */
+  async function seedLongStanding(): Promise<RegisteredCustomer> {
+    return customers.create({
+      ...storedCustomer("ACTIVE"),
+      group: "RED",
+      card: { index: 1, issuedAt: new Date("2026-05-01T09:00:00.000Z"), reason: "FIRST_ISSUE" },
+    });
+  }
+
+  async function attend(customerId: number, iso: string): Promise<void> {
+    await records.create({
+      customerId,
+      date: new Date(iso),
+      showedUp: true,
+      paid: true,
+      priceCents: 500,
+    });
   }
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
     settings = new FakeSettingsRepository(version());
+    records = new FakeDistributionRecordRepository();
     audit = new FakeAuditLog();
   });
 
@@ -953,6 +989,32 @@ describe("readCustomer", () => {
       { firstName: "Ada", age: 36 },
       { firstName: "Bo", age: 6 },
     ]);
+  });
+
+  it("counts the household's own distributions missed in a row since they registered", async () => {
+    const registered = await seedLongStanding();
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.consecutiveNoShows).toBe(OWN_DISTRIBUTIONS.length);
+  });
+
+  it("stops the no-show count at the last distribution the household attended", async () => {
+    const registered = await seedLongStanding();
+    await attend(registered.id, "2026-06-25T09:00:00.000Z");
+
+    const view = await readCustomer(deps(), registered.id);
+
+    // Only 07-09 is missed; 06-25 was attended and everything before it is behind that.
+    expect(view.consecutiveNoShows).toBe(1);
+  });
+
+  it("shows no missed distributions for a household registered since the last one", async () => {
+    const registered = await registerCustomer(deps(), registerInput());
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.consecutiveNoShows).toBe(0);
   });
 
   it("refuses an id that belongs to nobody rather than showing an empty card", async () => {

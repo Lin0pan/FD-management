@@ -214,6 +214,16 @@ export function CustomerDetails({
           value={String(customer.reminderCount)}
           testId="counter-reminder-count"
         />
+        {/* The second archiving trigger (US-10.4), shown only when there is a run to see: a household
+            that has quietly stopped coming is invisible at the counter otherwise. It is a number and
+            nothing more — no threshold, no warning, no action follows from it (PRD §5). */}
+        {customer.consecutiveNoShows === 0 ? null : (
+          <Field
+            label={de.customers.derived.noShows}
+            value={de.customers.derived.noShowsValue(customer.consecutiveNoShows)}
+            testId="counter-no-shows"
+          />
+        )}
       </div>
       <p className="text-xs text-foreground/60">{de.customers.derived.standardValues}</p>
       <div className="flex flex-col gap-1">

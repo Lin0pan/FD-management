@@ -122,6 +122,15 @@ export interface RegisteredCustomer extends NewCustomer {
   readonly archiveReason: string | null;
   /** When the household was archived, or `null` while it is not. Non-null with `archiveReason`. */
   readonly archivedAt: Date | null;
+  /**
+   * The day the household joined the register — the issue date of their **first** card, because a
+   * card is handed over with the registration and there is no registration column (US-01.4). It is
+   * derived on read like the counts and the card number, never stored: a reissue writes a new card
+   * and must not be able to move a household's start, which is what a stored copy would eventually
+   * do. The no-show count needs it, since no distribution before it was ever theirs to attend
+   * (tasks/prd-us-10-archive-customer.md §US-10.1).
+   */
+  readonly registeredOn: Date;
 }
 
 /**

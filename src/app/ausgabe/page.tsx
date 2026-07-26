@@ -21,6 +21,7 @@ import { DomainError } from "@/domain/errors";
 import type { WeekColour } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { germanDate, germanTime } from "@/i18n/format";
+import { ArchiveControls } from "../kunden/archive-controls";
 import { CertificateControls } from "./certificate-controls";
 import { CustomerDetails, VerdictBanner } from "./counter-lookup";
 import { distributionDeps } from "./deps";
@@ -296,6 +297,20 @@ export default async function DistributionPage({
                         }
                   }
                 />
+                {/* Archiving is offered here because both triggers show up at the counter — the
+                    certificate still expired after several reminders, and the no-show run above
+                    (FR-2). It is the same closed disclosure as on the customer record, last on the
+                    screen and never a prompt: the queue must not have to dismiss anything to get
+                    the next customer served (PRD §6). Keyed by customer, like the certificate
+                    controls, so nothing typed about one household survives into the next lookup. */}
+                {counter.lookup.customer === null ? null : (
+                  <ArchiveControls
+                    key={counter.lookup.customerId}
+                    customerId={counter.lookup.customerId}
+                    customerNumber={counter.lookup.customer.customerNumber}
+                    status={counter.lookup.customer.status}
+                  />
+                )}
               </>
             )}
           </>

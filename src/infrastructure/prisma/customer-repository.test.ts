@@ -444,6 +444,22 @@ describe("PrismaCustomerRepository.findById", () => {
 
     expect((await repository.findById(created.id))?.card.index).toBe(2);
   });
+
+  it("dates the household's start from their first card, not from the one a reissue gave them", async () => {
+    const created = await repository.create(newCustomer());
+    await prisma.card.create({
+      data: {
+        customerId: created.id,
+        index: 2,
+        issuedAt: new Date("2026-08-06T09:00:00.000Z"),
+        reason: "LOST",
+      },
+    });
+
+    // The registration wrote card 1 on `TODAY`; the replacement two weeks later must not move the
+    // household's start, which is what the no-show count counts back to (US-10.1).
+    expect((await repository.findById(created.id))?.registeredOn).toEqual(TODAY);
+  });
 });
 
 describe("PrismaCustomerRepository.findByCustomerNumber", () => {
