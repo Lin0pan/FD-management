@@ -129,7 +129,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
 │   │   │                             #   readCard, issueCard, lookupCustomer (the counter lookup),
 │   │   │                             #   recordReminder / renewCertificate (US-06),
-│   │   │                             #   blockCustomer / unblockCustomer (US-08)
+│   │   │                             #   blockCustomer / unblockCustomer (US-08),
+│   │   │                             #   reissueCard (US-09, delegates to issueCard)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
@@ -568,6 +569,25 @@ The registration card is still written inside `customers.create(…)` rather tha
 case, because the customer and their first card must land in **one transaction** (US-01.4) and a
 second write could not. It records `FIRST_ISSUE` on the same `IssuedCard` shape this use case writes,
 so the two paths differ only in the transaction they belong to.
+
+### `src/application/customers/reissueCard`
+
+The counter's answer to "I lost my card" (US-09.1) — and deliberately **not** a second implementation
+of it. `reissueCard(deps, { customerId, reason })` hands straight to `issueCard`, so a replacement is
+written by the same code as a first issue: the new card takes the next index, and because the highest
+index _is_ what valid means, every earlier number stops working as a consequence of that one write
+rather than through a second step someone could forget (FR-2). A parallel issuing path is exactly how
+the "exactly one valid card" invariant would break.
+
+What delegation alone cannot say is added by the narrower `ReissueReason` — every `CardIssueReason`
+except `FIRST_ISSUE`, which belongs to the registration and nothing else. A replacement filed as a
+first issue would vanish from the count of losses the card view shows staff (FR-5), and the type makes
+it unrepresentable.
+
+There is **no limit check** (FR-4): the tenth reissue is written exactly like the second. Whether a
+household loses cards too often is a judgement staff make from a count the software shows them, never
+one it makes for them. Nothing but the card run changes — status, customer number, group, reminder
+count and the distribution history are untouched, which is what the use case's tests pin.
 
 ### `src/application/customers/proposeRegistration` and `readCustomer`
 

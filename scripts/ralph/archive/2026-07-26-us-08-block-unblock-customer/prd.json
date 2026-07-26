@@ -19,8 +19,8 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "reissueCard delegates to issueCard and narrows the reason to Exclude<CardIssueReason,'FIRST_ISSUE'> so a replacement can never be filed as a first issue. 11 tests in customers.test.ts (incl. two reissues in a row and ten in a row)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",

@@ -1,0 +1,107 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-08-block-unblock-customer",
+  "description": "US-08 Block and Unblock a Customer — Manual temporary block with a mandatory free-text reason, shown verbatim at the counter. Opens with the customer detail page shell, which this and the next two batches attach their actions to.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Customer detail page shell at /kunden/[id]",
+      "description": "As a staff member, I want a read-only page showing everything known about one customer, so later stories have a place to attach their actions. Sequencing story derived from tasks/prd-us-16-maintain-customer-record.md §US-16.5 — it exists here so US-08, US-09 and US-10 have a host page.",
+      "acceptanceCriteria": [
+        "Route /kunden/[id] renders read-only: personal data, address, household members with birthdate and current age, derived counts, group, status, current card number, certificate type and expiry, reminder count, notes",
+        "The page links to the card view at /kunden/[id]/karte",
+        "An unknown id renders a German not-found message, not a crash",
+        "The page performs no writes",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Detail page at /kunden/[id] already existed from US-01 as the card landing; extended it with per-member current age (new pure domain fn ageInYears) and reminder count. Browser check pending: no dev-browser skill/MCP available this session."
+    },
+    {
+      "id": "US-002",
+      "title": "Customer status transition state machine",
+      "description": "As a developer, I need status transitions modelled as a state machine, so illegal transitions are impossible rather than merely unlikely. Source: tasks/prd-us-08-block-unblock-customer.md §US-08.1",
+      "acceptanceCriteria": [
+        "src/domain/customer/status.ts defines Status = 'ACTIVE' | 'BLOCKED' | 'ARCHIVED' and transition(from, to)",
+        "Allowed: ACTIVE to BLOCKED, BLOCKED to ACTIVE, ACTIVE to ARCHIVED, BLOCKED to ARCHIVED",
+        "Refused with a typed IllegalStatusTransition error: any transition out of ARCHIVED, and any no-op transition",
+        "A transition to BLOCKED without a non-empty reason yields MissingAuditReason(\"customer.blocked\") — the existing error in errors.ts, not a new class",
+        "Every transition pair, legal and illegal, has a test",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "src/domain/customer/status.ts adds transition(from,to,reason?) over the four allowed pairs; Status is aliased to the existing CustomerStatus in customer.ts (single source of truth). New typed IllegalStatusTransition error in errors.ts for any move out of ARCHIVED or any no-op; reason-less BLOCKED reuses MissingAuditReason(\"customer.blocked\"). All 9 ordered pairs tested. 100% coverage held."
+    },
+    {
+      "id": "US-003",
+      "title": "blockCustomer and unblockCustomer use cases",
+      "description": "As a staff member, I want to pause a customer with a written reason and lift it later, so a customer can be paused without losing their number. Source: tasks/prd-us-08-block-unblock-customer.md §US-08.2",
+      "acceptanceCriteria": [
+        "blockCustomer(deps, {customerId, reason}) sets status BLOCKED and stores the trimmed reason; an empty result rejects with MissingAuditReason",
+        "unblockCustomer(deps, {customerId}) returns the customer to ACTIVE and clears the reason",
+        "Neither use case changes the customer number, the card or any distribution record",
+        "Test asserts blocking does not free the slot — the taken-numbers query still includes it",
+        "Blocking an already-blocked customer and unblocking an active one both reject",
+        "Both write audit entries carrying the reason, with no actor field",
+        "Tested against hand-written fakes",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "block-customer.ts and unblock-customer.ts orchestrate transition() + a new CustomerRepository.setStatus(id,status,blockReason) port + audit. Block trims the reason, refuses whitespace via MissingAuditReason and illegal moves via IllegalStatusTransition; unblock reads the reason before clearing it so the audit why records the lifted block. Added blockReason to RegisteredCustomer and pulled the Prisma column + migration forward (a port method forces infra to compile and a reason needs a column) — US-004 keeps the invariant + slot-occupancy integration tests. Fake takenActiveNumbers now derives from live status so a block keeps the slot; all four customer fakes gained setStatus. 506 tests green, 100% on pure layers, build ok."
+    },
+    {
+      "id": "US-004",
+      "title": "Block fields and slot-occupancy invariant",
+      "description": "As a developer, I need blocked customers to occupy their slot exactly like active ones. Source: tasks/prd-us-08-block-unblock-customer.md §US-08.3",
+      "acceptanceCriteria": [
+        "Customer.blockReason String? exists alongside status",
+        "An invariant test proves blockReason is non-null exactly when status is BLOCKED",
+        "Integration test proves the active-number unique index treats BLOCKED as occupying the slot; only ARCHIVED is exempt",
+        "Migration committed under prisma/migrations/",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "The blockReason column + migration landed in US-003; US-004 is the two proof tests. Added a setStatus invariant integration test proving (blockReason !== null) === (status === BLOCKED) is held across block → unblock and block → archive — it also pins that setStatus clears a stale reason, not just the status. Strengthened the slot-constraint tests: the active-number partial unique index refuses a BLOCKED row sharing an ACTIVE holder's number and refuses two BLOCKED on one number, while a BLOCKED and an ARCHIVED row may share a number (only ARCHIVED is exempt). No production change — the invariant is enforced by transition() + the use cases and the sole write path (setStatus writes both columns in one statement); the tests prove it. 511 tests green, 100% on pure layers."
+    },
+    {
+      "id": "US-005",
+      "title": "Block and unblock UI",
+      "description": "As a staff member, I want to block and unblock a customer and see the reason at the counter. Source: tasks/prd-us-08-block-unblock-customer.md §US-08.4",
+      "acceptanceCriteria": [
+        "The customer detail page offers 'Sperren' with a required multi-line reason field; save is disabled until the reason is non-empty",
+        "A blocked customer's counter screen shows the reason verbatim and in full in the verdict banner — never truncated behind a 'more' link",
+        "'Sperre aufheben' is available from the customer detail page and asks for confirmation, showing the current reason before lifting",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Block/unblock UI on /kunden/[id]. New client component block-controls.tsx: an ACTIVE customer gets a 'Sperren' disclosure with a required multi-line textarea whose submit stays disabled until reason.trim() is non-empty (useState); a BLOCKED customer gets the current reason verbatim plus a confirming 'Sperre aufheben' disclosure that shows the reason being lifted before the button; an ARCHIVED customer gets nothing (no transition out of archived). actions.ts (blockCustomerAction/unblockCustomerAction) relays to the use cases, maps MissingAuditReason/IllegalStatusTransition to German, and revalidatePath's the record. The counter verdict banner already shows the reason verbatim/in full (US-04), so no change there. New i18n under customers.block. Browser check pending: no dev-browser skill/MCP this session."
+    },
+    {
+      "id": "US-006",
+      "title": "E2E: blocked customer at the counter",
+      "description": "As a developer, I need a Playwright spec proving a block is visible and reversible. Source: tasks/prd-us-08-block-unblock-customer.md §US-08.5",
+      "acceptanceCriteria": [
+        "Spec blocks a customer with a reason, looks them up at the counter and asserts the reason is displayed and no serve action is offered",
+        "Spec asserts an empty reason cannot be submitted",
+        "Spec lifts the block and asserts the customer is servable again with the same customer number and the same card number",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "tests/e2e/block.spec.ts (customer 241, RED/active, pinned to the RED distribution day 08.01.2026): blocks the household on /kunden/[id] with a multi-line reason, then reads it back verbatim/in full in the counter verdict banner with no serve-button offered; asserts an empty AND a whitespace-only reason leave block-submit disabled (FR-1); lifts the block via the confirming 'Sperre aufheben' and proves the household is CLEAR_TO_SERVE again on the same customer number and card (241k1). Surfaced a wiring gap: lookup-customer.ts hard-coded blockReason:null (a US-04-era TODO), so the counter always showed 'kein Grund hinterlegt' even for a reasoned block — now passes customer.blockReason through, with the lookup-customer 'blocks a blocked customer' unit test strengthened to assert {kind:'BLOCKED',reason:'gesperrt'}. E2E reuses a running server serving the OLD build (reuseExistingServer), so npm run build BEFORE npm run test:e2e when an app-layer change must reach the browser. Full e2e suite green (32 passed, 1 pre-existing skip); 511 unit tests, 100% on pure layers."
+    }
+  ]
+}
