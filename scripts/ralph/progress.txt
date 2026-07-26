@@ -28,7 +28,15 @@ Started: Sun Jul 26 11:18:49 CEST 2026
   needs `npm run build` first or the browser sees old code.
 - e2e specs seed straight through Prisma and navigate by the SURROGATE id (`/kunden/${id}`), not the
   customer number. Owned number ranges keep the shared data/e2e.db predictable: counter 201-206/239,
-  portions 211, serve 221-222, reminders 231, block 241.
+  portions 211, serve 221-222, reminders 231, block 241, reissue 251. Take the NEXT free range up;
+  never a number the allocator would hand out, or the registration specs' assertions move.
+- Assert that a refusal wrote NOTHING by bracketing it with one Prisma snapshot helper returning
+  `JSON.stringify({ status, cards, records, auditEntries })` and comparing before/after, rather than
+  asserting each field. One equality covers every table the screen could have touched, and a future
+  write that nobody thought to check still fails the spec.
+- Assert German UI text in e2e specs by importing `de` from `@/i18n/de` and calling the dictionary
+  function (`de.customers.reissue.confirm(a, b)`), never by pasting the sentence. A reworded string
+  then stays a one-file change instead of breaking specs.
 - App-layer write screens follow one shape: a `"use server"` `actions.ts` (Zod-parse the hidden
   `customerId`, call ONE use case, map typed domain errors to German, `revalidatePath`), a
   `*-state.ts` holding the form-state type + initial value (a `"use server"` module may export only
@@ -180,4 +188,47 @@ Started: Sun Jul 26 11:18:49 CEST 2026
     `/kunden/[id]`, with a confirmation step naming the old and the next number. The next number is
     `cardsIssued + 1` — already on the view, so the page needs no extra query. All strings via
     src/i18n/de.ts; the action follows the actions.ts + *-state.ts + "use client" shape.
+---
+
+## 2026-07-26 - US-004 (e2e: old card refused, new card works)
+- `tests/e2e/reissue.spec.ts` (new): one household (customer number 251, RED, active, current
+  certificate, one card) followed through the whole loss loop in 4 serial specs, against the BUILT
+  app. Pinned to Thursday 08.01.2026 — a RED distribution day, which is what makes the replacement
+  clear to serve *today* rather than merely on file.
+  1. Reissue from `/kunden/[id]`: the confirmation is asserted (naming 251k1 and 251k2) rather than
+     clicked past, then the card view shows 251k2, 251k1 listed as replaced with its own date and
+     reason, and the counts at 2 / 1.
+  2. 251k1 at the counter: `data-verdict=OUTDATED_CARD`, the German detail sentence naming both
+     numbers, and no serve button.
+  3. 251k2 at the counter the same day: `CLEAR_TO_SERVE`, still ACTIVE, same number and group.
+  4. Two more reissues driven from the CARD VIEW (the same `ReissueControls`) take the loss count to
+     3 (cards-issued 4), with the hint present, the reissue control still offered, three superseded
+     numbers on record, and 251k4 clear to serve.
+- FR-3 is asserted as an ABSENCE: spec 2 brackets the refused lookup with `snapshotHousehold(id)` —
+  a JSON snapshot of status, group, reminderCount, card count, distribution-record count and the
+  global audit-entry count — and compares byte-for-byte. A refusal that blocked, archived, recorded
+  a hand-out or logged anything fails. FR-4 is asserted the same way: the absence of a warning at
+  three losses, not a threshold.
+- Files changed: tests/e2e/reissue.spec.ts (new), docs/technical_documentation.md (the spec tree
+  listing + a `reissue.spec.ts` entry in the E2E section explaining what the unit gates cannot
+  reach), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: format:check, lint, typecheck, test:coverage (536 tests, 33 files, 100% on
+  domain/application), build, and **test:e2e — 36 passed, 1 skipped** (the skip is the pre-existing
+  conditional quota spec in settings.spec.ts). No production code changed in this story.
+- **Learnings for future iterations:**
+  - This iteration STARTED with the previous one's work uncommitted: the spec was untracked and
+    prd.json/docs were modified with `passes: true` already set, but no commit and no progress entry
+    existed. Before picking a story, run `git status` — a story marked passing in prd.json is not
+    necessarily committed, and re-verifying (run the gates, then commit) is the right move rather
+    than assuming it landed or redoing the work.
+  - A test-only story is a `test(e2e): …` commit, not `feat(...)`. The scope list in CLAUDE.md
+    ("usually the layer, or docs/ci") is about scope, not about forcing the `feat` type.
+  - `prisma.auditEntry.count()` has no customer relation to filter on, so snapshot it GLOBALLY.
+    That works because the specs are serial and nothing else writes during the bracket — but it does
+    mean a snapshot bracket must never span another spec's write.
+  - The card view's superseded list is one testid per row (`superseded-card`), so `toHaveText` works
+    for a single replaced card and `toHaveCount(n)` for the run. Don't add index-suffixed testids.
+  - US-09 is now complete (all four stories). Next PRD batch: US-13's reissue carries its own reason
+    (STALE_COUNTS), which is why `reissueCardAction` fixes LOST rather than reading it off the form —
+    it will want a second action or a reason parameter, NOT a change to what `reissuesForLoss` counts.
 ---
