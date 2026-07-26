@@ -53,8 +53,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "One `ReissueControls` client component rendered by both /kunden/[id] and /kunden/[id]/karte: a disclosure whose confirmation names the number being invalidated and the number about to be issued, then the button. The confirmation numbers come from a new `nextCardNumber` on both read models (derived through the domain's nextCardNumber()), never counted in the page. `reissueCardAction` fixes reason LOST and revalidates both paths. The card view gained an 'Ausgestellte Karten' section showing cardsIssued beside reissuesForLoss with a neutral hint — no threshold, no colour change, no warning. CardView also gained `status` so an archived household is offered no button. Verified in a real browser (Playwright, throwaway spec): confirmation text on both screens, 251k1 → 251k2 → 251k3, counts 3/2, old number OUTDATED_CARD at the counter."
     },
     {
       "id": "US-004",

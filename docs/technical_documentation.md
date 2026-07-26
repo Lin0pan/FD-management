@@ -81,11 +81,13 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   │   ├── registration-form.tsx  # client component: repeatable rows + live counts
 │   │   │   │   ├── actions.ts        # "use server": Zod → registerCustomer → redirect
 │   │   │   │   └── register-customer-state.ts  # form state (not exportable from actions.ts)
-│   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on; hosts the block controls
+│   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on; hosts the block + reissue controls
 │   │   │   ├── [id]/block-controls.tsx  # client: Sperren / Sperre aufheben (US-08.4)
-│   │   │   ├── [id]/actions.ts       # "use server": Zod → blockCustomer / unblockCustomer
+│   │   │   ├── [id]/reissue-controls.tsx  # client: Karte neu ausstellen (Verlust) (US-09.3)
+│   │   │   ├── [id]/actions.ts       # "use server": Zod → blockCustomer / unblockCustomer / reissueCard
 │   │   │   ├── [id]/block-state.ts   # the block/unblock form state (not exportable from actions.ts)
-│   │   │   └── [id]/karte/page.tsx   # the digital customer card (US-02.4)
+│   │   │   ├── [id]/reissue-state.ts # the reissue form state (not exportable from actions.ts)
+│   │   │   └── [id]/karte/page.tsx   # the digital customer card (US-02.4) + the issued-card counts (US-09.3)
 │   │   ├── einstellungen/            # the settings screen (US-14)
 │   │   │   ├── page.tsx              # server component: current values + version history
 │   │   │   ├── settings-form.tsx     # client component: the form and its save-result state
@@ -601,7 +603,9 @@ The two read-side use cases the customer screens sit on:
   derivable from them, worked out here rather than in the page — the card number from the slot and
   the card index, and the household counts, portions and price from `describeAllowance` (US-07.4), so
   the counts on the record are a slice of the same allowance the counter reads. It throws
-  `CustomerNotFound` for an id nobody holds.
+  `CustomerNotFound` for an id nobody holds. It also names `nextCardNumber` — the number a
+  replacement would carry, from `nextCardNumber()` in the domain — so the record's reissue
+  confirmation states the number it is about to hand out without the page working it out (US-09.3).
 - **`readCard`** answers what the _card_ shows (US-02.4): the current card number, the name, the
   group, the counts, portions and price as of today (all via `describeAllowance`), and the numbers
   this card replaced. It reads the customer's whole
@@ -613,7 +617,11 @@ The two read-side use cases the customer screens sit on:
   index — how many numbers the household has been through) and `reissuesForLoss`, which come from
   `cards.issueCounts` rather than from filtering the run it already holds (US-09.2): counting here
   would state a second time which reason is a loss, and the two statements would drift the day US-13
-  adds one. The counts are shown and never acted on — no threshold, no warning (§FR-4, §FR-5).
+  adds one. The counts are shown and never acted on — no threshold, no warning (§FR-4, §FR-5). Two
+  further fields serve the reissue control (US-09.3): `nextCardNumber`, the number a replacement
+  would carry, and `status`, which is on the card view for the single reason that an archived
+  household is offered no replacement — the card itself is not a permission, and a blocked household
+  still holds theirs.
 
 `customerNumber.ts` therefore exports the rule in **two forms**: `findLowestFreeNumber` returning
 `number | null` for callers that only want to _show_ the next number, and `lowestFreeNumber` throwing
@@ -826,7 +834,8 @@ beyond it:
   the standard portions and price (US-07.4), and the card number from the slot and the card index. A
   non-numeric id and an id nobody holds give the same German answer: there is no such customer. It
   links on to the card view. It also hosts the **block controls** (US-08.4): an active customer sees
-  a "Sperre" section showing the current reason verbatim when blocked.
+  a "Sperre" section showing the current reason verbatim when blocked — and the **reissue control**
+  (US-09.3), because staff reach for whichever of the two screens is already open.
 - **`[id]/block-controls.tsx`** is a client component (`useActionState`, and the save control stays
   disabled until a reason is typed — a block's reason is its only record, so an empty one must be
   impossible to submit). It shows "Sperren" with a required multi-line reason for an `ACTIVE`
@@ -836,6 +845,16 @@ beyond it:
   and `revalidatePath`s the record so the new status, reason and controls come from the store. The
   reason itself is shown verbatim and in full at the counter by the US-04 verdict banner — it is not
   re-derived here.
+- **`[id]/reissue-controls.tsx`** is the "Karte neu ausstellen (Verlust)" control, rendered by
+  **both** the record and the card view (US-09.3). It is a disclosure holding a confirmation that
+  names the number being invalidated and the number about to be issued, then the button. The
+  confirmation is not a guard — `reissueCard` decides whether a card may be issued — it is there
+  because a reissue cannot be taken back and because the new number is what staff copy onto the
+  physical card. Both numbers come off the read model; nothing is counted, compared or warned about
+  in the component. **`reissueCardAction`** (in `[id]/actions.ts`) fixes the reason to `LOST` rather
+  than reading it off the form: this control is the _loss_ control, and that is what makes the loss
+  count mean what it says. It revalidates the record **and** the card view, so whichever screen the
+  reissue was started from shows the new number and the other one does too when next opened.
 - **`[id]/karte/page.tsx`** is the **digital customer card** (US-02.4): the number, the name, the
   group as a coloured German label, the two counts and the standard portions and price (US-07.4),
   set large enough to read across a desk, plus the numbers this card replaced and why each was
@@ -843,8 +862,13 @@ beyond it:
   deliberately **no print stylesheet and no PDF**. The counts, portions and price come from
   `readCard`, derived per request (`dynamic = "force-dynamic"`), so a birthday can never leave a
   stale number on screen. Both screens state the portions and price are the **standard** values,
-  with no control to adjust them — counter-side adjustments are out of scope. The "Karte neu ausstellen" button is present but
-  disabled: FD expects the action here, and its behaviour is specified in US-09.
+  with no control to adjust them — counter-side adjustments are out of scope. Below the card it
+  shows **"Ausgestellte Karten"** (US-09.3): the number of cards the household has been through and,
+  beside it and separately, how many of those replaced a lost one — a card replaced because a
+  birthday overtook the printed counts (US-13) is not a loss, and one number would count the
+  software's own reissue against the household. Nothing on the screen reacts to either figure: no
+  threshold, no colour that changes, no sentence that appears at a high count. Whether a number means
+  anything is FD's judgement (§FR-4).
 
 ⚠️ **Dates cross the form boundary as UTC calendar days.** `<input type="date">` submits `YYYY-MM-DD`
 and the adapter pins it to `T00:00:00.000Z`, because the domain compares birthdates as UTC calendar
@@ -1127,9 +1151,10 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   makes a RED household clear and a BLUE one sent away, and deletes the pinned-now file in
   `afterAll` like the distribution spec.
   Its six households are inserted **straight through Prisma**, not through the registration form:
-  archiving (US-10) and a second card (US-09) have no screen yet, so there is no other way to reach
-  half of these states, and the blocked one is seeded the same way to keep the fixture self-contained
-  even though blocking now has a record screen (US-08, `blockCustomerAction` on `/kunden/[id]`). That
+  archiving (US-10) has no screen yet, so there is no other way to reach some of these states, and
+  the blocked and reissued ones are seeded the same way to keep the fixture self-contained even
+  though both now have a record screen (US-08's `blockCustomerAction` and US-09's
+  `reissueCardAction` on `/kunden/[id]`). That
   is also why it may name customer numbers — see the note above.
   The second half of the spec is FR-4, that a lookup only ever _reads_. It snapshots the statuses,
   the reminder counts and the card and audit-entry counts, performs the two refusals staff hit most

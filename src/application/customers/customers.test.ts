@@ -855,6 +855,14 @@ describe("readCustomer", () => {
     expect(view.customer.id).toBe(registered.id);
   });
 
+  it("names the number a replacement would carry, so a reissue is confirmed before it is written", async () => {
+    const registered = await registerCustomer(deps(), registerInput());
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.nextCardNumber).toBe("1k2");
+  });
+
   it("derives the household counts from the birthdates as of today", async () => {
     const registered = await registerCustomer(
       deps(),
@@ -1096,6 +1104,33 @@ describe("readCard", () => {
 
     expect(view.cardsIssued).toBe(11);
     expect(view.reissuesForLoss).toBe(10);
+  });
+
+  it("names the number a replacement would carry, so a reissue is confirmed before it is written", async () => {
+    const customer = await registered();
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.nextCardNumber).toBe("1k2");
+  });
+
+  it("counts the next number on from the card held, not from the first one ever issued", async () => {
+    const customer = await registered();
+    await reissueCard(deps(), { customerId: customer.id, reason: "LOST" });
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.cardNumber).toBe("1k2");
+    expect(view.nextCardNumber).toBe("1k3");
+  });
+
+  it("carries the household's status, so an archived one is offered no replacement card", async () => {
+    const customer = await registered();
+    await blockCustomer(deps(), { customerId: customer.id, reason: "Nachweis fehlt" });
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.status).toBe("BLOCKED");
   });
 
   it("refuses an id that belongs to nobody rather than showing an empty card", async () => {

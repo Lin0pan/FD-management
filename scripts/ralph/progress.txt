@@ -40,6 +40,13 @@ Started: Sun Jul 26 11:18:49 CEST 2026
   the read model already holds: the filter is a second statement of the rule (which reason counts as
   a loss) and drifts the day a reason is added. `prisma.card.groupBy` with `_count`/`_max` is the
   shape — one round trip, constant cost.
+- A number the confirmation text of a write screen has to name (the next card number, a computed
+  total) belongs on the READ MODEL, not in the page: `app/` is thin and "the next index is the
+  current one plus one" is a rule. Both readCustomer and readCard now carry `nextCardNumber`,
+  derived through the domain's `nextCardNumber()` so the rule has one statement.
+- One client control can serve two screens. `[id]/reissue-controls.tsx` is imported by both
+  `[id]/page.tsx` and `[id]/karte/page.tsx`; its action `revalidatePath`s BOTH routes, so whichever
+  screen was used shows the new state and the other one does when next opened.
 - Reason/status/group words come out of SQLite as plain strings and are narrowed by a `parse*`
   function (`parseCardIssueReason`) that THROWS `InvalidCustomerRecord`. Do this in aggregates too —
   a bare `=== "LOST"` would let a hand-edited row silently vanish from a count.
@@ -85,6 +92,56 @@ Started: Sun Jul 26 11:18:49 CEST 2026
     `CardRepository` method (e.g. `issueCounts(customerId)`) backed by `prisma.card.count`/`groupBy`
     — not `listCards().filter(...)` in application code. Remember: adding to CardRepository means
     updating every `implements CardRepository` fake.
+---
+
+## 2026-07-26 - US-003 (card reissue UI)
+- `src/app/kunden/[id]/reissue-controls.tsx` (new, "use client"): the
+  "Karte neu ausstellen (Verlust)" disclosure. Its confirmation names the number being invalidated
+  and the number about to be issued, then the button — a reissue cannot be taken back and the new
+  number is what staff copy onto the physical card, so both are stated before the write (§US-09.3).
+  It is NOT a guard; `reissueCard` decides. Rendered by BOTH `/kunden/[id]` and `/kunden/[id]/karte`,
+  because staff reach for whichever screen is already open.
+- `reissueCardAction` in `[id]/actions.ts` + `[id]/reissue-state.ts` (new), following the established
+  actions.ts / *-state.ts / "use client" shape. The reason is FIXED to `LOST` in the action rather
+  than read off the form: this is the loss control, and that is what makes `reissuesForLoss` mean
+  what it says — US-13's reissue will carry its own reason. `CustomerArchived` is the one refusal and
+  comes back as a German sentence; both `/kunden/[id]` and `/kunden/[id]/karte` are revalidated.
+- Both read models gained `nextCardNumber` (via the domain's `nextCardNumber()`), so the pages state
+  the number rather than working it out — `app/` stays thin. `CardView` also gained `status`, for the
+  single reason that an archived household must be offered no button (the button is hidden on both
+  screens, mirroring how the block controls disappear for archived).
+- The card view gained an "Ausgestellte Karten" section: `cardsIssued` beside `reissuesForLoss`, two
+  figures side by side, with a hint that says the numbers are information only and that reissues are
+  unlimited. Nothing reacts to either figure — no threshold, no colour change, no sentence at a high
+  count (§FR-4). The old disabled placeholder button and `cardView.reissueHint` are gone.
+- Files changed: src/app/kunden/[id]/reissue-controls.tsx (new),
+  src/app/kunden/[id]/reissue-state.ts (new), src/app/kunden/[id]/actions.ts,
+  src/app/kunden/[id]/page.tsx, src/app/kunden/[id]/karte/page.tsx, src/i18n/de.ts,
+  src/application/customers/read-card.ts, src/application/customers/read-customer.ts,
+  src/application/customers/customers.test.ts, docs/technical_documentation.md,
+  scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: format, lint, typecheck, test:coverage (536 tests, 33 files, 100% on domain/application),
+  build — all green.
+- **Browser verification: done.** No browser MCP is configured, so the flow was driven through a
+  THROWAWAY Playwright spec against the built app (seeded customer 251), then deleted — US-004 owns
+  the committed spec. It proved: the confirmation text on both screens, 251k1 → 251k2 from the
+  record, 251k2 → 251k3 from the card view, the counts reaching 3 / 2, status still ACTIVE, and
+  251k1 giving `OUTDATED_CARD` at the counter.
+- **Learnings for future iterations:**
+  - Playwright browsers ARE installed here and `npx playwright test <name-fragment>` works, so a UI
+    story can be verified for real. Put a throwaway spec in `tests/e2e/` (the config's `testDir`),
+    run it, delete it. Don't clean up seeded rows in `afterAll` — `customerNumber` is NOT a unique
+    key in the Prisma schema, so `delete({ where: { customerNumber } })` fails validation, and
+    `data/e2e.db` is rebuilt from the seed on every run anyway.
+  - `data/e2e-now.txt` pins the app's today. Always remove it in `afterAll` or the settings specs
+    save a version stamped in the wrong month.
+  - US-09's e2e number range is free from 251 up; the ranges already owned are counter 201-206/239,
+    portions 211, serve 221-222, reminders 231, block 241.
+  - Next up, US-004 is the committed Playwright spec: reissue Nk1 → Nk2, look Nk1 up for the German
+    OUTDATED_CARD verdict naming Nk2 with no distribution/block/archive resulting, look Nk2 up for
+    clear to serve, then reissue twice more and assert `[data-testid=reissues-for-loss]` reads 3.
+    The test ids to drive it are `reissue-open`, `reissue-confirm`, `reissue-submit`,
+    `cards-issued`, `reissues-for-loss` and the existing `card-number`.
 ---
 
 ## 2026-07-26 - US-002 (reissue counts on the read model)

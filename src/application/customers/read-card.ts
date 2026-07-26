@@ -11,7 +11,8 @@
  */
 
 import type { IssuedCard } from "@/domain/card/card";
-import { formatCardNumber } from "@/domain/card/cardNumber";
+import { formatCardNumber, nextCardNumber } from "@/domain/card/cardNumber";
+import type { CustomerStatus } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
 import type { HouseholdComposition } from "@/domain/customer/householdComposition";
 import { CustomerNotFound, InvalidCustomerRecord } from "@/domain/errors";
@@ -37,8 +38,22 @@ export interface CardView {
   readonly firstName: string;
   readonly lastName: string;
   readonly group: Group;
+  /**
+   * Where the household stands on the register. The card is not a permission — a blocked household
+   * still holds theirs — so this is here for one reason: an archived household is offered no
+   * replacement card, and the screen should not put a button in front of staff that the use case
+   * would refuse.
+   */
+  readonly status: CustomerStatus;
   /** The number printed on the card the customer holds today, e.g. `50k3`. */
   readonly cardNumber: string;
+  /**
+   * The number a replacement would carry, e.g. `50k4` — the same slot, the next index. The view
+   * names it so a reissue can be confirmed against the number it will hand out before anything is
+   * written (tasks/prd-us-09-reissue-card-after-loss.md §US-09.3). Nothing holds it: it is only what
+   * the next issue would produce, worked out from the card on file.
+   */
+  readonly nextCardNumber: string;
   /** The card behind that number — when it was issued and why. */
   readonly card: IssuedCard;
   /** Derived from the birthdates as of today; there is no stored count to fall behind them. */
@@ -98,12 +113,16 @@ export async function readCard(deps: ReadCardDeps, id: number): Promise<CardView
 
   const allowance = await describeAllowance(deps, customer.details.householdMembers);
 
+  const next = nextCardNumber({ customerNumber: customer.customerNumber, index: current.index });
+
   return {
     customerId: customer.id,
     firstName: customer.details.firstName,
     lastName: customer.details.lastName,
     group: customer.group,
+    status: customer.status,
     cardNumber: numberOf(current),
+    nextCardNumber: formatCardNumber(next.customerNumber, next.index),
     card: current,
     composition: { grownUps: allowance.grownUps, children: allowance.children },
     allowance,
