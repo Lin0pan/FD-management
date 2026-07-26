@@ -1,0 +1,97 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-10-archive-customer",
+  "description": "US-10 Archive a Customer — Manual archiving with a recorded reason frees the customer number for reassignment while keeping the full record. Consecutive no-shows are made visible so that archiving trigger is usable.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "consecutiveNoShows counting rule",
+      "description": "As a staff member, I want to see how many of my own distribution days a customer has missed in a row, so the archiving trigger is actually usable. Source: tasks/prd-us-10-archive-customer.md §US-10.1",
+      "acceptanceCriteria": [
+        "src/domain/distribution/noShows.ts exports consecutiveNoShows({records, customerGroup, registeredOn, settings, today})",
+        "Only weeks whose colour matches the customer's group are candidates — the other group's weeks are not misses",
+        "Counting stops at the most recent attendance record",
+        "No misses are counted for weeks before the customer's registration date",
+        "Weeks during which the customer was blocked are counted, and the decision is documented in a comment",
+        "Tests cover: never attended, attended last time, missed one, missed three, a group change mid-history, and a customer registered two weeks ago",
+        "today and settings are parameters — no clock in the module",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "archiveCustomer use case",
+      "description": "As a staff member, I want to archive a customer with a reason, so their slot frees up and the record is kept. Source: tasks/prd-us-10-archive-customer.md §US-10.2",
+      "acceptanceCriteria": [
+        "archiveCustomer(deps, {customerId, reason}) transitions the status to ARCHIVED via the status state machine and stores the reason",
+        "An empty or whitespace-only reason rejects with MissingAuditReason(\"customer.archived\") — the existing error in errors.ts, not a new class",
+        "Test asserts the freed number is returned by lowestFreeNumber on the next call",
+        "Test counts rows before and after to prove distribution records, cards, certificates, reminder logs and notes are all retained unchanged",
+        "The customerNumber is retained on the archived row for historical reference",
+        "Archiving an already-archived customer rejects; archiving a blocked customer is allowed",
+        "Writes an audit entry carrying the reason",
+        "Tested against hand-written fakes and a fake clock",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "The mandatory reason went into transition() beside the block's, so the machine names the refused event (customer.blocked / customer.archived). Customer.archiveReason/archivedAt and their migration landed here because the new CustomerRepository.archive port method forces the Prisma adapter to compile — US-003 keeps the repository invariant tests."
+    },
+    {
+      "id": "US-003",
+      "title": "Archive fields and no-delete invariants",
+      "description": "As a developer, I need archiving to be a status change that frees the slot while keeping everything queryable. Source: tasks/prd-us-10-archive-customer.md §US-10.3",
+      "acceptanceCriteria": [
+        "Customer.archiveReason String? and Customer.archivedAt DateTime? added",
+        "Repository test proves an archived row does not appear in takenActiveNumbers()",
+        "Repository test proves two archived customers may hold the same customerNumber",
+        "No cascading deletes exist anywhere in schema.prisma",
+        "Migration committed under prisma/migrations/",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "The columns, their migration and the two number-invariant tests had already landed with US-002; the work left was removing the last three onDelete: Cascade relations. That contradicts the init migration, so per CLAUDE.md the pre-release history was collapsed back to a single init (the hand-written partial unique index re-appended by hand). Run npm run db:reset on an existing checkout."
+    },
+    {
+      "id": "US-004",
+      "title": "Archive UI and no-show visibility",
+      "description": "As a staff member, I want to archive a customer with a reason and see consecutive no-shows, so I can spot who is no longer attending. Source: tasks/prd-us-10-archive-customer.md §US-10.4",
+      "acceptanceCriteria": [
+        "'Archivieren' action on the customer detail page with a required reason field; save is disabled until the reason is non-empty",
+        "A confirmation step states in German that the customer number will be freed and may be reassigned, and that the record is kept",
+        "The customer detail page and the counter screen display the consecutive-no-show count when it is greater than zero",
+        "The counter screen shows the reminder count beside an expired certificate and keeps archiving reachable as an ordinary action — no prompt, no blocking modal",
+        "An archived customer's record renders read-only with an archived banner showing the reason and date",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "The archive control is shared by the record and the counter, so it lives at src/app/kunden/ (archive-controls.tsx + archive-actions.ts + archive-state.ts) rather than under [id]/ — /ausgabe imports it. The no-show count needed the household's start day: RegisteredCustomer now carries registeredOn, derived in the Prisma adapter from the FIRST card, which also fixes the record's \"Aufgenommen\" field after a reissue. Both read models get the count through one application seam, countNoShows."
+    },
+    {
+      "id": "US-005",
+      "title": "E2E: archiving frees the customer number",
+      "description": "As a developer, I need a Playwright spec proving the slot-reuse mechanic end to end. Source: tasks/prd-us-10-archive-customer.md §US-10.5",
+      "acceptanceCriteria": [
+        "Spec registers a customer, notes their number, archives them with a reason, registers a new customer and asserts the freed number is reassigned",
+        "Spec asserts the archived customer is still findable and their distribution records are intact",
+        "Spec asserts the archived customer cannot be served at the counter",
+        "Spec asserts archiving without a reason is refused",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "The only spec in tests/e2e that registers its household through the FORM rather than seeding it — the freed number is only interesting because the allocator handed it out, gave it back and handed it out again, so it names no customer number of its own. \"Still findable\" is asserted through the record URL: the number is no longer a way back once it is reassigned, and US-15's search does not exist yet."
+    }
+  ]
+}
