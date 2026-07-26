@@ -53,8 +53,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The comparison itself is a domain rule (`staleCountsReason` in domain/card/staleCounts.ts): AGE_13 only when the household is the same size AND grown-ups went up — a birthday is the whole explanation or it is not named as one. The use case is `listCardsDueForReissue` (application/customers/cards-due-for-reissue.ts) over one new port method, `CustomerRepository.listWithStatus(status)`, which the use case calls with \"ACTIVE\" so the blocked/archived exclusion is stated where its reason lives rather than hidden in the adapter. The register is read whole and compared in application code because one side of the comparison is a rule over birthdates — not expressible as a WHERE clause; documented in the use case, the port and the adapter. Port ripple hit 4 fake repositories."
     },
     {
       "id": "US-004",

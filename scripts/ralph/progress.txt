@@ -100,6 +100,14 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   (a script in /tmp cannot resolve @prisma/client), point `FD_FIXED_NOW_FILE` at a file holding an
   ISO instant, `PORT=3100 npm run start`, then drive it with a plain `chromium.launch()` script.
   Delete the scratch db, the now-file and the scripts afterwards.
+- A read model that spans the WHOLE register (not one customer) gets one port method taking the
+  status it wants — `CustomerRepository.listWithStatus(status)` — rather than a method whose name
+  quietly fixes it. "Which households does this concern" is the use case's decision, and that is
+  where the exclusion has to be documented. Beware the word "active": `takenActiveNumbers` means
+  ACTIVE **or** BLOCKED (holds a slot), while `listWithStatus("ACTIVE")` means the status literally.
+- A comparison the database cannot express — anything whose answer moves with the clock while no row
+  changes — is loaded whole and compared in application code. At ~240 customers that is one query;
+  say so in the doc comment, because the next reader will otherwise try to push it into SQL.
 - Household counts and ages read `today` as its **Europe/Berlin** calendar day (`berlinDayKey`),
   while a birthdate stays a UTC-anchored stored day. Any new rule that asks "as of today" belongs in
   the Berlin calendar too — a UTC-only comparison silently answers yesterday's question for the first
@@ -195,4 +203,53 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   - Domain value objects flattened into SQLite columns belong in ONE private mapper on the adapter
     (`PrismaCardRepository.toCard`); three inline reconstructions is how two readings of one snapshot
     get born.
+---
+
+## 2026-07-26 - US-003 (listCardsDueForReissue query)
+- New domain rule `staleCountsReason(printedOnCard, today)` in src/domain/card/staleCounts.ts:
+  `null` when the card still prints the truth, otherwise `AGE_13` or `HOUSEHOLD_CHANGE`. A birthday
+  is blamed only when it is the WHOLE explanation — same household size and grown-ups up. A
+  different size means somebody joined or left, and grown-ups going DOWN is something no birthday
+  can do; calling either AGE_13 would tell staff a story that did not happen. The module takes no
+  clock and no members: both sides are already-derived counts, so "when is today" stays with the
+  caller and the rule cannot grow a second opinion about it.
+- New use case `listCardsDueForReissue(deps)` in src/application/customers/cards-due-for-reissue.ts.
+  Reads the clock once, asks `customers.listWithStatus("ACTIVE")`, compares `card.countsAtIssue`
+  with `composition(members, today)` per household. Each entry carries customerId (what a reissue is
+  written against), customerNumber, first/last name, cardNumber (`50k3`), BOTH count sets and the
+  reason. The repository's order — lowest customer number first — is handed on untouched.
+- New port method `CustomerRepository.listWithStatus(status)`. The status is a parameter rather than
+  baked into the name so the blocked/archived exclusion is stated in the use case, where its reason
+  lives: a blocked household is not collecting (US-08) and an archived one holds no slot (US-10).
+  Nothing is lost by excluding them — the list is derived on every read, so a household returning to
+  ACTIVE reappears by itself.
+- New named tests: card still prints the truth → absent; a 13th birthday → present with AGE_13 and
+  both count sets; the same household across two clock values with `writes === 0` (the story's
+  substance: no write happened in between); a member joined → HOUSEHOLD_CHANGE; the card named is
+  the one held, not the one it replaced; blocked absent; archived absent; register order kept. Eight
+  domain tests pin the reason rule including the two directions no birthday can produce.
+- Integration: four tests for `listWithStatus` (status filter, order, relations attached, empty
+  register) plus one driving `listCardsDueForReissue` against the REAL adapter — a household
+  registered with a child born 2019-09-02 is absent today and present on their 13th birthday, with
+  nothing written to the database in between.
+- Files changed: src/domain/card/staleCounts.ts (+test), src/application/customers/
+  cards-due-for-reissue.ts (+test), src/application/ports.ts, src/infrastructure/prisma/
+  customer-repository.ts (+test), 4 test files carrying fakes, docs/technical_documentation.md.
+- Checks: format, lint, typecheck, test:coverage (619 tests, 37 files, 100% on domain/application),
+  build — all green. No UI in this story (that is US-004), so no browser check applies.
+- **Learnings for future iterations:**
+  - Adding a method to `CustomerRepository` now ripples to FIVE places, not four: the Prisma adapter
+    and the fakes in customers.test.ts, lookup-customer.test.ts, certificate-reminder.test.ts and
+    distribution/record-attendance.test.ts. `npx tsc --noEmit` names them all; the app-layer
+    `deps.ts` errors (ausgabe, kunden) are the SAME cause and disappear with the adapter.
+  - `insertCustomer` in customer-repository.test.ts writes a row with NO card and NO certificate, so
+    any test going through `toRegisteredCustomer` (findById, findByCustomerNumber, listWithStatus)
+    must use `repository.create(newCustomer(...))` instead — the mapper throws InvalidCustomerRecord
+    on a cardless row, by design.
+  - An infrastructure test may import an application use case to prove a port method actually feeds
+    the thing it exists for; the boundary lint only stops the arrows pointing outwards. That is the
+    cheapest place to pin "a birthday alone changes the answer" against real SQL.
+  - Where a rule compares two derived values, put the comparison in the domain and keep the
+    derivation in the use case. `staleCountsReason` never sees a member or a clock, which is why its
+    eight boundary cases are a table rather than a fixture.
 ---
