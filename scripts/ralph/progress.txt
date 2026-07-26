@@ -20,7 +20,9 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   `npx prisma generate`. Infra tests spin a throwaway DB with `prisma migrate deploy`, so only a
   committed migration makes them see the column.
 - Status changes go through `transition(from, to, reason?)` in domain/customer/status.ts, never an
-  ad-hoc status assignment; persist via CustomerRepository.setStatus.
+  ad-hoc status assignment; persist via CustomerRepository.setStatus — except the archive, which has
+  its own `archive(id, reason, archivedAt)` write because it stamps three columns and clears
+  blockReason in one statement.
 - Derive-don't-store: household counts, ages, card validity and the card number are all derived on
   read (readCustomer / readCard / describeAllowance), never stored.
 - German UI strings only in `src/i18n/de.ts`; inflected forms are functions in the dictionary.
@@ -63,6 +65,15 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   `FIRST_ISSUE`), written with the registration — that is where `registeredOn` comes from.
 - Prettier reformats markdown TABLES and wraps long `expect(...)` chains on `npm run format`; run it
   before committing so `format:check` in CI does not fail on whitespace.
+- A rule about WHICH state changes need a reason belongs in `transition()` (domain/customer/status.ts),
+  not in the use case: the machine refuses the move and names the audit event
+  (`customer.blocked`, `customer.archived`) so the caller never restates it. A use case that
+  re-checked the reason would be a second statement of the rule.
+- A use case proves "nothing was deleted" by taking ONE JSON snapshot of everything the household
+  owns (cards, records, number, group, reminderCount, details) before and after and comparing them —
+  the same trick the e2e specs use. Repositories the use case does not depend on are handed to the
+  test's `deps()` anyway as witnesses; excess-property checking does not apply because `deps()`
+  returns a variable rather than an object literal at the call site.
 
 ---
 
@@ -114,3 +125,50 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
     `registeredOn` on the read model — derive it from the first card's `issuedAt`, since no
     registration-date column exists.
 ---
+
+## 2026-07-26 - US-002 (archiveCustomer use case)
+- `src/application/customers/archive-customer.ts` (new): `archiveCustomer(deps, { customerId,
+  reason })` trims the reason, asks `transition()` to move `ACTIVE|BLOCKED → ARCHIVED`, then writes
+  it through one new port call and appends the audit entry (`customer.archived`, changed fields
+  `status`/`archiveReason`/`archivedAt`, the reason as the why).
+- TDD order was: domain test red → `transition()` green → application test red (module missing) →
+  use case green → adapter and fakes.
+- The mandatory reason went into the STATE MACHINE, not the use case (this is the one design call of
+  the story). `REASON_REQUIRED` maps the reason-carrying target states to their audit event names, so
+  `→ BLOCKED` and `→ ARCHIVED` are both refused reason-less with `MissingAuditReason` naming the
+  event. errors.ts already documented the archive as one of its raisers; the use case would have been
+  a second statement of the rule. Two existing status tests changed (`transition("ACTIVE",
+  "ARCHIVED")` now needs a reason) — a deliberate behaviour change, not a fix.
+- New port method `CustomerRepository.archive(id, reason, archivedAt)` rather than a wider
+  `setStatus`: the archive writes three columns and clears `blockReason` in the same statement, and
+  the invariant `(blockReason !== null) === (status === "BLOCKED")` that the infra tests pin has to
+  survive archiving a blocked customer.
+- Because a port method forces every implementer to compile, this story also carried what US-003
+  lists: `Customer.archiveReason String?` / `archivedAt DateTime?`, the additive migration
+  `20260726145943_customer_archive_fields`, and `archiveReason`/`archivedAt` on `RegisteredCustomer`.
+  US-003 still owns the repository invariant tests, the no-cascade check and the `(customerId, date)`
+  index — note that `takenActiveNumbers` excluding archived rows and two archived customers sharing a
+  number are ALREADY covered in customer-repository.test.ts (lines ~196 and ~277).
+- Four fakes needed the new method and the two new fields: customers.test.ts,
+  lookup-customer.test.ts, certificate-reminder.test.ts, distribution/record-attendance.test.ts —
+  plus the two `RegisteredCustomer` builder literals in the last two.
+- 11 application tests: reason trimmed and stamped, the freed number offered by `lowestFreeNumber`
+  on the next call, the number kept on the archived row, one before/after snapshot proving nothing
+  was deleted, a blocked customer archived with the block reason cleared, the audit entry, an empty
+  and a whitespace reason refused writing nothing, the slot still taken after a refusal, an
+  already-archived customer refused, and an unknown id refused. 4 infra tests cover the adapter.
+- Files changed: src/application/customers/archive-customer.ts (new), src/application/ports.ts,
+  src/domain/customer/status.ts, src/domain/customer/customer.ts, the four fake-holding test files,
+  src/infrastructure/prisma/customer-repository.ts(+.test.ts), prisma/schema.prisma, the new
+  migration, docs/technical_documentation.md, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: format, lint, typecheck, test:coverage (571 tests, 34 files, 100% on domain/application),
+  build — all green. No UI in this story, so no browser check applies; the screens arrive in US-004.
+- **Learnings for future iterations:**
+  - US-004 now has everything it needs on the read path: `RegisteredCustomer` carries
+    `archiveReason`/`archivedAt` and the adapter maps them, so the archived banner is a read model
+    field away rather than a new query. `readCustomer`'s read model does NOT expose them yet.
+  - The app-layer action for US-004 follows the block precedent exactly: `[id]/actions.ts` →
+    `archiveCustomer`, a `*-state.ts` for the form state, a client control beside block-controls.tsx.
+    `customerDeps` already satisfies `ArchiveCustomerDeps` structurally.
+  - `MissingAuditReason` is thrown from the domain now, so the app layer maps it to German once and
+    both the block and the archive screens get the same message.

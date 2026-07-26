@@ -39,8 +39,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The mandatory reason went into transition() beside the block's, so the machine names the refused event (customer.blocked / customer.archived). Customer.archiveReason/archivedAt and their migration landed here because the new CustomerRepository.archive port method forces the Prisma adapter to compile — US-003 keeps the repository invariant tests."
     },
     {
       "id": "US-003",
