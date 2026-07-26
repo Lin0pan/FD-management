@@ -368,17 +368,35 @@ counts as new.
 ### `src/domain/customer/householdComposition.ts`
 
 `composition(members, today)` derives the grown-up/children split of a household from the members'
-birthdates. A member is a grown-up **on** their 13th birthday and a child the day before; both
-dates are compared as UTC calendar days, so the time of day a record was written cannot change a
-count. A 29 February birthdate has no anniversary in a non-leap year and rolls over to 1 March,
-following § 188 Abs. 3 BGB — thirteen years after a leap year is never itself a leap year, so this
-happens every time.
+birthdates. A member is a grown-up **on** their 13th birthday and a child the day before, so the
+counts, the portion allowance and the price follow a birthday with **no staff action** — the age-13
+reclassification (US-13) is this read-time derivation and nothing else: no job, no trigger, no event.
+
+The two sides of the comparison are read as calendar days, so the time of day cannot change a count,
+but they are read in different calendars, and deliberately so. A **birthdate** is a stored calendar
+day, anchored at UTC midnight by the registration form, and is compared as its UTC day. **`today`**
+is the one real moment involved — it comes from the clock while somebody is standing at the counter
+in Germany — so the day it belongs to is the **Europe/Berlin** one, taken from the same `berlinDayKey`
+the attendance rules count the day with. A member born on the 15th is therefore a grown-up from 00:00
+Berlin on the 15th, not from 01:00 (CET) or 02:00 (CEST) as a UTC-only comparison would have it.
+
+A 29 February birthdate has no anniversary in a non-leap year and rolls over to 1 March, following
+§ 188 Abs. 3 BGB — thirteen years after a leap year is never itself a leap year, so a 29 February
+child comes of age on 1 March every time; a leap-year anniversary is only ever observable on a later
+birthday, which `ageInYears` covers.
 
 The counts are **never stored**: they drive the portion allowance and the price (US-07), and the
 Excel sheet FD is replacing kept them as typed-in numbers that drifted with every birthday. An empty
 household raises `EmptyHousehold` rather than answering `{ 0, 0 }` (which would read as a household
 that owes nothing), and a birthdate after `today` raises `BirthDateInFuture` carrying the offending
 date so the UI can point at the row.
+
+`ageInYears(birthDate, today)` answers the same question in years rather than in a split — the age
+the customer record shows beside each birthdate (US-16.5) — and shares every convention above: the
+Berlin day, the anniversary on the birthday itself, and the 1 March roll-over. Both are pinned by
+boundary tests at the day before, the day of, the day after, 29 February in a leap and a non-leap
+year, and hour by hour across a birthday, where the answer must flip exactly once, at Berlin
+midnight (US-13.1).
 
 ### `src/domain/customer/customerNumber.ts`
 

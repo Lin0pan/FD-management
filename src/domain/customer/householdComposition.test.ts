@@ -11,6 +11,24 @@ function on(isoDate: string): Date {
   return new Date(`${isoDate}T00:00:00.000Z`);
 }
 
+/**
+ * A wall-clock moment in Europe/Berlin, written with the offset that applies on that date — `+02:00`
+ * in summer (CEST), `+01:00` in winter (CET). Spelling the offset out rather than deriving it keeps
+ * these tests readable and makes a DST assumption visible where it is made.
+ */
+function berlin(isoDateTime: string, offset: "+01:00" | "+02:00"): Date {
+  return new Date(`${isoDateTime}${offset}`);
+}
+
+/** Every hour of `days` days from `start`, as instants. */
+function hourlyFrom(start: Date, days: number): ReadonlyArray<Date> {
+  const hours = days * 24;
+  return Array.from(
+    { length: hours + 1 },
+    (_, hour) => new Date(start.getTime() + hour * 3_600_000),
+  );
+}
+
 describe("composition", () => {
   it("counts a member as a child the day before their 13th birthday", () => {
     expect(composition([bornOn("2013-06-15")], on("2026-06-14"))).toEqual({
@@ -45,6 +63,61 @@ describe("composition", () => {
       grownUps: 1,
       children: 0,
     });
+  });
+
+  it("gives a 29 February child no leap-year thirteenth birthday at all", () => {
+    // Thirteen years after a leap year is never itself a leap year (2012 + 13 = 2025), so the
+    // thirteenth birthday of a 29 February child always falls on 1 March. The leap-year anniversary
+    // — grown-up *on* 29 February — is therefore only observable on a later birthday, and
+    // `ageInYears` pins it down below.
+    expect(composition([bornOn("2012-02-29")], on("2025-02-28"))).toEqual({
+      grownUps: 0,
+      children: 1,
+    });
+    expect(composition([bornOn("2012-02-29")], on("2028-02-29"))).toEqual({
+      grownUps: 1,
+      children: 0,
+    });
+  });
+
+  it("turns a member grown-up at Berlin midnight, not at UTC midnight", () => {
+    const child = [bornOn("2013-06-15")];
+    expect(composition(child, berlin("2026-06-14T23:59:00", "+02:00"))).toEqual({
+      grownUps: 0,
+      children: 1,
+    });
+    expect(composition(child, berlin("2026-06-15T00:01:00", "+02:00"))).toEqual({
+      grownUps: 1,
+      children: 0,
+    });
+  });
+
+  it("turns a member grown-up at Berlin midnight in winter too, an hour off UTC", () => {
+    const child = [bornOn("2013-01-20")];
+    expect(composition(child, berlin("2026-01-19T23:59:00", "+01:00"))).toEqual({
+      grownUps: 0,
+      children: 1,
+    });
+    expect(composition(child, berlin("2026-01-20T00:01:00", "+01:00"))).toEqual({
+      grownUps: 1,
+      children: 0,
+    });
+  });
+
+  it("flips a member from child to grown-up exactly once, at Berlin midnight", () => {
+    const child = [bornOn("2013-06-15")];
+    const midnight = berlin("2026-06-15T00:00:00", "+02:00");
+    const instants = hourlyFrom(berlin("2026-06-14T00:00:00", "+02:00"), 2);
+
+    const flips = instants.filter((instant, index) => {
+      const previous = instants[index - 1];
+      if (previous === undefined) {
+        return false;
+      }
+      return composition(child, instant).grownUps !== composition(child, previous).grownUps;
+    });
+
+    expect(flips).toEqual([midnight]);
   });
 
   it("counts a member born today as a child", () => {
@@ -115,10 +188,20 @@ describe("ageInYears", () => {
     expect(ageInYears(on("2012-02-29"), on("2025-03-01"))).toBe(13);
   });
 
+  it("ticks a 29 February birthday over on 29 February when the anniversary year is a leap year", () => {
+    expect(ageInYears(on("2012-02-29"), on("2028-02-28"))).toBe(15);
+    expect(ageInYears(on("2012-02-29"), on("2028-02-29"))).toBe(16);
+  });
+
   it("ignores the time of day on both the birthdate and today", () => {
     const birthDate = new Date("1990-06-15T23:30:00.000Z");
     const today = new Date("2026-06-15T00:15:00.000Z");
     expect(ageInYears(birthDate, today)).toBe(36);
+  });
+
+  it("ticks the age over at Berlin midnight, not at UTC midnight", () => {
+    expect(ageInYears(on("1990-06-15"), berlin("2026-06-14T23:59:00", "+02:00"))).toBe(35);
+    expect(ageInYears(on("1990-06-15"), berlin("2026-06-15T00:01:00", "+02:00"))).toBe(36);
   });
 
   it("rejects a birthdate in the future rather than reporting a negative age", () => {
