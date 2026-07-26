@@ -85,6 +85,19 @@ export interface CustomerRepository {
    * archive releases (US-08, US-10).
    */
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void>;
+  /**
+   * Archive a customer: the status, the trimmed reason and the instant it happened go out in **one
+   * write**, so an archived row can never be left without the why that justified it. Any block
+   * reason is cleared in the same statement — a household that is gone from the register is no
+   * longer a paused one, and `blockReason` is non-null exactly while the status is `BLOCKED`.
+   *
+   * Nothing else is touched. The customer number stays on the row for the historical record, and the
+   * slot is freed purely by the status: the partial unique index exempts archived rows, so the next
+   * registration may take the number while the archived household keeps showing which one it held
+   * (tasks/prd-us-10-archive-customer.md §7). Cards, certificates, distribution records, reminder
+   * logs and notes are all left where they are — nothing about a customer is ever hard-deleted.
+   */
+  archive(id: number, reason: string, archivedAt: Date): Promise<void>;
 }
 
 /**

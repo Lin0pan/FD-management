@@ -134,7 +134,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   readCard, issueCard, lookupCustomer (the counter lookup),
 │   │   │                             #   recordReminder / renewCertificate (US-06),
 │   │   │                             #   blockCustomer / unblockCustomer (US-08),
-│   │   │                             #   reissueCard (US-09, delegates to issueCard)
+│   │   │                             #   reissueCard (US-09, delegates to issueCard),
+│   │   │                             #   archiveCustomer (US-10, frees the slot)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
@@ -421,10 +422,16 @@ needed. The Excel sheet FD is replacing stored them, and they drifted with every
 `NewCustomer` adds what registration decides — `customerNumber`, `group`, `status`,
 `reminderCount`, the first `card` — and `RegisteredCustomer` adds the surrogate `id`, which is the
 only identity there is: a customer number is a slot another household may hold once this one is
-archived, plus `blockReason`, non-null **exactly** when the customer is blocked. `CustomerStatus` is
-`ACTIVE | BLOCKED | ARCHIVED`; a blocked customer still holds their slot (US-08), an archived one
-releases it (US-10). The legal moves between the three states live in `status.ts` (`transition`),
-so an illegal transition is impossible rather than merely unlikely.
+archived, plus `blockReason`, non-null **exactly** when the customer is blocked, and
+`archiveReason`/`archivedAt`, non-null **exactly** when they are archived. The block reason is
+cleared when the block is lifted; the archive pair never is, because there is no way back out of
+`ARCHIVED` (US-10, FR-7). `CustomerStatus` is `ACTIVE | BLOCKED | ARCHIVED`; a blocked customer still
+holds their slot (US-08), an archived one releases it (US-10). The legal moves between the three
+states live in `status.ts` (`transition`), so an illegal transition is impossible rather than merely
+unlikely — and the two moves that turn on a human judgement, `→ BLOCKED` and `→ ARCHIVED`, are
+refused there without a reason (`MissingAuditReason`, naming `customer.blocked` or
+`customer.archived`). Stating that in the machine rather than in each use case is what stops a future
+caller from writing a reason-less archive.
 
 ### `src/domain/customer/certificate.ts`
 
@@ -716,6 +723,29 @@ Neither use case touches the customer number, the card or any distribution recor
 against hand-written fakes (`customers.test.ts`), including that a block leaves the number in the
 taken-slots query — a block never frees a slot.
 
+### `src/application/customers/archiveCustomer`
+
+How a household **leaves the register** (US-10.2) — and the only write in the system that frees
+something: the customer number becomes available to the next registration the moment it lands
+(FR-4), which is what makes archiving the answer to a waiting list rather than a tidy-up.
+
+`archiveCustomer(deps, { customerId, reason })` trims the reason once and asks the same `transition`
+state machine to move `→ ARCHIVED`, from `ACTIVE` or from `BLOCKED` — a paused household can still
+leave. The machine settles both questions before any write: archiving an already-archived customer is
+an illegal move (`IllegalStatusTransition`, and not a no-op, because their slot may by now be someone
+else's), and a whitespace-only reason is a missing record (`MissingAuditReason("customer.archived")`).
+Persistence is one `archive(id, reason, archivedAt)` call writing the status, the reason and the
+instant together and clearing any block reason with them; the audit entry (`customer.archived`,
+changed fields `status`, `archiveReason`, `archivedAt`) carries the reason verbatim as its `why`.
+
+Everything else stays. The customer number remains **on the archived row** for the historical record
+— the slot is freed by the status alone, through the partial unique index that exempts archived rows
+(PRD §7) — and cards, certificates, distribution records, reminder logs and notes are untouched,
+because nothing about a customer is ever hard-deleted. The fakes prove it as behaviour rather than
+signature: `customers.test.ts` snapshots everything the household owns before and after the archive
+and compares the two, and asserts that the freed number is what `lowestFreeNumber` offers next.
+There is no un-archive; a returning household is registered anew (FR-7, US-11).
+
 ### `src/infrastructure/prisma/audit-log.ts`
 
 The **append-only audit log** (`PrismaAuditLog`). Every state change is recorded with a timestamp
@@ -741,6 +771,11 @@ domain's `CustomerNumberTaken`, which is what lets `registerCustomer` retry with
 other failure is rethrown as itself. `setStatus(id, status, blockReason)` is the one write behind
 `blockCustomer` / `unblockCustomer`: it updates the `status` and `blockReason` columns together, so
 the reason a blocked customer carries can never disagree with their status.
+
+`archive(id, reason, archivedAt)` is the one write behind `archiveCustomer` (US-10): status, reason
+and instant in a single statement, with any block reason cleared alongside them. It is a plain
+`WHERE id` update and nothing more — no related row is touched and the customer number stays put,
+because freeing the slot is entirely the partial unique index's doing.
 
 The **partial unique index** the adapter relies on is not in `schema.prisma` — Prisma has no syntax
 for one — but hand-written at the end of the `init` migration:

@@ -159,6 +159,8 @@ export class PrismaCustomerRepository implements CustomerRepository {
       group: parseGroup(row.group),
       status: parseCustomerStatus(row.status),
       blockReason: row.blockReason,
+      archiveReason: row.archiveReason,
+      archivedAt: row.archivedAt,
       reminderCount: row.reminderCount,
       card: {
         index: card.index,
@@ -237,8 +239,9 @@ export class PrismaCustomerRepository implements CustomerRepository {
         },
         select: { id: true },
       });
-      // A newly registered customer is always active, so their block reason is null (US-08).
-      return { ...customer, id: row.id, blockReason: null };
+      // A newly registered customer is always active, so they carry neither a block reason (US-08)
+      // nor an archive one (US-10).
+      return { ...customer, id: row.id, blockReason: null, archiveReason: null, archivedAt: null };
     } catch (error: unknown) {
       if (isCustomerNumberCollision(error)) {
         throw new CustomerNumberTaken(customer.customerNumber);
@@ -254,6 +257,22 @@ export class PrismaCustomerRepository implements CustomerRepository {
    */
   async setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
     await this.prisma.customer.update({ where: { id }, data: { status, blockReason } });
+  }
+
+  /**
+   * Archive a customer: status, reason and instant in one statement, with any block reason cleared
+   * alongside them, so an archived row can never be left without its why nor with a stale block.
+   *
+   * Nothing else is written — the customer number stays put and no related row is touched. The slot
+   * is freed by the status alone, because the partial unique index in the init migration exempts
+   * archived rows; that is the whole mechanism (US-10, PRD §7), and it is why archiving is a `WHERE
+   * id` update rather than anything larger.
+   */
+  async archive(id: number, reason: string, archivedAt: Date): Promise<void> {
+    await this.prisma.customer.update({
+      where: { id },
+      data: { status: "ARCHIVED", blockReason: null, archiveReason: reason, archivedAt },
+    });
   }
 }
 

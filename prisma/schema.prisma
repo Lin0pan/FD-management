@@ -105,6 +105,14 @@ model Customer {
   /// column keeps what the counter must show today.
   blockReason String?
 
+  /// Why this household was archived and when, or null while it is not — non-null **exactly** when
+  /// `status` is `ARCHIVED`. Archiving is irreversible (US-10, FR-7), so unlike `blockReason` the
+  /// pair is written once and never cleared: it is what the archived record shows about itself long
+  /// after the audit entry has scrolled out of sight. Neither frees the slot — the partial unique
+  /// index does that off `status` alone, and `customerNumber` stays for the historical record.
+  archiveReason String?
+  archivedAt    DateTime?
+
   /// How many certificate reminders have gone out (US-06).
   reminderCount Int @default(0)
 

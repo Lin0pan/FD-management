@@ -8,6 +8,7 @@ import {
   type NewCustomer,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
+import { lowestFreeNumber } from "@/domain/customer/customerNumber";
 import type { GroupCounts } from "@/domain/customer/group";
 import type {
   DistributionRecord,
@@ -37,6 +38,7 @@ import type {
   DistributionRecordRepository,
   SettingsRepository,
 } from "../ports";
+import { archiveCustomer } from "./archive-customer";
 import { blockCustomer } from "./block-customer";
 import { issueCard } from "./issue-card";
 import { proposeRegistration } from "./propose-registration";
@@ -138,7 +140,13 @@ class FakeCustomerRepository implements CustomerRepository {
       this.taken.push(customer.customerNumber);
       return Promise.reject(new CustomerNumberTaken(customer.customerNumber));
     }
-    const registered: RegisteredCustomer = { ...customer, id: this.nextId, blockReason: null };
+    const registered: RegisteredCustomer = {
+      ...customer,
+      id: this.nextId,
+      blockReason: null,
+      archiveReason: null,
+      archivedAt: null,
+    };
     this.nextId += 1;
     this.created.push(registered);
     return Promise.resolve(registered);
@@ -150,6 +158,24 @@ class FakeCustomerRepository implements CustomerRepository {
       return Promise.reject(new CustomerNotFound(id));
     }
     this.created[index] = { ...this.created[index], status, blockReason };
+    return Promise.resolve();
+  }
+
+  // Like the adapter's single statement: the status, the reason and the instant land together, the
+  // block reason is cleared with them, and everything else on the row — the number above all — is
+  // left exactly as it was, so a test can prove the archive removes nothing.
+  archive(id: number, reason: string, archivedAt: Date): Promise<void> {
+    const index = this.created.findIndex((customer) => customer.id === id);
+    if (index === -1) {
+      return Promise.reject(new CustomerNotFound(id));
+    }
+    this.created[index] = {
+      ...this.created[index],
+      status: "ARCHIVED",
+      blockReason: null,
+      archiveReason: reason,
+      archivedAt,
+    };
     return Promise.resolve();
   }
 }
@@ -1325,5 +1351,190 @@ describe("unblockCustomer", () => {
 
   it("refuses an id that belongs to nobody rather than lifting nothing", async () => {
     await expect(unblockCustomer(deps(), { customerId: 404 })).rejects.toThrow(CustomerNotFound);
+  });
+});
+
+describe("archiveCustomer", () => {
+  let customers: FakeCustomerRepository;
+  let cards: FakeCardRepository;
+  let distribution: FakeDistributionRecordRepository;
+  let audit: FakeAuditLog;
+
+  /** The quota the freed slot is looked for within — the seeded default (US-01). */
+  const QUOTA = 240;
+
+  /**
+   * `cards` and `distribution` are not in `archiveCustomer`'s dependencies at all; they are handed
+   * in as witnesses, so "nothing is deleted" can be stated as behaviour rather than trusted from the
+   * signature. A use case that ever grew a delete would fail the snapshot below.
+   */
+  function deps(today = TODAY) {
+    return { customers, cards, distribution, clock: fakeClock(today), audit };
+  }
+
+  /**
+   * A household with a history worth losing: a reissued card on top of the first, two hand-outs on
+   * record, a certificate, notes and reminders on file — the state a real customer is in by the time
+   * anyone thinks of archiving them.
+   */
+  async function seedWithHistory(status: CustomerStatus, customerNumber = 50): Promise<number> {
+    const customer = await customers.create({
+      ...storedCustomer(status),
+      customerNumber,
+      reminderCount: 2,
+      details: createCustomerDetails(
+        registerInput({ notes: "Bringt Ausweis nach" }),
+        new Date(TODAY),
+      ),
+    });
+    cards.place(customer.id, 1, 2);
+    for (const date of ["2026-06-11T09:00:00.000Z", "2026-06-25T09:00:00.000Z"]) {
+      await distribution.create({
+        customerId: customer.id,
+        date: new Date(date),
+        showedUp: true,
+        paid: true,
+        priceCents: 500,
+      });
+    }
+    return customer.id;
+  }
+
+  /**
+   * Everything the household owns, counted in one value: the rows in each store plus the fields the
+   * customer row itself carries. One equality then covers every table an archive could have touched,
+   * and a future write nobody thought to check still fails the test.
+   *
+   * The reminder *log* has no witness here because `archiveCustomer` has no reminder repository to
+   * reach it with; `reminderCount` is the part of that trail the customer row holds, and it is in.
+   */
+  async function belongings(customerId: number): Promise<string> {
+    const customer = await customers.findById(customerId);
+    return JSON.stringify({
+      cards: await cards.listCards(customerId),
+      records: await distribution.listForCustomer(customerId),
+      customerNumber: customer?.customerNumber,
+      group: customer?.group,
+      reminderCount: customer?.reminderCount,
+      details: customer?.details,
+    });
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository();
+    cards = new FakeCardRepository();
+    distribution = new FakeDistributionRecordRepository();
+    audit = new FakeAuditLog();
+  });
+
+  it("archives an active customer, storing the reason trimmed and the instant it happened", async () => {
+    const customerId = await seedWithHistory("ACTIVE");
+
+    await archiveCustomer(deps(), { customerId, reason: "  nach Hamburg verzogen  " });
+
+    const after = await customers.findById(customerId);
+    expect(after?.status).toBe("ARCHIVED");
+    expect(after?.archiveReason).toBe("nach Hamburg verzogen");
+    expect(after?.archivedAt).toEqual(new Date(TODAY));
+  });
+
+  it("frees the customer number immediately — the next registration is offered it", async () => {
+    customers = new FakeCustomerRepository([1, 2]);
+    const customerId = await seedWithHistory("ACTIVE", 3);
+    expect(lowestFreeNumber(await customers.takenActiveNumbers(), QUOTA)).toBe(4);
+
+    await archiveCustomer(deps(), { customerId, reason: "verzogen" });
+
+    expect(lowestFreeNumber(await customers.takenActiveNumbers(), QUOTA)).toBe(3);
+  });
+
+  it("keeps the number on the archived row, so the record still says which slot it held", async () => {
+    const customerId = await seedWithHistory("ACTIVE", 3);
+
+    await archiveCustomer(deps(), { customerId, reason: "verzogen" });
+
+    expect((await customers.findById(customerId))?.customerNumber).toBe(3);
+  });
+
+  it("deletes nothing — cards, hand-outs, certificate, notes and reminders all survive", async () => {
+    const customerId = await seedWithHistory("ACTIVE");
+    const before = await belongings(customerId);
+
+    await archiveCustomer(deps(), { customerId, reason: "verzogen" });
+
+    expect(await belongings(customerId)).toBe(before);
+  });
+
+  it("archives a blocked customer and leaves no block reason behind", async () => {
+    const customerId = await seedWithHistory("ACTIVE");
+    await blockCustomer(deps(), { customerId, reason: "Karte weitergegeben" });
+
+    await archiveCustomer(deps(), { customerId, reason: "meldet sich nicht mehr" });
+
+    const after = await customers.findById(customerId);
+    expect(after?.status).toBe("ARCHIVED");
+    expect(after?.blockReason).toBeNull();
+    expect(after?.archiveReason).toBe("meldet sich nicht mehr");
+  });
+
+  it("records the archive under a stable event name, with the reason as the why and no actor", async () => {
+    const customerId = await seedWithHistory("ACTIVE");
+
+    await archiveCustomer(deps(), { customerId, reason: "  verzogen  " });
+
+    expect(audit.entries).toHaveLength(1);
+    expect(audit.entries[0].what).toBe("customer.archived");
+    expect(audit.entries[0].changedFields).toEqual(["status", "archiveReason", "archivedAt"]);
+    expect(audit.entries[0].why).toBe("verzogen");
+    expect(audit.entries[0].when).toEqual(new Date(TODAY));
+    expect(Object.keys(audit.entries[0])).not.toContain("who");
+  });
+
+  it("refuses an empty reason and writes nothing — the reason is the whole record", async () => {
+    const customerId = await seedWithHistory("ACTIVE");
+
+    await expect(archiveCustomer(deps(), { customerId, reason: "" })).rejects.toThrow(
+      MissingAuditReason,
+    );
+
+    const after = await customers.findById(customerId);
+    expect(after?.status).toBe("ACTIVE");
+    expect(after?.archiveReason).toBeNull();
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("names the archive event on the refusal, not the class", async () => {
+    const customerId = await seedWithHistory("ACTIVE");
+
+    await expect(archiveCustomer(deps(), { customerId, reason: "   " })).rejects.toThrow(
+      new MissingAuditReason("customer.archived").message,
+    );
+  });
+
+  it("keeps the slot taken when the archive is refused", async () => {
+    customers = new FakeCustomerRepository([1, 2]);
+    const customerId = await seedWithHistory("ACTIVE", 3);
+
+    await expect(archiveCustomer(deps(), { customerId, reason: " " })).rejects.toThrow(
+      MissingAuditReason,
+    );
+
+    expect(lowestFreeNumber(await customers.takenActiveNumbers(), QUOTA)).toBe(4);
+  });
+
+  it("refuses to archive an already-archived customer, whose slot may be someone else's", async () => {
+    const customerId = await seedWithHistory("ARCHIVED");
+
+    await expect(archiveCustomer(deps(), { customerId, reason: "nochmal" })).rejects.toThrow(
+      IllegalStatusTransition,
+    );
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("refuses an id that belongs to nobody rather than archiving the void", async () => {
+    await expect(archiveCustomer(deps(), { customerId: 404, reason: "wer?" })).rejects.toThrow(
+      CustomerNotFound,
+    );
+    expect(audit.entries).toHaveLength(0);
   });
 });

@@ -93,14 +93,34 @@ class FakeCustomerRepository implements CustomerRepository {
 
   create(customer: NewCustomer): Promise<RegisteredCustomer> {
     this.writes += 1;
-    const registered = { ...customer, id: this.holders.length + 1, blockReason: null };
+    const registered = {
+      ...customer,
+      id: this.holders.length + 1,
+      blockReason: null,
+      archiveReason: null,
+      archivedAt: null,
+    };
     this.holders.push(registered);
     return Promise.resolve(registered);
   }
 
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
+    this.writes += 1;
     const index = this.holders.findIndex((customer) => customer.id === id);
     this.holders[index] = { ...this.holders[index], status, blockReason };
+    return Promise.resolve();
+  }
+
+  archive(id: number, reason: string, archivedAt: Date): Promise<void> {
+    this.writes += 1;
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    this.holders[index] = {
+      ...this.holders[index],
+      status: "ARCHIVED",
+      blockReason: null,
+      archiveReason: reason,
+      archivedAt,
+    };
     return Promise.resolve();
   }
 }
@@ -260,6 +280,8 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
     group: overrides.group ?? "RED",
     status: overrides.status ?? "ACTIVE",
     blockReason: overrides.status === "BLOCKED" ? "gesperrt" : null,
+    archiveReason: overrides.status === "ARCHIVED" ? "archiviert" : null,
+    archivedAt: overrides.status === "ARCHIVED" ? new Date(TODAY) : null,
     reminderCount: overrides.reminderCount ?? 0,
     card: { index: overrides.cardIndex ?? 1, issuedAt: new Date(TODAY), reason: "FIRST_ISSUE" },
     details,

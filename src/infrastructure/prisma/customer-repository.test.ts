@@ -269,6 +269,58 @@ describe("PrismaCustomerRepository.setStatus", () => {
   });
 });
 
+describe("PrismaCustomerRepository.archive", () => {
+  const ARCHIVED_AT = new Date("2026-07-22T11:30:00.000Z");
+
+  it("writes the status, the reason and the instant, and clears any block reason", async () => {
+    const { id } = await repository.create(newCustomer());
+    await repository.setStatus(id, "BLOCKED", "vorübergehend gesperrt");
+
+    await repository.archive(id, "nach Hamburg verzogen", ARCHIVED_AT);
+
+    const row = await prisma.customer.findUniqueOrThrow({ where: { id } });
+    expect(row.status).toBe("ARCHIVED");
+    expect(row.archiveReason).toBe("nach Hamburg verzogen");
+    expect(row.archivedAt).toEqual(ARCHIVED_AT);
+    expect(row.blockReason).toBeNull();
+  });
+
+  it("keeps the number and every related row — archiving is a status change, not a delete", async () => {
+    const { id } = await repository.create(newCustomer());
+
+    await repository.archive(id, "verzogen", ARCHIVED_AT);
+
+    const row = await prisma.customer.findUniqueOrThrow({
+      where: { id },
+      include: { householdMembers: true, certificates: true, cards: true },
+    });
+    expect(row.customerNumber).toBe(50);
+    expect(row.householdMembers).toHaveLength(2);
+    expect(row.certificates).toHaveLength(1);
+    expect(row.cards).toHaveLength(1);
+  });
+
+  it("frees the slot at once — the next registration may take the number", async () => {
+    const { id } = await repository.create(newCustomer());
+
+    await repository.archive(id, "verzogen", ARCHIVED_AT);
+
+    const successor = await repository.create(newCustomer());
+    expect(successor.customerNumber).toBe(50);
+    expect(await repository.takenActiveNumbers()).toEqual([50]);
+  });
+
+  it("reads the archive reason and date back on the record", async () => {
+    const { id } = await repository.create(newCustomer());
+
+    await repository.archive(id, "verzogen", ARCHIVED_AT);
+
+    const found = await repository.findById(id);
+    expect(found?.archiveReason).toBe("verzogen");
+    expect(found?.archivedAt).toEqual(ARCHIVED_AT);
+  });
+});
+
 describe("PrismaCustomerRepository.takenActiveNumbers", () => {
   it("is empty for an empty register", async () => {
     expect(await repository.takenActiveNumbers()).toEqual([]);
