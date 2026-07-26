@@ -123,6 +123,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── distribution/counterVerdict.test.ts  # its Vitest spec
 │   │   ├── distribution/attendance.ts  # canRecord/canCorrect — the once-per-Berlin-day rules
 │   │   ├── distribution/attendance.test.ts  # its Vitest spec
+│   │   ├── distribution/noShows.ts    # consecutiveNoShows — own distributions missed in a row
+│   │   ├── distribution/noShows.test.ts  # its Vitest spec
 │   │   ├── distribution/distributionRecord.ts  # the hand-out record type (id, paid, priceCents)
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, CustomerRepository,
@@ -524,6 +526,39 @@ blank.
 
 A skipped week shifts nothing here either — the next distribution is simply the next occurrence of
 the configured weekday, and its colour comes from `colourOf`, so the parity is the calendar's.
+
+### `src/domain/distribution/noShows.ts`
+
+How many of their own distributions in a row a household has missed — one of the two triggers that put
+archiving in front of staff (US-10, FR-3). `consecutiveNoShows({ records, customerGroup, registeredOn,
+settings, today })` walks backwards one two-week cycle at a time from the last distribution of the
+customer's colour and stops at the first one they attended, or at their registration day.
+
+A no-show is the **absence** of a record, so it cannot be read off the history alone: the history says
+which days the customer came and the calendar says which days were theirs. This is the one module where
+the week-colour rule (US-03) and the attendance history (US-05) meet — which is why it takes the
+settings rather than a list of dates.
+
+Four boundaries decide what the number means:
+
+| Boundary                         | Counted? | Why                                                                                                                |
+| -------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
+| The other group's weeks          | no       | They were never this household's days; counting them would double every figure.                                    |
+| Today's own distribution         | no       | It may still be in progress — the count must not read "1 no-show" to the staff member serving them.                |
+| The day the household registered | no       | The card is handed over at registration and whether that day's hand-out had finished is nowhere on record.         |
+| Weeks the household was blocked  | yes      | PRD §9, **to be confirmed with FD**: excluding them would hide the pattern, and no block _history_ is kept anyway. |
+
+Records are matched to a distribution day by the **Europe/Berlin** calendar day, through the same
+`berlinDayKey` the once-per-day attendance rule and the database's unique index use — so a hand-out
+entered at 23:45 belongs to the day the staff member lived through, and one entered after Berlin
+midnight belongs to the next.
+
+Nothing in the module reacts to the value it returns: there is no threshold here and no configurable one
+anywhere (PRD §5). Three consecutive misses are emphasis on a screen; the archive decision is human.
+
+`registeredOn` is a parameter because the domain has no notion of storage — there is no registration-date
+column, and the application layer supplies the day from the household's first card (`index` 1), which is
+issued with the registration.
 
 ### `src/application/customers/registerCustomer`
 
