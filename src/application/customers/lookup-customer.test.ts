@@ -428,6 +428,31 @@ describe("lookupCustomer", () => {
     expect(result.customer?.children).toBe(0);
   });
 
+  it("notes that the card still prints counts a 13th birthday has overtaken", async () => {
+    // Printed while the member was twelve; looked up after their birthday, with nothing written in
+    // between — the counts on the screen moved, the piece of card in their pocket did not.
+    customers = new FakeCustomerRepository(
+      customerRecord({ householdMembers: [member(GROWN_UP), member("2013-08-01T00:00:00.000Z")] }),
+    );
+
+    const result = await lookupCustomer(deps("2026-08-01T09:00:00.000Z"), "50");
+
+    expect(result.customer?.staleCounts).toBe("AGE_13");
+    expect(result.customer?.countsOnCard).toEqual({ grownUps: 1, children: 1 });
+    expect(result.customer?.grownUps).toBe(2);
+    expect(result.customer?.children).toBe(0);
+  });
+
+  it("notes nothing when the card still prints what the household is", async () => {
+    customers = new FakeCustomerRepository(
+      customerRecord({ householdMembers: [member(GROWN_UP), member(CHILD)] }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.staleCounts).toBeNull();
+  });
+
   it("carries everything the screen shows below the verdict", async () => {
     customers = new FakeCustomerRepository(
       customerRecord({ cardIndex: 3, reminderCount: 1, notes: "ruft vorher an" }),

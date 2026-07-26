@@ -18,6 +18,14 @@ export const de = {
     settingsLink: "Einstellungen",
     distributionLink: "Ausgabe: Welche Gruppe ist dran?",
     newCustomerLink: "Neue Kundin oder neuen Kunden aufnehmen",
+    cardsDueLink: "Karten neu ausstellen",
+    /**
+     * The badge beside that link (US-13.4). It states a number and nothing else — no colour, no
+     * exclamation mark, no "offen": the list is a to-do list, and a home screen that looks alarmed
+     * about it is how staff learn to ignore it (PRD §6). Shown at zero too, because "nothing to do"
+     * is the answer staff most often want from it.
+     */
+    cardsDueBadge: (count: number): string => (count === 1 ? "1 Karte" : `${count} Karten`),
   },
   customers: {
     groups: {
@@ -76,6 +84,14 @@ export const de = {
        */
       noShows: "Ausgaben in Folge verpasst",
       noShowsValue: (count: number): string => (count === 1 ? "1 Ausgabe" : `${count} Ausgaben`),
+      /**
+       * The two counts as one phrase, for the places that show a *pair* of them side by side — the
+       * card and the household today (US-13.4). Written with labels rather than as "1 Erwachsener"
+       * because the number is as often 0 or 2 as it is 1, and this form is right at every number
+       * and names nobody's gender.
+       */
+      countsValue: (grownUps: number, children: number): string =>
+        `Erwachsene: ${grownUps}, Kinder: ${children}`,
       hint: "Berechnet aus den Geburtsdaten — nicht eingebbar.",
       standardValues: "Standard-Portionen und -Preis; am Ausgabetisch nicht anpassbar.",
       unknown: "—",
@@ -247,6 +263,41 @@ export const de = {
       },
     },
   },
+  /**
+   * The cards-due-for-reissue screen at /karten-neuausstellung (US-13.4).
+   *
+   * The tone *is* the feature. This is a to-do list, not an alert queue: everything on it can wait,
+   * and the one thing it must never do is suggest that a household with an outdated card should be
+   * turned away (PRD §6, FR-5). Hence "keine Eile" stated before the list rather than after it, and
+   * no word anywhere that reads as a deadline.
+   */
+  cardsDue: {
+    heading: "Karten neu ausstellen",
+    intro:
+      "Bei diesen Haushalten stimmen die auf der Karte gedruckten Zahlen nicht mehr mit dem " +
+      "Haushalt überein — meistens, weil ein Kind 13 Jahre alt geworden ist.",
+    notUrgent:
+      "Das hat keine Eile. Erwachsene, Kinder, Portionen und Preis berechnet die Anwendung bei " +
+      "jedem Aufruf neu; die Karte ist nur ein Ausdruck. Eine veraltete Karte ist nie ein Grund, " +
+      "jemanden an der Ausgabe wegzuschicken.",
+    empty: "Zurzeit ist keine Karte neu auszustellen.",
+    countsOnCard: "Auf der Karte gedruckt",
+    countsToday: "Haushalt heute",
+    reasonLabel: "Unterschied",
+    /** Why the card and the household differ — the two cases `StaleCountsReason` names. */
+    reasons: {
+      AGE_13: "13. Geburtstag",
+      HOUSEHOLD_CHANGE: "Haushalt geändert",
+    },
+    /**
+     * The row's action. Only the label is its own: the confirmation, the button and the rejections
+     * are `customers.reissue`'s, because a reissue from here is the same act as one from the record
+     * (US-09) and staff should not have to notice that they started it from a different screen.
+     */
+    action: "Karte neu ausstellen",
+    customerLink: "Kundenakte öffnen",
+    backToHome: "Zur Startseite",
+  },
   /** The distribution screen at /ausgabe — which group collects, today and in any other week. */
   distribution: {
     heading: "Ausgabe",
@@ -325,6 +376,18 @@ export const de = {
         reminderCount: "Erinnerungen an den Nachweis",
         noNotes: "Keine Bemerkung hinterlegt.",
       },
+      /**
+       * The note for a card whose printed counts the household has outgrown (US-13.4).
+       *
+       * Deliberately not a verdict and deliberately not a warning: it names the difference, says
+       * which numbers apply, and stops. A stale card is never grounds to turn anyone away (FR-5),
+       * so the sentence must not read as one — no "Achtung", no exclamation mark, and nothing that
+       * asks the counter to do anything before the next customer is served.
+       */
+      staleCard: (cardNumber: string, onCard: string, today: string): string =>
+        `Die Karte ${cardNumber} ist noch mit anderen Zahlen gedruckt (${onCard}); heute zählt ` +
+        `der Haushalt ${today}. Ausgegeben wird nach den heutigen Zahlen. Eine neue Karte kann bei ` +
+        `Gelegenheit ausgestellt werden.`,
       errors: {
         notANumber:
           "Das ist keine Kundennummer und keine Kartennummer. Erwartet werden zum Beispiel 50 " +

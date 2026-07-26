@@ -10,7 +10,7 @@ import {
 import type { GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import type { Clock, CustomerRepository } from "../ports";
-import { listCardsDueForReissue } from "./cards-due-for-reissue";
+import { countCardsDueForReissue, listCardsDueForReissue } from "./cards-due-for-reissue";
 
 /**
  * Hand-written fakes and synthetic data only, per the testing standard.
@@ -194,11 +194,20 @@ describe("listCardsDueForReissue", () => {
         firstName: customers.holders[0].details.firstName,
         lastName: customers.holders[0].details.lastName,
         cardNumber: "50k1",
+        nextCardNumber: "50k2",
         countsOnCard: { grownUps: 1, children: 1 },
         countsToday: { grownUps: 2, children: 0 },
         reason: "AGE_13",
       },
     ]);
+  });
+
+  it("names the number the reissue will hand out, which staff copy onto the card", async () => {
+    customers.holders.push(household({ id: 1, customerNumber: 50, cardIndex: 3 }));
+
+    const [due] = await listCardsDueForReissue(deps(BIRTHDAY));
+
+    expect(due.nextCardNumber).toBe("50k4");
   });
 
   it("puts a household on the list with no write in between the two readings", async () => {
@@ -254,5 +263,36 @@ describe("listCardsDueForReissue", () => {
     const due = await listCardsDueForReissue(deps(BIRTHDAY));
 
     expect(due.map((entry) => entry.customerNumber)).toEqual([12, 51, 70]);
+  });
+});
+
+describe("countCardsDueForReissue", () => {
+  let customers: FakeCustomerRepository;
+
+  function deps(today = TODAY) {
+    return { customers, clock: fakeClock(today) };
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository();
+  });
+
+  it("counts exactly the households the list shows, so badge and screen cannot disagree", async () => {
+    customers.holders.push(
+      household({ id: 1, customerNumber: 12 }),
+      household({ id: 2, customerNumber: 51, members: [member(GROWN_UP_BIRTH_DATE)] }),
+      household({ id: 3, customerNumber: 70 }),
+    );
+
+    const due = await listCardsDueForReissue(deps(BIRTHDAY));
+
+    expect(await countCardsDueForReissue(deps(BIRTHDAY))).toBe(due.length);
+    expect(due).toHaveLength(2);
+  });
+
+  it("counts nothing when every card still prints the truth", async () => {
+    customers.holders.push(household({ id: 1, customerNumber: 50 }));
+
+    expect(await countCardsDueForReissue(deps())).toBe(0);
   });
 });

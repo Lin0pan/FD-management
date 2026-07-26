@@ -65,7 +65,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 ├── src/
 │   ├── app/                          # Next.js App Router — thin adapter layer
 │   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
-│   │   ├── page.tsx                  # home page (reads strings from i18n dictionary)
+│   │   ├── page.tsx                  # home page: the links + the cards-due badge (US-13.4)
 │   │   ├── ausgabe/                  # distribution screen (US-03), counter (US-04), hand-out (US-05), reminder (US-06)
 │   │   │   ├── page.tsx              # server component: colour banner, counter lookup, week lookup
 │   │   │   ├── counter-lookup.tsx    # the verdict banner + the customer details below it (US-04.4)
@@ -91,6 +91,11 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   ├── [id]/block-state.ts   # the block/unblock form state (not exportable from actions.ts)
 │   │   │   ├── [id]/reissue-state.ts # the reissue form state (not exportable from actions.ts)
 │   │   │   └── [id]/karte/page.tsx   # the digital customer card (US-02.4) + the issued-card counts (US-09.3)
+│   │   ├── karten-neuausstellung/    # the cards-due-for-reissue screen (US-13.4)
+│   │   │   ├── page.tsx              # server component: one row per household, both count sets
+│   │   │   ├── stale-card-controls.tsx  # client: Karte neu ausstellen, reason STALE_COUNTS
+│   │   │   ├── actions.ts            # "use server": Zod → reissueCard(STALE_COUNTS)
+│   │   │   └── reissue-state.ts      # the row's form state (not exportable from actions.ts)
 │   │   ├── einstellungen/            # the settings screen (US-14)
 │   │   │   ├── page.tsx              # server component: current values + version history
 │   │   │   ├── settings-form.tsx     # client component: the form and its save-result state
@@ -707,8 +712,14 @@ the piece of card in the household's pocket still shows the old numbers.
 `listCardsDueForReissue(deps)` reads the clock once, asks `customers.listWithStatus("ACTIVE")` for the
 register, and for each household compares `card.countsAtIssue` with `composition(members, today)`
 through `staleCountsReason`. Each entry carries the surrogate id (what a reissue is written against),
-the customer number, the name, the card number, **both** count sets and the reason. The repository's
-order — lowest customer number first — is handed on untouched rather than sorted again here.
+the customer number, the name, the card number, the number a reissue would hand out, **both** count
+sets and the reason. The repository's order — lowest customer number first — is handed on untouched
+rather than sorted again here.
+
+`countCardsDueForReissue(deps)` is the same question asked for the home screen's badge, and it
+answers by taking the length of that list rather than counting anything of its own — badge and screen
+are then one statement and cannot drift apart. It is not a `COUNT(*)` for the same reason the list is
+not a `WHERE`.
 
 **Only active households.** A blocked one is not collecting (US-08), so listing them would ask staff
 to print a card nobody is coming for; an archived one holds no slot and may not be issued a card at
@@ -1191,6 +1202,44 @@ then the question it asks about every person in the queue: may _this_ one collec
   confirmation ("… zurückgesetzt: 0.") visible once the verdict has turned green again.
 - The screen states facts and offers actions — it never advises what a count should mean, prompts an
   archive or applies a threshold, because that judgement is deliberately the staff's (FR-6, FR-7).
+
+#### The stale-card note
+
+`lookupCustomer` compares the counts printed on the card the household holds (`countsOnCard`, the
+snapshot from US-13.3) with the ones it has just derived, and reports `staleCounts` — `AGE_13`,
+`HOUSEHOLD_CHANGE` or `null`. The counter renders it as the **smallest, quietest thing on the
+screen**: one grey line under the household's data, no border, no icon, no colour. It is neither a
+verdict nor a warning — `evaluateAtCounter` never sees the field, so nothing about serving changes,
+and the serve button stands exactly where it did. A stale card is never grounds to turn anyone away
+(US-13, FR-5), and a note that looked like a refusal is precisely the failure mode this feature has
+to avoid.
+
+### `src/app/karten-neuausstellung/` — the cards-due-for-reissue screen
+
+The to-do list of cards a birthday (or a household change) has overtaken, US-13.4. `page.tsx` calls
+`listCardsDueForReissue` and lays each entry out: name, customer number, card number, the counts
+**printed on the card** beside the counts the household **is today**, and the difference stated in
+words ("13. Geburtstag"). It is `force-dynamic`, because the list changes at midnight with nothing
+written.
+
+The tone is the feature, not decoration on it. "Das hat keine Eile … Eine veraltete Karte ist nie ein
+Grund, jemanden an der Ausgabe wegzuschicken" stands **above** the list, so it is read before the
+first row rather than after the last; nothing is coloured as a warning, nothing is counted as
+overdue, and no row asks to be dealt with before another. Anything that looked urgent would train
+staff to ignore the list — or, far worse, to turn a household away over it (PRD §6, FR-5).
+
+- **`stale-card-controls.tsx`** is a closed disclosure with the confirmation inside it, like the
+  reissue control on the customer record, and it names **both** card numbers before writing: the new
+  one is what staff copy onto the physical card. It has to be named _before_ the write, because a
+  successful reissue removes the row — and the message with it.
+- **`actions.ts`** hands to `reissueCard` with the reason **fixed** to `STALE_COUNTS`, never read off
+  the form. It is the same card path as every other issue (`issueCard`); only the recorded reason
+  differs, and that reason is what keeps the loss count on the card view readable. On success it
+  revalidates this list, the household's record and card view, and `/` — whose badge counts this very
+  list.
+- The home screen's badge (`countCardsDueForReissue`) is shown at zero too and in the same grey as
+  everything around it: "nothing to do" is the answer staff most often want from it, and a home
+  screen that looks alarmed about outdated cards is how the list stops being read.
 
 ### `src/i18n/de.ts`
 

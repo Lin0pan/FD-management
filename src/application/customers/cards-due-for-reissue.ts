@@ -29,6 +29,13 @@ export interface CardDueForReissue {
   readonly lastName: string;
   /** The number of the card they hold today, e.g. `50k3` — the one to be replaced. */
   readonly cardNumber: string;
+  /**
+   * The number a reissue would hand out, e.g. `50k4`. It is derived here rather than on the screen
+   * because "the next card is the current index plus one" is a rule, and because it is what staff
+   * write on the physical card — the row has to name it before anything is issued, since the row
+   * itself disappears the moment the new card exists.
+   */
+  readonly nextCardNumber: string;
   /** What is printed on that piece of card. Read for comparison only, never as the household. */
   readonly countsOnCard: HouseholdComposition;
   /** What the household is today, derived from the birthdates like everywhere else. */
@@ -74,6 +81,7 @@ export async function listCardsDueForReissue(
       firstName: customer.details.firstName,
       lastName: customer.details.lastName,
       cardNumber: formatCardNumber(customer.customerNumber, customer.card.index),
+      nextCardNumber: formatCardNumber(customer.customerNumber, customer.card.index + 1),
       countsOnCard,
       countsToday,
       reason,
@@ -82,4 +90,20 @@ export async function listCardsDueForReissue(
   // The repository's order is handed on untouched: it sorted by customer number in the query, and
   // sorting again here would be a second, quietly diverging statement of how the screen reads.
   return due;
+}
+
+/**
+ * How many households are due a new card — the number the home screen puts beside the link (US-13.4).
+ *
+ * It answers by building the list and taking its length rather than by counting anything of its own.
+ * The badge and the screen it links to are then the same statement: no arrangement of birthdates can
+ * make the home screen promise a row that the list does not show. There is no cheaper way to ask —
+ * the difference is a rule over birthdates, so it cannot be a `COUNT(*)` (see
+ * {@link listCardsDueForReissue}).
+ *
+ * @throws {EmptyHousehold} if a stored household has no members — a record that cannot be counted.
+ * @throws {BirthDateInFuture} if a stored birthdate lies after today.
+ */
+export async function countCardsDueForReissue(deps: CardsDueForReissueDeps): Promise<number> {
+  return (await listCardsDueForReissue(deps)).length;
 }
