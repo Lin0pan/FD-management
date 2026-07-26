@@ -35,8 +35,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "CardRepository gained issueCounts(customerId) -> { cardsIssued, reissuesForLoss }, one prisma.card.groupBy(['reason']) with _count/_max. readCard's CardView carries both (the card view is where US-09.3 displays them); it calls the aggregate rather than filtering the run it already loads. 4 application tests + 6 integration tests incl. the mixed FIRST_ISSUE/LOST/STALE_COUNTS/LOST history."
     },
     {
       "id": "US-003",

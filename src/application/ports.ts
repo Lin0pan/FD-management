@@ -88,6 +88,23 @@ export interface CustomerRepository {
 }
 
 /**
+ * How many cards a customer has been through, and how many of those a loss caused (US-09.2).
+ *
+ * The two are counted apart because they answer different questions. `cardsIssued` says how many
+ * numbers the household has held; `reissuesForLoss` is the only one staff weigh when they judge
+ * whether someone loses cards unusually often, and a card replaced because a birthday overtook its
+ * printed counts (US-13) is the software's doing rather than the household's — counting it as a loss
+ * would put a decision in front of staff on the strength of a number that was never about them
+ * (tasks/prd-us-09-reissue-card-after-loss.md §FR-5).
+ */
+export interface CardIssueCounts {
+  /** The index of the card the customer holds; 0 for a customer holding none. */
+  readonly cardsIssued: number;
+  /** How many of the cards on file were issued because the previous one was lost. */
+  readonly reissuesForLoss: number;
+}
+
+/**
  * The cards a customer has been issued.
  *
  * The repository stores cards; it does not decide which one is valid. `currentCard` answers with the
@@ -106,6 +123,12 @@ export interface CardRepository {
    * statement of which card is current.
    */
   listCards(customerId: number): Promise<ReadonlyArray<IssuedCard>>;
+  /**
+   * Both of {@link CardIssueCounts} in **one aggregate query**. The run is deliberately not loaded
+   * to be counted by the caller (US-09.2): the database can count, and application code that filtered
+   * the run by reason would be a second, quietly diverging statement of what counts as a loss.
+   */
+  issueCounts(customerId: number): Promise<CardIssueCounts>;
   /** Write one card for a customer, and hand it back as it was stored. */
   issue(customerId: number, card: IssuedCard): Promise<IssuedCard>;
 }

@@ -36,6 +36,13 @@ Started: Sun Jul 26 11:18:49 CEST 2026
   bundles customers+cards+settings+clock+audit and satisfies most use-case Deps structurally.
 - The customer record page is `/kunden/[id]` (page.tsx + block-controls.tsx); the card view is
   `/kunden/[id]/karte`. Extend them rather than adding pages.
+- A count the UI shows belongs in the repository as an aggregate, not as a `.filter()` over a list
+  the read model already holds: the filter is a second statement of the rule (which reason counts as
+  a loss) and drifts the day a reason is added. `prisma.card.groupBy` with `_count`/`_max` is the
+  shape — one round trip, constant cost.
+- Reason/status/group words come out of SQLite as plain strings and are narrowed by a `parse*`
+  function (`parseCardIssueReason`) that THROWS `InvalidCustomerRecord`. Do this in aggregates too —
+  a bare `=== "LOST"` would let a hand-edited row silently vanish from a count.
 
 ---
 
@@ -78,4 +85,42 @@ Started: Sun Jul 26 11:18:49 CEST 2026
     `CardRepository` method (e.g. `issueCounts(customerId)`) backed by `prisma.card.count`/`groupBy`
     — not `listCards().filter(...)` in application code. Remember: adding to CardRepository means
     updating every `implements CardRepository` fake.
+---
+
+## 2026-07-26 - US-002 (reissue counts on the read model)
+- `CardRepository` gained `issueCounts(customerId): Promise<CardIssueCounts>` with
+  `{ cardsIssued, reissuesForLoss }` (new type in ports.ts). `cardsIssued` is the CURRENT INDEX, not
+  the row count — the PRD defines it that way and a gap in the run must not shrink it.
+- `PrismaCardRepository.issueCounts` is ONE `prisma.card.groupBy({ by: ["reason"], _count: {_all},
+  _max: {index} })`, reduced in the adapter: highest index = largest group max, loss count = size of
+  the LOST group. Constant cost whatever the length of the run (US-09.2 forbids load-all-and-count).
+- `readCard`'s `CardView` now carries `cardsIssued` and `reissuesForLoss`. Read "the customer read
+  model" as the CARD read model: US-09.3 puts the display on the card view, and `ReadCustomerDeps`
+  has no `cards` port, so putting it on `readCustomer` would have meant a new dependency for a screen
+  that does not show it. It calls the aggregate instead of filtering `superseded`.
+- Tests: 4 in customers.test.ts (`readCard` describe) — first card = 1/0, three cards through two
+  reissues, the mixed history keeping STALE_COUNTS out of the loss count, and ten losses reported
+  without a warning; 6 in card-repository.test.ts — the PRD's FIRST_ISSUE/LOST/STALE_COUNTS/LOST
+  history asserting 4 and 2, first card, no card, a gapped run, scoping to one customer, and a
+  hand-edited reason refused.
+- Files changed: src/application/ports.ts, src/application/customers/read-card.ts,
+  src/application/customers/customers.test.ts, src/infrastructure/prisma/card-repository.ts,
+  src/infrastructure/prisma/card-repository.test.ts, docs/technical_documentation.md (ports table,
+  readCard section, card adapter section), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: lint, typecheck, test:coverage (532 tests, 33 files, 100% on domain/application), build,
+  prettier — all green. No UI in this story, so no browser check applies.
+- **Learnings for future iterations:**
+  - `FakeCardRepository` (customers.test.ts) is the ONLY `implements CardRepository` fake, so a port
+    addition costs one file — unlike CustomerRepository, which has four.
+  - The readCard tests seed reissues through `reissueCard(deps(), …)`; `cards.place()` still stamps
+    everything FIRST_ISSUE, so it is useless for a reason-mixed history. Don't extend it — go through
+    the use case, which is what the counts are meant to reflect anyway.
+  - `groupBy` typing: `group._count._all` needs `_count: { _all: true }` (a bare `_count: true` types
+    as a number and reads differently). `group._max.index` is `number | null` — coalesce it.
+  - Prettier reformats markdown TABLES on `npm run format`; widening a cell rewrites every row of the
+    table, which is noise in the diff but expected. Run `npm run format` before committing docs.
+  - Next up, US-003 renders these on `/kunden/[id]/karte` plus a reissue action there and on
+    `/kunden/[id]`, with a confirmation step naming the old and the next number. The next number is
+    `cardsIssued + 1` — already on the view, so the page needs no extra query. All strings via
+    src/i18n/de.ts; the action follows the actions.ts + *-state.ts + "use client" shape.
 ---

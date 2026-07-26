@@ -214,3 +214,68 @@ describe("PrismaCardRepository.listCards", () => {
     expect(await repository.listCards(404)).toEqual([]);
   });
 });
+
+describe("PrismaCardRepository.issueCounts", () => {
+  /** Hand a customer a run of cards, one per reason given, indexed from 1 upwards. */
+  async function issueRun(customerId: number, ...reasons: string[]): Promise<void> {
+    for (const [position, reason] of reasons.entries()) {
+      await prisma.card.create({
+        data: { customerId, index: position + 1, issuedAt: TODAY, reason },
+      });
+    }
+  }
+
+  it("counts a mixed history as four cards issued of which two were losses", async () => {
+    const customerId = await insertCustomer(50);
+    await issueRun(customerId, "FIRST_ISSUE", "LOST", "STALE_COUNTS", "LOST");
+
+    expect(await repository.issueCounts(customerId)).toEqual({
+      cardsIssued: 4,
+      reissuesForLoss: 2,
+    });
+  });
+
+  it("counts a household on its first card as one issued and no loss", async () => {
+    const customerId = await insertCustomer(50);
+    await issueRun(customerId, "FIRST_ISSUE");
+
+    expect(await repository.issueCounts(customerId)).toEqual({
+      cardsIssued: 1,
+      reissuesForLoss: 0,
+    });
+  });
+
+  it("counts nothing for a customer who holds no card yet", async () => {
+    expect(await repository.issueCounts(await insertCustomer(50))).toEqual({
+      cardsIssued: 0,
+      reissuesForLoss: 0,
+    });
+  });
+
+  it("reports the current index rather than the number of rows where the run has a gap", async () => {
+    const customerId = await insertCustomer(50);
+    await repository.issue(customerId, { index: 1, issuedAt: TODAY, reason: "FIRST_ISSUE" });
+    await repository.issue(customerId, { index: 4, issuedAt: LATER, reason: "LOST" });
+
+    expect(await repository.issueCounts(customerId)).toEqual({
+      cardsIssued: 4,
+      reissuesForLoss: 1,
+    });
+  });
+
+  it("counts only the cards of the customer asked about", async () => {
+    const one = await insertCustomer(50);
+    const other = await insertCustomer(51);
+    await issueRun(one, "FIRST_ISSUE");
+    await issueRun(other, "FIRST_ISSUE", "LOST");
+
+    expect(await repository.issueCounts(one)).toEqual({ cardsIssued: 1, reissuesForLoss: 0 });
+  });
+
+  it("refuses a hand-edited reason rather than dropping it from the loss count", async () => {
+    const customerId = await insertCustomer(50);
+    await issueRun(customerId, "VERLOREN");
+
+    await expect(repository.issueCounts(customerId)).rejects.toBeInstanceOf(InvalidCustomerRecord);
+  });
+});

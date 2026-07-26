@@ -51,6 +51,19 @@ export interface CardView {
   readonly allowance: Allowance;
   /** The numbers this card replaced, newest first. Empty for a household's first card. */
   readonly superseded: ReadonlyArray<SupersededCard>;
+  /**
+   * How many cards this household has been through, the one in their hand included — the current
+   * index, since every reissue counts on from the highest (US-09.2).
+   */
+  readonly cardsIssued: number;
+  /**
+   * How many of those replaced a card the household lost, reported apart from the total so a reissue
+   * the software asked for — a birthday overtaking the printed counts (US-13) — is not read as one
+   * more loss. The view states the number and stops there: nothing here or downstream turns a high
+   * count into a warning or a refusal, because whether it means anything is the staff's judgement
+   * (tasks/prd-us-09-reissue-card-after-loss.md §FR-4, §FR-5).
+   */
+  readonly reissuesForLoss: number;
 }
 
 /**
@@ -75,6 +88,11 @@ export async function readCard(deps: ReadCardDeps, id: number): Promise<CardView
     throw new InvalidCustomerRecord("card", String(id));
   }
 
+  // Counted by the store rather than off `replaced`: filtering the run here would state a second
+  // time which reason counts as a loss, and the two statements would drift the day US-13 adds one
+  // (tasks/prd-us-09-reissue-card-after-loss.md §US-09.2).
+  const counts = await deps.cards.issueCounts(id);
+
   const numberOf = (card: IssuedCard): string =>
     formatCardNumber(customer.customerNumber, card.index);
 
@@ -90,5 +108,7 @@ export async function readCard(deps: ReadCardDeps, id: number): Promise<CardView
     composition: { grownUps: allowance.grownUps, children: allowance.children },
     allowance,
     superseded: replaced.map((card) => ({ number: numberOf(card), card })),
+    cardsIssued: counts.cardsIssued,
+    reissuesForLoss: counts.reissuesForLoss,
   };
 }

@@ -30,6 +30,7 @@ import { createSettings, type SettingsInput, type SettingsVersion } from "@/doma
 import type {
   AuditEntry,
   AuditLog,
+  CardIssueCounts,
   CardRepository,
   Clock,
   CustomerRepository,
@@ -185,6 +186,16 @@ class FakeCardRepository implements CardRepository {
     // Highest index first, like the adapter's `orderBy`, and deliberately not insertion order — a
     // card placed into a gap must still come back below the one that supersedes it.
     return Promise.resolve([...this.cardsOf(customerId)].sort((a, b) => b.index - a.index));
+  }
+
+  // The adapter counts in SQL; the fake counts in memory. Both answer off the cards that exist, so
+  // neither can report a loss the run does not contain.
+  issueCounts(customerId: number): Promise<CardIssueCounts> {
+    const cards = this.cardsOf(customerId);
+    return Promise.resolve({
+      cardsIssued: cards.reduce((highest, card) => Math.max(highest, card.index), 0),
+      reissuesForLoss: cards.filter((card) => card.reason === "LOST").length,
+    });
   }
 
   issue(customerId: number, card: IssuedCard): Promise<IssuedCard> {
@@ -1042,6 +1053,49 @@ describe("readCard", () => {
     // 1 grown-up + 1 child under the seeded 2/1 portions and 200c/100c prices.
     expect(view.allowance.portions).toBe(3);
     expect(view.allowance.priceCents).toBe(300);
+  });
+
+  it("counts the household's first card as one issued and no loss", async () => {
+    const customer = await registered();
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.cardsIssued).toBe(1);
+    expect(view.reissuesForLoss).toBe(0);
+  });
+
+  it("counts every card the household has been through, the one they hold included", async () => {
+    const customer = await registered();
+    await reissueCard(deps(), { customerId: customer.id, reason: "LOST" });
+    await reissueCard(deps(), { customerId: customer.id, reason: "STALE_COUNTS" });
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.cardsIssued).toBe(3);
+  });
+
+  it("keeps a stale-counts reissue out of the loss count, which is not the household's doing", async () => {
+    const customer = await registered();
+    await reissueCard(deps(), { customerId: customer.id, reason: "LOST" });
+    await reissueCard(deps(), { customerId: customer.id, reason: "STALE_COUNTS" });
+    await reissueCard(deps(), { customerId: customer.id, reason: "LOST" });
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.cardsIssued).toBe(4);
+    expect(view.reissuesForLoss).toBe(2);
+  });
+
+  it("reports the tenth loss without a word of warning — the judgement is the staff's", async () => {
+    const customer = await registered();
+    for (let reissue = 0; reissue < 10; reissue += 1) {
+      await reissueCard(deps(), { customerId: customer.id, reason: "LOST" });
+    }
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.cardsIssued).toBe(11);
+    expect(view.reissuesForLoss).toBe(10);
   });
 
   it("refuses an id that belongs to nobody rather than showing an empty card", async () => {

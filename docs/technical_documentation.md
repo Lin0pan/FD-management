@@ -221,17 +221,17 @@ The interfaces the application layer depends on. Per the TDD approach, ports **e
 needs** rather than being designed up front. Type-only, so it adds no runtime code to the
 coverage-measured layers.
 
-| Port                           | Shape                                                                                      | Notes                                                                                                                                                                                                                    |
-| ------------------------------ | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Clock`                        | `now(): Date`                                                                              | The one seam to the wall clock.                                                                                                                                                                                          |
-| `SettingsRepository`           | `listVersions()`, `append(version)`                                                        | No update/delete — policy history is append-only.                                                                                                                                                                        |
-| `CustomerCounter`              | `countActive()`                                                                            | The reality the quota `N` may not fall below.                                                                                                                                                                            |
-| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                                | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                                                                                                                               |
-| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issue(customerId, card)`              | `currentCard` is the highest index — there is no `valid` flag to read; `issue` reports a lost race as `CardIndexTaken`.                                                                                                  |
-| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)` | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                           |
-| `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                             | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3). |
-| `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                               | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                       |
-| `AuditLog`                     | `append(entry)`                                                                            | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                |
+| Port                           | Shape                                                                                                    | Notes                                                                                                                                                                                                                    |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Clock`                        | `now(): Date`                                                                                            | The one seam to the wall clock.                                                                                                                                                                                          |
+| `SettingsRepository`           | `listVersions()`, `append(version)`                                                                      | No update/delete — policy history is append-only.                                                                                                                                                                        |
+| `CustomerCounter`              | `countActive()`                                                                                          | The reality the quota `N` may not fall below.                                                                                                                                                                            |
+| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `create(customer)`                                              | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`.                                                                                                                               |
+| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issueCounts(customerId)`, `issue(customerId, card)` | `currentCard` is the highest index — there is no `valid` flag to read; `issueCounts` counts the run and its losses in one aggregate (US-09.2); `issue` reports a lost race as `CardIndexTaken`.                          |
+| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`               | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                           |
+| `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                                           | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3). |
+| `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                                             | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                       |
+| `AuditLog`                     | `append(entry)`                                                                                          | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
 
@@ -609,7 +609,11 @@ The two read-side use cases the customer screens sit on:
   once for the current card and once for the rest, would let two answers come from two moments. A
   customer with no card at all is refused as an `InvalidCustomerRecord` rather than shown a card
   without a number: registration writes the first card in the same transaction as the customer, so
-  an empty run can only come from a hand-edited database.
+  an empty run can only come from a hand-edited database. It also carries `cardsIssued` (the current
+  index — how many numbers the household has been through) and `reissuesForLoss`, which come from
+  `cards.issueCounts` rather than from filtering the run it already holds (US-09.2): counting here
+  would state a second time which reason is a loss, and the two statements would drift the day US-13
+  adds one. The counts are shown and never acted on — no threshold, no warning (§FR-4, §FR-5).
 
 `customerNumber.ts` therefore exports the rule in **two forms**: `findLowestFreeNumber` returning
 `number | null` for callers that only want to _show_ the next number, and `lowestFreeNumber` throwing
@@ -740,6 +744,12 @@ hold `50k1` (FR-6).
 The `Card.reason` column is the one thing a superseded card's index cannot say — why the household
 needed another one. It is a plain string, narrowed back through `parseCardIssueReason` on the way
 out.
+
+`issueCounts(customerId)` answers both numbers behind the reissue count (US-09.2) in a **single**
+`groupBy(["reason"])`: the highest index is the largest of the groups' maxima and the loss count is
+the size of the `LOST` group, so the query costs the same for a household on its first card as for
+one on its eleventh. The reason word is parsed rather than string-compared, so a hand-edited row
+fails here as loudly as it does in `currentCard` instead of quietly dropping out of the loss count.
 
 ### `src/infrastructure/prisma/reminder-log-repository.ts` and `certificate-repository.ts`
 
