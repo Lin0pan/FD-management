@@ -161,6 +161,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── i18n/de.ts                    # single German UI-string dictionary
 │   └── i18n/format.ts                # German value formatting (germanDate) + its spec
 ├── tests/e2e/
+│   ├── archive.spec.ts               # archiving frees the number and keeps the record findable
 │   ├── block.spec.ts                 # block shows its reason at the counter and is reversible
 │   ├── card.spec.ts                  # registration issues k1 and the card view shows it
 │   ├── counter.spec.ts               # every counter verdict, and that a lookup writes nothing
@@ -1344,6 +1345,23 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   lookup is bracketed by a Prisma snapshot of the household's status, cards, distribution records and
   the audit-entry count, so a refusal that blocked, archived or recorded anything would fail. Pinned
   to the RED Thursday 08.01.2026 and deletes the pinned-now file in `afterAll`, like its neighbours.
+- `archive.spec.ts` covers US-10 end to end (§US-10.5): the slot-reuse mechanic, which is the one
+  claim about archiving no unit gate can reach — it spans two customers, three screens and the
+  allocator in between. It is the only spec here that **registers its household through the form**
+  rather than inserting it, because the freed number is only interesting if the allocator handed it
+  out: it registers a RED household, serves them on the pinned RED Thursday 08.01.2026 (the hand-out
+  is what the archive must keep), archives them from the record with a multi-line reason, and then
+  asserts that `/kunden/neu` proposes their number again and the next registration is given it. The
+  archived household is refused at the counter (`ARCHIVED`, no serve action, nothing left to
+  archive), and once the number has moved on the counter answers its **new** holder while the old
+  record is still reachable by its surrogate id — the only find path until the customer search of
+  US-15 exists. FR-1 is asserted twice over: the save control stays disabled for an empty and a
+  whitespace-only reason, and then that courtesy is stepped around by blanking the field in the DOM
+  without telling React, so the rule in `transition()` has to answer for itself with the German
+  `missingReason` sentence. Both refusals are bracketed by Prisma snapshots — the household's own
+  state plus the audit-entry count, and everything it owns — and the same "belongings" snapshot is
+  compared either side of the successful archive, which is how "nothing is deleted" is proved rather
+  than asserted field by field.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

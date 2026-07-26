@@ -90,8 +90,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The only spec in tests/e2e that registers its household through the FORM rather than seeding it — the freed number is only interesting because the allocator handed it out, gave it back and handed it out again, so it names no customer number of its own. \"Still findable\" is asserted through the record URL: the number is no longer a way back once it is reassigned, and US-15's search does not exist yet."
     }
   ]
 }

@@ -86,6 +86,15 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
 - A read model shared by two screens gets its derived numbers from ONE application seam
   (`countNoShows`, like `describeAllowance` before it), never from each use case calling the domain
   itself — that is how the record and the counter come to disagree.
+- An e2e spec may either SEED its household through Prisma (then it owns a high number block) or
+  REGISTER it through the form (then it must never name a number — read `proposed-number` off the
+  screen). Mixing the two in one spec is what breaks the shared sequence. Registering is the right
+  choice only when the allocator itself is under test.
+- A "the button is disabled" assertion does not prove the SERVER refuses. To reach the real guard,
+  type a valid value (so React enables the button), then blank the field in the DOM without telling
+  React — `locator.evaluate((f) => { f.value = "   "; })`. React serialises a `<form action={…}>`
+  from the DOM, so the whitespace reaches the action; use spaces rather than "" or the field's
+  `required` attribute stops the submit before it leaves the browser.
 - Verifying UI in the browser without the e2e harness: `DATABASE_URL=file:../data/<scratch>.db npx
   prisma migrate deploy && npm run db:seed`, seed a household with a tsx script FROM THE REPO ROOT
   (a script in /tmp cannot resolve @prisma/client), point `FD_FIXED_NOW_FILE` at a file holding an
@@ -298,3 +307,50 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   - `resolveSettingsAt` is called three times per counter lookup now (week colour, allowance,
     no-shows). That is three reads of a table with a handful of rows and it keeps each seam
     self-contained; if it ever matters, resolve once in `lookupCustomer` and pass `Settings` down.
+
+## 2026-07-26 - US-005 (E2E: archiving frees the customer number)
+- `tests/e2e/archive.spec.ts` (new, 5 serial tests): the slot-reuse mechanic driven through the
+  built app (tasks/prd-us-10-archive-customer.md §US-10.5). It is the only claim about archiving no
+  unit gate can reach — two customers, three screens and the allocator in between.
+- **It registers its household through the FORM, unlike every other spec here, which seeds through
+  Prisma.** That is the whole point: the freed number is only interesting because the allocator
+  handed it out, gave it back and handed it out again. So the spec names no customer number of its
+  own — it reads `proposed-number` off the screen, as registration.spec.ts and card.spec.ts do — and
+  it consumes one number net, leaving an archived row behind on it.
+- The five tests: (1) register a RED household and serve them on the pinned RED Thursday
+  08.01.2026, so the archive has a distribution record to keep; (2) archiving without a reason is
+  refused; (3) archiving with one renders the record read-only and deletes nothing; (4) the archived
+  household is refused at the counter; (5) the freed number goes to the next registration while the
+  archived record stays.
+- FR-1 is asserted twice over. The disabled save button is the courtesy, and it is checked for an
+  empty and a whitespace-only reason — but the RULE lives in `transition()`, so the courtesy is
+  stepped around: type "x" (React enables the button), then blank the field in the DOM without
+  telling React, and the action answers with the German `missingReason` sentence. Spaces, not "",
+  because the textarea's `required` would otherwise stop the submit in the browser.
+- "Nothing is deleted" is proved by comparing ONE `belongings(id)` JSON snapshot — number, name,
+  group, reminder count, members, certificates, cards, distribution records — either side of the
+  archive, the same trick the reissue and counter specs use for refusals. A second `state(id)`
+  snapshot (status, blockReason, archiveReason, archivedAt, audit-entry count) brackets the two
+  refusals, so a refusal that wrote anything at all fails.
+- "Still findable" is asserted through the record URL. Once the number is reassigned it names its
+  NEW holder at the counter (`findByCustomerNumber` prefers the active row), so the surrogate id is
+  the only find path there is until US-15's customer search exists — that is stated in the spec's
+  header rather than left as a gap.
+- Files changed: tests/e2e/archive.spec.ts (new), docs/technical_documentation.md (the repo-layout
+  tree and a spec paragraph in the Playwright section), scripts/ralph/prd.json,
+  scripts/ralph/progress.txt.
+- Checks: format:check, lint, typecheck, test:coverage (585 tests, 35 files, 100% on
+  domain/application), build, test:e2e (41 passed, 1 skipped — 5 new) — all green. `npm run build`
+  was run before `test:e2e`, as the harness serves the built app.
+- **Learnings for future iterations:**
+  - The spec file sorts FIRST alphabetically in tests/e2e, so it now runs before every other one and
+    takes the lowest free number. That is safe only because registration.spec.ts and card.spec.ts
+    read the proposal instead of hard-coding — check that assumption before adding another spec that
+    registers, and never hard-code a low number in a new one.
+  - Playwright's `webServer` has `reuseExistingServer` on locally: a stale server from an earlier
+    run serves the OLD build and the OLD database. If a new spec fails inexplicably, kill the server
+    on :3000 first, then re-run — the harness re-seeds `data/e2e.db` only when it boots the server
+    itself.
+  - US-10 is complete: all five stories pass. What the PRD leaves open for FD is whether weeks a
+    household was blocked should count as no-shows (§9, decided "yes" in US-001 and documented as a
+    comment in domain/distribution/noShows.ts).
