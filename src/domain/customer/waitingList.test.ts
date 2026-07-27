@@ -1,6 +1,14 @@
+import { faker } from "@faker-js/faker";
 import { describe, expect, it } from "vitest";
+import { BirthDateInFuture, CertificateExpired, MissingRequiredField } from "../errors";
 import type { NeedsCertificate } from "./customer";
-import { inArrivalOrder, nextInLine, type WaitingApplicant } from "./waitingList";
+import {
+  createWaitingListDetails,
+  inArrivalOrder,
+  nextInLine,
+  type WaitingApplicant,
+  type WaitingListDetails,
+} from "./waitingList";
 
 function at(isoDate: string, time = "00:00:00.000"): Date {
   return new Date(`${isoDate}T${time}Z`);
@@ -104,5 +112,89 @@ describe("inArrivalOrder", () => {
 
   it("orders an empty list into an empty list", () => {
     expect(inArrivalOrder([])).toEqual([]);
+  });
+});
+
+faker.seed(20260727);
+
+/** Synthetic throughout, per the testing standard — no real applicant ever appears in a fixture. */
+const APPLICANT = {
+  firstName: faker.person.firstName(),
+  lastName: faker.person.lastName(),
+  address: {
+    street: faker.location.street(),
+    houseNumber: faker.location.buildingNumber(),
+    zip: faker.location.zipCode("#####"),
+    city: faker.location.city(),
+  },
+};
+
+/** A complete, admissible application — each test spoils exactly the one field it is about. */
+function application(overrides: Partial<WaitingListDetails> = {}): WaitingListDetails {
+  return {
+    firstName: APPLICANT.firstName,
+    lastName: APPLICANT.lastName,
+    birthDate: at("1988-03-17"),
+    address: { ...APPLICANT.address },
+    contactNote: "erreichbar über die Nachbarin",
+    certificate: certificateValidUntil("2027-01-31"),
+    ...overrides,
+  };
+}
+
+describe("createWaitingListDetails", () => {
+  it("refuses an applicant whose certificate has already expired", () => {
+    const lapsed = application({ certificate: certificateValidUntil("2026-07-19") });
+
+    expect(() => createWaitingListDetails(lapsed, at("2026-07-20"))).toThrow(CertificateExpired);
+  });
+
+  it("admits an applicant on the last day their certificate is valid", () => {
+    const lastDay = application({ certificate: certificateValidUntil("2026-07-20") });
+
+    expect(createWaitingListDetails(lastDay, at("2026-07-20"))).toMatchObject({
+      firstName: APPLICANT.firstName,
+    });
+  });
+
+  it("refuses an application that leaves an identifying field blank", () => {
+    const blanked: ReadonlyArray<[string, Partial<WaitingListDetails>]> = [
+      ["firstName", { firstName: "  " }],
+      ["lastName", { lastName: "" }],
+      ["address.street", { address: { ...application().address, street: " " } }],
+      ["address.houseNumber", { address: { ...application().address, houseNumber: "" } }],
+      ["address.zip", { address: { ...application().address, zip: "" } }],
+      ["address.city", { address: { ...application().address, city: "" } }],
+      ["certificate.type", { certificate: { type: " ", validUntil: at("2027-01-31") } }],
+    ];
+
+    for (const [field, override] of blanked) {
+      expect(() => createWaitingListDetails(application(override), at("2026-07-20"))).toThrow(
+        new MissingRequiredField(field),
+      );
+    }
+  });
+
+  it("refuses an applicant born after the day they applied", () => {
+    const tomorrow = application({ birthDate: at("2026-07-21") });
+
+    expect(() => createWaitingListDetails(tomorrow, at("2026-07-20"))).toThrow(BirthDateInFuture);
+  });
+
+  it("trims what staff typed, and keeps a missing contact note as no note at all", () => {
+    const untidy = application({
+      firstName: ` ${APPLICANT.firstName} `,
+      lastName: `${APPLICANT.lastName} `,
+      contactNote: "   ",
+    });
+
+    expect(createWaitingListDetails(untidy, at("2026-07-20"))).toEqual({
+      firstName: APPLICANT.firstName,
+      lastName: APPLICANT.lastName,
+      birthDate: at("1988-03-17"),
+      address: { ...APPLICANT.address },
+      contactNote: "",
+      certificate: { type: "Jobcenter", validUntil: at("2027-01-31") },
+    });
   });
 });

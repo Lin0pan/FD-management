@@ -147,7 +147,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, CustomerRepository,
 │   │   │                             #   CardRepository, DistributionRecordRepository,
-│   │   │                             #   ReminderLogRepository, CertificateRepository, AuditLog
+│   │   │                             #   ReminderLogRepository, CertificateRepository,
+│   │   │                             #   WaitingListRepository, AuditLog
 │   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
 │   │   │                             #   readCard, issueCard, lookupCustomer (the counter lookup),
 │   │   │                             #   recordReminder / renewCertificate (US-06),
@@ -160,6 +161,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   listCardsDueForReissue (US-13, cards a birthday overtook)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
+│   │   ├── waiting-list/             # addToWaitingList, listWaiting, removeFromWaitingList,
+│   │   │                             #   promoteFromWaitingList, registerFromWaitingList (US-12)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (+ the FD_FIXED_NOW_FILE test seam)
@@ -264,6 +267,7 @@ coverage-measured layers.
 | `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`                                                                     | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                                     |
 | `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                                                                                                 | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3).           |
 | `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                                                                                                   | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                                 |
+| `WaitingListRepository`        | `listWaiting()`, `findWaiting(entryId)`, `add(entry)`, `remove(entryId, reason, removedOn)`                                                                    | The applicants waiting for a slot (US-12). There is no `delete`: `remove` stamps the row, so the order of past promotions stays reconstructable (FR-7). It promises no ordering — that is `inArrivalOrder`'s.                      |
 | `AuditLog`                     | `append(entry)`                                                                                                                                                | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                          |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
@@ -543,6 +547,19 @@ without anyone deciding to; what happens about the renewal is FD's judgement, ta
 Both functions are generic over the caller's entry shape, like `recordForDay`: the rule reads `id`,
 `addedOn` and `certificate` and hands the caller's own richer row straight back, so it never grows a
 field it does not use.
+
+`createWaitingListDetails(input, today)` is the module's other half: the **entry bar** (US-12.2,
+FR-1). It validates an application the way `createCustomerDetails` validates a registration — every
+name, address part and certificate type trimmed and required, and a birthdate that lies after `today`
+refused through the same `composition` guard — and it refuses a certificate that has already lapsed
+with `CertificateExpired`. An applicant joins with a valid certificate in hand or does not join.
+
+That is the opposite of what a certificate lapsing _during_ the wait means, and the two must not be
+confused: the entry bar is a door, checked once; the flag `nextInLine` reports is a note to staff and
+never bars anybody, because the applicant earned their place by waiting and a renewal is what they
+are asked for. `WaitingListDetails` deliberately holds no household — FD does not ask who someone
+lives with until they are registered (PRD §7) — and no customer number, group or card, because an
+applicant is not a customer and must not occupy a slot.
 
 ### `src/domain/card/card.ts`
 
@@ -1004,6 +1021,54 @@ application deliberately does not verify it — a lookup purely to check it woul
 foreign key does: a link to an id nobody holds is refused by the database, and the adapter reports it
 as the domain's `CustomerNotFound`. Like every other relation it is `onDelete: Restrict`, so a
 household with a successor cannot be deleted any more than one with cards can.
+
+### `src/application/waiting-list/`
+
+The five use cases over the waiting list (US-12.2), tested against hand-written fakes and a fake
+clock in `waiting-list.test.ts`.
+
+- **`addToWaitingList(deps, input)`** validates the application through
+  `createWaitingListDetails` and writes it with `addedOn = deps.clock.now()`. The clock is read
+  **once**: the day the applicant is judged eligible and the day that fixes their place in the queue
+  are the same day, and an entry admitted on a certificate that lapsed between two reads would be
+  indefensible. There is no position column — `addedOn` is the whole of a place in the queue, so
+  nothing has to be renumbered when somebody is promoted or withdraws.
+- **`listWaiting(deps)`** returns every waiting applicant as a `WaitingListPlace`: their `position`
+  counting from 1, the entry, and `certificateExpired`. Both the order and the numbering come from
+  the domain (`inArrivalOrder`, `isExpired`) rather than from the query or the screen — a screen that
+  numbered the rows itself would be a second statement of the order, and the two could drift.
+- **`removeFromWaitingList(deps, { entryId, reason })`** stamps the row rather than deleting it
+  (FR-7) and writes a `waitingList.removed` audit entry. The reason is required
+  (`MissingAuditReason`): a waiting list is only worth the claim it makes — that the longest wait was
+  served first — and that claim can only be checked against a history that still has the people who
+  left in it, each able to say whether they went of their own accord.
+- **`promoteFromWaitingList(deps, { entryId })`** is a **read**. It returns the number the applicant
+  would take (`lowestFreeNumber`, refusing with `NoFreeCustomerNumber` when the register is full),
+  `certificateExpired`, and a `WaitingListRegistrationDraft`. The draft carries two things
+  `draftFromArchived` deliberately drops, for the opposite reason in each case: the **certificate**,
+  because it was seen when the applicant joined and is re-checked here, and the **contact note** as
+  the record's notes, because it is the most current thing FD knows about them. Its household holds
+  the applicant alone — they are by definition a member of their own household, and the rest is typed
+  at registration. Nobody is registered and nothing is written, so the entry stays on the list.
+- **`registerFromWaitingList(deps, input)`** is the one that writes: it checks the entry is still
+  waiting, calls **`registerCustomer`** — the only registration path there is, so the slot
+  allocation, the first card and the `customer.registered` entry are the ordinary ones — and only
+  **then** removes the entry and logs `waitingList.promoted`. The order is the whole point: a
+  registration can fail on the last field of the form, and an applicant removed a moment earlier
+  would have lost the place they waited months for. A test proves it by failing a registration on an
+  empty household and asserting the entry is still there.
+
+The applicant is promoted **by id** rather than taken from the head of the queue. The order is stated
+by `listWaiting` and by the banner, which names the longest-waiting applicant and no one else; what
+is left open is the one case FD has not decided — an expired certificate at the head, where skipping
+to the next applicant is one of the answers on the table (PRD §9). Deciding it in code would close it
+off before FD has chosen.
+
+Both removals record _why_. A withdrawal carries the sentence staff typed; a promotion carries
+`customerNumber=<n>`, one of the two machine-written reasons in the system (the other is the reminder
+trail's `reminderCount=<n>`), because nobody made a judgement — what the row has to say is which slot
+the applicant went to. It is stamped at `customer.registeredOn`, the registration's own instant,
+rather than at a second reading of the clock.
 
 ### `src/application/customers/countNoShows`
 

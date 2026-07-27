@@ -69,6 +69,24 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
 - Every expiry question in the system goes through `isExpired(certificate, today)` in
   domain/customer/certificate.ts. Do not re-compare `validUntil` inline anywhere — the "valid
   through its last day" boundary would drift.
+- A use case that must do TWO things in an order (register, then remove from the list) is a use case,
+  not a server action calling two of them: app/ is thin by rule, and "remember to do B after A" is
+  exactly what a screen forgets. Delegate to the existing use case (`registerCustomer`) rather than
+  re-implementing it, like `reissueCard` → `issueCard`.
+- Validation of a typed-in record belongs in a domain factory (`createCustomerDetails`,
+  `createWaitingListDetails`), not in the use case: the use case then reads as clock → factory →
+  write, and the 100% gate is paid once in a domain test rather than per use case.
+- A new port method costs every implementer a compile, so a WHOLE new port (WaitingListRepository) is
+  cheaper than widening CustomerRepository — and the fakes stay small. Check `grep -rln "implements
+  <Port>" src/` before widening an existing one.
+- The audit `why` is a human sentence except where no human judged: those carry a machine key=value
+  (`reminderCount=2`, `customerNumber=7`). Never put a German sentence in application code — the
+  dictionary is `src/i18n/de.ts` and the layer below it has no access to it.
+- Use the caller's own instant instead of a second `clock.now()` when two writes belong to one event
+  (`customer.registeredOn` stamps the waiting-list removal that registration caused).
+- Prettier reorders nothing but reflows long import lists and tables; run
+  `npx prettier --write <files>` after hand-editing docs/technical_documentation.md tables, or the
+  lint-staged hook rewrites them under you.
 
 ---
 
@@ -105,5 +123,51 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
     domain sort stays the authority.
   - `docs/technical_documentation.md` carries BOTH a source tree listing (~line 115) and a per-module
     section; a new domain module needs an entry in each, or the tree silently drifts.
+
+---
+
+## 2026-07-27 14:20 — US-002 (waiting-list use cases)
+
+- Added the **entry bar** to the domain: `createWaitingListDetails(input, today)` in
+  `src/domain/customer/waitingList.ts` validates and trims an application the way
+  `createCustomerDetails` validates a registration (required name/address/certificate-type, birthdate
+  guarded through `composition`) and refuses an already-lapsed certificate with the new
+  `CertificateExpired`. TDD: five tests written and run red first.
+- New port `WaitingListRepository` (`listWaiting`, `findWaiting`, `add`, `remove`) plus
+  `NewWaitingListEntry` / `WaitingListEntry` in ports.ts. It has **no delete** — a removal stamps the
+  row (FR-7) — and it promises no ordering, because `inArrivalOrder` is the authority.
+- Five use cases in the new `src/application/waiting-list/`, 18 tests against hand-written fakes and
+  a fake clock: `addToWaitingList` (one clock read fixes both eligibility and queue place),
+  `listWaiting` (positions + expired flags, ordering from the domain), `removeFromWaitingList`
+  (reason required, row stamped, `waitingList.removed` audit entry), `promoteFromWaitingList` (a
+  pure read: draft + `certificateExpired` + the lowest free number, `NoFreeCustomerNumber` when the
+  register is full) and `registerFromWaitingList` (delegates to `registerCustomer`, then removes the
+  entry and logs `waitingList.promoted`).
+- Two new domain errors: `CertificateExpired` and `WaitingListEntryNotFound`.
+- Files changed: `src/domain/customer/waitingList.ts` + `.test.ts`, `src/domain/errors.ts`,
+  `src/application/ports.ts`, `src/application/waiting-list/{add-to,list,remove-from,promote-from,
+  register-from}-waiting-list.ts` (new), `src/application/waiting-list/waiting-list.test.ts` (new),
+  `docs/technical_documentation.md`, `scripts/ralph/prd.json`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (40 files, 723 tests, domain +
+  application 100%) and `npm run build` all green. No UI change, so no browser verification.
+- **Learnings for future iterations:**
+  - The PRD's "the entry is removed only after the registration succeeds" is untestable if promotion
+    only returns a draft, so there IS a fifth use case — `registerFromWaitingList`. US-004's server
+    action must call it and NOT `registerCustomer` + a separate removal, or the ordering guarantee
+    moves into app/ where nothing tests it.
+  - `promoteFromWaitingList` takes an entry **id**, deliberately not the head of the queue: PRD §9
+    leaves "skip an expired applicant" open for FD to decide, and hard-refusing a non-head promotion
+    would close it. The order is carried by the list and the banner, so US-004 must offer
+    "Jetzt registrieren" on the head only.
+  - The promotion draft is NOT `RegistrationDraft`: it adds `certificate` (seen at join time and
+    re-checked) and `notes` (the contact note), and its `householdMembers` holds the applicant alone —
+    `registration-form.tsx:103` renders one empty row for a null draft but ZERO rows for an empty
+    array, so a draft with no members would open an unusable form.
+  - US-003 must give the Prisma model an ascending `id` (the tie-break) and index `addedOn`; the
+    active query filters `removedOn IS NULL`, which is what `listWaiting`/`findWaiting` mean by
+    "waiting". No `onDelete: Cascade` anywhere, and the entry references no Customer row at all.
+  - German for the UI is still to be written for US-004 — nothing in this story added a dictionary
+    entry, and the two machine-written removal reasons (`customerNumber=<n>`) are keys, not text to
+    display verbatim.
 
 ---

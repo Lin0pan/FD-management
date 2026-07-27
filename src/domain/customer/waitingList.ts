@@ -15,8 +15,10 @@
  * entry is stored.
  */
 
+import { CertificateExpired, MissingRequiredField } from "../errors";
 import { isExpired } from "./certificate";
-import type { NeedsCertificate } from "./customer";
+import type { Address, NeedsCertificate } from "./customer";
+import { composition } from "./householdComposition";
 
 /**
  * An applicant reduced to the fields the ordering rule turns on. The application layer passes its own
@@ -94,5 +96,84 @@ export function nextInLine<T extends WaitingApplicant>(
     kind: "NEXT_IN_LINE",
     entry: head,
     certificateExpired: isExpired(head.certificate, today),
+  };
+}
+
+/**
+ * What an applicant is asked for to join the list: who they are, where they live, how to reach them
+ * and the certificate that entitles them (US-12, FR-2).
+ *
+ * It deliberately mirrors part of a registration without *being* one — an applicant holds no customer
+ * number, no group and no card, and their household is not asked for, because the people they live
+ * with are typed when they are registered rather than guessed months earlier (PRD §7).
+ */
+export interface WaitingListDetails {
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly birthDate: Date;
+  readonly address: Address;
+  /**
+   * How staff would reach this applicant, in free text, or `""`. FD agreed no phone or e-mail fields
+   * (docs/domain_analysis.md, open question 2), and this is the note that stands in for them without
+   * committing to a contact-data model.
+   */
+  readonly contactNote: string;
+  /** The proof of need they applied with — valid on the day they joined, by the rule below. */
+  readonly certificate: NeedsCertificate;
+}
+
+/**
+ * The trimmed value of a field that must carry one.
+ *
+ * @throws {MissingRequiredField} naming the field, so the form can mark the input rather than
+ *   reporting that "something" is missing.
+ */
+function requireText(field: string, value: string): string {
+  const text = value.trim();
+  if (text === "") {
+    throw new MissingRequiredField(field);
+  }
+  return text;
+}
+
+/**
+ * Validate an application and return it as trimmed {@link WaitingListDetails}.
+ *
+ * The certificate bar is the same one registration answers to (FR-1): an applicant joins with a valid
+ * certificate in hand or does not join. A wait that outlives the certificate is a different matter
+ * entirely — that one is flagged at the head of the list ({@link nextInLine}) and never bars anybody,
+ * because the applicant kept their place by waiting and a renewal is what they are asked for.
+ *
+ * @throws {MissingRequiredField} for a name, address part or certificate type left blank.
+ * @throws {BirthDateInFuture} if the applicant was born after `today`.
+ * @throws {CertificateExpired} if the certificate had already lapsed on `today`.
+ */
+export function createWaitingListDetails(
+  input: WaitingListDetails,
+  today: Date,
+): WaitingListDetails {
+  if (isExpired(input.certificate, today)) {
+    throw new CertificateExpired(input.certificate.validUntil, today);
+  }
+  // The same guard registration puts on a birthdate, reached the same way: deriving the composition
+  // of a household of one rejects a date that lies after the day it is read against. The counts are
+  // discarded — an applicant has no household on record to count.
+  composition([{ birthDate: input.birthDate }], today);
+
+  return {
+    firstName: requireText("firstName", input.firstName),
+    lastName: requireText("lastName", input.lastName),
+    birthDate: input.birthDate,
+    address: {
+      street: requireText("address.street", input.address.street),
+      houseNumber: requireText("address.houseNumber", input.address.houseNumber),
+      zip: requireText("address.zip", input.address.zip),
+      city: requireText("address.city", input.address.city),
+    },
+    contactNote: input.contactNote.trim(),
+    certificate: {
+      type: requireText("certificate.type", input.certificate.type),
+      validUntil: input.certificate.validUntil,
+    },
   };
 }
