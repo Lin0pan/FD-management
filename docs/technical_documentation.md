@@ -188,6 +188,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
 │   ├── reissue.spec.ts               # a lost card is replaced and stops working at the counter
 │   ├── reminders.spec.ts             # the reminder trail: three visits, three reminders, renewal
+│   ├── reregistration.spec.ts        # back from the archive: same household, new number and card
 │   ├── serve.spec.ts                 # record a hand-out, block a duplicate, store an unpaid one
 │   └── settings.spec.ts              # settings round-trip vs. the built app
 ├── eslint.config.mjs  .prettierrc.json  .prettierignore
@@ -1682,6 +1683,25 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   state plus the audit-entry count, and everything it owns — and the same "belongings" snapshot is
   compared either side of the successful archive, which is how "nothing is deleted" is proved rather
   than asserted field by field.
+- `reregistration.spec.ts` covers US-11 end to end (§US-11.5): a household that was archived
+  coming back, which is the one claim about re-registration no unit gate can reach — it spans two
+  customer records, three screens and the allocator in between. Like `archive.spec.ts` it **registers
+  through the form** rather than inserting rows, because the number moving on is only observable if
+  the allocator handed it out. It registers a RED household, serves them on the pinned RED Thursday
+  08.01.2026 (that hand-out is the history the archived record has to keep once the same people hold
+  a second record) and archives them with a reason — then deliberately arranges the awkward case:
+  **the next registration is given the number they gave up**, under the same surname and still
+  active. A re-registration that quietly restored the old number would pass a friendlier fixture and
+  collide here. The archive search, typed in capitals so the folded key rather than the stored name
+  decides the match, then finds the archived household and _not_ the active namesake (FR-6); the
+  selection pre-fills personal data, address and both household rows with the counts derived again,
+  carries no certificate and no former number into the proposal, survives an edit, and can be dropped
+  back to a blank form. Registering from the pre-fill lands on a **new** record with a new number,
+  `k1`, reminder count 0, no distribution history and `previousCustomerId` pointing at the
+  predecessor — read from Prisma, because it is display metadata no screen shows. FR-5 is one
+  equality: the predecessor's whole belongings snapshot (status, number, household, certificate,
+  cards and hand-outs) is taken before the re-registration reads it and compared afterwards. Pinned-now
+  file deleted in `afterAll`, like its neighbours.
 - `age-13.spec.ts` covers US-13 end to end (§US-13.5): that the reclassification at 13 is
   **automatic**. One household (customer number 271) is seeded with a grown-up and a child born
   15.01.2013, and a card printed `1 / 1` — true on the day it was issued. The spec pins today to the

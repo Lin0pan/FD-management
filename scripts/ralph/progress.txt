@@ -51,6 +51,14 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   remounting resets both kinds, and `useActionState`'s message with them.
 - Convert a `Date` to `YYYY-MM-DD` on the SERVER before it reaches an `<input type="date">`; read in
   the browser's zone a midnight-UTC day lands on the day before. `germanDate` is for display only.
+- A `key` remount is invisible to Playwright: after clicking something that applies a pre-fill, WAIT
+  for the new form (a banner, a pre-filled value) before typing. A `fill` on the node about to be
+  replaced is thrown away with it, and the submit then fails on a field the spec believes it filled.
+- An e2e spec that has to prove "not this row" is strongest when the excluded row is *hard* to
+  exclude: give the archived household and the active one the same surname, so only the status
+  filter keeps them apart.
+- `pkill -f "next start"` from the Bash tool kills the shell running it (the pattern matches the
+  command line itself). Write `pkill -f "next[ ]start"`.
 
 ---
 
@@ -227,4 +235,46 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
     number actually on screen, `matches.length`. Derive, don't restate.
   - Playwright's browser locale renders `<input type="date">` as `mm/dd/yyyy`, but `.fill()` and
     `toHaveValue()` both speak ISO — assert `"1985-02-11"`, not what the screenshot shows.
+---
+## 2026-07-27 10:15 — US-005 (E2E: re-register a returning customer)
+
+- New Playwright spec `tests/e2e/reregistration.spec.ts` (6 tests): a RED household is registered
+  through the form, served on the pinned RED Thursday 08.01.2026, archived with a reason — and then
+  the number they gave up is handed to the **next** registration, under the same surname and still
+  active. Only then do they come back. That ordering is the story: a re-registration that tried to
+  restore the old number would pass a friendlier fixture and collide here (FR-3).
+- What it asserts: the archive search typed in CAPITALS finds them (the folded key decides, not the
+  stored spelling) while the active namesake is absent (FR-6); the pre-fill carries personal data,
+  address and both household rows with the counts derived again, and carries **no** certificate and
+  no former number into the proposal; a pre-filled field can be edited and the whole pre-fill
+  dropped back to a blank form; registering lands on a NEW record with a new number, `k1`, reminder
+  count 0, no distribution history and `previousCustomerId` pointing at the predecessor (read from
+  Prisma — no screen shows it). FR-5 is one equality: the predecessor's whole belongings snapshot
+  (status, number, household, certificate, cards, hand-outs) taken before the re-registration reads
+  it and compared afterwards, plus its one hand-out still there.
+- Files: `tests/e2e/reregistration.spec.ts` (new), `docs/technical_documentation.md` (layout listing
+  + the US-11 spec paragraph beside its neighbours).
+- Gates: lint, typecheck, `test:coverage` (690 tests, domain+application still 100%), build and
+  `test:e2e` (52 passed, 1 pre-existing skip) all green — the e2e run repeated against a freshly
+  deleted and re-seeded `data/e2e.db`, not only against a reused server.
+
+- **Learnings for future iterations:**
+  - **The pre-fill remounts the form, and Playwright cannot see it coming.** The first version of the
+    spec clicked "Daten übernehmen" and typed the certificate straight afterwards; the fill landed on
+    the node React was about to replace, the certificate arrived empty and the save never redirected.
+    A `selectMatch` helper now waits for the pre-fill banner before anything is typed. Any spec that
+    types into a form after a `key` change needs that wait.
+  - The exclusion assertion is only worth something if the excluded row is hard to exclude: both
+    households here share a surname, so the ACTIVE one is kept out of the search by the status filter
+    alone and nothing else.
+  - `belongings()` is the third copy of the same snapshot idiom (counter, reissue, archive, now this
+    one). Widen it with the schema: this version added `status`, `archiveReason`, `archivedAt` and
+    `previousCustomerId`, because the snapshot is taken *after* archiving and the link must never be
+    written backwards onto the predecessor.
+  - The spec consumes two customer numbers net and leaves one archived record on the first, so it
+    names no number of its own — every number is read off `proposed-number`, as its alphabetical
+    neighbours do.
+  - `pkill -f "next start"` in the Bash tool kills its own shell (the pattern matches the command
+    line); `pkill -f "next[ ]start"` is the way to stop a reused Playwright web server so the next
+    `npm run test:e2e` reseeds the database.
 ---

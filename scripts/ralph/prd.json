@@ -88,8 +88,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "tests/e2e/reregistration.spec.ts (6 tests): registers a RED household through the form, serves them on the pinned RED Thursday 08.01.2026, archives them with a reason, and then gives their freed number to the NEXT registration — same surname, still active — before they come back. The search typed in capitals finds the archived household and not the active namesake; the pre-fill carries the household but no certificate and no former number; registering lands on a new record with a new number, k1, reminderCount 0, no distributions and previousCustomerId set. FR-5 is one belongings equality across the whole re-registration. Gotcha: applying the pre-fill remounts the form, so the spec waits for the banner before typing the certificate — a fill on the node about to be replaced is silently lost."
     }
   ]
 }
