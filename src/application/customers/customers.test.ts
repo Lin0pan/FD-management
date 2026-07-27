@@ -22,6 +22,7 @@ import {
   CustomerNumberTaken,
   EmptyHousehold,
   EmptySearchQuery,
+  CustomerNotArchived,
   IllegalStatusTransition,
   InvalidCustomerRecord,
   MissingAuditReason,
@@ -45,6 +46,7 @@ import type {
 } from "../ports";
 import { archiveCustomer } from "./archive-customer";
 import { blockCustomer } from "./block-customer";
+import { draftFromArchived } from "./draft-from-archived";
 import { issueCard } from "./issue-card";
 import { proposeRegistration } from "./propose-registration";
 import { readCard } from "./read-card";
@@ -1980,5 +1982,178 @@ describe("searchArchivedCustomers", () => {
 
     expect(found.matches).toHaveLength(MAX_ARCHIVE_SEARCH_RESULTS);
     expect(found.truncated).toBe(false);
+  });
+});
+
+describe("draftFromArchived", () => {
+  let customers: FakeCustomerRepository;
+  let cards: FakeCardRepository;
+  let distribution: FakeDistributionRecordRepository;
+  let audit: FakeAuditLog;
+
+  /**
+   * `cards`, `distribution` and `audit` are not among the use case's dependencies at all; they are
+   * handed in as witnesses, so "the draft creates nothing" is stated as behaviour rather than read
+   * off the signature. A use case that ever grew a write would fail these.
+   */
+  function deps() {
+    return { customers, cards, distribution, audit };
+  }
+
+  /** The whole register as it stands, in one comparable value. */
+  function register(): string {
+    return JSON.stringify(customers.created);
+  }
+
+  /** An archived household, put in through `create` and then archived like the use case does. */
+  async function archivedHousehold(
+    overrides: Partial<RegisterCustomerInput> = {},
+  ): Promise<number> {
+    const customer = await customers.create({
+      ...storedCustomer("ACTIVE"),
+      details: createCustomerDetails(registerInput(overrides), new Date(TODAY)),
+    });
+    await customers.archive(customer.id, "verzogen", new Date(TODAY));
+    return customer.id;
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository();
+    cards = new FakeCardRepository();
+    distribution = new FakeDistributionRecordRepository();
+    audit = new FakeAuditLog();
+  });
+
+  it("pre-fills the applicant's own name, birthdate and address from the archived record", async () => {
+    const customerId = await archivedHousehold({
+      firstName: "Anke",
+      lastName: "Schneider",
+      birthDate: new Date("1985-03-11T00:00:00.000Z"),
+      address: { street: "Lange Straße", houseNumber: "7a", zip: "33129", city: "Delbrück" },
+    });
+
+    const draft = await draftFromArchived(deps(), { archivedCustomerId: customerId });
+
+    expect(draft.firstName).toBe("Anke");
+    expect(draft.lastName).toBe("Schneider");
+    expect(draft.birthDate).toEqual(new Date("1985-03-11T00:00:00.000Z"));
+    expect(draft.address).toEqual({
+      street: "Lange Straße",
+      houseNumber: "7a",
+      zip: "33129",
+      city: "Delbrück",
+    });
+  });
+
+  it("pre-fills every household member with their name and birthdate", async () => {
+    const customerId = await archivedHousehold({
+      householdMembers: [
+        member({ firstName: "Anke", lastName: "Schneider" }),
+        member({
+          firstName: "Timo",
+          lastName: "Schneider",
+          birthDate: new Date("2020-06-01T00:00:00.000Z"),
+        }),
+      ],
+    });
+
+    const draft = await draftFromArchived(deps(), { archivedCustomerId: customerId });
+
+    expect(draft.householdMembers).toEqual([
+      {
+        firstName: "Anke",
+        lastName: "Schneider",
+        birthDate: new Date("1990-04-05T00:00:00.000Z"),
+      },
+      { firstName: "Timo", lastName: "Schneider", birthDate: new Date("2020-06-01T00:00:00.000Z") },
+    ]);
+  });
+
+  it("carries no number, group, card, reminder count, certificate or notes — those are decided afresh", async () => {
+    const customerId = await archivedHousehold({ notes: "Bringt Ausweis nach" });
+
+    const draft = await draftFromArchived(deps(), { archivedCustomerId: customerId });
+
+    expect(Object.keys(draft).sort()).toEqual([
+      "address",
+      "birthDate",
+      "firstName",
+      "householdMembers",
+      "lastName",
+    ]);
+  });
+
+  it("creates nothing and changes nothing — a pre-fill is a read", async () => {
+    const customerId = await archivedHousehold();
+    cards.place(customerId, 1);
+    await distribution.create({
+      customerId,
+      date: new Date("2026-06-11T09:00:00.000Z"),
+      showedUp: true,
+      paid: true,
+      priceCents: 500,
+    });
+    const before = register();
+    const writesBefore = distribution.writes;
+
+    await draftFromArchived(deps(), { archivedCustomerId: customerId });
+
+    expect(register()).toBe(before);
+    expect(await cards.listCards(customerId)).toHaveLength(1);
+    expect(distribution.writes).toBe(writesBefore);
+    expect(audit.entries).toEqual([]);
+  });
+
+  it("copies the household as new values, so editing the draft cannot reach the archived record", async () => {
+    const customerId = await archivedHousehold({
+      firstName: "Anke",
+      birthDate: new Date("1985-03-11T00:00:00.000Z"),
+      address: { street: "Lange Straße", houseNumber: "7a", zip: "33129", city: "Delbrück" },
+      householdMembers: [
+        member({ firstName: "Anke", birthDate: new Date("1985-03-11T00:00:00.000Z") }),
+      ],
+    });
+    const draft = await draftFromArchived(deps(), { archivedCustomerId: customerId });
+
+    // What a form does to the value it is bound to: fields are overwritten, dates are advanced and
+    // rows are added. Only a copy makes that harmless.
+    Object.assign(draft, { firstName: "Bernd" });
+    Object.assign(draft.address, { street: "Kurze Straße" });
+    Object.assign(draft.householdMembers[0], { firstName: "Bernd" });
+    draft.birthDate.setFullYear(1900);
+    draft.householdMembers[0].birthDate.setFullYear(1900);
+    (draft.householdMembers as HouseholdMemberDetails[]).push(member());
+
+    const stored = await customers.findById(customerId);
+    expect(stored?.details.firstName).toBe("Anke");
+    expect(stored?.details.address.street).toBe("Lange Straße");
+    expect(stored?.details.birthDate).toEqual(new Date("1985-03-11T00:00:00.000Z"));
+    expect(stored?.details.householdMembers).toHaveLength(1);
+    expect(stored?.details.householdMembers[0].firstName).toBe("Anke");
+    expect(stored?.details.householdMembers[0].birthDate).toEqual(
+      new Date("1985-03-11T00:00:00.000Z"),
+    );
+  });
+
+  it("refuses an id that belongs to nobody rather than drafting from the void", async () => {
+    await expect(draftFromArchived(deps(), { archivedCustomerId: 404 })).rejects.toThrow(
+      CustomerNotFound,
+    );
+  });
+
+  it("refuses to pre-fill from a household that is still on the register", async () => {
+    const customer = await customers.create(storedCustomer("ACTIVE"));
+
+    await expect(draftFromArchived(deps(), { archivedCustomerId: customer.id })).rejects.toThrow(
+      CustomerNotArchived,
+    );
+  });
+
+  it("refuses to pre-fill from a blocked household, who holds their slot and their record", async () => {
+    const customer = await customers.create(storedCustomer("BLOCKED"));
+
+    await expect(draftFromArchived(deps(), { archivedCustomerId: customer.id })).rejects.toThrow(
+      new CustomerNotArchived(customer.id, "BLOCKED").message,
+    );
   });
 });

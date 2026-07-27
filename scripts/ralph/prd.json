@@ -37,8 +37,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "draftFromArchived (application/customers/draft-from-archived.ts) reads findById and returns a RegistrationDraft of firstName/lastName/birthDate/address/householdMembers only — no number, group, card, reminder count, certificate or notes (notes are excluded by PRD §5). Every value is deep-copied, Dates included, because a form writes back into what it binds to. A non-archived id is refused with the new CustomerNotArchived domain error; the draft carries no previousCustomerId — US-003 decides that link."
     },
     {
       "id": "US-003",

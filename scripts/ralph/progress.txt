@@ -75,3 +75,40 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   - Result matches expose `formerCustomerNumber` deliberately — US-11.3/11.4 must show it for
     recognition only and never as the number about to be assigned.
 ---
+## 2026-07-27 09:00 — US-002 (draftFromArchived pre-fill)
+
+- Implemented `draftFromArchived(deps, { archivedCustomerId })` in
+  `src/application/customers/draft-from-archived.ts`: reads one archived record through
+  `customers.findById` and returns a `RegistrationDraft` of the applicant's name, birthdate, address
+  and household members — and nothing else. No clock, no audit log, no write of any kind.
+- What is left out is the story: no customer number (freed the day they were archived, FR-3), no
+  certificate (the paper the applicant holds today is a new one, FR-4), no group, card or reminder
+  count, and no notes (PRD §5 excludes them from the carry-over). A test asserts the draft's exact
+  key set, so a field that creeps in later has to be argued for.
+- Every value is copied, `Date` instances included: a form writes back into what it binds to, and a
+  shared `Date` is mutable, so the "editing the draft cannot alter the archived record" criterion is
+  only true of a deep copy. The test mutates the draft every way a form can — overwriting fields via
+  `Object.assign`, advancing dates with `setFullYear`, pushing a member — and asserts the stored row
+  is unchanged.
+- New domain error `CustomerNotArchived` (id + status): the archive search only lists archived rows,
+  so an id for an ACTIVE or BLOCKED household came from elsewhere, and pre-filling from it would walk
+  staff into registering a household that already holds a slot (FR-6).
+- Files: `src/application/customers/draft-from-archived.ts` (new), `src/domain/errors.ts`,
+  `src/application/customers/customers.test.ts` (new `draftFromArchived` describe, 7 tests),
+  `docs/technical_documentation.md` (new section + the layout listing + the error list).
+- Gates: lint, typecheck, `test:coverage` (670 tests, domain+application at 100%) and build all
+  green. No UI in this story, so nothing to verify in the browser.
+
+- **Learnings for future iterations:**
+  - The draft deliberately does NOT carry `previousCustomerId`. US-003 must add the link itself —
+    the obvious shape is an optional `previousCustomerId` on `RegisterCustomerInput`, passed by the
+    screen from the archive match it already holds, plus the nullable self-referencing column.
+  - Deps that a use case does not have are still worth passing in tests as **witnesses** (the
+    `archiveCustomer` precedent, reused here): `deps()` returns an object with extra fields, and TS
+    excess-property checking does not apply because the call site passes a variable rather than a
+    fresh literal. That is how "creates nothing" becomes a behavioural assertion.
+  - `Object.assign(draft.address, {...})` mutates through a `readonly` interface without a cast —
+    handy for proving a returned value is a copy rather than a shared reference.
+  - Prettier reformats long `await expect(...).rejects.toThrow(...)` chains; run
+    `npx prettier --write` on the test file before `npm run lint` rather than after.
+---

@@ -150,6 +150,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   archiveCustomer (US-10, frees the slot),
 │   │   │                             #   countNoShows (US-10, the seam both read models use),
 │   │   │                             #   searchArchivedCustomers (US-11, the archive search),
+│   │   │                             #   draftFromArchived (US-11, the registration pre-fill),
 │   │   │                             #   listCardsDueForReissue (US-13, cards a birthday overtook)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
@@ -347,7 +348,8 @@ The `DomainErrorCode` union — the closed set of failure modes — plus an abst
 class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
 `QuotaBelowActiveCustomers`, `MissingAuditReason`, `EmptyHousehold`, `BirthDateInFuture`,
 `NoFreeCustomerNumber`, `CustomerNumberTaken`, `CustomerNotFound`, `CustomerArchived`,
-`InvalidCustomerRecord`, `MissingRequiredField`, `InvalidCardNumber`, `CardIndexTaken`,
+`CustomerNotArchived`, `InvalidCustomerRecord`, `MissingRequiredField`, `InvalidCardNumber`,
+`CardIndexTaken`,
 `InvalidEuroAmount` today).
 Each carries the values that made it fail, so the UI can render a
 German message naming concrete numbers without re-deriving them, and callers switch on `code`
@@ -900,6 +902,35 @@ size — plus `formerCustomerNumber`, the archive date and the reason. The forme
 recognition only: the slot was freed when they left and may already be someone else's, so
 re-registration allocates a number afresh (US-11.3, FR-3). Only `customerId` is followed up on; the
 pre-fill reads the record by it (US-11.2).
+
+### `src/application/customers/draftFromArchived`
+
+The second half of the pre-fill (US-11.2). `draftFromArchived(deps, { archivedCustomerId })` reads
+one archived record by id and returns a `RegistrationDraft`: the applicant's name and birthdate, the
+address, and the household members. Nothing else.
+
+It **creates nothing and mutates nothing** — no clock, no audit log, no write of any kind — and the
+tests state that as behaviour rather than reading it off the signature: a card store, a distribution
+history and an audit log are handed in as witnesses, and the whole register is compared before and
+after. The draft is not a reservation and not a half-created customer; discarding it leaves nothing
+behind, and registering it goes through the ordinary `registerCustomer` path (US-11.3).
+
+Everything left out is left out for a reason. The **customer number** was freed the day the household
+was archived and may be someone else's by now (FR-3); the **certificate** is the paper the applicant
+is holding today, and copying the lapsed one forward would record a proof of need nobody has seen
+(FR-4); the **group, card and reminder count** are registration's to decide; and the **notes** are a
+remark about a household two years ago, not about this registration (PRD §5). A test asserts the
+draft's key set, so a field that creeps in later has to be argued for.
+
+Every value is **copied, not shared**. `Date` is mutable and a form writes back into what it is bound
+to, so a shared birthdate would let editing the draft reach into the archived record; the test mutates
+the draft in every way a form can — overwriting fields, advancing dates, pushing a member — and
+asserts the stored record is unchanged.
+
+An id that belongs to nobody is `CustomerNotFound`; an id that belongs to a household **still on the
+register** is `CustomerNotArchived`. The archive search only lists archived rows, so the second is
+reached by an id from elsewhere — and pre-filling from an active record would walk staff into
+registering a household that already holds a slot (FR-6).
 
 ### `src/application/customers/countNoShows`
 
