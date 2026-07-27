@@ -87,7 +87,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   │   ├── archive-search-actions.ts # "use server": searchArchivedCustomers / draftFromArchived
 │   │   │   │   ├── archive-search-state.ts   # the panel's state + the draft as the form's strings
 │   │   │   │   ├── actions.ts        # "use server": Zod → registerCustomer → redirect
-│   │   │   │   └── register-customer-state.ts  # form state (not exportable from actions.ts)
+│   │   │   │   ├── register-customer-state.ts  # form state (not exportable from actions.ts)
+│   │   │   │   └── registration-input.ts  # the form's Zod schema + German error mapping, shared with /warteliste
 │   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on; hosts the block, reissue + archive controls
 │   │   │   ├── [id]/block-controls.tsx  # client: Sperren / Sperre aufheben (US-08.4)
 │   │   │   ├── [id]/reissue-controls.tsx  # client: Karte neu ausstellen (Verlust) (US-09.3)
@@ -100,6 +101,18 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   ├── stale-card-controls.tsx  # client: Karte neu ausstellen, reason STALE_COUNTS
 │   │   │   ├── actions.ts            # "use server": Zod → reissueCard(STALE_COUNTS)
 │   │   │   └── reissue-state.ts      # the row's form state (not exportable from actions.ts)
+│   │   ├── warteliste/               # the waiting-list screen (US-12.4)
+│   │   │   ├── page.tsx              # server component: banner, list in arrival order, add form
+│   │   │   ├── add-applicant-form.tsx  # client: "Auf die Warteliste setzen"
+│   │   │   ├── remove-applicant-controls.tsx  # client: Entfernen, reason required, entry retained
+│   │   │   ├── free-slot-banner.tsx  # shared by /warteliste and the home screen
+│   │   │   ├── actions.ts            # "use server": Zod → addToWaitingList / removeFromWaitingList
+│   │   │   ├── waiting-list-state.ts # the two form states (not exportable from actions.ts)
+│   │   │   ├── deps.ts               # composition root: list + register + cards + settings
+│   │   │   └── [entryId]/registrieren/  # promoting one applicant off the list
+│   │   │       ├── page.tsx          # server component: promoteFromWaitingList → pre-filled form
+│   │   │       ├── promotion-screen.tsx  # client: the expired-certificate step before the form
+│   │   │       └── actions.ts        # "use server": Zod → registerFromWaitingList
 │   │   ├── einstellungen/            # the settings screen (US-14)
 │   │   │   ├── page.tsx              # server component: current values + version history
 │   │   │   ├── settings-form.tsx     # client component: the form and its save-result state
@@ -125,6 +138,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customer/certificate.test.ts  # its Vitest spec
 │   │   ├── customer/nameSearch.ts     # foldName — the comparable form of a name (US-11)
 │   │   ├── customer/nameSearch.test.ts  # its Vitest spec
+│   │   ├── customer/waitingList.ts     # first-come-first-served ordering of applicants (US-12)
+│   │   ├── customer/waitingList.test.ts  # its Vitest spec
 │   │   ├── card/card.ts              # what an issued card is + why it was issued
 │   │   ├── card/card.test.ts         # its Vitest spec
 │   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
@@ -145,7 +160,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, CustomerRepository,
 │   │   │                             #   CardRepository, DistributionRecordRepository,
-│   │   │                             #   ReminderLogRepository, CertificateRepository, AuditLog
+│   │   │                             #   ReminderLogRepository, CertificateRepository,
+│   │   │                             #   WaitingListRepository, AuditLog
 │   │   ├── customers/                # registerCustomer, proposeRegistration, readCustomer,
 │   │   │                             #   readCard, issueCard, lookupCustomer (the counter lookup),
 │   │   │                             #   recordReminder / renewCertificate (US-06),
@@ -158,6 +174,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   listCardsDueForReissue (US-13, cards a birthday overtook)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
+│   │   ├── waiting-list/             # addToWaitingList, listWaiting, removeFromWaitingList,
+│   │   │                             #   promoteFromWaitingList, registerFromWaitingList (US-12)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
 │   ├── infrastructure/
 │   │   ├── clock.ts                  # systemClock adapter (+ the FD_FIXED_NOW_FILE test seam)
@@ -169,6 +187,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │       ├── distribution-record-repository.ts  # PrismaDistributionRecordRepository — (customer, Berlin dayKey)
 │   │       ├── reminder-log-repository.ts  # PrismaReminderLogRepository — (customer, loggedOn) cap
 │   │       ├── certificate-repository.ts   # PrismaCertificateRepository — appends renewals
+│   │       ├── waiting-list-repository.ts  # PrismaWaitingListRepository — removals stamp, never delete
 │   │       ├── audit-log.ts          # PrismaAuditLog — append-only, no actor column
 │   │       ├── seed.ts               # provisional settings version, inserted only if none exists
 │   │       ├── test-support.ts       # clearRegister — the children-first teardown the specs share
@@ -262,6 +281,7 @@ coverage-measured layers.
 | `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`                                                                     | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                                     |
 | `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                                                                                                 | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3).           |
 | `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                                                                                                   | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                                 |
+| `WaitingListRepository`        | `listWaiting()`, `findWaiting(entryId)`, `add(entry)`, `remove(entryId, reason, removedOn)`                                                                    | The applicants waiting for a slot (US-12). There is no `delete`: `remove` stamps the row, so the order of past promotions stays reconstructable (FR-7). It promises no ordering — that is `inArrivalOrder`'s.                      |
 | `AuditLog`                     | `append(entry)`                                                                                                                                                | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                          |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
@@ -344,7 +364,8 @@ cannot pass a fake: if the environment variable **`FD_FIXED_NOW_FILE`** names a 
 the ISO instant that file holds instead of the wall clock. The file is re-read on every call, so a
 spec can move the app's today from one distribution week to the next without restarting the server,
 and deleting it hands the wall clock straight back. The variable is read once at module load, is set
-only by `playwright.config.ts` (to `data/e2e-now.txt`, git-ignored), and an unreadable or unparsable
+only by `playwright.config.ts` (to `data/e2e-now.txt` for the shared server and
+`data/e2e-isolated-now.txt` for the isolated one, both git-ignored), and an unreadable or unparsable
 file falls back to the wall clock rather than failing a request.
 
 ### `src/domain/errors.ts`
@@ -515,6 +536,54 @@ Deliberately absent is any escalation function or reminder threshold. FD reminds
 as a habit, but every case is a staff judgement, so the domain exposes only the expiry and the
 running `reminderCount` — encoding a threshold would misrepresent a judgement as a rule and is a
 named non-goal of US-06.
+
+### `src/domain/customer/waitingList.ts`
+
+The waiting list's ordering rule (US-12.1). `inArrivalOrder(entries)` sorts a copy of the applicants
+by `addedOn`, earliest first, breaking a tie on the same instant by ascending `id`; `nextInLine(entries,
+today)` names the head of that order.
+
+The rule is **strictly first come, first served** — no priority, urgency or hardship override (FR-3) —
+and it lives in the domain rather than in an `ORDER BY` so that fairness is a property the tests pin
+down, and so the waiting-list screen, the home-screen banner and the promotion use case cannot each
+arrive at a slightly different head of the queue. The tie-break is the surrogate id and never the order
+the rows came back in: two applicants added the same morning would otherwise swap places between two
+page loads, which is exactly the unfairness the strict order exists to prevent. Ids ascend with time,
+so the tie-break only ever refines arrival order and never contradicts it.
+
+`nextInLine` returns a discriminated union — `WAITING_LIST_EMPTY` when nobody is waiting, so a caller
+cannot mistake "no one" for "not asked", otherwise `NEXT_IN_LINE` carrying the entry and
+`certificateExpired`. `today` decides **nothing** about the order: it is read only to flag an applicant
+whose certificate lapsed while they waited (via `isExpired`, so there is one expiry comparison in the
+system). The flag never filters. Skipping the head silently would hand somebody else's slot away
+without anyone deciding to; what happens about the renewal is FD's judgement, taken at the counter
+(US-12, FR-5).
+
+Both functions are generic over the caller's entry shape, like `recordForDay`: the rule reads `id`,
+`addedOn` and `certificate` and hands the caller's own richer row straight back, so it never grows a
+field it does not use.
+
+`daysWaiting(entry, today)` is the one number on the screen that says what the list costs the people
+on it. It counts **calendar days** — both ends reduced to their UTC day, so the answer does not depend
+on what time of day either happened and no daylight-saving hour is lost across a long wait — and it is
+0 on the day the applicant joined. An entry dated after `today` counts as no wait rather than a
+negative one: nobody has waited a negative number of days, and a screen that said so would report a
+clock problem as a fact about the applicant. It lives here rather than in the page for the same reason
+the ordering does: two screens counting days apart is how the same applicant appears to have waited
+two different lengths of time.
+
+`createWaitingListDetails(input, today)` is the module's other half: the **entry bar** (US-12.2,
+FR-1). It validates an application the way `createCustomerDetails` validates a registration — every
+name, address part and certificate type trimmed and required, and a birthdate that lies after `today`
+refused through the same `composition` guard — and it refuses a certificate that has already lapsed
+with `CertificateExpired`. An applicant joins with a valid certificate in hand or does not join.
+
+That is the opposite of what a certificate lapsing _during_ the wait means, and the two must not be
+confused: the entry bar is a door, checked once; the flag `nextInLine` reports is a note to staff and
+never bars anybody, because the applicant earned their place by waiting and a renewal is what they
+are asked for. `WaitingListDetails` deliberately holds no household — FD does not ask who someone
+lives with until they are registered (PRD §7) — and no customer number, group or card, because an
+applicant is not a customer and must not occupy a slot.
 
 ### `src/domain/card/card.ts`
 
@@ -977,6 +1046,55 @@ foreign key does: a link to an id nobody holds is refused by the database, and t
 as the domain's `CustomerNotFound`. Like every other relation it is `onDelete: Restrict`, so a
 household with a successor cannot be deleted any more than one with cards can.
 
+### `src/application/waiting-list/`
+
+The five use cases over the waiting list (US-12.2), tested against hand-written fakes and a fake
+clock in `waiting-list.test.ts`.
+
+- **`addToWaitingList(deps, input)`** validates the application through
+  `createWaitingListDetails` and writes it with `addedOn = deps.clock.now()`. The clock is read
+  **once**: the day the applicant is judged eligible and the day that fixes their place in the queue
+  are the same day, and an entry admitted on a certificate that lapsed between two reads would be
+  indefensible. There is no position column — `addedOn` is the whole of a place in the queue, so
+  nothing has to be renumbered when somebody is promoted or withdraws.
+- **`listWaiting(deps)`** returns every waiting applicant as a `WaitingListPlace`: their `position`
+  counting from 1, the entry, `daysWaiting` and `certificateExpired`. The order, the numbering and the
+  wait all come from the domain (`inArrivalOrder`, `daysWaiting`, `isExpired`) rather than from the
+  query or the screen — a screen that numbered the rows itself would be a second statement of the
+  order, and the two could drift.
+- **`removeFromWaitingList(deps, { entryId, reason })`** stamps the row rather than deleting it
+  (FR-7) and writes a `waitingList.removed` audit entry. The reason is required
+  (`MissingAuditReason`): a waiting list is only worth the claim it makes — that the longest wait was
+  served first — and that claim can only be checked against a history that still has the people who
+  left in it, each able to say whether they went of their own accord.
+- **`promoteFromWaitingList(deps, { entryId })`** is a **read**. It returns the number the applicant
+  would take (`lowestFreeNumber`, refusing with `NoFreeCustomerNumber` when the register is full),
+  `certificateExpired`, and a `WaitingListRegistrationDraft`. The draft carries two things
+  `draftFromArchived` deliberately drops, for the opposite reason in each case: the **certificate**,
+  because it was seen when the applicant joined and is re-checked here, and the **contact note** as
+  the record's notes, because it is the most current thing FD knows about them. Its household holds
+  the applicant alone — they are by definition a member of their own household, and the rest is typed
+  at registration. Nobody is registered and nothing is written, so the entry stays on the list.
+- **`registerFromWaitingList(deps, input)`** is the one that writes: it checks the entry is still
+  waiting, calls **`registerCustomer`** — the only registration path there is, so the slot
+  allocation, the first card and the `customer.registered` entry are the ordinary ones — and only
+  **then** removes the entry and logs `waitingList.promoted`. The order is the whole point: a
+  registration can fail on the last field of the form, and an applicant removed a moment earlier
+  would have lost the place they waited months for. A test proves it by failing a registration on an
+  empty household and asserting the entry is still there.
+
+The applicant is promoted **by id** rather than taken from the head of the queue. The order is stated
+by `listWaiting` and by the banner, which names the longest-waiting applicant and no one else; what
+is left open is the one case FD has not decided — an expired certificate at the head, where skipping
+to the next applicant is one of the answers on the table (PRD §9). Deciding it in code would close it
+off before FD has chosen.
+
+Both removals record _why_. A withdrawal carries the sentence staff typed; a promotion carries
+`customerNumber=<n>`, one of the two machine-written reasons in the system (the other is the reminder
+trail's `reminderCount=<n>`), because nobody made a judgement — what the row has to say is which slot
+the applicant went to. It is stamped at `customer.registeredOn`, the registration's own instant,
+rather than at a second reading of the clock.
+
 ### `src/application/customers/countNoShows`
 
 The seam both screens that show the no-show count read (US-10.4), so the customer record and the
@@ -1125,6 +1243,28 @@ delete: a reminder that was given stays given.
 repository's `CUSTOMER_INCLUDE` resolves it. The append and the reset of `reminderCount` to zero go
 out in one transaction — a renewal that landed without its reset would show a customer still owing
 what they have just brought.
+
+### `src/infrastructure/prisma/waiting-list-repository.ts`
+
+`PrismaWaitingListRepository` (the `WaitingListRepository` port) is the store behind the waiting list
+(US-12.3). It decides nothing about the queue — `inArrivalOrder` does — and owns the two things the
+pure layers cannot.
+
+The first is the **tie-break**: rows are numbered as they are inserted, so `id` ascends with the
+order applications were typed in, and two applicants added the same morning cannot swap places
+between two page loads. `listWaiting` still orders by `(addedOn, id)` so a page read twice comes back
+the same way and the `addedOn` index is the one the query uses, but the application sorts what it
+gets back through the domain rule regardless: the query is a stable page, not the authority.
+
+The second is **retention**. `remove` is an `update`, and no statement in the file deletes a row: a
+removal stamps `removedOn` and `removalReason`, so the order of past promotions stays reconstructable
+(FR-7). Its `where` names a row that is _still waiting_, so a second removal of the same entry
+updates nothing rather than overwriting the first reason with a later one. `STILL_WAITING`
+(`removedOn: null`) is stated once and shared by the list and the lookup, so a promotion can never
+register somebody the screen had already removed; `findWaiting` therefore answers `null` for a
+removed entry exactly as it does for an id that never existed. `contactNote` is `null` in SQL when
+none was given and `""` in the domain — one representation of an unanswered question per layer, and
+the translation is the adapter's.
 
 ### `src/app/einstellungen/` — the settings screen
 
@@ -1410,6 +1550,62 @@ staff to ignore the list — or, far worse, to turn a household away over it (PR
   everything around it: "nothing to do" is the answer staff most often want from it, and a home
   screen that looks alarmed about outdated cards is how the list stops being read.
 
+### `src/app/warteliste/` — the waiting list
+
+US-12.4, the screen the whole feature is for. `page.tsx` calls `listWaiting` and `proposeRegistration`
+and lays out three things: the free-slot banner, the applicants in arrival order, and the form that
+puts somebody on the list. It is `force-dynamic` — a wait grows a day at midnight and a certificate
+lapses the same way, with nothing written either time.
+
+**The order is the feature, so the screen gives it nothing to argue with.** The rule is stated in
+words above the list; there are no column headings that could be clicked, no way to move a row, and
+"Jetzt registrieren" appears on the banner only, never on a row. A sortable list invites the exact
+unfairness the strict ordering exists to prevent (PRD §6). The head of the list is read off position 1
+rather than by asking `nextInLine` a second time — one statement of the order, so the banner and the
+list cannot name two different applicants.
+
+- **`free-slot-banner.tsx`** names **one** applicant and **one** number, and it is rendered on the
+  home screen as well (`showListLink`). Without it a freed customer number is only noticed by whoever
+  thinks to open the list, and the applicant who has waited longest waits on — which is the whole of
+  FR-4. An expired certificate is repeated on the banner, because whoever acts on it needs to know a
+  renewed notice will be wanted **before** they walk over to the applicant.
+- **`add-applicant-form.tsx`** collects exactly what an entry records — no household, no group, no
+  number, because none of those is decided until the applicant is actually registered. It clears
+  itself after a save by remounting its fields on `state.savedCount`, a count the action keeps: two
+  applicants with the same name would otherwise produce an identical state, and a form that resets on
+  a value that did not change is a form that keeps the previous applicant's address.
+- **`remove-applicant-controls.tsx`** is a closed disclosure with the confirmation inside it and the
+  save disabled until a reason is typed, like the archive control. What the confirmation says is the
+  thing staff would otherwise ring up about: the entry is **kept**, not deleted (FR-7).
+- **`actions.ts`** reports an already-lapsed certificate as its own German sentence naming the day it
+  ran out. It is the one rejection staff meet with the applicant standing in front of them, and
+  "bitte prüfen" would not tell them what to ask for. Both actions revalidate `/warteliste` and `/`,
+  because the home screen's banner names whoever is at the head.
+
+#### `warteliste/[entryId]/registrieren/` — the promotion
+
+`page.tsx` calls `promoteFromWaitingList`, which is a **read**: the applicant stays on the list until
+the form is actually saved. A registration can fail on its last field, and somebody removed a moment
+earlier would have lost the place they waited months for. `WaitingListEntryNotFound` is a stale link
+(`notFound()`); `NoFreeCustomerNumber` means the register filled up between the banner and the click,
+and the page says so and sends staff back — nothing was written and the applicant keeps their place.
+
+The form is `kunden/neu`'s `RegistrationForm`, given a `submit` prop and a hidden `entryId`. Its
+parsing is shared through `kunden/neu/registration-input.ts`: one Zod schema, one household pairing,
+one German error mapping, so a field cannot start being accepted on one screen and refused on the
+other. The action calls **one** use case, `registerFromWaitingList` — never `registerCustomer` plus a
+removal of its own, because the order of those two is the guarantee the feature rests on and
+"remember to do B after A" is exactly what a screen forgets.
+
+- **`promotion-screen.tsx`** holds the one piece of judgement the screen has: when the certificate
+  lapsed during the wait, the warning is shown **before** the form, naming the day it ran to (FR-5).
+  It is a step, not a dialog — nothing is dismissed and the applicant is never refused, because FD has
+  not decided how such a case is settled (PRD §9). With a valid certificate there is nothing to warn
+  about and the form is simply there.
+- A **full register** on `/kunden/neu` now offers the way onto the waiting list beside its "alle
+  Nummern sind vergeben" message. That message was otherwise a dead end, and turning an applicant away
+  is precisely what the list exists to prevent.
+
 ### `src/i18n/de.ts`
 
 A single `const de = {…} as const` dictionary of German UI strings, plus the derived `Dictionary`
@@ -1469,6 +1665,15 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   the database's own cap of one reminder per customer per day, surfaced by the adapter as
   `ReminderAlreadyLoggedToday`. `resultingCount` repeats the customer's count as it stood after the
   entry, so the trail reads on its own; a renewal resets the _count_, never this log.
+- `WaitingListEntry` is one applicant the quota has no slot for (US-12). It has **no relation to
+  `Customer` at all** and holds no `customerNumber`, no group and no card — the list is precisely the
+  people who occupy nothing — and it flattens the address and the single admitting certificate onto
+  the row, because nothing renews on a waiting list. Rows are **retained, never deleted** (FR-7):
+  `removedOn` / `removalReason` say whether the applicant was registered or withdrew, and the active
+  list is every row with `removedOn IS NULL`. There is deliberately **no `position` column** — the
+  place in the queue is `addedOn` (indexed), ties broken by the ascending `id`, derived by
+  `src/domain/customer/waitingList.ts`; a stored position is a position somebody can edit, which is
+  the fairness the list exists to protect.
 - `DistributionRecord` is the append-many history of hand-outs (US-05). It carries `date`, a
   normalised Europe/Berlin `dayKey` (`YYYY-MM-DD`, written by the domain's `berlinDayKey`), the
   `showedUp` and `paid` flags and `priceCents`. The unique `(customerId, dayKey)` index is the
@@ -1518,8 +1723,8 @@ directory (the backup unit named in the architecture sketch), the URL therefore 
 DATABASE_URL="file:../data/fd.db"      # → <repo>/data/fd.db
 ```
 
-This is consistent across `.env`, the Playwright web-server env, and the CI job envs (which use
-`../data/ci.db` and `../data/e2e.db`). The `data/` directory is tracked via `.gitkeep`; the `*.db`
+This is consistent across `.env`, the Playwright web-server envs, and the CI job envs (which use
+`../data/ci.db`, `../data/e2e.db` and `../data/e2e-isolated.db`). The `data/` directory is tracked via `.gitkeep`; the `*.db`
 files themselves are git-ignored. Note that the **generated client** resolves a relative SQLite path
 against the _current working directory_, not against `prisma/` as the CLI does (a known Prisma
 footgun) — which is why the app is always started from the repo root, and why the integration tests
@@ -1564,19 +1769,32 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
 ### End-to-end — Playwright (`playwright.config.ts`)
 
 - `testDir: tests/e2e`; runs Chromium against the **built** app.
-- **`workers: 1`, `fullyParallel: false`.** Every spec shares the one `data/e2e.db`, and several of
-  them write to it — a registration consumes a customer number, a settings save appends a version.
-  Two workers would interleave those writes and each spec would assert against a register the other
-  one had moved. The suite runs in a few seconds; a flaky gate is worth less than a slow one. The
-  consequence for a new spec: **never name a customer number the allocator will hand out** — read
-  the one the screen proposes, or inserting a spec file alphabetically above another one breaks it.
-  A spec that inserts its own rows instead of registering them (`counter.spec.ts`) may name numbers,
-  provided it takes a block high in the range: allocation is always the _lowest_ free slot, so the
-  low sequence the other specs assert against stays untouched.
-- `webServer` **deletes `data/e2e.db`**, then runs `npx prisma migrate deploy && npm run db:seed &&
-npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` is on locally, off
-  in CI. The delete matters locally: the settings specs edit the seeded price and then assert the
-  value they wrote, so a second run against its own leftovers would start from the wrong number.
+- **Two projects, two servers.** `chromium` drives port 3000 over the shared `data/e2e.db`, which
+  is where all but one spec belongs. `isolated` drives port 3001 over `data/e2e-isolated.db`, its
+  own freshly seeded and empty database, and matches only the specs listed in `ISOLATED_SPECS`.
+  A spec joins the isolated project when it must **own the register** — decide the quota, or fill
+  every slot. `waiting-list.spec.ts` is the case that forced it: the quota is a single global
+  number, the shared database holds customers on numbers in the hundreds, and so "no slot is free"
+  is unreachable there at any price short of hundreds of rows. Everything else stays on the shared
+  server, because a second Next process costs the whole run and a spec that merely writes does not
+  need one.
+- **`workers: 1`, `fullyParallel: false`.** Every spec in a project shares one `*.db`, and several
+  of them write to it — a registration consumes a customer number, a settings save appends a
+  version. Two workers would interleave those writes and each spec would assert against a register
+  the other one had moved. The suite runs in a few seconds; a flaky gate is worth less than a slow
+  one. The consequence for a new spec on the shared server: **never name a customer number the
+  allocator will hand out** — read the one the screen proposes, or inserting a spec file
+  alphabetically above another one breaks it. A spec that inserts its own rows instead of
+  registering them (`counter.spec.ts`) may name numbers, provided it takes a block high in the
+  range: allocation is always the _lowest_ free slot, so the low sequence the other specs assert
+  against stays untouched.
+- `webServer` is an array of two, built by one function. Each **deletes its own database and
+  pinned-now file**, then runs `npx prisma migrate deploy && npm run db:seed && npm run start --
+--port <n>` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` is on locally, off in
+  CI. The delete matters locally: the settings specs edit the seeded price and then assert the value
+  they wrote, so a second run against its own leftovers would start from the wrong number. The two
+  servers have **separate** `FD_FIXED_NOW_FILE`s, so a spec that pins the clock cannot move the
+  other server's calendar underneath a spec that did not ask for it.
 - Today: a smoke test asserting the German `<h1>` renders, plus `settings.spec.ts` — the settings
   round-trip (change a price, save, reload, see it applied and listed in the
   history), a second save on the same day — the behaviour the screen exists for, and once an error —
@@ -1719,6 +1937,22 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   register and the neighbouring specs may leave households on the list; the row itself is addressed
   by `data-customer-number` for the same reason. Pinned-now file deleted in `afterAll`, like its
   neighbours.
+- `waiting-list.spec.ts` covers US-12 end to end (§US-12.5), and is the one spec in the **isolated
+  project** — it is the only one that makes the register _full_, which nothing sharing a register
+  can do. On its own empty database it lowers the quota to **2** on `/einstellungen`, registers two
+  households through the ordinary form (numbers 1 and 2), and then meets `/kunden/neu` with nothing
+  left to give: no proposed number, the limit named, and the way onto the waiting list offered as a
+  **link** rather than a redirect — the form stays on screen, because the quota may be what should
+  change. Two applicants are added through the list's own form and asserted in arrival order with no
+  banner above them, because nothing is free. Archiving the first household frees number 1, and the
+  banner then names the applicant who joined first — on `/warteliste` **and** on the home screen
+  (PRD §6). Promoting them from the banner opens the registration form pre-filled from the entry
+  (surname, certificate, a one-person household deriving 1 / 0), and saving it hands them exactly the
+  number the archived household released, with `1k1` on the card. The entry is then read straight
+  from Prisma: still there, both rows still counted, `removedOn` stamped and `removalReason` reading
+  `customerNumber=1` — off the list without being deleted from it (FR-7). The last spec asserts the
+  second applicant has moved up to position 1 with the register full again and no banner promising a
+  slot that does not exist.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

@@ -75,6 +75,12 @@ describe("the committed migrations", () => {
     );
   });
 
+  it("index the waiting list by arrival, which is the whole of a place in the queue", () => {
+    expect(migrationSql()).toContain(
+      'CREATE INDEX "WaitingListEntry_addedOn_idx" ON "WaitingListEntry"("addedOn")',
+    );
+  });
+
   it("index the distribution records by customer and date, which the no-show count reads", () => {
     expect(migrationSql()).toContain(
       'CREATE INDEX "DistributionRecord_customerId_date_idx" ON "DistributionRecord"("customerId", "date")',

@@ -81,6 +81,24 @@ CREATE TABLE "DistributionRecord" (
 );
 
 -- CreateTable
+CREATE TABLE "WaitingListEntry" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "firstName" TEXT NOT NULL,
+    "lastName" TEXT NOT NULL,
+    "birthDate" DATETIME NOT NULL,
+    "street" TEXT NOT NULL,
+    "houseNumber" TEXT NOT NULL,
+    "zip" TEXT NOT NULL,
+    "city" TEXT NOT NULL,
+    "contactNote" TEXT,
+    "certificateType" TEXT NOT NULL,
+    "certificateValidUntil" DATETIME NOT NULL,
+    "addedOn" DATETIME NOT NULL,
+    "removedOn" DATETIME,
+    "removalReason" TEXT
+);
+
+-- CreateTable
 CREATE TABLE "ReminderLog" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "customerId" INTEGER NOT NULL,
@@ -127,6 +145,9 @@ CREATE INDEX "DistributionRecord_customerId_date_idx" ON "DistributionRecord"("c
 
 -- CreateIndex
 CREATE UNIQUE INDEX "DistributionRecord_customerId_dayKey_key" ON "DistributionRecord"("customerId", "dayKey");
+
+-- CreateIndex
+CREATE INDEX "WaitingListEntry_addedOn_idx" ON "WaitingListEntry"("addedOn");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ReminderLog_customerId_loggedOn_key" ON "ReminderLog"("customerId", "loggedOn");

@@ -27,6 +27,8 @@ export type DomainErrorCode =
   | "ReminderAlreadyLoggedToday"
   | "CertificateStillValid"
   | "CertificateValidUntilInPast"
+  | "CertificateExpired"
+  | "WaitingListEntryNotFound"
   | "NotClearToServe"
   | "DistributionRecordNotFound"
   | "RecordNoLongerCorrectable"
@@ -394,6 +396,48 @@ export class CertificateValidUntilInPast extends DomainError {
     );
     this.validUntil = validUntil;
     this.today = today;
+  }
+}
+
+/**
+ * An applicant presented a certificate that had already lapsed, and the eligibility bar refused them
+ * (US-12, FR-1). Carries the end date and the day it was judged against, so the form can quote back
+ * the date it read rather than blaming the field.
+ *
+ * It is the *entry* bar, not the counter's: an expired certificate never turns a registered household
+ * away — it starts the reminder trail ({@link CertificateStillValid}'s counterpart, US-06). And it is
+ * not {@link CertificateValidUntilInPast}, which says a *renewal* carried a date that must be a typo,
+ * most likely a wrong year. Here the date is believed and the answer is a renewed certificate before
+ * the applicant may join the waiting list at all.
+ */
+export class CertificateExpired extends DomainError {
+  readonly code = "CertificateExpired";
+  readonly validUntil: Date;
+  readonly today: Date;
+
+  constructor(validUntil: Date, today: Date) {
+    super(`The certificate expired on ${validUntil.toISOString()}, before ${today.toISOString()}`);
+    this.validUntil = validUntil;
+    this.today = today;
+  }
+}
+
+/**
+ * No applicant is waiting under this id. Carries the id asked for, so a stale link can be told from a
+ * bug — entries are never hard-deleted (US-12, FR-7), so this is a wrong or spent reference rather
+ * than a lost record.
+ *
+ * A *removed* entry reaches it too, and that is the point: an applicant who has already been
+ * registered or withdrawn is no longer on the list, and promoting them a second time would hand a
+ * freed slot to somebody who has one.
+ */
+export class WaitingListEntryNotFound extends DomainError {
+  readonly code = "WaitingListEntryNotFound";
+  readonly entryId: number;
+
+  constructor(entryId: number) {
+    super(`No applicant is waiting under the id ${entryId}`);
+    this.entryId = entryId;
   }
 }
 

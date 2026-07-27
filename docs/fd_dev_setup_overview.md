@@ -42,7 +42,7 @@ e2e-tests            →  needs: build; playwright vs. built app + fresh sqlite
 - **Types:** `tsc --noEmit` as its own fast-failing step
 - **Unit tests:** Vitest, coverage threshold scoped to `src/domain` + `src/application` only
 - **Schema drift:** `prisma validate` + `prisma migrate diff`
-- **E2E:** Playwright on `ubuntu-latest`, `npx playwright install --with-deps`, runs against `npm start` + a throwaway seeded SQLite file — runs fine in GitHub Actions, no Docker needed
+- **E2E:** Playwright on `ubuntu-latest`, `npx playwright install --with-deps`, runs against `npm start` + throwaway seeded SQLite files (one shared, one for the spec that fills the register) — runs fine in GitHub Actions, no Docker needed
 - **Dependencies/security:** Dependabot + CodeQL (both built-in, free) + GitHub secret scanning
 - **Test data:** synthetic only (Faker-generated) — never real customer/certificate data in fixtures
 

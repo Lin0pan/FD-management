@@ -14,17 +14,12 @@
  */
 
 import { draftFromArchived } from "@/application/customers/draft-from-archived";
-import type { RegistrationDraft } from "@/application/customers/draft-from-archived";
 import { searchArchivedCustomers } from "@/application/customers/search-archived-customers";
 import { CustomerNotArchived, CustomerNotFound, EmptySearchQuery } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { customerDeps } from "../deps";
-import type {
-  ArchiveDraftResult,
-  ArchiveSearchState,
-  PrefillDraft,
-  PrefillMember,
-} from "./archive-search-state";
+import type { ArchiveDraftResult, ArchiveSearchState } from "./archive-search-state";
+import { toPrefillDraft } from "./registration-input";
 
 /**
  * A calendar day as `<input type="date">` submits it, read as the UTC day it names — or `undefined`
@@ -35,39 +30,6 @@ import type {
  */
 function optionalCalendarDay(value: string): Date | undefined {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00.000Z`) : undefined;
-}
-
-/** The UTC day a stored date names, written the way `<input type="date">` reads it back. */
-function isoDay(date: Date): string {
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${date.getUTCFullYear()}-${month}-${day}`;
-}
-
-function toPrefillMember(member: {
-  firstName: string;
-  lastName: string;
-  birthDate: Date;
-}): PrefillMember {
-  return {
-    firstName: member.firstName,
-    lastName: member.lastName,
-    birthDate: isoDay(member.birthDate),
-  };
-}
-
-/** The draft flattened to the strings the form's fields hold. */
-function toPrefillDraft(draft: RegistrationDraft): PrefillDraft {
-  return {
-    firstName: draft.firstName,
-    lastName: draft.lastName,
-    birthDate: isoDay(draft.birthDate),
-    street: draft.address.street,
-    houseNumber: draft.address.houseNumber,
-    zip: draft.address.zip,
-    city: draft.address.city,
-    householdMembers: draft.householdMembers.map(toPrefillMember),
-  };
 }
 
 /**

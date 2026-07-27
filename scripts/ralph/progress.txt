@@ -1,9 +1,9 @@
 # Ralph Progress Log
-Started: Mon Jul 27 08:37:31 CEST 2026
+Started: Mon Jul 27 13:56:15 CEST 2026
 ---
 
 ## Codebase Patterns
-(Carried forward by hand from the US-13 log — the archive rotation wipes this file, so the patterns
+(Carried forward by hand from the US-11 log — the archive rotation wipes this file, so the patterns
 block has to be pasted into the fresh one. The other durable channel is the CLAUDE.md files.)
 - Adding a method to a port interface (e.g. CustomerRepository) forces EVERY implementer to compile:
   the real Prisma adapter AND the hand-written fakes, which live in several test files —
@@ -59,222 +59,302 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   filter keeps them apart.
 - `pkill -f "next start"` from the Bash tool kills the shell running it (the pattern matches the
   command line itself). Write `pkill -f "next[ ]start"`.
+- A pure rule that has to hand the CALLER's row back is generic over it — `recordForDay<T extends
+  AttendanceRecord>`, `nextInLine<T extends WaitingApplicant>`. Declare the minimal interface the
+  rule reads, constrain `T` to it, return `T`: the application layer keeps its richer entry and the
+  domain never grows a field it does not use.
+- A "nothing to report" outcome is a variant of the result union (`WAITING_LIST_EMPTY`,
+  `NOT_FOUND`), never `null`/`undefined` — the UI switch stays exhaustive and a caller cannot
+  mistake "no one" for "not asked".
+- Every expiry question in the system goes through `isExpired(certificate, today)` in
+  domain/customer/certificate.ts. Do not re-compare `validUntil` inline anywhere — the "valid
+  through its last day" boundary would drift.
+- A use case that must do TWO things in an order (register, then remove from the list) is a use case,
+  not a server action calling two of them: app/ is thin by rule, and "remember to do B after A" is
+  exactly what a screen forgets. Delegate to the existing use case (`registerCustomer`) rather than
+  re-implementing it, like `reissueCard` → `issueCard`.
+- Validation of a typed-in record belongs in a domain factory (`createCustomerDetails`,
+  `createWaitingListDetails`), not in the use case: the use case then reads as clock → factory →
+  write, and the 100% gate is paid once in a domain test rather than per use case.
+- A new port method costs every implementer a compile, so a WHOLE new port (WaitingListRepository) is
+  cheaper than widening CustomerRepository — and the fakes stay small. Check `grep -rln "implements
+  <Port>" src/` before widening an existing one.
+- The audit `why` is a human sentence except where no human judged: those carry a machine key=value
+  (`reminderCount=2`, `customerNumber=7`). Never put a German sentence in application code — the
+  dictionary is `src/i18n/de.ts` and the layer below it has no access to it.
+- Use the caller's own instant instead of a second `clock.now()` when two writes belong to one event
+  (`customer.registeredOn` stamps the waiting-list removal that registration caused).
+- Prettier reorders nothing but reflows long import lists and tables; run
+  `npx prettier --write <files>` after hand-editing docs/technical_documentation.md tables, or the
+  lint-staged hook rewrites them under you.
+- An adapter for a table with NO relations is exempt from `clearRegister`: a spec that owns such a
+  table clears it with its own `deleteMany()` in `beforeEach`. Only the register needs children-first.
+- Regenerating the init migration also leaves the DEV database without the re-appended partial unique
+  index — `migrate dev` applied the file before the index was pasted back on. Always finish the
+  sequence with `npm run db:reset`, which re-runs the completed migration.
+- A nullable column whose domain counterpart is a non-nullable `""` (contactNote) is translated in
+  the ADAPTER, both ways, in one `toEntry`/`create` pair. The layers above never see the null, and the
+  column keeps a single representation of "not answered".
+- A "remove" that must be idempotent scopes its `where` to the rows still eligible
+  (`{ id, removedOn: null }`) and uses `updateMany`: a second call updates nothing instead of
+  overwriting the first reason, and an unknown id is not an error the adapter has to invent.
+- A `"use server"` module may export **nothing but async functions**, so a Zod schema, a helper or a
+  state interface has to live beside it — `registration-input.ts`, `*-state.ts`. That is also how a
+  second screen reuses a form's parsing: put the schema in the plain module and both actions import
+  it, rather than copying it and letting the two drift.
+- Reusing a whole form on a second screen is a `submit` prop plus a hidden field, not a second copy
+  of the form. `RegistrationForm` takes `submit` (default `submitRegistration`) and `entryId`; the
+  prefill type carries the extra fields as OPTIONAL, and which screen fills them is documented on the
+  type, because the difference is a decision rather than an omission.
+- `setState` inside `useEffect` is an ESLint ERROR (`react-hooks/set-state-in-effect`). To reset a
+  form after a successful action, put a **counter in the action's state** and use it as the `key` —
+  derived, no effect. A counter beats keying on the saved values: two applicants with the same name
+  produce an identical state, and a form that resets on a value that did not change keeps the
+  previous entry's address.
+- A page that needs "is a slot free" asks `proposeRegistration` and reads `customerNumber !== null`.
+  It throws `NoSettingsInForce` on an unseeded database — catch that one code and render without the
+  banner rather than taking the screen down (`/kunden/neu` does the same for its form).
+- Playwright's `webServer` has `reuseExistingServer: !CI`, and `npm run start` serves the BUILT app.
+  After changing a string or a component, `npm run build` and `pkill -f "next[ ]start"` before
+  re-running specs, or the assertions run against the previous build.
+- To put an expired certificate at the head of a list in an e2e spec, add the applicant with a valid
+  one and then move the app's today past it by writing `data/e2e-now.txt` (the `FD_FIXED_NOW_FILE`
+  seam). Delete the file in a `finally` — it freezes today for every spec that follows.
+- `getByRole("heading", { name: X })` is a substring match: a section heading containing the page
+  heading ("Auf die Warteliste setzen" vs "Warteliste") is a strict-mode violation. Pass `exact:
+  true` for the `h1`.
+- The e2e suite has TWO Playwright projects: `chromium` on port 3000 over the shared `data/e2e.db`,
+  and `isolated` on port 3001 over its own empty `data/e2e-isolated.db` (`ISOLATED_SPECS` in
+  playwright.config.ts). A spec belongs in `isolated` only when it must OWN the register — set the
+  quota, or fill every slot. On the shared database that is unreachable: other specs seed customers
+  on numbers 201–271, so the quota (which may not fall below the active count) always leaves a dozen
+  low numbers free. Everything that merely writes stays on the shared server.
+- Each server has its OWN `FD_FIXED_NOW_FILE`, so pinning the clock in one project cannot move the
+  other's calendar. A new server needs its now-file added to `.gitignore` beside `data/e2e-now.txt`.
+- A `node -e "…"` command inside playwright.config.ts is double-quoted by the shell, so any array
+  literal in it must use SINGLE quotes — `JSON.stringify` emits double quotes and the shell eats
+  them (`ReferenceError: data is not defined`).
 
 ---
 
-## 2026-07-27 08:35 — US-001 (archive search by name and date of birth)
+## 2026-07-27 14:00 — US-001 (waiting-list ordering rule)
 
-- Implemented `searchArchivedCustomers(deps, { lastName?, firstName?, birthDate? })`: archived
-  households only, most recently archived first, capped at 20 with a `truncated` flag (the use case
-  asks the repository for 21 rows and shows 20 — no paging). An all-blank query is refused with the
-  new `EmptySearchQuery` domain error; names are trimmed before they count as criteria.
-- Diacritic tolerance: new pure `foldName` in `src/domain/customer/nameSearch.ts` (lower-case,
-  ä→ae/ö→oe/ü→ue/ß→ss, remaining diacritics stripped, whitespace collapsed). SQLite has no
-  `unaccent` and its LIKE folds only ASCII case, so the fold is STORED: new required columns
-  `Customer.firstNameFolded` / `lastNameFolded`, indexed as `(lastNameFolded, birthDate)`, written by
-  the adapter from the names in the same statement. The query is a `startsWith` on the folded column.
-- Files: `src/domain/customer/nameSearch.ts` (+ test), `src/domain/errors.ts`,
-  `src/application/ports.ts` (`ArchivedCustomer`, `ArchiveSearchQuery`, `searchArchived`),
-  `src/application/customers/search-archived-customers.ts`, `src/i18n/de.ts`
-  (`customers.archiveSearch`), `prisma/schema.prisma` + regenerated init migration,
-  `src/infrastructure/prisma/customer-repository.ts`, plus the five fakes and twelve row fixtures the
-  new port method and column forced. Docs: `docs/technical_documentation.md` (three new sections and
-  the layout listing) and the root `CLAUDE.md` derive-don't-store rule.
-- Gates: lint, typecheck, `test:coverage` (662 tests, domain+application at 100%), build and
-  `test:e2e` (46 passed) all green. No UI in this story, so nothing to verify in the browser.
-
+- Implemented `src/domain/customer/waitingList.ts`: `inArrivalOrder(entries)` sorts a COPY by
+  `addedOn` ascending with ties broken by ascending `id`, and `nextInLine(entries, today)` names the
+  head as a discriminated union — `{ kind: "WAITING_LIST_EMPTY" }` or `{ kind: "NEXT_IN_LINE", entry,
+  certificateExpired }`. Both are generic over the caller's entry shape (`T extends WaitingApplicant`,
+  which declares only `id`, `addedOn`, `certificate`), following `recordForDay` in
+  domain/distribution/attendance.ts.
+- `today` decides nothing about the order: it is read only for the expiry flag, which delegates to
+  the existing `isExpired` so there is one "valid through its last day" comparison in the system.
+  The flag never filters — the head of the list stays the head with an expired certificate (FR-5).
+- The tie-break is the surrogate id and never array order, so two applicants added the same morning
+  cannot swap places between two page loads. Ids ascend with time, so it only ever refines arrival
+  order. `inArrivalOrder` is exported because the ordering must not be re-expressed as an `ORDER BY`
+  in US-003's query or as a second sort on the US-004 screen.
+- TDD: the spec was written and run red (module missing) before the implementation existed. Ten
+  tests — single entry, ordering across dates in two input orders, same-day tie in both orders,
+  expired certificate at the head, the validUntil-day and day-after boundaries, the empty list, plus
+  `inArrivalOrder`'s ordering, no-mutation and empty cases.
+- Files changed: `src/domain/customer/waitingList.ts` (new), `src/domain/customer/waitingList.test.ts`
+  (new), `docs/technical_documentation.md` (tree entry + module section), `scripts/ralph/prd.json`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (39 files, 700 tests, domain +
+  application at 100%) and `npm run build` all green. No UI change, so no browser verification.
 - **Learnings for future iterations:**
-  - The decision the PRD left open (§7) is settled: a normalised search column, not LIKE-on-the-fly.
-    It is documented in CLAUDE.md, in the schema comment and in the technical documentation. Anything
-    that ever EDITS a customer name (US-16) must rewrite both folded columns in the same statement.
-  - `repository.create` is the only writer of the folded columns. Any new write path for names needs
-    the same two lines — that is why the columns are non-nullable with no default.
-  - The archive search reads `CUSTOMER_INCLUDE`, so a result carries the household, certificate and
-    card already; US-11.2's `draftFromArchived` can be built on `findById` without a new query.
-  - `searchArchived` takes the limit from the caller. US-11.4's screen should keep passing the use
-    case's constant rather than inventing its own.
-  - Result matches expose `formerCustomerNumber` deliberately — US-11.3/11.4 must show it for
-    recognition only and never as the number about to be assigned.
+  - No new domain error was needed: "nobody is waiting" is a RESULT, not a failure — an empty list is
+    the normal state of a waiting list, and a thrown error would make the banner's happy path a catch
+    block. Keep `WaitingListEmpty` out of `errors.ts`; `CertificateExpired` and `NoFreeCustomerNumber`
+    (US-002) are the genuine errors, and `NoFreeCustomerNumber` already exists in `errors.ts`.
+  - US-002 should build its `listWaiting` flags on `inArrivalOrder` + `isExpired` rather than sorting
+    in the repository; US-003's query may then order by `(addedOn, id)` for a stable page, but the
+    domain sort stays the authority.
+  - `docs/technical_documentation.md` carries BOTH a source tree listing (~line 115) and a per-module
+    section; a new domain module needs an entry in each, or the tree silently drifts.
+
 ---
-## 2026-07-27 09:00 — US-002 (draftFromArchived pre-fill)
 
-- Implemented `draftFromArchived(deps, { archivedCustomerId })` in
-  `src/application/customers/draft-from-archived.ts`: reads one archived record through
-  `customers.findById` and returns a `RegistrationDraft` of the applicant's name, birthdate, address
-  and household members — and nothing else. No clock, no audit log, no write of any kind.
-- What is left out is the story: no customer number (freed the day they were archived, FR-3), no
-  certificate (the paper the applicant holds today is a new one, FR-4), no group, card or reminder
-  count, and no notes (PRD §5 excludes them from the carry-over). A test asserts the draft's exact
-  key set, so a field that creeps in later has to be argued for.
-- Every value is copied, `Date` instances included: a form writes back into what it binds to, and a
-  shared `Date` is mutable, so the "editing the draft cannot alter the archived record" criterion is
-  only true of a deep copy. The test mutates the draft every way a form can — overwriting fields via
-  `Object.assign`, advancing dates with `setFullYear`, pushing a member — and asserts the stored row
-  is unchanged.
-- New domain error `CustomerNotArchived` (id + status): the archive search only lists archived rows,
-  so an id for an ACTIVE or BLOCKED household came from elsewhere, and pre-filling from it would walk
-  staff into registering a household that already holds a slot (FR-6).
-- Files: `src/application/customers/draft-from-archived.ts` (new), `src/domain/errors.ts`,
-  `src/application/customers/customers.test.ts` (new `draftFromArchived` describe, 7 tests),
-  `docs/technical_documentation.md` (new section + the layout listing + the error list).
-- Gates: lint, typecheck, `test:coverage` (670 tests, domain+application at 100%) and build all
-  green. No UI in this story, so nothing to verify in the browser.
+## 2026-07-27 14:20 — US-002 (waiting-list use cases)
 
+- Added the **entry bar** to the domain: `createWaitingListDetails(input, today)` in
+  `src/domain/customer/waitingList.ts` validates and trims an application the way
+  `createCustomerDetails` validates a registration (required name/address/certificate-type, birthdate
+  guarded through `composition`) and refuses an already-lapsed certificate with the new
+  `CertificateExpired`. TDD: five tests written and run red first.
+- New port `WaitingListRepository` (`listWaiting`, `findWaiting`, `add`, `remove`) plus
+  `NewWaitingListEntry` / `WaitingListEntry` in ports.ts. It has **no delete** — a removal stamps the
+  row (FR-7) — and it promises no ordering, because `inArrivalOrder` is the authority.
+- Five use cases in the new `src/application/waiting-list/`, 18 tests against hand-written fakes and
+  a fake clock: `addToWaitingList` (one clock read fixes both eligibility and queue place),
+  `listWaiting` (positions + expired flags, ordering from the domain), `removeFromWaitingList`
+  (reason required, row stamped, `waitingList.removed` audit entry), `promoteFromWaitingList` (a
+  pure read: draft + `certificateExpired` + the lowest free number, `NoFreeCustomerNumber` when the
+  register is full) and `registerFromWaitingList` (delegates to `registerCustomer`, then removes the
+  entry and logs `waitingList.promoted`).
+- Two new domain errors: `CertificateExpired` and `WaitingListEntryNotFound`.
+- Files changed: `src/domain/customer/waitingList.ts` + `.test.ts`, `src/domain/errors.ts`,
+  `src/application/ports.ts`, `src/application/waiting-list/{add-to,list,remove-from,promote-from,
+  register-from}-waiting-list.ts` (new), `src/application/waiting-list/waiting-list.test.ts` (new),
+  `docs/technical_documentation.md`, `scripts/ralph/prd.json`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (40 files, 723 tests, domain +
+  application 100%) and `npm run build` all green. No UI change, so no browser verification.
 - **Learnings for future iterations:**
-  - The draft deliberately does NOT carry `previousCustomerId`. US-003 must add the link itself —
-    the obvious shape is an optional `previousCustomerId` on `RegisterCustomerInput`, passed by the
-    screen from the archive match it already holds, plus the nullable self-referencing column.
-  - Deps that a use case does not have are still worth passing in tests as **witnesses** (the
-    `archiveCustomer` precedent, reused here): `deps()` returns an object with extra fields, and TS
-    excess-property checking does not apply because the call site passes a variable rather than a
-    fresh literal. That is how "creates nothing" becomes a behavioural assertion.
-  - `Object.assign(draft.address, {...})` mutates through a `readonly` interface without a cast —
-    handy for proving a returned value is a copy rather than a shared reference.
-  - Prettier reformats long `await expect(...).rejects.toThrow(...)` chains; run
-    `npx prettier --write` on the test file before `npm run lint` rather than after.
+  - The PRD's "the entry is removed only after the registration succeeds" is untestable if promotion
+    only returns a draft, so there IS a fifth use case — `registerFromWaitingList`. US-004's server
+    action must call it and NOT `registerCustomer` + a separate removal, or the ordering guarantee
+    moves into app/ where nothing tests it.
+  - `promoteFromWaitingList` takes an entry **id**, deliberately not the head of the queue: PRD §9
+    leaves "skip an expired applicant" open for FD to decide, and hard-refusing a non-head promotion
+    would close it. The order is carried by the list and the banner, so US-004 must offer
+    "Jetzt registrieren" on the head only.
+  - The promotion draft is NOT `RegistrationDraft`: it adds `certificate` (seen at join time and
+    re-checked) and `notes` (the contact note), and its `householdMembers` holds the applicant alone —
+    `registration-form.tsx:103` renders one empty row for a null draft but ZERO rows for an empty
+    array, so a draft with no members would open an unusable form.
+  - US-003 must give the Prisma model an ascending `id` (the tie-break) and index `addedOn`; the
+    active query filters `removedOn IS NULL`, which is what `listWaiting`/`findWaiting` mean by
+    "waiting". No `onDelete: Cascade` anywhere, and the entry references no Customer row at all.
+  - German for the UI is still to be written for US-004 — nothing in this story added a dictionary
+    entry, and the two machine-written removal reasons (`customerNumber=<n>`) are keys, not text to
+    display verbatim.
+
 ---
-## 2026-07-27 09:10 — US-003 (re-registration through the existing registerCustomer path)
 
-- No new use case, and that is the story: re-registration is `draftFromArchived` followed by
-  `registerCustomer`. `RegisterCustomerInput` gained an optional `previousCustomerId` and **nothing
-  branches on it** — a returning household takes the lowest free number, a card at index 1 with
-  reason FIRST_ISSUE, `reminderCount` 0 and the certificate presented today, exactly like a walk-in.
-  A parallel path would give the number allocation, the group balancing and the audit entry two
-  homes, and only one would be fixed the day a rule changed.
-- New `NewCustomer.previousCustomerId: number | null` (nullable, not optional, so every writer states
-  whether these people are known) and a nullable self-referencing `Customer.previousCustomerId`
-  column. Display metadata: no rule reads it. The audit entry appends `previousCustomerId` to
-  `changedFields` when a link is set — the log is the only account of why a second record for the
-  same people exists.
-- The archived predecessor is untouched: both the application test and the integration test compare
-  the whole predecessor row (status, number, cards, distributions) before and after and assert they
-  are identical, and one test seeds the situation where the old number has since been taken and
-  asserts a different number is assigned.
-- Files: `src/domain/customer/customer.ts`, `src/application/customers/register-customer.ts`,
-  `src/infrastructure/prisma/customer-repository.ts` (+ test), `src/infrastructure/prisma/schema.test.ts`,
-  `src/infrastructure/prisma/test-support.ts`, `prisma/schema.prisma` + regenerated init migration,
-  `src/application/customers/customers.test.ts` (new `re-registering…` describe, 11 tests) and the
-  five builders the new field forced. Docs: `docs/technical_documentation.md` (new US-11.3 section,
-  registerCustomer, the adapter, the schema listing and the teardown note).
-- Gates: lint, typecheck, `test:coverage` (690 tests, domain+application at 100%), build and
-  `test:e2e` (46 passed) all green. No UI in this story, so nothing to verify in the browser.
+## 2026-07-27 14:25 — US-003 (WaitingListEntry schema)
 
+- Added the Prisma model `WaitingListEntry`: name, birthdate, flat address, `contactNote String?`,
+  the flattened admitting certificate (`certificateType`, `certificateValidUntil`), `addedOn`, and
+  the retention pair `removedOn` / `removalReason`, with `@@index([addedOn])`. It has **no relation
+  to `Customer`** and no `position` column — the list is precisely the people who occupy no slot, and
+  a stored position is a position somebody can edit.
+- Regenerated the single init migration (pre-release, disposable) as
+  `prisma/migrations/20260727121530_init/`, re-appended the hand-written partial unique index from
+  the old one, then `npm run db:reset`.
+- New adapter `src/infrastructure/prisma/waiting-list-repository.ts` implementing
+  `WaitingListRepository`. `remove` is an `updateMany` scoped to `removedOn: null` — no statement in
+  the file deletes a row, and a second removal cannot overwrite the first reason. `STILL_WAITING` is
+  stated once and shared by `listWaiting` and `findWaiting`, so a promotion cannot register somebody
+  the screen had already removed. `listWaiting` orders by `(addedOn, id)` as a stable page; the
+  authority remains `inArrivalOrder`.
+- 13 integration tests against a throwaway SQLite file (Faker, seeded), test-after per the testing
+  approach: the round trip of the nested address/certificate, the empty note stored as SQL `null`,
+  arrival ordering, the same-day tie put through `inArrivalOrder`, a removal that stamps rather than
+  deletes, the second-removal no-op, and that an entry occupies no customer number. Plus a
+  `schema.test.ts` assertion that the migration creates the `addedOn` index.
+- Files changed: `prisma/schema.prisma`, `prisma/migrations/` (regenerated init),
+  `src/infrastructure/prisma/waiting-list-repository.ts` (new) + `.test.ts` (new),
+  `src/infrastructure/prisma/schema.test.ts`, `docs/technical_documentation.md`,
+  `scripts/ralph/prd.json`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (41 files, 737 tests, domain +
+  application at 100%) and `npm run build` all green. No UI change, so no browser verification.
 - **Learnings for future iterations:**
-  - **Prisma's default `onDelete` for an *optional* relation is `SetNull`, not `Restrict`.** The
-    schema test only greps `schema.prisma` for the words, so an omitted action passes it while the
-    generated SQL quietly nulls links on delete. Spell `onDelete: Restrict` out on every nullable
-    relation; `schema.test.ts` now also greps the migration SQL for `ON DELETE SET NULL`.
-  - A self-referencing FK breaks `clearRegister`: "children first" is not enough, because a customer
-    row can restrict the delete of another customer row. It now runs
-    `customer.updateMany({ data: { previousCustomerId: null } })` before `customer.deleteMany()`.
-  - SQLite reports a foreign-key violation as `P2003` with **empty `meta`** — unlike `P2002`, the
-    column cannot be read off the error. Attribution has to come from the write itself: in
-    `create`, every other FK points at the row being inserted, so a P2003 can only be the
-    predecessor link.
-  - Adding a field to `NewCustomer` ripples to six builders (2 `NewCustomer`, 4 `RegisteredCustomer`
-    literals across cards-due-for-reissue, certificate-reminder, lookup-customer and
-    record-attendance). The fakes' `create` spreads `...customer`, so they need no change — only the
-    literals do. `npm run typecheck` lists all of them in one pass; that is the cheapest way to find
-    them.
-  - US-004 (the UI) should pass `previousCustomerId` from the archive match the screen already holds,
-    and must show the former number for recognition only — `formerCustomerNumber` on the search
-    result, never the number about to be assigned.
+  - The adapter is written but **not wired**: no `deps.ts` names it yet, because `/warteliste` does
+    not exist. US-004 creates `src/app/warteliste/deps.ts` and is the first to construct
+    `new PrismaWaitingListRepository(prisma)` — the page needs `waitingList` + `clock`, and the
+    server actions additionally `audit`, plus everything `registerCustomer` takes for
+    `registerFromWaitingList` (customers, settings, cards).
+  - `orderBy` needs `[...IN_ARRIVAL_ORDER]` when the constant is `as const`: Prisma's input type is
+    mutable and a readonly tuple does not satisfy it. Same trick as `[...FIELDS]` in the use cases.
+  - The waiting list is deliberately absent from `clearRegister` (it references no customer); the e2e
+    suite wipes the whole database file anyway, so US-005 needs no teardown helper for it.
+  - `prisma/schema.prisma` is not Prettier-formattable (no parser) — leave it out of any
+    `npx prettier --write` list or the command exits non-zero.
+
 ---
-## 2026-07-27 09:40 — US-004 (archive search and pre-fill UI on the registration screen)
 
-- The registration screen gained an "Im Archiv suchen" panel above the form: last name, first name
-  and date of birth, a result list showing name, birthdate, address, household size, archive date,
-  the archive reason verbatim and the former customer number, and a "Daten übernehmen" button per
-  row that fills the form from `draftFromArchived`.
-- The panel is a **sibling** of the registration form, never nested in it — HTML forms do not nest,
-  and the search criteria are not part of the registration that gets saved. `registration-screen.tsx`
-  is the new client half holding the one thing the two share: which archived household was picked.
-- The pre-fill is applied by **remounting the form under a new `key`**, not by writing into fields.
-  The form keeps some values in `useState` and others as plain `defaultValue`s; a key change resets
-  both in one move, and it is also exactly what "Übernahme verwerfen und leer beginnen" has to mean —
-  no half-filled field left over from the household that was dropped.
-- The "this is a new customer" statement is a banner between the panel and the form, so it is read
-  before the form is: it names the household the data came from, the day they were archived and the
-  number they held, and says a new number and a new card (k1) are being issued and the archived
-  record stays untouched. In a result row the former number sits under a label that says *frühere*
-  with the "freed at archiving, possibly someone else's by now" sentence directly beneath it.
-- `previousCustomerId` travels from the picked match through a hidden input to `registerCustomer` —
-  absent rather than blank for a walk-in, and validated in `actions.ts` as digits only, because the
-  field is written by the screen and never typed.
-- Files: `src/app/kunden/neu/registration-screen.tsx`, `archive-search-panel.tsx`,
-  `archive-search-actions.ts`, `archive-search-state.ts` (all new), `registration-form.tsx`,
-  `actions.ts`, `page.tsx`, `src/i18n/de.ts` (`customers.archiveSearch` grown from two strings to the
-  whole panel), `docs/technical_documentation.md` (layout tree + four new presentation bullets).
-- Gates: lint, typecheck, `test:coverage` (690 tests, domain+application still 100%), build and
-  `test:e2e` (46 passed, no regression) all green. Verified in a real browser with a throwaway
-  Playwright spec — search, the diacritic fold (typing `mueller` finds `Müller`), selection,
-  pre-filled personal data / address / two household rows / derived counts, an edit of a pre-filled
-  field, the clear control, the empty-query refusal and the no-match message. The spec was deleted
-  afterwards because US-005 writes the durable one.
+## 2026-07-27 14:45 — US-004 (waiting-list screen at /warteliste)
 
+- Added `daysWaiting(entry, today)` to `src/domain/customer/waitingList.ts` (TDD, five tests run red
+  first) and exposed it on `WaitingListPlace`, so the screen states the wait rather than deriving it.
+  Calendar days via UTC-day reduction; an entry dated after today counts as 0, never negative.
+- Extracted the registration form's parsing into `src/app/kunden/neu/registration-input.ts` as its
+  own refactor commit — the Zod schema, the household pairing, `germanMessage`, `isoDay` and
+  `toPrefillDraft`, all of which `archive-search-actions.ts` and the new promotion action now share.
+- New route `/warteliste`: `page.tsx` (banner + list + add form, `force-dynamic`),
+  `add-applicant-form.tsx`, `remove-applicant-controls.tsx`, `free-slot-banner.tsx`, `actions.ts`,
+  `waiting-list-state.ts`, `deps.ts`. No sort or reorder control anywhere; the head is read off
+  position 1 rather than by asking `nextInLine` a second time.
+- New route `/warteliste/[entryId]/registrieren`: `promoteFromWaitingList` fills the ORDINARY
+  `RegistrationForm` (given a `submit` prop and a hidden `entryId`), and `promotion-screen.tsx` puts
+  the expired-certificate warning BEFORE the form as a step rather than a dialog. The action calls
+  `registerFromWaitingList` and nothing else.
+- The free-slot banner is rendered on the home screen too (PRD §6), and `/kunden/neu` now offers
+  "Stattdessen auf die Warteliste setzen" beside its full-register message — US-005 needs that link.
+- German: a whole `waitingList` section in `src/i18n/de.ts`, plus `home.waitingListLink` and
+  `customers.new.waitingListLink`. No German literal outside the dictionary.
+- Files changed: `src/domain/customer/waitingList.ts` + `.test.ts`,
+  `src/application/waiting-list/list-waiting.ts` + `waiting-list.test.ts`,
+  `src/app/warteliste/**` (new, 9 files), `src/app/kunden/neu/{registration-input.ts (new),
+  actions.ts, archive-search-actions.ts, archive-search-state.ts, registration-form.tsx}`,
+  `src/app/page.tsx`, `src/i18n/de.ts`, `docs/technical_documentation.md`, `scripts/ralph/prd.json`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (41 files, 743 tests, domain +
+  application at 100%), `npm run build` and `npm run format:check` all green. The full Playwright
+  suite (52 specs) still passes.
+- **Browser verification:** done, with a throwaway spec driven through the built app and then
+  deleted (US-005 writes the permanent one). Five flows checked with screenshots: the empty list; an
+  already-expired certificate refused by name and date; two applicants in arrival order with the
+  banner naming the first, on `/warteliste` and on `/`; the promotion form pre-filled with the
+  certificate, the contact note as Bemerkung and a one-row household, registering and leaving the
+  second applicant at the head; and a removal that needs a reason before it can be submitted. The
+  expired-at-the-head path was reached by pinning `data/e2e-now.txt` past the certificate's last day.
 - **Learnings for future iterations:**
-  - **A `key` change is the cheapest reset there is.** A form that mixes controlled and uncontrolled
-    fields cannot be cleared field by field without turning every field controlled; remounting it
-    resets both kinds and costs one `useState` counter. `useActionState`'s error message resets with
-    it, which for a fresh pre-fill is what you want anyway.
-  - **HTML forms do not nest.** Any panel with its own submit button that lives on a screen which is
-    already a form has to be a sibling, with the shared state lifted into a parent client component.
-    That is why `registration-screen.tsx` exists at all.
-  - **Convert `Date` to `YYYY-MM-DD` on the server** before a value crosses to a client component
-    that binds it to `<input type="date">`. Read in the browser's zone a midnight-UTC day lands on
-    the day before for anyone west of Greenwich. `germanDate` (i18n/format.ts) is for display; the
-    input needs the ISO day, and that helper lives in `archive-search-actions.ts`.
-  - A `"use server"` module may export only async functions — so `PrefillDraft`, the state interface
-    and the initial value all live in `archive-search-state.ts`, the same split every other screen
-    here uses (`*-state.ts` beside `actions.ts`).
-  - An imperative server-action call from a client component (`await loadArchivedDraft(id)` in an
-    `onClick`) works fine and needs no `useActionState`; use `onClick={() => void select(match)}` for
-    the floating promise. Track *which* row is loading (`loadingId`), not a global `pending` — with
-    twenty rows a global flag hides which one was clicked.
-  - Don't re-quote `MAX_ARCHIVE_SEARCH_RESULTS` in the UI: the "there are more" message takes the
-    number actually on screen, `matches.length`. Derive, don't restate.
-  - Playwright's browser locale renders `<input type="date">` as `mm/dd/yyyy`, but `.fill()` and
-    `toHaveValue()` both speak ISO — assert `"1985-02-11"`, not what the screenshot shows.
+  - US-005 has most of what it needs: `waiting-list-row`, `waiting-list-position`,
+    `waiting-list-applicant`, `waiting-list-days`, `waiting-list-expired-badge`,
+    `waiting-list-free-slot-detail`, `waiting-list-promote`, `waiting-list-add-submit`,
+    `waiting-list-add-error`, `waiting-list-add-saved`, `waiting-list-remove-{open,confirm,reason,
+    submit}`, `promotion-intro`, `promotion-expired-{warning,detail,continue}`, and
+    `registration-waiting-list-link` on a full `/kunden/neu`.
+  - The quota-to-waitlist step of US-005 is a LINK, not a redirect: `/kunden/neu` still renders its
+    form when the register is full (the submit button is disabled) and offers the way onto the list.
+    Assert the link, not a navigation.
+  - The two screens agree on the head because both read position 1 of `listWaiting`. If a third ever
+    needs it, read it the same way rather than calling `nextInLine` — one statement of the order.
+  - The promotion draft's household holds the applicant ALONE, so the promoted registration is a
+    one-person household unless staff add rows. An e2e assertion of the derived counts should expect
+    1 Erwachsene / 0 Kinder unless it adds a member.
+  - `data/fd.db` (the dev database) and `data/e2e.db` are separate; the e2e config deletes and
+    re-seeds its own before the server boots, so no waiting-list teardown helper is needed.
+
 ---
-## 2026-07-27 10:15 — US-005 (E2E: re-register a returning customer)
 
-- New Playwright spec `tests/e2e/reregistration.spec.ts` (6 tests): a RED household is registered
-  through the form, served on the pinned RED Thursday 08.01.2026, archived with a reason — and then
-  the number they gave up is handed to the **next** registration, under the same surname and still
-  active. Only then do they come back. That ordering is the story: a re-registration that tried to
-  restore the old number would pass a friendlier fixture and collide here (FR-3).
-- What it asserts: the archive search typed in CAPITALS finds them (the folded key decides, not the
-  stored spelling) while the active namesake is absent (FR-6); the pre-fill carries personal data,
-  address and both household rows with the counts derived again, and carries **no** certificate and
-  no former number into the proposal; a pre-filled field can be edited and the whole pre-fill
-  dropped back to a blank form; registering lands on a NEW record with a new number, `k1`, reminder
-  count 0, no distribution history and `previousCustomerId` pointing at the predecessor (read from
-  Prisma — no screen shows it). FR-5 is one equality: the predecessor's whole belongings snapshot
-  (status, number, household, certificate, cards, hand-outs) taken before the re-registration reads
-  it and compared afterwards, plus its one hand-out still there.
-- Files: `tests/e2e/reregistration.spec.ts` (new), `docs/technical_documentation.md` (layout listing
-  + the US-11 spec paragraph beside its neighbours).
-- Gates: lint, typecheck, `test:coverage` (690 tests, domain+application still 100%), build and
-  `test:e2e` (52 passed, 1 pre-existing skip) all green — the e2e run repeated against a freshly
-  deleted and re-seeded `data/e2e.db`, not only against a reused server.
+## 2026-07-27 15:20 — US-005 (E2E: full quota, waitlist, promotion)
 
+- Added `tests/e2e/waiting-list.spec.ts` (§US-12.5): five serial specs that drive the whole chain —
+  quota lowered to **2** on `/einstellungen`, both slots filled through the ordinary registration
+  form (numbers 1 and 2), a third registration met with no proposed number, the named limit and the
+  link onto the waiting list; two applicants added through the list's own form and asserted in
+  arrival order with no banner above them; the first household archived, which frees number 1 and
+  makes the banner name the applicant who joined first, on `/warteliste` **and** on `/`; that
+  applicant promoted from the banner into the pre-filled form and given exactly the freed number
+  with `1k1` on the card; and the second applicant moved up to position 1 with the register full
+  again. The removed entry is read straight from Prisma: still present, `removedOn` stamped,
+  `removalReason` = `customerNumber=1` — off the list without being deleted from it (FR-7).
+- **Split the e2e run into two projects** (`playwright.config.ts`). `chromium` keeps the shared
+  `data/e2e.db`; the new `isolated` project runs the waiting-list spec on port 3001 over its own
+  empty `data/e2e-isolated.db`. This was not a preference: on the shared database the register can
+  never be made full. The quota may not fall below the active customer count, and a dozen specs seed
+  customers on numbers 201–271, so every legal quota leaves the low numbers 8… free. The first
+  attempt (quota = active + 2, filling the two slots) failed exactly there — `/kunden/neu` proposed
+  number 8 instead of reporting a full register.
+- Files changed: `tests/e2e/waiting-list.spec.ts` (new), `playwright.config.ts`, `.gitignore`,
+  `docs/technical_documentation.md`, `docs/fd_dev_setup_overview.md`, `CONTRIBUTING.md`,
+  `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (41 files, 743 tests, domain +
+  application at 100%), `npm run build`, `npm run format:check` and `npm run test:e2e` (57 passed,
+  1 skipped) all green. No app code changed, so no browser verification beyond the suite itself.
 - **Learnings for future iterations:**
-  - **The pre-fill remounts the form, and Playwright cannot see it coming.** The first version of the
-    spec clicked "Daten übernehmen" and typed the certificate straight afterwards; the fill landed on
-    the node React was about to replace, the certificate arrived empty and the save never redirected.
-    A `selectMatch` helper now waits for the pre-fill banner before anything is typed. Any spec that
-    types into a form after a `key` change needs that wait.
-  - The exclusion assertion is only worth something if the excluded row is hard to exclude: both
-    households here share a surname, so the ACTIVE one is kept out of the search by the status filter
-    alone and nothing else.
-  - `belongings()` is the third copy of the same snapshot idiom (counter, reissue, archive, now this
-    one). Widen it with the schema: this version added `status`, `archiveReason`, `archivedAt` and
-    `previousCustomerId`, because the snapshot is taken *after* archiving and the link must never be
-    written backwards onto the predecessor.
-  - The spec consumes two customer numbers net and leaves one archived record on the first, so it
-    names no number of its own — every number is read off `proposed-number`, as its alphabetical
-    neighbours do.
-  - `pkill -f "next start"` in the Bash tool kills its own shell (the pattern matches the command
-    line); `pkill -f "next[ ]start"` is the way to stop a reused Playwright web server so the next
-    `npm run test:e2e` reseeds the database.
+  - Before writing an e2e spec that depends on a global figure (the quota, "the register is full",
+    the total of anything), check what the shared `data/e2e.db` already holds:
+    `node -e "…customer.findMany({select:{customerNumber:true,status:true}})"`. Numbers 201–271 are
+    seeded blocks belonging to counter/serve/reminders/reissue/age-13, and they make several
+    register-wide claims unreachable. The isolated project is the answer; joining it is two lines in
+    `ISOLATED_SPECS`.
+  - `settings.spec.ts` asserts `toHaveCount(3)` on the settings history, so any spec sharing that
+    database must not append a settings version. That alone rules out "set the quota, then set it
+    back" on the shared server.
+  - The still-skipped settings spec (`a quota below the active customer count is refused`) is now
+    reachable: the isolated project can register two households and then try a quota of 1. Left
+    alone here because it belongs to US-14, not to this story.
+  - CI needs no change — the job-level `DATABASE_URL` is only a default; each `webServer` entry sets
+    its own, and both servers share the one `npm run build`.
+
 ---

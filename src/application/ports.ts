@@ -15,6 +15,7 @@ import type {
   RegisteredCustomer,
 } from "@/domain/customer/customer";
 import type { GroupCounts } from "@/domain/customer/group";
+import type { WaitingListDetails } from "@/domain/customer/waitingList";
 import type {
   DistributionRecord,
   NewDistributionRecord,
@@ -155,6 +156,55 @@ export interface CustomerRepository {
    * logs and notes are all left where they are — nothing about a customer is ever hard-deleted.
    */
   archive(id: number, reason: string, archivedAt: Date): Promise<void>;
+}
+
+/**
+ * An application about to go on the waiting list: the validated details plus the instant they joined.
+ *
+ * `addedOn` is the whole of a place in the queue (US-12, FR-3) — there is no position column to keep
+ * in step and nothing to renumber when somebody is promoted or withdraws, because the order is
+ * derived from when people arrived (`inArrivalOrder`).
+ */
+export interface NewWaitingListEntry extends WaitingListDetails {
+  readonly addedOn: Date;
+}
+
+/**
+ * A persisted waiting-list entry. `id` is the surrogate key and, because rows are numbered as they
+ * are written, also the tie-break between two applicants added the same day — see
+ * `src/domain/customer/waitingList.ts`.
+ */
+export interface WaitingListEntry extends NewWaitingListEntry {
+  readonly id: number;
+}
+
+/**
+ * The waiting list (US-12).
+ *
+ * Entries are **retained, never deleted** (FR-7): a removal stamps the row so the order of past
+ * promotions stays reconstructable, which is what makes "first come, first served" a claim FD can
+ * still defend a year later. The store therefore has no `delete`, and everything it hands back is the
+ * *waiting* list — the removed rows are history, and no screen asks for them yet.
+ *
+ * It does not decide who is next. That is `nextInLine`'s, and the repository deliberately promises no
+ * ordering: a list of a handful of rows is sorted by the domain rule so that the screen, the banner
+ * and the promotion cannot each arrive at a different head.
+ */
+export interface WaitingListRepository {
+  /** Every applicant still waiting — the rows no removal has stamped. */
+  listWaiting(): Promise<ReadonlyArray<WaitingListEntry>>;
+  /** The applicant still waiting under this id, or `null` for an unknown or already-removed one. */
+  findWaiting(entryId: number): Promise<WaitingListEntry | null>;
+  /** Put an applicant on the list and hand the entry back with the id it was given. */
+  add(entry: NewWaitingListEntry): Promise<WaitingListEntry>;
+  /**
+   * Take an applicant off the list at `removedOn`, keeping the row and the reason it went.
+   *
+   * The reason is required because there are only two ways off this list — the applicant was
+   * registered, or they withdrew — and a row that cannot say which is a gap in the very ordering
+   * history the retention exists for.
+   */
+  remove(entryId: number, reason: string, removedOn: Date): Promise<void>;
 }
 
 /**

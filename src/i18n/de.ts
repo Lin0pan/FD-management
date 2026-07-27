@@ -19,6 +19,7 @@ export const de = {
     distributionLink: "Ausgabe: Welche Gruppe ist dran?",
     newCustomerLink: "Neue Kundin oder neuen Kunden aufnehmen",
     cardsDueLink: "Karten neu ausstellen",
+    waitingListLink: "Warteliste",
     /**
      * The badge beside that link (US-13.4). It states a number and nothing else — no colour, no
      * exclamation mark, no "offen": the list is a to-do list, and a home screen that looks alarmed
@@ -56,6 +57,12 @@ export const de = {
       memberRow: (position: number): string => `Haushaltsmitglied ${position}`,
       submit: "Aufnehmen",
       submitting: "Wird gespeichert …",
+      /**
+       * The way out of a full register (US-12.4). It stands beside the "alle Nummern sind vergeben"
+       * message because that message is otherwise a dead end, and turning an applicant away is
+       * exactly what the waiting list exists to prevent.
+       */
+      waitingListLink: "Stattdessen auf die Warteliste setzen",
     },
     fields: {
       firstName: "Vorname",
@@ -375,6 +382,112 @@ export const de = {
     action: "Karte neu ausstellen",
     customerLink: "Kundenakte öffnen",
     backToHome: "Zur Startseite",
+  },
+  /**
+   * The waiting list at /warteliste (US-12.4).
+   *
+   * The order is the feature, so the screen states it in words above the list and offers nothing that
+   * could change it — no column headings that invite a sort, no "nach vorne" anywhere (PRD §6). The
+   * only applicant ever offered a freed slot is the one at the top, and the banner names them rather
+   * than leaving staff to read the list and decide.
+   *
+   * An expired certificate is written as a fact and never as a verdict: the applicant keeps their
+   * place, and what is asked for is a renewed notice, not that they start waiting again.
+   */
+  waitingList: {
+    heading: "Warteliste",
+    intro:
+      "Wer aufgenommen werden möchte, obwohl alle Kundennummern vergeben sind, kommt auf diese " +
+      "Liste. Ein gültiger Bedarfsnachweis ist auch dafür Voraussetzung.",
+    /** Stated above the list, because it is the rule the list exists to keep. */
+    orderRule:
+      "Die Reihenfolge ist das Datum der Anmeldung — wer am längsten wartet, steht oben und ist " +
+      "als Nächstes an der Reihe. Die Liste lässt sich bewusst nicht umsortieren.",
+    empty: "Zurzeit steht niemand auf der Warteliste.",
+    position: "Platz",
+    addedOn: "Angemeldet am",
+    waited: "Wartet",
+    contactNote: "Erreichbarkeit",
+    /** German inflects the day at one; "heute" is friendlier than "0 Tage" and just as exact. */
+    waitedValue: (days: number): string => {
+      if (days === 0) {
+        return "seit heute";
+      }
+      return days === 1 ? "1 Tag" : `${days} Tage`;
+    },
+    /** The badge on a row whose certificate lapsed while the applicant waited (FR-5). */
+    certificateExpired: "Nachweis abgelaufen",
+    certificateExpiredHint:
+      "Der Platz auf der Liste bleibt bestehen. Vor der Aufnahme wird ein neuer Nachweis benötigt.",
+    backToHome: "Zur Startseite",
+    /**
+     * The "a slot is free" banner — the feature's whole value (PRD §6). It names one applicant and
+     * one number, because a banner that only said "es ist etwas frei" would leave the decision it
+     * exists to make to whoever happens to read it.
+     */
+    banner: {
+      heading: "Ein Platz ist frei",
+      names: (applicant: string, customerNumber: number): string =>
+        `Kundennummer ${customerNumber} ist frei. Am längsten wartet ${applicant}.`,
+      action: "Jetzt registrieren",
+      /** On the home screen, where the list itself is not on view. */
+      listLink: "Warteliste öffnen",
+    },
+    /** Putting somebody on the list. */
+    add: {
+      heading: "Auf die Warteliste setzen",
+      hint:
+        "Der Haushalt wird erst bei der Aufnahme erfasst. Hier genügen die Person, die Anschrift " +
+        "und der Bedarfsnachweis.",
+      contactNoteLabel: "Erreichbarkeit (optional)",
+      contactNoteHint:
+        "Freitext, zum Beispiel „über die Nachbarin, dienstags vormittags“. Telefonnummern und " +
+        "E-Mail-Adressen werden bewusst nicht erfasst.",
+      submit: "Auf die Warteliste setzen",
+      submitting: "Wird gespeichert …",
+      saved: (applicant: string): string => `${applicant} steht jetzt auf der Warteliste.`,
+    },
+    /** Taking somebody off the list before they were ever registered (FR-6). */
+    remove: {
+      action: "Von der Warteliste nehmen",
+      confirm: (applicant: string): string =>
+        `${applicant} wird von der Warteliste genommen. Der Eintrag bleibt mit dem Grund ` +
+        `erhalten, damit die Reihenfolge nachvollziehbar bleibt.`,
+      reasonLabel: "Grund",
+      reasonHint: "Zum Beispiel: zurückgezogen, umgezogen, nicht mehr erreichbar.",
+      submit: "Von der Warteliste nehmen",
+      submitting: "Wird entfernt …",
+    },
+    /** Registering the applicant a freed slot belongs to. */
+    promote: {
+      heading: "Von der Warteliste aufnehmen",
+      intro: (applicant: string, customerNumber: number): string =>
+        `${applicant} steht am längsten auf der Warteliste und erhält die Kundennummer ` +
+        `${customerNumber}. Die Angaben von der Warteliste sind vorausgefüllt und lassen sich hier ` +
+        `noch ändern.`,
+      /**
+       * Shown *before* the form when the certificate lapsed during the wait. It is a step, not a
+       * dialog: staff read it, then decide to go on — and the applicant is never sent away, because
+       * FD has not decided how such a case is handled (PRD §9).
+       */
+      expiredHeading: "Der Bedarfsnachweis ist abgelaufen",
+      expiredDetail: (validUntil: string): string =>
+        `Der bei der Anmeldung vorgelegte Nachweis galt bis zum ${validUntil}. Für die Aufnahme ` +
+        `wird ein aktueller Nachweis benötigt — bitte ihn vorlegen lassen und das Feld unten ` +
+        `entsprechend ändern.`,
+      expiredContinue: "Verstanden, jetzt aufnehmen",
+      backToList: "Zurück zur Warteliste",
+    },
+    errors: {
+      certificateExpired: (validUntil: string): string =>
+        `Der Bedarfsnachweis ist am ${validUntil} abgelaufen. Für die Warteliste wird — wie für ` +
+        `die Aufnahme — ein gültiger Nachweis benötigt.`,
+      missingReason: "Bitte einen Grund angeben.",
+      notFound: "Dieser Eintrag steht nicht mehr auf der Warteliste. Bitte die Seite neu laden.",
+      noFreeCustomerNumber:
+        "Zurzeit ist keine Kundennummer frei. Es kann niemand von der Warteliste aufgenommen werden.",
+      unknown: "Die Änderung konnte nicht gespeichert werden.",
+    },
   },
   /** The distribution screen at /ausgabe — which group collects, today and in any other week. */
   distribution: {

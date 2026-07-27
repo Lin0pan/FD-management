@@ -1,0 +1,95 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-11-reuse-archived-record",
+  "description": "US-11 Find and Reuse an Archived Record on Re-registration — Search the archive by name and date of birth and pre-fill the registration form. The returning applicant becomes a new customer with a new number; the archived record stays untouched.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Archive search by name and date of birth",
+      "description": "As a staff member, I want to find a returning applicant's archived record, so I do not retype a household FD already knows. Source: tasks/prd-us-11-reuse-archived-record.md §US-11.1",
+      "acceptanceCriteria": [
+        "searchArchivedCustomers(deps, {lastName?, firstName?, birthDate?}) requires at least one criterion and rejects an all-empty query with a typed error",
+        "Name matching is case-insensitive and diacritic-tolerant (Müller/Mueller); the chosen approach is documented — a normalised search column is acceptable",
+        "Only ARCHIVED customers are returned, ordered most recently archived first",
+        "Each result carries name, date of birth, address, household size, the number they held, and the archive date and reason",
+        "Results are capped at 20 with a German 'refine your search' message rather than pagination",
+        "Repository query is indexed on lastName and birthDate",
+        "Integration test with two archived people sharing a last name, and one active customer that must not appear",
+        "Migration committed under prisma/migrations/ if the schema changed",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "draftFromArchived pre-fill",
+      "description": "As a developer, I need a draft built from an archived record that creates and mutates nothing. Source: tasks/prd-us-11-reuse-archived-record.md §US-11.2",
+      "acceptanceCriteria": [
+        "draftFromArchived(deps, {archivedCustomerId}) returns personal data, address and household members",
+        "The draft carries no customer number, no group, no card, no reminder count and no certificate",
+        "Test asserts the call creates nothing and mutates nothing",
+        "Test asserts household members are copied as new values — editing the draft cannot alter the archived record",
+        "Tested against hand-written fakes",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Re-registration through the existing registerCustomer path",
+      "description": "As a staff member, I want a returning applicant registered as a new customer, so the old archived record stays intact. Source: tasks/prd-us-11-reuse-archived-record.md §US-11.3",
+      "acceptanceCriteria": [
+        "Registering from a draft goes through the existing registerCustomer use case — no parallel code path",
+        "Test seeds the situation where the old number is taken and asserts a different number is assigned",
+        "The new card index starts at 1 and the reminder count starts at 0, with the newly presented certificate recorded",
+        "Test asserts the archived record's status, number, cards and distribution records are unchanged before and after",
+        "A nullable self-referencing previousCustomerId is stored as display metadata that no rule ever reads",
+        "Migration committed under prisma/migrations/",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Archive search and pre-fill UI on the registration screen",
+      "description": "As a staff member, I want to search the archive during registration and pre-fill the form from a match. Source: tasks/prd-us-11-reuse-archived-record.md §US-11.4",
+      "acceptanceCriteria": [
+        "The registration screen has an 'Im Archiv suchen' panel taking last name, first name and date of birth",
+        "Results show name, birthdate, address, former number, archive date and reason",
+        "Selecting a result pre-fills the form with every field still editable, and the screen states clearly that a new number and a new card will be issued",
+        "A visible control clears the pre-fill and starts blank",
+        "The former number is shown for context but never presented as the number to be assigned",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "E2E: re-register a returning customer",
+      "description": "As a developer, I need a Playwright spec proving re-registration reuses data without touching the archived record. Source: tasks/prd-us-11-reuse-archived-record.md §US-11.5",
+      "acceptanceCriteria": [
+        "Spec registers a customer, archives them, then registers again via archive search",
+        "Spec asserts the household is pre-filled, the new number differs from the old one when the old one has since been taken, the card is k1 and the reminder count is 0",
+        "Spec asserts the archived record still exists with its own distribution history",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

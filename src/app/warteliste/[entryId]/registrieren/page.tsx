@@ -1,0 +1,110 @@
+/**
+ * Registering an applicant off the waiting list (tasks/prd-us-12-waiting-list.md §US-12.4).
+ *
+ * The page is a read and nothing more: `promoteFromWaitingList` says which slot has come free, fills
+ * a registration form in from the entry and reports whether the certificate outlived the wait. The
+ * applicant stays on the list until the form is actually saved — a registration can fail on its last
+ * field, and somebody removed a moment earlier would have lost the place they waited months for.
+ *
+ * Every field is editable, including the pre-filled ones. What arrives here is what the applicant
+ * said months ago; what is saved is what the person in front of staff confirms today.
+ */
+
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { proposeRegistration } from "@/application/customers/propose-registration";
+import { promoteFromWaitingList } from "@/application/waiting-list/promote-from-waiting-list";
+import { NoFreeCustomerNumber, WaitingListEntryNotFound } from "@/domain/errors";
+import { DomainError } from "@/domain/errors";
+import { de } from "@/i18n/de";
+import { germanDate } from "@/i18n/format";
+import type { PrefillDraft } from "@/app/kunden/neu/archive-search-state";
+import { isoDay, toPrefillDraft } from "@/app/kunden/neu/registration-input";
+import { waitingListDeps } from "../../deps";
+import { PromotionScreen } from "./promotion-screen";
+
+/**
+ * Which number is free and whether the certificate has lapsed are both answers about *today*, and
+ * both change without anything being written.
+ */
+export const dynamic = "force-dynamic";
+
+function Frame({ children }: { children: React.ReactNode }): React.ReactElement {
+  return (
+    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-8">
+      <h1 className="text-3xl font-semibold">{de.waitingList.promote.heading}</h1>
+      {children}
+      <Link href="/warteliste" className="underline underline-offset-4">
+        {de.waitingList.promote.backToList}
+      </Link>
+    </main>
+  );
+}
+
+export default async function PromoteApplicantPage({
+  params,
+}: {
+  params: Promise<{ entryId: string }>;
+}): Promise<React.ReactElement> {
+  const { entryId } = await params;
+  if (!/^\d+$/.test(entryId)) {
+    notFound();
+  }
+
+  let promotion;
+  try {
+    promotion = await promoteFromWaitingList(waitingListDeps, { entryId: Number(entryId) });
+  } catch (error: unknown) {
+    // An applicant who is no longer waiting is a stale link, not an error worth a page of its own.
+    if (error instanceof WaitingListEntryNotFound) {
+      notFound();
+    }
+    // The register filled up between the banner and the click. Nothing was written, and the
+    // applicant keeps their place — so the page says so and sends staff back to the list.
+    if (error instanceof NoFreeCustomerNumber) {
+      return (
+        <Frame>
+          <p data-testid="promotion-no-free-number" className="max-w-prose">
+            {de.waitingList.errors.noFreeCustomerNumber}
+          </p>
+        </Frame>
+      );
+    }
+    if (error instanceof DomainError && error.code === "NoSettingsInForce") {
+      return (
+        <Frame>
+          <p className="max-w-prose">{de.settings.errors.noSettings}</p>
+        </Frame>
+      );
+    }
+    throw error;
+  }
+
+  const proposal = await proposeRegistration(waitingListDeps);
+
+  // The certificate and the contact note are the two things a waiting-list draft carries that an
+  // archived one deliberately does not — both were written while the applicant waited, and both
+  // stay editable (US-12.2).
+  const draft: PrefillDraft = {
+    ...toPrefillDraft(promotion.draft),
+    certificateType: promotion.draft.certificate.type,
+    certificateValidUntil: isoDay(promotion.draft.certificate.validUntil),
+    notes: promotion.draft.notes,
+  };
+  const applicant = `${promotion.draft.firstName} ${promotion.draft.lastName}`;
+
+  return (
+    <Frame>
+      <p data-testid="promotion-intro" className="max-w-prose text-foreground/80">
+        {de.waitingList.promote.intro(applicant, promotion.customerNumber)}
+      </p>
+      <PromotionScreen
+        proposal={proposal}
+        draft={draft}
+        entryId={promotion.entryId}
+        certificateExpired={promotion.certificateExpired}
+        certificateValidUntil={germanDate(promotion.draft.certificate.validUntil)}
+      />
+    </Frame>
+  );
+}
