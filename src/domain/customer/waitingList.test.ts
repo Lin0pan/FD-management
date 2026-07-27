@@ -4,6 +4,7 @@ import { BirthDateInFuture, CertificateExpired, MissingRequiredField } from "../
 import type { NeedsCertificate } from "./customer";
 import {
   createWaitingListDetails,
+  daysWaiting,
   inArrivalOrder,
   nextInLine,
   type WaitingApplicant,
@@ -112,6 +113,30 @@ describe("inArrivalOrder", () => {
 
   it("orders an empty list into an empty list", () => {
     expect(inArrivalOrder([])).toEqual([]);
+  });
+});
+
+describe("daysWaiting", () => {
+  it("counts nothing on the day the applicant joined", () => {
+    expect(daysWaiting(applicant(1, at("2026-07-20", "08:30:00.000")), at("2026-07-20"))).toBe(0);
+  });
+
+  it("counts one day the day after they joined, whatever time of day either was", () => {
+    const joinedLate = applicant(1, at("2026-07-20", "23:50:00.000"));
+
+    expect(daysWaiting(joinedLate, at("2026-07-21", "00:10:00.000"))).toBe(1);
+  });
+
+  it("counts calendar days across a month boundary", () => {
+    expect(daysWaiting(applicant(1, at("2026-06-28")), at("2026-07-04"))).toBe(6);
+  });
+
+  it("counts the leap day as a day like any other", () => {
+    expect(daysWaiting(applicant(1, at("2028-02-28")), at("2028-03-01"))).toBe(2);
+  });
+
+  it("counts no wait at all for an entry dated after today rather than a negative one", () => {
+    expect(daysWaiting(applicant(1, at("2026-07-21")), at("2026-07-20"))).toBe(0);
   });
 });
 

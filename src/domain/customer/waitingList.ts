@@ -99,6 +99,34 @@ export function nextInLine<T extends WaitingApplicant>(
   };
 }
 
+const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * The instant of the UTC day a date falls on. A wait is counted in calendar days, not in elapsed
+ * hours: an applicant written down at half past four has waited a day by the following morning, and
+ * the number on screen must not depend on what time of day either end of it happened to be.
+ */
+function utcDay(date: Date): number {
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
+
+/**
+ * How many whole days the applicant has been waiting as of `today` — 0 on the day they joined.
+ *
+ * It is the one number on the waiting-list screen that says what the list costs the people on it, so
+ * it is derived here rather than counted by the page: two screens counting days apart is how the same
+ * applicant appears to have waited two different lengths of time.
+ *
+ * An entry dated after `today` counts as no wait rather than a negative one. Nobody has waited a
+ * negative number of days, and a screen that said so would be reporting a clock problem as a fact
+ * about the applicant.
+ */
+export function daysWaiting(entry: WaitingApplicant, today: Date): number {
+  // Both ends are midnight UTC, so the difference is an exact number of days — no rounding, and no
+  // daylight-saving hour to lose halfway through a long wait.
+  return Math.max(0, (utcDay(today) - utcDay(entry.addedOn)) / MILLIS_PER_DAY);
+}
+
 /**
  * What an applicant is asked for to join the list: who they are, where they live, how to reach them
  * and the certificate that entitles them (US-12, FR-2).
