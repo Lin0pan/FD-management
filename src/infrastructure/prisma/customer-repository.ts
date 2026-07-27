@@ -1,5 +1,10 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
-import type { CustomerCounter, CustomerRepository } from "@/application/ports";
+import type {
+  ArchivedCustomer,
+  ArchiveSearchQuery,
+  CustomerCounter,
+  CustomerRepository,
+} from "@/application/ports";
 import { parseCardIssueReason } from "@/domain/card/card";
 import {
   parseCustomerStatus,
@@ -8,7 +13,8 @@ import {
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
 import { parseGroup, type GroupCounts } from "@/domain/customer/group";
-import { CustomerNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
+import { foldName } from "@/domain/customer/nameSearch";
+import { CustomerNotFound, CustomerNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
 
 /**
  * Everyone who still holds a customer number.
@@ -59,6 +65,24 @@ function isCustomerNumberCollision(error: unknown): boolean {
     error.code === "P2002" &&
     JSON.stringify(error.meta ?? {}).includes("customerNumber")
   );
+}
+
+/**
+ * Whether a failed write was the self-referencing foreign key refusing a `previousCustomerId` that
+ * belongs to nobody (US-11.3).
+ *
+ * The link is display metadata the application deliberately does not verify — no rule reads it, and
+ * a lookup purely to check it would make it one. The database checks it for free; all that is left
+ * is to report the refusal as the domain's own `CustomerNotFound` rather than as a Prisma code.
+ *
+ * Unlike the unique-index collision above, the offending column cannot be read off the error:
+ * SQLite reports a foreign-key violation with no `meta` at all. It does not need to be — the
+ * customer, its members, its certificate and its card go out as one nested write, so every other
+ * foreign key in it points at the row being inserted. `previousCustomerId` is the only one that can
+ * name something that might not exist, and the caller checks that they supplied one.
+ */
+function isMissingPredecessor(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003";
 }
 
 /**
@@ -157,6 +181,62 @@ export class PrismaCustomerRepository implements CustomerRepository {
   }
 
   /**
+   * The archived households answering to what staff typed, most recently archived first (US-11.1).
+   *
+   * The name criteria are folded here, because only this layer knows the columns hold folded values;
+   * the folding itself is the domain's `foldName`, the same function that wrote them, so the query
+   * and the stored value can never mean two different things. `startsWith` on the folded column is a
+   * prefix match the `(lastNameFolded, birthDate)` index serves, which is why the fold is stored at
+   * all — SQLite could not do it in the `WHERE` clause.
+   *
+   * A criterion nobody filled in is left out of the `where` entirely rather than matched against the
+   * empty string; whether *no* criterion at all is acceptable is the use case's rule, and it refuses
+   * before reaching here.
+   */
+  async searchArchived(
+    query: ArchiveSearchQuery,
+    limit: number,
+  ): Promise<ReadonlyArray<ArchivedCustomer>> {
+    const rows = await this.prisma.customer.findMany({
+      where: {
+        status: "ARCHIVED",
+        ...(query.lastName === undefined
+          ? {}
+          : { lastNameFolded: { startsWith: foldName(query.lastName) } }),
+        ...(query.firstName === undefined
+          ? {}
+          : { firstNameFolded: { startsWith: foldName(query.firstName) } }),
+        ...(query.birthDate === undefined ? {} : { birthDate: query.birthDate }),
+      },
+      // Most recently archived first; the id breaks a same-instant tie the way "the later row wins"
+      // does elsewhere, so the order is total and two runs of the same search agree.
+      orderBy: [{ archivedAt: "desc" }, { id: "desc" }],
+      take: limit,
+      include: CUSTOMER_INCLUDE,
+    });
+    return rows.map((row) => this.toArchivedCustomer(row));
+  }
+
+  /**
+   * Map an archived row, narrowing the archive reason and instant to non-null.
+   *
+   * @throws {InvalidCustomerRecord} if either is missing. `archive` writes the status, the reason and
+   *   the instant in one statement, so an archived row without them can only come from a hand-edited
+   *   database — and a search result inventing a reason would be worse than refusing.
+   */
+  private toArchivedCustomer(row: CustomerRow): ArchivedCustomer {
+    const customer = this.toRegisteredCustomer(row);
+    const { archiveReason, archivedAt } = customer;
+    if (archiveReason === null || archivedAt === null) {
+      throw new InvalidCustomerRecord(
+        archiveReason === null ? "archiveReason" : "archivedAt",
+        String(row.id),
+      );
+    }
+    return { ...customer, archiveReason, archivedAt };
+  }
+
+  /**
    * Map a loaded row into the domain record, validating the stored `group` and `status` strings on
    * the way back in — a hand-edited row fails loudly rather than quietly becoming an active RED
    * household.
@@ -196,6 +276,7 @@ export class PrismaCustomerRepository implements CustomerRepository {
         countsAtIssue: { grownUps: card.grownUpsAtIssue, children: card.childrenAtIssue },
       },
       registeredOn: firstCard.issuedAt,
+      previousCustomerId: row.previousCustomerId,
       details: {
         firstName: row.firstName,
         lastName: row.lastName,
@@ -233,6 +314,10 @@ export class PrismaCustomerRepository implements CustomerRepository {
           customerNumber: customer.customerNumber,
           firstName: details.firstName,
           lastName: details.lastName,
+          // The search keys, derived from the names in the same statement that writes them, so the
+          // two cannot be written apart (US-11.1). A future edit of a name must do the same.
+          firstNameFolded: foldName(details.firstName),
+          lastNameFolded: foldName(details.lastName),
           birthDate: details.birthDate,
           street: details.address.street,
           houseNumber: details.address.houseNumber,
@@ -242,6 +327,10 @@ export class PrismaCustomerRepository implements CustomerRepository {
           status: customer.status,
           reminderCount: customer.reminderCount,
           notes: details.notes,
+          // Display metadata for a returning household (US-11.3), null for everyone else. Written
+          // like any other column: nothing is copied across the link, and the predecessor's row is
+          // not read, let alone touched.
+          previousCustomerId: customer.previousCustomerId,
           householdMembers: {
             create: details.householdMembers.map((member) => ({
               firstName: member.firstName,
@@ -284,6 +373,9 @@ export class PrismaCustomerRepository implements CustomerRepository {
     } catch (error: unknown) {
       if (isCustomerNumberCollision(error)) {
         throw new CustomerNumberTaken(customer.customerNumber);
+      }
+      if (isMissingPredecessor(error) && customer.previousCustomerId !== null) {
+        throw new CustomerNotFound(customer.previousCustomerId);
       }
       throw error;
     }

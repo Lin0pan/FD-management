@@ -3,6 +3,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { foldName } from "@/domain/customer/nameSearch";
 
 /**
  * Portions and price follow the household, driven through the built app
@@ -65,6 +66,8 @@ test("portions and price are derived from the household, not stored", async ({ p
       customerNumber: CUSTOMER_NUMBER,
       firstName,
       lastName,
+      firstNameFolded: foldName(firstName),
+      lastNameFolded: foldName(lastName),
       birthDate: utcMidnight(FIRST_GROWN_UP_BIRTH_DATE),
       street: faker.location.street(),
       houseNumber: faker.location.buildingNumber(),

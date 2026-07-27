@@ -10,6 +10,12 @@
  *
  * The form holds no other rules. Which number, which group and whether the household holds together
  * are all decided behind `registerCustomer`.
+ *
+ * It may arrive pre-filled from an archived record (US-11.4). The draft is read once, as the initial
+ * value of every field: the screen remounts the form when the selection changes, so there is no
+ * second source of truth to keep in step, and every pre-filled field is as editable as one that was
+ * typed. What the draft does *not* carry is as deliberate — no number, no group, no certificate —
+ * because those are decided afresh for a household that has come back.
  */
 
 import { useActionState, useState } from "react";
@@ -18,6 +24,7 @@ import { composition } from "@/domain/customer/householdComposition";
 import { GROUPS } from "@/domain/customer/group";
 import { de } from "@/i18n/de";
 import { submitRegistration } from "./actions";
+import type { PrefillDraft } from "./archive-search-state";
 import { initialRegisterCustomerState } from "./register-customer-state";
 
 const fieldClass = "w-full rounded border border-foreground/20 bg-transparent px-2 py-1";
@@ -91,24 +98,43 @@ function TextField({
   );
 }
 
+/** The household as the form starts out: the archived one if there is a draft, otherwise one blank row. */
+function initialRows(draft: PrefillDraft | null): ReadonlyArray<MemberRow> {
+  return draft === null ? [EMPTY_ROW] : draft.householdMembers.map((member) => ({ ...member }));
+}
+
 export function RegistrationForm({
   proposal,
+  draft = null,
+  previousCustomerId = null,
 }: {
   proposal: RegistrationProposal;
+  /** The archived household this form was filled from, or `null` for a walk-in registration. */
+  draft?: PrefillDraft | null;
+  /**
+   * The archived record the draft came from, carried through to `registerCustomer` as display
+   * metadata. No rule reads it — it is how a later screen can say why two records name the same
+   * people (tasks/prd-us-11-reuse-archived-record.md §FR-5).
+   */
+  previousCustomerId?: number | null;
 }): React.ReactElement {
   const [state, formAction, pending] = useActionState(
     submitRegistration,
     initialRegisterCustomerState,
   );
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [birthDate, setBirthDate] = useState("");
-  const [rows, setRows] = useState<ReadonlyArray<MemberRow>>([EMPTY_ROW]);
+  const [firstName, setFirstName] = useState(draft?.firstName ?? "");
+  const [lastName, setLastName] = useState(draft?.lastName ?? "");
+  const [birthDate, setBirthDate] = useState(draft?.birthDate ?? "");
+  const [rows, setRows] = useState<ReadonlyArray<MemberRow>>(initialRows(draft));
   // The first row mirrors the personal data until somebody edits it by hand: the registered person
   // *is* a household member, and typing their name twice is how a household ends up with a phantom
   // extra head. Once the row has been touched, it is theirs to keep.
-  const [mirrorFirstRow, setMirrorFirstRow] = useState(true);
+  //
+  // A pre-filled form never mirrors: the rows are the household as the archived record listed it,
+  // and there is no promise that the applicant is the first of them. Overwriting row one with the
+  // personal data would then drop a member and duplicate another.
+  const [mirrorFirstRow, setMirrorFirstRow] = useState(draft === null);
 
   const members: ReadonlyArray<MemberRow> =
     mirrorFirstRow && rows.length > 0
@@ -134,6 +160,11 @@ export function RegistrationForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-8">
+      {/* Absent rather than empty for a walk-in: the field is metadata about where these people
+          came from, and a blank string is not an answer to that. */}
+      {previousCustomerId === null ? null : (
+        <input type="hidden" name="previousCustomerId" value={previousCustomerId} />
+      )}
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold">{de.customers.new.personalHeading}</h2>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -168,7 +199,13 @@ export function RegistrationForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1">
             <span className="text-sm text-foreground/70">{de.customers.fields.street}</span>
-            <input className={fieldClass} type="text" name="street" id="street" defaultValue="" />
+            <input
+              className={fieldClass}
+              type="text"
+              name="street"
+              id="street"
+              defaultValue={draft?.street ?? ""}
+            />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-sm text-foreground/70">{de.customers.fields.houseNumber}</span>
@@ -177,16 +214,28 @@ export function RegistrationForm({
               type="text"
               name="houseNumber"
               id="houseNumber"
-              defaultValue=""
+              defaultValue={draft?.houseNumber ?? ""}
             />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-sm text-foreground/70">{de.customers.fields.zip}</span>
-            <input className={fieldClass} type="text" name="zip" id="zip" defaultValue="" />
+            <input
+              className={fieldClass}
+              type="text"
+              name="zip"
+              id="zip"
+              defaultValue={draft?.zip ?? ""}
+            />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-sm text-foreground/70">{de.customers.fields.city}</span>
-            <input className={fieldClass} type="text" name="city" id="city" defaultValue="" />
+            <input
+              className={fieldClass}
+              type="text"
+              name="city"
+              id="city"
+              defaultValue={draft?.city ?? ""}
+            />
           </label>
         </div>
       </section>

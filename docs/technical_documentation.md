@@ -80,8 +80,12 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   ├── archive-actions.ts    # "use server": Zod → archiveCustomer, revalidates both screens
 │   │   │   ├── archive-state.ts      # the archive form state (not exportable from an action module)
 │   │   │   ├── neu/                  # the registration screen
-│   │   │   │   ├── page.tsx          # server component: reads the proposal, renders the form
+│   │   │   │   ├── page.tsx          # server component: reads the proposal, renders the screen
+│   │   │   │   ├── registration-screen.tsx  # client: the archive panel, the pre-fill banner and the form (US-11.4)
 │   │   │   │   ├── registration-form.tsx  # client component: repeatable rows + live counts
+│   │   │   │   ├── archive-search-panel.tsx  # client: "Im Archiv suchen" + the result list (US-11.4)
+│   │   │   │   ├── archive-search-actions.ts # "use server": searchArchivedCustomers / draftFromArchived
+│   │   │   │   ├── archive-search-state.ts   # the panel's state + the draft as the form's strings
 │   │   │   │   ├── actions.ts        # "use server": Zod → registerCustomer → redirect
 │   │   │   │   └── register-customer-state.ts  # form state (not exportable from actions.ts)
 │   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on; hosts the block, reissue + archive controls
@@ -119,6 +123,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customer/customer.test.ts  # its Vitest spec
 │   │   ├── customer/certificate.ts    # certificate expiry as of a given day (US-06)
 │   │   ├── customer/certificate.test.ts  # its Vitest spec
+│   │   ├── customer/nameSearch.ts     # foldName — the comparable form of a name (US-11)
+│   │   ├── customer/nameSearch.test.ts  # its Vitest spec
 │   │   ├── card/card.ts              # what an issued card is + why it was issued
 │   │   ├── card/card.test.ts         # its Vitest spec
 │   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
@@ -147,6 +153,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   reissueCard (US-09, delegates to issueCard),
 │   │   │                             #   archiveCustomer (US-10, frees the slot),
 │   │   │                             #   countNoShows (US-10, the seam both read models use),
+│   │   │                             #   searchArchivedCustomers (US-11, the archive search),
+│   │   │                             #   draftFromArchived (US-11, the registration pre-fill),
 │   │   │                             #   listCardsDueForReissue (US-13, cards a birthday overtook)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
@@ -180,6 +188,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
 │   ├── reissue.spec.ts               # a lost card is replaced and stops working at the counter
 │   ├── reminders.spec.ts             # the reminder trail: three visits, three reminders, renewal
+│   ├── reregistration.spec.ts        # back from the archive: same household, new number and card
 │   ├── serve.spec.ts                 # record a hand-out, block a duplicate, store an unpaid one
 │   └── settings.spec.ts              # settings round-trip vs. the built app
 ├── eslint.config.mjs  .prettierrc.json  .prettierignore
@@ -344,7 +353,8 @@ The `DomainErrorCode` union — the closed set of failure modes — plus an abst
 class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
 `QuotaBelowActiveCustomers`, `MissingAuditReason`, `EmptyHousehold`, `BirthDateInFuture`,
 `NoFreeCustomerNumber`, `CustomerNumberTaken`, `CustomerNotFound`, `CustomerArchived`,
-`InvalidCustomerRecord`, `MissingRequiredField`, `InvalidCardNumber`, `CardIndexTaken`,
+`CustomerNotArchived`, `InvalidCustomerRecord`, `MissingRequiredField`, `InvalidCardNumber`,
+`CardIndexTaken`,
 `InvalidEuroAmount` today).
 Each carries the values that made it fail, so the UI can render a
 German message naming concrete numbers without re-deriving them, and callers switch on `code`
@@ -424,6 +434,29 @@ the limit FD has to raise or free.
 
 The function is advisory in the same sense as `suggestGroup`: the database's partial unique index is
 the final authority on whether the number was still free when the write landed (US-01.4).
+
+### `src/domain/customer/nameSearch.ts`
+
+`foldName(value)` is the comparable form of a name, and the whole of how the archive search matches
+one (US-11.1). Staff type the name they hear rather than the name that was stored — `Mueller` for
+`Müller`, `WEISS` for `Weiß`, `Sanchez` for `Sánchez` — and SQLite has neither `unaccent` nor a
+Unicode-aware `LIKE`, so the comparison cannot be made in the query.
+
+The fold lower-cases, then **spells German out the way Germans do without an umlaut key** (`ä → ae`,
+`ö → oe`, `ü → ue`, `ß → ss`), then drops any remaining diacritic, collapses whitespace and trims.
+The order matters: spelling out has to happen before stripping, or `ü` would already be `u` and
+`Mueller` would no longer match. Everything is composed to NFC first, so a `u` carrying a separate
+combining diaeresis folds like a single `ü`.
+
+It is deliberately **not** fuzzy matching — no Soundex, no edit distance (PRD §5). A search that
+guessed would put the wrong household's data into a registration form; the cost of a miss is that
+staff type the name again.
+
+Because the fold cannot run in SQL, its output is **stored** beside the names, in
+`Customer.firstNameFolded` / `lastNameFolded`, and indexed with the birthdate. That is the one
+derived value stored outside a card snapshot, and it is a search _key_ rather than a fact: nothing
+reads it as the household's name. The columns are non-nullable and have no default, so every writer
+has to state them — and the adapter derives both from the names in the same statement.
 
 ### `src/domain/customer/group.ts`
 
@@ -649,7 +682,14 @@ retried.
 
 The audit entry is written under `customer.registered` with an empty `why` — a registration needs no
 justification — and names `customerNumber`, `group`, `status` and `card`: what the _system_ decided,
-rather than repeating the fields staff typed, which are the record itself.
+rather than repeating the fields staff typed, which are the record itself. A re-registration adds
+`previousCustomerId` to that list, so the log accounts for why a second record for the same people
+exists.
+
+`previousCustomerId` is the **only** thing about a re-registration that differs from a walk-in
+(US-11.3). It is optional on the input, stored as `null` when absent, and nothing branches on it: a
+returning household still takes the lowest free number, still starts at card index 1 and still has a
+reminder count of zero. There is no second registration path, which is the point — see below.
 
 ### `src/application/customers/issueCard`
 
@@ -852,6 +892,91 @@ signature: `customers.test.ts` snapshots everything the household owns before an
 and compares the two, and asserts that the freed number is what `lowestFreeNumber` offers next.
 There is no un-archive; a returning household is registered anew (FR-7, US-11).
 
+### `src/application/customers/searchArchivedCustomers`
+
+The first half of re-registering someone who has been here before (US-11.1). `searchArchivedCustomers
+(deps, { lastName?, firstName?, birthDate? })` returns `{ matches, truncated }` — archived households
+only, most recently archived first.
+
+It is a **read with no clock and no audit log**: nothing changes, and household _size_ is the number
+of people on the record rather than a count of grown-ups and children, so nothing here depends on the
+day it is asked. Names are trimmed before they count, so a stray space is not a criterion; a search
+with every criterion blank is refused as `EmptySearchQuery` rather than answered with the whole
+archive, because a list staff scroll through is a list they pre-fill a registration from the wrong row
+of.
+
+The cap is `MAX_ARCHIVE_SEARCH_RESULTS = 20` and there is **no paging**: the use case asks the
+repository for twenty-one rows, shows twenty and reports `truncated`, which the screen turns into
+"please narrow the search". A count of the remainder would only invite staff to page towards it.
+
+Each match carries what tells two people of the same name apart — name, birthdate, address, household
+size — plus `formerCustomerNumber`, the archive date and the reason. The former number is for
+recognition only: the slot was freed when they left and may already be someone else's, so
+re-registration allocates a number afresh (US-11.3, FR-3). Only `customerId` is followed up on; the
+pre-fill reads the record by it (US-11.2).
+
+### `src/application/customers/draftFromArchived`
+
+The second half of the pre-fill (US-11.2). `draftFromArchived(deps, { archivedCustomerId })` reads
+one archived record by id and returns a `RegistrationDraft`: the applicant's name and birthdate, the
+address, and the household members. Nothing else.
+
+It **creates nothing and mutates nothing** — no clock, no audit log, no write of any kind — and the
+tests state that as behaviour rather than reading it off the signature: a card store, a distribution
+history and an audit log are handed in as witnesses, and the whole register is compared before and
+after. The draft is not a reservation and not a half-created customer; discarding it leaves nothing
+behind, and registering it goes through the ordinary `registerCustomer` path (US-11.3).
+
+Everything left out is left out for a reason. The **customer number** was freed the day the household
+was archived and may be someone else's by now (FR-3); the **certificate** is the paper the applicant
+is holding today, and copying the lapsed one forward would record a proof of need nobody has seen
+(FR-4); the **group, card and reminder count** are registration's to decide; and the **notes** are a
+remark about a household two years ago, not about this registration (PRD §5). A test asserts the
+draft's key set, so a field that creeps in later has to be argued for.
+
+Every value is **copied, not shared**. `Date` is mutable and a form writes back into what it is bound
+to, so a shared birthdate would let editing the draft reach into the archived record; the test mutates
+the draft in every way a form can — overwriting fields, advancing dates, pushing a member — and
+asserts the stored record is unchanged.
+
+An id that belongs to nobody is `CustomerNotFound`; an id that belongs to a household **still on the
+register** is `CustomerNotArchived`. The archive search only lists archived rows, so the second is
+reached by an id from elsewhere — and pre-filling from an active record would walk staff into
+registering a household that already holds a slot (FR-6).
+
+### Re-registering a returning household (US-11.3)
+
+There is **no `reRegisterCustomer` use case**, and that is the design. Re-registration is
+`draftFromArchived` followed by `registerCustomer`: the screen pre-fills the form from an archived
+record, staff correct what has changed and add the certificate the applicant is holding today, and
+the form is submitted through the one registration path there is. A parallel path would give the
+number allocation, the group balancing, the first card and the audit entry two homes, and only one
+of them would be fixed the day a rule changed.
+
+What comes out is a **new customer**, not the old one brought back:
+
+- a new surrogate id, and a **newly allocated lowest free number** — the old slot was released the
+  day the household was archived and may be someone else's by now (FR-3), so nothing assumes they
+  get it back;
+- a card at **index 1** with reason `FIRST_ISSUE`, printing the counts of the household as it stands
+  today;
+- a **reminder count of 0**, and the certificate presented today recorded as the first row of a
+  fresh trail (FR-4);
+- `registeredOn` = today, because it is derived from the first card.
+
+The archived record is **untouched** — status, number, cards and distribution history all exactly as
+archiving left them (FR-5). Both application and integration tests compare the whole predecessor row
+before and after and assert the two are identical; the archived household keeps showing the number it
+held, while the returning one holds whichever number was free.
+
+The new record carries `previousCustomerId`, a nullable self-reference to the archived predecessor.
+It is **display metadata and nothing else**: no rule reads it, nothing is carried across it, and it
+exists so that a future "history of this household" view is additive (PRD §7). Because the
+application deliberately does not verify it — a lookup purely to check it would make it a rule — the
+foreign key does: a link to an id nobody holds is refused by the database, and the adapter reports it
+as the domain's `CustomerNotFound`. Like every other relation it is `onDelete: Restrict`, so a
+household with a successor cannot be deleted any more than one with cards can.
+
 ### `src/application/customers/countNoShows`
 
 The seam both screens that show the no-show count read (US-10.4), so the customer record and the
@@ -887,8 +1012,12 @@ number — and stating that condition twice is how a number gets handed out twic
 `create` writes the customer, the household members, the certificate and the first card as **one
 nested Prisma create**, which Prisma runs in a single transaction — a failure leaves neither a
 half-built household nor a consumed number. A `P2002` naming `customerNumber` is translated into the
-domain's `CustomerNumberTaken`, which is what lets `registerCustomer` retry with a fresh read; any
-other failure is rethrown as itself. `setStatus(id, status, blockReason)` is the one write behind
+domain's `CustomerNumberTaken`, which is what lets `registerCustomer` retry with a fresh read, and a
+`P2003` — the only foreign key in the nested write that can name a row which might not exist — into
+`CustomerNotFound` for the `previousCustomerId` the caller supplied (US-11.3); any other failure is
+rethrown as itself. SQLite reports a foreign-key violation with no `meta`, so the column cannot be
+read off the error: every other key in that write points at the row being inserted, which is what
+makes the attribution safe. `setStatus(id, status, blockReason)` is the one write behind
 `blockCustomer` / `unblockCustomer`: it updates the `status` and `blockReason` columns together, so
 the reason a blocked customer carries can never disagree with their status.
 
@@ -896,6 +1025,18 @@ the reason a blocked customer carries can never disagree with their status.
 and instant in a single statement, with any block reason cleared alongside them. It is a plain
 `WHERE id` update and nothing more — no related row is touched and the customer number stays put,
 because freeing the slot is entirely the partial unique index's doing.
+
+`searchArchived(query, limit)` is the archive search's read (US-11.1). It filters `status =
+'ARCHIVED'` — an active household turning up would invite a second registration of someone who
+already holds a slot — and orders by `archivedAt DESC, id DESC`, the id breaking a same-instant tie
+so two runs of the same search agree. The name criteria are folded **here**, with the domain's
+`foldName`, because only this layer knows the columns hold folded values; the query is then a
+`startsWith` on `lastNameFolded` / `firstNameFolded`, a prefix match the
+`(lastNameFolded, birthDate)` index serves. A criterion nobody filled in is left out of the `where`
+entirely rather than matched against the empty string. The rows come back as `ArchivedCustomer`,
+whose archive reason and instant are narrowed to non-null: `archive` writes both with the status in
+one statement, so a row without them is a hand-edited database and is refused as an
+`InvalidCustomerRecord` rather than displayed with a blank reason.
 
 The **partial unique index** the adapter relies on is not in `schema.prisma` — Prisma has no syntax
 for one — but hand-written at the end of the `init` migration:
@@ -1028,7 +1169,34 @@ beyond it:
   the save derives. There is no input control for the counts by design.
   The first household row **mirrors the personal-data fields** until somebody edits it: the
   registered person _is_ a household member, and typing their name twice is how a household ends up
-  with a phantom extra head.
+  with a phantom extra head. A form pre-filled from the archive (US-11.4) **never** mirrors: its rows
+  are the household as the archived record listed it, and there is no promise the applicant is the
+  first of them, so overwriting row one would drop a member and duplicate another. The optional
+  `previousCustomerId` travels as a hidden input — absent, not blank, for a walk-in — and reaches
+  `registerCustomer` as the display metadata it is.
+- **`neu/registration-screen.tsx`** is the client half of the screen and holds the one piece of
+  state the archive search and the form share: which archived household, if any, the form was filled
+  from (US-11.4). The pre-fill is applied by **remounting the form under a new `key`** rather than by
+  writing into its fields — the form holds some values in React state and others as plain
+  `defaultValue`s, and a key change resets both in one move. That is also what "leer beginnen" means:
+  clearing the selection mounts a blank form, with no half-filled field left over from the household
+  that was dropped. Between the panel and the form it renders the banner that says, before the form
+  is read at all, that a **new** number and a **new** card (`k1`) are being issued and the archived
+  record stays untouched — the one mistake this feature could otherwise produce is a staff member
+  believing the old record was reactivated (PRD §6).
+- **`neu/archive-search-panel.tsx`** is a **sibling** of the registration form, never nested in it:
+  HTML forms do not nest, and the search criteria are not part of the registration that gets saved.
+  Searching is a `useActionState` form; picking a result is an ordinary button that awaits
+  `loadArchivedDraft` and hands the draft upwards through `onSelect`. Each row shows the former
+  customer number under a label that says _frühere_, with the sentence explaining that the number was
+  freed at archiving directly beneath it — it is there for recognition and is never the number about
+  to be assigned (FR-3). The archive reason is rendered `whitespace-pre-line`, verbatim, for the same
+  reason the counter does: it was typed by hand and may be exactly what staff need to read.
+- **`neu/archive-search-actions.ts`** holds two **reads** and writes nothing, so no audit entry is
+  due. It converts the draft's `Date`s to `YYYY-MM-DD` **on the server** (`PrefillDraft`), so a
+  calendar day never crosses to the browser as an instant to be re-read in the browser's own zone —
+  which is how a birthdate lands on the day before. `MAX_ARCHIVE_SEARCH_RESULTS` is not re-quoted
+  here: the "there are more" message is given `matches.length`, the number actually on screen.
 - **`neu/actions.ts`** pairs the repeated household inputs back into rows. The three fields arrive as
   three parallel lists, so the row count is the **longest** of them — a row whose birthdate was left
   blank must reach the domain and be rejected there rather than vanishing on the way. `redirect()`
@@ -1285,6 +1453,16 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   compare today's derivation against. They are written once, never updated. `Certificate` rows are **appended, never
   overwritten** (US-06.3): a renewal stacks a new row stamped `recordedAt`, the certificate on file
   is the latest by that instant, and the trail behind it says when each renewal was brought.
+  `Customer.firstNameFolded` / `lastNameFolded` are the archive search's keys (US-11.1): the names as
+  `foldName` compares them, written beside the names they come from and indexed with `birthDate`,
+  because SQLite can fold neither umlauts nor Unicode case in a `WHERE` clause. They are a search key
+  and never a name — nothing displays them — and they are non-nullable with no default so that every
+  writer, including a future edit of a name (US-16), has to state them.
+  `Customer.previousCustomerId` is a nullable **self-reference** to the archived record a
+  registration was pre-filled from (US-11.3) — display metadata no rule reads, never a merge. Like
+  every other relation it is `onDelete: Restrict`; note that Prisma's default for an _optional_
+  relation is `SetNull`, so the action has to be spelled out, and `schema.test.ts` checks the
+  generated SQL for `ON DELETE SET NULL` as well as for cascades.
 - `ReminderLog` is the documented trail an expired certificate starts at the counter (US-06). One
   row per reminder, keyed by the Berlin day `loggedOn` (`YYYY-MM-DD`, written by the domain's
   `berlinDayKey` like `DistributionRecord.dayKey`); the unique `(customerId, loggedOn)` index is
@@ -1310,7 +1488,9 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   guards the rule against the schema _and_ the committed migration SQL; the customer repository
   specs prove the refusal against a real database. The cost is that a test tearing the register down
   must delete children first — `clearRegister` in `src/infrastructure/prisma/test-support.ts` states
-  that order once.
+  that order once, and clears `previousCustomerId` before the customers themselves, since a
+  re-registered household restricts the delete of the archived record it points at just as a card
+  does.
 - **The slot rule is a partial unique index**, hand-written at the end of the `init` migration
   because Prisma cannot express one: at most one non-archived customer may hold a given
   `customerNumber`, so any number of archived rows may share one. See
@@ -1503,6 +1683,25 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   state plus the audit-entry count, and everything it owns — and the same "belongings" snapshot is
   compared either side of the successful archive, which is how "nothing is deleted" is proved rather
   than asserted field by field.
+- `reregistration.spec.ts` covers US-11 end to end (§US-11.5): a household that was archived
+  coming back, which is the one claim about re-registration no unit gate can reach — it spans two
+  customer records, three screens and the allocator in between. Like `archive.spec.ts` it **registers
+  through the form** rather than inserting rows, because the number moving on is only observable if
+  the allocator handed it out. It registers a RED household, serves them on the pinned RED Thursday
+  08.01.2026 (that hand-out is the history the archived record has to keep once the same people hold
+  a second record) and archives them with a reason — then deliberately arranges the awkward case:
+  **the next registration is given the number they gave up**, under the same surname and still
+  active. A re-registration that quietly restored the old number would pass a friendlier fixture and
+  collide here. The archive search, typed in capitals so the folded key rather than the stored name
+  decides the match, then finds the archived household and _not_ the active namesake (FR-6); the
+  selection pre-fills personal data, address and both household rows with the counts derived again,
+  carries no certificate and no former number into the proposal, survives an edit, and can be dropped
+  back to a blank form. Registering from the pre-fill lands on a **new** record with a new number,
+  `k1`, reminder count 0, no distribution history and `previousCustomerId` pointing at the
+  predecessor — read from Prisma, because it is display metadata no screen shows. FR-5 is one
+  equality: the predecessor's whole belongings snapshot (status, number, household, certificate,
+  cards and hand-outs) is taken before the re-registration reads it and compared afterwards. Pinned-now
+  file deleted in `afterAll`, like its neighbours.
 - `age-13.spec.ts` covers US-13 end to end (§US-13.5): that the reclassification at 13 is
   **automatic**. One household (customer number 271) is seeded with a grown-up and a child born
   15.01.2013, and a card printed `1 / 1` — true on the day it was issued. The spec pins today to the

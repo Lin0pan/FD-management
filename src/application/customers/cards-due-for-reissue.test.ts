@@ -9,7 +9,7 @@ import {
 } from "@/domain/customer/customer";
 import type { GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
-import type { Clock, CustomerRepository } from "../ports";
+import type { ArchivedCustomer, Clock, CustomerRepository } from "../ports";
 import { countCardsDueForReissue, listCardsDueForReissue } from "./cards-due-for-reissue";
 
 /**
@@ -98,6 +98,15 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve(registered);
   }
 
+  /**
+   * No use case in this file searches the archive (US-11.1); the method is here because the port has
+   * it. Answering with nothing is honest — this register holds no archived household these tests
+   * ever look for.
+   */
+  searchArchived(): Promise<ReadonlyArray<ArchivedCustomer>> {
+    return Promise.resolve([]);
+  }
+
   setStatus(): Promise<void> {
     this.writes += 1;
     return Promise.resolve();
@@ -164,6 +173,7 @@ function household({
       countsAtIssue: printed ?? composition(details.householdMembers, new Date(TODAY)),
     },
     registeredOn: new Date(TODAY),
+    previousCustomerId: null,
   };
 }
 

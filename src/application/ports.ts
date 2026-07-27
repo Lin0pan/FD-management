@@ -42,6 +42,34 @@ export interface CustomerCounter {
 }
 
 /**
+ * A customer known to have left the register — a {@link RegisteredCustomer} whose archive reason and
+ * date are narrowed to non-null.
+ *
+ * The pair is non-null *exactly* while the status is `ARCHIVED`, but nothing in the type system says
+ * so, and the archive search would otherwise hand its callers two fields they must either re-check or
+ * assert away. The adapter loads only archived rows, so it is the one place that can make the
+ * narrowing honestly — and a row that arrives without its reason is a hand-edited database, which it
+ * refuses rather than displays.
+ */
+export interface ArchivedCustomer extends RegisteredCustomer {
+  readonly archiveReason: string;
+  readonly archivedAt: Date;
+}
+
+/**
+ * What staff typed into the archive search (US-11.1). Every criterion is optional on its own; that at
+ * least one of them is given is the use case's rule, not the repository's.
+ *
+ * The names arrive **unfolded**, as typed. Folding them for comparison is the adapter's job, because
+ * only the adapter knows they are stored folded — see `src/domain/customer/nameSearch.ts`.
+ */
+export interface ArchiveSearchQuery {
+  readonly lastName?: string;
+  readonly firstName?: string;
+  readonly birthDate?: Date;
+}
+
+/**
  * The customer register.
  *
  * `create` is **one transaction**: the customer, their household members, the certificate and the
@@ -82,6 +110,24 @@ export interface CustomerRepository {
    * the filtering it feeds cannot be pushed into SQL at all.
    */
   listWithStatus(status: CustomerStatus): Promise<ReadonlyArray<RegisteredCustomer>>;
+  /**
+   * The **archived** customers matching every criterion given, most recently archived first, at most
+   * `limit` of them (US-11.1).
+   *
+   * Only archived rows are ever returned: this search exists to re-register someone who has left, and
+   * an active household turning up in it would invite a second registration of a customer who already
+   * holds a slot (FR-6). Names match on a prefix of the folded value, so `mueller` finds `Müller` and
+   * `Muell` finds them both — the fold is `foldName`'s and the index is on the folded column, so the
+   * comparison the database makes is the same one the domain defines.
+   *
+   * `limit` is the caller's, because "how many results are too many to read" is a decision of the
+   * screen rather than of the store; a caller that wants to know whether there were more asks for one
+   * beyond what it will show.
+   */
+  searchArchived(
+    query: ArchiveSearchQuery,
+    limit: number,
+  ): Promise<ReadonlyArray<ArchivedCustomer>>;
   /**
    * Persist a new customer with everything that belongs to them.
    *

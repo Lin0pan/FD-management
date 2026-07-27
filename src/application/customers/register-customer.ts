@@ -6,6 +6,11 @@
  * staff can forget (tasks/prd-us-01-register-customer.md §7). Everything the form does not ask for
  * is decided here rather than typed: the number, the suggested group, the status and the reminder
  * count. Nothing derivable is stored, so no household count is written anywhere.
+ *
+ * It is also the **only** registration path, which is what makes re-registering a returning
+ * household (US-11.3) a matter of where the form's values came from rather than of different code:
+ * a draft built from an archived record is registered through here like anything staff typed, and
+ * comes out a new customer with a new number and a card at index 1.
  */
 
 import { CustomerNumberTaken } from "@/domain/errors";
@@ -34,6 +39,15 @@ const CUSTOMER_REGISTERED = "customer.registered";
 const REGISTERED_FIELDS = ["customerNumber", "group", "status", "card"] as const;
 
 /**
+ * Named alongside them when the registration was pre-filled from an archived record (US-11.3).
+ *
+ * The link is metadata no rule reads, but *that a returning household was registered* is a decision
+ * worth reading back: the log is the only account the system keeps of why a second record for the
+ * same people exists, and without it the two rows look like a duplicate somebody failed to notice.
+ */
+const RE_REGISTERED_FIELD = "previousCustomerId";
+
+/**
  * How often a lost race for a customer number is retried before the failure reaches the caller.
  *
  * With four users the race is rare but real: two registrations can read the same free slot before
@@ -58,6 +72,16 @@ export interface RegisterCustomerInput extends CustomerDetailsInput {
    * with a neighbour belongs in the neighbour's week. Left out, the smaller group is suggested.
    */
   readonly group?: Group;
+  /**
+   * The archived record this form was pre-filled from (US-11.3), left out for a walk-in.
+   *
+   * Passing it changes **nothing** about the registration: the household still gets the lowest free
+   * number, a fresh card at index 1 and a reminder count of zero, exactly as if they had never been
+   * here before. It is stored so that a later screen can show the history, and there is no branch on
+   * it anywhere — a re-registration that took a different path would be the merge US-11 rules out
+   * (tasks/prd-us-11-reuse-archived-record.md §FR-5).
+   */
+  readonly previousCustomerId?: number;
 }
 
 /**
@@ -83,6 +107,13 @@ export async function registerCustomer(
   // takes, because a first card and a replacement are the same object (US-13.3). Derived, not stored:
   // the record itself still carries no count.
   const countsAtIssue = composition(details.householdMembers, now);
+  // Absent is stored as null rather than left off, so the record always states whether these people
+  // are known to FD — see `NewCustomer.previousCustomerId`.
+  const previousCustomerId = input.previousCustomerId ?? null;
+  const changedFields =
+    previousCustomerId === null
+      ? [...REGISTERED_FIELDS]
+      : [...REGISTERED_FIELDS, RE_REGISTERED_FIELD];
 
   let attemptsLeft = MAX_ATTEMPTS;
   for (;;) {
@@ -98,10 +129,11 @@ export async function registerCustomer(
         status: "ACTIVE",
         reminderCount: 0,
         card: { index: 1, issuedAt: now, reason: "FIRST_ISSUE", countsAtIssue },
+        previousCustomerId,
       });
       await deps.audit.append({
         what: CUSTOMER_REGISTERED,
-        changedFields: [...REGISTERED_FIELDS],
+        changedFields,
         when: now,
         why: "",
       });

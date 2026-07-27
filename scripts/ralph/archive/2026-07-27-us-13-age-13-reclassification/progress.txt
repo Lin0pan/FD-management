@@ -1,0 +1,386 @@
+# Ralph Progress Log
+Started: Sun Jul 26 21:32:21 CEST 2026
+---
+
+## Codebase Patterns
+(Carried forward by hand from the US-10 log — the archive rotation wipes this file, so the patterns
+block has to be pasted into the fresh one. The other durable channel is the CLAUDE.md files.)
+- Adding a method to a port interface (e.g. CustomerRepository) forces EVERY implementer to compile:
+  the real Prisma adapter AND the hand-written fakes, which live in several test files —
+  customers.test.ts, certificate-reminder.test.ts, lookup-customer.test.ts and
+  distribution/record-attendance.test.ts. `grep -rln "implements <Port>" src/` before you start.
+  Miss one and typecheck fails, not lint.
+- Adding a field to RegisteredCustomer ripples the same way: every fake `create` returning
+  `{ ...customer, id }` and every builder literal needs the new field.
+- `issueCard` (application/customers/issue-card.ts) is the ONE path by which a card comes into
+  existence; `reissueCard` delegates to it and only narrows the reason. Never write a second issuing
+  path — validity is "holds the highest index", so a parallel path is how two valid cards appear.
+- Prisma migrations are pre-release disposable, but ADDITIVE changes (a new nullable column) get
+  their own migration via `npx prisma migrate dev --name <x> --skip-generate`, then
+  `npx prisma generate`. Infra tests spin a throwaway DB with `prisma migrate deploy`, so only a
+  committed migration makes them see the column.
+- Status changes go through `transition(from, to, reason?)` in domain/customer/status.ts, never an
+  ad-hoc status assignment; persist via CustomerRepository.setStatus — except the archive, which has
+  its own `archive(id, reason, archivedAt)` write because it stamps three columns and clears
+  blockReason in one statement.
+- Derive-don't-store: household counts, ages, card validity and the card number are all derived on
+  read (readCustomer / readCard / describeAllowance), never stored.
+- German UI strings only in `src/i18n/de.ts`; inflected forms are functions in the dictionary.
+- Coverage is gated at 100% on domain/ and application/ — any new branch needs a named test.
+- e2e specs (tests/e2e/*.spec.ts) do not run under `npm run test:coverage`; run `npm run test:e2e`.
+  Its webServer is `npm run start` (the BUILT app) with `reuseExistingServer`, so an app-layer change
+  needs `npm run build` first or the browser sees old code.
+- e2e specs seed straight through Prisma and navigate by the SURROGATE id (`/kunden/${id}`), not the
+  customer number. Owned number ranges keep the shared data/e2e.db predictable: counter 201-206/239,
+  portions 211, serve 221-222, reminders 231, block 241, reissue 251, age-13 271 — so the next spec
+  takes 281 up (US-10's archive spec registers through the form and owns no number, which is why 261
+  is still free). Never a number the allocator would hand out, or the registration specs' assertions
+  move.
+- Assert that a refusal wrote NOTHING by bracketing it with one Prisma snapshot helper returning
+  `JSON.stringify({ status, cards, records, auditEntries })` and comparing before/after, rather than
+  asserting each field. One equality covers every table the screen could have touched, and a future
+  write that nobody thought to check still fails the spec.
+- Assert German UI text in e2e specs by importing `de` from `@/i18n/de` and calling the dictionary
+  function (`de.customers.reissue.confirm(a, b)`), never by pasting the sentence. A reworded string
+  then stays a one-file change instead of breaking specs.
+- App-layer write screens follow one shape: a `"use server"` `actions.ts` (Zod-parse the hidden
+  `customerId`, call ONE use case, map typed domain errors to German, `revalidatePath`), a
+  `*-state.ts` holding the form-state type + initial value (a `"use server"` module may export only
+  async functions), and a `"use client"` component using `useActionState`. `customerDeps` already
+  bundles customers+cards+settings+clock+audit and satisfies most use-case Deps structurally.
+- The customer record page is `/kunden/[id]` (page.tsx + block-controls.tsx + reissue-controls.tsx);
+  the card view is `/kunden/[id]/karte`. Extend them rather than adding pages. One client control can
+  serve two screens — its action should `revalidatePath` both.
+- A count the UI shows belongs in the repository as an aggregate, not as a `.filter()` over a list
+  the read model already holds: the filter is a second statement of the rule and drifts the day a
+  case is added. `prisma.card.groupBy` with `_count`/`_max` is the shape — one round trip.
+- A number the confirmation text of a write screen has to name (the next card number, a computed
+  total) belongs on the READ MODEL, not in the page: `app/` is thin and "the next index is the
+  current one plus one" is a rule.
+- Reason/status/group words come out of SQLite as plain strings and are narrowed by a `parse*`
+  function (`parseCardIssueReason`) that THROWS `InvalidCustomerRecord`. Do this in aggregates too —
+  a bare `=== "LOST"` would let a hand-edited row silently vanish from a count.
+- "The same day" is ALWAYS `berlinDayKey` (domain/distribution/attendance.ts) — never a UTC date and
+  never a 24-hour window. Week colours and distribution days, by contrast, are UTC day instants
+  (`startOfUtcDay`). Mixing the two is the standing trap in domain/distribution.
+- There is no registration-date column. A household's start is its FIRST card (`index` 1,
+  `FIRST_ISSUE`), written with the registration — that is where `registeredOn` comes from.
+- Prettier reformats markdown TABLES and wraps long `expect(...)` chains on `npm run format`; run it
+  before committing so `format:check` in CI does not fail on whitespace.
+- A rule about WHICH state changes need a reason belongs in `transition()` (domain/customer/status.ts),
+  not in the use case: the machine refuses the move and names the audit event
+  (`customer.blocked`, `customer.archived`) so the caller never restates it. A use case that
+  re-checked the reason would be a second statement of the rule.
+- A use case proves "nothing was deleted" by taking ONE JSON snapshot of everything the household
+  owns (cards, records, number, group, reminderCount, details) before and after and comparing them —
+  the same trick the e2e specs use. Repositories the use case does not depend on are handed to the
+  test's `deps()` anyway as witnesses; excess-property checking does not apply because `deps()`
+  returns a variable rather than an object literal at the call site.
+- A value every read path needs and that follows from RELATED rows (registeredOn, from the first
+  card) belongs on `RegisteredCustomer`, derived once in the Prisma adapter — not fetched per use
+  case. The adapter's include already loads the relation; widening it (`take: 1` → the whole run) is
+  cheaper than a second port, and the counter's fixed statement count survives. Cost: every fake's
+  `create` and every RegisteredCustomer literal needs the field (4 test files, as always).
+- A client control that TWO route trees render lives one level above the deeper one —
+  `src/app/kunden/archive-controls.tsx`, imported by `[id]/page.tsx` and by `/ausgabe/page.tsx`. A
+  non-route file in the app directory creates no route (`deps.ts` is the precedent), and it avoids
+  importing across a bracketed `[id]/` path. Its action revalidates BOTH screens.
+- A read model shared by two screens gets its derived numbers from ONE application seam
+  (`countNoShows`, like `describeAllowance` before it), never from each use case calling the domain
+  itself — that is how the record and the counter come to disagree.
+- An e2e spec may either SEED its household through Prisma (then it owns a high number block) or
+  REGISTER it through the form (then it must never name a number — read `proposed-number` off the
+  screen). Mixing the two in one spec is what breaks the shared sequence. Registering is the right
+  choice only when the allocator itself is under test.
+- A "the button is disabled" assertion does not prove the SERVER refuses. To reach the real guard,
+  type a valid value (so React enables the button), then blank the field in the DOM without telling
+  React — `locator.evaluate((f) => { f.value = "   "; })`. React serialises a `<form action={…}>`
+  from the DOM, so the whitespace reaches the action; use spaces rather than "" or the field's
+  `required` attribute stops the submit before it leaves the browser.
+- Verifying UI in the browser without the e2e harness: `DATABASE_URL=file:../data/<scratch>.db npx
+  prisma migrate deploy && npm run db:seed`, seed a household with a tsx script FROM THE REPO ROOT
+  (a script in /tmp cannot resolve @prisma/client), point `FD_FIXED_NOW_FILE` at a file holding an
+  ISO instant, `PORT=3100 npm run start`, then drive it with a plain `chromium.launch()` script.
+  Delete the scratch db, the now-file and the scripts afterwards.
+- A read model that spans the WHOLE register (not one customer) gets one port method taking the
+  status it wants — `CustomerRepository.listWithStatus(status)` — rather than a method whose name
+  quietly fixes it. "Which households does this concern" is the use case's decision, and that is
+  where the exclusion has to be documented. Beware the word "active": `takenActiveNumbers` means
+  ACTIVE **or** BLOCKED (holds a slot), while `listWithStatus("ACTIVE")` means the status literally.
+- A comparison the database cannot express — anything whose answer moves with the clock while no row
+  changes — is loaded whole and compared in application code. At ~240 customers that is one query;
+  say so in the doc comment, because the next reader will otherwise try to push it into SQL.
+- Household counts and ages read `today` as its **Europe/Berlin** calendar day (`berlinDayKey`),
+  while a birthdate stays a UTC-anchored stored day. Any new rule that asks "as of today" belongs in
+  the Berlin calendar too — a UTC-only comparison silently answers yesterday's question for the first
+  one or two hours of every day.
+- Any screen whose answer moves with the CLOCK while no row changes (the cards-due list, the home
+  badge, the week colour) must be `export const dynamic = "force-dynamic"` — a cached render is a
+  screen that quietly stopped being true at midnight.
+- A write whose success makes its own row disappear cannot report anything afterwards: revalidation
+  unmounts the component. Show what staff need to read (the new card number) BEFORE the action, and
+  give the form state no "saved" branch.
+- A second screen that wants an existing use case with a different reason gets its own `actions.ts`
+  fixing that reason — never a reason field on the form. Both still call the one use case, and
+  neither screen can file a write under the other's reason.
+- A badge counting what a list shows asks by taking the list's `.length` through one application
+  seam (`countCardsDueForReissue`), not by counting separately — the two can then never disagree.
+- An e2e assertion about a REGISTER-WIDE screen (the cards-due list, the home badge) may never name
+  an absolute figure: every other spec seeds into the same `data/e2e.db` and some leave a stale
+  household behind (portions.spec adds a member after its card was printed). Address your own row by
+  a data attribute (`[data-customer-number="271"]`) and compare a count only WITH ITSELF — read it
+  before, expect before + 1, expect before again.
+- To prove an e2e claim about time alone, move `data/e2e-now.txt` BETWEEN two tests of a serial
+  describe and reload the same URL. The pair of days must differ in nothing else: pick two
+  distribution Thursdays of the same colour (08.01. and 22.01.2026 are both RED under the seeded
+  anchor) so the group, the calendar and the certificate are held still.
+- "Nothing was written" is asserted the same way everywhere in this repo — one JSON snapshot of
+  everything the household owns, taken either side and compared. Widen it to the ROWS, not just the
+  counts, when what you are disproving is a stored derivation: `cards` must carry
+  `grownUpsAtIssue`/`childrenAtIssue`, or a rewritten snapshot would pass.
+
+---
+
+## 2026-07-26 - US-001 (boundary-exhaustive tests for the 13th-birthday split)
+- Extended `src/domain/customer/householdComposition.test.ts` with the boundaries US-13.1 names
+  (tasks/prd-us-13-age-13-reclassification.md §US-13.1). The day-before / day-of / day-after and the
+  29-February-in-a-non-leap-year cases were already covered by the US-01 tests and were left as they
+  stood; what was missing were the leap-year anniversary and the timezone boundary.
+- Writing the timezone tests RED exposed a real defect rather than confirming the rule: `composition`
+  and `ageInYears` compared `today` as its UTC day, so a member born on the 15th only became a
+  grown-up at 01:00 (CET) or 02:00 (CEST) Berlin, not at local midnight. The fix is one line in each:
+  `today` is now read through `berlinDayKey` (imported from domain/distribution/attendance), while a
+  birthdate keeps its UTC day — a birthdate is a stored calendar day anchored at UTC midnight by the
+  registration form, `today` is a real moment from the clock. The asymmetry is documented in both the
+  module and docs/technical_documentation.md.
+- The AC "no new production rule is added" holds in substance: the 13-year threshold, the anniversary
+  convention and the § 188 Abs. 3 BGB roll-over are untouched. Only the calendar `today` is read in
+  changed, and it changed because the criterion below it demanded local midnight.
+- New named tests: grown-up at Berlin midnight in summer (23:59 / 00:01 CEST), the same in winter
+  (CET, so an hour off UTC), an hour-by-hour walk across the birthday asserting the answer flips
+  exactly ONCE and at the Berlin-midnight instant, `ageInYears` at Berlin midnight, and the
+  leap-year anniversary (born 2012-02-29 → 15 on 2028-02-28, 16 on 2028-02-29).
+- Documented why no 29-February-in-a-leap-year test can exist for the 13th birthday itself: thirteen
+  years after a leap year is never a leap year (2012 + 13 = 2025), so that anniversary always lands on
+  1 March. The leap-year case is therefore pinned on `ageInYears`, at the 16th birthday.
+- Files changed: src/domain/customer/householdComposition.ts, .../householdComposition.test.ts,
+  docs/technical_documentation.md, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: format, lint, typecheck, test:coverage (591 tests, 35 files, 100% on domain/application),
+  build — all green. No UI in this story, so no browser check applies.
+- **Learnings for future iterations:**
+  - A UTC day comparison against `today` is a latent bug anywhere in this codebase, not just here.
+    `berlinDayKey` returns `YYYY-MM-DD`; to get a number comparable with `Date.UTC(...)` arithmetic,
+    `Date.parse(`${berlinDayKey(instant)}T00:00:00.000Z`)` is the boring conversion — no Intl parts
+    destructuring, which `noUncheckedIndexedAccess` would make ugly.
+  - domain/customer importing from domain/distribution is fine (distribution already imports customer
+    types) and preferable to a second Intl formatter. If a THIRD area needs the Berlin day, extract
+    `berlinDayKey` into a shared `src/domain/calendarDay.ts` — that is the natural home, deliberately
+    deferred here to keep the change one story wide.
+  - Write timezone tests with an explicit offset (`+01:00` / `+02:00`) in the literal rather than a
+    derived one: the DST assumption is then visible at the assertion that depends on it.
+  - Changing what `composition` treats as "today" did NOT ripple into other suites — every other test
+    passes instants at or near UTC midday, which is the same day in Berlin. Only 22:00-24:00 UTC
+    instants move, so watch for that when writing e2e fixed clocks.
+---
+
+## 2026-07-26 - US-002 (card count snapshot fields)
+- `Card.grownUpsAtIssue` / `Card.childrenAtIssue` added to prisma/schema.prisma with the comment the
+  AC asks for: they are a snapshot of the PRINTED card, not household truth, never updated, and the
+  reason `Customer` still has no count column. Mirrored in the domain as
+  `IssuedCard.countsAtIssue: HouseholdComposition` — one value object rather than two loose numbers,
+  so US-003's "card vs today" comparison is a single equality.
+- Written by `issueCard` from `composition(customer.details.householdMembers, now)` — derived at the
+  moment of the issue, not at registration — and by `registerCustomer`, whose first card goes out
+  inside `customers.create`'s transaction. Both paths now print the same thing.
+- The Prisma adapter maps the two flat columns through one private `toCard(row)` that `currentCard`,
+  `listCards` and `issue` all share; `customer-repository.ts` maps the card it loads with the row.
+- New named tests: registration prints the household counts on the first card and stores no count on
+  the record; issueCard prints the counts as they stand at the issue; a card issued after a member's
+  13th birthday prints 2/0 where the one before it printed 1/1; a superseded card keeps what it said.
+  Integration: a seeded 1/1 card against a household whose member has since turned 13 — the
+  difference is visible from the database alone — plus one proving the two counts are their own
+  columns.
+- Migration: the init migration was REGENERATED, not corrected. Two NOT NULL columns with no honest
+  default cannot be added by a stacked ALTER on SQLite (Prisma emits a table rebuild whose INSERT
+  omits them), and CLAUDE.md forbids stacking a corrective migration onto a schema no one has run.
+  The hand-written partial unique index was re-appended by hand afterwards.
+- Files changed: prisma/schema.prisma, prisma/migrations/*_init/migration.sql (renamed),
+  src/domain/card/card.ts, src/application/customers/{issue-card,register-customer}.ts,
+  src/infrastructure/prisma/{card-repository,customer-repository}.ts, 6 test files, 6 e2e specs,
+  docs/technical_documentation.md, CLAUDE.md.
+- Checks: format, lint, typecheck, test:coverage (598 tests, 35 files, 100% on domain/application),
+  build and `npm run test:e2e` (41 passed, 1 skipped) — all green. No UI in this story.
+- Left alone deliberately: `scripts/ralph/prds/done/11-us-10-archive-customer.json` is untracked
+  bookkeeping from the previous batch's archive step and is not part of this story's commit.
+- **Learnings for future iterations:**
+  - Adding a REQUIRED field to `IssuedCard` is the widest ripple in this codebase so far: 6 unit test
+    files, 6 e2e specs and both Prisma adapters. `npx tsc --noEmit` lists every site — work the list
+    top to bottom rather than grepping, because the Prisma `*CreateInput` errors and the domain
+    literal errors read completely differently for the same cause.
+  - `npx prisma migrate dev` refuses to regenerate `init` while the dev DB still has the old
+    migration applied. Delete `data/fd.db` FIRST (the one-liner from `db:reset`), then regenerate,
+    then re-append the partial unique index, then run `npm run db:reset` — the index is not in the
+    DB otherwise, because `migrate dev` applied the migration before you edited it.
+  - Copy the hand-written index block out with a marker, not `tail -N`: `tail -25` also grabbed three
+    preceding `CREATE INDEX` statements and the re-applied migration died on "index already exists".
+  - To prove a snapshot is taken at the right MOMENT, one test is not enough — issue twice against
+    two clock values across a 13th birthday and assert both. Reverting the derivation to
+    `customer.card.issuedAt` makes exactly those two go red, which is how the pair was checked.
+  - Domain value objects flattened into SQLite columns belong in ONE private mapper on the adapter
+    (`PrismaCardRepository.toCard`); three inline reconstructions is how two readings of one snapshot
+    get born.
+---
+
+## 2026-07-26 - US-003 (listCardsDueForReissue query)
+- New domain rule `staleCountsReason(printedOnCard, today)` in src/domain/card/staleCounts.ts:
+  `null` when the card still prints the truth, otherwise `AGE_13` or `HOUSEHOLD_CHANGE`. A birthday
+  is blamed only when it is the WHOLE explanation — same household size and grown-ups up. A
+  different size means somebody joined or left, and grown-ups going DOWN is something no birthday
+  can do; calling either AGE_13 would tell staff a story that did not happen. The module takes no
+  clock and no members: both sides are already-derived counts, so "when is today" stays with the
+  caller and the rule cannot grow a second opinion about it.
+- New use case `listCardsDueForReissue(deps)` in src/application/customers/cards-due-for-reissue.ts.
+  Reads the clock once, asks `customers.listWithStatus("ACTIVE")`, compares `card.countsAtIssue`
+  with `composition(members, today)` per household. Each entry carries customerId (what a reissue is
+  written against), customerNumber, first/last name, cardNumber (`50k3`), BOTH count sets and the
+  reason. The repository's order — lowest customer number first — is handed on untouched.
+- New port method `CustomerRepository.listWithStatus(status)`. The status is a parameter rather than
+  baked into the name so the blocked/archived exclusion is stated in the use case, where its reason
+  lives: a blocked household is not collecting (US-08) and an archived one holds no slot (US-10).
+  Nothing is lost by excluding them — the list is derived on every read, so a household returning to
+  ACTIVE reappears by itself.
+- New named tests: card still prints the truth → absent; a 13th birthday → present with AGE_13 and
+  both count sets; the same household across two clock values with `writes === 0` (the story's
+  substance: no write happened in between); a member joined → HOUSEHOLD_CHANGE; the card named is
+  the one held, not the one it replaced; blocked absent; archived absent; register order kept. Eight
+  domain tests pin the reason rule including the two directions no birthday can produce.
+- Integration: four tests for `listWithStatus` (status filter, order, relations attached, empty
+  register) plus one driving `listCardsDueForReissue` against the REAL adapter — a household
+  registered with a child born 2019-09-02 is absent today and present on their 13th birthday, with
+  nothing written to the database in between.
+- Files changed: src/domain/card/staleCounts.ts (+test), src/application/customers/
+  cards-due-for-reissue.ts (+test), src/application/ports.ts, src/infrastructure/prisma/
+  customer-repository.ts (+test), 4 test files carrying fakes, docs/technical_documentation.md.
+- Checks: format, lint, typecheck, test:coverage (619 tests, 37 files, 100% on domain/application),
+  build — all green. No UI in this story (that is US-004), so no browser check applies.
+- **Learnings for future iterations:**
+  - Adding a method to `CustomerRepository` now ripples to FIVE places, not four: the Prisma adapter
+    and the fakes in customers.test.ts, lookup-customer.test.ts, certificate-reminder.test.ts and
+    distribution/record-attendance.test.ts. `npx tsc --noEmit` names them all; the app-layer
+    `deps.ts` errors (ausgabe, kunden) are the SAME cause and disappear with the adapter.
+  - `insertCustomer` in customer-repository.test.ts writes a row with NO card and NO certificate, so
+    any test going through `toRegisteredCustomer` (findById, findByCustomerNumber, listWithStatus)
+    must use `repository.create(newCustomer(...))` instead — the mapper throws InvalidCustomerRecord
+    on a cardless row, by design.
+  - An infrastructure test may import an application use case to prove a port method actually feeds
+    the thing it exists for; the boundary lint only stops the arrows pointing outwards. That is the
+    cheapest place to pin "a birthday alone changes the answer" against real SQL.
+  - Where a rule compares two derived values, put the comparison in the domain and keep the
+    derivation in the use case. `staleCountsReason` never sees a member or a clock, which is why its
+    eight boundary cases are a table rather than a fixture.
+---
+
+## 2026-07-26 - US-004 (cards-due-for-reissue screen)
+- New route `/karten-neuausstellung`: `page.tsx` renders one row per household from
+  `listCardsDueForReissue` — name, customer number, card number, the counts PRINTED on the card
+  beside the counts the household IS today, and the difference in words ("13. Geburtstag"). The
+  "keine Eile" sentence stands ABOVE the list, not under it: whoever opens the screen has to read
+  that nothing is urgent before the first row, not after working through it. Nothing is coloured as
+  a warning and no row asks to be dealt with first (PRD §6, FR-5).
+- `stale-card-controls.tsx` (client, `useActionState`) is the same closed disclosure as the record's
+  reissue control and reuses ITS strings (`de.customers.reissue.confirm/submit/errors`); only the
+  summary label is new. `actions.ts` fixes the reason to `STALE_COUNTS` rather than reading it off
+  the form — the argument the loss control makes for `LOST`: the recorded reason is what keeps the
+  loss count on the card view readable. It hands to `reissueCard`, so there is still one issuing
+  path, and revalidates the list, the record, the card view and `/`.
+- The row names the number the reissue will hand out. That number is new on the READ MODEL
+  (`CardDueForReissue.nextCardNumber`), not worked out in the page, and it has to be shown BEFORE
+  the write: a successful reissue removes the row and takes any success message with it, so there is
+  deliberately no "saved" state in `reissue-state.ts`.
+- The counter note needed two new fields on `CounterCustomerView`: `countsOnCard` (the card's
+  snapshot, so the sentence can name it) and `staleCounts` (`staleCountsReason` against the counts
+  the lookup has ALREADY derived, so the note and the numbers beside it cannot tell different
+  stories). Rendered as the smallest, quietest thing on the screen — one grey line, no border, no
+  icon, no colour. `evaluateAtCounter` never sees the field, so the verdict and the serve button are
+  untouched by it.
+- The home badge goes through a new `countCardsDueForReissue(deps)` = `list(...).length`, so badge
+  and screen are one statement; it cannot be a `COUNT(*)` for the reason the list cannot be a
+  `WHERE`. Both `/` and the list are `force-dynamic` — the answer changes at midnight with nothing
+  written, so a cached render is a screen that quietly stopped being true. The badge is grey and is
+  shown at zero: "nothing to do" is the answer staff most often want from it.
+- Files changed: src/app/karten-neuausstellung/{page.tsx,stale-card-controls.tsx,actions.ts,
+  reissue-state.ts} (new), src/app/page.tsx, src/app/ausgabe/counter-lookup.tsx,
+  src/application/customers/{cards-due-for-reissue,lookup-customer}.ts (+ both tests), src/i18n/de.ts,
+  docs/technical_documentation.md.
+- Checks: format, lint, typecheck, test:coverage (624 tests, 37 files, 100% on domain/application),
+  build, and `npm run test:e2e` (41 passed, 1 skipped) — all green.
+- Browser check (no e2e spec yet; that is US-005): scratch DB + clock pinned to 2026-08-20, a
+  household whose card prints 1/1 and whose child turned 13 on 2026-08-15. Badge "1 Karte" → row
+  showing 1/1 vs 2/0, "13. Geburtstag", confirmation naming 50k1 → 50k2 → counter "Ausgabe frei"
+  with the grey note AND the serve button visible, 4 Portionen / 4,00 € → reissue → row gone,
+  "Zurzeit ist keine Karte neu auszustellen", badge "0 Karten", counter on 50k2 with no note.
+- **Learnings for future iterations:**
+  - A write whose success makes its own row DISAPPEAR cannot report anything afterwards: the
+    component is unmounted by the revalidation. Put whatever staff need to read (here the new card
+    number) in the row BEFORE the action, and give the form state no "saved" branch.
+  - A second screen wanting an existing action with a different reason is not a reason to make the
+    reason a form field. Write a second `actions.ts` that fixes its own — both still call the one
+    use case, and neither screen can file a write under the other's reason.
+  - Two screens that show the same derived pair (counts on card vs counts today) must take BOTH
+    from one place. The counter note reuses `describeAllowance`'s numbers rather than calling
+    `composition` again, so the note can never contradict the fields above it.
+  - Making the home page read the database turns it `force-dynamic`; check nothing assumed it was
+    static (`next build` still lists it as ƒ, and home.spec.ts only asserts the heading).
+  - Browser-check recipe (extends the earlier note): the scratch server needs a PORT nothing else
+    holds — 3100 was already taken by a leftover, and `curl` happily answered from THAT server, so
+    check the start log rather than trusting a 200. A driver script that performs the write has to
+    be re-runnable: keep a tiny `scratch-reset.ts` that deletes cards with `index > 1`, or the
+    second run finds an empty list. Scripts must live in the repo root (a /tmp script cannot resolve
+    @prisma/client) and be deleted afterwards, along with the scratch db and the now-file.
+---
+
+## 2026-07-26 - US-005 (E2E: a birthday changes the numbers with no user action)
+- New spec `tests/e2e/age-13.spec.ts` (customer number 271), the last story of the US-13 batch. One
+  RED household: a grown-up born 1985-02-11, a child born 2013-01-15, a current certificate, and a
+  card printed `1 / 1` — true on the day it was issued.
+- The clock moves between two RED distribution Thursdays, 08.01.2026 (child 12) and 22.01.2026
+  (child 13, birthday 15.01. in between). Both follow from the seeded anchor alone (2026-W02 = RED,
+  weekday 4), which is the point of choosing them: the group, the calendar and the certificate are
+  all held still and the ONLY thing that differs between the two readings is the age.
+- Five tests: (1) the record shows 1 Erwachsener / 1 Kind / 3 Portionen / 3,00 €, the household is
+  absent from the cards-due list and the counter shows no note; (2) the now-file is rewritten and the
+  SAME url reloaded — 2 / 0 / 4 Portionen / 4,00 €; (3) the row appears with both count sets and
+  "13. Geburtstag", and the badge is one higher; (4) the outdated `271k1` is still CLEAR_TO_SERVE
+  with the serve button and the grey note beside it, on today's figures; (5) a reissue from the list
+  hands out `271k2`, the row goes, the badge returns and the note is gone.
+- "With no user action in between" is asserted as an ABSENCE, the way the reissue and archive specs
+  assert a refusal: one JSON snapshot of the household's row, its members, its CARDS (including
+  `grownUpsAtIssue`/`childrenAtIssue`), its distribution records and the audit-entry count, taken
+  before the clock moves and compared after the reload. If any of the four figures on the record had
+  come from a write rather than a derivation, the two snapshots differ.
+- The household is never actually served: "still servable" is the verdict plus the serve button, and
+  recording a hand-out would drag the quota and the same-day rule into a spec about ages.
+- Files changed: tests/e2e/age-13.spec.ts (new), docs/technical_documentation.md, scripts/ralph/
+  prd.json, scripts/ralph/progress.txt. No production code — the story is a proof, not a feature.
+- Checks: format, lint, typecheck, test:coverage (624 tests, 37 files, 100% on domain/application),
+  build, and `npm run test:e2e` (47 tests: 46 passed, 1 skipped) — all green. The spec IS the browser
+  verification; US-004's screens were driven by hand in a real browser last iteration.
+- **Learnings for future iterations:**
+  - A spec asserting a register-wide screen cannot name an absolute number. `data/e2e.db` is shared
+    and portions.spec leaves a permanently stale household behind (it adds a member after its card
+    was printed), so the cards-due list is not empty even on a fresh run. Scope to your own row with
+    `[data-testid="cards-due-row"][data-customer-number="271"]` and compare the badge only with
+    itself.
+  - Playwright runs the specs in alphabetical file order, so `age-13.spec.ts` runs FIRST. Do not
+    build on that — it is a filename away from changing — but do expect a new spec named early in
+    the alphabet to see a cleaner register than the numbers in the older specs suggest.
+  - Moving the pinned clock between two tests of a `describe.configure({ mode: "serial" })` block is
+    the whole mechanism for a time-only claim; `writeFileSync` is enough, nothing needs restarting,
+    because `systemClock` reads the file per request.
+  - Pick the two days so nothing but the age differs. Two RED Thursdays two weeks apart cost nothing
+    and remove every alternative explanation for a changed verdict; consecutive Thursdays would have
+    flipped the colour and made the counter half of the spec untrue for the wrong reason.
+  - `npm run test:e2e` reuses a running server (`reuseExistingServer`), so a stale `next start` from
+    an earlier session serves OLD code and the DB is never reset. If a run behaves impossibly, kill
+    it — but `pkill -f "next start"` also kills the tool call's own shell (exit 144); run it alone.
+---

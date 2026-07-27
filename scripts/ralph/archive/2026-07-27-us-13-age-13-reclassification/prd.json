@@ -20,8 +20,8 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Diacritic tolerance is a stored, indexed search key: foldName (domain/customer/nameSearch.ts) writes Customer.firstNameFolded/lastNameFolded, and searchArchived does a startsWith on them. Cap is MAX_ARCHIVE_SEARCH_RESULTS = 20; the use case asks for 21 rows and reports `truncated`. German message in de.ts customers.archiveSearch."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -37,8 +37,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "draftFromArchived (application/customers/draft-from-archived.ts) reads findById and returns a RegistrationDraft of firstName/lastName/birthDate/address/householdMembers only — no number, group, card, reminder count, certificate or notes (notes are excluded by PRD §5). Every value is deep-copied, Dates included, because a form writes back into what it binds to. A non-archived id is refused with the new CustomerNotArchived domain error; the draft carries no previousCustomerId — US-003 decides that link."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -55,8 +55,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "No new use case: re-registration is draftFromArchived + the existing registerCustomer. RegisterCustomerInput gained an optional previousCustomerId, stored as null when absent; nothing branches on it, so a returning household takes the lowest free number, a card at index 1 and reminderCount 0 exactly like a walk-in. New nullable self-referencing column Customer.previousCustomerId with onDelete: Restrict (Prisma defaults an optional relation to SetNull — schema.test.ts now checks the migration SQL for it). The init migration was regenerated and the hand-written partial unique index re-appended. clearRegister nulls the links before deleting customers."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -73,8 +73,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "The panel (archive-search-panel.tsx) is a SIBLING of the registration form, not nested — HTML forms do not nest. registration-screen.tsx holds the shared selection and applies the pre-fill by remounting RegistrationForm under a new `key`, which resets both the React-state fields and the defaultValue ones; that is also how 'leer beginnen' works. A pre-filled form never mirrors row 1 onto the personal data (the applicant is not guaranteed to be the first member). previousCustomerId travels as a hidden input — absent, not blank, for a walk-in. Dates are converted to YYYY-MM-DD server-side in archive-search-actions.ts. Verified in a real browser via a throwaway Playwright spec (search, diacritic fold Mueller→Müller, select, pre-fill, edit, clear, empty-query refusal, no-match); the spec was deleted because US-005 writes the durable one."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
@@ -88,8 +88,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "tests/e2e/reregistration.spec.ts (6 tests): registers a RED household through the form, serves them on the pinned RED Thursday 08.01.2026, archives them with a reason, and then gives their freed number to the NEXT registration — same surname, still active — before they come back. The search typed in capitals finds the archived household and not the active namesake; the pre-fill carries the household but no certificate and no former number; registering lands on a new record with a new number, k1, reminderCount 0, no distributions and previousCustomerId set. FR-5 is one belongings equality across the whole re-registration. Gotcha: applying the pre-fill remounts the form, so the spec waits for the banner before typing the certificate — a fill on the node about to be replaced is silently lost."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

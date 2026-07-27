@@ -206,6 +206,84 @@ export const de = {
         unknown: "Die Archivierung konnte nicht gespeichert werden.",
       },
     },
+    /**
+     * Searching the archive for a returning applicant, and the pre-fill that follows (US-11).
+     *
+     * The riskiest moment in this whole feature is a staff member believing the old record was
+     * reactivated (PRD §6), so every string that names the archived household — the result row and
+     * the banner over the pre-filled form — says in the same breath that a *new* number and a *new*
+     * card are being issued. The former number appears only as something to recognise the household
+     * by, never as the number about to be assigned.
+     */
+    archiveSearch: {
+      heading: "Im Archiv suchen",
+      intro:
+        "Wenn dieser Haushalt früher schon aufgenommen war, können Person, Anschrift und " +
+        "Haushaltsmitglieder aus dem Archiv übernommen werden. Es wird trotzdem ein neuer " +
+        "Datensatz angelegt; der archivierte bleibt unverändert.",
+      submit: "Suchen",
+      submitting: "Wird gesucht …",
+      /** The result list, headed by how many of them there are — German inflects the one. */
+      resultsHeading: (count: number): string =>
+        count === 1
+          ? "1 archivierter Haushalt gefunden"
+          : `${count} archivierte Haushalte gefunden`,
+      noMatches:
+        "Kein archivierter Haushalt gefunden. Bitte die Schreibweise prüfen — oder die Aufnahme " +
+        "einfach leer ausfüllen.",
+      /**
+       * What is shown instead of a twenty-first result. There is no paging: the answer to a list
+       * this long is a narrower search, and the message says which fields would narrow it rather
+       * than only that there were too many.
+       */
+      tooMany: (shown: number): string =>
+        `Es werden ${shown} Treffer angezeigt; es gibt weitere. Bitte die Suche eingrenzen — mit ` +
+        `dem Vornamen oder dem Geburtsdatum.`,
+      /** The refusal when staff press Search with every field empty. */
+      noCriteria: "Bitte mindestens ein Feld ausfüllen: Nachname, Vorname oder Geburtsdatum.",
+      /** The labels on one result row — enough to tell two people of the same name apart. */
+      result: {
+        householdSize: (size: number): string =>
+          size === 1 ? "1 Person im Haushalt" : `${size} Personen im Haushalt`,
+        archivedOn: "Archiviert am",
+        archiveReason: "Grund der Archivierung",
+        /**
+         * The number this household used to hold. Labelled "früher" in the label itself, because
+         * a bare "Kundennummer" beside a name is exactly what would be copied onto a new card.
+         */
+        formerNumber: "Frühere Kundennummer",
+        formerNumberHint:
+          "Nur zur Wiedererkennung. Diese Nummer ist seit der Archivierung wieder frei und " +
+          "gehört möglicherweise bereits einem anderen Haushalt.",
+        select: "Daten übernehmen",
+        selecting: "Wird übernommen …",
+      },
+      /**
+       * The banner over a pre-filled form. It states the one thing a staff member could otherwise
+       * get wrong — that this is a new registration and not a reactivation — and it names the household
+       * the data came from, so a pre-fill from the wrong row is visible without scrolling.
+       */
+      prefilled: {
+        heading: "Daten aus dem Archiv übernommen",
+        detail: (name: string, formerNumber: number, archivedOn: string): string =>
+          `Übernommen von „${name}“, archiviert am ${archivedOn} unter der Kundennummer ` +
+          `${formerNumber}. Es wird ein neuer Datensatz mit einer neu vergebenen Kundennummer und ` +
+          `einer neuen Karte (k1) angelegt. Der archivierte Datensatz bleibt unverändert erhalten.`,
+        editableHint:
+          "Alle übernommenen Felder können geändert werden — der Haushalt kann seither " +
+          "gewachsen, kleiner geworden oder umgezogen sein.",
+        clear: "Übernahme verwerfen und leer beginnen",
+      },
+      errors: {
+        notFound:
+          "Dieser archivierte Datensatz wurde nicht gefunden. Bitte die Suche erneut ausführen.",
+        notArchived:
+          "Dieser Haushalt ist nicht archiviert und kann nicht übernommen werden. Bitte die " +
+          "Seite neu laden.",
+        unknown: "Die Suche im Archiv ist fehlgeschlagen.",
+        prefillFailed: "Die Daten konnten nicht übernommen werden.",
+      },
+    },
     /** Why a card was handed over — the four reasons `CardIssueReason` names. */
     cardReasons: {
       FIRST_ISSUE: "Erstausstellung",

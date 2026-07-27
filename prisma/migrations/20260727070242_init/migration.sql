@@ -19,6 +19,8 @@ CREATE TABLE "Customer" (
     "firstName" TEXT NOT NULL,
     "lastName" TEXT NOT NULL,
     "birthDate" DATETIME NOT NULL,
+    "firstNameFolded" TEXT NOT NULL,
+    "lastNameFolded" TEXT NOT NULL,
     "street" TEXT NOT NULL,
     "houseNumber" TEXT NOT NULL,
     "zip" TEXT NOT NULL,
@@ -29,7 +31,9 @@ CREATE TABLE "Customer" (
     "archiveReason" TEXT,
     "archivedAt" DATETIME,
     "reminderCount" INTEGER NOT NULL DEFAULT 0,
-    "notes" TEXT NOT NULL DEFAULT ''
+    "notes" TEXT NOT NULL DEFAULT '',
+    "previousCustomerId" INTEGER,
+    CONSTRAINT "Customer_previousCustomerId_fkey" FOREIGN KEY ("previousCustomerId") REFERENCES "Customer" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -102,6 +106,9 @@ CREATE INDEX "Customer_customerNumber_idx" ON "Customer"("customerNumber");
 
 -- CreateIndex
 CREATE INDEX "Customer_status_idx" ON "Customer"("status");
+
+-- CreateIndex
+CREATE INDEX "Customer_lastNameFolded_birthDate_idx" ON "Customer"("lastNameFolded", "birthDate");
 
 -- CreateIndex
 CREATE INDEX "HouseholdMember_customerId_idx" ON "HouseholdMember"("customerId");

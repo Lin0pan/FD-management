@@ -2,16 +2,20 @@
  * The registration screen.
  *
  * Reads the proposal — the next free number, the suggested group and the day to judge birthdates
- * against — and hands it to the form. It decides nothing: `proposeRegistration` works out what to
+ * against — and hands it to the screen. It decides nothing: `proposeRegistration` works out what to
  * show and `registerCustomer` works out what to save
  * (tasks/prd-us-01-register-customer.md §US-01.6).
+ *
+ * The archive search that may fill the form lives inside `RegistrationScreen`, because the search
+ * and the form share one piece of state — which archived household, if any, was picked
+ * (tasks/prd-us-11-reuse-archived-record.md §US-11.4).
  */
 
 import { proposeRegistration } from "@/application/customers/propose-registration";
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { customerDeps } from "../deps";
-import { RegistrationForm } from "./registration-form";
+import { RegistrationScreen } from "./registration-screen";
 
 /**
  * Every registration changes the next free number and both group sizes, so a proposal cached at
@@ -44,7 +48,7 @@ export default async function NewCustomerPage(): Promise<React.ReactElement> {
         <h1 className="text-3xl font-semibold">{de.customers.new.heading}</h1>
         <p className="max-w-prose text-foreground/70">{de.customers.new.intro}</p>
       </header>
-      <RegistrationForm proposal={proposal} />
+      <RegistrationScreen proposal={proposal} />
     </main>
   );
 }

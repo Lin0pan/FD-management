@@ -19,8 +19,9 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { listCardsDueForReissue } from "@/application/customers/cards-due-for-reissue";
 import { createCustomerDetails, type NewCustomer } from "@/domain/customer/customer";
+import { foldName } from "@/domain/customer/nameSearch";
 import type { Group } from "@/domain/customer/group";
-import { CustomerNumberTaken } from "@/domain/errors";
+import { CustomerNotFound, CustomerNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
 import { PrismaCustomerCounter, PrismaCustomerRepository } from "./customer-repository";
 import { clearRegister } from "./test-support";
 
@@ -97,6 +98,7 @@ function newCustomer(overrides: Partial<Omit<NewCustomer, "details">> = {}): New
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 1, children: 1 },
     },
+    previousCustomerId: null,
     ...overrides,
   };
 }
@@ -107,11 +109,17 @@ async function insertCustomer(
   status: string,
   group: Group = "RED",
 ): Promise<void> {
+  const firstName = faker.person.firstName();
+  const lastName = faker.person.lastName();
   await prisma.customer.create({
     data: {
       customerNumber,
-      firstName: faker.person.firstName(),
-      lastName: faker.person.lastName(),
+      firstName,
+      lastName,
+      // The folded search keys the adapter derives; a fixture that skipped them would be a row the
+      // archive search could never find (US-11.1).
+      firstNameFolded: foldName(firstName),
+      lastNameFolded: foldName(lastName),
       birthDate: new Date("1990-01-01T00:00:00.000Z"),
       street: faker.location.street(),
       houseNumber: faker.location.buildingNumber(),
@@ -196,6 +204,94 @@ describe("PrismaCustomerRepository.create", () => {
     await insertCustomer(50, "BLOCKED");
 
     await expect(repository.create(newCustomer())).rejects.toBeInstanceOf(CustomerNumberTaken);
+  });
+});
+
+/**
+ * US-11.3 — a returning household is a *new* row that merely points at the old one. These specs are
+ * about the column and its foreign key: that the link is stored and read back, that it is null for
+ * everyone else, that the predecessor's row is not touched by the registration that names it, and
+ * that the database refuses a link to nobody.
+ */
+describe("the link to an archived predecessor", () => {
+  /** An archived household with a card and a certificate, as the register really holds one. */
+  async function archivedPredecessor(customerNumber: number): Promise<number> {
+    const registered = await repository.create(newCustomer({ customerNumber }));
+    await repository.archive(registered.id, "weggezogen", new Date("2025-11-04T09:00:00.000Z"));
+    return registered.id;
+  }
+
+  it("stores the archived record a registration was pre-filled from", async () => {
+    const previousCustomerId = await archivedPredecessor(50);
+
+    const registered = await repository.create(newCustomer({ previousCustomerId }));
+
+    expect(registered.previousCustomerId).toBe(previousCustomerId);
+    const row = await prisma.customer.findUniqueOrThrow({ where: { id: registered.id } });
+    expect(row.previousCustomerId).toBe(previousCustomerId);
+  });
+
+  it("reads the link back off the record", async () => {
+    const previousCustomerId = await archivedPredecessor(50);
+    const registered = await repository.create(newCustomer({ previousCustomerId }));
+
+    const found = await repository.findById(registered.id);
+
+    expect(found?.previousCustomerId).toBe(previousCustomerId);
+  });
+
+  it("leaves the link null for a household that walked in off the street", async () => {
+    const registered = await repository.create(newCustomer());
+
+    const found = await repository.findById(registered.id);
+
+    expect(found?.previousCustomerId).toBeNull();
+  });
+
+  it("copies nothing across the link — the predecessor keeps its number, status and cards", async () => {
+    const previousCustomerId = await archivedPredecessor(50);
+    const before = await prisma.customer.findUniqueOrThrow({
+      where: { id: previousCustomerId },
+      include: { householdMembers: true, certificates: true, cards: true },
+    });
+
+    await repository.create(newCustomer({ previousCustomerId, customerNumber: 51 }));
+
+    const after = await prisma.customer.findUniqueOrThrow({
+      where: { id: previousCustomerId },
+      include: { householdMembers: true, certificates: true, cards: true },
+    });
+    expect(after).toEqual(before);
+  });
+
+  it("lets the returning household take a number while the predecessor keeps showing its own", async () => {
+    const previousCustomerId = await archivedPredecessor(50);
+
+    const registered = await repository.create(newCustomer({ previousCustomerId }));
+
+    expect(registered.customerNumber).toBe(50);
+    const rows = await prisma.customer.findMany({
+      where: { customerNumber: 50 },
+      orderBy: { id: "asc" },
+    });
+    expect(rows.map((row) => row.status)).toEqual(["ARCHIVED", "ACTIVE"]);
+  });
+
+  it("refuses a link to a customer who does not exist, as CustomerNotFound", async () => {
+    await expect(
+      repository.create(newCustomer({ previousCustomerId: 404 })),
+    ).rejects.toBeInstanceOf(CustomerNotFound);
+    expect(await prisma.customer.count()).toBe(0);
+  });
+
+  it("refuses to delete a household another record was registered from", async () => {
+    const previousCustomerId = await archivedPredecessor(50);
+    await repository.create(newCustomer({ previousCustomerId, customerNumber: 51 }));
+    await prisma.card.deleteMany({ where: { customerId: previousCustomerId } });
+    await prisma.certificate.deleteMany({ where: { customerId: previousCustomerId } });
+    await prisma.householdMember.deleteMany({ where: { customerId: previousCustomerId } });
+
+    await expect(prisma.customer.delete({ where: { id: previousCustomerId } })).rejects.toThrow();
   });
 });
 
@@ -644,5 +740,165 @@ describe("the counter lookup indexes", () => {
     const names = indexes.map((index) => index.name);
     expect(names).toContain("Customer_customerNumber_idx");
     expect(names).toContain("Customer_status_idx");
+  });
+});
+
+describe("PrismaCustomerRepository.searchArchived", () => {
+  /**
+   * A household that went through the register and left it: created like any other, then archived by
+   * the same call the use case makes — so the row the search reads is the one archiving leaves,
+   * folded search keys and all.
+   */
+  async function archivedHousehold(seed: {
+    firstName: string;
+    lastName: string;
+    birthDate?: string;
+    customerNumber?: number;
+    archivedAt: string;
+    reason?: string;
+  }): Promise<number> {
+    const base = newCustomer({ customerNumber: seed.customerNumber ?? 50 });
+    const created = await repository.create({
+      ...base,
+      details: createCustomerDetails(
+        {
+          ...base.details,
+          firstName: seed.firstName,
+          lastName: seed.lastName,
+          birthDate: new Date(seed.birthDate ?? "1985-04-11T00:00:00.000Z"),
+        },
+        TODAY,
+      ),
+    });
+    await repository.archive(created.id, seed.reason ?? "verzogen", new Date(seed.archivedAt));
+    return created.id;
+  }
+
+  /** A household still on the register, under a name the archive search will be given. */
+  async function activeHousehold(lastName: string, customerNumber: number): Promise<void> {
+    const base = newCustomer({ customerNumber });
+    await repository.create({
+      ...base,
+      details: createCustomerDetails({ ...base.details, lastName }, TODAY),
+    });
+  }
+
+  it("finds two archived namesakes and leaves the household still on the register out", async () => {
+    await archivedHousehold({
+      firstName: "Anke",
+      lastName: "Schneider",
+      archivedAt: "2024-03-04T10:00:00.000Z",
+    });
+    await archivedHousehold({
+      firstName: "Bernd",
+      lastName: "Schneider",
+      customerNumber: 51,
+      archivedAt: "2026-01-09T10:00:00.000Z",
+    });
+    await activeHousehold("Schneider", 52);
+
+    const found = await repository.searchArchived({ lastName: "Schneider" }, 21);
+
+    expect(found.map((customer) => customer.details.firstName)).toEqual(["Bernd", "Anke"]);
+    expect(found.every((customer) => customer.status === "ARCHIVED")).toBe(true);
+  });
+
+  it("matches Müller when Mueller is typed — the stored key is folded, not the query", async () => {
+    await archivedHousehold({
+      firstName: "Anke",
+      lastName: "Müller",
+      archivedAt: "2026-01-09T10:00:00.000Z",
+    });
+
+    const found = await repository.searchArchived({ lastName: "mueller" }, 21);
+
+    expect(found).toHaveLength(1);
+    expect(found[0].details.lastName).toBe("Müller");
+  });
+
+  it("matches on the first letters of the name, before it is typed out", async () => {
+    await archivedHousehold({
+      firstName: "Anke",
+      lastName: "Schneider",
+      archivedAt: "2026-01-09T10:00:00.000Z",
+    });
+
+    expect(await repository.searchArchived({ lastName: "Schn" }, 21)).toHaveLength(1);
+  });
+
+  it("tells two namesakes apart by the date of birth", async () => {
+    await archivedHousehold({
+      firstName: "Anke",
+      lastName: "Schneider",
+      birthDate: "1985-04-11T00:00:00.000Z",
+      archivedAt: "2026-01-09T10:00:00.000Z",
+    });
+    await archivedHousehold({
+      firstName: "Bernd",
+      lastName: "Schneider",
+      customerNumber: 51,
+      birthDate: "1972-11-30T00:00:00.000Z",
+      archivedAt: "2026-02-09T10:00:00.000Z",
+    });
+
+    const found = await repository.searchArchived(
+      { lastName: "Schneider", birthDate: new Date("1972-11-30T00:00:00.000Z") },
+      21,
+    );
+
+    expect(found.map((customer) => customer.details.firstName)).toEqual(["Bernd"]);
+  });
+
+  it("returns no more rows than the limit it was given", async () => {
+    for (let index = 0; index < 3; index += 1) {
+      await archivedHousehold({
+        firstName: "Anke",
+        lastName: "Schneider",
+        customerNumber: index + 1,
+        archivedAt: `2026-0${index + 1}-09T10:00:00.000Z`,
+      });
+    }
+
+    expect(await repository.searchArchived({ lastName: "Schneider" }, 2)).toHaveLength(2);
+  });
+
+  it("carries the number the household held, the archive instant and the reason", async () => {
+    await archivedHousehold({
+      firstName: "Anke",
+      lastName: "Schneider",
+      customerNumber: 37,
+      archivedAt: "2026-01-09T10:00:00.000Z",
+      reason: "zwei Jahre nicht erschienen",
+    });
+
+    const [found] = await repository.searchArchived({ lastName: "Schneider" }, 21);
+
+    expect(found.customerNumber).toBe(37);
+    expect(found.archivedAt).toEqual(new Date("2026-01-09T10:00:00.000Z"));
+    expect(found.archiveReason).toBe("zwei Jahre nicht erschienen");
+    expect(found.details.householdMembers).toHaveLength(2);
+  });
+
+  it("refuses an archived row whose reason is missing rather than showing none", async () => {
+    const customerId = await archivedHousehold({
+      firstName: "Anke",
+      lastName: "Schneider",
+      archivedAt: "2026-01-09T10:00:00.000Z",
+    });
+    // Only a hand-edited database can be in this state: `archive` writes the status, the reason and
+    // the instant in one statement.
+    await prisma.customer.update({ where: { id: customerId }, data: { archiveReason: null } });
+
+    await expect(repository.searchArchived({ lastName: "Schneider" }, 21)).rejects.toBeInstanceOf(
+      InvalidCustomerRecord,
+    );
+  });
+
+  it("indexes the folded last name with the birthdate, the pair the search filters on", async () => {
+    const indexes = await prisma.$queryRawUnsafe<Array<{ name: string }>>(
+      `PRAGMA index_list("Customer")`,
+    );
+
+    expect(indexes.map((index) => index.name)).toContain("Customer_lastNameFolded_birthDate_idx");
   });
 });

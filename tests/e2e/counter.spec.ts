@@ -4,6 +4,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { foldName } from "@/domain/customer/nameSearch";
 
 /**
  * Every verdict the counter can hand down, driven through the built app
@@ -115,6 +116,8 @@ async function seedHousehold(household: Household): Promise<string> {
       customerNumber: household.customerNumber,
       firstName,
       lastName,
+      firstNameFolded: foldName(firstName),
+      lastNameFolded: foldName(lastName),
       birthDate: new Date(`${GROWN_UP_BIRTH_DATE}T00:00:00.000Z`),
       street: faker.location.street(),
       houseNumber: faker.location.buildingNumber(),

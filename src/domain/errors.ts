@@ -15,6 +15,7 @@ export type DomainErrorCode =
   | "CustomerNumberTaken"
   | "CustomerNotFound"
   | "CustomerArchived"
+  | "CustomerNotArchived"
   | "InvalidCustomerRecord"
   | "MissingRequiredField"
   | "EmptyHousehold"
@@ -34,6 +35,7 @@ export type DomainErrorCode =
   | "QuotaBelowActiveCustomers"
   | "MissingAuditReason"
   | "IllegalStatusTransition"
+  | "EmptySearchQuery"
   | "InvalidEuroAmount";
 
 /** Base class of every domain error. `code` lets callers switch over the closed set above. */
@@ -198,6 +200,28 @@ export class CustomerArchived extends DomainError {
   constructor(id: number) {
     super(`Customer ${id} is archived`);
     this.id = id;
+  }
+}
+
+/**
+ * A record that is still on the register was asked for as an archived one. Carries the id and the
+ * status it actually has, so the screen can say which household it means and why it is not on offer.
+ *
+ * The archive search only ever lists archived households (US-11.1), so this is reached by an id that
+ * came from somewhere else — a stale link, a bookmarked URL, a household archived and then found
+ * again. The refusal matters: pre-filling a registration from an *active* record would walk staff
+ * into registering a household that already holds a slot (US-11, FR-6), and the "are they already
+ * registered?" question is the counter lookup's to answer, not the registration form's.
+ */
+export class CustomerNotArchived extends DomainError {
+  readonly code = "CustomerNotArchived";
+  readonly id: number;
+  readonly status: string;
+
+  constructor(id: number, status: string) {
+    super(`Customer ${id} is ${status}, not archived`);
+    this.id = id;
+    this.status = status;
   }
 }
 
@@ -427,6 +451,24 @@ export class RecordNoLongerCorrectable extends DomainError {
     this.recordId = recordId;
     this.recordDate = recordDate;
     this.today = today;
+  }
+}
+
+/**
+ * A search was submitted with every criterion left blank. Carries the names of the criteria it would
+ * have accepted, so the screen can say which fields it means rather than reporting a bare refusal.
+ *
+ * An empty archive search is not "everyone archived" (US-11.1): the result would be a list staff
+ * would scroll through looking for a household they could have named, and pre-filling a registration
+ * from the wrong row is the mistake this whole feature must not make.
+ */
+export class EmptySearchQuery extends DomainError {
+  readonly code = "EmptySearchQuery";
+  readonly criteria: ReadonlyArray<string>;
+
+  constructor(criteria: ReadonlyArray<string>) {
+    super(`A search needs at least one of: ${criteria.join(", ")}`);
+    this.criteria = criteria;
   }
 }
 
