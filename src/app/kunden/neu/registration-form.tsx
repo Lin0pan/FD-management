@@ -11,13 +11,19 @@
  * The form holds no other rules. Which number, which group and whether the household holds together
  * are all decided behind `registerCustomer`.
  *
- * It may arrive pre-filled from an archived record (US-11.4). The draft is read once, as the initial
- * value of every field: the screen remounts the form when the selection changes, so there is no
- * second source of truth to keep in step, and every pre-filled field is as editable as one that was
- * typed. What the draft does *not* carry is as deliberate — no number, no group, no certificate —
- * because those are decided afresh for a household that has come back.
+ * It may arrive pre-filled — from an archived record (US-11.4) or from a waiting-list entry
+ * (US-12.4). The draft is read once, as the initial value of every field: the screen remounts the
+ * form when the selection changes, so there is no second source of truth to keep in step, and every
+ * pre-filled field is as editable as one that was typed. Neither draft carries a number or a group,
+ * because those are decided afresh; whether it carries a certificate is the one honest difference
+ * between them, and `PrefillDraft` says why.
+ *
+ * The action it submits to is a prop for the same reason the parsing is shared: a promotion off the
+ * waiting list must register *and* clear the entry, in that order, and that pairing belongs in a use
+ * case rather than in whichever screen remembers to do both.
  */
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import type { RegistrationProposal } from "@/application/customers/propose-registration";
 import { composition } from "@/domain/customer/householdComposition";
@@ -25,7 +31,10 @@ import { GROUPS } from "@/domain/customer/group";
 import { de } from "@/i18n/de";
 import { submitRegistration } from "./actions";
 import type { PrefillDraft } from "./archive-search-state";
-import { initialRegisterCustomerState } from "./register-customer-state";
+import {
+  initialRegisterCustomerState,
+  type RegisterCustomerState,
+} from "./register-customer-state";
 
 const fieldClass = "w-full rounded border border-foreground/20 bg-transparent px-2 py-1";
 
@@ -107,9 +116,11 @@ export function RegistrationForm({
   proposal,
   draft = null,
   previousCustomerId = null,
+  entryId = null,
+  submit = submitRegistration,
 }: {
   proposal: RegistrationProposal;
-  /** The archived household this form was filled from, or `null` for a walk-in registration. */
+  /** The household this form was filled from, or `null` for a walk-in registration. */
   draft?: PrefillDraft | null;
   /**
    * The archived record the draft came from, carried through to `registerCustomer` as display
@@ -117,11 +128,16 @@ export function RegistrationForm({
    * people (tasks/prd-us-11-reuse-archived-record.md §FR-5).
    */
   previousCustomerId?: number | null;
+  /**
+   * The waiting-list entry this registration would fill (US-12.4). Unlike `previousCustomerId` it is
+   * acted on: the use case behind `submit` takes the applicant off the list once — and only once —
+   * the registration has landed.
+   */
+  entryId?: number | null;
+  /** Where the form is saved. The default is the ordinary walk-in registration. */
+  submit?: (previous: RegisterCustomerState, formData: FormData) => Promise<RegisterCustomerState>;
 }): React.ReactElement {
-  const [state, formAction, pending] = useActionState(
-    submitRegistration,
-    initialRegisterCustomerState,
-  );
+  const [state, formAction, pending] = useActionState(submit, initialRegisterCustomerState);
 
   const [firstName, setFirstName] = useState(draft?.firstName ?? "");
   const [lastName, setLastName] = useState(draft?.lastName ?? "");
@@ -165,6 +181,7 @@ export function RegistrationForm({
       {previousCustomerId === null ? null : (
         <input type="hidden" name="previousCustomerId" value={previousCustomerId} />
       )}
+      {entryId === null ? null : <input type="hidden" name="entryId" value={entryId} />}
       <section className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold">{de.customers.new.personalHeading}</h2>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -189,7 +206,13 @@ export function RegistrationForm({
           />
           <label className="flex flex-col gap-1">
             <span className="text-sm text-foreground/70">{de.customers.fields.notes}</span>
-            <input className={fieldClass} type="text" name="notes" id="notes" defaultValue="" />
+            <input
+              className={fieldClass}
+              type="text"
+              name="notes"
+              id="notes"
+              defaultValue={draft?.notes ?? ""}
+            />
           </label>
         </div>
       </section>
@@ -252,7 +275,7 @@ export function RegistrationForm({
               type="text"
               name="certificateType"
               id="certificateType"
-              defaultValue=""
+              defaultValue={draft?.certificateType ?? ""}
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -264,7 +287,7 @@ export function RegistrationForm({
               type="date"
               name="certificateValidUntil"
               id="certificateValidUntil"
-              defaultValue=""
+              defaultValue={draft?.certificateValidUntil ?? ""}
             />
           </label>
         </div>
@@ -392,14 +415,24 @@ export function RegistrationForm({
           </p>
         </fieldset>
 
+        {/* A full register is not a dead end. Turning an applicant away is precisely what the
+            waiting list exists to prevent (US-12, FR-3), so the way onto it is offered here rather
+            than left for staff to find. */}
         {full ? (
-          <p
+          <div
             role="status"
             data-testid="registration-error"
-            className="max-w-prose rounded border border-red-500/40 bg-red-500/10 px-3 py-2"
+            className="flex max-w-prose flex-col gap-2 rounded border border-red-500/40 bg-red-500/10 px-3 py-2"
           >
-            {de.customers.errors.noFreeCustomerNumber(proposal.quotaN)}
-          </p>
+            <p>{de.customers.errors.noFreeCustomerNumber(proposal.quotaN)}</p>
+            <Link
+              href="/warteliste"
+              data-testid="registration-waiting-list-link"
+              className="self-start underline underline-offset-4"
+            >
+              {de.customers.new.waitingListLink}
+            </Link>
+          </div>
         ) : null}
 
         {state.status === "error" && state.message !== undefined ? (

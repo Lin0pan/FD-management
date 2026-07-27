@@ -87,7 +87,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   │   ├── archive-search-actions.ts # "use server": searchArchivedCustomers / draftFromArchived
 │   │   │   │   ├── archive-search-state.ts   # the panel's state + the draft as the form's strings
 │   │   │   │   ├── actions.ts        # "use server": Zod → registerCustomer → redirect
-│   │   │   │   └── register-customer-state.ts  # form state (not exportable from actions.ts)
+│   │   │   │   ├── register-customer-state.ts  # form state (not exportable from actions.ts)
+│   │   │   │   └── registration-input.ts  # the form's Zod schema + German error mapping, shared with /warteliste
 │   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on; hosts the block, reissue + archive controls
 │   │   │   ├── [id]/block-controls.tsx  # client: Sperren / Sperre aufheben (US-08.4)
 │   │   │   ├── [id]/reissue-controls.tsx  # client: Karte neu ausstellen (Verlust) (US-09.3)
@@ -100,6 +101,18 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   ├── stale-card-controls.tsx  # client: Karte neu ausstellen, reason STALE_COUNTS
 │   │   │   ├── actions.ts            # "use server": Zod → reissueCard(STALE_COUNTS)
 │   │   │   └── reissue-state.ts      # the row's form state (not exportable from actions.ts)
+│   │   ├── warteliste/               # the waiting-list screen (US-12.4)
+│   │   │   ├── page.tsx              # server component: banner, list in arrival order, add form
+│   │   │   ├── add-applicant-form.tsx  # client: "Auf die Warteliste setzen"
+│   │   │   ├── remove-applicant-controls.tsx  # client: Entfernen, reason required, entry retained
+│   │   │   ├── free-slot-banner.tsx  # shared by /warteliste and the home screen
+│   │   │   ├── actions.ts            # "use server": Zod → addToWaitingList / removeFromWaitingList
+│   │   │   ├── waiting-list-state.ts # the two form states (not exportable from actions.ts)
+│   │   │   ├── deps.ts               # composition root: list + register + cards + settings
+│   │   │   └── [entryId]/registrieren/  # promoting one applicant off the list
+│   │   │       ├── page.tsx          # server component: promoteFromWaitingList → pre-filled form
+│   │   │       ├── promotion-screen.tsx  # client: the expired-certificate step before the form
+│   │   │       └── actions.ts        # "use server": Zod → registerFromWaitingList
 │   │   ├── einstellungen/            # the settings screen (US-14)
 │   │   │   ├── page.tsx              # server component: current values + version history
 │   │   │   ├── settings-form.tsx     # client component: the form and its save-result state
@@ -548,6 +561,15 @@ without anyone deciding to; what happens about the renewal is FD's judgement, ta
 Both functions are generic over the caller's entry shape, like `recordForDay`: the rule reads `id`,
 `addedOn` and `certificate` and hands the caller's own richer row straight back, so it never grows a
 field it does not use.
+
+`daysWaiting(entry, today)` is the one number on the screen that says what the list costs the people
+on it. It counts **calendar days** — both ends reduced to their UTC day, so the answer does not depend
+on what time of day either happened and no daylight-saving hour is lost across a long wait — and it is
+0 on the day the applicant joined. An entry dated after `today` counts as no wait rather than a
+negative one: nobody has waited a negative number of days, and a screen that said so would report a
+clock problem as a fact about the applicant. It lives here rather than in the page for the same reason
+the ordering does: two screens counting days apart is how the same applicant appears to have waited
+two different lengths of time.
 
 `createWaitingListDetails(input, today)` is the module's other half: the **entry bar** (US-12.2,
 FR-1). It validates an application the way `createCustomerDetails` validates a registration — every
@@ -1035,9 +1057,10 @@ clock in `waiting-list.test.ts`.
   indefensible. There is no position column — `addedOn` is the whole of a place in the queue, so
   nothing has to be renumbered when somebody is promoted or withdraws.
 - **`listWaiting(deps)`** returns every waiting applicant as a `WaitingListPlace`: their `position`
-  counting from 1, the entry, and `certificateExpired`. Both the order and the numbering come from
-  the domain (`inArrivalOrder`, `isExpired`) rather than from the query or the screen — a screen that
-  numbered the rows itself would be a second statement of the order, and the two could drift.
+  counting from 1, the entry, `daysWaiting` and `certificateExpired`. The order, the numbering and the
+  wait all come from the domain (`inArrivalOrder`, `daysWaiting`, `isExpired`) rather than from the
+  query or the screen — a screen that numbered the rows itself would be a second statement of the
+  order, and the two could drift.
 - **`removeFromWaitingList(deps, { entryId, reason })`** stamps the row rather than deleting it
   (FR-7) and writes a `waitingList.removed` audit entry. The reason is required
   (`MissingAuditReason`): a waiting list is only worth the claim it makes — that the longest wait was
@@ -1525,6 +1548,62 @@ staff to ignore the list — or, far worse, to turn a household away over it (PR
 - The home screen's badge (`countCardsDueForReissue`) is shown at zero too and in the same grey as
   everything around it: "nothing to do" is the answer staff most often want from it, and a home
   screen that looks alarmed about outdated cards is how the list stops being read.
+
+### `src/app/warteliste/` — the waiting list
+
+US-12.4, the screen the whole feature is for. `page.tsx` calls `listWaiting` and `proposeRegistration`
+and lays out three things: the free-slot banner, the applicants in arrival order, and the form that
+puts somebody on the list. It is `force-dynamic` — a wait grows a day at midnight and a certificate
+lapses the same way, with nothing written either time.
+
+**The order is the feature, so the screen gives it nothing to argue with.** The rule is stated in
+words above the list; there are no column headings that could be clicked, no way to move a row, and
+"Jetzt registrieren" appears on the banner only, never on a row. A sortable list invites the exact
+unfairness the strict ordering exists to prevent (PRD §6). The head of the list is read off position 1
+rather than by asking `nextInLine` a second time — one statement of the order, so the banner and the
+list cannot name two different applicants.
+
+- **`free-slot-banner.tsx`** names **one** applicant and **one** number, and it is rendered on the
+  home screen as well (`showListLink`). Without it a freed customer number is only noticed by whoever
+  thinks to open the list, and the applicant who has waited longest waits on — which is the whole of
+  FR-4. An expired certificate is repeated on the banner, because whoever acts on it needs to know a
+  renewed notice will be wanted **before** they walk over to the applicant.
+- **`add-applicant-form.tsx`** collects exactly what an entry records — no household, no group, no
+  number, because none of those is decided until the applicant is actually registered. It clears
+  itself after a save by remounting its fields on `state.savedCount`, a count the action keeps: two
+  applicants with the same name would otherwise produce an identical state, and a form that resets on
+  a value that did not change is a form that keeps the previous applicant's address.
+- **`remove-applicant-controls.tsx`** is a closed disclosure with the confirmation inside it and the
+  save disabled until a reason is typed, like the archive control. What the confirmation says is the
+  thing staff would otherwise ring up about: the entry is **kept**, not deleted (FR-7).
+- **`actions.ts`** reports an already-lapsed certificate as its own German sentence naming the day it
+  ran out. It is the one rejection staff meet with the applicant standing in front of them, and
+  "bitte prüfen" would not tell them what to ask for. Both actions revalidate `/warteliste` and `/`,
+  because the home screen's banner names whoever is at the head.
+
+#### `warteliste/[entryId]/registrieren/` — the promotion
+
+`page.tsx` calls `promoteFromWaitingList`, which is a **read**: the applicant stays on the list until
+the form is actually saved. A registration can fail on its last field, and somebody removed a moment
+earlier would have lost the place they waited months for. `WaitingListEntryNotFound` is a stale link
+(`notFound()`); `NoFreeCustomerNumber` means the register filled up between the banner and the click,
+and the page says so and sends staff back — nothing was written and the applicant keeps their place.
+
+The form is `kunden/neu`'s `RegistrationForm`, given a `submit` prop and a hidden `entryId`. Its
+parsing is shared through `kunden/neu/registration-input.ts`: one Zod schema, one household pairing,
+one German error mapping, so a field cannot start being accepted on one screen and refused on the
+other. The action calls **one** use case, `registerFromWaitingList` — never `registerCustomer` plus a
+removal of its own, because the order of those two is the guarantee the feature rests on and
+"remember to do B after A" is exactly what a screen forgets.
+
+- **`promotion-screen.tsx`** holds the one piece of judgement the screen has: when the certificate
+  lapsed during the wait, the warning is shown **before** the form, naming the day it ran to (FR-5).
+  It is a step, not a dialog — nothing is dismissed and the applicant is never refused, because FD has
+  not decided how such a case is settled (PRD §9). With a valid certificate there is nothing to warn
+  about and the form is simply there.
+- A **full register** on `/kunden/neu` now offers the way onto the waiting list beside its "alle
+  Nummern sind vergeben" message. That message was otherwise a dead end, and turning an applicant away
+  is precisely what the list exists to prevent.
 
 ### `src/i18n/de.ts`
 

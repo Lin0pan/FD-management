@@ -64,6 +64,19 @@ export interface PrefillDraft {
   readonly zip: string;
   readonly city: string;
   readonly householdMembers: ReadonlyArray<PrefillMember>;
+  /**
+   * The certificate and the note the draft was written from, or absent when it carries none.
+   *
+   * Which of the two it is says something about where the draft came from, and the difference is
+   * deliberate. An **archived record** carries neither (US-11.2): its certificate is years old and
+   * nobody has looked at it since, so asking for a fresh one is the point. A **waiting-list
+   * promotion** carries both (US-12.2): the certificate was seen when the applicant joined and has
+   * just been re-checked, and the note is the most current thing FD knows about them.
+   */
+  readonly certificateType?: string;
+  /** `YYYY-MM-DD`, the UTC day the certificate runs to. */
+  readonly certificateValidUntil?: string;
+  readonly notes?: string;
 }
 
 export interface PrefillMember {
