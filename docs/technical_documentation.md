@@ -174,6 +174,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │       ├── distribution-record-repository.ts  # PrismaDistributionRecordRepository — (customer, Berlin dayKey)
 │   │       ├── reminder-log-repository.ts  # PrismaReminderLogRepository — (customer, loggedOn) cap
 │   │       ├── certificate-repository.ts   # PrismaCertificateRepository — appends renewals
+│   │       ├── waiting-list-repository.ts  # PrismaWaitingListRepository — removals stamp, never delete
 │   │       ├── audit-log.ts          # PrismaAuditLog — append-only, no actor column
 │   │       ├── seed.ts               # provisional settings version, inserted only if none exists
 │   │       ├── test-support.ts       # clearRegister — the children-first teardown the specs share
@@ -1219,6 +1220,28 @@ repository's `CUSTOMER_INCLUDE` resolves it. The append and the reset of `remind
 out in one transaction — a renewal that landed without its reset would show a customer still owing
 what they have just brought.
 
+### `src/infrastructure/prisma/waiting-list-repository.ts`
+
+`PrismaWaitingListRepository` (the `WaitingListRepository` port) is the store behind the waiting list
+(US-12.3). It decides nothing about the queue — `inArrivalOrder` does — and owns the two things the
+pure layers cannot.
+
+The first is the **tie-break**: rows are numbered as they are inserted, so `id` ascends with the
+order applications were typed in, and two applicants added the same morning cannot swap places
+between two page loads. `listWaiting` still orders by `(addedOn, id)` so a page read twice comes back
+the same way and the `addedOn` index is the one the query uses, but the application sorts what it
+gets back through the domain rule regardless: the query is a stable page, not the authority.
+
+The second is **retention**. `remove` is an `update`, and no statement in the file deletes a row: a
+removal stamps `removedOn` and `removalReason`, so the order of past promotions stays reconstructable
+(FR-7). Its `where` names a row that is _still waiting_, so a second removal of the same entry
+updates nothing rather than overwriting the first reason with a later one. `STILL_WAITING`
+(`removedOn: null`) is stated once and shared by the list and the lookup, so a promotion can never
+register somebody the screen had already removed; `findWaiting` therefore answers `null` for a
+removed entry exactly as it does for an id that never existed. `contactNote` is `null` in SQL when
+none was given and `""` in the domain — one representation of an unanswered question per layer, and
+the translation is the adapter's.
+
 ### `src/app/einstellungen/` — the settings screen
 
 The first real screen, and the reference for how a route is wired:
@@ -1562,6 +1585,15 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   the database's own cap of one reminder per customer per day, surfaced by the adapter as
   `ReminderAlreadyLoggedToday`. `resultingCount` repeats the customer's count as it stood after the
   entry, so the trail reads on its own; a renewal resets the _count_, never this log.
+- `WaitingListEntry` is one applicant the quota has no slot for (US-12). It has **no relation to
+  `Customer` at all** and holds no `customerNumber`, no group and no card — the list is precisely the
+  people who occupy nothing — and it flattens the address and the single admitting certificate onto
+  the row, because nothing renews on a waiting list. Rows are **retained, never deleted** (FR-7):
+  `removedOn` / `removalReason` say whether the applicant was registered or withdrew, and the active
+  list is every row with `removedOn IS NULL`. There is deliberately **no `position` column** — the
+  place in the queue is `addedOn` (indexed), ties broken by the ascending `id`, derived by
+  `src/domain/customer/waitingList.ts`; a stored position is a position somebody can edit, which is
+  the fairness the list exists to protect.
 - `DistributionRecord` is the append-many history of hand-outs (US-05). It carries `date`, a
   normalised Europe/Berlin `dayKey` (`YYYY-MM-DD`, written by the domain's `berlinDayKey`), the
   `showedUp` and `paid` flags and `priceCents`. The unique `(customerId, dayKey)` index is the

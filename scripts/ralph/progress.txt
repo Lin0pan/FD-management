@@ -87,6 +87,17 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
 - Prettier reorders nothing but reflows long import lists and tables; run
   `npx prettier --write <files>` after hand-editing docs/technical_documentation.md tables, or the
   lint-staged hook rewrites them under you.
+- An adapter for a table with NO relations is exempt from `clearRegister`: a spec that owns such a
+  table clears it with its own `deleteMany()` in `beforeEach`. Only the register needs children-first.
+- Regenerating the init migration also leaves the DEV database without the re-appended partial unique
+  index — `migrate dev` applied the file before the index was pasted back on. Always finish the
+  sequence with `npm run db:reset`, which re-runs the completed migration.
+- A nullable column whose domain counterpart is a non-nullable `""` (contactNote) is translated in
+  the ADAPTER, both ways, in one `toEntry`/`create` pair. The layers above never see the null, and the
+  column keeps a single representation of "not answered".
+- A "remove" that must be idempotent scopes its `where` to the rows still eligible
+  (`{ id, removedOn: null }`) and uses `updateMany`: a second call updates nothing instead of
+  overwriting the first reason, and an unknown id is not an error the adapter has to invent.
 
 ---
 
@@ -169,5 +180,47 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   - German for the UI is still to be written for US-004 — nothing in this story added a dictionary
     entry, and the two machine-written removal reasons (`customerNumber=<n>`) are keys, not text to
     display verbatim.
+
+---
+
+## 2026-07-27 14:25 — US-003 (WaitingListEntry schema)
+
+- Added the Prisma model `WaitingListEntry`: name, birthdate, flat address, `contactNote String?`,
+  the flattened admitting certificate (`certificateType`, `certificateValidUntil`), `addedOn`, and
+  the retention pair `removedOn` / `removalReason`, with `@@index([addedOn])`. It has **no relation
+  to `Customer`** and no `position` column — the list is precisely the people who occupy no slot, and
+  a stored position is a position somebody can edit.
+- Regenerated the single init migration (pre-release, disposable) as
+  `prisma/migrations/20260727121530_init/`, re-appended the hand-written partial unique index from
+  the old one, then `npm run db:reset`.
+- New adapter `src/infrastructure/prisma/waiting-list-repository.ts` implementing
+  `WaitingListRepository`. `remove` is an `updateMany` scoped to `removedOn: null` — no statement in
+  the file deletes a row, and a second removal cannot overwrite the first reason. `STILL_WAITING` is
+  stated once and shared by `listWaiting` and `findWaiting`, so a promotion cannot register somebody
+  the screen had already removed. `listWaiting` orders by `(addedOn, id)` as a stable page; the
+  authority remains `inArrivalOrder`.
+- 13 integration tests against a throwaway SQLite file (Faker, seeded), test-after per the testing
+  approach: the round trip of the nested address/certificate, the empty note stored as SQL `null`,
+  arrival ordering, the same-day tie put through `inArrivalOrder`, a removal that stamps rather than
+  deletes, the second-removal no-op, and that an entry occupies no customer number. Plus a
+  `schema.test.ts` assertion that the migration creates the `addedOn` index.
+- Files changed: `prisma/schema.prisma`, `prisma/migrations/` (regenerated init),
+  `src/infrastructure/prisma/waiting-list-repository.ts` (new) + `.test.ts` (new),
+  `src/infrastructure/prisma/schema.test.ts`, `docs/technical_documentation.md`,
+  `scripts/ralph/prd.json`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (41 files, 737 tests, domain +
+  application at 100%) and `npm run build` all green. No UI change, so no browser verification.
+- **Learnings for future iterations:**
+  - The adapter is written but **not wired**: no `deps.ts` names it yet, because `/warteliste` does
+    not exist. US-004 creates `src/app/warteliste/deps.ts` and is the first to construct
+    `new PrismaWaitingListRepository(prisma)` — the page needs `waitingList` + `clock`, and the
+    server actions additionally `audit`, plus everything `registerCustomer` takes for
+    `registerFromWaitingList` (customers, settings, cards).
+  - `orderBy` needs `[...IN_ARRIVAL_ORDER]` when the constant is `as const`: Prisma's input type is
+    mutable and a readonly tuple does not satisfy it. Same trick as `[...FIELDS]` in the use cases.
+  - The waiting list is deliberately absent from `clearRegister` (it references no customer); the e2e
+    suite wipes the whole database file anyway, so US-005 needs no teardown helper for it.
+  - `prisma/schema.prisma` is not Prettier-formattable (no parser) — leave it out of any
+    `npx prettier --write` list or the command exits non-zero.
 
 ---

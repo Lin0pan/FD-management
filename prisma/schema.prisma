@@ -301,6 +301,60 @@ model DistributionRecord {
   @@index([customerId, date])
 }
 
+/// One applicant waiting for a customer number to free up (US-12).
+///
+/// An entry is **not a customer**: it holds no `customerNumber`, no group and no card, and it has no
+/// relation to `Customer` at all — the whole point of the list is the people the quota has no slot
+/// for, and a row here must never be mistaken for one that occupies one. When an applicant is
+/// registered, a customer is created from scratch and this row is stamped as removed.
+///
+/// **Rows are retained, never deleted** (FR-7). Whether an applicant was registered or withdrew,
+/// `removedOn` and `removalReason` say so and the row stays: "first come, first served" is a claim
+/// FD must still be able to defend a year later, and it can only be checked against a history that
+/// still contains the people who left it. The active list is therefore every row with
+/// `removedOn IS NULL` — a filter, never a delete.
+///
+/// **There is deliberately no `position` column.** The place in the queue is `addedOn` (ties broken
+/// by the ascending `id`), derived by `src/domain/customer/waitingList.ts`; a stored position is a
+/// position somebody can edit, which is exactly the fairness the list exists to protect.
+model WaitingListEntry {
+  id Int @id @default(autoincrement())
+
+  firstName String
+  lastName  String
+  birthDate DateTime
+
+  /// The address in flat fields, as on `Customer` — an applicant is asked the same questions a
+  /// registration asks, so promoting them is a pre-filled form rather than a re-interview.
+  street      String
+  houseNumber String
+  zip         String
+  city        String
+
+  /// How staff would reach this applicant, in free text, or null when none was given. FD agreed no
+  /// phone or e-mail fields (docs/domain_analysis.md, open question 2), and nullable rather than
+  /// defaulted because "we have no way of reaching them" is a fact about the entry worth seeing.
+  contactNote String?
+
+  /// The proof of need the applicant was admitted with, flattened onto the row. It is a single
+  /// certificate rather than the appended history `Certificate` keeps, because nothing renews on the
+  /// waiting list: an entry whose certificate lapses while waiting keeps its place and is *flagged*
+  /// (FR-5), and a renewal is brought when they are registered.
+  certificateType       String
+  certificateValidUntil DateTime
+
+  /// The instant the applicant joined, from the injected clock — their entire place in the queue.
+  addedOn DateTime
+
+  /// When they came off the list and why, or null while they are still waiting. Written together and
+  /// never cleared: the pair is what turns a removal into a record instead of a gap.
+  removedOn     DateTime?
+  removalReason String?
+
+  /// The queue is read in arrival order every time the screen or the banner asks who is next.
+  @@index([addedOn])
+}
+
 /// One logged certificate reminder — a day of the documented trail an expired certificate starts at
 /// the counter (US-06).
 ///
