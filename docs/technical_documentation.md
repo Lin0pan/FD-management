@@ -125,6 +125,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customer/certificate.test.ts  # its Vitest spec
 │   │   ├── customer/nameSearch.ts     # foldName — the comparable form of a name (US-11)
 │   │   ├── customer/nameSearch.test.ts  # its Vitest spec
+│   │   ├── customer/waitingList.ts     # first-come-first-served ordering of applicants (US-12)
+│   │   ├── customer/waitingList.test.ts  # its Vitest spec
 │   │   ├── card/card.ts              # what an issued card is + why it was issued
 │   │   ├── card/card.test.ts         # its Vitest spec
 │   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
@@ -515,6 +517,32 @@ Deliberately absent is any escalation function or reminder threshold. FD reminds
 as a habit, but every case is a staff judgement, so the domain exposes only the expiry and the
 running `reminderCount` — encoding a threshold would misrepresent a judgement as a rule and is a
 named non-goal of US-06.
+
+### `src/domain/customer/waitingList.ts`
+
+The waiting list's ordering rule (US-12.1). `inArrivalOrder(entries)` sorts a copy of the applicants
+by `addedOn`, earliest first, breaking a tie on the same instant by ascending `id`; `nextInLine(entries,
+today)` names the head of that order.
+
+The rule is **strictly first come, first served** — no priority, urgency or hardship override (FR-3) —
+and it lives in the domain rather than in an `ORDER BY` so that fairness is a property the tests pin
+down, and so the waiting-list screen, the home-screen banner and the promotion use case cannot each
+arrive at a slightly different head of the queue. The tie-break is the surrogate id and never the order
+the rows came back in: two applicants added the same morning would otherwise swap places between two
+page loads, which is exactly the unfairness the strict order exists to prevent. Ids ascend with time,
+so the tie-break only ever refines arrival order and never contradicts it.
+
+`nextInLine` returns a discriminated union — `WAITING_LIST_EMPTY` when nobody is waiting, so a caller
+cannot mistake "no one" for "not asked", otherwise `NEXT_IN_LINE` carrying the entry and
+`certificateExpired`. `today` decides **nothing** about the order: it is read only to flag an applicant
+whose certificate lapsed while they waited (via `isExpired`, so there is one expiry comparison in the
+system). The flag never filters. Skipping the head silently would hand somebody else's slot away
+without anyone deciding to; what happens about the renewal is FD's judgement, taken at the counter
+(US-12, FR-5).
+
+Both functions are generic over the caller's entry shape, like `recordForDay`: the rule reads `id`,
+`addedOn` and `certificate` and hands the caller's own richer row straight back, so it never grows a
+field it does not use.
 
 ### `src/domain/card/card.ts`
 

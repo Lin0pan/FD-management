@@ -1,3 +1,109 @@
 # Ralph Progress Log
 Started: Mon Jul 27 13:56:15 CEST 2026
 ---
+
+## Codebase Patterns
+(Carried forward by hand from the US-11 log — the archive rotation wipes this file, so the patterns
+block has to be pasted into the fresh one. The other durable channel is the CLAUDE.md files.)
+- Adding a method to a port interface (e.g. CustomerRepository) forces EVERY implementer to compile:
+  the real Prisma adapter AND the hand-written fakes, which live in several test files —
+  customers.test.ts, certificate-reminder.test.ts, lookup-customer.test.ts,
+  cards-due-for-reissue.test.ts and distribution/record-attendance.test.ts.
+  `grep -rln "implements <Port>" src/` before you start. Miss one and typecheck fails, not lint.
+- Adding a field to RegisteredCustomer ripples the same way: every fake `create` returning
+  `{ ...customer, id }` and every builder literal needs the new field.
+- Adding a REQUIRED column to Customer ripples further still: ~12 fixtures write customer rows
+  straight through Prisma (5 infra *-repository.test.ts + 7 tests/e2e/*.spec.ts). That is the price
+  of a column the database will not default — and it is the point, because a fixture that skipped it
+  would be a row the feature can never find. `grep -rn "prisma.customer.create" src tests`.
+- `issueCard` (application/customers/issue-card.ts) is the ONE path by which a card comes into
+  existence; `reissueCard` delegates to it and only narrows the reason. Never write a second issuing
+  path — validity is "holds the highest index", so a parallel path is how two valid cards appear.
+- Prisma migrations are pre-release disposable. `npx prisma migrate dev --name init` REGENERATES the
+  single init migration and DROPS the hand-written partial unique index at its end — re-append it
+  from the previous migration (`git show HEAD:prisma/migrations/<old>/migration.sql | tail -16`) or
+  the slot rule is enforced by application code alone. `npm run db:reset` afterwards, and note that
+  `migrate dev` refuses non-interactively if the dev db is ahead — delete data/fd.db first.
+- Status changes go through `transition(from, to, reason?)` in domain/customer/status.ts, never an
+  ad-hoc status assignment; persist via CustomerRepository.setStatus — except the archive, which has
+  its own `archive(id, reason, archivedAt)` write because it stamps three columns and clears
+  blockReason in one statement.
+- Derive-don't-store: household counts, ages, card validity and the card number are all derived on
+  read (readCustomer / readCard / describeAllowance), never stored. The only two exceptions are
+  named in the root CLAUDE.md — the card's printed counts, and the folded name search keys.
+- Narrowing a nullable pair that is non-null "exactly when status is X" belongs in the ADAPTER, not
+  in the use case: define the narrowed type in ports.ts (e.g. `ArchivedCustomer extends
+  RegisteredCustomer`) and let infrastructure refuse a hand-edited row with InvalidCustomerRecord.
+  Doing it in application/ costs a defensive branch against the 100% coverage gate.
+- Prisma defaults `onDelete` to `SetNull` for an OPTIONAL relation and `Restrict` for a required one,
+  so every nullable relation must spell `onDelete: Restrict` out. schema.test.ts greps the schema for
+  the words AND the migration SQL for `ON DELETE SET NULL` / `ON DELETE CASCADE`.
+- A self-referencing FK (Customer.previousCustomerId) means "children first" is not enough to tear the
+  register down: `clearRegister` nulls the links before `customer.deleteMany()`.
+- SQLite reports a FK violation as P2003 with EMPTY `meta` — unlike P2002, the offending column cannot
+  be read off the error, so attribution has to come from what the write itself contains.
+- German UI strings only in `src/i18n/de.ts`; inflected forms are functions in the dictionary.
+- The Edit tool struggles with strings containing umlauts/em-dashes; patch such lines with a small
+  `python3 - <<'PY'` heredoc instead of fighting it.
+- HTML forms do not nest: a panel with its own submit button on a screen that is already a form has
+  to be a SIBLING, with the state they share lifted into a parent client component.
+- A `key` change is the cheapest way to reset a form that mixes controlled and uncontrolled fields —
+  remounting resets both kinds, and `useActionState`'s message with them.
+- Convert a `Date` to `YYYY-MM-DD` on the SERVER before it reaches an `<input type="date">`; read in
+  the browser's zone a midnight-UTC day lands on the day before. `germanDate` is for display only.
+- A `key` remount is invisible to Playwright: after clicking something that applies a pre-fill, WAIT
+  for the new form (a banner, a pre-filled value) before typing. A `fill` on the node about to be
+  replaced is thrown away with it, and the submit then fails on a field the spec believes it filled.
+- An e2e spec that has to prove "not this row" is strongest when the excluded row is *hard* to
+  exclude: give the archived household and the active one the same surname, so only the status
+  filter keeps them apart.
+- `pkill -f "next start"` from the Bash tool kills the shell running it (the pattern matches the
+  command line itself). Write `pkill -f "next[ ]start"`.
+- A pure rule that has to hand the CALLER's row back is generic over it — `recordForDay<T extends
+  AttendanceRecord>`, `nextInLine<T extends WaitingApplicant>`. Declare the minimal interface the
+  rule reads, constrain `T` to it, return `T`: the application layer keeps its richer entry and the
+  domain never grows a field it does not use.
+- A "nothing to report" outcome is a variant of the result union (`WAITING_LIST_EMPTY`,
+  `NOT_FOUND`), never `null`/`undefined` — the UI switch stays exhaustive and a caller cannot
+  mistake "no one" for "not asked".
+- Every expiry question in the system goes through `isExpired(certificate, today)` in
+  domain/customer/certificate.ts. Do not re-compare `validUntil` inline anywhere — the "valid
+  through its last day" boundary would drift.
+
+---
+
+## 2026-07-27 14:00 — US-001 (waiting-list ordering rule)
+
+- Implemented `src/domain/customer/waitingList.ts`: `inArrivalOrder(entries)` sorts a COPY by
+  `addedOn` ascending with ties broken by ascending `id`, and `nextInLine(entries, today)` names the
+  head as a discriminated union — `{ kind: "WAITING_LIST_EMPTY" }` or `{ kind: "NEXT_IN_LINE", entry,
+  certificateExpired }`. Both are generic over the caller's entry shape (`T extends WaitingApplicant`,
+  which declares only `id`, `addedOn`, `certificate`), following `recordForDay` in
+  domain/distribution/attendance.ts.
+- `today` decides nothing about the order: it is read only for the expiry flag, which delegates to
+  the existing `isExpired` so there is one "valid through its last day" comparison in the system.
+  The flag never filters — the head of the list stays the head with an expired certificate (FR-5).
+- The tie-break is the surrogate id and never array order, so two applicants added the same morning
+  cannot swap places between two page loads. Ids ascend with time, so it only ever refines arrival
+  order. `inArrivalOrder` is exported because the ordering must not be re-expressed as an `ORDER BY`
+  in US-003's query or as a second sort on the US-004 screen.
+- TDD: the spec was written and run red (module missing) before the implementation existed. Ten
+  tests — single entry, ordering across dates in two input orders, same-day tie in both orders,
+  expired certificate at the head, the validUntil-day and day-after boundaries, the empty list, plus
+  `inArrivalOrder`'s ordering, no-mutation and empty cases.
+- Files changed: `src/domain/customer/waitingList.ts` (new), `src/domain/customer/waitingList.test.ts`
+  (new), `docs/technical_documentation.md` (tree entry + module section), `scripts/ralph/prd.json`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (39 files, 700 tests, domain +
+  application at 100%) and `npm run build` all green. No UI change, so no browser verification.
+- **Learnings for future iterations:**
+  - No new domain error was needed: "nobody is waiting" is a RESULT, not a failure — an empty list is
+    the normal state of a waiting list, and a thrown error would make the banner's happy path a catch
+    block. Keep `WaitingListEmpty` out of `errors.ts`; `CertificateExpired` and `NoFreeCustomerNumber`
+    (US-002) are the genuine errors, and `NoFreeCustomerNumber` already exists in `errors.ts`.
+  - US-002 should build its `listWaiting` flags on `inArrivalOrder` + `isExpired` rather than sorting
+    in the repository; US-003's query may then order by `(addedOn, id)` for a stable page, but the
+    domain sort stays the authority.
+  - `docs/technical_documentation.md` carries BOTH a source tree listing (~line 115) and a per-module
+    section; a new domain module needs an entry in each, or the tree silently drifts.
+
+---
