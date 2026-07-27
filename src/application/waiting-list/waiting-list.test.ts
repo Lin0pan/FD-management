@@ -321,9 +321,19 @@ describe("listWaiting", () => {
     const places = await listWaiting({ waitingList, clock });
 
     expect(places).toEqual([
-      { position: 1, entry: lapsedAtTheHead, certificateExpired: true },
-      { position: 2, entry: validBehindThem, certificateExpired: false },
+      { position: 1, entry: lapsedAtTheHead, daysWaiting: 197, certificateExpired: true },
+      { position: 2, entry: validBehindThem, daysWaiting: 166, certificateExpired: false },
     ]);
+  });
+
+  it("states how long each applicant has waited, counted from the day they joined", async () => {
+    const joinedToday = entry(1, at("2026-07-20"));
+    const joinedYesterday = entry(2, at("2026-07-19"));
+    const waitingList = new FakeWaitingList(joinedYesterday, joinedToday);
+
+    const places = await listWaiting({ waitingList, clock });
+
+    expect(places.map((place) => place.daysWaiting)).toEqual([1, 0]);
   });
 
   it("reports an empty waiting list as an empty list", async () => {

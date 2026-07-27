@@ -10,7 +10,7 @@
  */
 
 import { isExpired } from "@/domain/customer/certificate";
-import { inArrivalOrder } from "@/domain/customer/waitingList";
+import { daysWaiting, inArrivalOrder } from "@/domain/customer/waitingList";
 import type { Clock, WaitingListEntry, WaitingListRepository } from "../ports";
 
 export interface ListWaitingDeps {
@@ -23,6 +23,11 @@ export interface WaitingListPlace {
   /** Their place in the queue, counting from 1 — derived from the order, never stored. */
   readonly position: number;
   readonly entry: WaitingListEntry;
+  /**
+   * How many whole days they have been waiting today — derived from `addedOn` by the domain rule, so
+   * the screen states the wait rather than working it out.
+   */
+  readonly daysWaiting: number;
   /**
    * Whether the certificate they joined with has lapsed by today. It never re-orders the list (FR-3):
    * an applicant keeps the place they earned by waiting, and the flag is what staff act on — they ask
@@ -39,6 +44,7 @@ export async function listWaiting(deps: ListWaitingDeps): Promise<ReadonlyArray<
   return inArrivalOrder(waiting).map((entry, index) => ({
     position: index + 1,
     entry,
+    daysWaiting: daysWaiting(entry, today),
     certificateExpired: isExpired(entry.certificate, today),
   }));
 }
