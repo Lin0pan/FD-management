@@ -55,8 +55,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "No new use case: re-registration is draftFromArchived + the existing registerCustomer. RegisterCustomerInput gained an optional previousCustomerId, stored as null when absent; nothing branches on it, so a returning household takes the lowest free number, a card at index 1 and reminderCount 0 exactly like a walk-in. New nullable self-referencing column Customer.previousCustomerId with onDelete: Restrict (Prisma defaults an optional relation to SetNull — schema.test.ts now checks the migration SQL for it). The init migration was regenerated and the hand-written partial unique index re-appended. clearRegister nulls the links before deleting customers."
     },
     {
       "id": "US-004",

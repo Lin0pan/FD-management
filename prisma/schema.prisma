@@ -139,6 +139,20 @@ model Customer {
   /// A free remark, or the empty string. Most households need none.
   notes String @default("")
 
+  /// The archived record this registration was pre-filled from, or null (US-11.3).
+  ///
+  /// **Display metadata: no rule reads it, and none may start.** A household that comes back is a
+  /// new customer with a new number, a card at index 1 and a reminder count of zero; this column
+  /// only says that the same people were once here before, so a future "history of this household"
+  /// view is additive (tasks/prd-us-11-reuse-archived-record.md §7). It is never a merge — nothing
+  /// is carried across it, and the predecessor stays exactly as archiving left it (FR-5).
+  ///
+  /// Self-referencing and nullable, with `onDelete: Restrict` like every other relation here: the
+  /// link may not be silently nulled by a delete any more than a household may be deleted at all.
+  previousCustomerId Int?
+  previousCustomer   Customer?  @relation("Reregistration", fields: [previousCustomerId], references: [id], onDelete: Restrict)
+  successors         Customer[] @relation("Reregistration")
+
   householdMembers HouseholdMember[]
   certificates     Certificate[]
   cards            Card[]

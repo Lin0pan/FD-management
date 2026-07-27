@@ -21,7 +21,7 @@ import { listCardsDueForReissue } from "@/application/customers/cards-due-for-re
 import { createCustomerDetails, type NewCustomer } from "@/domain/customer/customer";
 import { foldName } from "@/domain/customer/nameSearch";
 import type { Group } from "@/domain/customer/group";
-import { CustomerNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
+import { CustomerNotFound, CustomerNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
 import { PrismaCustomerCounter, PrismaCustomerRepository } from "./customer-repository";
 import { clearRegister } from "./test-support";
 
@@ -98,6 +98,7 @@ function newCustomer(overrides: Partial<Omit<NewCustomer, "details">> = {}): New
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 1, children: 1 },
     },
+    previousCustomerId: null,
     ...overrides,
   };
 }
@@ -203,6 +204,94 @@ describe("PrismaCustomerRepository.create", () => {
     await insertCustomer(50, "BLOCKED");
 
     await expect(repository.create(newCustomer())).rejects.toBeInstanceOf(CustomerNumberTaken);
+  });
+});
+
+/**
+ * US-11.3 — a returning household is a *new* row that merely points at the old one. These specs are
+ * about the column and its foreign key: that the link is stored and read back, that it is null for
+ * everyone else, that the predecessor's row is not touched by the registration that names it, and
+ * that the database refuses a link to nobody.
+ */
+describe("the link to an archived predecessor", () => {
+  /** An archived household with a card and a certificate, as the register really holds one. */
+  async function archivedPredecessor(customerNumber: number): Promise<number> {
+    const registered = await repository.create(newCustomer({ customerNumber }));
+    await repository.archive(registered.id, "weggezogen", new Date("2025-11-04T09:00:00.000Z"));
+    return registered.id;
+  }
+
+  it("stores the archived record a registration was pre-filled from", async () => {
+    const previousCustomerId = await archivedPredecessor(50);
+
+    const registered = await repository.create(newCustomer({ previousCustomerId }));
+
+    expect(registered.previousCustomerId).toBe(previousCustomerId);
+    const row = await prisma.customer.findUniqueOrThrow({ where: { id: registered.id } });
+    expect(row.previousCustomerId).toBe(previousCustomerId);
+  });
+
+  it("reads the link back off the record", async () => {
+    const previousCustomerId = await archivedPredecessor(50);
+    const registered = await repository.create(newCustomer({ previousCustomerId }));
+
+    const found = await repository.findById(registered.id);
+
+    expect(found?.previousCustomerId).toBe(previousCustomerId);
+  });
+
+  it("leaves the link null for a household that walked in off the street", async () => {
+    const registered = await repository.create(newCustomer());
+
+    const found = await repository.findById(registered.id);
+
+    expect(found?.previousCustomerId).toBeNull();
+  });
+
+  it("copies nothing across the link — the predecessor keeps its number, status and cards", async () => {
+    const previousCustomerId = await archivedPredecessor(50);
+    const before = await prisma.customer.findUniqueOrThrow({
+      where: { id: previousCustomerId },
+      include: { householdMembers: true, certificates: true, cards: true },
+    });
+
+    await repository.create(newCustomer({ previousCustomerId, customerNumber: 51 }));
+
+    const after = await prisma.customer.findUniqueOrThrow({
+      where: { id: previousCustomerId },
+      include: { householdMembers: true, certificates: true, cards: true },
+    });
+    expect(after).toEqual(before);
+  });
+
+  it("lets the returning household take a number while the predecessor keeps showing its own", async () => {
+    const previousCustomerId = await archivedPredecessor(50);
+
+    const registered = await repository.create(newCustomer({ previousCustomerId }));
+
+    expect(registered.customerNumber).toBe(50);
+    const rows = await prisma.customer.findMany({
+      where: { customerNumber: 50 },
+      orderBy: { id: "asc" },
+    });
+    expect(rows.map((row) => row.status)).toEqual(["ARCHIVED", "ACTIVE"]);
+  });
+
+  it("refuses a link to a customer who does not exist, as CustomerNotFound", async () => {
+    await expect(
+      repository.create(newCustomer({ previousCustomerId: 404 })),
+    ).rejects.toBeInstanceOf(CustomerNotFound);
+    expect(await prisma.customer.count()).toBe(0);
+  });
+
+  it("refuses to delete a household another record was registered from", async () => {
+    const previousCustomerId = await archivedPredecessor(50);
+    await repository.create(newCustomer({ previousCustomerId, customerNumber: 51 }));
+    await prisma.card.deleteMany({ where: { customerId: previousCustomerId } });
+    await prisma.certificate.deleteMany({ where: { customerId: previousCustomerId } });
+    await prisma.householdMember.deleteMany({ where: { customerId: previousCustomerId } });
+
+    await expect(prisma.customer.delete({ where: { id: previousCustomerId } })).rejects.toThrow();
   });
 });
 

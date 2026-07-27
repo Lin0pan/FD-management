@@ -35,6 +35,13 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   in the use case: define the narrowed type in ports.ts (e.g. `ArchivedCustomer extends
   RegisteredCustomer`) and let infrastructure refuse a hand-edited row with InvalidCustomerRecord.
   Doing it in application/ costs a defensive branch against the 100% coverage gate.
+- Prisma defaults `onDelete` to `SetNull` for an OPTIONAL relation and `Restrict` for a required one,
+  so every nullable relation must spell `onDelete: Restrict` out. schema.test.ts greps the schema for
+  the words AND the migration SQL for `ON DELETE SET NULL` / `ON DELETE CASCADE`.
+- A self-referencing FK (Customer.previousCustomerId) means "children first" is not enough to tear the
+  register down: `clearRegister` nulls the links before `customer.deleteMany()`.
+- SQLite reports a FK violation as P2003 with EMPTY `meta` — unlike P2002, the offending column cannot
+  be read off the error, so attribution has to come from what the write itself contains.
 - German UI strings only in `src/i18n/de.ts`; inflected forms are functions in the dictionary.
 - The Edit tool struggles with strings containing umlauts/em-dashes; patch such lines with a small
   `python3 - <<'PY'` heredoc instead of fighting it.
@@ -111,4 +118,51 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
     handy for proving a returned value is a copy rather than a shared reference.
   - Prettier reformats long `await expect(...).rejects.toThrow(...)` chains; run
     `npx prettier --write` on the test file before `npm run lint` rather than after.
+---
+## 2026-07-27 09:10 — US-003 (re-registration through the existing registerCustomer path)
+
+- No new use case, and that is the story: re-registration is `draftFromArchived` followed by
+  `registerCustomer`. `RegisterCustomerInput` gained an optional `previousCustomerId` and **nothing
+  branches on it** — a returning household takes the lowest free number, a card at index 1 with
+  reason FIRST_ISSUE, `reminderCount` 0 and the certificate presented today, exactly like a walk-in.
+  A parallel path would give the number allocation, the group balancing and the audit entry two
+  homes, and only one would be fixed the day a rule changed.
+- New `NewCustomer.previousCustomerId: number | null` (nullable, not optional, so every writer states
+  whether these people are known) and a nullable self-referencing `Customer.previousCustomerId`
+  column. Display metadata: no rule reads it. The audit entry appends `previousCustomerId` to
+  `changedFields` when a link is set — the log is the only account of why a second record for the
+  same people exists.
+- The archived predecessor is untouched: both the application test and the integration test compare
+  the whole predecessor row (status, number, cards, distributions) before and after and assert they
+  are identical, and one test seeds the situation where the old number has since been taken and
+  asserts a different number is assigned.
+- Files: `src/domain/customer/customer.ts`, `src/application/customers/register-customer.ts`,
+  `src/infrastructure/prisma/customer-repository.ts` (+ test), `src/infrastructure/prisma/schema.test.ts`,
+  `src/infrastructure/prisma/test-support.ts`, `prisma/schema.prisma` + regenerated init migration,
+  `src/application/customers/customers.test.ts` (new `re-registering…` describe, 11 tests) and the
+  five builders the new field forced. Docs: `docs/technical_documentation.md` (new US-11.3 section,
+  registerCustomer, the adapter, the schema listing and the teardown note).
+- Gates: lint, typecheck, `test:coverage` (690 tests, domain+application at 100%), build and
+  `test:e2e` (46 passed) all green. No UI in this story, so nothing to verify in the browser.
+
+- **Learnings for future iterations:**
+  - **Prisma's default `onDelete` for an *optional* relation is `SetNull`, not `Restrict`.** The
+    schema test only greps `schema.prisma` for the words, so an omitted action passes it while the
+    generated SQL quietly nulls links on delete. Spell `onDelete: Restrict` out on every nullable
+    relation; `schema.test.ts` now also greps the migration SQL for `ON DELETE SET NULL`.
+  - A self-referencing FK breaks `clearRegister`: "children first" is not enough, because a customer
+    row can restrict the delete of another customer row. It now runs
+    `customer.updateMany({ data: { previousCustomerId: null } })` before `customer.deleteMany()`.
+  - SQLite reports a foreign-key violation as `P2003` with **empty `meta`** — unlike `P2002`, the
+    column cannot be read off the error. Attribution has to come from the write itself: in
+    `create`, every other FK points at the row being inserted, so a P2003 can only be the
+    predecessor link.
+  - Adding a field to `NewCustomer` ripples to six builders (2 `NewCustomer`, 4 `RegisteredCustomer`
+    literals across cards-due-for-reissue, certificate-reminder, lookup-customer and
+    record-attendance). The fakes' `create` spreads `...customer`, so they need no change — only the
+    literals do. `npm run typecheck` lists all of them in one pass; that is the cheapest way to find
+    them.
+  - US-004 (the UI) should pass `previousCustomerId` from the archive match the screen already holds,
+    and must show the former number for recognition only — `formerCustomerNumber` on the search
+    result, never the number about to be assigned.
 ---

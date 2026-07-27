@@ -677,7 +677,14 @@ retried.
 
 The audit entry is written under `customer.registered` with an empty `why` — a registration needs no
 justification — and names `customerNumber`, `group`, `status` and `card`: what the _system_ decided,
-rather than repeating the fields staff typed, which are the record itself.
+rather than repeating the fields staff typed, which are the record itself. A re-registration adds
+`previousCustomerId` to that list, so the log accounts for why a second record for the same people
+exists.
+
+`previousCustomerId` is the **only** thing about a re-registration that differs from a walk-in
+(US-11.3). It is optional on the input, stored as `null` when absent, and nothing branches on it: a
+returning household still takes the lowest free number, still starts at card index 1 and still has a
+reminder count of zero. There is no second registration path, which is the point — see below.
 
 ### `src/application/customers/issueCard`
 
@@ -932,6 +939,39 @@ register** is `CustomerNotArchived`. The archive search only lists archived rows
 reached by an id from elsewhere — and pre-filling from an active record would walk staff into
 registering a household that already holds a slot (FR-6).
 
+### Re-registering a returning household (US-11.3)
+
+There is **no `reRegisterCustomer` use case**, and that is the design. Re-registration is
+`draftFromArchived` followed by `registerCustomer`: the screen pre-fills the form from an archived
+record, staff correct what has changed and add the certificate the applicant is holding today, and
+the form is submitted through the one registration path there is. A parallel path would give the
+number allocation, the group balancing, the first card and the audit entry two homes, and only one
+of them would be fixed the day a rule changed.
+
+What comes out is a **new customer**, not the old one brought back:
+
+- a new surrogate id, and a **newly allocated lowest free number** — the old slot was released the
+  day the household was archived and may be someone else's by now (FR-3), so nothing assumes they
+  get it back;
+- a card at **index 1** with reason `FIRST_ISSUE`, printing the counts of the household as it stands
+  today;
+- a **reminder count of 0**, and the certificate presented today recorded as the first row of a
+  fresh trail (FR-4);
+- `registeredOn` = today, because it is derived from the first card.
+
+The archived record is **untouched** — status, number, cards and distribution history all exactly as
+archiving left them (FR-5). Both application and integration tests compare the whole predecessor row
+before and after and assert the two are identical; the archived household keeps showing the number it
+held, while the returning one holds whichever number was free.
+
+The new record carries `previousCustomerId`, a nullable self-reference to the archived predecessor.
+It is **display metadata and nothing else**: no rule reads it, nothing is carried across it, and it
+exists so that a future "history of this household" view is additive (PRD §7). Because the
+application deliberately does not verify it — a lookup purely to check it would make it a rule — the
+foreign key does: a link to an id nobody holds is refused by the database, and the adapter reports it
+as the domain's `CustomerNotFound`. Like every other relation it is `onDelete: Restrict`, so a
+household with a successor cannot be deleted any more than one with cards can.
+
 ### `src/application/customers/countNoShows`
 
 The seam both screens that show the no-show count read (US-10.4), so the customer record and the
@@ -967,8 +1007,12 @@ number — and stating that condition twice is how a number gets handed out twic
 `create` writes the customer, the household members, the certificate and the first card as **one
 nested Prisma create**, which Prisma runs in a single transaction — a failure leaves neither a
 half-built household nor a consumed number. A `P2002` naming `customerNumber` is translated into the
-domain's `CustomerNumberTaken`, which is what lets `registerCustomer` retry with a fresh read; any
-other failure is rethrown as itself. `setStatus(id, status, blockReason)` is the one write behind
+domain's `CustomerNumberTaken`, which is what lets `registerCustomer` retry with a fresh read, and a
+`P2003` — the only foreign key in the nested write that can name a row which might not exist — into
+`CustomerNotFound` for the `previousCustomerId` the caller supplied (US-11.3); any other failure is
+rethrown as itself. SQLite reports a foreign-key violation with no `meta`, so the column cannot be
+read off the error: every other key in that write points at the row being inserted, which is what
+makes the attribution safe. `setStatus(id, status, blockReason)` is the one write behind
 `blockCustomer` / `unblockCustomer`: it updates the `status` and `blockReason` columns together, so
 the reason a blocked customer carries can never disagree with their status.
 
@@ -1382,6 +1426,11 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   because SQLite can fold neither umlauts nor Unicode case in a `WHERE` clause. They are a search key
   and never a name — nothing displays them — and they are non-nullable with no default so that every
   writer, including a future edit of a name (US-16), has to state them.
+  `Customer.previousCustomerId` is a nullable **self-reference** to the archived record a
+  registration was pre-filled from (US-11.3) — display metadata no rule reads, never a merge. Like
+  every other relation it is `onDelete: Restrict`; note that Prisma's default for an _optional_
+  relation is `SetNull`, so the action has to be spelled out, and `schema.test.ts` checks the
+  generated SQL for `ON DELETE SET NULL` as well as for cascades.
 - `ReminderLog` is the documented trail an expired certificate starts at the counter (US-06). One
   row per reminder, keyed by the Berlin day `loggedOn` (`YYYY-MM-DD`, written by the domain's
   `berlinDayKey` like `DistributionRecord.dayKey`); the unique `(customerId, loggedOn)` index is
@@ -1407,7 +1456,9 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   guards the rule against the schema _and_ the committed migration SQL; the customer repository
   specs prove the refusal against a real database. The cost is that a test tearing the register down
   must delete children first — `clearRegister` in `src/infrastructure/prisma/test-support.ts` states
-  that order once.
+  that order once, and clears `previousCustomerId` before the customers themselves, since a
+  re-registered household restricts the delete of the archived record it points at just as a card
+  does.
 - **The slot rule is a partial unique index**, hand-written at the end of the `init` migration
   because Prisma cannot express one: at most one non-archived customer may hold a given
   `customerNumber`, so any number of archived rows may share one. See

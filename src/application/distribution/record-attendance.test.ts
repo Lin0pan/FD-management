@@ -236,6 +236,7 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
     },
     registeredOn: new Date(TODAY),
+    previousCustomerId: null,
     details,
   };
 }

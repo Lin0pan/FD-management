@@ -54,6 +54,15 @@ describe("the committed migrations", () => {
     expect(migrationSql()).not.toMatch(/ON DELETE CASCADE/i);
   });
 
+  /**
+   * Prisma's default action for an *optional* relation is `SET NULL`, not `RESTRICT` — so a nullable
+   * link such as `previousCustomerId` silently becomes destructive unless the action is spelled out.
+   * The schema test above cannot see it: the omission is the bug, and only the generated SQL says so.
+   */
+  it("create no foreign key that nulls a link on delete either", () => {
+    expect(migrationSql()).not.toMatch(/ON DELETE SET NULL/i);
+  });
+
   it("keep the hand-written partial unique index that frees an archived customer's number", () => {
     expect(migrationSql()).toContain(
       'CREATE UNIQUE INDEX "Customer_customerNumber_onRegister_key"',

@@ -427,6 +427,7 @@ function storedCustomer(
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
     },
+    previousCustomerId: null,
   };
 }
 
@@ -617,6 +618,12 @@ describe("registerCustomer", () => {
     await registerCustomer(deps(), registerInput());
 
     expect(audit.entries[0].why).toBe("");
+  });
+
+  it("links to no predecessor when the form was filled in from blank", async () => {
+    const customer = await registerCustomer(deps(), registerInput());
+
+    expect(customer.previousCustomerId).toBeNull();
   });
 });
 
@@ -2155,5 +2162,197 @@ describe("draftFromArchived", () => {
     await expect(draftFromArchived(deps(), { archivedCustomerId: customer.id })).rejects.toThrow(
       new CustomerNotArchived(customer.id, "BLOCKED").message,
     );
+  });
+});
+
+/**
+ * US-11.3 — the returning household. These tests are about a *path* rather than a new use case:
+ * re-registration goes through `registerCustomer` exactly as a walk-in does, and what makes it a
+ * re-registration is only that the form was filled in from `draftFromArchived`. If a second
+ * registration path ever appeared, the number allocation, the group balancing and the audit entry
+ * would each have two homes — and only one of them would be fixed the day a rule changed.
+ */
+describe("re-registering a household from an archived record", () => {
+  let customers: FakeCustomerRepository;
+  let settings: FakeSettingsRepository;
+  let cards: FakeCardRepository;
+  let distribution: FakeDistributionRecordRepository;
+  let audit: FakeAuditLog;
+
+  function deps() {
+    return { customers, settings, clock: fakeClock(TODAY), audit };
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository();
+    settings = new FakeSettingsRepository(version());
+    cards = new FakeCardRepository();
+    distribution = new FakeDistributionRecordRepository();
+    audit = new FakeAuditLog();
+  });
+
+  /** A household that once held `customerNumber` and has since left the register. */
+  async function archivedHousehold(
+    customerNumber: number,
+    overrides: Partial<RegisterCustomerInput> = {},
+  ): Promise<number> {
+    const customer = await customers.create({
+      ...storedCustomer("ACTIVE"),
+      customerNumber,
+      details: createCustomerDetails(
+        registerInput(overrides),
+        new Date("2024-01-08T09:00:00.000Z"),
+      ),
+    });
+    await customers.archive(customer.id, "verzogen", new Date("2025-11-04T09:00:00.000Z"));
+    return customer.id;
+  }
+
+  /**
+   * What the registration screen does with a match: pre-fill from the archived record, add the paper
+   * the applicant is holding today, and register. The certificate and the notes come from the form
+   * because the draft deliberately carries neither (US-11.2).
+   */
+  async function reRegister(archivedCustomerId: number): Promise<RegisteredCustomer> {
+    const draft = await draftFromArchived({ customers }, { archivedCustomerId });
+    return registerCustomer(deps(), {
+      ...draft,
+      certificate: { type: "Jobcenter", validUntil: new Date("2027-06-30T00:00:00.000Z") },
+      notes: "",
+      previousCustomerId: archivedCustomerId,
+    });
+  }
+
+  it("carries the archived household's data into the new record", async () => {
+    const archivedId = await archivedHousehold(1, {
+      firstName: "Anke",
+      lastName: "Schneider",
+      householdMembers: [
+        member({ firstName: "Anke", lastName: "Schneider" }),
+        member({
+          firstName: "Timo",
+          lastName: "Schneider",
+          birthDate: new Date("2020-06-01T00:00:00.000Z"),
+        }),
+      ],
+    });
+
+    const customer = await reRegister(archivedId);
+
+    expect(customer.details.firstName).toBe("Anke");
+    expect(customer.details.householdMembers.map((who) => who.firstName)).toEqual(["Anke", "Timo"]);
+  });
+
+  it("allocates a new number rather than the one the household used to hold", async () => {
+    const archivedId = await archivedHousehold(1);
+    // Their old slot went to somebody else while they were away — the case that makes "a new number"
+    // more than a formality.
+    await customers.create({ ...storedCustomer("ACTIVE"), customerNumber: 1 });
+
+    const customer = await reRegister(archivedId);
+
+    expect(customer.customerNumber).toBe(2);
+  });
+
+  it("is a new customer, not the old one brought back", async () => {
+    const archivedId = await archivedHousehold(1);
+
+    const customer = await reRegister(archivedId);
+
+    expect(customer.id).not.toBe(archivedId);
+    expect(customer.status).toBe("ACTIVE");
+  });
+
+  it("starts the returning household on card index 1 with no reminders outstanding", async () => {
+    const archivedId = await archivedHousehold(1);
+
+    const customer = await reRegister(archivedId);
+
+    expect(customer.card.index).toBe(1);
+    expect(customer.card.reason).toBe("FIRST_ISSUE");
+    expect(customer.reminderCount).toBe(0);
+  });
+
+  it("records the certificate presented today, never the lapsed one on the archived record", async () => {
+    const archivedId = await archivedHousehold(1, {
+      certificate: { type: "Wohngeld", validUntil: new Date("2024-12-31T00:00:00.000Z") },
+    });
+
+    const customer = await reRegister(archivedId);
+
+    expect(customer.details.certificate).toEqual({
+      type: "Jobcenter",
+      validUntil: new Date("2027-06-30T00:00:00.000Z"),
+    });
+  });
+
+  it("dates the returning household's registration today, not when they first joined", async () => {
+    const archivedId = await archivedHousehold(1);
+
+    const customer = await reRegister(archivedId);
+
+    expect(customer.registeredOn).toEqual(new Date(TODAY));
+  });
+
+  it("leaves the archived record exactly as it was — its status, number, cards and history", async () => {
+    const archivedId = await archivedHousehold(1);
+    cards.place(archivedId, 1, 2);
+    await distribution.create({
+      customerId: archivedId,
+      date: new Date("2025-10-08T09:00:00.000Z"),
+      showedUp: true,
+      paid: true,
+      priceCents: 500,
+    });
+    const before = JSON.stringify(await customers.findById(archivedId));
+    const writesBefore = distribution.writes;
+
+    await reRegister(archivedId);
+
+    expect(JSON.stringify(await customers.findById(archivedId))).toBe(before);
+    expect((await cards.listCards(archivedId)).map((card) => card.index)).toEqual([2, 1]);
+    expect(await distribution.listForCustomer(archivedId)).toHaveLength(1);
+    expect(distribution.writes).toBe(writesBefore);
+  });
+
+  it("keeps the archived household's number on their old record, freed but still shown", async () => {
+    const archivedId = await archivedHousehold(1);
+
+    await reRegister(archivedId);
+
+    const archived = await customers.findById(archivedId);
+    expect(archived?.customerNumber).toBe(1);
+    expect(archived?.status).toBe("ARCHIVED");
+  });
+
+  it("links the new record to the archived predecessor", async () => {
+    const archivedId = await archivedHousehold(1);
+
+    const customer = await reRegister(archivedId);
+
+    expect(customer.previousCustomerId).toBe(archivedId);
+  });
+
+  it("names the link among what registration decided, so the re-registration is on the record", async () => {
+    const archivedId = await archivedHousehold(1);
+
+    await reRegister(archivedId);
+
+    expect(audit.entries).toHaveLength(1);
+    expect(audit.entries[0].changedFields).toEqual([
+      "customerNumber",
+      "group",
+      "status",
+      "card",
+      "previousCustomerId",
+    ]);
+  });
+
+  it("gives the archived household no second slot — only the new record counts against the quota", async () => {
+    const archivedId = await archivedHousehold(1);
+
+    const customer = await reRegister(archivedId);
+
+    await expect(customers.takenActiveNumbers()).resolves.toEqual([customer.customerNumber]);
   });
 });

@@ -21,5 +21,9 @@ export async function clearRegister(prisma: PrismaClient): Promise<void> {
   await prisma.card.deleteMany();
   await prisma.certificate.deleteMany();
   await prisma.householdMember.deleteMany();
+  // A re-registered household points at the archived record it was pre-filled from (US-11.3), and
+  // that link is `onDelete: Restrict` like every other: a customer with a successor cannot be
+  // deleted either. Dropping the links first is the self-reference's version of "children first".
+  await prisma.customer.updateMany({ data: { previousCustomerId: null } });
   await prisma.customer.deleteMany();
 }

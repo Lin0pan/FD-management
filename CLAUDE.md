@@ -128,7 +128,9 @@ settings screen reporting that nothing is configured.
 - ❌ Don't hard-delete customer data — archive (status change) and keep it queryable. **No relation
   in `schema.prisma` may carry `onDelete: Cascade`**, so the database refuses the delete rather than
   trusting that no one calls it; `src/infrastructure/prisma/schema.test.ts` fails if one reappears.
-  An integration test that clears the register therefore deletes children first — use
+  A **nullable** relation must say `onDelete: Restrict` out loud: Prisma's default for an optional
+  relation is `SetNull`, which the schema test cannot see, so it also greps the generated migration
+  SQL. An integration test that clears the register therefore deletes children first — use
   `clearRegister` from `src/infrastructure/prisma/test-support.ts`.
 - ❌ Don't skip the audit entry on a state change (archive, block, group move, card reissue, policy
   edit). With no login, the log is the only accountability the system has — and it records _what,

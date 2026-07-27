@@ -173,6 +173,7 @@ function household({
       countsAtIssue: printed ?? composition(details.householdMembers, new Date(TODAY)),
     },
     registeredOn: new Date(TODAY),
+    previousCustomerId: null,
   };
 }
 

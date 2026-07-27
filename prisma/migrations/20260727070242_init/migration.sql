@@ -31,7 +31,9 @@ CREATE TABLE "Customer" (
     "archiveReason" TEXT,
     "archivedAt" DATETIME,
     "reminderCount" INTEGER NOT NULL DEFAULT 0,
-    "notes" TEXT NOT NULL DEFAULT ''
+    "notes" TEXT NOT NULL DEFAULT '',
+    "previousCustomerId" INTEGER,
+    CONSTRAINT "Customer_previousCustomerId_fkey" FOREIGN KEY ("previousCustomerId") REFERENCES "Customer" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 -- CreateTable

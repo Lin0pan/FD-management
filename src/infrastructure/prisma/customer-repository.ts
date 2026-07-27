@@ -14,7 +14,7 @@ import {
 } from "@/domain/customer/customer";
 import { parseGroup, type GroupCounts } from "@/domain/customer/group";
 import { foldName } from "@/domain/customer/nameSearch";
-import { CustomerNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
+import { CustomerNotFound, CustomerNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
 
 /**
  * Everyone who still holds a customer number.
@@ -65,6 +65,24 @@ function isCustomerNumberCollision(error: unknown): boolean {
     error.code === "P2002" &&
     JSON.stringify(error.meta ?? {}).includes("customerNumber")
   );
+}
+
+/**
+ * Whether a failed write was the self-referencing foreign key refusing a `previousCustomerId` that
+ * belongs to nobody (US-11.3).
+ *
+ * The link is display metadata the application deliberately does not verify — no rule reads it, and
+ * a lookup purely to check it would make it one. The database checks it for free; all that is left
+ * is to report the refusal as the domain's own `CustomerNotFound` rather than as a Prisma code.
+ *
+ * Unlike the unique-index collision above, the offending column cannot be read off the error:
+ * SQLite reports a foreign-key violation with no `meta` at all. It does not need to be — the
+ * customer, its members, its certificate and its card go out as one nested write, so every other
+ * foreign key in it points at the row being inserted. `previousCustomerId` is the only one that can
+ * name something that might not exist, and the caller checks that they supplied one.
+ */
+function isMissingPredecessor(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003";
 }
 
 /**
@@ -258,6 +276,7 @@ export class PrismaCustomerRepository implements CustomerRepository {
         countsAtIssue: { grownUps: card.grownUpsAtIssue, children: card.childrenAtIssue },
       },
       registeredOn: firstCard.issuedAt,
+      previousCustomerId: row.previousCustomerId,
       details: {
         firstName: row.firstName,
         lastName: row.lastName,
@@ -308,6 +327,10 @@ export class PrismaCustomerRepository implements CustomerRepository {
           status: customer.status,
           reminderCount: customer.reminderCount,
           notes: details.notes,
+          // Display metadata for a returning household (US-11.3), null for everyone else. Written
+          // like any other column: nothing is copied across the link, and the predecessor's row is
+          // not read, let alone touched.
+          previousCustomerId: customer.previousCustomerId,
           householdMembers: {
             create: details.householdMembers.map((member) => ({
               firstName: member.firstName,
@@ -350,6 +373,9 @@ export class PrismaCustomerRepository implements CustomerRepository {
     } catch (error: unknown) {
       if (isCustomerNumberCollision(error)) {
         throw new CustomerNumberTaken(customer.customerNumber);
+      }
+      if (isMissingPredecessor(error) && customer.previousCustomerId !== null) {
+        throw new CustomerNotFound(customer.previousCustomerId);
       }
       throw error;
     }

@@ -98,6 +98,20 @@ export interface NewCustomer {
    * would let the two paths drift apart.
    */
   readonly card: IssuedCard;
+  /**
+   * The archived record this registration was pre-filled from, or `null` — which is what almost
+   * every registration is (US-11.3).
+   *
+   * It is **display metadata and nothing else**: no rule in this codebase reads it, and none may
+   * start. The returning household is a *new* customer with a new number, a fresh card index and a
+   * reminder count of zero; the link says only "we have met these people before", so that a future
+   * screen can show the history without the two records ever being merged
+   * (tasks/prd-us-11-reuse-archived-record.md §7, FR-5).
+   *
+   * Nullable rather than optional, so every writer states whether there was a predecessor instead of
+   * dropping the link by forgetting the field.
+   */
+  readonly previousCustomerId: number | null;
 }
 
 /**
