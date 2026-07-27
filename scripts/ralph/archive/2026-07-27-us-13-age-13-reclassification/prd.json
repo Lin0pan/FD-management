@@ -20,8 +20,8 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Diacritic tolerance is a stored, indexed search key: foldName (domain/customer/nameSearch.ts) writes Customer.firstNameFolded/lastNameFolded, and searchArchived does a startsWith on them. Cap is MAX_ARCHIVE_SEARCH_RESULTS = 20; the use case asks for 21 rows and reports `truncated`. German message in de.ts customers.archiveSearch."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",

@@ -16,6 +16,7 @@ import type {
 import { AlreadyServedToday, CustomerNotFound, NotClearToServe } from "@/domain/errors";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
 import type {
+  ArchivedCustomer,
   AuditEntry,
   AuditLog,
   Clock,
@@ -92,6 +93,15 @@ class FakeCustomerRepository implements CustomerRepository {
     };
     this.holders.push(registered);
     return Promise.resolve(registered);
+  }
+
+  /**
+   * No use case in this file searches the archive (US-11.1); the method is here because the port has
+   * it. Answering with nothing is honest — this register holds no archived household these tests
+   * ever look for.
+   */
+  searchArchived(): Promise<ReadonlyArray<ArchivedCustomer>> {
+    return Promise.resolve([]);
   }
 
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {

@@ -22,6 +22,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaCertificateRepository } from "./certificate-repository";
 import { PrismaCustomerRepository } from "./customer-repository";
 import { clearRegister } from "./test-support";
+import { foldName } from "@/domain/customer/nameSearch";
 
 faker.seed(20260724);
 
@@ -59,11 +60,17 @@ beforeEach(async () => {
  * the renewal is what is tested, and the customer repository refuses a row missing either relation.
  */
 async function insertCustomer(customerNumber: number, reminderCount = 0): Promise<number> {
+  const firstName = faker.person.firstName();
+  const lastName = faker.person.lastName();
   const row = await prisma.customer.create({
     data: {
       customerNumber,
-      firstName: faker.person.firstName(),
-      lastName: faker.person.lastName(),
+      firstName,
+      lastName,
+      // The folded search keys the adapter derives; a fixture that skipped them would be a row the
+      // archive search could never find (US-11.1).
+      firstNameFolded: foldName(firstName),
+      lastNameFolded: foldName(lastName),
       birthDate: new Date("1990-01-01T00:00:00.000Z"),
       street: faker.location.street(),
       houseNumber: faker.location.buildingNumber(),

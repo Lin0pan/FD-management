@@ -34,6 +34,7 @@ export type DomainErrorCode =
   | "QuotaBelowActiveCustomers"
   | "MissingAuditReason"
   | "IllegalStatusTransition"
+  | "EmptySearchQuery"
   | "InvalidEuroAmount";
 
 /** Base class of every domain error. `code` lets callers switch over the closed set above. */
@@ -427,6 +428,24 @@ export class RecordNoLongerCorrectable extends DomainError {
     this.recordId = recordId;
     this.recordDate = recordDate;
     this.today = today;
+  }
+}
+
+/**
+ * A search was submitted with every criterion left blank. Carries the names of the criteria it would
+ * have accepted, so the screen can say which fields it means rather than reporting a bare refusal.
+ *
+ * An empty archive search is not "everyone archived" (US-11.1): the result would be a list staff
+ * would scroll through looking for a household they could have named, and pre-filling a registration
+ * from the wrong row is the mistake this whole feature must not make.
+ */
+export class EmptySearchQuery extends DomainError {
+  readonly code = "EmptySearchQuery";
+  readonly criteria: ReadonlyArray<string>;
+
+  constructor(criteria: ReadonlyArray<string>) {
+    super(`A search needs at least one of: ${criteria.join(", ")}`);
+    this.criteria = criteria;
   }
 }
 

@@ -52,11 +52,18 @@ deliberately and say why in the commit; do not add an inline disable.
   `src/infrastructure/clock.ts`. (A zero-argument `new Date()` is a lint error in domain and
   application; `new Date(someValue)` is fine — it transforms a value that was passed in.)
 - **Derive, don't store** anything computable — grown-up/children counts, portion allowance, card
-  validity. Two sources of truth is the Excel failure we are replacing. The single exception is
-  `Card.grownUpsAtIssue` / `childrenAtIssue`: a snapshot of what was _printed_ on a physical card, so
-  a birthday that overtook it can be spotted (US-13). It is never read as the household's counts and
-  never updated — a reissue is how a change is recorded. Any further "just store it" needs an
-  argument of that kind.
+  validity. Two sources of truth is the Excel failure we are replacing. There are exactly two
+  exceptions, each with an argument of its own kind:
+  - `Card.grownUpsAtIssue` / `childrenAtIssue` — a snapshot of what was _printed_ on a physical card,
+    so a birthday that overtook it can be spotted (US-13). Never read as the household's counts and
+    never updated: a reissue is how a change is recorded.
+  - `Customer.firstNameFolded` / `lastNameFolded` — a **search key**, not a fact (US-11). SQLite can
+    fold neither umlauts nor Unicode case in a `WHERE` clause, so `foldName`'s output is stored and
+    indexed. Never displayed and never read as the name; written from the names in the same
+    statement, so a write that changes a name must rewrite them with it.
+
+  Any further "just store it" needs an argument of that kind.
+
 - **Money is integer cents**, never a float. Format via `src/domain/money.ts`.
 - **Policy values are data, not constants** — the prices per head, portions and the quota `N` live
   in settings, editable in the UI. A saved change is in force immediately; superseded versions are

@@ -119,6 +119,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customer/customer.test.ts  # its Vitest spec
 │   │   ├── customer/certificate.ts    # certificate expiry as of a given day (US-06)
 │   │   ├── customer/certificate.test.ts  # its Vitest spec
+│   │   ├── customer/nameSearch.ts     # foldName — the comparable form of a name (US-11)
+│   │   ├── customer/nameSearch.test.ts  # its Vitest spec
 │   │   ├── card/card.ts              # what an issued card is + why it was issued
 │   │   ├── card/card.test.ts         # its Vitest spec
 │   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
@@ -147,6 +149,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   reissueCard (US-09, delegates to issueCard),
 │   │   │                             #   archiveCustomer (US-10, frees the slot),
 │   │   │                             #   countNoShows (US-10, the seam both read models use),
+│   │   │                             #   searchArchivedCustomers (US-11, the archive search),
 │   │   │                             #   listCardsDueForReissue (US-13, cards a birthday overtook)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
@@ -424,6 +427,29 @@ the limit FD has to raise or free.
 
 The function is advisory in the same sense as `suggestGroup`: the database's partial unique index is
 the final authority on whether the number was still free when the write landed (US-01.4).
+
+### `src/domain/customer/nameSearch.ts`
+
+`foldName(value)` is the comparable form of a name, and the whole of how the archive search matches
+one (US-11.1). Staff type the name they hear rather than the name that was stored — `Mueller` for
+`Müller`, `WEISS` for `Weiß`, `Sanchez` for `Sánchez` — and SQLite has neither `unaccent` nor a
+Unicode-aware `LIKE`, so the comparison cannot be made in the query.
+
+The fold lower-cases, then **spells German out the way Germans do without an umlaut key** (`ä → ae`,
+`ö → oe`, `ü → ue`, `ß → ss`), then drops any remaining diacritic, collapses whitespace and trims.
+The order matters: spelling out has to happen before stripping, or `ü` would already be `u` and
+`Mueller` would no longer match. Everything is composed to NFC first, so a `u` carrying a separate
+combining diaeresis folds like a single `ü`.
+
+It is deliberately **not** fuzzy matching — no Soundex, no edit distance (PRD §5). A search that
+guessed would put the wrong household's data into a registration form; the cost of a miss is that
+staff type the name again.
+
+Because the fold cannot run in SQL, its output is **stored** beside the names, in
+`Customer.firstNameFolded` / `lastNameFolded`, and indexed with the birthdate. That is the one
+derived value stored outside a card snapshot, and it is a search _key_ rather than a fact: nothing
+reads it as the household's name. The columns are non-nullable and have no default, so every writer
+has to state them — and the adapter derives both from the names in the same statement.
 
 ### `src/domain/customer/group.ts`
 
@@ -852,6 +878,29 @@ signature: `customers.test.ts` snapshots everything the household owns before an
 and compares the two, and asserts that the freed number is what `lowestFreeNumber` offers next.
 There is no un-archive; a returning household is registered anew (FR-7, US-11).
 
+### `src/application/customers/searchArchivedCustomers`
+
+The first half of re-registering someone who has been here before (US-11.1). `searchArchivedCustomers
+(deps, { lastName?, firstName?, birthDate? })` returns `{ matches, truncated }` — archived households
+only, most recently archived first.
+
+It is a **read with no clock and no audit log**: nothing changes, and household _size_ is the number
+of people on the record rather than a count of grown-ups and children, so nothing here depends on the
+day it is asked. Names are trimmed before they count, so a stray space is not a criterion; a search
+with every criterion blank is refused as `EmptySearchQuery` rather than answered with the whole
+archive, because a list staff scroll through is a list they pre-fill a registration from the wrong row
+of.
+
+The cap is `MAX_ARCHIVE_SEARCH_RESULTS = 20` and there is **no paging**: the use case asks the
+repository for twenty-one rows, shows twenty and reports `truncated`, which the screen turns into
+"please narrow the search". A count of the remainder would only invite staff to page towards it.
+
+Each match carries what tells two people of the same name apart — name, birthdate, address, household
+size — plus `formerCustomerNumber`, the archive date and the reason. The former number is for
+recognition only: the slot was freed when they left and may already be someone else's, so
+re-registration allocates a number afresh (US-11.3, FR-3). Only `customerId` is followed up on; the
+pre-fill reads the record by it (US-11.2).
+
 ### `src/application/customers/countNoShows`
 
 The seam both screens that show the no-show count read (US-10.4), so the customer record and the
@@ -896,6 +945,18 @@ the reason a blocked customer carries can never disagree with their status.
 and instant in a single statement, with any block reason cleared alongside them. It is a plain
 `WHERE id` update and nothing more — no related row is touched and the customer number stays put,
 because freeing the slot is entirely the partial unique index's doing.
+
+`searchArchived(query, limit)` is the archive search's read (US-11.1). It filters `status =
+'ARCHIVED'` — an active household turning up would invite a second registration of someone who
+already holds a slot — and orders by `archivedAt DESC, id DESC`, the id breaking a same-instant tie
+so two runs of the same search agree. The name criteria are folded **here**, with the domain's
+`foldName`, because only this layer knows the columns hold folded values; the query is then a
+`startsWith` on `lastNameFolded` / `firstNameFolded`, a prefix match the
+`(lastNameFolded, birthDate)` index serves. A criterion nobody filled in is left out of the `where`
+entirely rather than matched against the empty string. The rows come back as `ArchivedCustomer`,
+whose archive reason and instant are narrowed to non-null: `archive` writes both with the status in
+one statement, so a row without them is a hand-edited database and is refused as an
+`InvalidCustomerRecord` rather than displayed with a blank reason.
 
 The **partial unique index** the adapter relies on is not in `schema.prisma` — Prisma has no syntax
 for one — but hand-written at the end of the `init` migration:
@@ -1285,6 +1346,11 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   compare today's derivation against. They are written once, never updated. `Certificate` rows are **appended, never
   overwritten** (US-06.3): a renewal stacks a new row stamped `recordedAt`, the certificate on file
   is the latest by that instant, and the trail behind it says when each renewal was brought.
+  `Customer.firstNameFolded` / `lastNameFolded` are the archive search's keys (US-11.1): the names as
+  `foldName` compares them, written beside the names they come from and indexed with `birthDate`,
+  because SQLite can fold neither umlauts nor Unicode case in a `WHERE` clause. They are a search key
+  and never a name — nothing displays them — and they are non-nullable with no default so that every
+  writer, including a future edit of a name (US-16), has to state them.
 - `ReminderLog` is the documented trail an expired certificate starts at the counter (US-06). One
   row per reminder, keyed by the Berlin day `loggedOn` (`YYYY-MM-DD`, written by the domain's
   `berlinDayKey` like `DistributionRecord.dayKey`); the unique `(customerId, loggedOn)` index is

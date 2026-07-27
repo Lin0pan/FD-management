@@ -4,6 +4,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { foldName } from "@/domain/customer/nameSearch";
 
 /**
  * A child turns 13 and every number that depends on it follows, driven through the built app
@@ -109,6 +110,8 @@ async function seedHousehold(): Promise<number> {
       customerNumber: CUSTOMER_NUMBER,
       firstName,
       lastName,
+      firstNameFolded: foldName(firstName),
+      lastNameFolded: foldName(lastName),
       birthDate: utcMidnight(GROWN_UP_BIRTH_DATE),
       street: faker.location.street(),
       houseNumber: faker.location.buildingNumber(),

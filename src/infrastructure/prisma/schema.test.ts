@@ -60,6 +60,12 @@ describe("the committed migrations", () => {
     );
   });
 
+  it("index the archive search by folded last name and birthdate, the pair staff type", () => {
+    expect(migrationSql()).toContain(
+      'CREATE INDEX "Customer_lastNameFolded_birthDate_idx" ON "Customer"("lastNameFolded", "birthDate")',
+    );
+  });
+
   it("index the distribution records by customer and date, which the no-show count reads", () => {
     expect(migrationSql()).toContain(
       'CREATE INDEX "DistributionRecord_customerId_date_idx" ON "DistributionRecord"("customerId", "date")',

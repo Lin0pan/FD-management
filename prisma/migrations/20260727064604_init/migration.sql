@@ -19,6 +19,8 @@ CREATE TABLE "Customer" (
     "firstName" TEXT NOT NULL,
     "lastName" TEXT NOT NULL,
     "birthDate" DATETIME NOT NULL,
+    "firstNameFolded" TEXT NOT NULL,
+    "lastNameFolded" TEXT NOT NULL,
     "street" TEXT NOT NULL,
     "houseNumber" TEXT NOT NULL,
     "zip" TEXT NOT NULL,
@@ -102,6 +104,9 @@ CREATE INDEX "Customer_customerNumber_idx" ON "Customer"("customerNumber");
 
 -- CreateIndex
 CREATE INDEX "Customer_status_idx" ON "Customer"("status");
+
+-- CreateIndex
+CREATE INDEX "Customer_lastNameFolded_birthDate_idx" ON "Customer"("lastNameFolded", "birthDate");
 
 -- CreateIndex
 CREATE INDEX "HouseholdMember_customerId_idx" ON "HouseholdMember"("customerId");

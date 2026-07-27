@@ -19,6 +19,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { formatCardNumber } from "@/domain/card/cardNumber";
+import { foldName } from "@/domain/customer/nameSearch";
 import { composition } from "@/domain/customer/householdComposition";
 import { CardIndexTaken, InvalidCustomerRecord } from "@/domain/errors";
 import { PrismaCardRepository } from "./card-repository";
@@ -62,11 +63,17 @@ beforeEach(async () => {
 
 /** A customer holding the given slot, written straight through Prisma — cards are what is tested. */
 async function insertCustomer(customerNumber: number, status = "ACTIVE"): Promise<number> {
+  const firstName = faker.person.firstName();
+  const lastName = faker.person.lastName();
   const row = await prisma.customer.create({
     data: {
       customerNumber,
-      firstName: faker.person.firstName(),
-      lastName: faker.person.lastName(),
+      firstName,
+      lastName,
+      // The folded search keys the adapter derives; a fixture that skipped them would be a row the
+      // archive search could never find (US-11.1).
+      firstNameFolded: foldName(firstName),
+      lastNameFolded: foldName(lastName),
       birthDate: new Date("1990-01-01T00:00:00.000Z"),
       street: faker.location.street(),
       houseNumber: faker.location.buildingNumber(),

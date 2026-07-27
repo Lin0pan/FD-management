@@ -9,6 +9,7 @@ import {
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
 import { lowestFreeNumber } from "@/domain/customer/customerNumber";
+import { foldName } from "@/domain/customer/nameSearch";
 import type { GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import type {
@@ -20,6 +21,7 @@ import {
   CustomerArchived,
   CustomerNumberTaken,
   EmptyHousehold,
+  EmptySearchQuery,
   IllegalStatusTransition,
   InvalidCustomerRecord,
   MissingAuditReason,
@@ -30,6 +32,8 @@ import {
 } from "@/domain/errors";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
 import type {
+  ArchivedCustomer,
+  ArchiveSearchQuery,
   AuditEntry,
   AuditLog,
   CardIssueCounts,
@@ -47,6 +51,7 @@ import { readCard } from "./read-card";
 import { readCustomer } from "./read-customer";
 import { registerCustomer, type RegisterCustomerInput } from "./register-customer";
 import { reissueCard } from "./reissue-card";
+import { MAX_ARCHIVE_SEARCH_RESULTS, searchArchivedCustomers } from "./search-archived-customers";
 import { unblockCustomer } from "./unblock-customer";
 
 /**
@@ -82,6 +87,21 @@ class FakeAuditLog implements AuditLog {
     this.entries.push(entry);
     return Promise.resolve();
   }
+}
+
+/**
+ * Whether an archived household answers to what was typed: every criterion given must match, a name
+ * on a folded prefix and the birthdate exactly. A criterion nobody filled in narrows nothing.
+ */
+function matchesArchiveQuery(customer: ArchivedCustomer, query: ArchiveSearchQuery): boolean {
+  const startsWith = (stored: string, typed: string | undefined): boolean =>
+    typed === undefined || foldName(stored).startsWith(foldName(typed));
+  return (
+    startsWith(customer.details.lastName, query.lastName) &&
+    startsWith(customer.details.firstName, query.firstName) &&
+    (query.birthDate === undefined ||
+      customer.details.birthDate.getTime() === query.birthDate.getTime())
+  );
 }
 
 /**
@@ -129,6 +149,27 @@ class FakeCustomerRepository implements CustomerRepository {
         .filter((customer) => customer.status === status)
         .sort((a, b) => a.customerNumber - b.customerNumber),
     );
+  }
+
+  /**
+   * Matches the way the adapter's query does: archived rows only, names compared as folded prefixes,
+   * the birthdate exactly, most recently archived first, and never more than `limit` rows. The fold
+   * is the domain's, so the fake and the database cannot drift into two notions of a matching name.
+   */
+  searchArchived(
+    query: ArchiveSearchQuery,
+    limit: number,
+  ): Promise<ReadonlyArray<ArchivedCustomer>> {
+    const matches = this.created
+      .filter(
+        (customer): customer is ArchivedCustomer =>
+          customer.status === "ARCHIVED" &&
+          customer.archiveReason !== null &&
+          customer.archivedAt !== null,
+      )
+      .filter((customer) => matchesArchiveQuery(customer, query))
+      .sort((a, b) => b.archivedAt.getTime() - a.archivedAt.getTime());
+    return Promise.resolve(matches.slice(0, limit));
   }
 
   findByCustomerNumber(customerNumber: number): Promise<RegisteredCustomer | null> {
@@ -1687,5 +1728,257 @@ describe("archiveCustomer", () => {
       CustomerNotFound,
     );
     expect(audit.entries).toHaveLength(0);
+  });
+});
+
+describe("searchArchivedCustomers", () => {
+  let customers: FakeCustomerRepository;
+
+  /** No clock and no audit log: the search reads, and nothing about it depends on the day. */
+  function deps() {
+    return { customers };
+  }
+
+  /**
+   * An archived household whose name, birthdate and archive date the test decides. It goes in
+   * through `create` and then `archive`, so the row the search sees is the one archiving leaves —
+   * number still on it, reason and instant written by the same call the use case makes.
+   */
+  async function archivedHousehold(seed: {
+    firstName: string;
+    lastName: string;
+    birthDate?: string;
+    customerNumber?: number;
+    archivedAt?: string;
+    reason?: string;
+    members?: ReadonlyArray<HouseholdMemberDetails>;
+  }): Promise<number> {
+    const details = createCustomerDetails(
+      registerInput({
+        firstName: seed.firstName,
+        lastName: seed.lastName,
+        birthDate: new Date(seed.birthDate ?? "1985-03-11T00:00:00.000Z"),
+        ...(seed.members === undefined ? {} : { householdMembers: seed.members }),
+      }),
+      new Date(TODAY),
+    );
+    const customer = await customers.create({
+      ...storedCustomer("ACTIVE"),
+      customerNumber: seed.customerNumber ?? 50,
+      details,
+    });
+    await customers.archive(
+      customer.id,
+      seed.reason ?? "verzogen",
+      new Date(seed.archivedAt ?? TODAY),
+    );
+    return customer.id;
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository();
+  });
+
+  it("finds a household whose name is spelled without the umlaut it was stored with", async () => {
+    await archivedHousehold({ firstName: "Anke", lastName: "Müller" });
+
+    const found = await searchArchivedCustomers(deps(), { lastName: "Mueller" });
+
+    expect(found.matches).toHaveLength(1);
+    expect(found.matches[0].lastName).toBe("Müller");
+  });
+
+  it("finds a household whose name was typed in capitals", async () => {
+    await archivedHousehold({ firstName: "Anke", lastName: "Müller" });
+
+    const found = await searchArchivedCustomers(deps(), { lastName: "MÜLLER" });
+
+    expect(found.matches).toHaveLength(1);
+  });
+
+  it("finds a household from the first letters of the name, before it is typed out", async () => {
+    await archivedHousehold({ firstName: "Anke", lastName: "Schneider" });
+
+    const found = await searchArchivedCustomers(deps(), { lastName: "Schn" });
+
+    expect(found.matches).toHaveLength(1);
+  });
+
+  it("leaves a household that is still on the register out of the archive search", async () => {
+    await customers.create({
+      ...storedCustomer("ACTIVE"),
+      details: createCustomerDetails(
+        registerInput({ firstName: "Bernd", lastName: "Schneider" }),
+        new Date(TODAY),
+      ),
+    });
+    await archivedHousehold({ firstName: "Anke", lastName: "Schneider", customerNumber: 51 });
+
+    const found = await searchArchivedCustomers(deps(), { lastName: "Schneider" });
+
+    expect(found.matches.map((match) => match.firstName)).toEqual(["Anke"]);
+  });
+
+  it("lists the most recently archived first when two households share a last name", async () => {
+    await archivedHousehold({
+      firstName: "Anke",
+      lastName: "Schneider",
+      archivedAt: "2024-03-04T10:00:00.000Z",
+    });
+    await archivedHousehold({
+      firstName: "Bernd",
+      lastName: "Schneider",
+      customerNumber: 51,
+      archivedAt: "2026-01-09T10:00:00.000Z",
+    });
+
+    const found = await searchArchivedCustomers(deps(), { lastName: "Schneider" });
+
+    expect(found.matches.map((match) => match.firstName)).toEqual(["Bernd", "Anke"]);
+  });
+
+  it("narrows two namesakes down by the first name", async () => {
+    await archivedHousehold({ firstName: "Anke", lastName: "Schneider" });
+    await archivedHousehold({ firstName: "Bernd", lastName: "Schneider", customerNumber: 51 });
+
+    const found = await searchArchivedCustomers(deps(), {
+      lastName: "Schneider",
+      firstName: "Bernd",
+    });
+
+    expect(found.matches.map((match) => match.firstName)).toEqual(["Bernd"]);
+  });
+
+  it("narrows two namesakes down by the date of birth alone", async () => {
+    await archivedHousehold({
+      firstName: "Anke",
+      lastName: "Schneider",
+      birthDate: "1985-03-11T00:00:00.000Z",
+    });
+    await archivedHousehold({
+      firstName: "Bernd",
+      lastName: "Schneider",
+      customerNumber: 51,
+      birthDate: "1972-11-30T00:00:00.000Z",
+    });
+
+    const found = await searchArchivedCustomers(deps(), {
+      birthDate: new Date("1972-11-30T00:00:00.000Z"),
+    });
+
+    expect(found.matches.map((match) => match.firstName)).toEqual(["Bernd"]);
+  });
+
+  it("carries the number the household held, the archive date and the reason", async () => {
+    await archivedHousehold({
+      firstName: "Anke",
+      lastName: "Schneider",
+      customerNumber: 37,
+      archivedAt: "2026-01-09T10:00:00.000Z",
+      reason: "zwei Jahre nicht erschienen",
+    });
+
+    const [match] = (await searchArchivedCustomers(deps(), { lastName: "Schneider" })).matches;
+
+    expect(match.formerCustomerNumber).toBe(37);
+    expect(match.archivedAt).toEqual(new Date("2026-01-09T10:00:00.000Z"));
+    expect(match.archiveReason).toBe("zwei Jahre nicht erschienen");
+  });
+
+  it("carries the address and the household size, so two namesakes can be told apart", async () => {
+    await archivedHousehold({
+      firstName: "Anke",
+      lastName: "Schneider",
+      members: [member(), member(), member({ birthDate: new Date("2020-06-01T00:00:00.000Z") })],
+    });
+
+    const [match] = (await searchArchivedCustomers(deps(), { lastName: "Schneider" })).matches;
+
+    expect(match.householdSize).toBe(3);
+    expect(match.address.city).not.toBe("");
+  });
+
+  it("counts the household size in people, not in grown-ups and children", async () => {
+    await archivedHousehold({
+      firstName: "Anke",
+      lastName: "Schneider",
+      members: [member({ birthDate: new Date("2020-06-01T00:00:00.000Z") })],
+    });
+
+    const [match] = (await searchArchivedCustomers(deps(), { lastName: "Schneider" })).matches;
+
+    expect(match.householdSize).toBe(1);
+  });
+
+  it("names the archived record by its own id, never by the number it once held", async () => {
+    const customerId = await archivedHousehold({
+      firstName: "Anke",
+      lastName: "Schneider",
+      customerNumber: 37,
+    });
+
+    const [match] = (await searchArchivedCustomers(deps(), { lastName: "Schneider" })).matches;
+
+    expect(match.customerId).toBe(customerId);
+    expect(match.customerId).not.toBe(37);
+  });
+
+  it("finds nobody rather than failing when the name belongs to no archived household", async () => {
+    await archivedHousehold({ firstName: "Anke", lastName: "Schneider" });
+
+    const found = await searchArchivedCustomers(deps(), { lastName: "Yildirim" });
+
+    expect(found.matches).toEqual([]);
+    expect(found.truncated).toBe(false);
+  });
+
+  it("refuses a search with every criterion blank rather than listing the whole archive", async () => {
+    await archivedHousehold({ firstName: "Anke", lastName: "Schneider" });
+
+    await expect(searchArchivedCustomers(deps(), {})).rejects.toThrow(EmptySearchQuery);
+  });
+
+  it("treats a name of nothing but spaces as a criterion nobody filled in", async () => {
+    await expect(
+      searchArchivedCustomers(deps(), { lastName: "   ", firstName: "" }),
+    ).rejects.toThrow(EmptySearchQuery);
+  });
+
+  it("searches on the trimmed name, so a trailing space still finds the household", async () => {
+    await archivedHousehold({ firstName: "Anke", lastName: "Schneider" });
+
+    const found = await searchArchivedCustomers(deps(), { lastName: "  Schneider  " });
+
+    expect(found.matches).toHaveLength(1);
+  });
+
+  it("shows twenty matches and asks for a narrower search when there are more", async () => {
+    for (let index = 0; index < MAX_ARCHIVE_SEARCH_RESULTS + 1; index += 1) {
+      await archivedHousehold({
+        firstName: "Anke",
+        lastName: "Schneider",
+        customerNumber: index + 1,
+      });
+    }
+
+    const found = await searchArchivedCustomers(deps(), { lastName: "Schneider" });
+
+    expect(found.matches).toHaveLength(MAX_ARCHIVE_SEARCH_RESULTS);
+    expect(found.truncated).toBe(true);
+  });
+
+  it("asks for nothing when exactly twenty match — that list is readable", async () => {
+    for (let index = 0; index < MAX_ARCHIVE_SEARCH_RESULTS; index += 1) {
+      await archivedHousehold({
+        firstName: "Anke",
+        lastName: "Schneider",
+        customerNumber: index + 1,
+      });
+    }
+
+    const found = await searchArchivedCustomers(deps(), { lastName: "Schneider" });
+
+    expect(found.matches).toHaveLength(MAX_ARCHIVE_SEARCH_RESULTS);
+    expect(found.truncated).toBe(false);
   });
 });

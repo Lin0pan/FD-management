@@ -4,6 +4,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { foldName } from "@/domain/customer/nameSearch";
 
 /**
  * Blocking a customer and seeing it hold at the counter, driven through the built app
@@ -89,6 +90,8 @@ async function seedHousehold(): Promise<{ id: number; name: string }> {
       customerNumber: CUSTOMER_NUMBER,
       firstName,
       lastName,
+      firstNameFolded: foldName(firstName),
+      lastNameFolded: foldName(lastName),
       birthDate: new Date(`${GROWN_UP_BIRTH_DATE}T00:00:00.000Z`),
       street: faker.location.street(),
       houseNumber: faker.location.buildingNumber(),

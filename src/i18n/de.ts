@@ -206,6 +206,22 @@ export const de = {
         unknown: "Die Archivierung konnte nicht gespeichert werden.",
       },
     },
+    /**
+     * Searching the archive for a returning applicant (US-11). The panel itself arrives with the
+     * registration screen (US-11.4); what is here is what the search *result* has to be able to say.
+     */
+    archiveSearch: {
+      /**
+       * What is shown instead of a twenty-first result. There is no paging: the answer to a list
+       * this long is a narrower search, and the message says which fields would narrow it rather
+       * than only that there were too many.
+       */
+      tooMany: (shown: number): string =>
+        `Es werden ${shown} Treffer angezeigt; es gibt weitere. Bitte die Suche eingrenzen — mit ` +
+        `dem Vornamen oder dem Geburtsdatum.`,
+      /** The refusal when staff press Search with every field empty. */
+      noCriteria: "Bitte mindestens ein Feld ausfüllen: Nachname, Vorname oder Geburtsdatum.",
+    },
     /** Why a card was handed over — the four reasons `CardIssueReason` names. */
     cardReasons: {
       FIRST_ISSUE: "Erstausstellung",

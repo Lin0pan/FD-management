@@ -1,5 +1,10 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
-import type { CustomerCounter, CustomerRepository } from "@/application/ports";
+import type {
+  ArchivedCustomer,
+  ArchiveSearchQuery,
+  CustomerCounter,
+  CustomerRepository,
+} from "@/application/ports";
 import { parseCardIssueReason } from "@/domain/card/card";
 import {
   parseCustomerStatus,
@@ -8,6 +13,7 @@ import {
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
 import { parseGroup, type GroupCounts } from "@/domain/customer/group";
+import { foldName } from "@/domain/customer/nameSearch";
 import { CustomerNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
 
 /**
@@ -157,6 +163,62 @@ export class PrismaCustomerRepository implements CustomerRepository {
   }
 
   /**
+   * The archived households answering to what staff typed, most recently archived first (US-11.1).
+   *
+   * The name criteria are folded here, because only this layer knows the columns hold folded values;
+   * the folding itself is the domain's `foldName`, the same function that wrote them, so the query
+   * and the stored value can never mean two different things. `startsWith` on the folded column is a
+   * prefix match the `(lastNameFolded, birthDate)` index serves, which is why the fold is stored at
+   * all — SQLite could not do it in the `WHERE` clause.
+   *
+   * A criterion nobody filled in is left out of the `where` entirely rather than matched against the
+   * empty string; whether *no* criterion at all is acceptable is the use case's rule, and it refuses
+   * before reaching here.
+   */
+  async searchArchived(
+    query: ArchiveSearchQuery,
+    limit: number,
+  ): Promise<ReadonlyArray<ArchivedCustomer>> {
+    const rows = await this.prisma.customer.findMany({
+      where: {
+        status: "ARCHIVED",
+        ...(query.lastName === undefined
+          ? {}
+          : { lastNameFolded: { startsWith: foldName(query.lastName) } }),
+        ...(query.firstName === undefined
+          ? {}
+          : { firstNameFolded: { startsWith: foldName(query.firstName) } }),
+        ...(query.birthDate === undefined ? {} : { birthDate: query.birthDate }),
+      },
+      // Most recently archived first; the id breaks a same-instant tie the way "the later row wins"
+      // does elsewhere, so the order is total and two runs of the same search agree.
+      orderBy: [{ archivedAt: "desc" }, { id: "desc" }],
+      take: limit,
+      include: CUSTOMER_INCLUDE,
+    });
+    return rows.map((row) => this.toArchivedCustomer(row));
+  }
+
+  /**
+   * Map an archived row, narrowing the archive reason and instant to non-null.
+   *
+   * @throws {InvalidCustomerRecord} if either is missing. `archive` writes the status, the reason and
+   *   the instant in one statement, so an archived row without them can only come from a hand-edited
+   *   database — and a search result inventing a reason would be worse than refusing.
+   */
+  private toArchivedCustomer(row: CustomerRow): ArchivedCustomer {
+    const customer = this.toRegisteredCustomer(row);
+    const { archiveReason, archivedAt } = customer;
+    if (archiveReason === null || archivedAt === null) {
+      throw new InvalidCustomerRecord(
+        archiveReason === null ? "archiveReason" : "archivedAt",
+        String(row.id),
+      );
+    }
+    return { ...customer, archiveReason, archivedAt };
+  }
+
+  /**
    * Map a loaded row into the domain record, validating the stored `group` and `status` strings on
    * the way back in — a hand-edited row fails loudly rather than quietly becoming an active RED
    * household.
@@ -233,6 +295,10 @@ export class PrismaCustomerRepository implements CustomerRepository {
           customerNumber: customer.customerNumber,
           firstName: details.firstName,
           lastName: details.lastName,
+          // The search keys, derived from the names in the same statement that writes them, so the
+          // two cannot be written apart (US-11.1). A future edit of a name must do the same.
+          firstNameFolded: foldName(details.firstName),
+          lastNameFolded: foldName(details.lastName),
           birthDate: details.birthDate,
           street: details.address.street,
           houseNumber: details.address.houseNumber,
