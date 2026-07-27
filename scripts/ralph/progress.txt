@@ -98,6 +98,31 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
 - A "remove" that must be idempotent scopes its `where` to the rows still eligible
   (`{ id, removedOn: null }`) and uses `updateMany`: a second call updates nothing instead of
   overwriting the first reason, and an unknown id is not an error the adapter has to invent.
+- A `"use server"` module may export **nothing but async functions**, so a Zod schema, a helper or a
+  state interface has to live beside it — `registration-input.ts`, `*-state.ts`. That is also how a
+  second screen reuses a form's parsing: put the schema in the plain module and both actions import
+  it, rather than copying it and letting the two drift.
+- Reusing a whole form on a second screen is a `submit` prop plus a hidden field, not a second copy
+  of the form. `RegistrationForm` takes `submit` (default `submitRegistration`) and `entryId`; the
+  prefill type carries the extra fields as OPTIONAL, and which screen fills them is documented on the
+  type, because the difference is a decision rather than an omission.
+- `setState` inside `useEffect` is an ESLint ERROR (`react-hooks/set-state-in-effect`). To reset a
+  form after a successful action, put a **counter in the action's state** and use it as the `key` —
+  derived, no effect. A counter beats keying on the saved values: two applicants with the same name
+  produce an identical state, and a form that resets on a value that did not change keeps the
+  previous entry's address.
+- A page that needs "is a slot free" asks `proposeRegistration` and reads `customerNumber !== null`.
+  It throws `NoSettingsInForce` on an unseeded database — catch that one code and render without the
+  banner rather than taking the screen down (`/kunden/neu` does the same for its form).
+- Playwright's `webServer` has `reuseExistingServer: !CI`, and `npm run start` serves the BUILT app.
+  After changing a string or a component, `npm run build` and `pkill -f "next[ ]start"` before
+  re-running specs, or the assertions run against the previous build.
+- To put an expired certificate at the head of a list in an e2e spec, add the applicant with a valid
+  one and then move the app's today past it by writing `data/e2e-now.txt` (the `FD_FIXED_NOW_FILE`
+  seam). Delete the file in a `finally` — it freezes today for every spec that follows.
+- `getByRole("heading", { name: X })` is a substring match: a section heading containing the page
+  heading ("Auf die Warteliste setzen" vs "Warteliste") is a strict-mode violation. Pass `exact:
+  true` for the `h1`.
 
 ---
 
@@ -222,5 +247,60 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
     suite wipes the whole database file anyway, so US-005 needs no teardown helper for it.
   - `prisma/schema.prisma` is not Prettier-formattable (no parser) — leave it out of any
     `npx prettier --write` list or the command exits non-zero.
+
+---
+
+## 2026-07-27 14:45 — US-004 (waiting-list screen at /warteliste)
+
+- Added `daysWaiting(entry, today)` to `src/domain/customer/waitingList.ts` (TDD, five tests run red
+  first) and exposed it on `WaitingListPlace`, so the screen states the wait rather than deriving it.
+  Calendar days via UTC-day reduction; an entry dated after today counts as 0, never negative.
+- Extracted the registration form's parsing into `src/app/kunden/neu/registration-input.ts` as its
+  own refactor commit — the Zod schema, the household pairing, `germanMessage`, `isoDay` and
+  `toPrefillDraft`, all of which `archive-search-actions.ts` and the new promotion action now share.
+- New route `/warteliste`: `page.tsx` (banner + list + add form, `force-dynamic`),
+  `add-applicant-form.tsx`, `remove-applicant-controls.tsx`, `free-slot-banner.tsx`, `actions.ts`,
+  `waiting-list-state.ts`, `deps.ts`. No sort or reorder control anywhere; the head is read off
+  position 1 rather than by asking `nextInLine` a second time.
+- New route `/warteliste/[entryId]/registrieren`: `promoteFromWaitingList` fills the ORDINARY
+  `RegistrationForm` (given a `submit` prop and a hidden `entryId`), and `promotion-screen.tsx` puts
+  the expired-certificate warning BEFORE the form as a step rather than a dialog. The action calls
+  `registerFromWaitingList` and nothing else.
+- The free-slot banner is rendered on the home screen too (PRD §6), and `/kunden/neu` now offers
+  "Stattdessen auf die Warteliste setzen" beside its full-register message — US-005 needs that link.
+- German: a whole `waitingList` section in `src/i18n/de.ts`, plus `home.waitingListLink` and
+  `customers.new.waitingListLink`. No German literal outside the dictionary.
+- Files changed: `src/domain/customer/waitingList.ts` + `.test.ts`,
+  `src/application/waiting-list/list-waiting.ts` + `waiting-list.test.ts`,
+  `src/app/warteliste/**` (new, 9 files), `src/app/kunden/neu/{registration-input.ts (new),
+  actions.ts, archive-search-actions.ts, archive-search-state.ts, registration-form.tsx}`,
+  `src/app/page.tsx`, `src/i18n/de.ts`, `docs/technical_documentation.md`, `scripts/ralph/prd.json`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (41 files, 743 tests, domain +
+  application at 100%), `npm run build` and `npm run format:check` all green. The full Playwright
+  suite (52 specs) still passes.
+- **Browser verification:** done, with a throwaway spec driven through the built app and then
+  deleted (US-005 writes the permanent one). Five flows checked with screenshots: the empty list; an
+  already-expired certificate refused by name and date; two applicants in arrival order with the
+  banner naming the first, on `/warteliste` and on `/`; the promotion form pre-filled with the
+  certificate, the contact note as Bemerkung and a one-row household, registering and leaving the
+  second applicant at the head; and a removal that needs a reason before it can be submitted. The
+  expired-at-the-head path was reached by pinning `data/e2e-now.txt` past the certificate's last day.
+- **Learnings for future iterations:**
+  - US-005 has most of what it needs: `waiting-list-row`, `waiting-list-position`,
+    `waiting-list-applicant`, `waiting-list-days`, `waiting-list-expired-badge`,
+    `waiting-list-free-slot-detail`, `waiting-list-promote`, `waiting-list-add-submit`,
+    `waiting-list-add-error`, `waiting-list-add-saved`, `waiting-list-remove-{open,confirm,reason,
+    submit}`, `promotion-intro`, `promotion-expired-{warning,detail,continue}`, and
+    `registration-waiting-list-link` on a full `/kunden/neu`.
+  - The quota-to-waitlist step of US-005 is a LINK, not a redirect: `/kunden/neu` still renders its
+    form when the register is full (the submit button is disabled) and offers the way onto the list.
+    Assert the link, not a navigation.
+  - The two screens agree on the head because both read position 1 of `listWaiting`. If a third ever
+    needs it, read it the same way rather than calling `nextInLine` — one statement of the order.
+  - The promotion draft's household holds the applicant ALONE, so the promoted registration is a
+    one-person household unless staff add rows. An e2e assertion of the derived counts should expect
+    1 Erwachsene / 0 Kinder unless it adds a member.
+  - `data/fd.db` (the dev database) and `data/e2e.db` are separate; the e2e config deletes and
+    re-seeds its own before the server boots, so no waiting-list teardown helper is needed.
 
 ---
