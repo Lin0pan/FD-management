@@ -45,6 +45,12 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
 - German UI strings only in `src/i18n/de.ts`; inflected forms are functions in the dictionary.
 - The Edit tool struggles with strings containing umlauts/em-dashes; patch such lines with a small
   `python3 - <<'PY'` heredoc instead of fighting it.
+- HTML forms do not nest: a panel with its own submit button on a screen that is already a form has
+  to be a SIBLING, with the state they share lifted into a parent client component.
+- A `key` change is the cheapest way to reset a form that mixes controlled and uncontrolled fields —
+  remounting resets both kinds, and `useActionState`'s message with them.
+- Convert a `Date` to `YYYY-MM-DD` on the SERVER before it reaches an `<input type="date">`; read in
+  the browser's zone a midnight-UTC day lands on the day before. `germanDate` is for display only.
 
 ---
 
@@ -165,4 +171,60 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   - US-004 (the UI) should pass `previousCustomerId` from the archive match the screen already holds,
     and must show the former number for recognition only — `formerCustomerNumber` on the search
     result, never the number about to be assigned.
+---
+## 2026-07-27 09:40 — US-004 (archive search and pre-fill UI on the registration screen)
+
+- The registration screen gained an "Im Archiv suchen" panel above the form: last name, first name
+  and date of birth, a result list showing name, birthdate, address, household size, archive date,
+  the archive reason verbatim and the former customer number, and a "Daten übernehmen" button per
+  row that fills the form from `draftFromArchived`.
+- The panel is a **sibling** of the registration form, never nested in it — HTML forms do not nest,
+  and the search criteria are not part of the registration that gets saved. `registration-screen.tsx`
+  is the new client half holding the one thing the two share: which archived household was picked.
+- The pre-fill is applied by **remounting the form under a new `key`**, not by writing into fields.
+  The form keeps some values in `useState` and others as plain `defaultValue`s; a key change resets
+  both in one move, and it is also exactly what "Übernahme verwerfen und leer beginnen" has to mean —
+  no half-filled field left over from the household that was dropped.
+- The "this is a new customer" statement is a banner between the panel and the form, so it is read
+  before the form is: it names the household the data came from, the day they were archived and the
+  number they held, and says a new number and a new card (k1) are being issued and the archived
+  record stays untouched. In a result row the former number sits under a label that says *frühere*
+  with the "freed at archiving, possibly someone else's by now" sentence directly beneath it.
+- `previousCustomerId` travels from the picked match through a hidden input to `registerCustomer` —
+  absent rather than blank for a walk-in, and validated in `actions.ts` as digits only, because the
+  field is written by the screen and never typed.
+- Files: `src/app/kunden/neu/registration-screen.tsx`, `archive-search-panel.tsx`,
+  `archive-search-actions.ts`, `archive-search-state.ts` (all new), `registration-form.tsx`,
+  `actions.ts`, `page.tsx`, `src/i18n/de.ts` (`customers.archiveSearch` grown from two strings to the
+  whole panel), `docs/technical_documentation.md` (layout tree + four new presentation bullets).
+- Gates: lint, typecheck, `test:coverage` (690 tests, domain+application still 100%), build and
+  `test:e2e` (46 passed, no regression) all green. Verified in a real browser with a throwaway
+  Playwright spec — search, the diacritic fold (typing `mueller` finds `Müller`), selection,
+  pre-filled personal data / address / two household rows / derived counts, an edit of a pre-filled
+  field, the clear control, the empty-query refusal and the no-match message. The spec was deleted
+  afterwards because US-005 writes the durable one.
+
+- **Learnings for future iterations:**
+  - **A `key` change is the cheapest reset there is.** A form that mixes controlled and uncontrolled
+    fields cannot be cleared field by field without turning every field controlled; remounting it
+    resets both kinds and costs one `useState` counter. `useActionState`'s error message resets with
+    it, which for a fresh pre-fill is what you want anyway.
+  - **HTML forms do not nest.** Any panel with its own submit button that lives on a screen which is
+    already a form has to be a sibling, with the shared state lifted into a parent client component.
+    That is why `registration-screen.tsx` exists at all.
+  - **Convert `Date` to `YYYY-MM-DD` on the server** before a value crosses to a client component
+    that binds it to `<input type="date">`. Read in the browser's zone a midnight-UTC day lands on
+    the day before for anyone west of Greenwich. `germanDate` (i18n/format.ts) is for display; the
+    input needs the ISO day, and that helper lives in `archive-search-actions.ts`.
+  - A `"use server"` module may export only async functions — so `PrefillDraft`, the state interface
+    and the initial value all live in `archive-search-state.ts`, the same split every other screen
+    here uses (`*-state.ts` beside `actions.ts`).
+  - An imperative server-action call from a client component (`await loadArchivedDraft(id)` in an
+    `onClick`) works fine and needs no `useActionState`; use `onClick={() => void select(match)}` for
+    the floating promise. Track *which* row is loading (`loadingId`), not a global `pending` — with
+    twenty rows a global flag hides which one was clicked.
+  - Don't re-quote `MAX_ARCHIVE_SEARCH_RESULTS` in the UI: the "there are more" message takes the
+    number actually on screen, `matches.length`. Derive, don't restate.
+  - Playwright's browser locale renders `<input type="date">` as `mm/dd/yyyy`, but `.fill()` and
+    `toHaveValue()` both speak ISO — assert `"1985-02-11"`, not what the screenshot shows.
 ---

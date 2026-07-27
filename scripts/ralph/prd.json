@@ -73,8 +73,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The panel (archive-search-panel.tsx) is a SIBLING of the registration form, not nested — HTML forms do not nest. registration-screen.tsx holds the shared selection and applies the pre-fill by remounting RegistrationForm under a new `key`, which resets both the React-state fields and the defaultValue ones; that is also how 'leer beginnen' works. A pre-filled form never mirrors row 1 onto the personal data (the applicant is not guaranteed to be the first member). previousCustomerId travels as a hidden input — absent, not blank, for a walk-in. Dates are converted to YYYY-MM-DD server-side in archive-search-actions.ts. Verified in a real browser via a throwaway Playwright spec (search, diacritic fold Mueller→Müller, select, pre-fill, edit, clear, empty-query refusal, no-match); the spec was deleted because US-005 writes the durable one."
     },
     {
       "id": "US-005",
