@@ -80,8 +80,12 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   ├── archive-actions.ts    # "use server": Zod → archiveCustomer, revalidates both screens
 │   │   │   ├── archive-state.ts      # the archive form state (not exportable from an action module)
 │   │   │   ├── neu/                  # the registration screen
-│   │   │   │   ├── page.tsx          # server component: reads the proposal, renders the form
+│   │   │   │   ├── page.tsx          # server component: reads the proposal, renders the screen
+│   │   │   │   ├── registration-screen.tsx  # client: the archive panel, the pre-fill banner and the form (US-11.4)
 │   │   │   │   ├── registration-form.tsx  # client component: repeatable rows + live counts
+│   │   │   │   ├── archive-search-panel.tsx  # client: "Im Archiv suchen" + the result list (US-11.4)
+│   │   │   │   ├── archive-search-actions.ts # "use server": searchArchivedCustomers / draftFromArchived
+│   │   │   │   ├── archive-search-state.ts   # the panel's state + the draft as the form's strings
 │   │   │   │   ├── actions.ts        # "use server": Zod → registerCustomer → redirect
 │   │   │   │   └── register-customer-state.ts  # form state (not exportable from actions.ts)
 │   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on; hosts the block, reissue + archive controls
@@ -1164,7 +1168,34 @@ beyond it:
   the save derives. There is no input control for the counts by design.
   The first household row **mirrors the personal-data fields** until somebody edits it: the
   registered person _is_ a household member, and typing their name twice is how a household ends up
-  with a phantom extra head.
+  with a phantom extra head. A form pre-filled from the archive (US-11.4) **never** mirrors: its rows
+  are the household as the archived record listed it, and there is no promise the applicant is the
+  first of them, so overwriting row one would drop a member and duplicate another. The optional
+  `previousCustomerId` travels as a hidden input — absent, not blank, for a walk-in — and reaches
+  `registerCustomer` as the display metadata it is.
+- **`neu/registration-screen.tsx`** is the client half of the screen and holds the one piece of
+  state the archive search and the form share: which archived household, if any, the form was filled
+  from (US-11.4). The pre-fill is applied by **remounting the form under a new `key`** rather than by
+  writing into its fields — the form holds some values in React state and others as plain
+  `defaultValue`s, and a key change resets both in one move. That is also what "leer beginnen" means:
+  clearing the selection mounts a blank form, with no half-filled field left over from the household
+  that was dropped. Between the panel and the form it renders the banner that says, before the form
+  is read at all, that a **new** number and a **new** card (`k1`) are being issued and the archived
+  record stays untouched — the one mistake this feature could otherwise produce is a staff member
+  believing the old record was reactivated (PRD §6).
+- **`neu/archive-search-panel.tsx`** is a **sibling** of the registration form, never nested in it:
+  HTML forms do not nest, and the search criteria are not part of the registration that gets saved.
+  Searching is a `useActionState` form; picking a result is an ordinary button that awaits
+  `loadArchivedDraft` and hands the draft upwards through `onSelect`. Each row shows the former
+  customer number under a label that says _frühere_, with the sentence explaining that the number was
+  freed at archiving directly beneath it — it is there for recognition and is never the number about
+  to be assigned (FR-3). The archive reason is rendered `whitespace-pre-line`, verbatim, for the same
+  reason the counter does: it was typed by hand and may be exactly what staff need to read.
+- **`neu/archive-search-actions.ts`** holds two **reads** and writes nothing, so no audit entry is
+  due. It converts the draft's `Date`s to `YYYY-MM-DD` **on the server** (`PrefillDraft`), so a
+  calendar day never crosses to the browser as an instant to be re-read in the browser's own zone —
+  which is how a birthdate lands on the day before. `MAX_ARCHIVE_SEARCH_RESULTS` is not re-quoted
+  here: the "there are more" message is given `matches.length`, the number actually on screen.
 - **`neu/actions.ts`** pairs the repeated household inputs back into rows. The three fields arrive as
   three parallel lists, so the row count is the **longest** of them — a row whose birthdate was left
   blank must reach the domain and be rejected there rather than vanishing on the way. `redirect()`

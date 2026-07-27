@@ -51,6 +51,24 @@ const group = z.string().transform((value, ctx) => {
   }
 });
 
+/**
+ * The archived record this registration was pre-filled from, or `undefined` when nobody was picked
+ * (US-11.3). The field is written by the screen itself, never typed, so a value that is not a
+ * surrogate id can only be a tampered request — it is refused rather than quietly dropped, because
+ * silently registering the household *without* the link would lose the only account of why two
+ * records name the same people.
+ */
+const previousCustomerId = z.string().transform((value, ctx): number | undefined => {
+  if (value === "") {
+    return undefined;
+  }
+  if (!/^\d+$/.test(value)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: de.customers.errors.unknown });
+    return z.NEVER;
+  }
+  return Number(value);
+});
+
 const registrationForm = z.object({
   firstName: z.string(),
   lastName: z.string(),
@@ -63,6 +81,7 @@ const registrationForm = z.object({
   certificateValidUntil: calendarDay,
   notes: z.string(),
   group,
+  previousCustomerId,
   householdMembers: z.array(
     z.object({
       firstName: z.string(),
@@ -106,6 +125,7 @@ function formValues(formData: FormData): Record<string, unknown> {
     certificateValidUntil: text("certificateValidUntil"),
     notes: text("notes"),
     group: text("group"),
+    previousCustomerId: text("previousCustomerId"),
     householdMembers: householdRows(formData),
   };
 }
@@ -168,6 +188,7 @@ export async function submitRegistration(
       householdMembers: form.householdMembers,
       notes: form.notes,
       group: form.group,
+      previousCustomerId: form.previousCustomerId,
     });
     id = customer.id;
   } catch (error: unknown) {
