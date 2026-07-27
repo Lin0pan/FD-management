@@ -27,17 +27,17 @@ npm run dev                 # http://localhost:3000
 
 ## Everyday commands
 
-| Command                 | What it does                                             |
-| ----------------------- | -------------------------------------------------------- |
-| `npm run dev`           | Next.js dev server                                       |
-| `npm run build`         | Production build                                         |
-| `npm start`             | Serve the production build                               |
-| `npm run lint`          | ESLint                                                   |
-| `npm run typecheck`     | `tsc --noEmit`                                           |
-| `npm test`              | Vitest unit suite (domain + application)                 |
-| `npm run test:coverage` | Vitest with coverage (thresholds enforced)               |
-| `npm run test:e2e`      | Playwright against the built app + a throwaway SQLite db |
-| `npm run format`        | Prettier write                                           |
+| Command                 | What it does                                            |
+| ----------------------- | ------------------------------------------------------- |
+| `npm run dev`           | Next.js dev server                                      |
+| `npm run build`         | Production build                                        |
+| `npm start`             | Serve the production build                              |
+| `npm run lint`          | ESLint                                                  |
+| `npm run typecheck`     | `tsc --noEmit`                                          |
+| `npm test`              | Vitest unit suite (domain + application)                |
+| `npm run test:coverage` | Vitest with coverage (thresholds enforced)              |
+| `npm run test:e2e`      | Playwright against the built app + throwaway SQLite dbs |
+| `npm run format`        | Prettier write                                          |
 
 ## Architecture in one paragraph
 
@@ -74,7 +74,7 @@ Four jobs run on every PR to `main`; wire them as required branch-protection che
 | `lint-and-typecheck` | ESLint + `tsc --noEmit` + `prisma validate`                    |
 | `unit-tests`         | `vitest --coverage`, thresholds scoped to domain + application |
 | `build`              | `next build`                                                   |
-| `e2e-tests`          | Playwright vs. the built app + a fresh seeded SQLite file      |
+| `e2e-tests`          | Playwright vs. the built app + fresh seeded SQLite files       |
 
 CodeQL, Dependabot, and GitHub secret scanning run alongside.
 

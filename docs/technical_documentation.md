@@ -364,7 +364,8 @@ cannot pass a fake: if the environment variable **`FD_FIXED_NOW_FILE`** names a 
 the ISO instant that file holds instead of the wall clock. The file is re-read on every call, so a
 spec can move the app's today from one distribution week to the next without restarting the server,
 and deleting it hands the wall clock straight back. The variable is read once at module load, is set
-only by `playwright.config.ts` (to `data/e2e-now.txt`, git-ignored), and an unreadable or unparsable
+only by `playwright.config.ts` (to `data/e2e-now.txt` for the shared server and
+`data/e2e-isolated-now.txt` for the isolated one, both git-ignored), and an unreadable or unparsable
 file falls back to the wall clock rather than failing a request.
 
 ### `src/domain/errors.ts`
@@ -1722,8 +1723,8 @@ directory (the backup unit named in the architecture sketch), the URL therefore 
 DATABASE_URL="file:../data/fd.db"      # → <repo>/data/fd.db
 ```
 
-This is consistent across `.env`, the Playwright web-server env, and the CI job envs (which use
-`../data/ci.db` and `../data/e2e.db`). The `data/` directory is tracked via `.gitkeep`; the `*.db`
+This is consistent across `.env`, the Playwright web-server envs, and the CI job envs (which use
+`../data/ci.db`, `../data/e2e.db` and `../data/e2e-isolated.db`). The `data/` directory is tracked via `.gitkeep`; the `*.db`
 files themselves are git-ignored. Note that the **generated client** resolves a relative SQLite path
 against the _current working directory_, not against `prisma/` as the CLI does (a known Prisma
 footgun) — which is why the app is always started from the repo root, and why the integration tests
@@ -1768,19 +1769,32 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
 ### End-to-end — Playwright (`playwright.config.ts`)
 
 - `testDir: tests/e2e`; runs Chromium against the **built** app.
-- **`workers: 1`, `fullyParallel: false`.** Every spec shares the one `data/e2e.db`, and several of
-  them write to it — a registration consumes a customer number, a settings save appends a version.
-  Two workers would interleave those writes and each spec would assert against a register the other
-  one had moved. The suite runs in a few seconds; a flaky gate is worth less than a slow one. The
-  consequence for a new spec: **never name a customer number the allocator will hand out** — read
-  the one the screen proposes, or inserting a spec file alphabetically above another one breaks it.
-  A spec that inserts its own rows instead of registering them (`counter.spec.ts`) may name numbers,
-  provided it takes a block high in the range: allocation is always the _lowest_ free slot, so the
-  low sequence the other specs assert against stays untouched.
-- `webServer` **deletes `data/e2e.db`**, then runs `npx prisma migrate deploy && npm run db:seed &&
-npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` is on locally, off
-  in CI. The delete matters locally: the settings specs edit the seeded price and then assert the
-  value they wrote, so a second run against its own leftovers would start from the wrong number.
+- **Two projects, two servers.** `chromium` drives port 3000 over the shared `data/e2e.db`, which
+  is where all but one spec belongs. `isolated` drives port 3001 over `data/e2e-isolated.db`, its
+  own freshly seeded and empty database, and matches only the specs listed in `ISOLATED_SPECS`.
+  A spec joins the isolated project when it must **own the register** — decide the quota, or fill
+  every slot. `waiting-list.spec.ts` is the case that forced it: the quota is a single global
+  number, the shared database holds customers on numbers in the hundreds, and so "no slot is free"
+  is unreachable there at any price short of hundreds of rows. Everything else stays on the shared
+  server, because a second Next process costs the whole run and a spec that merely writes does not
+  need one.
+- **`workers: 1`, `fullyParallel: false`.** Every spec in a project shares one `*.db`, and several
+  of them write to it — a registration consumes a customer number, a settings save appends a
+  version. Two workers would interleave those writes and each spec would assert against a register
+  the other one had moved. The suite runs in a few seconds; a flaky gate is worth less than a slow
+  one. The consequence for a new spec on the shared server: **never name a customer number the
+  allocator will hand out** — read the one the screen proposes, or inserting a spec file
+  alphabetically above another one breaks it. A spec that inserts its own rows instead of
+  registering them (`counter.spec.ts`) may name numbers, provided it takes a block high in the
+  range: allocation is always the _lowest_ free slot, so the low sequence the other specs assert
+  against stays untouched.
+- `webServer` is an array of two, built by one function. Each **deletes its own database and
+  pinned-now file**, then runs `npx prisma migrate deploy && npm run db:seed && npm run start --
+--port <n>` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` is on locally, off in
+  CI. The delete matters locally: the settings specs edit the seeded price and then assert the value
+  they wrote, so a second run against its own leftovers would start from the wrong number. The two
+  servers have **separate** `FD_FIXED_NOW_FILE`s, so a spec that pins the clock cannot move the
+  other server's calendar underneath a spec that did not ask for it.
 - Today: a smoke test asserting the German `<h1>` renders, plus `settings.spec.ts` — the settings
   round-trip (change a price, save, reload, see it applied and listed in the
   history), a second save on the same day — the behaviour the screen exists for, and once an error —
@@ -1923,6 +1937,22 @@ npm run start` over it, mirroring the CI `e2e-tests` job. `reuseExistingServer` 
   register and the neighbouring specs may leave households on the list; the row itself is addressed
   by `data-customer-number` for the same reason. Pinned-now file deleted in `afterAll`, like its
   neighbours.
+- `waiting-list.spec.ts` covers US-12 end to end (§US-12.5), and is the one spec in the **isolated
+  project** — it is the only one that makes the register _full_, which nothing sharing a register
+  can do. On its own empty database it lowers the quota to **2** on `/einstellungen`, registers two
+  households through the ordinary form (numbers 1 and 2), and then meets `/kunden/neu` with nothing
+  left to give: no proposed number, the limit named, and the way onto the waiting list offered as a
+  **link** rather than a redirect — the form stays on screen, because the quota may be what should
+  change. Two applicants are added through the list's own form and asserted in arrival order with no
+  banner above them, because nothing is free. Archiving the first household frees number 1, and the
+  banner then names the applicant who joined first — on `/warteliste` **and** on the home screen
+  (PRD §6). Promoting them from the banner opens the registration form pre-filled from the entry
+  (surname, certificate, a one-person household deriving 1 / 0), and saving it hands them exactly the
+  number the archived household released, with `1k1` on the card. The entry is then read straight
+  from Prisma: still there, both rows still counted, `removedOn` stamped and `removalReason` reading
+  `customerNumber=1` — off the list without being deleted from it (FR-7). The last spec asserts the
+  second applicant has moved up to position 1 with the register full again and no banner promising a
+  slot that does not exist.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

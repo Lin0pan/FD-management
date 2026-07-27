@@ -123,6 +123,17 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
 - `getByRole("heading", { name: X })` is a substring match: a section heading containing the page
   heading ("Auf die Warteliste setzen" vs "Warteliste") is a strict-mode violation. Pass `exact:
   true` for the `h1`.
+- The e2e suite has TWO Playwright projects: `chromium` on port 3000 over the shared `data/e2e.db`,
+  and `isolated` on port 3001 over its own empty `data/e2e-isolated.db` (`ISOLATED_SPECS` in
+  playwright.config.ts). A spec belongs in `isolated` only when it must OWN the register — set the
+  quota, or fill every slot. On the shared database that is unreachable: other specs seed customers
+  on numbers 201–271, so the quota (which may not fall below the active count) always leaves a dozen
+  low numbers free. Everything that merely writes stays on the shared server.
+- Each server has its OWN `FD_FIXED_NOW_FILE`, so pinning the clock in one project cannot move the
+  other's calendar. A new server needs its now-file added to `.gitignore` beside `data/e2e-now.txt`.
+- A `node -e "…"` command inside playwright.config.ts is double-quoted by the shell, so any array
+  literal in it must use SINGLE quotes — `JSON.stringify` emits double quotes and the shell eats
+  them (`ReferenceError: data is not defined`).
 
 ---
 
@@ -302,5 +313,48 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
     1 Erwachsene / 0 Kinder unless it adds a member.
   - `data/fd.db` (the dev database) and `data/e2e.db` are separate; the e2e config deletes and
     re-seeds its own before the server boots, so no waiting-list teardown helper is needed.
+
+---
+
+## 2026-07-27 15:20 — US-005 (E2E: full quota, waitlist, promotion)
+
+- Added `tests/e2e/waiting-list.spec.ts` (§US-12.5): five serial specs that drive the whole chain —
+  quota lowered to **2** on `/einstellungen`, both slots filled through the ordinary registration
+  form (numbers 1 and 2), a third registration met with no proposed number, the named limit and the
+  link onto the waiting list; two applicants added through the list's own form and asserted in
+  arrival order with no banner above them; the first household archived, which frees number 1 and
+  makes the banner name the applicant who joined first, on `/warteliste` **and** on `/`; that
+  applicant promoted from the banner into the pre-filled form and given exactly the freed number
+  with `1k1` on the card; and the second applicant moved up to position 1 with the register full
+  again. The removed entry is read straight from Prisma: still present, `removedOn` stamped,
+  `removalReason` = `customerNumber=1` — off the list without being deleted from it (FR-7).
+- **Split the e2e run into two projects** (`playwright.config.ts`). `chromium` keeps the shared
+  `data/e2e.db`; the new `isolated` project runs the waiting-list spec on port 3001 over its own
+  empty `data/e2e-isolated.db`. This was not a preference: on the shared database the register can
+  never be made full. The quota may not fall below the active customer count, and a dozen specs seed
+  customers on numbers 201–271, so every legal quota leaves the low numbers 8… free. The first
+  attempt (quota = active + 2, filling the two slots) failed exactly there — `/kunden/neu` proposed
+  number 8 instead of reporting a full register.
+- Files changed: `tests/e2e/waiting-list.spec.ts` (new), `playwright.config.ts`, `.gitignore`,
+  `docs/technical_documentation.md`, `docs/fd_dev_setup_overview.md`, `CONTRIBUTING.md`,
+  `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (41 files, 743 tests, domain +
+  application at 100%), `npm run build`, `npm run format:check` and `npm run test:e2e` (57 passed,
+  1 skipped) all green. No app code changed, so no browser verification beyond the suite itself.
+- **Learnings for future iterations:**
+  - Before writing an e2e spec that depends on a global figure (the quota, "the register is full",
+    the total of anything), check what the shared `data/e2e.db` already holds:
+    `node -e "…customer.findMany({select:{customerNumber:true,status:true}})"`. Numbers 201–271 are
+    seeded blocks belonging to counter/serve/reminders/reissue/age-13, and they make several
+    register-wide claims unreachable. The isolated project is the answer; joining it is two lines in
+    `ISOLATED_SPECS`.
+  - `settings.spec.ts` asserts `toHaveCount(3)` on the settings history, so any spec sharing that
+    database must not append a settings version. That alone rules out "set the quota, then set it
+    back" on the shared server.
+  - The still-skipped settings spec (`a quota below the active customer count is refused`) is now
+    reachable: the isolated project can register two households and then try a quota of 1. Left
+    alone here because it belongs to US-14, not to this story.
+  - CI needs no change — the job-level `DATABASE_URL` is only a default; each `webServer` entry sets
+    its own, and both servers share the one `npm run build`.
 
 ---
