@@ -100,9 +100,25 @@ const COUNTER_QUERY_PATTERN = new RegExp(
  * @throws {InvalidCardNumber} for anything that is not `<customer number>` or `<customer number>k<index>`.
  */
 export function parseCounterQuery(text: string): CounterQuery {
+  const query = counterQueryOrNull(text);
+  if (query === null) {
+    throw new InvalidCardNumber(text);
+  }
+  return query;
+}
+
+/**
+ * The same reading as {@link parseCounterQuery}, answering `null` where that one throws.
+ *
+ * It exists for the one box that accepts *either* kind of input: the customer list searches by name
+ * as well as by number (US-15.1), so "this is not a number" is an ordinary answer there rather than
+ * a mistake — `Meier` is a perfectly good thing to have typed. The rules are not relaxed for it:
+ * `050` is still not customer 50, it is simply a name that will match nobody.
+ */
+export function counterQueryOrNull(text: string): CounterQuery | null {
   const match = COUNTER_QUERY_PATTERN.exec(text.trim());
   if (match === null) {
-    throw new InvalidCardNumber(text);
+    return null;
   }
   const [, customerNumber, index] = match;
   return {
