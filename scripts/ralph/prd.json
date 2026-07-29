@@ -39,8 +39,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Modelling question (PRD §7) settled: the customer's own row and their household-member row are KEPT IN STEP in one write, not unified. A single source of truth needs either dropping the customer from their own household (which breaks EmptyHousehold and contradicts US-16.1) or giving member rows an identity they do not have. So domain replaceHouseholdMember(members, was, becomes) restates the row holding the customer's OLD name and birthdate; CustomerRepository.updateDetails(id, details, household) writes both halves in one transaction. No matching row = household left alone. Domain: createPersonalDetails and createNotes extracted from createCustomerDetails; NOTES_MAX_LENGTH 4000 with the new NotesTooLong error. updateNotes is its own use case (customer.notesUpdated); a test drives the real lookupCustomer to prove the note reaches the counter. Both refuse an archived customer, allow a blocked one. Decision recorded in docs/technical_documentation.md."
     },
     {
       "id": "US-003",

@@ -209,6 +209,25 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
 - An archived customer's record is read-only (US-16, FR-8): every new mutating use case must refuse
   with `CustomerArchived` and every one of them must still allow a BLOCKED customer, which pauses the
   counter and not the record.
+- A duplicated fact that CANNOT be de-duplicated (the customer is their own household member) is
+  kept in step by a **pure domain rule plus one transaction**, never by two writes or by the adapter
+  comparing rows: `replaceHouseholdMember(members, was, becomes)` decides which row was them, and
+  `updateDetails(id, details, household)` writes both halves at once. Match on the row's *old*
+  values, take only the first match, and leave the set alone when nothing matches — guessing is how
+  an edit rewrites somebody else. Write the reasoning down: the reader's first instinct is that the
+  duplication is a bug.
+- Two use cases that touch the same record still get **one file and one audit event each**. A merged
+  `updateCustomer` would produce an entry naming every field on every save, which is a log nobody
+  reads. `maintain-customer.test.ts` is the shared suite; its `household()` fixture now takes
+  `firstName` / `lastName` / `notes`, and its default household's FIRST row is the customer, which is
+  what a registration leaves behind.
+- A criterion phrased as "X is visible at the counter" is proved by driving the real `lookupCustomer`
+  over the same fake register, not by asserting the stored column — the same move as
+  `updateHousehold`'s cards-due test. The price is three more fakes in the file (settings,
+  distribution records, reminder log); they can all be stubs, since the point is the read path.
+- An input type is the guarantee: `UpdateCustomerDetailsInput` has no `customerNumber` field, and the
+  port method takes none either, so "the customer number is not editable" (US-16, FR-7) is enforced
+  by the compiler rather than by a check somebody could delete.
 
 ---
 
@@ -238,4 +257,41 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
     their household-member row. Decide and record it before writing code, and remember that any
     write touching a name must rewrite `firstNameFolded` / `lastNameFolded` in the same statement.
   - No UI changed in this story, so no browser verification was needed.
+---
+
+## 2026-07-29 - US-002 (updateCustomerDetails and updateNotes use cases)
+- Implemented US-16.2 and US-16.3: a customer's name, birthdate and address can be corrected, and
+  the free-text note the counter shows can be edited, each as its own use case with its own audit
+  entry.
+- **The modelling question from PRD §7 is settled and recorded** (docs/technical_documentation.md,
+  "Decision: the customer is one of their own household members, kept in step in one write"). A
+  single source of truth is not reachable: dropping the customer from their own household would make
+  `EmptyHousehold` meaningless and contradict the shipped US-16.1, and household rows have no
+  identity to diff on. So the two copies are kept in step in one transaction instead.
+- Files changed:
+  - `src/domain/customer/customer.ts` (+test): `createPersonalDetails` and `createNotes` extracted
+    from `createCustomerDetails`, which now calls both; `replaceHouseholdMember`; `NOTES_MAX_LENGTH`.
+  - `src/domain/errors.ts`: `NotesTooLong` (carries both lengths).
+  - `src/application/customers/update-customer-details.ts`, `update-notes.ts` (new), and
+    `maintain-customer.test.ts` (the shared US-16 suite, +24 tests).
+  - `src/application/ports.ts`: `updateDetails(id, details, household)` and `updateNotes(id, notes)`.
+  - `src/infrastructure/prisma/customer-repository.ts` (+test): both writes; `updateDetails` is one
+    `$transaction` over the customer columns, the folded keys and the member rows.
+  - The seven other `CustomerRepository` fakes, `src/i18n/de.ts` (`errors.notesTooLong`),
+    `src/app/kunden/neu/registration-input.ts` (`germanMessage` branch),
+    `docs/technical_documentation.md`, root `CLAUDE.md`.
+- **Learnings for future iterations:**
+  - `createCustomerDetails` is now assembled from three extracted rules —
+    `createHouseholdMembers`, `createPersonalDetails`, `createNotes`. Registration validates notes
+    for length as a side effect, which is why `germanMessage` needed the new branch; the next rule
+    that both registration and an edit must obey belongs in a fourth such function.
+  - Adding a method to `CustomerRepository` is now EIGHT fakes plus the adapter, and the `writes += 1`
+    / rejecting / mutating idioms differ per file. Copy the neighbouring method in each file.
+  - Beware the fixture trap that bit here: spreading a `PersonalDetails` constant into a household
+    member literal drags `address` along and the `toEqual` fails on a field the row never has.
+  - US-003 (`changeGroup`) next; it returns the resulting group sizes, so the fake's `groupCounts`
+    in maintain-customer.test.ts — currently a hard-coded `{ red: 0, blue: 0 }` — has to start
+    counting the holders.
+  - No UI changed in this story, so no browser verification was needed. US-004 is the record screen
+    and will need it.
 ---
