@@ -20,8 +20,8 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Domain: createHouseholdMembers extracted from createCustomerDetails so an edit is judged by registration's rules. Application: updateHousehold (customer.householdUpdated audit entry); refuses an archived customer (record read-only, FR-8), allows a blocked one. Port + Prisma adapter: updateHousehold(id, members) replaces the member set in one transaction. Tests in src/application/customers/maintain-customer.test.ts drive the real listCardsDueForReissue to prove HOUSEHOLD_CHANGE follows a count change and a spelling fix does not."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",

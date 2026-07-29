@@ -1,5 +1,5 @@
 # Ralph Progress Log
-Started: Wed Jul 29 19:20:33 CEST 2026
+Started: Wed Jul 29 12:44:59 CEST 2026
 ---
 
 ## Codebase Patterns
@@ -192,50 +192,179 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   folder name would not.
 
 ---
-- Adding a method to `CustomerRepository` now costs EIGHT implementers: the Prisma adapter plus the
-  fakes in customers.test.ts, cards-due-for-reissue.test.ts, certificate-reminder.test.ts,
-  lookup-customer.test.ts, list-customers.test.ts, maintain-customer.test.ts,
-  waiting-list.test.ts and distribution/record-attendance.test.ts. Each fake stubs it in ITS OWN
-  idiom — a `writes += 1` counter where the file counts writes, a rejecting stub where the file
-  proves the use case never calls it — so copy the neighbouring method rather than one shape into
-  all eight.
-- A rule that registration and a later EDIT must both obey belongs in its own exported domain
-  function that registration then calls (`createHouseholdMembers` ← `createCustomerDetails`). The
-  edit reusing it is the only thing that keeps the two from drifting; a second implementation is
-  free to accept what registration refuses.
-- "The consequence follows automatically" is provable in the application layer by driving the REAL
-  downstream read over the same fake register — updateHousehold's test calls `listCardsDueForReissue`
-  after the edit rather than asserting a flag. It proves the derivation, not the intent.
-- An archived customer's record is read-only (US-16, FR-8): every new mutating use case must refuse
-  with `CustomerArchived` and every one of them must still allow a BLOCKED customer, which pauses the
-  counter and not the record.
+
+## 2026-07-29 12:58 — US-001 (listCustomers query use case)
+
+- Domain first: `certificateState(certificate, today)` and `validUntilRangeFor(state, today)` in
+  `src/domain/customer/certificate.ts`, with `EXPIRING_SOON_DAYS = 30` exported and its rationale
+  written down (PRD §9 leaves making it a setting open). Both read one private `certificateWindow`,
+  so the filter's boundary and the label on a row cannot disagree; `isExpired` remains the single
+  expiry comparison. EXPIRING_SOON is a NARROWING of VALID — asking for VALID returns it too, because
+  the household may still shop. TDD: 11 tests written and run red first.
+- `counterQueryOrNull` added beside `parseCounterQuery` (cardNumber.ts): the list's one search box
+  takes a name as readily as `50k3`, so "not a number" is an answer there rather than an error. The
+  throwing parser now delegates to it, so `050` is still not customer 50 on either path.
+- `listCustomers(deps, {search?, status?, group?, certificate?, includeArchived?})` in
+  `src/application/customers/list-customers.ts` returns `{ rows, groupCounts }`. 26 tests against
+  hand-written fakes and a fake clock. What the use case decides: which statuses to ask for (absent
+  or EMPTY status filter = all; archived removed unless `includeArchived` or an explicit `ARCHIVED`),
+  and how the search box reads. Everything else is a `WHERE` clause the port carries.
+- `groupCounts` comes from the existing `CustomerRepository.groupCounts()` and is deliberately not a
+  count of the rows — a test filters to BLUE and still receives both.
+- New port types `CustomerListQuery` / `CustomerListSearch` and the method `list(query)`. A card
+  number arrives as the customer number it resolves to; the index is dropped (households, not cards).
+  Names arrive UNFOLDED, following `ArchiveSearchQuery` — folding is the adapter's, so there is one
+  normalisation in the codebase.
+- `describeAllowances(deps, households, date)` added to the allowance seam: reads the settings history
+  ONCE for the whole screen, same private arithmetic as `describeAllowance`. Pinned by a test on the
+  fake's read counter.
+- The adapter's `list` had to land in this story, because a new port method stops the whole build from
+  compiling. Filters are Prisma `where` clauses; the certificate window needs `$queryRaw` with a
+  correlated subquery, since Prisma cannot say "the latest certificate satisfies this". Verified
+  against a throwaway migrated database in a scratch spec (expired / expiring-soon / renewed-household
+  / folded name / exact number all correct), which was then deleted — US-002 owns the integration
+  suite, the indexes and the ~50-customer fixture.
+- Files changed: `src/domain/customer/certificate.ts` + `.test.ts`, `src/domain/card/cardNumber.ts` +
+  `.test.ts`, `src/application/ports.ts`, `src/application/allowance/describe-allowance.ts`,
+  `src/application/customers/list-customers.ts` + `.test.ts` (new),
+  `src/infrastructure/prisma/customer-repository.ts`, six test files that own a
+  `FakeCustomerRepository` (a `list` stub each), `docs/technical_documentation.md`,
+  `scripts/ralph/prd.json`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (42 files, 784 tests, domain +
+  application at 100%) and `npm run build` all green. No UI change, so no browser verification.
+- **Learnings for future iterations:**
+  - US-002 must add the `group` index (`customerNumber`, `status` and `lastNameFolded` already exist;
+    `lastName` itself is NOT the searched column — the folded one is, so index that) and the
+    integration test. It should also pin the renewed-certificate case: a household whose old notice
+    lapsed but whose current one is valid must NOT appear under EXPIRED.
+  - US-003 gets `certificateState` on every row, so the screen can state expiry in words plus colour
+    without recomputing it, and `CustomerListRow.customerId` is what `/kunden/[id]` links to.
+  - The list's `certificate=VALID` includes the expiring-soon ones by design. If the screen wants
+    three mutually exclusive buckets, it filters on the row's `certificateState`, not with a fourth
+    query.
 
 ---
 
-## 2026-07-29 - US-001 (updateHousehold use case)
-- Implemented US-16.1: a customer's household can be replaced, with counts, portions, price and the
-  cards-due-for-reissue list following from the birthdates on the next read.
-- Files changed:
-  - `src/domain/customer/customer.ts` (+test): `createHouseholdMembers` extracted from
-    `createCustomerDetails`, which now calls it — one set of household rules for registration and
-    for every later edit.
-  - `src/application/customers/update-household.ts` (new) and `maintain-customer.test.ts` (new,
-    the suite the remaining US-16 use cases will grow into).
-  - `src/application/ports.ts`: `CustomerRepository.updateHousehold(id, members)`.
-  - `src/infrastructure/prisma/customer-repository.ts` (+test): deleteMany + createMany in one
-    `$transaction`.
-  - The seven other `CustomerRepository` fakes, `docs/technical_documentation.md`, root `CLAUDE.md`.
+## 2026-07-29 13:10 — US-002 (customer list queries and indexes)
+
+- The `WHERE` clauses themselves landed with US-001 (a new port method stops the build compiling, so
+  the adapter could not wait). This story added what makes them cheap and what proves they are there:
+  two indexes, and an integration test over a register of fifty.
+- `@@index([group])` for the list's group filter and the group counts; `@@index([firstNameFolded])`
+  for the other half of the search's `OR`. `customerNumber`, `status` and `(lastNameFolded,
+  birthDate)` already existed. The spelled `lastName` is deliberately NOT indexed — the AC names it,
+  but nothing compares it; the folded column is the one the query touches, and an index on `lastName`
+  would suggest a search that does not exist.
+- Migration regenerated rather than stacked (pre-release rule): `20260727121530_init` →
+  `20260729110134_init`, partial unique index re-appended from the old file's last 16 lines, then
+  `npm run db:reset`. `schema.test.ts` reads the migrations directory rather than a fixed name, so it
+  needed no change.
+- New describe block in `customer-repository.test.ts`: fifty households seeded from a *table*
+  (1–30 RED, 31–50 BLUE, 41–45 BLOCKED, 46–50 ARCHIVED), three of them carrying a certificate that
+  puts them in a state the rest are not in. 14 tests: each filter's exact result set, the combination
+  of filters, `groupCounts` = {red 30, blue 15}, the two new indexes, and that the filtering is SQL.
+  Household 6 pins the renewed-certificate case — a lapsed notice with a valid one recorded after it
+  is NOT expired, which is what `certificates: { some: … }` would have got wrong.
+- Files changed: `prisma/schema.prisma`, `prisma/migrations/20260729110134_init/migration.sql` (was
+  `20260727121530_init`), `src/infrastructure/prisma/customer-repository.test.ts`,
+  `docs/technical_documentation.md` (a `list(query)` section on the adapter, and the folded-name
+  paragraph now names both indexes), `scripts/ralph/prd.json`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (42 files, 798 tests) and
+  `npm run build` all green. No UI change, so no browser verification.
 - **Learnings for future iterations:**
-  - The household member rows are the ONE deliberate delete in a schema whose rule is "never
-    hard-delete customer data". It is justified by FR-2 (no composition history) and by the card
-    keeping the counts it printed — root CLAUDE.md now says so, because the next reader would
-    otherwise read the deleteMany as a violation.
-  - Replacing rather than diffing is a decision, not laziness: two children with the same name and
-    birthdate are two rows and nothing distinguishes them, so there is no identity to match on.
-  - `ageInYears` already exists in `domain/customer/householdComposition.ts` and cites US-16.5 —
-    the record screen (US-004) does not need a new age rule.
-  - US-002 next has a genuine modelling question to settle first (PRD §7): the customer's own row vs
-    their household-member row. Decide and record it before writing code, and remember that any
-    write touching a name must rewrite `firstNameFolded` / `lastNameFolded` in the same statement.
-  - No UI changed in this story, so no browser verification was needed.
+  - US-003 is the screen. Every row already carries `certificateState`, `portions`, `priceCents` and
+    `cardNumber` from `listCustomers`; the screen computes nothing. `customerId` is the link target.
+  - The seeded register in this test is a fixture worth copying for US-004's e2e spec, but note the
+    e2e specs share `data/e2e.db` on customer numbers 201–271 (see the pattern above) — fifty rows
+    from 1 would collide with the isolated project's quota specs, not with the shared ones.
+
+---
+
+## 2026-07-29 13:35 — US-003 (customer list screen at /kunden)
+
+- `src/app/kunden/page.tsx`: the list itself. A server component over `listCustomers` — one dense
+  table (Nr., Name, Karte, Gruppe, Status, Erwachsene, Kinder, Portionen, Preis, Nachweis gültig bis,
+  Erinnerungen), sticky header, ascending customer number, computing nothing. Every value arrives
+  derived from the use case; `formatEuros` and `germanDate` are the only transformations on the page.
+- Filters are a **plain GET form**, which is what puts them in the URL (FR-5). No client component and
+  no JavaScript is involved. Every parameter is parsed by a Zod object with `.catch(undefined)` per
+  field, so a hand-typed `status=quatsch` renders the unfiltered list instead of a 500.
+- Status is a SINGLE select even though `listCustomers` accepts a subset: staff filter one thing at a
+  time, and a multi-select is a control to learn rather than a question to answer. The archived
+  checkbox is separate (`archiv=1`), and naming ARCHIVED in the status select works on its own — the
+  use case already treats that as asking for them.
+- The certificate filter's three options are labelled with what they *include*: "gültig (auch bald
+  ablaufende)" says out loud that VALID is the wider bucket. `EXPIRING_SOON_DAYS` is passed into a
+  dictionary function rather than spelled "30" in German, so the number stays single-sourced.
+- Group balance above the filters, with `data-red` / `data-blue` attributes for the e2e spec, and a
+  sentence saying it ignores the filters. Verified by hand: it stays 2/2 while the table is filtered
+  to one blocked row.
+- Empty results name the filters in force, including whether archived households are shown — the
+  unfiltered empty register gets its own sentence instead ("Es ist noch niemand aufgenommen.").
+- Files changed: `src/app/kunden/page.tsx` (new), `src/i18n/de.ts` (a `customerList` block plus
+  `home.customerListLink`), `src/app/page.tsx` (the link), `docs/technical_documentation.md`,
+  `scripts/ralph/prd.json`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run format:check`, `npm test` (42 files, 798 tests)
+  and `npm run build` all green.
+- **Browser verification:** no dev-browser skill and no browser MCP tool is configured in this
+  sandbox. Verified instead against the BUILT app (`npm run start`) with curl over a dev database
+  seeded with five synthetic households (one per state), checking the rendered HTML: default view
+  hides the archived row (4 of 5), `archiv=1` shows it dimmed and labelled "archiviert",
+  `status=BLOCKED` returns only the blocked row, `suche=3k1` resolves the card number to its holder,
+  `suche=müller` folds onto "Müllerhoff", the empty result names its filters, the selects and the
+  checkbox come back selected from the URL, and every row links to `/kunden/<id>`. The scratch seed
+  script was deleted and `npm run db:reset` run afterwards. A human should still look at the layout.
+- **Learnings for future iterations:**
+  - US-004 (the e2e spec) has these hooks: `customer-row` rows carry `data-customer-number` and
+    `data-status`; `group-counts` carries `data-red` / `data-blue`; the controls are
+    `customer-search`, `status-filter`, `group-filter`, `certificate-filter`, `archived-toggle`;
+    and `customer-list-empty` / `customer-list-count` say what came back. Filters apply on submit,
+    so the spec must click "Filtern" (or navigate straight to the URL) — nothing auto-submits.
+  - The e2e projects share `data/e2e.db` on customer numbers 201–271, so a list spec on the shared
+    server must assert about ITS OWN rows (by customer number) and never about the whole table or the
+    group counts' absolute values — other specs seed households that change both. Asserting the
+    counts are *unchanged* between two filtered views is the robust form of the FR-3 assertion.
+  - `Customer.customerNumber` is NOT nullable: an archived household keeps its number and the partial
+    unique index is what frees the slot. A fixture that tries `customerNumber: null` fails.
+  - The dev database ships with settings but no customers, so `/kunden` renders an empty register out
+    of the box — seed before looking at any list screen by hand.
+
+---
+
+## 2026-07-29 13:45 — US-004 (E2E: search and filter the customer list)
+
+- `tests/e2e/customer-list.spec.ts`: seven tests over five households seeded through Prisma on
+  numbers 281-285 — both groups, all three statuses, all three certificate states. Seeded rather than
+  registered through the form because what the screen needs is a *spread*; five registrations would
+  prove US-01 again at five times the cost.
+- The fixture's one deliberate cruelty: the active RED household and the archived one share an
+  invented surname (Müllerhoff), so nothing but the archived toggle can tell them apart. A name search
+  that excluded the archived row for some other reason would pass a friendlier fixture.
+- Asserted: a folded lower-case prefix finds the active household alone; the SUPERSEDED card number
+  281k1 resolves to the household now holding 281k2 (the index is dropped — the list is about
+  households); the blocked filter leaves only `data-status="BLOCKED"` rows on the WHOLE table, not
+  just this spec's; the archived namesake appears only once the toggle is ticked and reads
+  "archiviert"; the three certificate states are stated in words on their own rows; the group balance
+  is +3 RED / +1 BLUE over the pre-seed reading (blocked counts, archived does not) and does not move
+  when the table is filtered to one row; and the filters survive as a URL — set through the controls,
+  read out of the query string, reloaded with the same rows and the same controls set.
+- Files changed: `tests/e2e/customer-list.spec.ts` (new), `docs/technical_documentation.md` (the spec
+  in the tree, a paragraph on what it covers, the stale-server warning beside the "start does not
+  build" one — and `waiting-list.spec.ts`, which US-12 never added to the tree),
+  `scripts/ralph/prd.json`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (42 files, 798 tests),
+  `npm run format:check`, `npm run build` and `npm run test:e2e` (64 passed, 1 skipped — the skip is
+  settings.spec's pre-existing one) all green.
+- **Learnings for future iterations:**
+  - Two of the three hours here went on a phantom: the whole suite failed at once, in every spec,
+    against rows that were already there. It was three `next-server` processes left over from earlier
+    iterations, adopted by `reuseExistingServer`. See the pattern at the top — the pkill pattern this
+    file carried was wrong, and that is now fixed.
+  - `page.locator('[data-customer-number="281"]')` is a much simpler row handle than filtering rows by
+    a cell's text; the list screen already puts the number, the status and the group counts on data
+    attributes precisely so a spec need not read German off the page to find a row.
+  - A GET-form filter screen is pleasant to drive: `goto("/kunden?suche=…")` and clicking "Filtern"
+    are the same thing, so a test can set filters whichever way reads better, and `waitForURL` after
+    the click is all the synchronisation there is.
+
 ---
