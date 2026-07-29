@@ -12,6 +12,7 @@ import { parseCardIssueReason } from "@/domain/card/card";
 import {
   parseCustomerStatus,
   type CustomerStatus,
+  type HouseholdMemberDetails,
   type NewCustomer,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
@@ -466,6 +467,34 @@ export class PrismaCustomerRepository implements CustomerRepository {
       }
       throw error;
     }
+  }
+
+  /**
+   * Replace a customer's household with exactly `members` (US-16.1).
+   *
+   * Delete-then-create inside **one transaction**, because the household is a set rather than a list
+   * of rows staff maintain: matching the given rows against the stored ones would need an identity
+   * the screen does not have — two children of the same name and birthdate are two rows and nothing
+   * distinguishes them — and a partial match would leave a household nobody typed. The delete is the
+   * one place in this file that removes anything, and what it removes is not customer data leaving
+   * the system: no history of past compositions is kept (PRD §FR-2), and the counts the household
+   * *had* survive on the card that printed them.
+   *
+   * Nothing derived is written: there is no count column, and the portions and the price follow from
+   * the birthdates the moment they are read.
+   */
+  async updateHousehold(id: number, members: ReadonlyArray<HouseholdMemberDetails>): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.householdMember.deleteMany({ where: { customerId: id } }),
+      this.prisma.householdMember.createMany({
+        data: members.map((member) => ({
+          customerId: id,
+          firstName: member.firstName,
+          lastName: member.lastName,
+          birthDate: member.birthDate,
+        })),
+      }),
+    ]);
   }
 
   /**

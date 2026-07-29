@@ -115,6 +115,15 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve([]);
   }
 
+  /**
+   * No use case in this file edits a household (US-16.1); the method is here because the port has
+   * it. It still counts as a write, so the "nobody touched the record" assertion stays honest.
+   */
+  updateHousehold(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
   setStatus(): Promise<void> {
     this.writes += 1;
     return Promise.resolve();

@@ -338,6 +338,50 @@ describe("the customer number slot constraint", () => {
   });
 });
 
+describe("PrismaCustomerRepository.updateHousehold", () => {
+  /** A member as staff would type them onto the record, with a birthdate a test can count on. */
+  function newMember(birthDate: string) {
+    return {
+      firstName: faker.person.firstName(),
+      lastName: faker.person.lastName(),
+      birthDate: new Date(birthDate),
+    };
+  }
+
+  it("replaces the household, leaving no row of the old composition behind", async () => {
+    const { id } = await repository.create(newCustomer());
+    const members = [newMember("1985-04-11"), newMember("2022-02-14"), newMember("2019-09-02")];
+
+    await repository.updateHousehold(id, members);
+
+    const stored = await repository.findById(id);
+    expect(stored?.details.householdMembers).toEqual(members);
+    expect(await prisma.householdMember.count({ where: { customerId: id } })).toBe(3);
+  });
+
+  it("touches nothing else on the record — number, status, card and certificate stay", async () => {
+    const { id } = await repository.create(newCustomer());
+    const before = await repository.findById(id);
+
+    await repository.updateHousehold(id, [newMember("1985-04-11")]);
+
+    const after = await repository.findById(id);
+    expect(after?.customerNumber).toBe(before?.customerNumber);
+    expect(after?.status).toBe(before?.status);
+    expect(after?.card).toEqual(before?.card);
+    expect(after?.details.certificate).toEqual(before?.details.certificate);
+  });
+
+  it("leaves another household's members alone", async () => {
+    const { id } = await repository.create(newCustomer());
+    const other = await repository.create(newCustomer({ customerNumber: 51 }));
+
+    await repository.updateHousehold(id, [newMember("1985-04-11")]);
+
+    expect(await prisma.householdMember.count({ where: { customerId: other.id } })).toBe(2);
+  });
+});
+
 describe("PrismaCustomerRepository.setStatus", () => {
   /**
    * The invariant US-08 rests on: a customer carries a block reason exactly while they are blocked.

@@ -8,6 +8,7 @@ import {
 } from "../errors";
 import {
   createCustomerDetails,
+  createHouseholdMembers,
   parseCustomerStatus,
   type CustomerDetailsInput,
   type HouseholdMemberDetails,
@@ -177,6 +178,53 @@ describe("createCustomerDetails", () => {
     rows.push(member());
 
     expect(details.householdMembers).toHaveLength(1);
+  });
+});
+
+describe("createHouseholdMembers", () => {
+  it("keeps the rows it was given, trimmed, so a stray space cannot pass as a name", () => {
+    const members = createHouseholdMembers(
+      [member({ firstName: "  Anna  ", lastName: " Meier " })],
+      TODAY,
+    );
+
+    expect(members).toEqual([
+      { firstName: "Anna", lastName: "Meier", birthDate: new Date("1990-04-05T00:00:00.000Z") },
+    ]);
+  });
+
+  it("names the household row whose name is missing, not the household as a whole", () => {
+    try {
+      createHouseholdMembers([member(), member({ firstName: "   " })], TODAY);
+      expect.unreachable("createHouseholdMembers should have rejected the blank name");
+    } catch (error: unknown) {
+      expect((error as MissingRequiredField).field).toBe("householdMembers.1.firstName");
+    }
+  });
+
+  it("rejects a household with no members at all", () => {
+    expect(() => createHouseholdMembers([], TODAY)).toThrow(EmptyHousehold);
+  });
+
+  it("rejects a member born after today", () => {
+    const rows = [member({ birthDate: new Date("2026-07-23T00:00:00.000Z") })];
+
+    expect(() => createHouseholdMembers(rows, TODAY)).toThrow(BirthDateInFuture);
+  });
+
+  it("accepts a member born today — a newborn belongs to the household at once", () => {
+    const rows = [member({ birthDate: new Date("2026-07-22T00:00:00.000Z") })];
+
+    expect(createHouseholdMembers(rows, TODAY)).toHaveLength(1);
+  });
+
+  it("copies the rows, so a later change to the input cannot alter the household", () => {
+    const rows = [member()];
+
+    const members = createHouseholdMembers(rows, TODAY);
+    rows.push(member());
+
+    expect(members).toHaveLength(1);
   });
 });
 

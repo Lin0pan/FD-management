@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type {
   CustomerDetails,
   CustomerStatus,
+  HouseholdMemberDetails,
   NewCustomer,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
@@ -92,6 +93,16 @@ class FakeCustomerRepository implements CustomerRepository {
    */
   searchArchived(): Promise<ReadonlyArray<ArchivedCustomer>> {
     return Promise.resolve([]);
+  }
+
+  updateHousehold(id: number, members: ReadonlyArray<HouseholdMemberDetails>): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    const held = this.holders[index];
+    this.holders[index] = {
+      ...held,
+      details: { ...held.details, householdMembers: [...members] },
+    };
+    return Promise.resolve();
   }
 
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {

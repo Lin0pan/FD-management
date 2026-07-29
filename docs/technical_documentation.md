@@ -173,7 +173,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   searchArchivedCustomers (US-11, the archive search),
 │   │   │                             #   draftFromArchived (US-11, the registration pre-fill),
 │   │   │                             #   listCardsDueForReissue (US-13, cards a birthday overtook),
-│   │   │                             #   listCustomers (US-15, the searchable customer list)
+│   │   │                             #   listCustomers (US-15, the searchable customer list),
+│   │   │                             #   updateHousehold (US-16, replaces the member set)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   ├── waiting-list/             # addToWaitingList, listWaiting, removeFromWaitingList,
@@ -1043,6 +1044,33 @@ somebody (US-01) to decide which group keeps the two weeks even, so it counts ev
 regardless of the current filter (PRD FR-3) — a number that moved with the filter would be a
 different question wearing the same label.
 
+### `src/application/customers/updateHousehold`
+
+How a household changes after registration (US-16.1). `updateHousehold(deps, { customerId, members })`
+**replaces the whole member set** — it is not an add-and-remove pair, because staff edit the list in
+front of them and press save, and because no history of past compositions is kept (PRD §FR-2).
+
+The rows are judged by `createHouseholdMembers`, the same domain rule a registration is judged by, so
+an edit can never let through a household a registration would refuse: an empty list is
+`EmptyHousehold`, a member born after today is `BirthDateInFuture`, and a blank name names its row
+(`householdMembers.1.firstName`). The function was extracted from `createCustomerDetails` for exactly
+this reason — a second implementation would be free to diverge with the first rule that changed.
+
+A **blocked** household may be edited (a block turns them away at the counter, it does not freeze
+their record); an **archived** one may not, and is refused as `CustomerArchived` — their record is
+read-only (PRD §FR-8). Persistence is one `updateHousehold(id, members)` call; the audit entry is
+`customer.householdUpdated` with the single changed field `householdMembers` and an empty `why`,
+because what changed is what the record now says.
+
+**Nothing derived is written, and there is nothing to write.** The counts, the portion allowance and
+the price are read off the birthdates wherever they are needed, so they are already right the instant
+the call returns; the same is true of the cards-due-for-reissue list, which is why
+`maintain-customer.test.ts` proves the consequence rather than a queue — it drives the real
+`listCardsDueForReissue` over the fake register: after an edit that changes the counts the household turns
+up in `listCardsDueForReissue` with reason `HOUSEHOLD_CHANGE`, and after a spelling fix it does not.
+What the household _was_ survives in exactly one place, as a fact about a physical object: the counts
+printed on the card they hold.
+
 ### `src/application/customers/draftFromArchived`
 
 The second half of the pre-fill (US-11.2). `draftFromArchived(deps, { archivedCustomerId })` reads
@@ -1197,6 +1225,15 @@ read off the error: every other key in that write points at the row being insert
 makes the attribution safe. `setStatus(id, status, blockReason)` is the one write behind
 `blockCustomer` / `unblockCustomer`: it updates the `status` and `blockReason` columns together, so
 the reason a blocked customer carries can never disagree with their status.
+
+`updateHousehold(id, members)` is the one write behind the household editor (US-16.1), and the only
+**delete** in this file: it removes the customer's member rows and creates the given ones inside a
+single `$transaction`. Matching the given rows against the stored ones is not possible — two children
+of the same name and birthdate are two rows and nothing distinguishes them — and a partial match would
+leave a household nobody typed. The delete is not customer data leaving the system: past compositions
+are deliberately not kept (US-16, FR-2), and the counts a household _had_ survive on the card that
+printed them. It is also the reason `HouseholdMember` is the one relation an integration test may
+clear directly (`clearRegister` deletes children first anyway).
 
 `archive(id, reason, archivedAt)` is the one write behind `archiveCustomer` (US-10): status, reason
 and instant in a single statement, with any block reason cleared alongside them. It is a plain

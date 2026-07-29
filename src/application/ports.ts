@@ -11,6 +11,7 @@ import type { IssuedCard } from "@/domain/card/card";
 import type { ValidUntilRange } from "@/domain/customer/certificate";
 import type {
   CustomerStatus,
+  HouseholdMemberDetails,
   NeedsCertificate,
   NewCustomer,
   RegisteredCustomer,
@@ -190,6 +191,19 @@ export interface CustomerRepository {
    * @throws {CustomerNumberTaken} if another registration took the number first.
    */
   create(customer: NewCustomer): Promise<RegisteredCustomer>;
+  /**
+   * Replace a customer's household with exactly `members`, in **one transaction** (US-16.1).
+   *
+   * It is a replacement rather than an add-and-remove pair because the household is a set: staff
+   * edit the whole list on the screen and press save, and two half-applied statements would leave a
+   * household nobody typed. The previous rows are gone afterwards — deliberately, since no history
+   * of past compositions is kept (tasks/prd-us-16-maintain-customer-record.md §FR-2); what a card
+   * was printed with survives on the card, which is the only snapshot the system keeps.
+   *
+   * Nothing derived is written with them: there is no count column to update, and the portions and
+   * the price follow from the birthdates the moment they are read.
+   */
+  updateHousehold(id: number, members: ReadonlyArray<HouseholdMemberDetails>): Promise<void>;
   /**
    * Move a customer to a new status, storing `blockReason` with it in one transaction so the two
    * can never disagree: the trimmed reason for a move to `BLOCKED`, and `null` for any other status

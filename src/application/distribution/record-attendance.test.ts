@@ -112,6 +112,16 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve([]);
   }
 
+  updateHousehold(id: number, members: ReadonlyArray<HouseholdMemberDetails>): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    const held = this.holders[index];
+    this.holders[index] = {
+      ...held,
+      details: { ...held.details, householdMembers: [...members] },
+    };
+    return Promise.resolve();
+  }
+
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
     const index = this.holders.findIndex((customer) => customer.id === id);
     this.holders[index] = { ...this.holders[index], status, blockReason };

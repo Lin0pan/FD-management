@@ -162,14 +162,25 @@ function requireText(field: string, value: string): string {
 }
 
 /**
- * Validate a registration and return it as a `CustomerDetails`.
+ * Validate a household — the rows themselves, independent of whose record they hang on.
  *
- * @throws {MissingRequiredField} for a name, address part or certificate type left blank.
- * @throws {EmptyHousehold} if no household member was given.
- * @throws {BirthDateInFuture} if the customer or a member was born after `today`.
+ * It is its own function because a household is edited long after it is first typed (US-16.1), and
+ * the edit must be judged by exactly the rules the registration was: a second implementation would
+ * be free to let a member through that registration refuses, and the two would drift apart with the
+ * first rule that changed.
+ *
+ * The rows come back trimmed and **copied**, so a caller that keeps editing the array it passed in
+ * cannot reach into the validated household afterwards.
+ *
+ * @throws {MissingRequiredField} naming the row whose first or last name is blank.
+ * @throws {EmptyHousehold} if no member was given.
+ * @throws {BirthDateInFuture} if a member was born after `today`.
  */
-export function createCustomerDetails(input: CustomerDetailsInput, today: Date): CustomerDetails {
-  const householdMembers = input.householdMembers.map((member, index) => ({
+export function createHouseholdMembers(
+  members: ReadonlyArray<HouseholdMemberDetails>,
+  today: Date,
+): ReadonlyArray<HouseholdMemberDetails> {
+  const householdMembers = members.map((member, index) => ({
     firstName: requireText(`householdMembers.${index}.firstName`, member.firstName),
     lastName: requireText(`householdMembers.${index}.lastName`, member.lastName),
     birthDate: member.birthDate,
@@ -179,6 +190,19 @@ export function createCustomerDetails(input: CustomerDetailsInput, today: Date):
   // birthdate that lies after today. The counts themselves are discarded on purpose — they are
   // derived again wherever they are needed and are never part of the record.
   composition(householdMembers, today);
+
+  return householdMembers;
+}
+
+/**
+ * Validate a registration and return it as a `CustomerDetails`.
+ *
+ * @throws {MissingRequiredField} for a name, address part or certificate type left blank.
+ * @throws {EmptyHousehold} if no household member was given.
+ * @throws {BirthDateInFuture} if the customer or a member was born after `today`.
+ */
+export function createCustomerDetails(input: CustomerDetailsInput, today: Date): CustomerDetails {
+  const householdMembers = createHouseholdMembers(input.householdMembers, today);
   // The customer is normally one of those rows, but nothing forces staff to have added them first,
   // so their own birthdate is checked in its own right. A household of one can never be empty.
   composition([{ birthDate: input.birthDate }], today);
