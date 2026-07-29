@@ -54,9 +54,11 @@ deliberately and say why in the commit; do not add an inline disable.
 - **Derive, don't store** anything computable — grown-up/children counts, portion allowance, card
   validity. Two sources of truth is the Excel failure we are replacing. There are exactly two
   exceptions, each with an argument of its own kind:
-  - `Card.grownUpsAtIssue` / `childrenAtIssue` — a snapshot of what was _printed_ on a physical card,
-    so a birthday that overtook it can be spotted (US-13). Never read as the household's counts and
-    never updated: a reissue is how a change is recorded.
+  - `Card.grownUpsAtIssue` / `childrenAtIssue` / `groupAtIssue` — a snapshot of what was _printed_ on
+    a physical card, so a birthday that overtook the counts (US-13) or a move between RED and BLUE
+    (US-16.4) can be spotted. Never read as the household's counts or group — those are
+    `composition(members, today)` and `Customer.group` — and never updated: a reissue is how a change
+    is recorded.
   - `Customer.firstNameFolded` / `lastNameFolded` — a **search key**, not a fact (US-11). SQLite can
     fold neither umlauts nor Unicode case in a `WHERE` clause, so `foldName`'s output is stored and
     indexed. Never displayed and never read as the name; written from the names in the same

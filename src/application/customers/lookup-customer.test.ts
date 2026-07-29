@@ -163,6 +163,13 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve();
   }
 
+  setGroup(id: number, group: Group): Promise<void> {
+    this.writes += 1;
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    this.holders[index] = { ...this.holders[index], group };
+    return Promise.resolve();
+  }
+
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
     this.writes += 1;
     const index = this.holders.findIndex((customer) => customer.id === id);
@@ -319,6 +326,8 @@ interface CustomerOverrides {
   readonly id?: number;
   /** The day the household joined, when a test needs distributions to lie behind them. */
   readonly registeredOn?: string;
+  /** The group printed on their card, when a test needs it to differ from the one they are in. */
+  readonly groupOnCard?: Group;
 }
 
 /** A customer as the register already holds them — built directly so the status is the test's to set. */
@@ -349,6 +358,7 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
+      groupAtIssue: overrides.groupOnCard ?? overrides.group ?? "RED",
     },
     // Registered today unless a test says otherwise, so no distribution lies behind the household
     // and the no-show count of an unrelated case is zero rather than incidental.
@@ -491,7 +501,7 @@ describe("lookupCustomer", () => {
 
     const result = await lookupCustomer(deps("2026-08-01T09:00:00.000Z"), "50");
 
-    expect(result.customer?.staleCounts).toBe("AGE_13");
+    expect(result.customer?.staleCard).toBe("AGE_13");
     expect(result.customer?.countsOnCard).toEqual({ grownUps: 1, children: 1 });
     expect(result.customer?.grownUps).toBe(2);
     expect(result.customer?.children).toBe(0);
@@ -504,7 +514,17 @@ describe("lookupCustomer", () => {
 
     const result = await lookupCustomer(deps(), "50");
 
-    expect(result.customer?.staleCounts).toBeNull();
+    expect(result.customer?.staleCard).toBeNull();
+  });
+
+  it("notes that the card names the group the household has since been moved out of", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ group: "BLUE", groupOnCard: "RED" }));
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.staleCard).toBe("GROUP_CHANGE");
+    expect(result.customer?.groupOnCard).toBe("RED");
+    expect(result.customer?.group).toBe("BLUE");
   });
 
   it("carries everything the screen shows below the verdict", async () => {

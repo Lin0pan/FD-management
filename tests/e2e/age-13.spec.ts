@@ -12,7 +12,7 @@ import { foldName } from "@/domain/customer/nameSearch";
  *
  * Each piece is already proved in isolation: `composition` flips at Berlin midnight in the domain
  * gate, `describeAllowance` resolves portions and price from the counts, `listCardsDueForReissue`
- * compares a card's printed counts against the household today, and `staleCountsReason` names the
+ * compares what a card printed against the record today, and `staleCardReason` names the
  * difference. What none of them can see is the claim the story actually makes — *nobody did
  * anything, and the numbers changed anyway*. That claim spans three screens and a clock, so this
  * spec follows one household across a birthday: read the counts, the portions and the price off the
@@ -147,6 +147,7 @@ async function seedHousehold(): Promise<number> {
           // about the cards-due list follows from this pair going out of date on its own.
           grownUpsAtIssue: 1,
           childrenAtIssue: 1,
+          groupAtIssue: "RED",
         },
       },
     },

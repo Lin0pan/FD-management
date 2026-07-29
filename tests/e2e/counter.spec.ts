@@ -153,6 +153,7 @@ async function seedHousehold(household: Household): Promise<string> {
           // spec here is about a card that has gone stale (US-13).
           grownUpsAtIssue: 1,
           childrenAtIssue: 1,
+          groupAtIssue: household.group,
         })),
       },
     },

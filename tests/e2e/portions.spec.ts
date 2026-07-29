@@ -108,6 +108,7 @@ test("portions and price are derived from the household, not stored", async ({ p
           // portions on screen are the derivation's doing and nothing else's.
           grownUpsAtIssue: 2,
           childrenAtIssue: 1,
+          groupAtIssue: "BLUE",
         },
       },
     },

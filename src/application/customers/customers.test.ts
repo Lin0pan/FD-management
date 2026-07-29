@@ -11,7 +11,7 @@ import {
 } from "@/domain/customer/customer";
 import { lowestFreeNumber } from "@/domain/customer/customerNumber";
 import { foldName } from "@/domain/customer/nameSearch";
-import type { GroupCounts } from "@/domain/customer/group";
+import type { Group, GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import type {
   DistributionRecord,
@@ -256,6 +256,15 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve();
   }
 
+  setGroup(id: number, group: Group): Promise<void> {
+    const index = this.created.findIndex((customer) => customer.id === id);
+    if (index === -1) {
+      return Promise.reject(new CustomerNotFound(id));
+    }
+    this.created[index] = { ...this.created[index], group };
+    return Promise.resolve();
+  }
+
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
     const index = this.created.findIndex((customer) => customer.id === id);
     if (index === -1) {
@@ -304,6 +313,7 @@ class FakeCardRepository implements CardRepository {
         // tests — they are about which index falls due — so every placed card prints the shape
         // `storedCustomer` builds: one grown-up, one child.
         countsAtIssue: { grownUps: 1, children: 1 },
+        groupAtIssue: "RED",
       });
     }
   }
@@ -475,6 +485,7 @@ function storedCustomer(
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
+      groupAtIssue: "RED",
     },
     previousCustomerId: null,
   };

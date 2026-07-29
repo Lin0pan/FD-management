@@ -144,6 +144,12 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve();
   }
 
+  setGroup(id: number, group: Group): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    this.holders[index] = { ...this.holders[index], group };
+    return Promise.resolve();
+  }
+
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
     const index = this.holders.findIndex((customer) => customer.id === id);
     this.holders[index] = { ...this.holders[index], status, blockReason };
@@ -274,6 +280,7 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
+      groupAtIssue: overrides.group ?? "RED",
     },
     registeredOn: new Date(TODAY),
     previousCustomerId: null,

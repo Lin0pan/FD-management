@@ -103,6 +103,7 @@ function newCustomer(overrides: Partial<Omit<NewCustomer, "details">> = {}): New
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 1, children: 1 },
+      groupAtIssue: "RED",
     },
     previousCustomerId: null,
     ...overrides,
@@ -459,6 +460,39 @@ describe("PrismaCustomerRepository.updateDetails", () => {
   });
 });
 
+describe("PrismaCustomerRepository.setGroup", () => {
+  it("moves the customer to the other balancing group", async () => {
+    const { id } = await repository.create(newCustomer({ group: "RED" }));
+
+    await repository.setGroup(id, "BLUE");
+
+    expect((await repository.findById(id))?.group).toBe("BLUE");
+  });
+
+  it("leaves the card printing the group it was issued with", async () => {
+    const { id } = await repository.create(newCustomer({ group: "RED" }));
+
+    await repository.setGroup(id, "BLUE");
+
+    // The snapshot is what makes the move visible as a stale card (US-16.4); updating it here would
+    // hide the very difference the cards-due list is derived from.
+    expect((await repository.findById(id))?.card.groupAtIssue).toBe("RED");
+  });
+
+  it("touches nothing else on the record", async () => {
+    const { id } = await repository.create(newCustomer());
+    const before = await repository.findById(id);
+
+    await repository.setGroup(id, "BLUE");
+
+    const after = await repository.findById(id);
+    expect(after?.customerNumber).toBe(before?.customerNumber);
+    expect(after?.status).toBe(before?.status);
+    expect(after?.details).toEqual(before?.details);
+    expect(after?.card).toEqual(before?.card);
+  });
+});
+
 describe("PrismaCustomerRepository.updateNotes", () => {
   it("stores the note, line breaks and all", async () => {
     const { id } = await repository.create(newCustomer());
@@ -693,6 +727,7 @@ describe("PrismaCustomerRepository.listWithStatus", () => {
         reason: "LOST",
         grownUpsAtIssue: 2,
         childrenAtIssue: 0,
+        groupAtIssue: "RED",
       },
     });
 
@@ -778,6 +813,7 @@ describe("PrismaCustomerRepository.findById", () => {
         reason: "LOST",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
+        groupAtIssue: "RED",
       },
     });
 
@@ -794,6 +830,7 @@ describe("PrismaCustomerRepository.findById", () => {
         reason: "LOST",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
+        groupAtIssue: "RED",
       },
     });
 
@@ -846,6 +883,7 @@ describe("PrismaCustomerRepository.findByCustomerNumber", () => {
         reason: "LOST",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
+        groupAtIssue: "RED",
       },
     });
 

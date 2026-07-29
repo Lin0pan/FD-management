@@ -177,6 +177,11 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve();
   }
 
+  setGroup(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
   setStatus(): Promise<void> {
     this.writes += 1;
     return Promise.resolve();
@@ -258,6 +263,7 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
+      groupAtIssue: overrides.group ?? "RED",
     },
     registeredOn: new Date(TODAY),
     previousCustomerId: null,

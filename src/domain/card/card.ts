@@ -9,6 +9,7 @@
  * The module is pure: it says what a card is, not how one is stored or when a new one falls due.
  */
 
+import type { Group } from "../customer/group";
 import type { HouseholdComposition } from "../customer/householdComposition";
 import { InvalidCustomerRecord } from "../errors";
 
@@ -64,4 +65,16 @@ export interface IssuedCard {
    * the change is recorded.
    */
   readonly countsAtIssue: HouseholdComposition;
+  /**
+   * The group as it was **printed on this piece of card** when it was handed over.
+   *
+   * The card tells the household which week to come in, so the group is on it in the same sense the
+   * counts are: a fact about a printed object rather than about the household. It is stored for the
+   * same single purpose and read under the same rule — never as the household's group, which is
+   * always `customer.group`, and only to answer what the card in their pocket claims, so a move
+   * between groups can put them on the cards-due list (US-16.4).
+   *
+   * Never update it, for the same reason: a card printed with the other group is a different card.
+   */
+  readonly groupAtIssue: Group;
 }

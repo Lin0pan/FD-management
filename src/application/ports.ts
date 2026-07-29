@@ -239,6 +239,19 @@ export interface CustomerRepository {
    */
   updateNotes(id: number, notes: string): Promise<void>;
   /**
+   * Move a customer to the other balancing group (US-16.4).
+   *
+   * A single column write, and deliberately nothing more. The counter's verdict reads the column
+   * every time it is asked, so the change is in force for today's distribution the instant this
+   * returns; the card the household holds still prints the old group, which is a difference the
+   * cards-due list derives on its next read rather than something enqueued here.
+   *
+   * The group is not part of {@link updateDetails} because it is not a correction of who the
+   * customer is: it is a decision about the register's balance, taken for FD's sake rather than the
+   * household's, and it gets its own audit entry saying so.
+   */
+  setGroup(id: number, group: Group): Promise<void>;
+  /**
    * Move a customer to a new status, storing `blockReason` with it in one transaction so the two
    * can never disagree: the trimmed reason for a move to `BLOCKED`, and `null` for any other status
    * (lifting a block clears it). The customer number, the cards and the distribution records are

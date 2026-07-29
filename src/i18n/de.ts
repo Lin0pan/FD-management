@@ -140,6 +140,8 @@ export const de = {
       notesTooLong: (maxLength: number, length: number): string =>
         `Die Notiz ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
         `möglich — bitte kürzen.`,
+      groupUnchanged: (group: string): string =>
+        `Der Haushalt gehört bereits zur Gruppe ${group}. Es wurde nichts geändert.`,
       unknown: "Die Aufnahme konnte nicht gespeichert werden.",
       notFound: "Diese Kundin oder dieser Kunde wurde nicht gefunden.",
     },
@@ -452,8 +454,9 @@ export const de = {
   cardsDue: {
     heading: "Karten neu ausstellen",
     intro:
-      "Bei diesen Haushalten stimmen die auf der Karte gedruckten Zahlen nicht mehr mit dem " +
-      "Haushalt überein — meistens, weil ein Kind 13 Jahre alt geworden ist.",
+      "Bei diesen Haushalten stimmt der Aufdruck der Karte nicht mehr mit der Kundenakte " +
+      "überein — meistens, weil ein Kind 13 Jahre alt geworden ist, seltener weil sich der " +
+      "Haushalt oder die Gruppe geändert hat.",
     notUrgent:
       "Das hat keine Eile. Erwachsene, Kinder, Portionen und Preis berechnet die Anwendung bei " +
       "jedem Aufruf neu; die Karte ist nur ein Ausdruck. Eine veraltete Karte ist nie ein Grund, " +
@@ -462,10 +465,11 @@ export const de = {
     countsOnCard: "Auf der Karte gedruckt",
     countsToday: "Haushalt heute",
     reasonLabel: "Unterschied",
-    /** Why the card and the household differ — the two cases `StaleCountsReason` names. */
+    /** Why the card and the record differ — the three cases `StaleCardReason` names. */
     reasons: {
       AGE_13: "13. Geburtstag",
       HOUSEHOLD_CHANGE: "Haushalt geändert",
+      GROUP_CHANGE: "Gruppe gewechselt",
     },
     /**
      * The row's action. Only the label is its own: the confirmation, the button and the rejections
@@ -671,6 +675,15 @@ export const de = {
       staleCard: (cardNumber: string, onCard: string, today: string): string =>
         `Die Karte ${cardNumber} ist noch mit anderen Zahlen gedruckt (${onCard}); heute zählt ` +
         `der Haushalt ${today}. Ausgegeben wird nach den heutigen Zahlen. Eine neue Karte kann bei ` +
+        `Gelegenheit ausgestellt werden.`,
+      /**
+       * The same note for a card that names the wrong group (US-16.4). Its own sentence rather than
+       * the one above with other words in it: nothing about the household's numbers has changed, and
+       * quoting two identical counts at the counter would read as a mistake.
+       */
+      staleCardGroup: (cardNumber: string, onCard: string, today: string): string =>
+        `Die Karte ${cardNumber} ist noch für die Gruppe ${onCard} gedruckt; der Haushalt ` +
+        `gehört jetzt zu ${today}. Es gilt die heutige Gruppe. Eine neue Karte kann bei ` +
         `Gelegenheit ausgestellt werden.`,
       errors: {
         notANumber:

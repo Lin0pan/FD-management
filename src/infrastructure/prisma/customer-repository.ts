@@ -17,7 +17,7 @@ import {
   type PersonalDetails,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
-import { parseGroup, type GroupCounts } from "@/domain/customer/group";
+import { parseGroup, type Group, type GroupCounts } from "@/domain/customer/group";
 import { foldName } from "@/domain/customer/nameSearch";
 import { CustomerNotFound, CustomerNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
 
@@ -363,6 +363,8 @@ export class PrismaCustomerRepository implements CustomerRepository {
         // What is printed on the card the household holds, not what their household is today — the
         // two part company on a 13th birthday, which is the whole point of storing it (US-13.3).
         countsAtIssue: { grownUps: card.grownUpsAtIssue, children: card.childrenAtIssue },
+        // Likewise the group: what the card names as their week, not the group they are in today.
+        groupAtIssue: parseGroup(card.groupAtIssue),
       },
       registeredOn: firstCard.issuedAt,
       previousCustomerId: row.previousCustomerId,
@@ -443,6 +445,7 @@ export class PrismaCustomerRepository implements CustomerRepository {
               reason: customer.card.reason,
               grownUpsAtIssue: customer.card.countsAtIssue.grownUps,
               childrenAtIssue: customer.card.countsAtIssue.children,
+              groupAtIssue: customer.card.groupAtIssue,
             },
           },
         },
@@ -555,6 +558,17 @@ export class PrismaCustomerRepository implements CustomerRepository {
    */
   async updateNotes(id: number, notes: string): Promise<void> {
     await this.prisma.customer.update({ where: { id }, data: { notes } });
+  }
+
+  /**
+   * Move a customer to the other balancing group — a single column, and nothing beside it (US-16.4).
+   *
+   * The cards the household has been issued are deliberately left alone: each printed the group that
+   * was true when it left the counter, and updating that snapshot is what would hide the fact that
+   * the card in their pocket now names the wrong week.
+   */
+  async setGroup(id: number, group: Group): Promise<void> {
+    await this.prisma.customer.update({ where: { id }, data: { group } });
   }
 
   /**

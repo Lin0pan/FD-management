@@ -228,6 +228,7 @@ async function seedHousehold(seed: Seed): Promise<void> {
           reason: index === 0 ? "FIRST_ISSUE" : "LOST",
           grownUpsAtIssue: 1,
           childrenAtIssue: 1,
+          groupAtIssue: seed.group,
         })),
       },
     },
