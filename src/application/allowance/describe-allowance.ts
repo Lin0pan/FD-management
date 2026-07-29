@@ -13,7 +13,7 @@
 import { composition, type HouseholdMember } from "@/domain/customer/householdComposition";
 import type { Cents } from "@/domain/money";
 import { portionsFor } from "@/domain/policy/portions";
-import { priceFor, resolveSettingsAt } from "@/domain/policy/settings";
+import { priceFor, resolveSettingsAt, type Settings } from "@/domain/policy/settings";
 import type { Clock, SettingsRepository } from "../ports";
 
 export interface DescribeAllowanceDeps {
@@ -45,7 +45,46 @@ export async function describeAllowance(
   date?: Date,
 ): Promise<Allowance> {
   const at = date ?? deps.clock.now();
-  const settings = resolveSettingsAt(await deps.settings.listVersions(), at);
+  return allowanceAt(await settingsAt(deps, at), household, at);
+}
+
+/**
+ * The allowance for many households on one date, reading the settings history **once**.
+ *
+ * The customer list derives all four values for every row it shows (US-15.1), and asking the store
+ * for its version history per row would be a query per household on a screen that already has all of
+ * them in hand. The arithmetic is the same function {@link describeAllowance} uses, so the list and
+ * the counter cannot disagree about what a household receives — which is the whole reason this
+ * module exists.
+ *
+ * The date is required rather than defaulted: a caller holding many households has already fixed the
+ * instant it is asking about, and letting this read the clock a second time would risk two rows of
+ * one list being priced on different days.
+ *
+ * @throws {NoSettingsInForce} if no settings version had taken effect by that date.
+ * @throws {EmptyHousehold} if one of the households has no members.
+ * @throws {BirthDateInFuture} if a member was born after the evaluated date.
+ */
+export async function describeAllowances(
+  deps: DescribeAllowanceDeps,
+  households: ReadonlyArray<ReadonlyArray<HouseholdMember>>,
+  date: Date,
+): Promise<ReadonlyArray<Allowance>> {
+  const settings = await settingsAt(deps, date);
+  return households.map((household) => allowanceAt(settings, household, date));
+}
+
+/** The policy values in force at `at` — the one read of the settings history either entry point makes. */
+async function settingsAt(deps: DescribeAllowanceDeps, at: Date): Promise<Settings> {
+  return resolveSettingsAt(await deps.settings.listVersions(), at);
+}
+
+/** The arithmetic itself: counts from the birthdates, portions and price from the policy values. */
+function allowanceAt(
+  settings: Settings,
+  household: ReadonlyArray<HouseholdMember>,
+  at: Date,
+): Allowance {
   const { grownUps, children } = composition(household, at);
   return {
     grownUps,

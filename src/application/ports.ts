@@ -8,13 +8,14 @@
  */
 
 import type { IssuedCard } from "@/domain/card/card";
+import type { ValidUntilRange } from "@/domain/customer/certificate";
 import type {
   CustomerStatus,
   NeedsCertificate,
   NewCustomer,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
-import type { GroupCounts } from "@/domain/customer/group";
+import type { Group, GroupCounts } from "@/domain/customer/group";
 import type { WaitingListDetails } from "@/domain/customer/waitingList";
 import type {
   DistributionRecord,
@@ -71,6 +72,48 @@ export interface ArchiveSearchQuery {
 }
 
 /**
+ * What a staff member typed into the customer list's single search box, once it has been read
+ * (US-15.1).
+ *
+ * Which of the two it is has already been decided by the caller, because *what a card number looks
+ * like* is a domain rule (`counterQueryOrNull`) and not a storage detail. What the repository is left
+ * to decide is the part only it knows: that names are compared against their folded form.
+ *
+ * A card number arrives as the customer number it resolves to — `50k3` names the household holding
+ * slot 50, and the index is dropped, because the list is about households and not about which piece
+ * of card is current. That question belongs to the counter (US-04).
+ */
+export type CustomerListSearch =
+  | {
+      readonly kind: "NAME";
+      /** The name **as typed**, unfolded — folding it for comparison is the adapter's job. */
+      readonly name: string;
+    }
+  | { readonly kind: "CUSTOMER_NUMBER"; readonly customerNumber: number };
+
+/**
+ * How the customer list narrows the register (US-15.2). Every criterion is a `WHERE` clause: nothing
+ * here is filtered after loading, because the whole point of the screen is to *not* be a spreadsheet
+ * that reads every row.
+ *
+ * `statuses` is the one criterion that is never absent. "Which statuses does this list show" is a
+ * decision with a default rather than an option — archived households are excluded unless they were
+ * asked for — and the use case makes it before the query is built, so no store has to guess it.
+ */
+export interface CustomerListQuery {
+  /** The statuses to include; never empty, and never implicitly all of them. */
+  readonly statuses: ReadonlyArray<CustomerStatus>;
+  readonly search?: CustomerListSearch;
+  readonly group?: Group;
+  /**
+   * The range the household's **current** certificate's `validUntil` must fall in, as
+   * `validUntilRangeFor` computed it from today. The window is the domain's, so the filter and the
+   * label the screen prints on the row cannot mean two different things.
+   */
+  readonly certificate?: ValidUntilRange;
+}
+
+/**
  * The customer register.
  *
  * `create` is **one transaction**: the customer, their household members, the certificate and the
@@ -111,6 +154,18 @@ export interface CustomerRepository {
    * the filtering it feeds cannot be pushed into SQL at all.
    */
   listWithStatus(status: CustomerStatus): Promise<ReadonlyArray<RegisteredCustomer>>;
+  /**
+   * The customers matching every criterion of `query`, **lowest customer number first** — the
+   * call-up order staff think in (US-15.1, FR-6). Ordering is the adapter's job for the reason
+   * {@link listWithStatus}'s is: the database can do it, and a caller sorting it again would be a
+   * second statement of what the list's order is.
+   *
+   * Each row carries the household, the certificate and the current card, because every column of
+   * the list is derived from them — the counts from the birthdates, the portions and price from the
+   * settings, the card number from the slot and the index. Nothing about a row is stored, so nothing
+   * about a row can have fallen behind (PRD §7).
+   */
+  list(query: CustomerListQuery): Promise<ReadonlyArray<RegisteredCustomer>>;
   /**
    * The **archived** customers matching every criterion given, most recently archived first, at most
    * `limit` of them (US-11.1).

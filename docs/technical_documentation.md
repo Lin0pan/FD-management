@@ -134,7 +134,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── customer/group.test.ts     # its Vitest spec
 │   │   ├── customer/customer.ts       # the customer record, validated on construction
 │   │   ├── customer/customer.test.ts  # its Vitest spec
-│   │   ├── customer/certificate.ts    # certificate expiry as of a given day (US-06)
+│   │   ├── customer/certificate.ts    # certificate expiry + the VALID/EXPIRING_SOON/EXPIRED state (US-06, US-15)
 │   │   ├── customer/certificate.test.ts  # its Vitest spec
 │   │   ├── customer/nameSearch.ts     # foldName — the comparable form of a name (US-11)
 │   │   ├── customer/nameSearch.test.ts  # its Vitest spec
@@ -171,7 +171,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   countNoShows (US-10, the seam both read models use),
 │   │   │                             #   searchArchivedCustomers (US-11, the archive search),
 │   │   │                             #   draftFromArchived (US-11, the registration pre-fill),
-│   │   │                             #   listCardsDueForReissue (US-13, cards a birthday overtook)
+│   │   │                             #   listCardsDueForReissue (US-13, cards a birthday overtook),
+│   │   │                             #   listCustomers (US-15, the searchable customer list)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   ├── waiting-list/             # addToWaitingList, listWaiting, removeFromWaitingList,
@@ -271,18 +272,18 @@ The interfaces the application layer depends on. Per the TDD approach, ports **e
 needs** rather than being designed up front. Type-only, so it adds no runtime code to the
 coverage-measured layers.
 
-| Port                           | Shape                                                                                                                                                          | Notes                                                                                                                                                                                                                              |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Clock`                        | `now(): Date`                                                                                                                                                  | The one seam to the wall clock.                                                                                                                                                                                                    |
-| `SettingsRepository`           | `listVersions()`, `append(version)`                                                                                                                            | No update/delete — policy history is append-only.                                                                                                                                                                                  |
-| `CustomerCounter`              | `countActive()`                                                                                                                                                | The reality the quota `N` may not fall below.                                                                                                                                                                                      |
-| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `findById(id)`, `findByCustomerNumber(n)`, `listWithStatus(status)`, `create(customer)`, `setStatus(…)`, `archive(…)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`. `listWithStatus` is the one whole-register read — lowest number first, households and cards attached, for the cards-due list (US-13.2). |
-| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issueCounts(customerId)`, `issue(customerId, card)`                                                       | `currentCard` is the highest index — there is no `valid` flag to read; `issueCounts` counts the run and its losses in one aggregate (US-09.2); `issue` reports a lost race as `CardIndexTaken`.                                    |
-| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`                                                                     | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                                     |
-| `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                                                                                                 | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3).           |
-| `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                                                                                                   | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                                 |
-| `WaitingListRepository`        | `listWaiting()`, `findWaiting(entryId)`, `add(entry)`, `remove(entryId, reason, removedOn)`                                                                    | The applicants waiting for a slot (US-12). There is no `delete`: `remove` stamps the row, so the order of past promotions stays reconstructable (FR-7). It promises no ordering — that is `inArrivalOrder`'s.                      |
-| `AuditLog`                     | `append(entry)`                                                                                                                                                | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                          |
+| Port                           | Shape                                                                                                                                                                                                         | Notes                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Clock`                        | `now(): Date`                                                                                                                                                                                                 | The one seam to the wall clock.                                                                                                                                                                                                                                                                                                                                                             |
+| `SettingsRepository`           | `listVersions()`, `append(version)`                                                                                                                                                                           | No update/delete — policy history is append-only.                                                                                                                                                                                                                                                                                                                                           |
+| `CustomerCounter`              | `countActive()`                                                                                                                                                                                               | The reality the quota `N` may not fall below.                                                                                                                                                                                                                                                                                                                                               |
+| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `findById(id)`, `findByCustomerNumber(n)`, `listWithStatus(status)`, `list(query)`, `searchArchived(query, limit)`, `create(customer)`, `setStatus(…)`, `archive(…)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`. `listWithStatus` is the one whole-register read — lowest number first, households and cards attached, for the cards-due list (US-13.2). `list` is the customer list's filtered read (US-15.2): every criterion of `CustomerListQuery` is a `WHERE` clause, ordered by ascending customer number. |
+| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issueCounts(customerId)`, `issue(customerId, card)`                                                                                                      | `currentCard` is the highest index — there is no `valid` flag to read; `issueCounts` counts the run and its losses in one aggregate (US-09.2); `issue` reports a lost race as `CardIndexTaken`.                                                                                                                                                                                             |
+| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`                                                                                                                    | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                                                                                                                                                                                              |
+| `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                                                                                                                                                | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3).                                                                                                                                                                    |
+| `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                                                                                                                                                  | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                                                                                                                                                                                          |
+| `WaitingListRepository`        | `listWaiting()`, `findWaiting(entryId)`, `add(entry)`, `remove(entryId, reason, removedOn)`                                                                                                                   | The applicants waiting for a slot (US-12). There is no `delete`: `remove` stamps the row, so the order of past promotions stays reconstructable (FR-7). It promises no ordering — that is `inArrivalOrder`'s.                                                                                                                                                                               |
+| `AuditLog`                     | `append(entry)`                                                                                                                                                                                               | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                                                                                                                                                                                   |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
 
@@ -347,6 +348,14 @@ Both the counts and the settings resolve at the _same_ instant — the given dat
 — so a past distribution is priced with the members' ages and the policy values as they stood then,
 not as they stand now. That is why it reads the version history directly rather than going through
 `readCurrentSettings`.
+
+**`describeAllowances(deps, households, date)`** answers the same question for many households at
+once, reading the settings history a single time. The customer list (US-15) derives all four values
+for every row it shows, and a version-history read per row would be a query per household on a screen
+that already holds them all. The arithmetic is the same private function, so the list and the counter
+cannot disagree about what a household receives. Its date is **required** rather than defaulted: a
+caller holding many households has already fixed the instant it is asking about, and a second clock
+read could price two rows of one list on different days.
 
 Nothing is persisted: a week colour is a function of the date and the anchor, so there are no week
 rows and `SettingsRepository` is the only port needed. Tested against hand-written fakes and a fake
@@ -536,6 +545,19 @@ Deliberately absent is any escalation function or reminder threshold. FD reminds
 as a habit, but every case is a staff judgement, so the domain exposes only the expiry and the
 running `reminderCount` — encoding a threshold would misrepresent a judgement as a rule and is a
 named non-goal of US-06.
+
+`certificateState(certificate, today)` places that same date in one of three states the customer
+list filters by (US-15.1): `EXPIRED`, `EXPIRING_SOON` — inside the next `EXPIRING_SOON_DAYS` (30) —
+or `VALID`. Expiring soon is a **narrowing of valid**, not a state beside it: the household may still
+shop, and the label exists so staff can start the renewal conversation before the counter has to, so
+asking for `VALID` also returns the ones expiring soon.
+
+`validUntilRangeFor(state, today)` says the same thing as a half-open range over `validUntil`
+(`from` included, `before` excluded), which is what a `WHERE` clause can be built from — the list
+filters in SQL rather than by loading the register (US-15.2). Both functions read one window, so the
+rows a filter returns and the label the screen prints on them cannot disagree. Whether 30 days should
+become a setting (US-14) is an open question in `tasks/prd-us-15-customer-list.md` §9; until somebody
+asks, it is a constant.
 
 ### `src/domain/customer/waitingList.ts`
 
@@ -983,6 +1005,38 @@ size — plus `formerCustomerNumber`, the archive date and the reason. The forme
 recognition only: the slot was freed when they left and may already be someone else's, so
 re-registration allocates a number afresh (US-11.3, FR-3). Only `customerId` is followed up on; the
 pre-fill reads the record by it (US-11.2).
+
+### `src/application/customers/listCustomers`
+
+The searchable customer list (US-15.1) — the view that replaces the spreadsheet. `listCustomers(deps,
+{ search?, status?, group?, certificate?, includeArchived? })` returns `{ rows, groupCounts }`, lowest
+customer number first: the call-up order staff think in.
+
+It is a **read with no audit entry**, because nothing changed. Every filter is handed to the
+repository as a `CustomerListQuery` and answered in SQL (US-15.2); nothing is loaded to be filtered
+afterwards. What the use case decides on its own is only what a store cannot: which statuses to show.
+An absent or empty `status` is not a filter — unticking every box means "all of them", never "none" —
+and archived households are then taken back out unless `includeArchived` is true or `status` names
+`ARCHIVED` explicitly.
+
+The single search box is read here rather than split into three inputs: `counterQueryOrNull` decides
+whether what was typed is a customer number, a card number or a name, because what a card number
+_looks like_ is a domain rule. A card number resolves to the household holding the slot and its index
+is dropped — the list is about households, and whether the card presented is the current one is the
+counter's question (US-04). A padded `050` is not customer 50 there either, so it falls through to a
+name and finds nobody.
+
+`certificate` is turned into a `validUntilRangeFor` window against `deps.clock.now()`, so the
+expiring-soon boundary is the domain's and moves with the day rather than with a stored flag. Every
+column of every row is derived: the counts from the birthdates, portions and price from the settings
+in force today (through `describeAllowances`, which reads the version history **once** for the whole
+screen rather than per row), the card number from the slot and the current index, the certificate
+state from today's date.
+
+`groupCounts` is deliberately **not** a count of the rows above it. Staff read it while registering
+somebody (US-01) to decide which group keeps the two weeks even, so it counts every active household
+regardless of the current filter (PRD FR-3) — a number that moved with the filter would be a
+different question wearing the same label.
 
 ### `src/application/customers/draftFromArchived`
 

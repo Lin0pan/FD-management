@@ -52,6 +52,14 @@ class FakeCustomerRepository implements CustomerRepository {
     this.holders.push(...holders);
   }
 
+  /**
+   * No use case in this file browses the register (US-15.1); the method is here because the port
+   * has it. Answering with nothing is honest — nothing here asks the list a question.
+   */
+  list(): Promise<ReadonlyArray<RegisteredCustomer>> {
+    return Promise.resolve([]);
+  }
+
   listWithStatus(status: CustomerStatus): Promise<ReadonlyArray<RegisteredCustomer>> {
     // Customer number ascending, like the adapter's `orderBy` — the query hands the order on
     // untouched, so a test that fixes the order here fixes what the screen shows.

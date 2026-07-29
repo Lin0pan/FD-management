@@ -146,6 +146,14 @@ class FakeCustomerRepository implements CustomerRepository {
     );
   }
 
+  /**
+   * No use case in this file browses the register (US-15.1); the method is here because the port
+   * has it. Answering with nothing is honest — nothing here asks the list a question.
+   */
+  list(): Promise<ReadonlyArray<RegisteredCustomer>> {
+    return Promise.resolve([]);
+  }
+
   listWithStatus(status: CustomerStatus): Promise<ReadonlyArray<RegisteredCustomer>> {
     return Promise.resolve(this.customers.filter((customer) => customer.status === status));
   }

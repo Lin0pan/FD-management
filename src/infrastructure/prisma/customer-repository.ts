@@ -3,8 +3,11 @@ import type {
   ArchivedCustomer,
   ArchiveSearchQuery,
   CustomerCounter,
+  CustomerListQuery,
+  CustomerListSearch,
   CustomerRepository,
 } from "@/application/ports";
+import type { ValidUntilRange } from "@/domain/customer/certificate";
 import { parseCardIssueReason } from "@/domain/card/card";
 import {
   parseCustomerStatus,
@@ -83,6 +86,27 @@ function isCustomerNumberCollision(error: unknown): boolean {
  */
 function isMissingPredecessor(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003";
+}
+
+/**
+ * What the customer list's single search box narrows the query by (US-15.2).
+ *
+ * A name is folded here, because only this layer knows the columns hold folded values, and matched
+ * as a prefix of *either* name: staff type whichever of the two they were given, and a household is
+ * as often looked up by the first name as by the surname. The customer number is matched exactly —
+ * a slot is a number, not a prefix, and `5` must not drag in 50 and 51.
+ */
+function searchCondition(search: CustomerListSearch | undefined): Prisma.CustomerWhereInput {
+  if (search === undefined) {
+    return {};
+  }
+  if (search.kind === "CUSTOMER_NUMBER") {
+    return { customerNumber: search.customerNumber };
+  }
+  const folded = foldName(search.name);
+  return {
+    OR: [{ lastNameFolded: { startsWith: folded } }, { firstNameFolded: { startsWith: folded } }],
+  };
 }
 
 /**
@@ -178,6 +202,69 @@ export class PrismaCustomerRepository implements CustomerRepository {
       include: CUSTOMER_INCLUDE,
     });
     return rows.map((row) => this.toRegisteredCustomer(row));
+  }
+
+  /**
+   * The customers the customer list asked for, lowest customer number first (US-15.2).
+   *
+   * Every criterion is a `WHERE` clause. The register is small enough that loading it and filtering
+   * in JavaScript would work, and that is exactly why it is written down here instead: the screen
+   * that replaces a spreadsheet must not *be* one, and the day someone adds a column to it the
+   * filtering should already be where a database can serve it from an index.
+   *
+   * Names are compared folded, by the same `foldName` that wrote the columns, so this search and the
+   * archive search (US-11.1) agree letter for letter — one normalisation in the codebase, not two. A
+   * folded prefix matches either name, because staff type whichever of the two they were told.
+   */
+  async list(query: CustomerListQuery): Promise<ReadonlyArray<RegisteredCustomer>> {
+    const rows = await this.prisma.customer.findMany({
+      where: {
+        status: { in: [...query.statuses] },
+        ...(query.group === undefined ? {} : { group: query.group }),
+        ...searchCondition(query.search),
+        ...(query.certificate === undefined
+          ? {}
+          : { id: { in: await this.idsByCurrentCertificate(query.certificate) } }),
+      },
+      orderBy: { customerNumber: "asc" },
+      include: CUSTOMER_INCLUDE,
+    });
+    return rows.map((row) => this.toRegisteredCustomer(row));
+  }
+
+  /**
+   * The ids of the customers whose **current** certificate expires inside `range`.
+   *
+   * It is a separate statement because Prisma cannot express "the latest related row satisfies this"
+   * — `certificates: { some: … }` would match a household on a notice they have long since renewed,
+   * which is precisely the household the list must *not* show as expired. The correlated subquery
+   * picks the same row `CUSTOMER_INCLUDE` calls current (latest `recordedAt`, id breaking the tie),
+   * so the filter and the certificate the screen prints beside it are always the same certificate.
+   *
+   * The bounds are half-open — `from` included, `before` excluded — so a `validUntil` that was
+   * stored with a time of day still falls on the side of the boundary its calendar day belongs to.
+   */
+  private async idsByCurrentCertificate(range: ValidUntilRange): Promise<number[]> {
+    const bounds: Prisma.Sql[] = [];
+    if (range.from !== undefined) {
+      bounds.push(Prisma.sql`cert.validUntil >= ${range.from}`);
+    }
+    if (range.before !== undefined) {
+      bounds.push(Prisma.sql`cert.validUntil < ${range.before}`);
+    }
+    const rows = await this.prisma.$queryRaw<Array<{ id: number }>>`
+      SELECT c.id AS id
+      FROM Customer c
+      JOIN Certificate cert ON cert.customerId = c.id
+      WHERE cert.id = (
+        SELECT latest.id FROM Certificate latest
+        WHERE latest.customerId = c.id
+        ORDER BY latest.recordedAt DESC, latest.id DESC
+        LIMIT 1
+      )
+      AND ${Prisma.join([Prisma.sql`1 = 1`, ...bounds], " AND ")}
+    `;
+    return rows.map((row) => row.id);
   }
 
   /**
