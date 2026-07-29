@@ -57,8 +57,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Domain: Card gains a groupAtIssue snapshot — the card prints the group, so a move makes it wrong; without the snapshot there is nothing to notice a move against. That settles US-13's open question. staleCounts.ts is renamed staleCard.ts and staleCardReason takes CardFacts = { counts, group } on both sides, answering AGE_13 | HOUSEHOLD_CHANGE | GROUP_CHANGE; counts answer first, the group only when they agree. Application: changeGroup (customer.groupChanged) returns groupCounts read AFTER the write, refuses a no-op with the new GroupUnchanged error and an archived customer, allows a blocked one. Port + adapter: setGroup(id, group), a single column that deliberately leaves the cards alone. 'In force today' is proved by driving the real lookupCustomer on a RED distribution day (2026-08-05): WRONG_GROUP before, CLEAR_TO_SERVE after, one instant."
     },
     {
       "id": "US-004",

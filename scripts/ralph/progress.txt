@@ -191,6 +191,35 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   reads the migrations directory rather than a fixed path, so it survives — anything that pins the
   folder name would not.
 
+- A snapshot column on a card is the ONLY honest way to answer "has X changed since the card was
+  printed". `Card.groupAtIssue` joins `grownUpsAtIssue`/`childrenAtIssue` under the same argument;
+  the alternative — inferring a move from `issuedAt` — has nothing to compare against. Adding one is
+  a ~40-file ripple (schema, migration regen, every `IssuedCard` literal in 9 application tests, 3
+  infra tests and 8 e2e specs); budget for it rather than reaching for a nullable column with a
+  default, which would let a fixture skip the field the feature is about.
+- When a required field is added to a fixture builder, set it FROM the builder's own related field
+  (`groupAtIssue: overrides.group ?? "RED"`), never a bare literal — a hard-coded `"RED"` beside a
+  configurable `group` silently makes every non-RED fixture card-stale and breaks unrelated specs.
+- A module whose rule widens gets RENAMED with it: `staleCounts.ts` → `staleCard.ts` once the group
+  joined the comparison. `git mv` first, then patch — two non-test importers and one i18n key is the
+  whole cost, and a name that lies is read as one for five years.
+- Both sides of a "what changed since" comparison take the SAME shape (`CardFacts = { counts,
+  group }`), so neither can grow a field the other does not have.
+- A use case that returns a derived aggregate reads it AFTER its write (`changeGroup` →
+  `groupCounts()`), and the fake must actually count the holders — a stubbed `{ red: 0, blue: 0 }`
+  proves only that a constant travels.
+- "The change is in force immediately" is proved by driving the real downstream read at one instant:
+  `lookupCustomer` gives `WRONG_GROUP` before `changeGroup` and `CLEAR_TO_SERVE` after, on the same
+  fake clock. Same move as `updateHousehold`'s cards-due test.
+- Week colours under `weekAnchor 2026-W02/RED`: 2026-07-29 (the suites' TODAY) is a **BLUE** week;
+  2026-08-05 and 2026-07-22 are RED. A spec needing the other colour moves the clock, not the anchor.
+- A no-op state change is an ERROR, not a quiet success, wherever the change writes an audit entry or
+  makes something else stale (`GroupUnchanged`). Silently accepting it fills the log with moves that
+  never happened.
+- A new `DomainError` subclass also needs its `code` added to the `DomainErrorCode` union in
+  errors.ts — typecheck catches it, lint does not. Its 100% coverage comes from the use-case test
+  that raises it; there is no per-error test file.
+
 ---
 - Adding a method to `CustomerRepository` now costs EIGHT implementers: the Prisma adapter plus the
   fakes in customers.test.ts, cards-due-for-reissue.test.ts, certificate-reminder.test.ts,
@@ -294,4 +323,46 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
     counting the holders.
   - No UI changed in this story, so no browser verification was needed. US-004 is the record screen
     and will need it.
+---
+
+## 2026-07-29 - US-003 (changeGroup use case)
+- Implemented US-16.4: a household can be moved between RED and BLUE, the counter serves them in
+  their new group the same day, and the card they still hold turns up on the cards-due list.
+- **US-13's open question is settled**: yes, a group change puts the household on the cards-due list
+  with reason `GROUP_CHANGE`, and it needed `Card.groupAtIssue`. Recorded in
+  tasks/prd-us-13-age-13-reclassification.md, docs/technical_documentation.md and the root CLAUDE.md,
+  which now names all three snapshot columns under the one "derive, don't store" exception.
+- Files changed:
+  - `src/domain/card/card.ts`: `IssuedCard.groupAtIssue`.
+  - `src/domain/card/staleCounts.ts` → `staleCard.ts` (+test, renamed with it):
+    `staleCardReason(printedOnCard, today)` over `CardFacts = { counts, group }`, answering
+    `AGE_13 | HOUSEHOLD_CHANGE | GROUP_CHANGE`. Counts answer first; the group only when they agree.
+  - `src/domain/errors.ts`: `GroupUnchanged` (+ its code in the `DomainErrorCode` union).
+  - `src/application/customers/change-group.ts` (new) and the `changeGroup` block in
+    `maintain-customer.test.ts` (+11 tests); the file's `groupCounts` fake now counts holders.
+  - `src/application/ports.ts`: `CustomerRepository.setGroup(id, group)`.
+  - `cards-due-for-reissue.ts` (rows carry `groupOnCard`/`groupToday`), `lookup-customer.ts`
+    (`staleCounts` → `staleCard`, plus `groupOnCard`), `issue-card.ts` and `register-customer.ts`
+    (both write `groupAtIssue`).
+  - `prisma/schema.prisma` + regenerated init migration (`Card.groupAtIssue TEXT NOT NULL`), the two
+    Prisma adapters (+tests), `src/i18n/de.ts` (`GROUP_CHANGE`, `staleCardGroup`, `groupUnchanged`,
+    reworded cards-due intro), `src/app/ausgabe/counter-lookup.tsx`.
+  - All eight `CustomerRepository` fakes, every `IssuedCard` literal, and the 8 e2e specs that write
+    card rows straight through Prisma.
+- **Learnings for future iterations:**
+  - The counter's stale-card note needed a SECOND German sentence, not the existing one with other
+    words in it: for a `GROUP_CHANGE` the two count sets are identical, and quoting them back at the
+    counter would read as a mistake. When a reason union grows, check every screen that renders a
+    sentence built from the OLD reason's data.
+  - The migration regeneration went as the pattern above predicts, with one new trap: pulling the
+    partial unique index back with `git show HEAD:… | tail -18` also drags the preceding
+    `AuditEntry_when_idx` block, which then appears twice. Diff the tail after appending.
+  - `npm run db:reset` after the regeneration, then `npm run test:e2e` — the e2e servers build their
+    own databases, so a stale dev db shows up as nothing at all until the settings screen is opened.
+  - US-004 is the record screen and is the first UI-heavy story in this batch: it needs the group
+    control (both sizes beside the choice — `changeGroup` returns them), the inline household editor,
+    and `GroupUnchanged` wired through a `germanMessage`-style branch. `de.customers.errors
+    .groupUnchanged` is already in the dictionary, unused, waiting for it.
+  - No UI behaviour changed beyond the counter's stale-card sentence, so browser verification was
+    covered by the e2e suite (64 passed); the record screen in US-004 will need the real thing.
 ---
