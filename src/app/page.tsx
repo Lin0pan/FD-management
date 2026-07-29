@@ -45,6 +45,9 @@ export default async function Home(): Promise<React.ReactElement> {
       <Link href="/ausgabe" className="underline underline-offset-4">
         {de.home.distributionLink}
       </Link>
+      <Link href="/kunden" className="underline underline-offset-4">
+        {de.home.customerListLink}
+      </Link>
       <Link href="/kunden/neu" className="underline underline-offset-4">
         {de.home.newCustomerLink}
       </Link>

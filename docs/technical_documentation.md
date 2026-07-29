@@ -75,7 +75,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   ├── serve-state.ts        # the state the counter's forms exchange with their actions
 │   │   │   └── deps.ts               # composition roots: the read deps and the write (audit) deps
 │   │   ├── kunden/                   # the customer screens (US-01)
-│   │   │   ├── deps.ts               # composition root for both routes below
+│   │   │   ├── page.tsx              # the customer list: GET-form filters in the URL (US-15.3)
+│   │   │   ├── deps.ts               # composition root for the routes below
 │   │   │   ├── archive-controls.tsx  # client: Archivieren — shared by the record AND the counter (US-10.4)
 │   │   │   ├── archive-actions.ts    # "use server": Zod → archiveCustomer, revalidates both screens
 │   │   │   ├── archive-state.ts      # the archive form state (not exportable from an action module)
@@ -1372,11 +1373,25 @@ The failure is a _runtime_ error at page load, not a build error, so it will not
 value the `InvalidSettings` error carries. Add a key there when adding a validated settings field,
 or the screen quotes an English identifier at staff.
 
-### `src/app/kunden/` — the registration screen and the card view
+### `src/app/kunden/` — the customer list, the registration screen and the card view
 
-Both routes share one `deps.ts`, and both follow the settings screen's wiring. What is worth knowing
+All routes share one `deps.ts`, and all follow the settings screen's wiring. What is worth knowing
 beyond it:
 
+- **`page.tsx`** is the **customer list** (US-15.3), the screen that replaces the spreadsheet: one
+  dense table over `listCustomers`, sorted by customer number, computing nothing — the counts,
+  portions, price, card number and certificate state all arrive derived. The filters are a plain
+  **GET form**, which is what puts them in the URL (FR-5); FD share one machine, and a view has to
+  survive a reload and be passable to a colleague as a link. Every parameter falls back to "not
+  filtered" (a Zod `.catch(undefined)` per field) rather than refusing the page: a hand-typed `status=foo` is a
+  filter nobody set, not a broken register. Status is a **single** select rather than the subset the
+  use case accepts — staff filter one thing at a time, and a multi-select would be a control to learn
+  instead of a question to answer. Archived households are hidden until the labelled checkbox is
+  ticked, and their rows are dimmed **and** carry the word "archiviert", because shading alone is a
+  distinction not every reader can make. The group balance stands **above** the filters and does not
+  move with them: it is `groupCounts`, the number a new household's group is chosen by (US-01), not a
+  count of the rows. An empty result names the filters in force — "keine Treffer" under a
+  hidden-by-default filter is how a staff member concludes a household was deleted.
 - **`neu/page.tsx`** reads a **proposal** (`proposeRegistration`) — the next free number, the
   suggested group, both group sizes, and the day birthdates are judged against. It is a proposal and
   not a reservation: nothing is held, and `registerCustomer` allocates again on submit. The partial
