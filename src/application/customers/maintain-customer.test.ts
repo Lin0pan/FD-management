@@ -2,23 +2,41 @@ import { faker } from "@faker-js/faker";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   createCustomerDetails,
+  NOTES_MAX_LENGTH,
   type CustomerStatus,
   type HouseholdMemberDetails,
   type NewCustomer,
+  type PersonalDetails,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
 import type { GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
+import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
 import {
   BirthDateInFuture,
   CustomerArchived,
   CustomerNotFound,
   EmptyHousehold,
   MissingRequiredField,
+  NotesTooLong,
 } from "@/domain/errors";
-import type { ArchivedCustomer, AuditEntry, AuditLog, Clock, CustomerRepository } from "../ports";
+import { createSettings, type SettingsVersion } from "@/domain/policy/settings";
+import type {
+  ArchivedCustomer,
+  AuditEntry,
+  AuditLog,
+  Clock,
+  CustomerRepository,
+  DistributionRecordRepository,
+  ReminderLogEntry,
+  ReminderLogRepository,
+  SettingsRepository,
+} from "../ports";
 import { listCardsDueForReissue } from "./cards-due-for-reissue";
+import { lookupCustomer } from "./lookup-customer";
+import { updateCustomerDetails, type UpdateCustomerDetailsInput } from "./update-customer-details";
 import { updateHousehold } from "./update-household";
+import { updateNotes } from "./update-notes";
 
 /**
  * Hand-written fakes and synthetic data only, per the testing standard.
@@ -56,6 +74,79 @@ class FakeAuditLog implements AuditLog {
     return Promise.resolve();
   }
 }
+
+/**
+ * The three stores the **counter lookup** needs, and nothing else in this file does.
+ *
+ * They are here because one rule of US-16.3 is about a consequence rather than a write: a note saved
+ * on the record has to turn up at the counter. That is provable only by driving the real
+ * `lookupCustomer` over the same register, the way `updateHousehold`'s tests drive the real
+ * cards-due list — an assertion on the stored column would prove the write and not the reading of it.
+ */
+class FakeSettingsRepository implements SettingsRepository {
+  readonly versions: SettingsVersion[] = [];
+
+  constructor(...versions: SettingsVersion[]) {
+    this.versions.push(...versions);
+  }
+
+  listVersions(): Promise<SettingsVersion[]> {
+    return Promise.resolve([...this.versions]);
+  }
+
+  append(version: SettingsVersion): Promise<void> {
+    this.versions.push(version);
+    return Promise.resolve();
+  }
+}
+
+/** No household in this file has ever collected, so every read is the empty history. */
+class FakeDistributionRecordRepository implements DistributionRecordRepository {
+  listForCustomer(): Promise<ReadonlyArray<DistributionRecord>> {
+    return Promise.resolve([]);
+  }
+
+  findById(): Promise<DistributionRecord | null> {
+    return Promise.resolve(null);
+  }
+
+  create(): Promise<DistributionRecord> {
+    return Promise.reject(new Error("No use case in this file records a hand-out"));
+  }
+
+  setPaid(): Promise<DistributionRecord> {
+    return Promise.reject(new Error("No use case in this file corrects a hand-out"));
+  }
+
+  remove(): Promise<void> {
+    return Promise.reject(new Error("No use case in this file removes a hand-out"));
+  }
+}
+
+/** No reminder has ever been logged here, so today's is always still open. */
+class FakeReminderLogRepository implements ReminderLogRepository {
+  findOnDay(): Promise<ReminderLogEntry | null> {
+    return Promise.resolve(null);
+  }
+
+  record(): Promise<void> {
+    return Promise.reject(new Error("No use case in this file logs a reminder"));
+  }
+}
+
+/** The policy in force throughout: FD's own numbers, anchored so that `2026-07-29` is a RED week. */
+const SETTINGS: SettingsVersion = {
+  recordedAt: new Date("2026-01-01T00:00:00.000Z"),
+  settings: createSettings({
+    quotaN: 240,
+    portionsPerGrownUp: 2,
+    portionsPerChild: 1,
+    weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
+    distributionWeekday: 3,
+    pricePerGrownUp: 200,
+    pricePerChild: 100,
+  }),
+};
 
 /**
  * A register that stores a household the way the adapter does: `updateHousehold` **replaces** the
@@ -142,6 +233,35 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve();
   }
 
+  // Like the adapter's transaction: the personal data and the household land together, so a test
+  // can prove the customer's own member row moved with their name rather than lagging behind it.
+  updateDetails(
+    id: number,
+    details: PersonalDetails,
+    household: ReadonlyArray<HouseholdMemberDetails>,
+  ): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    if (index === -1) {
+      return Promise.reject(new CustomerNotFound(id));
+    }
+    const held = this.holders[index];
+    this.holders[index] = {
+      ...held,
+      details: { ...held.details, ...details, householdMembers: [...household] },
+    };
+    return Promise.resolve();
+  }
+
+  updateNotes(id: number, notes: string): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    if (index === -1) {
+      return Promise.reject(new CustomerNotFound(id));
+    }
+    const held = this.holders[index];
+    this.holders[index] = { ...held, details: { ...held.details, notes } };
+    return Promise.resolve();
+  }
+
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
     const index = this.holders.findIndex((customer) => customer.id === id);
     if (index === -1) {
@@ -171,7 +291,13 @@ interface HouseholdOptions {
   readonly id: number;
   readonly customerNumber: number;
   readonly status?: CustomerStatus;
-  /** The household on file. Defaults to one grown-up and one child born `2015-06-02`. */
+  readonly firstName?: string;
+  readonly lastName?: string;
+  readonly notes?: string;
+  /**
+   * The household on file. Defaults to the customer themselves plus one child born `2015-06-02` —
+   * the shape a registration leaves behind, where the first row *is* the registered person.
+   */
   readonly members?: ReadonlyArray<HouseholdMemberDetails>;
 }
 
@@ -180,12 +306,15 @@ function household({
   id,
   customerNumber,
   status = "ACTIVE",
-  members = [member(), member({ birthDate: CHILD_BIRTH_DATE })],
+  firstName = faker.person.firstName(),
+  lastName = faker.person.lastName(),
+  notes = "",
+  members,
 }: HouseholdOptions): RegisteredCustomer {
   const details = createCustomerDetails(
     {
-      firstName: faker.person.firstName(),
-      lastName: faker.person.lastName(),
+      firstName,
+      lastName,
       birthDate: GROWN_UP_BIRTH_DATE,
       address: {
         street: faker.location.street(),
@@ -194,8 +323,11 @@ function household({
         city: faker.location.city(),
       },
       certificate: { type: "Jobcenter", validUntil: new Date("2027-01-31T00:00:00.000Z") },
-      householdMembers: members,
-      notes: "",
+      householdMembers: members ?? [
+        { firstName, lastName, birthDate: GROWN_UP_BIRTH_DATE },
+        member({ birthDate: CHILD_BIRTH_DATE }),
+      ],
+      notes,
     },
     new Date(TODAY),
   );
@@ -368,6 +500,320 @@ describe("updateHousehold", () => {
 
   it("refuses an id that belongs to nobody rather than editing nothing at all", async () => {
     await expect(updateHousehold(deps(), { customerId: 99, members: [member()] })).rejects.toThrow(
+      CustomerNotFound,
+    );
+    expect(audit.entries).toEqual([]);
+  });
+});
+
+describe("updateCustomerDetails", () => {
+  let customers: FakeCustomerRepository;
+  let audit: FakeAuditLog;
+
+  const ADDRESS = { street: "Lange Straße", houseNumber: "7a", zip: "33129", city: "Delbrück" };
+
+  function deps() {
+    return { customers, audit, clock: fakeClock(TODAY) };
+  }
+
+  function stored(id = 1): RegisteredCustomer {
+    const held = customers.holders.find((customer) => customer.id === id);
+    if (held === undefined) {
+      throw new Error(`the fixture holds no customer ${id}`);
+    }
+    return held;
+  }
+
+  /** The correction the tests below start from: everything named, so nothing is left to a default. */
+  function correction(overrides: Partial<UpdateCustomerDetailsInput> = {}) {
+    return {
+      customerId: 1,
+      firstName: "Anna",
+      lastName: "Schmidt",
+      birthDate: GROWN_UP_BIRTH_DATE,
+      address: ADDRESS,
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository(
+      household({ id: 1, customerNumber: 50, firstName: "Anna", lastName: "Meier" }),
+    );
+    audit = new FakeAuditLog();
+  });
+
+  it("stores the corrected name, birthdate and address", async () => {
+    await updateCustomerDetails(deps(), correction());
+
+    expect(stored().details.firstName).toBe("Anna");
+    expect(stored().details.lastName).toBe("Schmidt");
+    expect(stored().details.address).toEqual(ADDRESS);
+  });
+
+  it("trims every field, by registration's rules rather than a second set", async () => {
+    await updateCustomerDetails(
+      deps(),
+      correction({
+        firstName: "  Anna  ",
+        lastName: " Schmidt ",
+        address: { ...ADDRESS, city: "  Delbrück " },
+      }),
+    );
+
+    expect(stored().details.firstName).toBe("Anna");
+    expect(stored().details.lastName).toBe("Schmidt");
+    expect(stored().details.address.city).toBe("Delbrück");
+  });
+
+  it("moves the customer's own household row with their name, so the two cannot disagree", async () => {
+    await updateCustomerDetails(deps(), correction());
+
+    expect(stored().details.householdMembers[0]).toEqual({
+      firstName: "Anna",
+      lastName: "Schmidt",
+      birthDate: GROWN_UP_BIRTH_DATE,
+    });
+  });
+
+  it("leaves the rest of the household exactly as it was", async () => {
+    const child = stored().details.householdMembers[1];
+
+    await updateCustomerDetails(deps(), correction());
+
+    expect(stored().details.householdMembers).toHaveLength(2);
+    expect(stored().details.householdMembers[1]).toEqual(child);
+  });
+
+  it("carries a corrected birthdate into the household row too", async () => {
+    await updateCustomerDetails(
+      deps(),
+      correction({ birthDate: new Date("1986-03-11T00:00:00.000Z") }),
+    );
+
+    expect(stored().details.householdMembers[0].birthDate).toEqual(
+      new Date("1986-03-11T00:00:00.000Z"),
+    );
+  });
+
+  it("leaves the household alone when no row was ever the customer", async () => {
+    customers.holders.push(
+      household({
+        id: 2,
+        customerNumber: 51,
+        firstName: "Bert",
+        lastName: "Kranz",
+        members: [member(), member({ birthDate: CHILD_BIRTH_DATE })],
+      }),
+    );
+    const before = stored(2).details.householdMembers;
+
+    await updateCustomerDetails(deps(), correction({ customerId: 2 }));
+
+    expect(stored(2).details.householdMembers).toEqual(before);
+    expect(stored(2).details.lastName).toBe("Schmidt");
+  });
+
+  it("cannot touch the customer number — the input has no field for one", async () => {
+    await updateCustomerDetails(deps(), correction());
+
+    expect(stored().customerNumber).toBe(50);
+    expect(Object.keys(correction())).not.toContain("customerNumber");
+  });
+
+  it("leaves a corrected name off the cards-due list — the printed counts still hold", async () => {
+    await updateCustomerDetails(deps(), correction());
+
+    expect(await listCardsDueForReissue({ customers, clock: fakeClock(TODAY) })).toEqual([]);
+  });
+
+  it("puts the household on the cards-due list when the corrected birthdate changed the counts", async () => {
+    // The customer was recorded as born in 1985 and is in truth a child of the household: their row
+    // moves with the correction, so the counts follow it without anything being enqueued.
+    await updateCustomerDetails(deps(), correction({ birthDate: CHILD_BIRTH_DATE }));
+
+    const due = await listCardsDueForReissue({ customers, clock: fakeClock(TODAY) });
+
+    expect(due).toHaveLength(1);
+    expect(due[0].reason).toBe("HOUSEHOLD_CHANGE");
+    expect(due[0].countsToday).toEqual({ grownUps: 0, children: 2 });
+  });
+
+  it("rejects a name left blank, exactly as a registration would", async () => {
+    await expect(updateCustomerDetails(deps(), correction({ lastName: "   " }))).rejects.toThrow(
+      MissingRequiredField,
+    );
+  });
+
+  it("rejects an address part left blank, exactly as a registration would", async () => {
+    const address = { ...ADDRESS, zip: "" };
+
+    await expect(updateCustomerDetails(deps(), correction({ address }))).rejects.toThrow(
+      MissingRequiredField,
+    );
+  });
+
+  it("rejects a birthdate after today, exactly as a registration would", async () => {
+    const birthDate = new Date("2026-07-30T00:00:00.000Z");
+
+    await expect(updateCustomerDetails(deps(), correction({ birthDate }))).rejects.toThrow(
+      BirthDateInFuture,
+    );
+  });
+
+  it("leaves the record and the log untouched when the correction is rejected", async () => {
+    const before = stored().details;
+
+    await expect(updateCustomerDetails(deps(), correction({ firstName: " " }))).rejects.toThrow(
+      MissingRequiredField,
+    );
+
+    expect(stored().details).toEqual(before);
+    expect(audit.entries).toEqual([]);
+  });
+
+  it("records the change under a stable event name, with no actor", async () => {
+    await updateCustomerDetails(deps(), correction());
+
+    expect(audit.entries).toEqual([
+      {
+        what: "customer.detailsUpdated",
+        changedFields: ["firstName", "lastName", "birthDate", "address"],
+        when: new Date(TODAY),
+        why: "",
+      },
+    ]);
+  });
+
+  it("corrects a blocked household — a block pauses the counter, not the record", async () => {
+    customers.holders.push(household({ id: 2, customerNumber: 51, status: "BLOCKED" }));
+
+    await updateCustomerDetails(deps(), correction({ customerId: 2 }));
+
+    expect(stored(2).details.lastName).toBe("Schmidt");
+  });
+
+  it("refuses to correct an archived household, whose record is read-only", async () => {
+    customers.holders.push(
+      household({ id: 2, customerNumber: 51, status: "ARCHIVED", lastName: "Kranz" }),
+    );
+
+    await expect(updateCustomerDetails(deps(), correction({ customerId: 2 }))).rejects.toThrow(
+      CustomerArchived,
+    );
+    expect(stored(2).details.lastName).toBe("Kranz");
+    expect(audit.entries).toEqual([]);
+  });
+
+  it("refuses an id that belongs to nobody rather than correcting nothing at all", async () => {
+    await expect(updateCustomerDetails(deps(), correction({ customerId: 99 }))).rejects.toThrow(
+      CustomerNotFound,
+    );
+    expect(audit.entries).toEqual([]);
+  });
+});
+
+describe("updateNotes", () => {
+  let customers: FakeCustomerRepository;
+  let audit: FakeAuditLog;
+
+  function deps() {
+    return { customers, audit, clock: fakeClock(TODAY) };
+  }
+
+  function storedNotes(id = 1): string {
+    const held = customers.holders.find((customer) => customer.id === id);
+    return held === undefined ? "" : held.details.notes;
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository(
+      household({ id: 1, customerNumber: 50, notes: "Klingel defekt" }),
+    );
+    audit = new FakeAuditLog();
+  });
+
+  it("saves the note as it was written, line breaks and all", async () => {
+    await updateNotes(deps(), { customerId: 1, notes: "Klingel defekt\nBitte anrufen" });
+
+    expect(storedNotes()).toBe("Klingel defekt\nBitte anrufen");
+  });
+
+  it("accepts an empty note — most households need none", async () => {
+    await updateNotes(deps(), { customerId: 1, notes: "" });
+
+    expect(storedNotes()).toBe("");
+  });
+
+  it("shows the saved note at the counter, where it is meant to be read", async () => {
+    await updateNotes(deps(), { customerId: 1, notes: "Holt für die Nachbarin mit ab" });
+
+    const lookup = await lookupCustomer(
+      {
+        customers,
+        settings: new FakeSettingsRepository(SETTINGS),
+        records: new FakeDistributionRecordRepository(),
+        reminders: new FakeReminderLogRepository(),
+        clock: fakeClock(TODAY),
+      },
+      "50",
+    );
+
+    expect(lookup.customer?.notes).toBe("Holt für die Nachbarin mit ab");
+  });
+
+  it("rejects a note longer than the record keeps, writing nothing", async () => {
+    const before = storedNotes();
+
+    await expect(
+      updateNotes(deps(), { customerId: 1, notes: "x".repeat(NOTES_MAX_LENGTH + 1) }),
+    ).rejects.toThrow(NotesTooLong);
+
+    expect(storedNotes()).toBe(before);
+    expect(audit.entries).toEqual([]);
+  });
+
+  it("accepts a note of exactly the maximum length", async () => {
+    await updateNotes(deps(), { customerId: 1, notes: "x".repeat(NOTES_MAX_LENGTH) });
+
+    expect(storedNotes()).toHaveLength(NOTES_MAX_LENGTH);
+  });
+
+  it("records the change under a stable event name, without repeating the note itself", async () => {
+    await updateNotes(deps(), { customerId: 1, notes: "Neue Notiz" });
+
+    expect(audit.entries).toEqual([
+      {
+        what: "customer.notesUpdated",
+        changedFields: ["notes"],
+        when: new Date(TODAY),
+        why: "",
+      },
+    ]);
+  });
+
+  it("annotates a blocked household — a block pauses the counter, not the record", async () => {
+    customers.holders.push(household({ id: 2, customerNumber: 51, status: "BLOCKED" }));
+
+    await updateNotes(deps(), { customerId: 2, notes: "Termin vereinbart" });
+
+    expect(storedNotes(2)).toBe("Termin vereinbart");
+  });
+
+  it("refuses to annotate an archived household, whose record is read-only", async () => {
+    customers.holders.push(
+      household({ id: 2, customerNumber: 51, status: "ARCHIVED", notes: "Weggezogen" }),
+    );
+
+    await expect(updateNotes(deps(), { customerId: 2, notes: "Neue Notiz" })).rejects.toThrow(
+      CustomerArchived,
+    );
+    expect(storedNotes(2)).toBe("Weggezogen");
+    expect(audit.entries).toEqual([]);
+  });
+
+  it("refuses an id that belongs to nobody rather than annotating nothing at all", async () => {
+    await expect(updateNotes(deps(), { customerId: 99, notes: "Neue Notiz" })).rejects.toThrow(
       CustomerNotFound,
     );
     expect(audit.entries).toEqual([]);

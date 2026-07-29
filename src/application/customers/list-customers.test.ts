@@ -167,6 +167,16 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve();
   }
 
+  updateDetails(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
+  updateNotes(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
   setStatus(): Promise<void> {
     this.writes += 1;
     return Promise.resolve();

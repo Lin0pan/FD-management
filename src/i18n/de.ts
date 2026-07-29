@@ -137,6 +137,9 @@ export const de = {
       customerNumberTaken:
         "Die Kundennummer wurde zwischenzeitlich vergeben. Bitte erneut speichern.",
       notADate: "Bitte ein Datum im Format TT.MM.JJJJ auswählen.",
+      notesTooLong: (maxLength: number, length: number): string =>
+        `Die Notiz ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
+        `möglich — bitte kürzen.`,
       unknown: "Die Aufnahme konnte nicht gespeichert werden.",
       notFound: "Diese Kundin oder dieser Kunde wurde nicht gefunden.",
     },

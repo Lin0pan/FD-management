@@ -23,6 +23,7 @@ import {
   CustomerNumberTaken,
   EmptyHousehold,
   MissingRequiredField,
+  NotesTooLong,
   NoFreeCustomerNumber,
 } from "@/domain/errors";
 import { customerFieldLabel, de } from "@/i18n/de";
@@ -152,6 +153,9 @@ export function germanMessage(error: unknown): string {
   }
   if (error instanceof BirthDateInFuture) {
     return de.customers.errors.birthDateInFuture;
+  }
+  if (error instanceof NotesTooLong) {
+    return de.customers.errors.notesTooLong(error.maxLength, error.length);
   }
   if (error instanceof NoFreeCustomerNumber) {
     return de.customers.errors.noFreeCustomerNumber(error.quotaN);

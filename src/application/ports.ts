@@ -14,6 +14,7 @@ import type {
   HouseholdMemberDetails,
   NeedsCertificate,
   NewCustomer,
+  PersonalDetails,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
 import type { Group, GroupCounts } from "@/domain/customer/group";
@@ -204,6 +205,39 @@ export interface CustomerRepository {
    * the price follow from the birthdates the moment they are read.
    */
   updateHousehold(id: number, members: ReadonlyArray<HouseholdMemberDetails>): Promise<void>;
+  /**
+   * Correct who the customer is and where they live, together with the household they belong to, in
+   * **one transaction** (US-16.2).
+   *
+   * The household travels with the personal data because the customer *is* one of its rows: their
+   * name is on the record twice, and a write that moved only one of the two would leave a household
+   * listing a person who no longer exists. The caller has already worked out which row was them
+   * (`replaceHouseholdMember`) — that is a domain rule and not a storage detail — so the set arrives
+   * here as it should stand afterwards, exactly like {@link updateHousehold}'s, and is written the
+   * same way. It goes out even when nothing in it moved, so there is one code path rather than a
+   * branch that decides when the two halves may be written apart.
+   *
+   * The customer number is not among the fields, and there is deliberately no way to reach it: a
+   * slot is assigned at registration and released by archiving, never edited (PRD §FR-7).
+   *
+   * The folded search keys are the adapter's to rewrite in the same statement as the names they come
+   * from — they are stored, so an edit that moved a name without them would leave the register
+   * findable only under a spelling nobody uses any more (US-11.1).
+   */
+  updateDetails(
+    id: number,
+    details: PersonalDetails,
+    household: ReadonlyArray<HouseholdMemberDetails>,
+  ): Promise<void>;
+  /**
+   * Replace the free-text note on a customer's record with `notes`, which may be `""` (US-16.3).
+   *
+   * A note is the one field on the record that carries no rule: nothing is derived from it and
+   * nothing follows from changing it, so this is a single column write. It is its own method rather
+   * than part of {@link updateDetails} because it is its own decision with its own audit entry — the
+   * note staff leave for the counter is not a correction of the record.
+   */
+  updateNotes(id: number, notes: string): Promise<void>;
   /**
    * Move a customer to a new status, storing `blockReason` with it in one transaction so the two
    * can never disagree: the trimmed reason for a move to `BLOCKED`, and `null` for any other status

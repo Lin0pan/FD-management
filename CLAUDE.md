@@ -132,9 +132,10 @@ settings screen reporting that nothing is configured.
   relation is `SetNull`, which the schema test cannot see, so it also greps the generated migration
   SQL. An integration test that clears the register therefore deletes children first — use
   `clearRegister` from `src/infrastructure/prisma/test-support.ts`. The one deliberate exception is a
-  household's member rows: editing a household **replaces** the set (`updateHousehold`), because no
-  history of past compositions is kept (US-16, FR-2) and what a household was survives on the card
-  that printed its counts. Nothing else in the schema may be deleted.
+  household's member rows: editing a household **replaces** the set (`updateHousehold`, and
+  `updateDetails` with it — the customer is one of those rows, so their own name lives there too),
+  because no history of past compositions is kept (US-16, FR-2) and what a household was survives on
+  the card that printed its counts. Nothing else in the schema may be deleted.
 - ❌ Don't skip the audit entry on a state change (archive, block, group move, card reissue, policy
   edit). With no login, the log is the only accountability the system has — and it records _what,
   when and why_, never _who_. The _why_ is required where it is the record (archive, block) and

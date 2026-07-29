@@ -5,6 +5,7 @@ import type {
   CustomerStatus,
   HouseholdMemberDetails,
   NewCustomer,
+  PersonalDetails,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
@@ -119,6 +120,27 @@ class FakeCustomerRepository implements CustomerRepository {
       ...held,
       details: { ...held.details, householdMembers: [...members] },
     };
+    return Promise.resolve();
+  }
+
+  updateDetails(
+    id: number,
+    details: PersonalDetails,
+    household: ReadonlyArray<HouseholdMemberDetails>,
+  ): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    const held = this.holders[index];
+    this.holders[index] = {
+      ...held,
+      details: { ...held.details, ...details, householdMembers: [...household] },
+    };
+    return Promise.resolve();
+  }
+
+  updateNotes(id: number, notes: string): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    const held = this.holders[index];
+    this.holders[index] = { ...held, details: { ...held.details, notes } };
     return Promise.resolve();
   }
 

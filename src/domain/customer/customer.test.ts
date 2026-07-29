@@ -5,13 +5,19 @@ import {
   EmptyHousehold,
   InvalidCustomerRecord,
   MissingRequiredField,
+  NotesTooLong,
 } from "../errors";
 import {
   createCustomerDetails,
   createHouseholdMembers,
+  createNotes,
+  createPersonalDetails,
+  NOTES_MAX_LENGTH,
   parseCustomerStatus,
+  replaceHouseholdMember,
   type CustomerDetailsInput,
   type HouseholdMemberDetails,
+  type PersonalDetails,
 } from "./customer";
 
 /**
@@ -222,6 +228,152 @@ describe("createHouseholdMembers", () => {
     const rows = [member()];
 
     const members = createHouseholdMembers(rows, TODAY);
+    rows.push(member());
+
+    expect(members).toHaveLength(1);
+  });
+});
+
+describe("createPersonalDetails", () => {
+  function personalInput(overrides: Partial<PersonalDetails> = {}): PersonalDetails {
+    return {
+      firstName: faker.person.firstName(),
+      lastName: faker.person.lastName(),
+      birthDate: new Date("1985-03-11T00:00:00.000Z"),
+      address: {
+        street: faker.location.street(),
+        houseNumber: faker.location.buildingNumber(),
+        zip: faker.location.zipCode("#####"),
+        city: faker.location.city(),
+      },
+      ...overrides,
+    };
+  }
+
+  it("keeps every field it was given, trimmed", () => {
+    const details = createPersonalDetails(
+      personalInput({
+        firstName: "  Anna  ",
+        lastName: " Meier ",
+        address: { street: " Hauptweg ", houseNumber: " 3 ", zip: " 33129 ", city: " Delbrück " },
+      }),
+      TODAY,
+    );
+
+    expect(details.firstName).toBe("Anna");
+    expect(details.lastName).toBe("Meier");
+    expect(details.address).toEqual({
+      street: "Hauptweg",
+      houseNumber: "3",
+      zip: "33129",
+      city: "Delbrück",
+    });
+  });
+
+  it("names the field that was left blank, so the form can mark the input", () => {
+    try {
+      createPersonalDetails(personalInput({ lastName: "  " }), TODAY);
+      expect.unreachable("createPersonalDetails should have rejected the blank name");
+    } catch (error: unknown) {
+      expect((error as MissingRequiredField).field).toBe("lastName");
+    }
+  });
+
+  it("names the address part that was left blank", () => {
+    const address = { street: "Hauptweg", houseNumber: "3", zip: "", city: "Delbrück" };
+
+    try {
+      createPersonalDetails(personalInput({ address }), TODAY);
+      expect.unreachable("createPersonalDetails should have rejected the blank zip");
+    } catch (error: unknown) {
+      expect((error as MissingRequiredField).field).toBe("address.zip");
+    }
+  });
+
+  it("rejects a birthdate that lies after today", () => {
+    const input = personalInput({ birthDate: new Date("2026-07-23T00:00:00.000Z") });
+
+    expect(() => createPersonalDetails(input, TODAY)).toThrow(BirthDateInFuture);
+  });
+
+  it("accepts a birthdate of today", () => {
+    const input = personalInput({ birthDate: new Date("2026-07-22T23:00:00.000Z") });
+
+    expect(createPersonalDetails(input, TODAY).birthDate).toEqual(
+      new Date("2026-07-22T23:00:00.000Z"),
+    );
+  });
+});
+
+describe("createNotes", () => {
+  it("keeps the text as written, including its line breaks", () => {
+    expect(createNotes("Klingel defekt\nBitte anrufen")).toBe("Klingel defekt\nBitte anrufen");
+  });
+
+  it("accepts an empty note — most households need none", () => {
+    expect(createNotes("")).toBe("");
+  });
+
+  it("trims the surrounding whitespace, so a note of blanks is no note at all", () => {
+    expect(createNotes("   \n  ")).toBe("");
+  });
+
+  it("accepts a note of exactly the maximum length", () => {
+    expect(createNotes("x".repeat(NOTES_MAX_LENGTH))).toHaveLength(NOTES_MAX_LENGTH);
+  });
+
+  it("rejects a note one character past the maximum, naming both lengths", () => {
+    try {
+      createNotes("x".repeat(NOTES_MAX_LENGTH + 1));
+      expect.unreachable("createNotes should have rejected the over-long note");
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(NotesTooLong);
+      expect((error as NotesTooLong).length).toBe(NOTES_MAX_LENGTH + 1);
+      expect((error as NotesTooLong).maxLength).toBe(NOTES_MAX_LENGTH);
+    }
+  });
+
+  it("measures the trimmed text, so trailing blanks alone cannot break the limit", () => {
+    expect(createNotes(`${"x".repeat(NOTES_MAX_LENGTH)}      `)).toHaveLength(NOTES_MAX_LENGTH);
+  });
+});
+
+describe("replaceHouseholdMember", () => {
+  const was = { firstName: "Anna", lastName: "Meier", birthDate: new Date("1985-03-11") };
+  const becomes = { firstName: "Anna", lastName: "Schmidt", birthDate: new Date("1985-03-11") };
+
+  it("restates the row that held the old name, leaving the rest of the household alone", () => {
+    const child = member({ firstName: "Jonas", lastName: "Meier" });
+
+    const members = replaceHouseholdMember([was, child], was, becomes);
+
+    expect(members).toEqual([becomes, child]);
+  });
+
+  it("restates only the first matching row — one person cannot live in the household twice", () => {
+    const members = replaceHouseholdMember([was, { ...was }], was, becomes);
+
+    expect(members).toEqual([becomes, was]);
+  });
+
+  it("matches on the birthdate too, so two namesakes are not confused for one", () => {
+    const namesake = { ...was, birthDate: new Date("2011-03-11") };
+
+    const members = replaceHouseholdMember([namesake, was], was, becomes);
+
+    expect(members).toEqual([namesake, becomes]);
+  });
+
+  it("leaves the household untouched when no row was the person described", () => {
+    const others = [member(), member()];
+
+    expect(replaceHouseholdMember(others, was, becomes)).toEqual(others);
+  });
+
+  it("copies the rows, so a later change to the input cannot alter the household", () => {
+    const rows = [was];
+
+    const members = replaceHouseholdMember(rows, was, becomes);
     rows.push(member());
 
     expect(members).toHaveLength(1);

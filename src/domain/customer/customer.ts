@@ -12,7 +12,7 @@
  */
 
 import type { IssuedCard } from "../card/card";
-import { InvalidCustomerRecord, MissingRequiredField } from "../errors";
+import { InvalidCustomerRecord, MissingRequiredField, NotesTooLong } from "../errors";
 import type { Group } from "./group";
 import { composition, type HouseholdMember } from "./householdComposition";
 
@@ -66,18 +66,39 @@ export interface HouseholdMemberDetails extends HouseholdMember {
   readonly lastName: string;
 }
 
-/** Everything staff type on the registration form. */
-export interface CustomerDetailsInput {
+/**
+ * Who the registered customer is and where they live — the part of the record that is about the
+ * person rather than about their household, their certificate or what staff noted about them.
+ *
+ * It is its own type because it is edited on its own long after registration (US-16.2): a household
+ * moves house, a name was misspelt, a birthdate was typed a year out. Each of the other parts has a
+ * use case of its own, and this is the one that names a person.
+ */
+export interface PersonalDetails {
   readonly firstName: string;
   readonly lastName: string;
   readonly birthDate: Date;
   readonly address: Address;
+}
+
+/** Everything staff type on the registration form. */
+export interface CustomerDetailsInput extends PersonalDetails {
   readonly certificate: NeedsCertificate;
   /** The whole household, the customer included — so the smallest legitimate one has exactly one. */
   readonly householdMembers: ReadonlyArray<HouseholdMemberDetails>;
   /** A free remark, or `""`. Optional by design: most households need none. */
   readonly notes: string;
 }
+
+/**
+ * The longest note the record keeps for a household (US-16.3).
+ *
+ * Not a policy value and deliberately not in settings: the prices, portions and quota there are
+ * decisions FD makes about how they serve people, while this is a bound on a text column, so that a
+ * pasted document cannot become a customer record. It is stated once, here, because the use case
+ * that saves a note and the form that counts characters must mean the same number.
+ */
+export const NOTES_MAX_LENGTH = 4000;
 
 /** The same data once it has been checked and trimmed. Only `createCustomerDetails` produces one. */
 export interface CustomerDetails extends CustomerDetailsInput {
@@ -195,16 +216,19 @@ export function createHouseholdMembers(
 }
 
 /**
- * Validate a registration and return it as a `CustomerDetails`.
+ * Validate who the customer is and where they live, independent of everything else on their record.
  *
- * @throws {MissingRequiredField} for a name, address part or certificate type left blank.
- * @throws {EmptyHousehold} if no household member was given.
- * @throws {BirthDateInFuture} if the customer or a member was born after `today`.
+ * Like {@link createHouseholdMembers} this is its own function because the data is edited long after
+ * it is first typed (US-16.2), and the edit must be judged by exactly the rules the registration was.
+ * A second implementation would be free to accept a name registration refuses, and the two would
+ * drift apart with the first rule that changed.
+ *
+ * @throws {MissingRequiredField} naming the name or address part that was left blank.
+ * @throws {BirthDateInFuture} if the customer was born after `today`.
  */
-export function createCustomerDetails(input: CustomerDetailsInput, today: Date): CustomerDetails {
-  const householdMembers = createHouseholdMembers(input.householdMembers, today);
-  // The customer is normally one of those rows, but nothing forces staff to have added them first,
-  // so their own birthdate is checked in its own right. A household of one can never be empty.
+export function createPersonalDetails(input: PersonalDetails, today: Date): PersonalDetails {
+  // A household of one can never be empty, so the only rule `composition` can raise here is the one
+  // that matters: nobody is born tomorrow. The counts it returns are discarded, as everywhere.
   composition([{ birthDate: input.birthDate }], today);
 
   return {
@@ -217,11 +241,81 @@ export function createCustomerDetails(input: CustomerDetailsInput, today: Date):
       zip: requireText("address.zip", input.address.zip),
       city: requireText("address.city", input.address.city),
     },
+  };
+}
+
+/**
+ * Validate a free-text note (US-16.3).
+ *
+ * An empty note is a legitimate answer — unlike a block reason, which is the whole record of a
+ * judgement, a note is a convenience and most households need none. What is refused is only a text
+ * so long it is no longer a note; the length is measured *after* trimming, so trailing blanks alone
+ * can never break the limit.
+ *
+ * @throws {NotesTooLong} if the trimmed text is longer than {@link NOTES_MAX_LENGTH}.
+ */
+export function createNotes(notes: string): string {
+  const text = notes.trim();
+  if (text.length > NOTES_MAX_LENGTH) {
+    throw new NotesTooLong(text.length, NOTES_MAX_LENGTH);
+  }
+  return text;
+}
+
+/** Whether two household rows describe the same person — the same name, born the same instant. */
+function isSameMember(row: HouseholdMemberDetails, other: HouseholdMemberDetails): boolean {
+  return (
+    row.firstName === other.firstName &&
+    row.lastName === other.lastName &&
+    row.birthDate.getTime() === other.birthDate.getTime()
+  );
+}
+
+/**
+ * Restate the household row that described `was` as `becomes`, leaving every other row alone.
+ *
+ * The registered customer is themselves a household member, so their name and birthdate are on the
+ * record twice: once as the person the slot belongs to, and once as a row among the people they live
+ * with. Correcting a misspelt name must move both, or the household would go on listing a person who
+ * no longer exists beside a customer nobody in the household is (US-16.2).
+ *
+ * The row is found by *what it says*, because a household row has no identity of its own: two
+ * children of the same name and birthdate are two rows and nothing tells them apart. Before the
+ * edit, the customer's row is the one holding exactly their old name and birthdate — so that is what
+ * is matched, and only the first such row, since one person cannot live in a household twice. When
+ * no row says it, the household is returned unchanged: nothing there claims to be the customer, and
+ * guessing which row meant them is how an edit rewrites somebody else.
+ */
+export function replaceHouseholdMember(
+  members: ReadonlyArray<HouseholdMemberDetails>,
+  was: HouseholdMemberDetails,
+  becomes: HouseholdMemberDetails,
+): ReadonlyArray<HouseholdMemberDetails> {
+  const at = members.findIndex((row) => isSameMember(row, was));
+  return members.map((row, index) => (index === at ? becomes : { ...row }));
+}
+
+/**
+ * Validate a registration and return it as a `CustomerDetails`.
+ *
+ * @throws {MissingRequiredField} for a name, address part or certificate type left blank.
+ * @throws {EmptyHousehold} if no household member was given.
+ * @throws {BirthDateInFuture} if the customer or a member was born after `today`.
+ * @throws {NotesTooLong} if the note is longer than {@link NOTES_MAX_LENGTH}.
+ */
+export function createCustomerDetails(input: CustomerDetailsInput, today: Date): CustomerDetails {
+  const householdMembers = createHouseholdMembers(input.householdMembers, today);
+  // The customer is normally one of those rows, but nothing forces staff to have added them first,
+  // so their own data is checked in its own right — by the same rule a later correction is judged by.
+  const personal = createPersonalDetails(input, today);
+
+  return {
+    ...personal,
     certificate: {
       type: requireText("certificate.type", input.certificate.type),
       validUntil: input.certificate.validUntil,
     },
     householdMembers,
-    notes: input.notes.trim(),
+    notes: createNotes(input.notes),
   };
 }

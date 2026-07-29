@@ -179,6 +179,14 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.reject(new Error("A waiting-list use case never edits a customer's household"));
   }
 
+  updateDetails(): Promise<void> {
+    return Promise.reject(new Error("A waiting-list use case never corrects a customer's record"));
+  }
+
+  updateNotes(): Promise<void> {
+    return Promise.reject(new Error("A waiting-list use case never edits a customer's notes"));
+  }
+
   setStatus(): Promise<void> {
     return Promise.reject(new Error("A waiting-list use case never changes a customer's status"));
   }

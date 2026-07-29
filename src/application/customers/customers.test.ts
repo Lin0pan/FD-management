@@ -6,6 +6,7 @@ import {
   type CustomerStatus,
   type HouseholdMemberDetails,
   type NewCustomer,
+  type PersonalDetails,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
 import { lowestFreeNumber } from "@/domain/customer/customerNumber";
@@ -225,6 +226,33 @@ class FakeCustomerRepository implements CustomerRepository {
       ...held,
       details: { ...held.details, householdMembers: [...members] },
     };
+    return Promise.resolve();
+  }
+
+  updateDetails(
+    id: number,
+    details: PersonalDetails,
+    household: ReadonlyArray<HouseholdMemberDetails>,
+  ): Promise<void> {
+    const index = this.created.findIndex((customer) => customer.id === id);
+    if (index === -1) {
+      return Promise.reject(new CustomerNotFound(id));
+    }
+    const held = this.created[index];
+    this.created[index] = {
+      ...held,
+      details: { ...held.details, ...details, householdMembers: [...household] },
+    };
+    return Promise.resolve();
+  }
+
+  updateNotes(id: number, notes: string): Promise<void> {
+    const index = this.created.findIndex((customer) => customer.id === id);
+    if (index === -1) {
+      return Promise.reject(new CustomerNotFound(id));
+    }
+    const held = this.created[index];
+    this.created[index] = { ...held, details: { ...held.details, notes } };
     return Promise.resolve();
   }
 

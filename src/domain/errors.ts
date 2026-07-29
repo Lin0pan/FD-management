@@ -38,7 +38,8 @@ export type DomainErrorCode =
   | "MissingAuditReason"
   | "IllegalStatusTransition"
   | "EmptySearchQuery"
-  | "InvalidEuroAmount";
+  | "InvalidEuroAmount"
+  | "NotesTooLong";
 
 /** Base class of every domain error. `code` lets callers switch over the closed set above. */
 export abstract class DomainError extends Error {
@@ -513,6 +514,27 @@ export class EmptySearchQuery extends DomainError {
   constructor(criteria: ReadonlyArray<string>) {
     super(`A search needs at least one of: ${criteria.join(", ")}`);
     this.criteria = criteria;
+  }
+}
+
+/**
+ * A note outgrew the length the record keeps for it (US-16.3). Carries both lengths, so the screen
+ * can say how far over the limit the text is rather than refusing without a number.
+ *
+ * The limit is not a business rule about what staff may write — notes are free text and an empty one
+ * is perfectly ordinary. It is a bound on a column that would otherwise accept a pasted document,
+ * which is why the number lives beside the field it guards (`NOTES_MAX_LENGTH`) rather than in
+ * settings with the prices and portions FD edits.
+ */
+export class NotesTooLong extends DomainError {
+  readonly code = "NotesTooLong";
+  readonly length: number;
+  readonly maxLength: number;
+
+  constructor(length: number, maxLength: number) {
+    super(`A note may hold at most ${maxLength} characters, not ${length}`);
+    this.length = length;
+    this.maxLength = maxLength;
   }
 }
 

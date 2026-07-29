@@ -14,6 +14,7 @@ import {
   type CustomerStatus,
   type HouseholdMemberDetails,
   type NewCustomer,
+  type PersonalDetails,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
 import { parseGroup, type GroupCounts } from "@/domain/customer/group";
@@ -495,6 +496,65 @@ export class PrismaCustomerRepository implements CustomerRepository {
         })),
       }),
     ]);
+  }
+
+  /**
+   * Correct the customer's personal data and the household they belong to, in **one transaction**
+   * (US-16.2).
+   *
+   * The folded search keys are rewritten from the names in the same statement, so the register can
+   * never be findable only under a spelling nobody uses any more; they are a *search key* and not a
+   * fact, which is exactly why they may not be written apart from the names they come from (US-11.1).
+   *
+   * The household is replaced the way {@link updateHousehold} replaces it, and for the same reason:
+   * the customer is one of its rows, their name is on the record twice, and a write that moved only
+   * one of the two would leave a household listing a person who no longer exists. Which row was them
+   * has already been decided by the domain (`replaceHouseholdMember`) — the adapter is handed the set
+   * as it should stand and writes it, even when nothing in it moved, so there is one code path here
+   * rather than a comparison this layer has no business making.
+   *
+   * The customer number is not written, and no argument reaches it (PRD §FR-7).
+   */
+  async updateDetails(
+    id: number,
+    details: PersonalDetails,
+    household: ReadonlyArray<HouseholdMemberDetails>,
+  ): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.customer.update({
+        where: { id },
+        data: {
+          firstName: details.firstName,
+          lastName: details.lastName,
+          firstNameFolded: foldName(details.firstName),
+          lastNameFolded: foldName(details.lastName),
+          birthDate: details.birthDate,
+          street: details.address.street,
+          houseNumber: details.address.houseNumber,
+          zip: details.address.zip,
+          city: details.address.city,
+        },
+      }),
+      this.prisma.householdMember.deleteMany({ where: { customerId: id } }),
+      this.prisma.householdMember.createMany({
+        data: household.map((member) => ({
+          customerId: id,
+          firstName: member.firstName,
+          lastName: member.lastName,
+          birthDate: member.birthDate,
+        })),
+      }),
+    ]);
+  }
+
+  /**
+   * Replace the free-text note on a record (US-16.3).
+   *
+   * One column, one statement: nothing is derived from a note, so there is nothing to keep in step
+   * with it — which is what makes this the shortest write in the file rather than a transaction.
+   */
+  async updateNotes(id: number, notes: string): Promise<void> {
+    await this.prisma.customer.update({ where: { id }, data: { notes } });
   }
 
   /**

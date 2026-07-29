@@ -174,7 +174,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   draftFromArchived (US-11, the registration pre-fill),
 │   │   │                             #   listCardsDueForReissue (US-13, cards a birthday overtook),
 │   │   │                             #   listCustomers (US-15, the searchable customer list),
-│   │   │                             #   updateHousehold (US-16, replaces the member set)
+│   │   │                             #   updateHousehold (US-16, replaces the member set),
+│   │   │                             #   updateCustomerDetails / updateNotes (US-16, record edits)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   ├── waiting-list/             # addToWaitingList, listWaiting, removeFromWaitingList,
@@ -1071,6 +1072,71 @@ up in `listCardsDueForReissue` with reason `HOUSEHOLD_CHANGE`, and after a spell
 What the household _was_ survives in exactly one place, as a fact about a physical object: the counts
 printed on the card they hold.
 
+### `src/application/customers/updateCustomerDetails`
+
+Correcting who a customer is and where they live (US-16.2) — a misspelt surname, a birthdate typed a
+year out, a household that has moved house. The data is judged by `createPersonalDetails`, extracted
+from `createCustomerDetails` for the same reason `createHouseholdMembers` was: a correction must be
+judged by exactly the rules the registration was, and a second implementation would be free to accept
+what a registration refuses.
+
+**The customer number is not an input, and cannot be reached from here** (PRD §FR-7). A slot is
+assigned when a household joins the register and released when they leave it; editing it would hand a
+household a number another one may already hold, and every card ever printed for them would name the
+wrong slot. There is no field for it, which is the whole of the guarantee.
+
+#### Decision: the customer is one of their own household members, kept in step in one write
+
+A registered customer's name and birthdate sit on the record **twice** — once as the person the slot
+belongs to (`Customer.firstName`…), and once as a row among the people they live with
+(`HouseholdMember`), because every rule that counts heads reads the household rows and the customer is
+a head like any other. The PRD (§7) asks for a single source of truth. The register cannot have one
+without either
+
+- **dropping the customer from their own household**, which would make `EmptyHousehold` meaningless
+  and a one-person household unrepresentable — and US-16.1 shipped on the opposite rule; or
+- **giving household rows an identity**, which they do not have: two children of the same name and
+  birthdate are two rows and nothing tells them apart, which is exactly why `updateHousehold`
+  _replaces_ the set rather than diffing it.
+
+So the two copies are **kept in step in one write** instead. `replaceHouseholdMember(members, was,
+becomes)` — a pure domain rule — restates the row that held the customer's _old_ name and birthdate
+with the new ones, and `updateDetails(id, details, household)` writes the personal data and the
+household in a single transaction, so the two halves can never land apart. The row is found by what it
+says, because before the edit the customer's row is the one holding exactly their old values; only the
+first such row moves, since one person cannot live in a household twice. When **no** row says what the
+customer used to, the household is left exactly as it stands: nothing there claims to be them, and
+guessing which row meant them is how an edit rewrites somebody else.
+
+The consequence follows for free, and `maintain-customer.test.ts` proves it by driving the real
+`listCardsDueForReissue`: correcting a birthdate across the 13-year line changes the counts and puts
+the household on the cards-due list with reason `HOUSEHOLD_CHANGE`, while correcting a spelling does
+not. The audit entry is `customer.detailsUpdated` with the changed fields `firstName`, `lastName`,
+`birthDate`, `address` and an empty `why` — the household is deliberately **not** among them, because
+the row that moved is the customer's own name said a second time and not a member joining or leaving.
+
+A **blocked** customer may be corrected; an **archived** one is refused as `CustomerArchived`, because
+their record is read-only (PRD §FR-8).
+
+### `src/application/customers/updateNotes`
+
+The free-text note staff leave for the counter (US-16.3). `updateNotes(deps, { customerId, notes })`
+saves the text as written, line breaks and all; **an empty note is a legitimate answer**, unlike a
+block reason, whose whole purpose is to record a judgement. The one refusal is `NotesTooLong` past
+`NOTES_MAX_LENGTH` (4000 characters) — a bound on a text column so a pasted document cannot become a
+customer record, deliberately **not** a settings value beside the prices and portions FD edits.
+
+Nothing is derived from a note and nothing follows from changing one, so persistence is a single
+column write and there is nothing to keep in step: the counter lookup (US-04.2) reads back the very
+column this writes, which `maintain-customer.test.ts` proves by driving the real `lookupCustomer` over
+the same fake register. The audit entry is `customer.notesUpdated` with the single changed field
+`notes`; the note's **text** is deliberately not in it, neither before nor after, because a copy of
+every note ever written would turn the audit trail into a second, undeletable customer record.
+
+It is its own use case rather than a field of `updateCustomerDetails` because it is its own decision
+with its own audit entry — and an entry reading `firstName, lastName, birthDate, address, notes` every
+time would make the log unreadable for both.
+
 ### `src/application/customers/draftFromArchived`
 
 The second half of the pre-fill (US-11.2). `draftFromArchived(deps, { archivedCustomerId })` reads
@@ -1234,6 +1300,17 @@ leave a household nobody typed. The delete is not customer data leaving the syst
 are deliberately not kept (US-16, FR-2), and the counts a household _had_ survive on the card that
 printed them. It is also the reason `HouseholdMember` is the one relation an integration test may
 clear directly (`clearRegister` deletes children first anyway).
+
+`updateDetails(id, details, household)` is the write behind `updateCustomerDetails` (US-16.2), and the
+one other place the member rows are replaced. The customer's columns, the folded search keys and the
+household go out in a **single `$transaction`**: the keys are rewritten from the names in the same
+statement, because they are a stored _search key_ rather than a fact and a name edited without them
+would leave the register findable only under a spelling nobody uses any more (US-11.1); the household
+travels along because the customer is one of its rows, and which row was them has already been decided
+by the domain (`replaceHouseholdMember`). It is written even when nothing in it moved, so there is one
+code path here rather than a comparison this layer has no business making. No argument reaches the
+customer number (PRD §FR-7). `updateNotes(id, notes)` is the shortest write in the file — one column,
+one statement — because nothing is derived from a note and there is nothing to keep in step with it.
 
 `archive(id, reason, archivedAt)` is the one write behind `archiveCustomer` (US-10): status, reason
 and instant in a single statement, with any block reason cleared alongside them. It is a plain
@@ -1786,7 +1863,7 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   `foldName` compares them, written beside the names they come from and indexed with `birthDate`,
   because SQLite can fold neither umlauts nor Unicode case in a `WHERE` clause. They are a search key
   and never a name — nothing displays them — and they are non-nullable with no default so that every
-  writer, including a future edit of a name (US-16), has to state them.
+  writer, including an edit of a name (US-16.2, `updateDetails`), has to state them.
   `Customer.previousCustomerId` is a nullable **self-reference** to the archived record a
   registration was pre-filled from (US-11.3) — display metadata no rule reads, never a merge. Like
   every other relation it is `onDelete: Restrict`; note that Prisma's default for an _optional_
