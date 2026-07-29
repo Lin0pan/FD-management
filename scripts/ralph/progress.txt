@@ -155,6 +155,21 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   `Prisma.join`, and never alias a table `inner` (a SQLite keyword) — `latest` works.
 - `$queryRaw` binds a JS `Date` correctly against Prisma's SQLite DateTime columns; verified against a
   throwaway migrated database.
+- Faker's default (English) name lists contain German-looking surnames — `Mueller` is in there. A
+  fixture that seeds dozens of faker households and then asserts an EXACT result set for a name search
+  is a flake: one of the other draws will eventually fold onto the prefix. Give the searched household
+  an INVENTED name (`Müllerhoff`) and search a prefix long enough to reach the invented part. The test
+  passed alone and failed in the full file, which is what this looks like when it bites.
+- Prisma's SQLite provider quotes identifiers with BACKTICKS — ``SELECT … FROM `main`.`Customer` WHERE
+  `main`.`Customer`.`group` = ?``. A test that reads the generated SQL off a `log: [{ emit: "event" }]`
+  client must match backticks, not double quotes, and must scope the assertion to the text after
+  `WHERE` — every column name also appears in the select list.
+- A fixture that stacks a certificate RENEWAL must record it after the one `repository.create` wrote:
+  `create` stamps `recordedAt` from `card.issuedAt` (= the fixture's TODAY), and "the certificate on
+  file" is the latest `recordedAt`. A renewal dated earlier is silently not the current one.
+- Regenerating the init migration RENAMES its directory (`git status` shows a rename). `schema.test.ts`
+  reads the migrations directory rather than a fixed path, so it survives — anything that pins the
+  folder name would not.
 
 ---
 
@@ -207,5 +222,40 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   - The list's `certificate=VALID` includes the expiring-soon ones by design. If the screen wants
     three mutually exclusive buckets, it filters on the row's `certificateState`, not with a fourth
     query.
+
+---
+
+## 2026-07-29 13:10 — US-002 (customer list queries and indexes)
+
+- The `WHERE` clauses themselves landed with US-001 (a new port method stops the build compiling, so
+  the adapter could not wait). This story added what makes them cheap and what proves they are there:
+  two indexes, and an integration test over a register of fifty.
+- `@@index([group])` for the list's group filter and the group counts; `@@index([firstNameFolded])`
+  for the other half of the search's `OR`. `customerNumber`, `status` and `(lastNameFolded,
+  birthDate)` already existed. The spelled `lastName` is deliberately NOT indexed — the AC names it,
+  but nothing compares it; the folded column is the one the query touches, and an index on `lastName`
+  would suggest a search that does not exist.
+- Migration regenerated rather than stacked (pre-release rule): `20260727121530_init` →
+  `20260729110134_init`, partial unique index re-appended from the old file's last 16 lines, then
+  `npm run db:reset`. `schema.test.ts` reads the migrations directory rather than a fixed name, so it
+  needed no change.
+- New describe block in `customer-repository.test.ts`: fifty households seeded from a *table*
+  (1–30 RED, 31–50 BLUE, 41–45 BLOCKED, 46–50 ARCHIVED), three of them carrying a certificate that
+  puts them in a state the rest are not in. 14 tests: each filter's exact result set, the combination
+  of filters, `groupCounts` = {red 30, blue 15}, the two new indexes, and that the filtering is SQL.
+  Household 6 pins the renewed-certificate case — a lapsed notice with a valid one recorded after it
+  is NOT expired, which is what `certificates: { some: … }` would have got wrong.
+- Files changed: `prisma/schema.prisma`, `prisma/migrations/20260729110134_init/migration.sql` (was
+  `20260727121530_init`), `src/infrastructure/prisma/customer-repository.test.ts`,
+  `docs/technical_documentation.md` (a `list(query)` section on the adapter, and the folded-name
+  paragraph now names both indexes), `scripts/ralph/prd.json`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (42 files, 798 tests) and
+  `npm run build` all green. No UI change, so no browser verification.
+- **Learnings for future iterations:**
+  - US-003 is the screen. Every row already carries `certificateState`, `portions`, `priceCents` and
+    `cardNumber` from `listCustomers`; the screen computes nothing. `customerId` is the link target.
+  - The seeded register in this test is a fixture worth copying for US-004's e2e spec, but note the
+    e2e specs share `data/e2e.db` on customer numbers 201–271 (see the pattern above) — fifty rows
+    from 1 would collide with the isolated project's quota specs, not with the shared ones.
 
 ---
