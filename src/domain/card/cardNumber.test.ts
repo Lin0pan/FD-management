@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { DomainError, InvalidCardNumber } from "../errors";
-import { formatCardNumber, nextCardNumber, parseCardNumber, parseCounterQuery } from "./cardNumber";
+import {
+  counterQueryOrNull,
+  formatCardNumber,
+  nextCardNumber,
+  parseCardNumber,
+  parseCounterQuery,
+} from "./cardNumber";
 
 describe("formatCardNumber", () => {
   it("joins the customer number and the card index with a k", () => {
@@ -157,6 +163,24 @@ describe("parseCounterQuery", () => {
     expect(error).toBeInstanceOf(InvalidCardNumber);
     if (!(error instanceof InvalidCardNumber)) throw new Error("unreachable");
     expect(error.text).toBe("50k3x");
+  });
+});
+
+describe("counterQueryOrNull", () => {
+  it("reads a card number the way parseCounterQuery does", () => {
+    expect(counterQueryOrNull("50k3")).toEqual({ customerNumber: 50, cardIndex: 3 });
+  });
+
+  it("reads a bare customer number the way parseCounterQuery does", () => {
+    expect(counterQueryOrNull(" 50 ")).toEqual({ customerNumber: 50, cardIndex: null });
+  });
+
+  it("answers null for a name instead of refusing it — a search box accepts both", () => {
+    expect(counterQueryOrNull("Müller")).toBeNull();
+  });
+
+  it("answers null for a padded number, so 050 stays a typo rather than customer 50", () => {
+    expect(counterQueryOrNull("050")).toBeNull();
   });
 });
 

@@ -18,7 +18,13 @@ import { faker } from "@faker-js/faker";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { listCardsDueForReissue } from "@/application/customers/cards-due-for-reissue";
-import { createCustomerDetails, type NewCustomer } from "@/domain/customer/customer";
+import type { CustomerListQuery } from "@/application/ports";
+import { validUntilRangeFor } from "@/domain/customer/certificate";
+import {
+  createCustomerDetails,
+  type CustomerStatus,
+  type NewCustomer,
+} from "@/domain/customer/customer";
 import { foldName } from "@/domain/customer/nameSearch";
 import type { Group } from "@/domain/customer/group";
 import { CustomerNotFound, CustomerNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
@@ -900,5 +906,231 @@ describe("PrismaCustomerRepository.searchArchived", () => {
     );
 
     expect(indexes.map((index) => index.name)).toContain("Customer_lastNameFolded_birthDate_idx");
+  });
+});
+
+describe("PrismaCustomerRepository.list over a register of fifty households", () => {
+  /**
+   * The register the customer list is asked about: fifty synthetic households across both groups,
+   * all three statuses and the three certificate states (US-15.2).
+   *
+   * It is a *table*, not a loop with conditions in it, because every expectation below is read off
+   * it — numbers 1–30 are Red and 31–50 Blue, 41–45 are blocked and 46–50 archived. Two households
+   * carry names chosen to exercise the fold from either side, and three carry certificates that put
+   * them in a state the rest are not in. Everything else is Faker's.
+   */
+  const RED_UNTIL = 30;
+  const BLOCKED_FROM = 41;
+  const ARCHIVED_FROM = 46;
+  const REGISTER_SIZE = 50;
+
+  /**
+   * The households whose name the search assertions name explicitly.
+   *
+   * Both are spelled so that no Faker surname can fold onto them: Faker's list contains `Mueller`,
+   * and a fixture whose expected result set depends on the other forty-nine draws missing it is a
+   * flake waiting for a reseed. The searches below therefore ask for a prefix long enough to reach
+   * the invented part of the name.
+   */
+  const NAMED = new Map<number, { firstName: string; lastName: string }>([
+    [12, { firstName: "Anke", lastName: "Müllerhoff" }],
+    [33, { firstName: "Ännelie", lastName: "Behrens" }],
+  ]);
+  /** The certificate a household's row carries, where it is not the far-future default. */
+  const CERTIFICATES = new Map<number, string>([
+    // Lapsed three weeks before today.
+    [5, "2026-06-30T00:00:00.000Z"],
+    // Lapsed too — but renewed below, which is the household the EXPIRED filter must *not* find.
+    [6, "2026-05-31T00:00:00.000Z"],
+    // Inside the thirty-day window that ends 2026-08-21.
+    [7, "2026-08-10T00:00:00.000Z"],
+  ]);
+  const DEFAULT_VALID_UNTIL = "2027-01-31T00:00:00.000Z";
+
+  function groupOf(customerNumber: number): Group {
+    return customerNumber <= RED_UNTIL ? "RED" : "BLUE";
+  }
+
+  function statusOf(customerNumber: number): CustomerStatus {
+    if (customerNumber >= ARCHIVED_FROM) {
+      return "ARCHIVED";
+    }
+    return customerNumber >= BLOCKED_FROM ? "BLOCKED" : "ACTIVE";
+  }
+
+  /** The customer numbers in `from..to`, which is how every expected result set is written. */
+  function numbers(from: number, to: number): number[] {
+    return Array.from({ length: to - from + 1 }, (_, offset) => from + offset);
+  }
+
+  /** What the query answered, as customer numbers — the only column the expectations compare. */
+  async function found(query: CustomerListQuery): Promise<number[]> {
+    const rows = await repository.list(query);
+    return rows.map((customer) => customer.customerNumber);
+  }
+
+  /** The statuses the screen asks for by default: everyone still on the register. */
+  const ON_THE_REGISTER: ReadonlyArray<CustomerStatus> = ["ACTIVE", "BLOCKED"];
+
+  beforeEach(async () => {
+    for (const customerNumber of numbers(1, REGISTER_SIZE)) {
+      const named = NAMED.get(customerNumber);
+      const base = newCustomer({
+        customerNumber,
+        group: groupOf(customerNumber),
+        status: statusOf(customerNumber),
+      });
+      await repository.create({
+        ...base,
+        details: createCustomerDetails(
+          {
+            ...base.details,
+            ...named,
+            certificate: {
+              type: "Jobcenter-Bescheid",
+              validUntil: new Date(CERTIFICATES.get(customerNumber) ?? DEFAULT_VALID_UNTIL),
+            },
+          },
+          TODAY,
+        ),
+      });
+    }
+    // Household 6 brought a new notice after the old one lapsed. The renewal stacks on top rather
+    // than replacing the row (US-06.3), so the register holds a household whose certificate history
+    // contains an expired one and whose *current* certificate is valid — the case a `some` filter
+    // gets wrong.
+    const renewed = await repository.findByCustomerNumber(6);
+    await prisma.certificate.create({
+      data: {
+        customerId: renewed?.id ?? 0,
+        type: "Jobcenter-Bescheid",
+        validUntil: new Date("2027-06-30T00:00:00.000Z"),
+        // After the row `create` wrote, or it would not be the certificate on file.
+        recordedAt: new Date("2026-07-22T10:00:00.000Z"),
+      },
+    });
+  }, 30_000);
+
+  it("shows everyone still on the register, lowest customer number first", async () => {
+    expect(await found({ statuses: ON_THE_REGISTER })).toEqual(numbers(1, 45));
+  });
+
+  it("shows only the households in the statuses asked for", async () => {
+    expect(await found({ statuses: ["BLOCKED"] })).toEqual(numbers(41, 45));
+    expect(await found({ statuses: ["ARCHIVED"] })).toEqual(numbers(46, 50));
+  });
+
+  it("narrows to one balancing group without touching the status filter", async () => {
+    expect(await found({ statuses: ON_THE_REGISTER, group: "BLUE" })).toEqual(numbers(31, 45));
+    expect(await found({ statuses: ON_THE_REGISTER, group: "RED" })).toEqual(numbers(1, 30));
+  });
+
+  it("matches a customer number exactly, so 1 does not drag in 10 to 19", async () => {
+    expect(
+      await found({
+        statuses: ON_THE_REGISTER,
+        search: { kind: "CUSTOMER_NUMBER", customerNumber: 1 },
+      }),
+    ).toEqual([1]);
+  });
+
+  it("finds Müllerhoff when muellerh is typed, on the folded key the archive search uses", async () => {
+    expect(
+      await found({ statuses: ON_THE_REGISTER, search: { kind: "NAME", name: "muellerh" } }),
+    ).toEqual([12]);
+  });
+
+  it("matches a first name too — staff type whichever of the two they were given", async () => {
+    expect(
+      await found({ statuses: ON_THE_REGISTER, search: { kind: "NAME", name: "Aennel" } }),
+    ).toEqual([33]);
+  });
+
+  it("finds nobody rather than everybody for a name no household answers to", async () => {
+    expect(
+      await found({ statuses: ON_THE_REGISTER, search: { kind: "NAME", name: "Zzzzz" } }),
+    ).toEqual([]);
+  });
+
+  it("lists the expired certificates, leaving out the household that renewed theirs", async () => {
+    expect(
+      await found({
+        statuses: ON_THE_REGISTER,
+        certificate: validUntilRangeFor("EXPIRED", TODAY),
+      }),
+    ).toEqual([5]);
+  });
+
+  it("lists the certificates lapsing inside the next thirty days on their own", async () => {
+    expect(
+      await found({
+        statuses: ON_THE_REGISTER,
+        certificate: validUntilRangeFor("EXPIRING_SOON", TODAY),
+      }),
+    ).toEqual([7]);
+  });
+
+  it("counts the renewed household among the valid ones, on the notice it holds today", async () => {
+    const valid = await found({
+      statuses: ON_THE_REGISTER,
+      certificate: validUntilRangeFor("VALID", TODAY),
+    });
+
+    expect(valid).toEqual(numbers(1, 45).filter((customerNumber) => customerNumber !== 5));
+  });
+
+  it("combines the filters rather than choosing between them", async () => {
+    expect(
+      await found({
+        statuses: ["BLOCKED"],
+        group: "BLUE",
+        certificate: validUntilRangeFor("VALID", TODAY),
+      }),
+    ).toEqual(numbers(41, 45));
+  });
+
+  it("counts both groups over the whole register, blocked included and archived not", async () => {
+    // 1–30 are Red and all still registered; of the Blue half only 31–45 are, because 46–50 left.
+    expect(await repository.groupCounts()).toEqual({ red: 30, blue: 15 });
+  });
+
+  it("filters in the database, not by loading the register and sieving it in JavaScript", async () => {
+    // A throwaway client per measurement, because a query listener cannot be detached again.
+    const logged = new PrismaClient({
+      datasourceUrl: url,
+      log: [{ emit: "event", level: "query" }],
+    });
+    const statements: string[] = [];
+    logged.$on("query", (event) => {
+      statements.push(event.query);
+    });
+
+    await new PrismaCustomerRepository(logged).list({
+      statuses: ["ACTIVE"],
+      group: "BLUE",
+      search: { kind: "NAME", name: "mueller" },
+    });
+    await logged.$disconnect();
+
+    const customerQuery =
+      statements.find((statement) => statement.includes("FROM `main`.`Customer`")) ?? "";
+    expect(customerQuery).toContain("WHERE");
+    // Every criterion reaches SQLite as a `WHERE` clause — read off the generated statement, past
+    // the select list, where the column names appear whatever the query does. The assertion is
+    // coarse on purpose: what must not regress is that the filtering happens *there* at all.
+    const where = customerQuery.slice(customerQuery.indexOf("WHERE"));
+    for (const column of ["status", "group", "lastNameFolded", "firstNameFolded"]) {
+      expect(where).toContain(column);
+    }
+  });
+
+  it("indexes the group and the folded first name, the two columns the list added", async () => {
+    const indexes = await prisma.$queryRawUnsafe<Array<{ name: string }>>(
+      `PRAGMA index_list("Customer")`,
+    );
+
+    const names = indexes.map((index) => index.name);
+    expect(names).toContain("Customer_group_idx");
+    expect(names).toContain("Customer_firstNameFolded_idx");
   });
 });

@@ -20,6 +20,7 @@ export const de = {
     newCustomerLink: "Neue Kundin oder neuen Kunden aufnehmen",
     cardsDueLink: "Karten neu ausstellen",
     waitingListLink: "Warteliste",
+    customerListLink: "Kundenliste durchsuchen",
     /**
      * The badge beside that link (US-13.4). It states a number and nothing else — no colour, no
      * exclamation mark, no "offen": the list is a to-do list, and a home screen that looks alarmed
@@ -347,6 +348,95 @@ export const de = {
         unknown: "Die neue Karte konnte nicht ausgestellt werden.",
       },
     },
+  },
+  /**
+   * The customer list at /kunden (US-15.3) — the screen that replaces the spreadsheet.
+   *
+   * Every filter is named in words, and so is every state a row can be in: the group and the status
+   * are painted, but the paint only ever repeats what the cell already says (PRD §US-15.3). Staff
+   * read this list across a shared machine in variable lighting, and a row that could only be told
+   * apart by its colour would be a row that half the team cannot read.
+   *
+   * The group balance is worded so it cannot be mistaken for a count of the rows below it: it is the
+   * number staff decide a new household's group by (US-01), and it stays whole whatever is filtered.
+   */
+  customerList: {
+    heading: "Kundenliste",
+    intro:
+      "Suchen und filtern wie früher in der Tabelle. Erwachsene, Kinder, Portionen und Preis " +
+      "werden bei jedem Aufruf neu aus den Geburtsdaten und den Einstellungen berechnet.",
+    search: {
+      label: "Suche",
+      /** One box for all three, because choosing between them would be a question about the software. */
+      placeholder: "Name, Kundennummer (50) oder Kartennummer (50k3)",
+    },
+    filters: {
+      status: "Status",
+      group: "Gruppe",
+      certificate: "Bedarfsnachweis",
+      /** The unset option of every filter — "no filter", never "no results". */
+      all: "Alle",
+      includeArchived: "Archivierte Haushalte anzeigen",
+      includeArchivedHint:
+        "Archivierte Haushalte sind nicht mehr bezugsberechtigt und ihre Kundennummer ist wieder " +
+        "vergeben. Sie bleiben auffindbar, werden aber nur auf Wunsch angezeigt.",
+      submit: "Filtern",
+      reset: "Filter zurücksetzen",
+    },
+    /** Where a certificate stands today, stated beside its date on every row. */
+    certificateStates: {
+      VALID: "gültig",
+      EXPIRING_SOON: "läuft bald ab",
+      EXPIRED: "abgelaufen",
+    },
+    /**
+     * The same three as filter options. "Gültig" says out loud that it includes the ones expiring
+     * soon: they may still shop, and a staff member picking it is asking who is allowed in, not who
+     * has nothing to renew.
+     */
+    certificateFilters: {
+      VALID: "gültig (auch bald ablaufende)",
+      expiringSoon: (days: number): string => `läuft in den nächsten ${days} Tagen ab`,
+      EXPIRED: "abgelaufen",
+    },
+    /** The group balance above the table — the number staff keep even (FR-3). */
+    groupBalance: (red: number, blue: number): string => `Rot: ${red} · Blau: ${blue}`,
+    groupBalanceHint:
+      "Alle aktiven Haushalte, unabhängig von den gewählten Filtern. Die kleinere Gruppe wird bei " +
+      "der nächsten Aufnahme vorgeschlagen.",
+    /** How many rows are shown; German inflects the one. */
+    resultCount: (count: number): string => (count === 1 ? "1 Haushalt" : `${count} Haushalte`),
+    table: {
+      customerNumber: "Nr.",
+      name: "Name",
+      cardNumber: "Karte",
+      group: "Gruppe",
+      status: "Status",
+      grownUps: "Erwachsene",
+      children: "Kinder",
+      portions: "Portionen",
+      price: "Preis",
+      certificate: "Nachweis gültig bis",
+      reminders: "Erinnerungen",
+    },
+    /**
+     * What stands where the table would be empty. It names the filters that are in force, because
+     * "keine Treffer" under a filter somebody set three screens ago is how staff conclude that a
+     * household was deleted.
+     */
+    empty: {
+      unfiltered: "Es ist noch niemand aufgenommen.",
+      filtered: (filters: string): string =>
+        `Kein Haushalt entspricht den gewählten Filtern (${filters}). Bitte die Suche oder die ` +
+        `Filter ändern.`,
+      search: (text: string): string => `Suche „${text}“`,
+      status: (label: string): string => `Status: ${label}`,
+      group: (label: string): string => `Gruppe: ${label}`,
+      certificate: (label: string): string => `Bedarfsnachweis: ${label}`,
+      archivedIncluded: "einschließlich archivierter Haushalte",
+      archivedHidden: "ohne archivierte Haushalte",
+    },
+    openRecord: "Kundenakte öffnen",
   },
   /**
    * The cards-due-for-reissue screen at /karten-neuausstellung (US-13.4).

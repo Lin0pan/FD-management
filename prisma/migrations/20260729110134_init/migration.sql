@@ -126,7 +126,13 @@ CREATE INDEX "Customer_customerNumber_idx" ON "Customer"("customerNumber");
 CREATE INDEX "Customer_status_idx" ON "Customer"("status");
 
 -- CreateIndex
+CREATE INDEX "Customer_group_idx" ON "Customer"("group");
+
+-- CreateIndex
 CREATE INDEX "Customer_lastNameFolded_birthDate_idx" ON "Customer"("lastNameFolded", "birthDate");
+
+-- CreateIndex
+CREATE INDEX "Customer_firstNameFolded_idx" ON "Customer"("firstNameFolded");
 
 -- CreateIndex
 CREATE INDEX "HouseholdMember_customerId_idx" ON "HouseholdMember"("customerId");
