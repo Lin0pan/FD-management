@@ -57,8 +57,13 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
 - An e2e spec that has to prove "not this row" is strongest when the excluded row is *hard* to
   exclude: give the archived household and the active one the same surname, so only the status
   filter keeps them apart.
-- `pkill -f "next start"` from the Bash tool kills the shell running it (the pattern matches the
-  command line itself). Write `pkill -f "next[ ]start"`.
+- Killing the e2e server: the process is called **`next-server`**, not `next start`, so
+  `pkill -f "next[ ]start"` finds NOTHING and leaves it running. Use `pkill -f "next-server"` (and
+  check with `ps aux | grep "[n]ext-server"` — it exits 1/144 when it killed something). A survivor
+  is adopted by `reuseExistingServer`, which serves the OLD build and skips the delete-migrate-seed
+  chain, so the whole suite fails at once: `PrismaClientKnownRequestError: The table main.Customer
+  does not exist` or duplicate rows in `beforeAll`. Whole-suite failure = stale server, not your spec.
+  (The `[ ]` trick is still needed for whatever pattern you do use, or pkill matches its own shell.)
 - A pure rule that has to hand the CALLER's row back is generic over it — `recordForDay<T extends
   AttendanceRecord>`, `nextInLine<T extends WaitingApplicant>`. Declare the minimal interface the
   rule reads, constrain `T` to it, return `T`: the application layer keeps its richer entry and the
@@ -175,6 +180,13 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
 - A fixture that stacks a certificate RENEWAL must record it after the one `repository.create` wrote:
   `create` stamps `recordedAt` from `card.issuedAt` (= the fixture's TODAY), and "the certificate on
   file" is the latest `recordedAt`. A renewal dated earlier is silently not the current one.
+- A seeded `Card.reason` must be a real `CardIssueReason` — `FIRST_ISSUE | LOST | STALE_COUNTS |
+  OTHER`. An invented one ("REPLACEMENT") passes Prisma (the column is a string) and then throws in
+  `parseCardIssueReason` on EVERY page that reads cards, including `/` (the cards-due badge). A fixture
+  that breaks unrelated specs is usually a string the domain parses, not a relation.
+- An aggregate the whole shared register feeds (the group balance, the cards-due badge) is asserted as
+  a DELTA: read it off the screen in `beforeAll` BEFORE seeding, then assert baseline + what this spec
+  inserted. An absolute figure is an assertion about whichever specs ran first.
 - Regenerating the init migration RENAMES its directory (`git status` shows a rename). `schema.test.ts`
   reads the migrations directory rather than a fixed path, so it survives — anything that pins the
   folder name would not.
@@ -316,5 +328,43 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
     unique index is what frees the slot. A fixture that tries `customerNumber: null` fails.
   - The dev database ships with settings but no customers, so `/kunden` renders an empty register out
     of the box — seed before looking at any list screen by hand.
+
+---
+
+## 2026-07-29 13:45 — US-004 (E2E: search and filter the customer list)
+
+- `tests/e2e/customer-list.spec.ts`: seven tests over five households seeded through Prisma on
+  numbers 281-285 — both groups, all three statuses, all three certificate states. Seeded rather than
+  registered through the form because what the screen needs is a *spread*; five registrations would
+  prove US-01 again at five times the cost.
+- The fixture's one deliberate cruelty: the active RED household and the archived one share an
+  invented surname (Müllerhoff), so nothing but the archived toggle can tell them apart. A name search
+  that excluded the archived row for some other reason would pass a friendlier fixture.
+- Asserted: a folded lower-case prefix finds the active household alone; the SUPERSEDED card number
+  281k1 resolves to the household now holding 281k2 (the index is dropped — the list is about
+  households); the blocked filter leaves only `data-status="BLOCKED"` rows on the WHOLE table, not
+  just this spec's; the archived namesake appears only once the toggle is ticked and reads
+  "archiviert"; the three certificate states are stated in words on their own rows; the group balance
+  is +3 RED / +1 BLUE over the pre-seed reading (blocked counts, archived does not) and does not move
+  when the table is filtered to one row; and the filters survive as a URL — set through the controls,
+  read out of the query string, reloaded with the same rows and the same controls set.
+- Files changed: `tests/e2e/customer-list.spec.ts` (new), `docs/technical_documentation.md` (the spec
+  in the tree, a paragraph on what it covers, the stale-server warning beside the "start does not
+  build" one — and `waiting-list.spec.ts`, which US-12 never added to the tree),
+  `scripts/ralph/prd.json`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (42 files, 798 tests),
+  `npm run format:check`, `npm run build` and `npm run test:e2e` (64 passed, 1 skipped — the skip is
+  settings.spec's pre-existing one) all green.
+- **Learnings for future iterations:**
+  - Two of the three hours here went on a phantom: the whole suite failed at once, in every spec,
+    against rows that were already there. It was three `next-server` processes left over from earlier
+    iterations, adopted by `reuseExistingServer`. See the pattern at the top — the pkill pattern this
+    file carried was wrong, and that is now fixed.
+  - `page.locator('[data-customer-number="281"]')` is a much simpler row handle than filtering rows by
+    a cell's text; the list screen already puts the number, the status and the group counts on data
+    attributes precisely so a spec need not read German off the page to find a row.
+  - A GET-form filter screen is pleasant to drive: `goto("/kunden?suche=…")` and clicking "Filtern"
+    are the same thing, so a test can set filters whichever way reads better, and `waitForURL` after
+    the click is all the synchronisation there is.
 
 ---
