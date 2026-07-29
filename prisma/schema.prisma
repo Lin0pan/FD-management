@@ -161,10 +161,20 @@ model Customer {
 
   @@index([customerNumber])
   @@index([status])
+  /// The customer list's group filter and its group-balance counts (US-15.2). `status` above serves
+  /// the status filter, and the counts read both columns — the two are separate indexes rather than
+  /// one pair because each is also asked on its own.
+  @@index([group])
   /// The archive search (US-11.1): a folded last-name prefix, optionally narrowed by the birthdate.
   /// Both columns are in one index because they are typed together — the name identifies the family
   /// and the birthdate tells two namesakes apart.
+  ///
+  /// It also serves the customer list's name search, which is a prefix of the *folded* last name —
+  /// the spelled column is never compared, so it is deliberately not indexed (US-15.2).
   @@index([lastNameFolded, birthDate])
+  /// The other half of that search's `OR`: staff type whichever of the two names they were given, so
+  /// a first-name prefix must be servable from an index too, or half the query scans the register.
+  @@index([firstNameFolded])
 }
 
 /// One person living in the household, the registered customer included.

@@ -483,7 +483,9 @@ guessed would put the wrong household's data into a registration form; the cost 
 staff type the name again.
 
 Because the fold cannot run in SQL, its output is **stored** beside the names, in
-`Customer.firstNameFolded` / `lastNameFolded`, and indexed with the birthdate. That is the one
+`Customer.firstNameFolded` / `lastNameFolded`, and indexed — the last name with the birthdate, the
+pair the archive search types together, and the first name on its own, because the customer list
+matches a prefix of either (US-15.2). That is the one
 derived value stored outside a card snapshot, and it is a search _key_ rather than a fact: nothing
 reads it as the household's name. The columns are non-nullable and have no default, so every writer
 has to state them — and the adapter derives both from the names in the same statement.
@@ -1197,6 +1199,29 @@ the reason a blocked customer carries can never disagree with their status.
 and instant in a single statement, with any block reason cleared alongside them. It is a plain
 `WHERE id` update and nothing more — no related row is touched and the customer number stays put,
 because freeing the slot is entirely the partial unique index's doing.
+
+`list(query)` is the customer list's read (US-15.2). Every criterion of `CustomerListQuery` becomes a
+`WHERE` clause and the order is `customerNumber ASC`; only the derived counts are computed per row
+afterwards, because they are a rule over birthdates rather than a comparison a database can make. At
+~240 households loading the register and sieving it in JavaScript would work, which is exactly why
+the choice is written down: the screen that replaces a spreadsheet must not _be_ one, and an
+integration test over fifty seeded households asserts the filtering happens in SQL by reading the
+generated statement.
+
+The name search folds **here**, with the same `foldName` that wrote the columns, so this search and
+the archive search agree letter for letter — one normalisation in the codebase, not two. A folded
+prefix matches either name, because staff type whichever of the two they were given, and both halves
+of that `OR` rest on an index: `(lastNameFolded, birthDate)` and `firstNameFolded`. `status` and
+`group` are indexed for the two filters and for the group counts, and `customerNumber` for the exact
+match a typed number is — `5` is customer 5 and never a prefix of 50. The spelled `lastName` column
+is deliberately **not** indexed: nothing compares it, and an index on it would suggest something does.
+
+The certificate filter is the one criterion Prisma cannot express, because `certificates: { some: … }`
+matches a notice the household has long since renewed — precisely the household the list must not
+show as expired. `idsByCurrentCertificate(range)` is therefore a `$queryRaw` with a correlated
+subquery picking the same row `CUSTOMER_INCLUDE` calls current (latest `recordedAt`, id breaking the
+tie), fed back as `id: { in: … }`. The bounds are half-open, `from` included and `before` excluded, so
+a `validUntil` stored with a time of day still falls on the side its calendar day belongs to.
 
 `searchArchived(query, limit)` is the archive search's read (US-11.1). It filters `status =
 'ARCHIVED'` — an active household turning up would invite a second registration of someone who
