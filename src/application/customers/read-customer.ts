@@ -8,7 +8,9 @@
 
 import { formatCardNumber, nextCardNumber } from "@/domain/card/cardNumber";
 import type { RegisteredCustomer } from "@/domain/customer/customer";
+import type { GroupCounts } from "@/domain/customer/group";
 import { ageInYears, type HouseholdComposition } from "@/domain/customer/householdComposition";
+import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
 import { CustomerNotFound } from "@/domain/errors";
 import { describeAllowance, type Allowance } from "../allowance/describe-allowance";
 import type {
@@ -63,6 +65,24 @@ export interface CustomerCardView {
    * here and no action follows from any value (PRD §5).
    */
   readonly consecutiveNoShows: number;
+  /**
+   * Every hand-out the household has collected, **most recent first** (US-16.5) — the day, whether
+   * they showed up, whether they paid, and what it cost them.
+   *
+   * The price is the record's own rather than a fresh derivation: a distribution is priced by the
+   * policy in force on the day it happened, and re-deriving it from today's settings would silently
+   * rewrite what a household paid last March (US-05, FR-2). The order is applied here rather than
+   * asked of the store, because the same rows feed the no-show count, which reads them as a set.
+   */
+  readonly history: ReadonlyArray<DistributionRecord>;
+  /**
+   * How many **active** households each balancing group holds, as of now.
+   *
+   * The record is where a household is moved between RED and BLUE (US-16.4), and that decision is a
+   * comparison: staff move somebody in order to even the two groups out, so the sizes belong beside
+   * the choice rather than on a screen they would have to fetch first (PRD §FR-4).
+   */
+  readonly groupCounts: GroupCounts;
 }
 
 /**
@@ -77,9 +97,10 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
   }
 
   const today = deps.clock.now();
-  const [allowance, records] = await Promise.all([
+  const [allowance, records, groupCounts] = await Promise.all([
     describeAllowance(deps, customer.details.householdMembers),
     deps.records.listForCustomer(customer.id),
+    deps.customers.groupCounts(),
   ]);
 
   const held = { customerNumber: customer.customerNumber, index: customer.card.index };
@@ -98,5 +119,7 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
     nextCardNumber: formatCardNumber(next.customerNumber, next.index),
     allowance,
     consecutiveNoShows: await countNoShows(deps, customer, records, today),
+    history: [...records].sort((a, b) => b.date.getTime() - a.date.getTime()),
+    groupCounts,
   };
 }

@@ -1216,6 +1216,39 @@ describe("readCustomer", () => {
     expect(view.consecutiveNoShows).toBe(0);
   });
 
+  it("lists the household's hand-outs newest first, each with the price that applied", async () => {
+    const registered = await seedLongStanding();
+    await attend(registered.id, "2026-06-11T09:00:00.000Z");
+    await attend(registered.id, "2026-07-09T09:00:00.000Z");
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.history.map((record) => record.date.toISOString())).toEqual([
+      "2026-07-09T09:00:00.000Z",
+      "2026-06-11T09:00:00.000Z",
+    ]);
+    // The price is the record's own, captured when the hand-out was written — never re-derived from
+    // today's settings, which may since have changed (US-05, FR-2).
+    expect(view.history.map((record) => record.priceCents)).toEqual([500, 500]);
+  });
+
+  it("shows no hand-out history for a household that has never collected", async () => {
+    const registered = await registerCustomer(deps(), registerInput());
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.history).toEqual([]);
+  });
+
+  it("reports both group sizes, so a move between them is judged against the balance", async () => {
+    customers = new FakeCustomerRepository([], { red: 7, blue: 4 });
+    const registered = await registerCustomer(deps(), registerInput());
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.groupCounts).toEqual({ red: 7, blue: 4 });
+  });
+
   it("refuses an id that belongs to nobody rather than showing an empty card", async () => {
     await expect(readCustomer(deps(), 404)).rejects.toThrow(CustomerNotFound);
   });

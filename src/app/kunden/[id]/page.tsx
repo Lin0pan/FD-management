@@ -13,8 +13,8 @@ import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { ArchiveControls } from "../archive-controls";
+import { BlockControls } from "../block-controls";
 import { customerDeps } from "../deps";
-import { BlockControls } from "./block-controls";
 import { ReissueControls } from "./reissue-controls";
 
 /** The card shows data the registration form writes, so it must never be served from a cache. */

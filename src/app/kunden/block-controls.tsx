@@ -1,8 +1,14 @@
 "use client";
 
 /**
- * The block and unblock controls on a customer's record (tasks/prd-us-08-block-unblock-customer.md
- * §US-08.4).
+ * The block and unblock controls (tasks/prd-us-08-block-unblock-customer.md §US-08.4), shared by the
+ * customer record and the counter — the same component on both screens, like `ArchiveControls`, so
+ * blocking cannot mean two different things depending on where it was started.
+ *
+ * The counter offers them because that is where the reason to pause a household turns up: the block
+ * is decided in front of the person it concerns, and US-08.4 shipped both controls on the record
+ * only, leaving whoever decided at the counter with no route off that screen
+ * (tasks/prd-us-16-maintain-customer-record.md §US-16.5).
  *
  * A client component because two things need the browser: `useActionState` reports a rejection back
  * beside the button, and the block's save control stays disabled until a reason has been typed (the
@@ -18,7 +24,7 @@
 import { useActionState, useState } from "react";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import { de } from "@/i18n/de";
-import { blockCustomerAction, unblockCustomerAction } from "./actions";
+import { blockCustomerAction, unblockCustomerAction } from "./block-actions";
 import { initialBlockState } from "./block-state";
 
 function Rejection({ message }: { message: string }): React.ReactElement {
