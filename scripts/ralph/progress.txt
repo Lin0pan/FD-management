@@ -164,6 +164,14 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   `main`.`Customer`.`group` = ?``. A test that reads the generated SQL off a `log: [{ emit: "event" }]`
   client must match backticks, not double quotes, and must scope the assertion to the text after
   `WHERE` — every column name also appears in the select list.
+- Filter state that must be bookmarkable belongs in a plain **GET form**, not in a client component:
+  submitting navigates, which writes the filters into the URL for free and keeps the screen a pure
+  server component. Parse the parameters with a Zod object whose every field carries
+  `.catch(undefined)` — a hand-typed `status=foo` is then a filter nobody set rather than a crash,
+  and `searchParams` arriving as `string[]` is handled by the same fallback.
+- A German query parameter per filter (`suche`, `status`, `gruppe`, `nachweis`, `archiv`), matching
+  `datum` / `nummer` on /ausgabe. A checkbox is `value="1"` and absent when unticked, so the default
+  view is the bare URL.
 - A fixture that stacks a certificate RENEWAL must record it after the one `repository.create` wrote:
   `create` stamps `recordedAt` from `card.issuedAt` (= the fixture's TODAY), and "the certificate on
   file" is the latest `recordedAt`. A renewal dated earlier is silently not the current one.
@@ -257,5 +265,56 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   - The seeded register in this test is a fixture worth copying for US-004's e2e spec, but note the
     e2e specs share `data/e2e.db` on customer numbers 201–271 (see the pattern above) — fifty rows
     from 1 would collide with the isolated project's quota specs, not with the shared ones.
+
+---
+
+## 2026-07-29 13:35 — US-003 (customer list screen at /kunden)
+
+- `src/app/kunden/page.tsx`: the list itself. A server component over `listCustomers` — one dense
+  table (Nr., Name, Karte, Gruppe, Status, Erwachsene, Kinder, Portionen, Preis, Nachweis gültig bis,
+  Erinnerungen), sticky header, ascending customer number, computing nothing. Every value arrives
+  derived from the use case; `formatEuros` and `germanDate` are the only transformations on the page.
+- Filters are a **plain GET form**, which is what puts them in the URL (FR-5). No client component and
+  no JavaScript is involved. Every parameter is parsed by a Zod object with `.catch(undefined)` per
+  field, so a hand-typed `status=quatsch` renders the unfiltered list instead of a 500.
+- Status is a SINGLE select even though `listCustomers` accepts a subset: staff filter one thing at a
+  time, and a multi-select is a control to learn rather than a question to answer. The archived
+  checkbox is separate (`archiv=1`), and naming ARCHIVED in the status select works on its own — the
+  use case already treats that as asking for them.
+- The certificate filter's three options are labelled with what they *include*: "gültig (auch bald
+  ablaufende)" says out loud that VALID is the wider bucket. `EXPIRING_SOON_DAYS` is passed into a
+  dictionary function rather than spelled "30" in German, so the number stays single-sourced.
+- Group balance above the filters, with `data-red` / `data-blue` attributes for the e2e spec, and a
+  sentence saying it ignores the filters. Verified by hand: it stays 2/2 while the table is filtered
+  to one blocked row.
+- Empty results name the filters in force, including whether archived households are shown — the
+  unfiltered empty register gets its own sentence instead ("Es ist noch niemand aufgenommen.").
+- Files changed: `src/app/kunden/page.tsx` (new), `src/i18n/de.ts` (a `customerList` block plus
+  `home.customerListLink`), `src/app/page.tsx` (the link), `docs/technical_documentation.md`,
+  `scripts/ralph/prd.json`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run format:check`, `npm test` (42 files, 798 tests)
+  and `npm run build` all green.
+- **Browser verification:** no dev-browser skill and no browser MCP tool is configured in this
+  sandbox. Verified instead against the BUILT app (`npm run start`) with curl over a dev database
+  seeded with five synthetic households (one per state), checking the rendered HTML: default view
+  hides the archived row (4 of 5), `archiv=1` shows it dimmed and labelled "archiviert",
+  `status=BLOCKED` returns only the blocked row, `suche=3k1` resolves the card number to its holder,
+  `suche=müller` folds onto "Müllerhoff", the empty result names its filters, the selects and the
+  checkbox come back selected from the URL, and every row links to `/kunden/<id>`. The scratch seed
+  script was deleted and `npm run db:reset` run afterwards. A human should still look at the layout.
+- **Learnings for future iterations:**
+  - US-004 (the e2e spec) has these hooks: `customer-row` rows carry `data-customer-number` and
+    `data-status`; `group-counts` carries `data-red` / `data-blue`; the controls are
+    `customer-search`, `status-filter`, `group-filter`, `certificate-filter`, `archived-toggle`;
+    and `customer-list-empty` / `customer-list-count` say what came back. Filters apply on submit,
+    so the spec must click "Filtern" (or navigate straight to the URL) — nothing auto-submits.
+  - The e2e projects share `data/e2e.db` on customer numbers 201–271, so a list spec on the shared
+    server must assert about ITS OWN rows (by customer number) and never about the whole table or the
+    group counts' absolute values — other specs seed households that change both. Asserting the
+    counts are *unchanged* between two filtered views is the robust form of the FR-3 assertion.
+  - `Customer.customerNumber` is NOT nullable: an archived household keeps its number and the partial
+    unique index is what frees the slot. A fixture that tries `customerNumber: null` fails.
+  - The dev database ships with settings but no customers, so `/kunden` renders an empty register out
+    of the box — seed before looking at any list screen by hand.
 
 ---
