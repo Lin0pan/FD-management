@@ -83,6 +83,15 @@ export interface CustomerCardView {
    * the choice rather than on a screen they would have to fetch first (PRD §FR-4).
    */
   readonly groupCounts: GroupCounts;
+  /**
+   * The day every derived figure above was worked out as of — and the day the record's household
+   * editor must judge its rows against while they are being typed (US-16.5).
+   *
+   * It is handed out rather than left for the screen to read, for the reason `proposeRegistration`
+   * hands out its own: a browser has a clock of its own, in a zone of its own, and a household
+   * counted against it would flicker onto a different answer than the save derives.
+   */
+  readonly today: Date;
 }
 
 /**
@@ -121,5 +130,6 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
     consecutiveNoShows: await countNoShows(deps, customer, records, today),
     history: [...records].sort((a, b) => b.date.getTime() - a.date.getTime()),
     groupCounts,
+    today,
   };
 }

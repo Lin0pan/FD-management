@@ -104,8 +104,12 @@ export type RegistrationFormValues = z.infer<typeof registrationForm>;
  * The three fields of a row arrive as three parallel lists, so the row count is the longest of them
  * — a row whose birthdate was left blank has to reach the domain and be rejected there, not vanish
  * on the way.
+ *
+ * Exported because the customer record edits the very same household with the very same three
+ * repeated fields (US-16.1). A second reader of those fields is how one screen starts dropping a
+ * half-typed row that the other passes on.
  */
-function householdRows(formData: FormData): Array<Record<string, string>> {
+export function householdRows(formData: FormData): Array<Record<string, string>> {
   const firstNames = formData.getAll("memberFirstName").map(String);
   const lastNames = formData.getAll("memberLastName").map(String);
   const birthDates = formData.getAll("memberBirthDate").map(String);
@@ -139,12 +143,19 @@ export function registrationValues(formData: FormData): Record<string, unknown> 
 }
 
 /**
- * Turn a typed domain error into the German sentence the screen shows.
+ * The German sentence for a typed domain error about *customer data*, or `null` for anything this
+ * layer has no words for.
  *
  * Every error carries the values that made it fail, so the message can name the concrete field or
  * quota without re-deriving anything here.
+ *
+ * It stops short of a fallback on purpose. The rules it translates — a blank field, a future
+ * birthdate, an empty household, an over-long note — are the same whether they were broken while
+ * registering a household or while correcting one later (US-16.2), but what to say when *nothing*
+ * matched is not: the registration says the intake could not be saved, the record says the change
+ * could not be. So each screen supplies its own last word.
  */
-export function germanMessage(error: unknown): string {
+export function customerErrorMessage(error: unknown): string | null {
   if (error instanceof MissingRequiredField) {
     return de.customers.errors.missingField(customerFieldLabel(error.field));
   }
@@ -163,7 +174,12 @@ export function germanMessage(error: unknown): string {
   if (error instanceof CustomerNumberTaken) {
     return de.customers.errors.customerNumberTaken;
   }
-  return de.customers.errors.unknown;
+  return null;
+}
+
+/** {@link customerErrorMessage} with the registration's own last word for anything unrecognised. */
+export function germanMessage(error: unknown): string {
+  return customerErrorMessage(error) ?? de.customers.errors.unknown;
 }
 
 /**

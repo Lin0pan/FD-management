@@ -547,6 +547,22 @@ describe("lookupCustomer", () => {
     });
   });
 
+  it("carries the block reason, so the counter can offer to lift the block it just read out", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ status: "BLOCKED" }));
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.blockReason).toBe("gesperrt");
+  });
+
+  it("carries no block reason for a household that is not blocked", async () => {
+    customers = new FakeCustomerRepository(customerRecord());
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.blockReason).toBeNull();
+  });
+
   it("refuses a query that is neither a customer number nor a card number", async () => {
     await expect(lookupCustomer(deps(), "Müller")).rejects.toThrow(InvalidCardNumber);
   });

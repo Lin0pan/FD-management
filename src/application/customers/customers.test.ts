@@ -1240,6 +1240,14 @@ describe("readCustomer", () => {
     expect(view.history).toEqual([]);
   });
 
+  it("reports the day the household editor must judge its rows against", async () => {
+    const registered = await registerCustomer(deps(), registerInput());
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.today).toEqual(new Date(TODAY));
+  });
+
   it("reports both group sizes, so a move between them is judged against the balance", async () => {
     customers = new FakeCustomerRepository([], { red: 7, blue: 4 });
     const registered = await registerCustomer(deps(), registerInput());

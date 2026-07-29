@@ -410,10 +410,13 @@ that customer owe last March" is to resolve the version that was in force then.
 
 `createSettings(input)` validates every invariant on construction (quota ≥ 1, portions ≥ 0,
 ISO weekday 1–7, an `YYYY-Www` anchor, non-negative integer cents) and throws
-`InvalidSettings` naming the field. `priceFor(settings, grownUps, children)` derives what a
+`InvalidSettings` naming the field. `priceFor(values, grownUps, children)` derives what a
 household owes — `grownUps × pricePerGrownUp + children × pricePerChild` — because FD charges per
 head. Every household size is therefore priceable and no table has to be kept in step with the
-sizes that actually turn up. The module is pure: no I/O, no wall clock, and it works over an already-loaded array so
+sizes that actually turn up. It takes a `PriceValues` — the two per-head prices picked off
+`Settings`, mirroring `portionsFor`'s `PortionValues` — so that the record's household editor can
+price a household in the browser from the four numbers that bear on the answer, without being handed
+the quota and the week anchor as well (US-16.5). The module is pure: no I/O, no wall clock, and it works over an already-loaded array so
 the counter screen (US-04) resolves settings without a per-field query.
 
 `changedSettingsFields(previous, next)` names the policy fields that differ between two versions —
@@ -908,7 +911,14 @@ The two read-side use cases the customer screens sit on:
   It also carries `consecutiveNoShows` (US-10.4) — the household's own distributions missed in a row,
   through the `countNoShows` seam below — which is why it takes the read side of
   `DistributionRecordRepository`: a no-show is the absence of a record, so the history has to be read
-  to count one.
+  to count one. US-16.5 added three more, all of them for the record screen and none of them a new
+  query but one: `history`, the same hand-out records **sorted newest first** and shown with the
+  price each one actually cost (the record's own `priceCents`, never re-derived from today's
+  settings); `groupCounts`, both group sizes, because moving a household between RED and BLUE is a
+  decision made by comparing them (FR-4); and `today`, the day the record's household editor judges
+  its rows against while they are being typed — handed out for the reason `proposeRegistration`
+  hands out its own, because a browser counting against its own clock would flicker onto a different
+  answer than the save derives.
 - **`readCard`** answers what the _card_ shows (US-02.4): the current card number, the name, the
   group, the counts, portions and price as of today (all via `describeAllowance`), and the numbers
   this card replaced. It reads the customer's whole
@@ -1609,28 +1619,77 @@ beyond it:
   blank must reach the domain and be rejected there rather than vanishing on the way. `redirect()`
   is called **outside** the `try`: it works by throwing, and catching it would turn a successful
   registration into "could not be saved".
-- **`[id]/page.tsx`** renders what `readCustomer` already derived — the counts from the birthdates,
-  the standard portions and price (US-07.4), and the card number from the slot and the card index. A
-  non-numeric id and an id nobody holds give the same German answer: there is no such customer. It
-  links on to the card view. It also hosts the **block controls** (US-08.4): an active customer sees
-  a "Sperre" section showing the current reason verbatim when blocked — and the **reissue control**
-  (US-09.3), because staff reach for whichever of the two screens is already open. It shows the
+- **`[id]/page.tsx`** is the **customer record** (US-16.5): everything known about one household and
+  everything editable about them. It renders what `readCustomer` already derived — the counts from
+  the birthdates, the standard portions and price (US-07.4), the card number from the slot and the
+  card index, the hand-out history and both group sizes — and reads `readCurrentSettings` beside it
+  for the four per-head values the household editor derives its live figures from. A non-numeric id
+  and an id nobody holds give the same German answer: there is no such customer. It shows the
   **consecutive-no-show count** only when it is greater than zero (US-10.4): a zero is one more number
-  to read past on every record and says nothing a decision could rest on. An **archived** record
-  renders read-only — the block, reissue and archive sections are all absent, because there is no
-  transition out of `ARCHIVED` — behind a banner naming the day and the reason, stated before anything
-  else on the page: every action below it is gone and the reader has to know why before looking for
-  one. "Aufgenommen" is the household's `registeredOn`, so a reissued card does not read as a later
-  registration.
-- **`[id]/block-controls.tsx`** is a client component (`useActionState`, and the save control stays
+  to read past on every record and says nothing a decision could rest on. "Aufgenommen" is the
+  household's `registeredOn`, so a reissued card does not read as a later registration. The sections
+  run in the order a record is _read_ rather than the order it is written — who this is, where they
+  live, who lives with them, what they may collect, what was noted, what they have collected — and
+  the **"Aktionen mit Folgen"** section comes last, holding the reissue, block and archive controls
+  together behind a heading that says what they are, each with its own confirmation, so none of them
+  is a stray click away from the household editor (PRD §6).
+- An **archived** record renders **fully read-only** (FR-8): every form is replaced by the same
+  values as text and the whole danger section is absent — there is no transition out of `ARCHIVED`,
+  the household holds no slot and is issued no card — behind a banner naming the day and the reason,
+  stated before anything else on the page. The `grown-ups` / `children` / `portions` / `price` boxes
+  and the `household-member` rows carry the same test ids in both modes, so a spec asserting the
+  derived figures does not have to know which one it is looking at.
+- **Five editing forms, five use cases, five audit entries.** `[id]/actions.ts` deliberately has no
+  `saveCustomer` taking every field at once (PRD §7): a merged action would write an entry naming
+  every field on every save, and the log would stop saying what was decided. Each action reads its
+  fields, calls one use case and translates the typed error through `recordMessage`, which delegates
+  the rules about customer _data_ to the registration's own `customerErrorMessage` — so a correction
+  and an intake cannot report the same broken rule differently — and adds only what an edit can hit.
+  Each revalidates the record **and** `/ausgabe`, because the counter's verdict, the notes it reads
+  out and the counts it prices are all derived from what was just written.
+  - **`household-editor.tsx`** is a client component because the counts, portions and price must
+    update _as staff type_ (FR-1): it calls `composition`, `portionsFor` and `priceFor` against the
+    server's `today` and the four policy values, so what is on screen is what the save derives.
+    There is no input for any of the four. The edit is a **replacement of the whole set** — rows are
+    addressed by position, because two members can share a name and a birthdate and a row has no
+    identity to diff on. Each row shows the member's **current age** beside their birthdate, derived
+    from the date in the field, which is what makes the 13-year boundary legible (PRD §6).
+  - **`details-editor.tsx`** corrects name, birthdate and address. There is no customer-number field
+    and nowhere to add one — the use case and the port method take none (FR-7). The hint says out
+    loud that the name also stands in the customer's own household row and travels there in the same
+    write, because the other reading — that the household list must be corrected too — is the one
+    that produces two people where there was one.
+  - **`notes-editor.tsx`** saves the free text the counter reads, explicitly and on its own, with a
+    hint saying where it turns up. Empty is a legitimate answer.
+  - **`group-control.tsx`** shows **both group sizes beside the choice** (FR-4) and states the two
+    consequences neither of which is visible here: the move applies to a distribution the same
+    afternoon, and the card still names the old group, which puts the household on the cards-due
+    list. Its radios are the one **uncontrolled** field on the record — React resets a form after its
+    action resolves, and a reset restores a radio from its `checked` _attribute_ rather than the
+    property React set, so a controlled radio comes back showing the group the household was in
+    before the move, silently disagreeing with the sizes beside it.
+  - **`renewal-form.tsx`** records a renewed certificate through the same `renewCertificate` use case
+    the counter calls, in the counter's own words, so the two screens cannot describe one event
+    differently. Unlike at the counter it is **always** offered rather than only while the
+    certificate is expired: a household that brings the renewal early should not have to be turned
+    away first for the form to appear. The confirmation names the reset, and the reminder count above
+    it comes back as 0 from the revalidated record.
+  - **`record-forms.tsx`** holds the field, save button and feedback line all five share; **five
+    identical state unions** would be five places to change, so `record-state.ts` defines one
+    `RecordFormState` for all of them. Its `saved` carries a **counter** rather than a flag, for the
+    reason the registration screen counts: saving the same correction twice produces an identical
+    state, and a form that only resets when a value changed would keep the previous text.
+- **`block-controls.tsx`** is a client component (`useActionState`, and the save control stays
   disabled until a reason is typed — a block's reason is its only record, so an empty one must be
   impossible to submit). It shows "Sperren" with a required multi-line reason for an `ACTIVE`
   customer, the current reason plus a confirming "Sperre aufheben" for a `BLOCKED` one, and nothing
-  for an `ARCHIVED` one — there is no transition out of archived. **`[id]/actions.ts`** relays a
-  block or unblock to `blockCustomer` / `unblockCustomer`, translates the typed error into German,
-  and `revalidatePath`s the record so the new status, reason and controls come from the store. The
-  reason itself is shown verbatim and in full at the counter by the US-04 verdict banner — it is not
-  re-derived here.
+  for an `ARCHIVED` one — there is no transition out of archived. Like `archive-controls.tsx` it sits
+  one level above `[id]/`, because US-16.5 offers it on the **counter** as well: US-08.4 shipped both
+  controls on the record only, which left a staff member who had decided at the counter with no route
+  off that screen. **`block-actions.ts`** relays a block or unblock to `blockCustomer` /
+  `unblockCustomer`, translates the typed error into German, and revalidates the record **and**
+  `/ausgabe`. The reason itself is shown verbatim and in full at the counter by the US-04 verdict
+  banner — it is not re-derived here.
 - **`[id]/reissue-controls.tsx`** is the "Karte neu ausstellen (Verlust)" control, rendered by
   **both** the record and the card view (US-09.3). It is a disclosure holding a confirmation that
   names the number being invalidated and the number about to be issued, then the button. The
@@ -1738,6 +1797,14 @@ then the question it asks about every person in the queue: may _this_ one collec
   the counts from the birthdates, portions and price from the settings in force today.
 - A number that is **not a number** (`?nummer=abc`) renders a German sentence beside the form; an
   unassigned one renders the `NOT_FOUND` banner, because that is an answer rather than a failure.
+- Below the details the counter offers a **link to the whole record** (`/kunden/[id]`) and, since
+  US-16.5, the **block controls** beside the archive ones — the reasons for both turn up here, in
+  front of the person they concern, and everything the counter shows is a slice of the record it now
+  links to. `lookupCustomer` therefore carries `blockReason` as well: the verdict states it too, but
+  the unblock confirmation quotes the reason being lifted, and a control reading it off the verdict
+  union would be a second account of which field the reason lives in. Both controls are keyed by
+  customer, like the certificate controls, so nothing typed about one household survives into the
+  next lookup.
 
 #### Recording the hand-out (`serve-controls.tsx`, `actions.ts`)
 

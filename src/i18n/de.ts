@@ -145,9 +145,11 @@ export const de = {
       unknown: "Die Aufnahme konnte nicht gespeichert werden.",
       notFound: "Diese Kundin oder dieser Kunde wurde nicht gefunden.",
     },
-    /** The customer overview a registration lands on. */
+    /** The customer overview a registration lands on, and the record every later edit is made on. */
     card: {
-      heading: "Kundenkarte",
+      // Not "Kundenkarte": that is the printed card at /kunden/[id]/karte. This screen is the whole
+      // record — everything known about a household, and everything editable about them (US-16.5).
+      heading: "Kundenübersicht",
       householdHeading: "Haushalt",
       certificateHeading: "Bedarfsnachweis",
       validUntil: "gültig bis",
@@ -329,6 +331,77 @@ export const de = {
         "Die Zahlen dienen nur der Information. Neuausstellungen sind unbegrenzt möglich; die " +
         "Anwendung begrenzt und mahnt nichts an.",
       backToCustomer: "Zurück zur Kundenübersicht",
+    },
+    /**
+     * Maintaining the record (US-16.5) — the screen where a household is corrected as they change.
+     *
+     * Every editable part of the record is its own form with its own save button, because each is
+     * its own decision with its own audit entry: a household that has grown, a name spelt wrong, a
+     * move between the groups and a note for the counter are four different things to have done, and
+     * one "Speichern" over all of them would say they were one.
+     *
+     * The hints all answer the same question — *what follows from this?* — because that is what the
+     * screen is for: the counts and the price follow from the birthdates, the group applies to
+     * today's distribution, the note is read out at the counter, and each of the last three leaves
+     * the card the household is carrying out of date.
+     */
+    record: {
+      masterDataHeading: "Stammdaten",
+      detailsHeading: "Person und Anschrift",
+      detailsHint:
+        "Korrekturen an Name, Geburtsdatum und Anschrift. Der Name gilt zugleich für die Zeile " +
+        "dieser Person im Haushalt. Die Kundennummer lässt sich nicht ändern.",
+      detailsSubmit: "Person und Anschrift speichern",
+      householdHint:
+        "Erwachsene, Kinder, Portionen und Preis werden aus den Geburtsdaten berechnet und gelten " +
+        "sofort. Ändert sich dabei die Zahl der Köpfe, steht der Haushalt danach auf der Liste " +
+        "„Karten neu ausstellen“ — die Karte nennt die alten Zahlen.",
+      householdSubmit: "Haushalt speichern",
+      notesHeading: "Bemerkung",
+      notesHint:
+        "Die Bemerkung wird an der Ausgabe angezeigt, sobald die Kundennummer eingegeben wird. " +
+        "Leer lassen ist erlaubt.",
+      notesSubmit: "Bemerkung speichern",
+      notesEmpty: "Keine Bemerkung hinterlegt.",
+      groupHeading: "Gruppe",
+      groupHint:
+        "Der Wechsel gilt sofort, auch für eine Ausgabe am selben Tag. Die Karte nennt weiterhin " +
+        "die alte Gruppe; der Haushalt steht danach auf der Liste „Karten neu ausstellen“.",
+      groupSubmit: "Gruppe wechseln",
+      /** Both sizes beside the choice, because a move is decided by comparing them (FR-4). */
+      groupSizes: (red: number, blue: number): string =>
+        `Aktuell: Rot ${red}, Blau ${blue} Haushalte`,
+      /** The hand-out history (US-16.5) — newest first, each row priced as it was priced then. */
+      historyHeading: "Bisherige Ausgaben",
+      historyHint:
+        "Der Preis ist der, der an diesem Tag galt — spätere Änderungen an den Einstellungen " +
+        "ändern ihn nicht.",
+      historyEmpty: "Für diesen Haushalt ist noch keine Ausgabe erfasst.",
+      historyColumns: {
+        date: "Datum",
+        showedUp: "Erschienen",
+        paid: "Bezahlt",
+        price: "Preis",
+      },
+      yes: "ja",
+      no: "nein",
+      /**
+       * The section holding everything that cannot simply be typed over again. It is separated and
+       * named so that no irreversible action sits a stray click away from the household editor
+       * (PRD §6); each control inside it keeps its own confirmation.
+       */
+      dangerHeading: "Aktionen mit Folgen",
+      dangerHint:
+        "Diese Aktionen wirken sofort und werden einzeln bestätigt. Eine Archivierung lässt sich " +
+        "nicht rückgängig machen.",
+      saving: "Wird gespeichert …",
+      saved: "Gespeichert.",
+      errors: {
+        unknown: "Die Änderung konnte nicht gespeichert werden.",
+        archived:
+          "Dieser Haushalt ist archiviert; sein Datensatz kann nicht mehr geändert werden. Bitte " +
+          "die Seite neu laden.",
+      },
     },
     /**
      * Reissuing a card after a loss (US-09). The action is offered on the customer record and on the
@@ -681,6 +754,12 @@ export const de = {
        * the one above with other words in it: nothing about the household's numbers has changed, and
        * quoting two identical counts at the counter would read as a mistake.
        */
+      /**
+       * The way from the counter to the whole record (US-16.5). Named after what it leads to rather
+       * than "Mehr": the counter shows a slice of the record, and the next question — who else lives
+       * there, what was noted, when did they last collect — is answered only there.
+       */
+      recordLink: "Zur Kundenübersicht",
       staleCardGroup: (cardNumber: string, onCard: string, today: string): string =>
         `Die Karte ${cardNumber} ist noch für die Gruppe ${onCard} gedruckt; der Haushalt ` +
         `gehört jetzt zu ${today}. Es gilt die heutige Gruppe. Eine neue Karte kann bei ` +

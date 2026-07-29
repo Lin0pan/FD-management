@@ -59,6 +59,15 @@ export interface CounterCustomerView {
   /** The day the needs certificate lapses — shown so staff can start the renewal conversation. */
   readonly certificateValidUntil: Date;
   readonly status: CustomerStatus;
+  /**
+   * Why this household is paused, or `null` while they are not (US-08).
+   *
+   * The verdict states it too, because it *is* the verdict for a blocked household. It is repeated
+   * here because the counter now offers to lift the block from the same screen (US-16.5), and the
+   * confirmation quotes the reason being lifted — a control reading it off the verdict union would
+   * be a second, quietly diverging account of which field the reason lives in.
+   */
+  readonly blockReason: string | null;
   readonly reminderCount: number;
   /**
    * How many of their own distributions this household has missed in a row (US-10.1). Read from the
@@ -207,6 +216,7 @@ export async function lookupCustomer(
       priceCents: allowance.priceCents,
       certificateValidUntil: customer.details.certificate.validUntil,
       status: customer.status,
+      blockReason: customer.blockReason,
       reminderCount: customer.reminderCount,
       consecutiveNoShows,
       notes: customer.details.notes,
