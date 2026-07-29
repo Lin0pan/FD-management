@@ -203,6 +203,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── block.spec.ts                 # block shows its reason at the counter and is reversible
 │   ├── card.spec.ts                  # registration issues k1 and the card view shows it
 │   ├── counter.spec.ts               # every counter verdict, and that a lookup writes nothing
+│   ├── customer-list.spec.ts         # search, filters and the group balance on /kunden
 │   ├── distribution.spec.ts          # the week-colour banner against a fixed clock
 │   ├── home.spec.ts                  # Playwright smoke test
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
@@ -211,7 +212,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── reminders.spec.ts             # the reminder trail: three visits, three reminders, renewal
 │   ├── reregistration.spec.ts        # back from the archive: same household, new number and card
 │   ├── serve.spec.ts                 # record a hand-out, block a duplicate, store an unpaid one
-│   └── settings.spec.ts              # settings round-trip vs. the built app
+│   ├── settings.spec.ts              # settings round-trip vs. the built app
+│   └── waiting-list.spec.ts          # a full register, the list and a promotion (isolated project)
 ├── eslint.config.mjs  .prettierrc.json  .prettierignore
 ├── vitest.config.ts   playwright.config.ts
 ├── next.config.ts     postcss.config.mjs   tsconfig.json
@@ -2047,6 +2049,25 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   `customerNumber=1` — off the list without being deleted from it (FR-7). The last spec asserts the
   second applicant has moved up to position 1 with the register full again and no banner promising a
   slot that does not exist.
+- `customer-list.spec.ts` covers US-15 end to end (§US-15.4): the screen that replaces the
+  spreadsheet. Five households are **seeded through Prisma** on numbers 281–285 — both groups, all
+  three statuses and all three certificate states — because what is under test is a _spread_, and
+  registering five households through the form would prove US-01 again at five times the cost. The
+  active RED household and the archived one deliberately share an invented surname
+  (`Müllerhoff`), so the archived toggle is the only thing that can tell them apart: a name search
+  that excluded the archived row for any other reason would pass a weaker fixture. The spec asserts a
+  folded, lower-case prefix of that surname finds the active household alone; that the _superseded_
+  card number `281k1` still resolves to the household now holding `281k2` (the list is about
+  households, so the index is dropped); that the blocked filter leaves **only** `data-status="BLOCKED"`
+  rows on screen, asserted over the whole table rather than this spec's own rows; that the archived
+  namesake appears only once the toggle is ticked, labelled _archiviert_; and that the three
+  certificate states are stated in words on the rows they belong to. The group balance is read off
+  the screen **before** the seed and asserted as a delta (+3 RED, +1 BLUE — the blocked household
+  counts, the archived one does not), then re-read under a group filter and required to be unchanged,
+  which is FR-3. FR-5 is the last test: the filters are set through the controls, read back out of the
+  URL, and the page reloaded — same rows, same controls, same address. Pinned to 08.01.2026 because
+  the certificate states are relative to today, and the pinned-now file is deleted in `afterAll` like
+  its neighbours.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.
@@ -2054,6 +2075,11 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   web server runs `npm run start`, which serves whatever `.next` already holds — it does **not**
   build. Run `npm run build` first after changing anything the app renders, or the suite will assert
   against the previous build. CI has this right by construction: `e2e-tests` builds in the job.
+  For the same reason, kill any server left over from an earlier run before starting: `webServer` has
+  `reuseExistingServer: !CI`, so a stale process on port 3000 is adopted — old build, and its
+  database is never wiped and re-seeded, which surfaces as every spec failing at once on rows that
+  are already there. The process is called **`next-server`**, not `next start`, so the pattern that
+  finds it is `pkill -f "next-server"`.
 
 ### TDD approach per layer
 
