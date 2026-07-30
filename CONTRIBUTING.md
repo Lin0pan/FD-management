@@ -25,6 +25,17 @@ npm run db:seed             # seeds the provisional settings version (no-op if o
 npm run dev                 # http://localhost:3000
 ```
 
+To click around with something to look at, add the demo register — twenty synthetic households with
+a hand-out history, blocks, archives and lapsed certificates:
+
+```bash
+npm run db:demo             # refuses if the register already holds customers
+npm run db:demo -- --reset  # wipes the register, waiting list and audit log first
+```
+
+It prints a table of what it created and why each household is there. **Never point it at FD's
+database**: it is a development fixture and `--reset` deletes customer data outright.
+
 ## Everyday commands
 
 | Command                 | What it does                                            |
@@ -38,6 +49,7 @@ npm run dev                 # http://localhost:3000
 | `npm run test:coverage` | Vitest with coverage (thresholds enforced)              |
 | `npm run test:e2e`      | Playwright against the built app + throwaway SQLite dbs |
 | `npm run format`        | Prettier write                                          |
+| `npm run db:demo`       | Seed twenty synthetic households to click around with   |
 
 ## Architecture in one paragraph
 
