@@ -133,6 +133,13 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
   derived, no effect. A counter beats keying on the saved values: two applicants with the same name
   produce an identical state, and a form that resets on a value that did not change keeps the
   previous entry's address.
+- A signal that moves from one screen to another moves its DICTIONARY KEY with it rather than being
+  copied: `cardsDueBadge` now lives under `de.customerList.actions`, and the screen it left behind
+  points at the new key until it is deleted. Two identical German strings in two places is how the
+  wording drifts.
+- Moving a signal onto a page also moves the REVALIDATION: every action that changes it has to name
+  the new path (`revalidatePath("/kunden")` beside `revalidatePath("/")`). Nothing fails a test when
+  this is forgotten — the page is `force-dynamic`, so only the client router cache goes stale.
 - A page that needs "is a slot free" asks `proposeRegistration` and reads `customerNumber !== null`.
   It throws `NoSettingsInForce` on an unseeded database — catch that one code and render without the
   banner rather than taking the screen down (`/kunden/neu` does the same for its form).
@@ -353,4 +360,38 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
     killed something), per the pattern above.
   - `@playwright/test` cannot be imported from a script in `/tmp` — copy the throwaway script into
     the repo root so node resolves `node_modules`, and delete it afterwards.
+---
+
+## 2026-07-30 21:05 - US-002 (/kunden becomes the Kunden-verwalten hub)
+- The customer list is now the section's hub: heading "Kunden verwalten" (the nav label word for
+  word), the free-slot banner and a band of three action links above the filter form, the reissue
+  link carrying the cards-due badge.
+- Files changed:
+  - `src/app/kunden/page.tsx` — imports `countCardsDueForReissue`, `listWaiting` and
+    `proposeRegistration` (the last with the `NoSettingsInForce` catch the home page has), renders
+    `FreeSlotBanner` (with `showListLink`, since the list is not on view here) and a new
+    `HubActions` section. The list, its filters, its query parameters and the group balance are
+    untouched.
+  - `src/i18n/de.ts` — `de.customerList.heading` "Kundenliste" → "Kunden verwalten"; new
+    `de.customerList.actions.*`, into which `de.home.cardsDueBadge` MOVED.
+  - `src/app/page.tsx` — one line: the badge now reads the moved key. Everything else on the home
+    screen is US-003's business.
+  - `src/app/warteliste/actions.ts`, `src/app/karten-neuausstellung/actions.ts` — `revalidatePath("/kunden")`
+    beside the existing `revalidatePath("/")`, because both signals now stand there too.
+  - `docs/technical_documentation.md` — the file tree, the `src/app/kunden/` section, and the two
+    places that said the banner and the badge live on the home screen.
+- Verification: lint, typecheck, `test:coverage` (912 tests — no new unit test, the story adds no
+  logic), `npm run build` (route table unchanged), and the FULL Playwright suite twice (72 passed,
+  1 skipped).
+- Browser-verified against the built app on :3100: heading "Kunden verwalten", the banner naming
+  Kundennummer 3 and the longest wait, the badge reading "2 Karten", and each of the three action
+  links reaching its page with "Kunden verwalten" still marked in the bar.
+- **Learnings for future iterations:**
+  - US-003 removes the banner, the badge and the seven link rows from `/`, and with them the
+    `de.home.*Link` keys — `de.home.cardsDueBadge` is already gone, so do not go looking for it.
+  - `de.customerList.heading` is used TWICE in `kunden/page.tsx`: the page and the `NoSettings`
+    fallback. The fallback deliberately keeps only the settings link — without settings there is
+    nothing to register anybody with, so the action band would offer a dead end.
+  - No e2e spec asserted the "Kundenliste" heading (only a `describe` name), so the rename cost
+    nothing. `grep` the German string before renaming a heading anyway.
 ---
