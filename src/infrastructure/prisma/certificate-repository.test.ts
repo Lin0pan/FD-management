@@ -94,6 +94,7 @@ async function insertCustomer(customerNumber: number, reminderCount = 0): Promis
           reason: "FIRST_ISSUE",
           grownUpsAtIssue: 1,
           childrenAtIssue: 0,
+          groupAtIssue: "RED",
         },
       },
     },

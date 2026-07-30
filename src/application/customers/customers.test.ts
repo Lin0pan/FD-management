@@ -6,11 +6,12 @@ import {
   type CustomerStatus,
   type HouseholdMemberDetails,
   type NewCustomer,
+  type PersonalDetails,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
 import { lowestFreeNumber } from "@/domain/customer/customerNumber";
 import { foldName } from "@/domain/customer/nameSearch";
-import type { GroupCounts } from "@/domain/customer/group";
+import type { Group, GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import type {
   DistributionRecord,
@@ -215,6 +216,55 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve(registered);
   }
 
+  updateHousehold(id: number, members: ReadonlyArray<HouseholdMemberDetails>): Promise<void> {
+    const index = this.created.findIndex((customer) => customer.id === id);
+    if (index === -1) {
+      return Promise.reject(new CustomerNotFound(id));
+    }
+    const held = this.created[index];
+    this.created[index] = {
+      ...held,
+      details: { ...held.details, householdMembers: [...members] },
+    };
+    return Promise.resolve();
+  }
+
+  updateDetails(
+    id: number,
+    details: PersonalDetails,
+    household: ReadonlyArray<HouseholdMemberDetails>,
+  ): Promise<void> {
+    const index = this.created.findIndex((customer) => customer.id === id);
+    if (index === -1) {
+      return Promise.reject(new CustomerNotFound(id));
+    }
+    const held = this.created[index];
+    this.created[index] = {
+      ...held,
+      details: { ...held.details, ...details, householdMembers: [...household] },
+    };
+    return Promise.resolve();
+  }
+
+  updateNotes(id: number, notes: string): Promise<void> {
+    const index = this.created.findIndex((customer) => customer.id === id);
+    if (index === -1) {
+      return Promise.reject(new CustomerNotFound(id));
+    }
+    const held = this.created[index];
+    this.created[index] = { ...held, details: { ...held.details, notes } };
+    return Promise.resolve();
+  }
+
+  setGroup(id: number, group: Group): Promise<void> {
+    const index = this.created.findIndex((customer) => customer.id === id);
+    if (index === -1) {
+      return Promise.reject(new CustomerNotFound(id));
+    }
+    this.created[index] = { ...this.created[index], group };
+    return Promise.resolve();
+  }
+
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
     const index = this.created.findIndex((customer) => customer.id === id);
     if (index === -1) {
@@ -263,6 +313,7 @@ class FakeCardRepository implements CardRepository {
         // tests — they are about which index falls due — so every placed card prints the shape
         // `storedCustomer` builds: one grown-up, one child.
         countsAtIssue: { grownUps: 1, children: 1 },
+        groupAtIssue: "RED",
       });
     }
   }
@@ -434,6 +485,7 @@ function storedCustomer(
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
+      groupAtIssue: "RED",
     },
     previousCustomerId: null,
   };
@@ -1162,6 +1214,47 @@ describe("readCustomer", () => {
     const view = await readCustomer(deps(), registered.id);
 
     expect(view.consecutiveNoShows).toBe(0);
+  });
+
+  it("lists the household's hand-outs newest first, each with the price that applied", async () => {
+    const registered = await seedLongStanding();
+    await attend(registered.id, "2026-06-11T09:00:00.000Z");
+    await attend(registered.id, "2026-07-09T09:00:00.000Z");
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.history.map((record) => record.date.toISOString())).toEqual([
+      "2026-07-09T09:00:00.000Z",
+      "2026-06-11T09:00:00.000Z",
+    ]);
+    // The price is the record's own, captured when the hand-out was written — never re-derived from
+    // today's settings, which may since have changed (US-05, FR-2).
+    expect(view.history.map((record) => record.priceCents)).toEqual([500, 500]);
+  });
+
+  it("shows no hand-out history for a household that has never collected", async () => {
+    const registered = await registerCustomer(deps(), registerInput());
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.history).toEqual([]);
+  });
+
+  it("reports the day the household editor must judge its rows against", async () => {
+    const registered = await registerCustomer(deps(), registerInput());
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.today).toEqual(new Date(TODAY));
+  });
+
+  it("reports both group sizes, so a move between them is judged against the balance", async () => {
+    customers = new FakeCustomerRepository([], { red: 7, blue: 4 });
+    const registered = await registerCustomer(deps(), registerInput());
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.groupCounts).toEqual({ red: 7, blue: 4 });
   });
 
   it("refuses an id that belongs to nobody rather than showing an empty card", async () => {

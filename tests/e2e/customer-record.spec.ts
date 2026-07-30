@@ -1,0 +1,388 @@
+import { rmSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { faker } from "@faker-js/faker";
+import { PrismaClient } from "@prisma/client";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import { de } from "@/i18n/de";
+import { foldName } from "@/domain/customer/nameSearch";
+
+/**
+ * A household changes and the whole application follows, driven through the built app
+ * (tasks/prd-us-16-maintain-customer-record.md §US-16.6).
+ *
+ * Every edit here is already proved in isolation: `updateHousehold` replaces the member set against
+ * fakes, `changeGroup` reports the two sizes back, `updateNotes` reaches `lookupCustomer`, and
+ * `renewCertificate` resets the reminder count. What none of those can see is the claim the story
+ * makes — *a correction typed on the record is in force everywhere, immediately*. "Everywhere" is
+ * four other screens and "immediately" is the same afternoon, so this spec follows one household
+ * through the four edits and reads the consequence off the screen that would betray it:
+ *
+ * - a child is added, and the counts, the portions and the price move **before the save** (FR-1),
+ *   then the cards-due list says the card in the customer's hand is behind (FR-3);
+ * - a renewed certificate is recorded, and the reminder count is back to 0 (FR-6);
+ * - the household moves group, both sizes move with it, and the counter's verdict for *today* flips
+ *   from "wrong group" to "clear to serve" — one write, no waiting for next week (FR-4);
+ * - a note is written, and it is read out at the counter (FR-5).
+ *
+ * The order is not arbitrary. The certificate is seeded expired, because that is what a reminder
+ * count of 2 means, and the renewal has to come before the counter tests or their verdict would be
+ * the certificate's rather than the group's. The card is reissued in the middle for the same reason
+ * the group test needs it: with the printed counts already out of date, `HOUSEHOLD_CHANGE` would
+ * answer the cards-due list first and the group's own reason would never be visible.
+ *
+ * One household is seeded straight through Prisma: BLUE, active, expired certificate, two reminders
+ * sent, one card printed with the counts and the group it really had. It takes number 291, clear of
+ * the low sequence the registration, card, archive and re-registration specs allocate against, and
+ * of the counter (201–206/239), portions (211), serve (221–222), reminders (231), block (241),
+ * reissue (251), age-13 (271) and customer-list (281–285) specs in the shared `data/e2e.db`.
+ */
+
+// A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
+// stays a literal, because a distribution day, an age and a certificate's validity are all dates.
+faker.seed(20260730);
+
+/** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
+const NOW_FILE = "data/e2e-now.txt";
+
+/**
+ * The day this spec is judged on: Thursday 08.01.2026, 09:00 UTC.
+ *
+ * It follows from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor `2026-W02`
+ * = RED, distributions on ISO weekday 4. So it is a **RED** distribution day — which is the whole
+ * point for a household seeded BLUE: they are turned away at the counter this morning, and the same
+ * counter serves them once the group is corrected, with nothing but the edit in between.
+ */
+const TODAY = "2026-01-08T09:00:00.000Z";
+
+/** The number this spec owns. */
+const CUSTOMER_NUMBER = 291;
+
+/** The household's card number at a given running index, e.g. `291k2`. */
+function card(index: number): string {
+  return `${CUSTOMER_NUMBER}k${index}`;
+}
+
+/** Born well before 13 years ago: a grown-up. Comfortably inside the last 13 years: a child. */
+const GROWN_UP_BIRTH_DATE = "1985-02-11";
+const CHILD_BIRTH_DATE = "2020-06-15";
+/** The baby added on the record — born well inside the last 13 years, so a second child. */
+const NEW_CHILD_BIRTH_DATE = "2024-03-05";
+/** Lapsed before the pinned day, which is what a reminder count of 2 is a consequence of. */
+const EXPIRED_CERTIFICATE = "2025-12-31";
+/** Comfortably after the pinned day — a renewal the past-date rule has no quarrel with. */
+const RENEWED_CERTIFICATE = "2027-06-30";
+/** Where the household stood before the reminders stopped: two sent, none answered. */
+const REMINDERS_SENT = 2;
+
+/** The note staff leave for the counter — an umlaut included, since it is round-tripped verbatim. */
+const NOTE = "Bringt den verlängerten Nachweis nächste Woche mit.";
+
+/**
+ * What the seeded settings make of each composition, before and after the baby is added.
+ *
+ * 2 portions and 200c per grown-up, 1 portion and 100c per child. One grown-up and one child is
+ * therefore 3 portions at 3,00 €; a second child takes it to 4 at 4,00 €. All four figures move on
+ * one edit, which is what makes the panel's live reading worth asserting: a screen that derived the
+ * counts and stored the money would pass on the first two and fail on the last two.
+ */
+const BEFORE = { grownUps: "1", children: "1", portions: "3", price: "3,00 €" };
+const AFTER = { grownUps: "1", children: "2", portions: "4", price: "4,00 €" };
+
+/**
+ * The database the built app is running against — the same file, opened a second time.
+ *
+ * `playwright.config.ts` sets `DATABASE_URL` for the *server*; this process never had one, so the
+ * path is spelled out. It is absolute because a relative SQLite url resolves against the schema
+ * directory, not the working directory.
+ */
+const prisma = new PrismaClient({ datasourceUrl: `file:${resolve("data/e2e.db")}` });
+
+/** Make the app believe it is {@link TODAY}, for every request until the file is removed. */
+function pinToday(): void {
+  writeFileSync(NOW_FILE, TODAY, "utf8");
+}
+
+function utcMidnight(date: string): Date {
+  return new Date(`${date}T00:00:00.000Z`);
+}
+
+/**
+ * Insert one BLUE, active household: a grown-up, a child, a lapsed certificate with two reminders
+ * behind it, and a card printed with the counts and the group the household really had.
+ *
+ * @returns the surrogate id the record page is addressed by (the URL takes the id, not the number).
+ */
+async function seedHousehold(): Promise<number> {
+  const lastName = faker.person.lastName();
+  const firstName = faker.person.firstName();
+
+  const customer = await prisma.customer.create({
+    data: {
+      customerNumber: CUSTOMER_NUMBER,
+      firstName,
+      lastName,
+      firstNameFolded: foldName(firstName),
+      lastNameFolded: foldName(lastName),
+      birthDate: utcMidnight(GROWN_UP_BIRTH_DATE),
+      street: faker.location.street(),
+      houseNumber: faker.location.buildingNumber(),
+      zip: faker.location.zipCode("#####"),
+      city: faker.location.city(),
+      group: "BLUE",
+      status: "ACTIVE",
+      reminderCount: REMINDERS_SENT,
+      notes: "",
+      householdMembers: {
+        create: [
+          { firstName, lastName, birthDate: utcMidnight(GROWN_UP_BIRTH_DATE) },
+          {
+            firstName: faker.person.firstName(),
+            lastName,
+            birthDate: utcMidnight(CHILD_BIRTH_DATE),
+          },
+        ],
+      },
+      certificates: {
+        create: {
+          type: "Jobcenter-Bescheid",
+          validUntil: utcMidnight(EXPIRED_CERTIFICATE),
+          recordedAt: utcMidnight("2025-01-02"),
+        },
+      },
+      cards: {
+        create: {
+          index: 1,
+          issuedAt: utcMidnight("2026-01-02"),
+          reason: "FIRST_ISSUE",
+          // True when it was printed, and the reference every assertion about the cards-due list is
+          // made against: the counts go out of date on the household edit, the group on the move.
+          grownUpsAtIssue: 1,
+          childrenAtIssue: 1,
+          groupAtIssue: "BLUE",
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  return customer.id;
+}
+
+/** Read the record's four derived figures and check them against one of the two expectations. */
+async function expectDerived(page: Page, expected: typeof BEFORE): Promise<void> {
+  await expect(page.getByTestId("grown-ups")).toHaveText(expected.grownUps);
+  await expect(page.getByTestId("children")).toHaveText(expected.children);
+  await expect(page.getByTestId("portions")).toHaveText(expected.portions);
+  await expect(page.getByTestId("price")).toHaveText(expected.price);
+}
+
+/** This household's row on the cards-due list, addressed by the number it owns. */
+function dueRow(page: Page): Locator {
+  return page.locator(`[data-testid="cards-due-row"][data-customer-number="${CUSTOMER_NUMBER}"]`);
+}
+
+/**
+ * The two group sizes as the record states them.
+ *
+ * Read rather than asserted outright: they count the whole register, and the other specs sharing
+ * `data/e2e.db` register households of their own. What this spec can claim is that a move takes one
+ * from one side and adds it to the other, so the figures are only ever compared with themselves.
+ */
+async function groupSizes(page: Page): Promise<{ red: number; blue: number }> {
+  const text = await page.getByTestId("group-sizes").innerText();
+  const match = /Rot (\d+), Blau (\d+)/.exec(text);
+  expect(match).not.toBeNull();
+  // Narrowed for the compiler, and a failure here is the same failure as the expectation above.
+  if (match === null) {
+    throw new Error(`unreadable group sizes: ${text}`);
+  }
+  return { red: Number(match[1]), blue: Number(match[2]) };
+}
+
+/** Type a number at the counter and press Enter, exactly as staff do it. */
+async function lookUp(page: Page, query: string): Promise<void> {
+  await page.goto("/ausgabe");
+  await page.getByTestId("counter-input").fill(query);
+  await page.getByTestId("counter-input").press("Enter");
+  await expect(page).toHaveURL(new RegExp(`nummer=${query}`));
+}
+
+test.describe.configure({ mode: "serial" });
+
+test.describe("Kundenakte pflegen", () => {
+  let id: number;
+
+  test.beforeAll(async () => {
+    pinToday();
+    id = await seedHousehold();
+  });
+
+  test.afterAll(async () => {
+    // The pinned today goes with the spec: leaving it would freeze January for the settings specs,
+    // which save a version stamped *now* and would then assert against the wrong month.
+    rmSync(NOW_FILE, { force: true });
+    await prisma.$disconnect();
+  });
+
+  test("the record opens on the household as it was taken down", async ({ page }) => {
+    await page.goto(`/kunden/${id}`);
+
+    await expectDerived(page, BEFORE);
+    await expect(page.getByTestId("household-member")).toHaveCount(2);
+    await expect(page.getByTestId("card-number")).toHaveText(card(1));
+    await expect(page.getByTestId("reminder-count")).toHaveText(String(REMINDERS_SENT));
+
+    // The card prints what the household is and which group they are in, so there is nothing yet to
+    // reissue — every row this spec later finds on that list was put there by an edit.
+    await page.goto("/karten-neuausstellung");
+    await expect(dueRow(page)).toHaveCount(0);
+  });
+
+  test("a baby moves the counts, the portions and the price before the save", async ({ page }) => {
+    await page.goto(`/kunden/${id}`);
+    await page.getByTestId("add-member").click();
+
+    await page.getByTestId("member-first-name-2").fill(faker.person.firstName());
+    await page.getByTestId("member-last-name-2").fill(faker.person.lastName());
+    await page.getByTestId("member-birth-date-2").fill(NEW_CHILD_BIRTH_DATE);
+
+    // Nothing has been saved yet, and all four figures already say what the household will come to.
+    // That is the point of the screen (FR-1): staff see what an edit costs before they commit it.
+    await expectDerived(page, AFTER);
+
+    await page.getByTestId("household-submit").click();
+    await expect(page.getByTestId("household-saved")).toBeVisible();
+    await expect(page.getByTestId("household-error")).toHaveCount(0);
+
+    // And the same four figures come back from the server on a fresh request, derived from the three
+    // birthdates now on file rather than from anything the save wrote.
+    await page.goto(`/kunden/${id}`);
+    await expectDerived(page, AFTER);
+    await expect(page.getByTestId("household-member")).toHaveCount(3);
+  });
+
+  test("the card in the customer's hand is now behind the household", async ({ page }) => {
+    await page.goto("/karten-neuausstellung");
+
+    const row = dueRow(page);
+    await expect(row).toHaveCount(1);
+    await expect(row.getByTestId("cards-due-card-number")).toHaveText(card(1));
+    await expect(row.getByTestId("cards-due-counts-on-card")).toHaveText(
+      de.customers.derived.countsValue(1, 1),
+    );
+    await expect(row.getByTestId("cards-due-counts-today")).toHaveText(
+      de.customers.derived.countsValue(1, 2),
+    );
+    await expect(row.getByTestId("cards-due-reason")).toHaveText(
+      de.cardsDue.reasons.HOUSEHOLD_CHANGE,
+    );
+  });
+
+  test("a renewed certificate resets the reminders to zero", async ({ page }) => {
+    await page.goto(`/kunden/${id}`);
+    await expect(page.getByTestId("reminder-count")).toHaveText(String(REMINDERS_SENT));
+
+    await page.getByTestId("renewal-type").fill("Wohngeldbescheid");
+    await page.getByTestId("renewal-valid-until").fill(RENEWED_CERTIFICATE);
+    await page.getByTestId("renewal-save").click();
+
+    // The confirmation names the reset, and the figure beside it comes back from the revalidated
+    // record — the same use case the counter calls, and therefore the same count of zero (FR-6).
+    await expect(page.getByTestId("renewal-saved")).toHaveText(
+      de.distribution.certificate.renewal.saved,
+    );
+    await expect(page.getByTestId("reminder-count")).toHaveText("0");
+
+    await page.goto(`/kunden/${id}`);
+    await expect(page.getByTestId("reminder-count")).toHaveText("0");
+  });
+
+  test("the reissued card catches up with the household", async ({ page }) => {
+    // Before the group can be judged on its own, the printed counts have to agree with the record:
+    // they answer the cards-due list first, and the group's reason would never be reached.
+    await page.goto(`/kunden/${id}`);
+    await page.getByTestId("reissue-open").click();
+    await expect(page.getByTestId("reissue-confirm")).toHaveText(
+      de.customers.reissue.confirm(card(1), card(2)),
+    );
+    await page.getByTestId("reissue-submit").click();
+
+    await expect(page.getByTestId("card-number")).toHaveText(card(2));
+    await expect(page.getByTestId("reissue-error")).toHaveCount(0);
+
+    await page.goto("/karten-neuausstellung");
+    await expect(dueRow(page)).toHaveCount(0);
+  });
+
+  test("the group move is in force at the counter the same morning", async ({ page }) => {
+    // A BLUE household on a RED distribution day: turned away, and nothing on the screen offers to
+    // hand anything out.
+    await lookUp(page, card(2));
+    await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
+      "data-verdict",
+      "WRONG_GROUP",
+    );
+    await expect(page.getByTestId("serve-button")).toHaveCount(0);
+
+    await page.goto(`/kunden/${id}`);
+    const before = await groupSizes(page);
+
+    await page.getByTestId("group-RED").check();
+    await page.getByTestId("group-submit").click();
+    await expect(page.getByTestId("group-saved")).toBeVisible();
+
+    // Both sizes move, because a move is a transfer: the decision this control exists to inform is
+    // made by comparing them, so the screen has to be right about both at once (FR-4).
+    await expect(page.getByTestId("group-sizes")).toHaveText(
+      de.customers.record.groupSizes(before.red + 1, before.blue - 1),
+    );
+
+    // The same card, the same morning, the opposite answer — with one edit in between and no wait
+    // for the next RED week.
+    await lookUp(page, card(2));
+    await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
+      "data-verdict",
+      "CLEAR_TO_SERVE",
+    );
+    await expect(page.getByTestId("serve-button")).toBeVisible();
+
+    // The card still names the group they have left. It is stated as a remark beside the verdict,
+    // never instead of it: a card that has fallen behind turns nobody away.
+    await expect(page.getByTestId("counter-stale-card")).toHaveText(
+      de.distribution.counter.staleCardGroup(
+        card(2),
+        de.customers.groups.BLUE,
+        de.customers.groups.RED,
+      ),
+    );
+  });
+
+  test("the printed group is what now puts the household on the cards-due list", async ({
+    page,
+  }) => {
+    await page.goto("/karten-neuausstellung");
+
+    const row = dueRow(page);
+    await expect(row).toHaveCount(1);
+    // The counts on both sides agree — this row is the group's doing and the screen says so.
+    await expect(row.getByTestId("cards-due-counts-on-card")).toHaveText(
+      de.customers.derived.countsValue(1, 2),
+    );
+    await expect(row.getByTestId("cards-due-counts-today")).toHaveText(
+      de.customers.derived.countsValue(1, 2),
+    );
+    await expect(row.getByTestId("cards-due-reason")).toHaveText(de.cardsDue.reasons.GROUP_CHANGE);
+  });
+
+  test("a note written on the record is read out at the counter", async ({ page }) => {
+    await page.goto(`/kunden/${id}`);
+    await page.getByTestId("notes-field").fill(NOTE);
+    await page.getByTestId("notes-submit").click();
+    await expect(page.getByTestId("notes-saved")).toBeVisible();
+
+    // Verbatim, on the screen staff have open while the customer is standing in front of them —
+    // a note nobody reads at the counter is a note written for nobody (FR-5).
+    await lookUp(page, card(2));
+    await expect(page.getByTestId("counter-notes")).toHaveText(NOTE);
+  });
+});

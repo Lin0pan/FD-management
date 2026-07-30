@@ -146,7 +146,9 @@ match their household.
 ## 9. Open Questions
 
 - Should the list also cover customers whose card is stale because their **group** changed (US-16.4)?
-  The card prints the group too. Assumed yes, with reason `GROUP_CHANGE` — worth confirming.
+  The card prints the group too. **Settled in US-16.4**: yes, with reason `GROUP_CHANGE`. It needed
+  `Card.groupAtIssue` beside the two count columns — without a snapshot of the printed group there is
+  nothing to notice a move against.
 - Should blocked customers appear on the list? Assumed no (they are not collecting), but they will
   need a card when unblocked.
 - Is 1 March the right convention for a 29 February birthdate, or does FD expect 28 February?

@@ -22,6 +22,7 @@ import type { WeekColour } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { germanDate, germanTime } from "@/i18n/format";
 import { ArchiveControls } from "../kunden/archive-controls";
+import { BlockControls } from "../kunden/block-controls";
 import { CertificateControls } from "./certificate-controls";
 import { CustomerDetails, VerdictBanner } from "./counter-lookup";
 import { distributionDeps } from "./deps";
@@ -297,19 +298,42 @@ export default async function DistributionPage({
                         }
                   }
                 />
-                {/* Archiving is offered here because both triggers show up at the counter — the
-                    certificate still expired after several reminders, and the no-show run above
-                    (FR-2). It is the same closed disclosure as on the customer record, last on the
-                    screen and never a prompt: the queue must not have to dismiss anything to get
-                    the next customer served (PRD §6). Keyed by customer, like the certificate
-                    controls, so nothing typed about one household survives into the next lookup. */}
+                {/* The way off this screen and onto the whole record (US-16.5). Everything the
+                    counter shows is a slice of it, and the question staff most often have next —
+                    who else lives there, what was noted, when did they last collect — is answered
+                    there and nowhere here. */}
+                <Link
+                  href={`/kunden/${counter.lookup.customerId}`}
+                  data-testid="counter-record-link"
+                  className="self-start underline underline-offset-4"
+                >
+                  {de.distribution.counter.recordLink}
+                </Link>
+
+                {/* Blocking and archiving are offered here because the reasons for both show up at
+                    the counter: the certificate still expired after several reminders, the no-show
+                    run above (FR-2), and whatever a household does in front of the person serving
+                    them. US-08.4 shipped the block controls on the record only, which left a staff
+                    member who had decided at the counter with no route off this screen (US-16.5).
+                    Both are the same closed disclosures as on the record, last on the screen and
+                    never a prompt: the queue must not have to dismiss anything to get the next
+                    customer served (PRD §6). Keyed by customer, like the certificate controls, so
+                    nothing typed about one household survives into the next lookup. */}
                 {counter.lookup.customer === null ? null : (
-                  <ArchiveControls
-                    key={counter.lookup.customerId}
-                    customerId={counter.lookup.customerId}
-                    customerNumber={counter.lookup.customer.customerNumber}
-                    status={counter.lookup.customer.status}
-                  />
+                  <>
+                    <BlockControls
+                      key={`block-${counter.lookup.customerId}`}
+                      customerId={counter.lookup.customerId}
+                      status={counter.lookup.customer.status}
+                      blockReason={counter.lookup.customer.blockReason}
+                    />
+                    <ArchiveControls
+                      key={counter.lookup.customerId}
+                      customerId={counter.lookup.customerId}
+                      customerNumber={counter.lookup.customer.customerNumber}
+                      status={counter.lookup.customer.status}
+                    />
+                  </>
                 )}
               </>
             )}

@@ -158,6 +158,30 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve(registered);
   }
 
+  /**
+   * No use case in this file edits a household (US-16.1); the method is here because the port has
+   * it. It still counts as a write — the list reads and never changes a record.
+   */
+  updateHousehold(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
+  updateDetails(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
+  updateNotes(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
+  setGroup(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
   setStatus(): Promise<void> {
     this.writes += 1;
     return Promise.resolve();
@@ -239,6 +263,7 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
+      groupAtIssue: overrides.group ?? "RED",
     },
     registeredOn: new Date(TODAY),
     previousCustomerId: null,

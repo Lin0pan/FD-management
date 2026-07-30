@@ -7,7 +7,7 @@ import {
   type NewCustomer,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
-import type { GroupCounts } from "@/domain/customer/group";
+import type { Group, GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import type { ArchivedCustomer, Clock, CustomerRepository } from "../ports";
 import { countCardsDueForReissue, listCardsDueForReissue } from "./cards-due-for-reissue";
@@ -115,6 +115,30 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve([]);
   }
 
+  /**
+   * No use case in this file edits a household (US-16.1); the method is here because the port has
+   * it. It still counts as a write, so the "nobody touched the record" assertion stays honest.
+   */
+  updateHousehold(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
+  updateDetails(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
+  updateNotes(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
+  setGroup(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
   setStatus(): Promise<void> {
     this.writes += 1;
     return Promise.resolve();
@@ -136,6 +160,10 @@ interface HouseholdOptions {
   readonly printed?: { grownUps: number; children: number };
   /** Which card of the run they hold — the card number is derived from it. Defaults to the first. */
   readonly cardIndex?: number;
+  /** The group the household is in today. Defaults to `RED`, which is what the card also prints. */
+  readonly group?: Group;
+  /** The group printed on the card, when a test needs it to differ from the one above. */
+  readonly printedGroup?: Group;
 }
 
 /** A customer as the register already holds them, with a card that prints whatever a test needs. */
@@ -146,6 +174,8 @@ function household({
   members = [member(GROWN_UP_BIRTH_DATE), member(CHILD_BIRTH_DATE)],
   printed,
   cardIndex = 1,
+  group = "RED",
+  printedGroup,
 }: HouseholdOptions): RegisteredCustomer {
   const details = createCustomerDetails(
     {
@@ -167,7 +197,7 @@ function household({
   return {
     id,
     customerNumber,
-    group: "RED",
+    group,
     status,
     blockReason: status === "BLOCKED" ? "Hausverbot" : null,
     archiveReason: status === "ARCHIVED" ? "Weggezogen" : null,
@@ -179,6 +209,9 @@ function household({
       issuedAt: new Date(TODAY),
       reason: cardIndex === 1 ? "FIRST_ISSUE" : "LOST",
       countsAtIssue: printed ?? composition(details.householdMembers, new Date(TODAY)),
+      // The card prints the group the household is in, so nothing here is stale for that reason
+      // unless a test moves them — which is what `printedGroup` is for.
+      groupAtIssue: printedGroup ?? group,
     },
     registeredOn: new Date(TODAY),
     previousCustomerId: null,
@@ -215,9 +248,31 @@ describe("listCardsDueForReissue", () => {
         nextCardNumber: "50k2",
         countsOnCard: { grownUps: 1, children: 1 },
         countsToday: { grownUps: 2, children: 0 },
+        groupOnCard: "RED",
+        groupToday: "RED",
         reason: "AGE_13",
       },
     ]);
+  });
+
+  it("lists a household whose card names the group they have since been moved out of", async () => {
+    customers.holders.push(
+      household({ id: 1, customerNumber: 50, group: "BLUE", printedGroup: "RED" }),
+    );
+
+    const [due] = await listCardsDueForReissue(deps());
+
+    // Nobody joined, nobody left and no birthday passed — the card is wrong about the week alone.
+    expect(due.reason).toBe("GROUP_CHANGE");
+    expect(due.countsOnCard).toEqual(due.countsToday);
+    expect(due.groupOnCard).toBe("RED");
+    expect(due.groupToday).toBe("BLUE");
+  });
+
+  it("leaves a household alone whose card still names the group they are in", async () => {
+    customers.holders.push(household({ id: 1, customerNumber: 50, group: "BLUE" }));
+
+    expect(await listCardsDueForReissue(deps())).toEqual([]);
   });
 
   it("names the number the reissue will hand out, which staff copy onto the card", async () => {

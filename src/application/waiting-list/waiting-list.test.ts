@@ -175,6 +175,22 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve(registered);
   }
 
+  updateHousehold(): Promise<void> {
+    return Promise.reject(new Error("A waiting-list use case never edits a customer's household"));
+  }
+
+  updateDetails(): Promise<void> {
+    return Promise.reject(new Error("A waiting-list use case never corrects a customer's record"));
+  }
+
+  updateNotes(): Promise<void> {
+    return Promise.reject(new Error("A waiting-list use case never edits a customer's notes"));
+  }
+
+  setGroup(): Promise<void> {
+    return Promise.reject(new Error("A waiting-list use case never moves a customer's group"));
+  }
+
   setStatus(): Promise<void> {
     return Promise.reject(new Error("A waiting-list use case never changes a customer's status"));
   }
@@ -223,6 +239,7 @@ function storedCustomer(customerNumber: number, id: number): RegisteredCustomer 
       issuedAt: at("2026-01-05"),
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 1, children: 0 },
+      groupAtIssue: "RED",
     },
     previousCustomerId: null,
     blockReason: null,

@@ -5,6 +5,7 @@ import type {
   CustomerStatus,
   HouseholdMemberDetails,
   NewCustomer,
+  PersonalDetails,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
@@ -126,6 +127,47 @@ class FakeCustomerRepository implements CustomerRepository {
    */
   searchArchived(): Promise<ReadonlyArray<ArchivedCustomer>> {
     return Promise.resolve([]);
+  }
+
+  updateHousehold(id: number, members: ReadonlyArray<HouseholdMemberDetails>): Promise<void> {
+    this.writes += 1;
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    const held = this.holders[index];
+    this.holders[index] = {
+      ...held,
+      details: { ...held.details, householdMembers: [...members] },
+    };
+    return Promise.resolve();
+  }
+
+  updateDetails(
+    id: number,
+    details: PersonalDetails,
+    household: ReadonlyArray<HouseholdMemberDetails>,
+  ): Promise<void> {
+    this.writes += 1;
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    const held = this.holders[index];
+    this.holders[index] = {
+      ...held,
+      details: { ...held.details, ...details, householdMembers: [...household] },
+    };
+    return Promise.resolve();
+  }
+
+  updateNotes(id: number, notes: string): Promise<void> {
+    this.writes += 1;
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    const held = this.holders[index];
+    this.holders[index] = { ...held, details: { ...held.details, notes } };
+    return Promise.resolve();
+  }
+
+  setGroup(id: number, group: Group): Promise<void> {
+    this.writes += 1;
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    this.holders[index] = { ...this.holders[index], group };
+    return Promise.resolve();
   }
 
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
@@ -284,6 +326,8 @@ interface CustomerOverrides {
   readonly id?: number;
   /** The day the household joined, when a test needs distributions to lie behind them. */
   readonly registeredOn?: string;
+  /** The group printed on their card, when a test needs it to differ from the one they are in. */
+  readonly groupOnCard?: Group;
 }
 
 /** A customer as the register already holds them — built directly so the status is the test's to set. */
@@ -314,6 +358,7 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
+      groupAtIssue: overrides.groupOnCard ?? overrides.group ?? "RED",
     },
     // Registered today unless a test says otherwise, so no distribution lies behind the household
     // and the no-show count of an unrelated case is zero rather than incidental.
@@ -456,7 +501,7 @@ describe("lookupCustomer", () => {
 
     const result = await lookupCustomer(deps("2026-08-01T09:00:00.000Z"), "50");
 
-    expect(result.customer?.staleCounts).toBe("AGE_13");
+    expect(result.customer?.staleCard).toBe("AGE_13");
     expect(result.customer?.countsOnCard).toEqual({ grownUps: 1, children: 1 });
     expect(result.customer?.grownUps).toBe(2);
     expect(result.customer?.children).toBe(0);
@@ -469,7 +514,17 @@ describe("lookupCustomer", () => {
 
     const result = await lookupCustomer(deps(), "50");
 
-    expect(result.customer?.staleCounts).toBeNull();
+    expect(result.customer?.staleCard).toBeNull();
+  });
+
+  it("notes that the card names the group the household has since been moved out of", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ group: "BLUE", groupOnCard: "RED" }));
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.staleCard).toBe("GROUP_CHANGE");
+    expect(result.customer?.groupOnCard).toBe("RED");
+    expect(result.customer?.group).toBe("BLUE");
   });
 
   it("carries everything the screen shows below the verdict", async () => {
@@ -490,6 +545,22 @@ describe("lookupCustomer", () => {
       cardNumber: "50k3",
       certificateValidUntil: new Date("2027-01-31T00:00:00.000Z"),
     });
+  });
+
+  it("carries the block reason, so the counter can offer to lift the block it just read out", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ status: "BLOCKED" }));
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.blockReason).toBe("gesperrt");
+  });
+
+  it("carries no block reason for a household that is not blocked", async () => {
+    customers = new FakeCustomerRepository(customerRecord());
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.blockReason).toBeNull();
   });
 
   it("refuses a query that is neither a customer number nor a card number", async () => {

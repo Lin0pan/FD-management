@@ -192,6 +192,16 @@ export function changedSettingsFields(
 }
 
 /**
+ * The two configured per-head price values this derivation reads — the mirror of `PortionValues`.
+ *
+ * It is a `Pick` rather than the whole of {@link Settings} so that a caller holding only the four
+ * per-head numbers can still price a household: the customer record's household editor derives the
+ * portions and the price in the browser as staff type (US-16.5), and handing it the quota and the
+ * week anchor to do so would say those had something to do with the answer.
+ */
+export type PriceValues = Pick<Settings, "pricePerGrownUp" | "pricePerChild">;
+
+/**
  * What a household pays for one distribution: one grown-up price per grown-up plus one child price
  * per child.
  *
@@ -199,6 +209,6 @@ export function changedSettingsFields(
  * size is priceable and there is no table to keep in step with reality. Both factors are whole
  * cents, so the sum is too.
  */
-export function priceFor(settings: Settings, grownUps: number, children: number): Cents {
+export function priceFor(settings: PriceValues, grownUps: number, children: number): Cents {
   return grownUps * settings.pricePerGrownUp + children * settings.pricePerChild;
 }

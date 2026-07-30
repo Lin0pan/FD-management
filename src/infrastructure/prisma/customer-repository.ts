@@ -12,10 +12,12 @@ import { parseCardIssueReason } from "@/domain/card/card";
 import {
   parseCustomerStatus,
   type CustomerStatus,
+  type HouseholdMemberDetails,
   type NewCustomer,
+  type PersonalDetails,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
-import { parseGroup, type GroupCounts } from "@/domain/customer/group";
+import { parseGroup, type Group, type GroupCounts } from "@/domain/customer/group";
 import { foldName } from "@/domain/customer/nameSearch";
 import { CustomerNotFound, CustomerNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
 
@@ -361,6 +363,8 @@ export class PrismaCustomerRepository implements CustomerRepository {
         // What is printed on the card the household holds, not what their household is today — the
         // two part company on a 13th birthday, which is the whole point of storing it (US-13.3).
         countsAtIssue: { grownUps: card.grownUpsAtIssue, children: card.childrenAtIssue },
+        // Likewise the group: what the card names as their week, not the group they are in today.
+        groupAtIssue: parseGroup(card.groupAtIssue),
       },
       registeredOn: firstCard.issuedAt,
       previousCustomerId: row.previousCustomerId,
@@ -441,6 +445,7 @@ export class PrismaCustomerRepository implements CustomerRepository {
               reason: customer.card.reason,
               grownUpsAtIssue: customer.card.countsAtIssue.grownUps,
               childrenAtIssue: customer.card.countsAtIssue.children,
+              groupAtIssue: customer.card.groupAtIssue,
             },
           },
         },
@@ -466,6 +471,104 @@ export class PrismaCustomerRepository implements CustomerRepository {
       }
       throw error;
     }
+  }
+
+  /**
+   * Replace a customer's household with exactly `members` (US-16.1).
+   *
+   * Delete-then-create inside **one transaction**, because the household is a set rather than a list
+   * of rows staff maintain: matching the given rows against the stored ones would need an identity
+   * the screen does not have — two children of the same name and birthdate are two rows and nothing
+   * distinguishes them — and a partial match would leave a household nobody typed. The delete is the
+   * one place in this file that removes anything, and what it removes is not customer data leaving
+   * the system: no history of past compositions is kept (PRD §FR-2), and the counts the household
+   * *had* survive on the card that printed them.
+   *
+   * Nothing derived is written: there is no count column, and the portions and the price follow from
+   * the birthdates the moment they are read.
+   */
+  async updateHousehold(id: number, members: ReadonlyArray<HouseholdMemberDetails>): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.householdMember.deleteMany({ where: { customerId: id } }),
+      this.prisma.householdMember.createMany({
+        data: members.map((member) => ({
+          customerId: id,
+          firstName: member.firstName,
+          lastName: member.lastName,
+          birthDate: member.birthDate,
+        })),
+      }),
+    ]);
+  }
+
+  /**
+   * Correct the customer's personal data and the household they belong to, in **one transaction**
+   * (US-16.2).
+   *
+   * The folded search keys are rewritten from the names in the same statement, so the register can
+   * never be findable only under a spelling nobody uses any more; they are a *search key* and not a
+   * fact, which is exactly why they may not be written apart from the names they come from (US-11.1).
+   *
+   * The household is replaced the way {@link updateHousehold} replaces it, and for the same reason:
+   * the customer is one of its rows, their name is on the record twice, and a write that moved only
+   * one of the two would leave a household listing a person who no longer exists. Which row was them
+   * has already been decided by the domain (`replaceHouseholdMember`) — the adapter is handed the set
+   * as it should stand and writes it, even when nothing in it moved, so there is one code path here
+   * rather than a comparison this layer has no business making.
+   *
+   * The customer number is not written, and no argument reaches it (PRD §FR-7).
+   */
+  async updateDetails(
+    id: number,
+    details: PersonalDetails,
+    household: ReadonlyArray<HouseholdMemberDetails>,
+  ): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.customer.update({
+        where: { id },
+        data: {
+          firstName: details.firstName,
+          lastName: details.lastName,
+          firstNameFolded: foldName(details.firstName),
+          lastNameFolded: foldName(details.lastName),
+          birthDate: details.birthDate,
+          street: details.address.street,
+          houseNumber: details.address.houseNumber,
+          zip: details.address.zip,
+          city: details.address.city,
+        },
+      }),
+      this.prisma.householdMember.deleteMany({ where: { customerId: id } }),
+      this.prisma.householdMember.createMany({
+        data: household.map((member) => ({
+          customerId: id,
+          firstName: member.firstName,
+          lastName: member.lastName,
+          birthDate: member.birthDate,
+        })),
+      }),
+    ]);
+  }
+
+  /**
+   * Replace the free-text note on a record (US-16.3).
+   *
+   * One column, one statement: nothing is derived from a note, so there is nothing to keep in step
+   * with it — which is what makes this the shortest write in the file rather than a transaction.
+   */
+  async updateNotes(id: number, notes: string): Promise<void> {
+    await this.prisma.customer.update({ where: { id }, data: { notes } });
+  }
+
+  /**
+   * Move a customer to the other balancing group — a single column, and nothing beside it (US-16.4).
+   *
+   * The cards the household has been issued are deliberately left alone: each printed the group that
+   * was true when it left the counter, and updating that snapshot is what would hide the fact that
+   * the card in their pocket now names the wrong week.
+   */
+  async setGroup(id: number, group: Group): Promise<void> {
+    await this.prisma.customer.update({ where: { id }, data: { group } });
   }
 
   /**

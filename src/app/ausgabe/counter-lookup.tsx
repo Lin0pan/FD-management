@@ -230,16 +230,22 @@ export function CustomerDetails({
           the same grey as the hint above it, no border, no icon, no colour — because it is neither a
           verdict nor a warning: the verdict is the banner, and the serve action below is untouched
           by this. A card that has fallen behind is never grounds to turn anyone away (FR-5). */}
-      {customer.staleCounts === null ? null : (
+      {customer.staleCard === null ? null : (
         <p data-testid="counter-stale-card" className="max-w-prose text-xs text-foreground/60">
-          {de.distribution.counter.staleCard(
-            customer.cardNumber,
-            de.customers.derived.countsValue(
-              customer.countsOnCard.grownUps,
-              customer.countsOnCard.children,
-            ),
-            de.customers.derived.countsValue(customer.grownUps, customer.children),
-          )}
+          {customer.staleCard === "GROUP_CHANGE"
+            ? de.distribution.counter.staleCardGroup(
+                customer.cardNumber,
+                de.customers.groups[customer.groupOnCard],
+                de.customers.groups[customer.group],
+              )
+            : de.distribution.counter.staleCard(
+                customer.cardNumber,
+                de.customers.derived.countsValue(
+                  customer.countsOnCard.grownUps,
+                  customer.countsOnCard.children,
+                ),
+                de.customers.derived.countsValue(customer.grownUps, customer.children),
+              )}
         </p>
       )}
       <div className="flex flex-col gap-1">

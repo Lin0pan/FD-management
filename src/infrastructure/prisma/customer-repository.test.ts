@@ -103,6 +103,7 @@ function newCustomer(overrides: Partial<Omit<NewCustomer, "details">> = {}): New
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 1, children: 1 },
+      groupAtIssue: "RED",
     },
     previousCustomerId: null,
     ...overrides,
@@ -338,6 +339,191 @@ describe("the customer number slot constraint", () => {
   });
 });
 
+describe("PrismaCustomerRepository.updateHousehold", () => {
+  /** A member as staff would type them onto the record, with a birthdate a test can count on. */
+  function newMember(birthDate: string) {
+    return {
+      firstName: faker.person.firstName(),
+      lastName: faker.person.lastName(),
+      birthDate: new Date(birthDate),
+    };
+  }
+
+  it("replaces the household, leaving no row of the old composition behind", async () => {
+    const { id } = await repository.create(newCustomer());
+    const members = [newMember("1985-04-11"), newMember("2022-02-14"), newMember("2019-09-02")];
+
+    await repository.updateHousehold(id, members);
+
+    const stored = await repository.findById(id);
+    expect(stored?.details.householdMembers).toEqual(members);
+    expect(await prisma.householdMember.count({ where: { customerId: id } })).toBe(3);
+  });
+
+  it("touches nothing else on the record — number, status, card and certificate stay", async () => {
+    const { id } = await repository.create(newCustomer());
+    const before = await repository.findById(id);
+
+    await repository.updateHousehold(id, [newMember("1985-04-11")]);
+
+    const after = await repository.findById(id);
+    expect(after?.customerNumber).toBe(before?.customerNumber);
+    expect(after?.status).toBe(before?.status);
+    expect(after?.card).toEqual(before?.card);
+    expect(after?.details.certificate).toEqual(before?.details.certificate);
+  });
+
+  it("leaves another household's members alone", async () => {
+    const { id } = await repository.create(newCustomer());
+    const other = await repository.create(newCustomer({ customerNumber: 51 }));
+
+    await repository.updateHousehold(id, [newMember("1985-04-11")]);
+
+    expect(await prisma.householdMember.count({ where: { customerId: other.id } })).toBe(2);
+  });
+});
+
+describe("PrismaCustomerRepository.updateDetails", () => {
+  const ADDRESS = { street: "Lange Straße", houseNumber: "7a", zip: "33129", city: "Delbrück" };
+
+  /** The corrected personal data every test below writes; the surname carries an umlaut on purpose. */
+  const CORRECTED = {
+    firstName: "Anna",
+    lastName: "Grünberg",
+    birthDate: new Date("1986-05-02T00:00:00.000Z"),
+    address: ADDRESS,
+  };
+
+  it("stores the corrected name, birthdate and address", async () => {
+    const customer = await repository.create(newCustomer());
+
+    await repository.updateDetails(customer.id, CORRECTED, customer.details.householdMembers);
+
+    const stored = await repository.findById(customer.id);
+    expect(stored?.details.firstName).toBe("Anna");
+    expect(stored?.details.lastName).toBe("Grünberg");
+    expect(stored?.details.birthDate).toEqual(new Date("1986-05-02T00:00:00.000Z"));
+    expect(stored?.details.address).toEqual(ADDRESS);
+  });
+
+  it("rewrites the folded search keys with the names, so the archive search still finds them", async () => {
+    const customer = await repository.create(newCustomer());
+
+    await repository.updateDetails(customer.id, CORRECTED, customer.details.householdMembers);
+
+    const row = await prisma.customer.findUniqueOrThrow({ where: { id: customer.id } });
+    expect(row.firstNameFolded).toBe(foldName("Anna"));
+    expect(row.lastNameFolded).toBe(foldName("Grünberg"));
+    expect(row.lastNameFolded).toBe("gruenberg");
+  });
+
+  it("writes the household it was handed in the same transaction as the personal data", async () => {
+    const customer = await repository.create(newCustomer());
+    const household = [
+      {
+        firstName: CORRECTED.firstName,
+        lastName: CORRECTED.lastName,
+        birthDate: CORRECTED.birthDate,
+      },
+      customer.details.householdMembers[1],
+    ];
+
+    await repository.updateDetails(customer.id, CORRECTED, household);
+
+    const stored = await repository.findById(customer.id);
+    expect(stored?.details.householdMembers).toEqual(household);
+  });
+
+  it("leaves the customer number, status, card and certificate exactly as they were", async () => {
+    const customer = await repository.create(newCustomer());
+    const before = await repository.findById(customer.id);
+
+    await repository.updateDetails(customer.id, CORRECTED, customer.details.householdMembers);
+
+    const after = await repository.findById(customer.id);
+    expect(after?.customerNumber).toBe(before?.customerNumber);
+    expect(after?.status).toBe(before?.status);
+    expect(after?.card).toEqual(before?.card);
+    expect(after?.details.certificate).toEqual(before?.details.certificate);
+    expect(after?.registeredOn).toEqual(before?.registeredOn);
+  });
+
+  it("leaves another household's members alone", async () => {
+    const customer = await repository.create(newCustomer());
+    const other = await repository.create(newCustomer({ customerNumber: 51 }));
+
+    await repository.updateDetails(customer.id, CORRECTED, [
+      { firstName: "Anna", lastName: "Grünberg", birthDate: CORRECTED.birthDate },
+    ]);
+
+    expect(await prisma.householdMember.count({ where: { customerId: other.id } })).toBe(2);
+  });
+});
+
+describe("PrismaCustomerRepository.setGroup", () => {
+  it("moves the customer to the other balancing group", async () => {
+    const { id } = await repository.create(newCustomer({ group: "RED" }));
+
+    await repository.setGroup(id, "BLUE");
+
+    expect((await repository.findById(id))?.group).toBe("BLUE");
+  });
+
+  it("leaves the card printing the group it was issued with", async () => {
+    const { id } = await repository.create(newCustomer({ group: "RED" }));
+
+    await repository.setGroup(id, "BLUE");
+
+    // The snapshot is what makes the move visible as a stale card (US-16.4); updating it here would
+    // hide the very difference the cards-due list is derived from.
+    expect((await repository.findById(id))?.card.groupAtIssue).toBe("RED");
+  });
+
+  it("touches nothing else on the record", async () => {
+    const { id } = await repository.create(newCustomer());
+    const before = await repository.findById(id);
+
+    await repository.setGroup(id, "BLUE");
+
+    const after = await repository.findById(id);
+    expect(after?.customerNumber).toBe(before?.customerNumber);
+    expect(after?.status).toBe(before?.status);
+    expect(after?.details).toEqual(before?.details);
+    expect(after?.card).toEqual(before?.card);
+  });
+});
+
+describe("PrismaCustomerRepository.updateNotes", () => {
+  it("stores the note, line breaks and all", async () => {
+    const { id } = await repository.create(newCustomer());
+
+    await repository.updateNotes(id, "Klingel defekt\nBitte anrufen");
+
+    expect((await repository.findById(id))?.details.notes).toBe("Klingel defekt\nBitte anrufen");
+  });
+
+  it("clears the note when it is saved empty", async () => {
+    const { id } = await repository.create(newCustomer());
+    await repository.updateNotes(id, "Klingel defekt");
+
+    await repository.updateNotes(id, "");
+
+    expect((await repository.findById(id))?.details.notes).toBe("");
+  });
+
+  it("touches nothing else on the record", async () => {
+    const { id } = await repository.create(newCustomer());
+    const before = await repository.findById(id);
+
+    await repository.updateNotes(id, "Neue Notiz");
+
+    const after = await repository.findById(id);
+    expect(after?.details.firstName).toBe(before?.details.firstName);
+    expect(after?.details.householdMembers).toEqual(before?.details.householdMembers);
+    expect(after?.card).toEqual(before?.card);
+  });
+});
+
 describe("PrismaCustomerRepository.setStatus", () => {
   /**
    * The invariant US-08 rests on: a customer carries a block reason exactly while they are blocked.
@@ -541,6 +727,7 @@ describe("PrismaCustomerRepository.listWithStatus", () => {
         reason: "LOST",
         grownUpsAtIssue: 2,
         childrenAtIssue: 0,
+        groupAtIssue: "RED",
       },
     });
 
@@ -626,6 +813,7 @@ describe("PrismaCustomerRepository.findById", () => {
         reason: "LOST",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
+        groupAtIssue: "RED",
       },
     });
 
@@ -642,6 +830,7 @@ describe("PrismaCustomerRepository.findById", () => {
         reason: "LOST",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
+        groupAtIssue: "RED",
       },
     });
 
@@ -694,6 +883,7 @@ describe("PrismaCustomerRepository.findByCustomerNumber", () => {
         reason: "LOST",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
+        groupAtIssue: "RED",
       },
     });
 

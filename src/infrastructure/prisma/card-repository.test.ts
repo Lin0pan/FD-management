@@ -112,6 +112,7 @@ describe("the counts printed on a card", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 1, children: 1 },
+      groupAtIssue: "RED",
     });
 
     const card = await repository.currentCard(customerId);
@@ -132,11 +133,29 @@ describe("the counts printed on a card", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 3, children: 2 },
+      groupAtIssue: "RED",
     });
 
     const row = await prisma.card.findFirstOrThrow({ where: { customerId } });
     expect(row.grownUpsAtIssue).toBe(3);
     expect(row.childrenAtIssue).toBe(2);
+  });
+
+  it("keeps the group the card printed after the household has been moved to the other one", async () => {
+    const customerId = await insertCustomer(50);
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: { grownUps: 1, children: 0 },
+      groupAtIssue: "RED",
+    });
+
+    await prisma.customer.update({ where: { id: customerId }, data: { group: "BLUE" } });
+
+    // The same difference the counts prove, in the other direction: the card is out in the world
+    // naming a week the household no longer collects in (US-16.4).
+    expect((await repository.currentCard(customerId))?.groupAtIssue).toBe("RED");
   });
 });
 
@@ -149,6 +168,7 @@ describe("PrismaCardRepository.issue", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
 
     expect(card).toEqual({
@@ -156,6 +176,7 @@ describe("PrismaCardRepository.issue", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
     const rows = await prisma.card.findMany({ where: { customerId } });
     expect(rows).toHaveLength(1);
@@ -169,6 +190,7 @@ describe("PrismaCardRepository.issue", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
 
     await repository.issue(customerId, {
@@ -176,6 +198,7 @@ describe("PrismaCardRepository.issue", () => {
       issuedAt: LATER,
       reason: "LOST",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
 
     expect(await prisma.card.count({ where: { customerId } })).toBe(2);
@@ -188,6 +211,7 @@ describe("PrismaCardRepository.issue", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
 
     const [row] = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
@@ -203,6 +227,7 @@ describe("PrismaCardRepository.issue", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
 
     await expect(
@@ -211,6 +236,7 @@ describe("PrismaCardRepository.issue", () => {
         issuedAt: LATER,
         reason: "LOST",
         countsAtIssue: PRINTED,
+        groupAtIssue: "RED",
       }),
     ).rejects.toBeInstanceOf(CardIndexTaken);
   });
@@ -224,12 +250,14 @@ describe("PrismaCardRepository.issue", () => {
         issuedAt: TODAY,
         reason: "FIRST_ISSUE",
         countsAtIssue: PRINTED,
+        groupAtIssue: "RED",
       }),
       repository.issue(customerId, {
         index: 1,
         issuedAt: TODAY,
         reason: "LOST",
         countsAtIssue: PRINTED,
+        groupAtIssue: "RED",
       }),
     ]);
 
@@ -250,12 +278,14 @@ describe("the card number across customers", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
     await repository.issue(second, {
       index: 1,
       issuedAt: LATER,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
 
     const [firstCard, secondCard] = await Promise.all([
@@ -283,12 +313,14 @@ describe("PrismaCardRepository.currentCard", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
     await repository.issue(customerId, {
       index: 2,
       issuedAt: LATER,
       reason: "LOST",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
 
     expect(await repository.currentCard(customerId)).toEqual({
@@ -296,6 +328,7 @@ describe("PrismaCardRepository.currentCard", () => {
       issuedAt: LATER,
       reason: "LOST",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
   });
 
@@ -306,12 +339,14 @@ describe("PrismaCardRepository.currentCard", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
     await repository.issue(customerId, {
       index: 4,
       issuedAt: LATER,
       reason: "OTHER",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
 
     expect((await repository.currentCard(customerId))?.index).toBe(4);
@@ -327,6 +362,7 @@ describe("PrismaCardRepository.currentCard", () => {
         reason: "VERLOREN",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
+        groupAtIssue: "RED",
       },
     });
 
@@ -342,12 +378,14 @@ describe("PrismaCardRepository.listCards", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
     await repository.issue(customerId, {
       index: 2,
       issuedAt: LATER,
       reason: "LOST",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
 
     const cards = await repository.listCards(customerId);
@@ -364,18 +402,21 @@ describe("PrismaCardRepository.listCards", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
     await repository.issue(other, {
       index: 1,
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
     await repository.issue(other, {
       index: 2,
       issuedAt: LATER,
       reason: "LOST",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
 
     expect(await repository.listCards(one)).toHaveLength(1);
@@ -398,6 +439,7 @@ describe("PrismaCardRepository.issueCounts", () => {
           reason,
           grownUpsAtIssue: 1,
           childrenAtIssue: 1,
+          groupAtIssue: "RED",
         },
       });
     }
@@ -437,12 +479,14 @@ describe("PrismaCardRepository.issueCounts", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
     await repository.issue(customerId, {
       index: 4,
       issuedAt: LATER,
       reason: "LOST",
       countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
     });
 
     expect(await repository.issueCounts(customerId)).toEqual({

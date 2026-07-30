@@ -128,6 +128,7 @@ async function seedHousehold(): Promise<number> {
             reason: "FIRST_ISSUE",
             grownUpsAtIssue: 1,
             childrenAtIssue: 1,
+            groupAtIssue: "RED",
           },
         ],
       },

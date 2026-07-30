@@ -1,5 +1,5 @@
 # Ralph Progress Log
-Started: Wed Jul 29 12:44:59 CEST 2026
+Started: Wed Jul 29 19:20:33 CEST 2026
 ---
 
 ## Codebase Patterns
@@ -64,6 +64,20 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   chain, so the whole suite fails at once: `PrismaClientKnownRequestError: The table main.Customer
   does not exist` or duplicate rows in `beforeAll`. Whole-suite failure = stale server, not your spec.
   (The `[ ]` trick is still needed for whatever pattern you do use, or pkill matches its own shell.)
+- A new e2e spec has to claim a customer number nobody else holds: the shared `data/e2e.db` is
+  seeded once per run and every spec inserts into it. Taken so far: counter 201-206/239, portions
+  211, serve 221-222, reminders 231, block 241, reissue 251, age-13 271, customer-list 281-285,
+  record 291 - and the registration/card/archive/re-registration specs allocate the LOW sequence
+  through the form. A collision surfaces as `Unique constraint failed on the fields:
+  (customerNumber)` inside `beforeAll`, i.e. one spec failing while the other 70 pass; a whole-suite
+  failure is the stale-server trap instead. `grep -rn "CUSTOMER_NUMBER = \|NUMBERS = " tests/e2e`.
+- The cards-due list answers with ONE reason and the counts answer first (`staleCardReason`), so a
+  spec that wants to see `GROUP_CHANGE` must first bring the card's printed counts up to date - a
+  reissue between the two edits. The same ordering applies to the counter: a lapsed certificate
+  changes the verdict, so record the renewal before asserting anything about a group or a card.
+- A figure that aggregates the WHOLE register - the two group sizes, the cards-due badge - is only
+  ever compared with itself in an e2e spec: read it before the edit, assert it as a delta after.
+  Neighbouring specs register households of their own.
 - A pure rule that has to hand the CALLER's row back is generic over it — `recordForDay<T extends
   AttendanceRecord>`, `nextInLine<T extends WaitingApplicant>`. Declare the minimal interface the
   rule reads, constrain `T` to it, return `T`: the application layer keeps its richer entry and the
@@ -191,180 +205,283 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   reads the migrations directory rather than a fixed path, so it survives — anything that pins the
   folder name would not.
 
----
+- A snapshot column on a card is the ONLY honest way to answer "has X changed since the card was
+  printed". `Card.groupAtIssue` joins `grownUpsAtIssue`/`childrenAtIssue` under the same argument;
+  the alternative — inferring a move from `issuedAt` — has nothing to compare against. Adding one is
+  a ~40-file ripple (schema, migration regen, every `IssuedCard` literal in 9 application tests, 3
+  infra tests and 8 e2e specs); budget for it rather than reaching for a nullable column with a
+  default, which would let a fixture skip the field the feature is about.
+- When a required field is added to a fixture builder, set it FROM the builder's own related field
+  (`groupAtIssue: overrides.group ?? "RED"`), never a bare literal — a hard-coded `"RED"` beside a
+  configurable `group` silently makes every non-RED fixture card-stale and breaks unrelated specs.
+- A module whose rule widens gets RENAMED with it: `staleCounts.ts` → `staleCard.ts` once the group
+  joined the comparison. `git mv` first, then patch — two non-test importers and one i18n key is the
+  whole cost, and a name that lies is read as one for five years.
+- Both sides of a "what changed since" comparison take the SAME shape (`CardFacts = { counts,
+  group }`), so neither can grow a field the other does not have.
+- A use case that returns a derived aggregate reads it AFTER its write (`changeGroup` →
+  `groupCounts()`), and the fake must actually count the holders — a stubbed `{ red: 0, blue: 0 }`
+  proves only that a constant travels.
+- "The change is in force immediately" is proved by driving the real downstream read at one instant:
+  `lookupCustomer` gives `WRONG_GROUP` before `changeGroup` and `CLEAR_TO_SERVE` after, on the same
+  fake clock. Same move as `updateHousehold`'s cards-due test.
+- Week colours under `weekAnchor 2026-W02/RED`: 2026-07-29 (the suites' TODAY) is a **BLUE** week;
+  2026-08-05 and 2026-07-22 are RED. A spec needing the other colour moves the clock, not the anchor.
+- A no-op state change is an ERROR, not a quiet success, wherever the change writes an audit entry or
+  makes something else stale (`GroupUnchanged`). Silently accepting it fills the log with moves that
+  never happened.
+- A new `DomainError` subclass also needs its `code` added to the `DomainErrorCode` union in
+  errors.ts — typecheck catches it, lint does not. Its 100% coverage comes from the use-case test
+  that raises it; there is no per-error test file.
 
-## 2026-07-29 12:58 — US-001 (listCustomers query use case)
-
-- Domain first: `certificateState(certificate, today)` and `validUntilRangeFor(state, today)` in
-  `src/domain/customer/certificate.ts`, with `EXPIRING_SOON_DAYS = 30` exported and its rationale
-  written down (PRD §9 leaves making it a setting open). Both read one private `certificateWindow`,
-  so the filter's boundary and the label on a row cannot disagree; `isExpired` remains the single
-  expiry comparison. EXPIRING_SOON is a NARROWING of VALID — asking for VALID returns it too, because
-  the household may still shop. TDD: 11 tests written and run red first.
-- `counterQueryOrNull` added beside `parseCounterQuery` (cardNumber.ts): the list's one search box
-  takes a name as readily as `50k3`, so "not a number" is an answer there rather than an error. The
-  throwing parser now delegates to it, so `050` is still not customer 50 on either path.
-- `listCustomers(deps, {search?, status?, group?, certificate?, includeArchived?})` in
-  `src/application/customers/list-customers.ts` returns `{ rows, groupCounts }`. 26 tests against
-  hand-written fakes and a fake clock. What the use case decides: which statuses to ask for (absent
-  or EMPTY status filter = all; archived removed unless `includeArchived` or an explicit `ARCHIVED`),
-  and how the search box reads. Everything else is a `WHERE` clause the port carries.
-- `groupCounts` comes from the existing `CustomerRepository.groupCounts()` and is deliberately not a
-  count of the rows — a test filters to BLUE and still receives both.
-- New port types `CustomerListQuery` / `CustomerListSearch` and the method `list(query)`. A card
-  number arrives as the customer number it resolves to; the index is dropped (households, not cards).
-  Names arrive UNFOLDED, following `ArchiveSearchQuery` — folding is the adapter's, so there is one
-  normalisation in the codebase.
-- `describeAllowances(deps, households, date)` added to the allowance seam: reads the settings history
-  ONCE for the whole screen, same private arithmetic as `describeAllowance`. Pinned by a test on the
-  fake's read counter.
-- The adapter's `list` had to land in this story, because a new port method stops the whole build from
-  compiling. Filters are Prisma `where` clauses; the certificate window needs `$queryRaw` with a
-  correlated subquery, since Prisma cannot say "the latest certificate satisfies this". Verified
-  against a throwaway migrated database in a scratch spec (expired / expiring-soon / renewed-household
-  / folded name / exact number all correct), which was then deleted — US-002 owns the integration
-  suite, the indexes and the ~50-customer fixture.
-- Files changed: `src/domain/customer/certificate.ts` + `.test.ts`, `src/domain/card/cardNumber.ts` +
-  `.test.ts`, `src/application/ports.ts`, `src/application/allowance/describe-allowance.ts`,
-  `src/application/customers/list-customers.ts` + `.test.ts` (new),
-  `src/infrastructure/prisma/customer-repository.ts`, six test files that own a
-  `FakeCustomerRepository` (a `list` stub each), `docs/technical_documentation.md`,
-  `scripts/ralph/prd.json`.
-- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (42 files, 784 tests, domain +
-  application at 100%) and `npm run build` all green. No UI change, so no browser verification.
-- **Learnings for future iterations:**
-  - US-002 must add the `group` index (`customerNumber`, `status` and `lastNameFolded` already exist;
-    `lastName` itself is NOT the searched column — the folded one is, so index that) and the
-    integration test. It should also pin the renewed-certificate case: a household whose old notice
-    lapsed but whose current one is valid must NOT appear under EXPIRED.
-  - US-003 gets `certificateState` on every row, so the screen can state expiry in words plus colour
-    without recomputing it, and `CustomerListRow.customerId` is what `/kunden/[id]` links to.
-  - The list's `certificate=VALID` includes the expiring-soon ones by design. If the screen wants
-    three mutually exclusive buckets, it filters on the row's `certificateState`, not with a fourth
-    query.
-
----
-
-## 2026-07-29 13:10 — US-002 (customer list queries and indexes)
-
-- The `WHERE` clauses themselves landed with US-001 (a new port method stops the build compiling, so
-  the adapter could not wait). This story added what makes them cheap and what proves they are there:
-  two indexes, and an integration test over a register of fifty.
-- `@@index([group])` for the list's group filter and the group counts; `@@index([firstNameFolded])`
-  for the other half of the search's `OR`. `customerNumber`, `status` and `(lastNameFolded,
-  birthDate)` already existed. The spelled `lastName` is deliberately NOT indexed — the AC names it,
-  but nothing compares it; the folded column is the one the query touches, and an index on `lastName`
-  would suggest a search that does not exist.
-- Migration regenerated rather than stacked (pre-release rule): `20260727121530_init` →
-  `20260729110134_init`, partial unique index re-appended from the old file's last 16 lines, then
-  `npm run db:reset`. `schema.test.ts` reads the migrations directory rather than a fixed name, so it
-  needed no change.
-- New describe block in `customer-repository.test.ts`: fifty households seeded from a *table*
-  (1–30 RED, 31–50 BLUE, 41–45 BLOCKED, 46–50 ARCHIVED), three of them carrying a certificate that
-  puts them in a state the rest are not in. 14 tests: each filter's exact result set, the combination
-  of filters, `groupCounts` = {red 30, blue 15}, the two new indexes, and that the filtering is SQL.
-  Household 6 pins the renewed-certificate case — a lapsed notice with a valid one recorded after it
-  is NOT expired, which is what `certificates: { some: … }` would have got wrong.
-- Files changed: `prisma/schema.prisma`, `prisma/migrations/20260729110134_init/migration.sql` (was
-  `20260727121530_init`), `src/infrastructure/prisma/customer-repository.test.ts`,
-  `docs/technical_documentation.md` (a `list(query)` section on the adapter, and the folded-name
-  paragraph now names both indexes), `scripts/ralph/prd.json`.
-- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (42 files, 798 tests) and
-  `npm run build` all green. No UI change, so no browser verification.
-- **Learnings for future iterations:**
-  - US-003 is the screen. Every row already carries `certificateState`, `portions`, `priceCents` and
-    `cardNumber` from `listCustomers`; the screen computes nothing. `customerId` is the link target.
-  - The seeded register in this test is a fixture worth copying for US-004's e2e spec, but note the
-    e2e specs share `data/e2e.db` on customer numbers 201–271 (see the pattern above) — fifty rows
-    from 1 would collide with the isolated project's quota specs, not with the shared ones.
+- A React form with an `action` is **reset by React once the action resolves**, and a reset restores
+  each field from its *attribute*, not from the property React set. Controlled text inputs and
+  textareas survive it (React re-applies `value` on the next render); a controlled RADIO does not —
+  it comes back on whatever was `checked` at SSR, silently disagreeing with the data beside it.
+  Render radios in an action form as `defaultChecked={x === current}`: the reset then restores what
+  the revalidated render wrote. Symptom: the control shows the old value while everything derived
+  from the new one is correct.
+- Turning a read-only list into an editable one BREAKS every e2e assertion that read a name off the
+  page: `toContainText` cannot see an `<input value=…>`. Grep the specs for the values the section
+  showed and move them to `toHaveValue` before running the suite.
+- A screen with several independent forms gets ONE state union (`RecordFormState`) and one
+  feedback/button/field module, not one per form — and its `saved` carries a COUNTER, so a `key` can
+  remount a form after a save that changed nothing visible.
+- An error translator shared by two screens must NOT own the fallback: `customerErrorMessage`
+  returns `string | null` and each screen supplies its own last word ("Die Aufnahme konnte nicht
+  gespeichert werden" vs "Die Änderung konnte nicht …"). The shared branches then cannot drift while
+  the wording stays each screen's own.
+- A page may call a SECOND read use case when the first cannot honestly supply the value
+  (`readCurrentSettings` beside `readCustomer`, for the four per-head numbers a browser-side
+  derivation needs). Check first that it adds no new failure mode — here `readCustomer` already
+  throws `NoSettingsInForce`, so there is no extra branch to cover.
+- Widening a domain function's parameter from `Settings` to a `Pick` (`priceFor` → `PriceValues`,
+  mirroring `portionsFor`) is source-compatible with every existing caller and is what lets a client
+  component hold only the values that bear on the answer.
 
 ---
-
-## 2026-07-29 13:35 — US-003 (customer list screen at /kunden)
-
-- `src/app/kunden/page.tsx`: the list itself. A server component over `listCustomers` — one dense
-  table (Nr., Name, Karte, Gruppe, Status, Erwachsene, Kinder, Portionen, Preis, Nachweis gültig bis,
-  Erinnerungen), sticky header, ascending customer number, computing nothing. Every value arrives
-  derived from the use case; `formatEuros` and `germanDate` are the only transformations on the page.
-- Filters are a **plain GET form**, which is what puts them in the URL (FR-5). No client component and
-  no JavaScript is involved. Every parameter is parsed by a Zod object with `.catch(undefined)` per
-  field, so a hand-typed `status=quatsch` renders the unfiltered list instead of a 500.
-- Status is a SINGLE select even though `listCustomers` accepts a subset: staff filter one thing at a
-  time, and a multi-select is a control to learn rather than a question to answer. The archived
-  checkbox is separate (`archiv=1`), and naming ARCHIVED in the status select works on its own — the
-  use case already treats that as asking for them.
-- The certificate filter's three options are labelled with what they *include*: "gültig (auch bald
-  ablaufende)" says out loud that VALID is the wider bucket. `EXPIRING_SOON_DAYS` is passed into a
-  dictionary function rather than spelled "30" in German, so the number stays single-sourced.
-- Group balance above the filters, with `data-red` / `data-blue` attributes for the e2e spec, and a
-  sentence saying it ignores the filters. Verified by hand: it stays 2/2 while the table is filtered
-  to one blocked row.
-- Empty results name the filters in force, including whether archived households are shown — the
-  unfiltered empty register gets its own sentence instead ("Es ist noch niemand aufgenommen.").
-- Files changed: `src/app/kunden/page.tsx` (new), `src/i18n/de.ts` (a `customerList` block plus
-  `home.customerListLink`), `src/app/page.tsx` (the link), `docs/technical_documentation.md`,
-  `scripts/ralph/prd.json`.
-- Gates: `npm run lint`, `npm run typecheck`, `npm run format:check`, `npm test` (42 files, 798 tests)
-  and `npm run build` all green.
-- **Browser verification:** no dev-browser skill and no browser MCP tool is configured in this
-  sandbox. Verified instead against the BUILT app (`npm run start`) with curl over a dev database
-  seeded with five synthetic households (one per state), checking the rendered HTML: default view
-  hides the archived row (4 of 5), `archiv=1` shows it dimmed and labelled "archiviert",
-  `status=BLOCKED` returns only the blocked row, `suche=3k1` resolves the card number to its holder,
-  `suche=müller` folds onto "Müllerhoff", the empty result names its filters, the selects and the
-  checkbox come back selected from the URL, and every row links to `/kunden/<id>`. The scratch seed
-  script was deleted and `npm run db:reset` run afterwards. A human should still look at the layout.
-- **Learnings for future iterations:**
-  - US-004 (the e2e spec) has these hooks: `customer-row` rows carry `data-customer-number` and
-    `data-status`; `group-counts` carries `data-red` / `data-blue`; the controls are
-    `customer-search`, `status-filter`, `group-filter`, `certificate-filter`, `archived-toggle`;
-    and `customer-list-empty` / `customer-list-count` say what came back. Filters apply on submit,
-    so the spec must click "Filtern" (or navigate straight to the URL) — nothing auto-submits.
-  - The e2e projects share `data/e2e.db` on customer numbers 201–271, so a list spec on the shared
-    server must assert about ITS OWN rows (by customer number) and never about the whole table or the
-    group counts' absolute values — other specs seed households that change both. Asserting the
-    counts are *unchanged* between two filtered views is the robust form of the FR-3 assertion.
-  - `Customer.customerNumber` is NOT nullable: an archived household keeps its number and the partial
-    unique index is what frees the slot. A fixture that tries `customerNumber: null` fails.
-  - The dev database ships with settings but no customers, so `/kunden` renders an empty register out
-    of the box — seed before looking at any list screen by hand.
+- Adding a method to `CustomerRepository` now costs EIGHT implementers: the Prisma adapter plus the
+  fakes in customers.test.ts, cards-due-for-reissue.test.ts, certificate-reminder.test.ts,
+  lookup-customer.test.ts, list-customers.test.ts, maintain-customer.test.ts,
+  waiting-list.test.ts and distribution/record-attendance.test.ts. Each fake stubs it in ITS OWN
+  idiom — a `writes += 1` counter where the file counts writes, a rejecting stub where the file
+  proves the use case never calls it — so copy the neighbouring method rather than one shape into
+  all eight.
+- A rule that registration and a later EDIT must both obey belongs in its own exported domain
+  function that registration then calls (`createHouseholdMembers` ← `createCustomerDetails`). The
+  edit reusing it is the only thing that keeps the two from drifting; a second implementation is
+  free to accept what registration refuses.
+- "The consequence follows automatically" is provable in the application layer by driving the REAL
+  downstream read over the same fake register — updateHousehold's test calls `listCardsDueForReissue`
+  after the edit rather than asserting a flag. It proves the derivation, not the intent.
+- An archived customer's record is read-only (US-16, FR-8): every new mutating use case must refuse
+  with `CustomerArchived` and every one of them must still allow a BLOCKED customer, which pauses the
+  counter and not the record.
+- A duplicated fact that CANNOT be de-duplicated (the customer is their own household member) is
+  kept in step by a **pure domain rule plus one transaction**, never by two writes or by the adapter
+  comparing rows: `replaceHouseholdMember(members, was, becomes)` decides which row was them, and
+  `updateDetails(id, details, household)` writes both halves at once. Match on the row's *old*
+  values, take only the first match, and leave the set alone when nothing matches — guessing is how
+  an edit rewrites somebody else. Write the reasoning down: the reader's first instinct is that the
+  duplication is a bug.
+- Two use cases that touch the same record still get **one file and one audit event each**. A merged
+  `updateCustomer` would produce an entry naming every field on every save, which is a log nobody
+  reads. `maintain-customer.test.ts` is the shared suite; its `household()` fixture now takes
+  `firstName` / `lastName` / `notes`, and its default household's FIRST row is the customer, which is
+  what a registration leaves behind.
+- A criterion phrased as "X is visible at the counter" is proved by driving the real `lookupCustomer`
+  over the same fake register, not by asserting the stored column — the same move as
+  `updateHousehold`'s cards-due test. The price is three more fakes in the file (settings,
+  distribution records, reminder log); they can all be stubs, since the point is the read path.
+- An input type is the guarantee: `UpdateCustomerDetailsInput` has no `customerNumber` field, and the
+  port method takes none either, so "the customer number is not editable" (US-16, FR-7) is enforced
+  by the compiler rather than by a check somebody could delete.
 
 ---
 
-## 2026-07-29 13:45 — US-004 (E2E: search and filter the customer list)
-
-- `tests/e2e/customer-list.spec.ts`: seven tests over five households seeded through Prisma on
-  numbers 281-285 — both groups, all three statuses, all three certificate states. Seeded rather than
-  registered through the form because what the screen needs is a *spread*; five registrations would
-  prove US-01 again at five times the cost.
-- The fixture's one deliberate cruelty: the active RED household and the archived one share an
-  invented surname (Müllerhoff), so nothing but the archived toggle can tell them apart. A name search
-  that excluded the archived row for some other reason would pass a friendlier fixture.
-- Asserted: a folded lower-case prefix finds the active household alone; the SUPERSEDED card number
-  281k1 resolves to the household now holding 281k2 (the index is dropped — the list is about
-  households); the blocked filter leaves only `data-status="BLOCKED"` rows on the WHOLE table, not
-  just this spec's; the archived namesake appears only once the toggle is ticked and reads
-  "archiviert"; the three certificate states are stated in words on their own rows; the group balance
-  is +3 RED / +1 BLUE over the pre-seed reading (blocked counts, archived does not) and does not move
-  when the table is filtered to one row; and the filters survive as a URL — set through the controls,
-  read out of the query string, reloaded with the same rows and the same controls set.
-- Files changed: `tests/e2e/customer-list.spec.ts` (new), `docs/technical_documentation.md` (the spec
-  in the tree, a paragraph on what it covers, the stale-server warning beside the "start does not
-  build" one — and `waiting-list.spec.ts`, which US-12 never added to the tree),
-  `scripts/ralph/prd.json`.
-- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (42 files, 798 tests),
-  `npm run format:check`, `npm run build` and `npm run test:e2e` (64 passed, 1 skipped — the skip is
-  settings.spec's pre-existing one) all green.
+## 2026-07-29 - US-001 (updateHousehold use case)
+- Implemented US-16.1: a customer's household can be replaced, with counts, portions, price and the
+  cards-due-for-reissue list following from the birthdates on the next read.
+- Files changed:
+  - `src/domain/customer/customer.ts` (+test): `createHouseholdMembers` extracted from
+    `createCustomerDetails`, which now calls it — one set of household rules for registration and
+    for every later edit.
+  - `src/application/customers/update-household.ts` (new) and `maintain-customer.test.ts` (new,
+    the suite the remaining US-16 use cases will grow into).
+  - `src/application/ports.ts`: `CustomerRepository.updateHousehold(id, members)`.
+  - `src/infrastructure/prisma/customer-repository.ts` (+test): deleteMany + createMany in one
+    `$transaction`.
+  - The seven other `CustomerRepository` fakes, `docs/technical_documentation.md`, root `CLAUDE.md`.
 - **Learnings for future iterations:**
-  - Two of the three hours here went on a phantom: the whole suite failed at once, in every spec,
-    against rows that were already there. It was three `next-server` processes left over from earlier
-    iterations, adopted by `reuseExistingServer`. See the pattern at the top — the pkill pattern this
-    file carried was wrong, and that is now fixed.
-  - `page.locator('[data-customer-number="281"]')` is a much simpler row handle than filtering rows by
-    a cell's text; the list screen already puts the number, the status and the group counts on data
-    attributes precisely so a spec need not read German off the page to find a row.
-  - A GET-form filter screen is pleasant to drive: `goto("/kunden?suche=…")` and clicking "Filtern"
-    are the same thing, so a test can set filters whichever way reads better, and `waitForURL` after
-    the click is all the synchronisation there is.
+  - The household member rows are the ONE deliberate delete in a schema whose rule is "never
+    hard-delete customer data". It is justified by FR-2 (no composition history) and by the card
+    keeping the counts it printed — root CLAUDE.md now says so, because the next reader would
+    otherwise read the deleteMany as a violation.
+  - Replacing rather than diffing is a decision, not laziness: two children with the same name and
+    birthdate are two rows and nothing distinguishes them, so there is no identity to match on.
+  - `ageInYears` already exists in `domain/customer/householdComposition.ts` and cites US-16.5 —
+    the record screen (US-004) does not need a new age rule.
+  - US-002 next has a genuine modelling question to settle first (PRD §7): the customer's own row vs
+    their household-member row. Decide and record it before writing code, and remember that any
+    write touching a name must rewrite `firstNameFolded` / `lastNameFolded` in the same statement.
+  - No UI changed in this story, so no browser verification was needed.
+---
 
+## 2026-07-29 - US-002 (updateCustomerDetails and updateNotes use cases)
+- Implemented US-16.2 and US-16.3: a customer's name, birthdate and address can be corrected, and
+  the free-text note the counter shows can be edited, each as its own use case with its own audit
+  entry.
+- **The modelling question from PRD §7 is settled and recorded** (docs/technical_documentation.md,
+  "Decision: the customer is one of their own household members, kept in step in one write"). A
+  single source of truth is not reachable: dropping the customer from their own household would make
+  `EmptyHousehold` meaningless and contradict the shipped US-16.1, and household rows have no
+  identity to diff on. So the two copies are kept in step in one transaction instead.
+- Files changed:
+  - `src/domain/customer/customer.ts` (+test): `createPersonalDetails` and `createNotes` extracted
+    from `createCustomerDetails`, which now calls both; `replaceHouseholdMember`; `NOTES_MAX_LENGTH`.
+  - `src/domain/errors.ts`: `NotesTooLong` (carries both lengths).
+  - `src/application/customers/update-customer-details.ts`, `update-notes.ts` (new), and
+    `maintain-customer.test.ts` (the shared US-16 suite, +24 tests).
+  - `src/application/ports.ts`: `updateDetails(id, details, household)` and `updateNotes(id, notes)`.
+  - `src/infrastructure/prisma/customer-repository.ts` (+test): both writes; `updateDetails` is one
+    `$transaction` over the customer columns, the folded keys and the member rows.
+  - The seven other `CustomerRepository` fakes, `src/i18n/de.ts` (`errors.notesTooLong`),
+    `src/app/kunden/neu/registration-input.ts` (`germanMessage` branch),
+    `docs/technical_documentation.md`, root `CLAUDE.md`.
+- **Learnings for future iterations:**
+  - `createCustomerDetails` is now assembled from three extracted rules —
+    `createHouseholdMembers`, `createPersonalDetails`, `createNotes`. Registration validates notes
+    for length as a side effect, which is why `germanMessage` needed the new branch; the next rule
+    that both registration and an edit must obey belongs in a fourth such function.
+  - Adding a method to `CustomerRepository` is now EIGHT fakes plus the adapter, and the `writes += 1`
+    / rejecting / mutating idioms differ per file. Copy the neighbouring method in each file.
+  - Beware the fixture trap that bit here: spreading a `PersonalDetails` constant into a household
+    member literal drags `address` along and the `toEqual` fails on a field the row never has.
+  - US-003 (`changeGroup`) next; it returns the resulting group sizes, so the fake's `groupCounts`
+    in maintain-customer.test.ts — currently a hard-coded `{ red: 0, blue: 0 }` — has to start
+    counting the holders.
+  - No UI changed in this story, so no browser verification was needed. US-004 is the record screen
+    and will need it.
+---
+
+## 2026-07-29 - US-003 (changeGroup use case)
+- Implemented US-16.4: a household can be moved between RED and BLUE, the counter serves them in
+  their new group the same day, and the card they still hold turns up on the cards-due list.
+- **US-13's open question is settled**: yes, a group change puts the household on the cards-due list
+  with reason `GROUP_CHANGE`, and it needed `Card.groupAtIssue`. Recorded in
+  tasks/prd-us-13-age-13-reclassification.md, docs/technical_documentation.md and the root CLAUDE.md,
+  which now names all three snapshot columns under the one "derive, don't store" exception.
+- Files changed:
+  - `src/domain/card/card.ts`: `IssuedCard.groupAtIssue`.
+  - `src/domain/card/staleCounts.ts` → `staleCard.ts` (+test, renamed with it):
+    `staleCardReason(printedOnCard, today)` over `CardFacts = { counts, group }`, answering
+    `AGE_13 | HOUSEHOLD_CHANGE | GROUP_CHANGE`. Counts answer first; the group only when they agree.
+  - `src/domain/errors.ts`: `GroupUnchanged` (+ its code in the `DomainErrorCode` union).
+  - `src/application/customers/change-group.ts` (new) and the `changeGroup` block in
+    `maintain-customer.test.ts` (+11 tests); the file's `groupCounts` fake now counts holders.
+  - `src/application/ports.ts`: `CustomerRepository.setGroup(id, group)`.
+  - `cards-due-for-reissue.ts` (rows carry `groupOnCard`/`groupToday`), `lookup-customer.ts`
+    (`staleCounts` → `staleCard`, plus `groupOnCard`), `issue-card.ts` and `register-customer.ts`
+    (both write `groupAtIssue`).
+  - `prisma/schema.prisma` + regenerated init migration (`Card.groupAtIssue TEXT NOT NULL`), the two
+    Prisma adapters (+tests), `src/i18n/de.ts` (`GROUP_CHANGE`, `staleCardGroup`, `groupUnchanged`,
+    reworded cards-due intro), `src/app/ausgabe/counter-lookup.tsx`.
+  - All eight `CustomerRepository` fakes, every `IssuedCard` literal, and the 8 e2e specs that write
+    card rows straight through Prisma.
+- **Learnings for future iterations:**
+  - The counter's stale-card note needed a SECOND German sentence, not the existing one with other
+    words in it: for a `GROUP_CHANGE` the two count sets are identical, and quoting them back at the
+    counter would read as a mistake. When a reason union grows, check every screen that renders a
+    sentence built from the OLD reason's data.
+  - The migration regeneration went as the pattern above predicts, with one new trap: pulling the
+    partial unique index back with `git show HEAD:… | tail -18` also drags the preceding
+    `AuditEntry_when_idx` block, which then appears twice. Diff the tail after appending.
+  - `npm run db:reset` after the regeneration, then `npm run test:e2e` — the e2e servers build their
+    own databases, so a stale dev db shows up as nothing at all until the settings screen is opened.
+  - US-004 is the record screen and is the first UI-heavy story in this batch: it needs the group
+    control (both sizes beside the choice — `changeGroup` returns them), the inline household editor,
+    and `GroupUnchanged` wired through a `germanMessage`-style branch. `de.customers.errors
+    .groupUnchanged` is already in the dictionary, unused, waiting for it.
+  - No UI behaviour changed beyond the counter's stale-card sentence, so browser verification was
+    covered by the e2e suite (64 passed); the record screen in US-004 will need the real thing.
+---
+
+## 2026-07-29 - US-004 (Customer record editing on /kunden/[id])
+- Implemented US-16.5: `/kunden/[id]` is now the customer record — everything known about a
+  household and everything editable about them, with the consequence of each edit visible.
+- Files changed:
+  - `src/app/kunden/[id]/page.tsx` rewritten: sections in the order a record is READ, the derived
+    figures and `household-member` rows carrying the same test ids editable or not, and a final
+    **"Aktionen mit Folgen"** section holding reissue + block + archive together, each with its own
+    confirmation (PRD §6).
+  - New client components: `household-editor.tsx` (live counts/portions/price and each member's age,
+    rows by position), `details-editor.tsx`, `notes-editor.tsx`, `group-control.tsx` (both group
+    sizes beside the choice), `renewal-form.tsx`, plus the shared `record-forms.tsx` /
+    `record-state.ts`.
+  - `src/app/kunden/[id]/actions.ts`: five actions, one use case each, each revalidating the record
+    AND `/ausgabe`.
+  - Refactor commit before it (`24cb748`): `block-controls.tsx` / `block-state.ts` / the two block
+    actions moved up to `src/app/kunden/`, beside the archive ones, so the counter can offer them.
+  - `src/app/ausgabe/page.tsx`: the record link and the block controls (US-08.4 carry-over).
+  - Application: `readCustomer` +`history` +`groupCounts` +`today`; `lookupCustomer` +`blockReason`
+    (both TDD). Domain: `priceFor` takes a `PriceValues` Pick.
+  - `src/i18n/de.ts` (`de.customers.record.*`, `counter.recordLink`; `card.heading` is now
+    "Kundenübersicht" — "Kundenkarte" is the printed card at `/karte`),
+    `src/app/kunden/deps.ts` (+`certificates`, for the renewal), `docs/technical_documentation.md`,
+    `tests/e2e/reregistration.spec.ts` (one assertion moved to `toHaveValue`).
+- **Learnings for future iterations:**
+  - The React form-reset trap cost the most time here and is now in the patterns block: only the
+    RADIO was affected, and the symptom was a control showing the old group while the two sizes
+    beside it showed the new one. Everything else on the record survived the reset untouched.
+  - Browser verification was done by driving the built app on port 3100 over a freshly reset dev
+    database with a throwaway Playwright script — registered a household, added a child and read the
+    four figures BEFORE saving, moved the group and hit the no-op refusal, checked the note at
+    `/ausgabe`, corrected the surname and confirmed only the customer's own household row moved,
+    recorded a renewal, then archived and asserted `input, textarea, select` count = 0. Delete the
+    script afterwards; `npm run db:reset` first or the seeded register is somebody else's.
+  - US-005 (the e2e spec) has every test id it needs: `add-member`, `member-first-name-N` /
+    `-last-name-N` / `-birth-date-N`, `household-submit`, `household-saved`, `group-RED` /
+    `group-BLUE`, `group-sizes`, `group-submit`, `notes-field`, `notes-submit`, `renewal-type` /
+    `renewal-valid-until` / `renewal-save` / `renewal-saved`, `history-row`, `counter-record-link`.
+    Note that the record screen reuses the counter's `renewal-*` ids — same use case, different page.
+  - Beware writing an e2e for this on the SHARED register: the group sizes are a whole-register
+    aggregate, so assert them as a delta (read `group-sizes` before seeding), exactly as the
+    cards-due badge is asserted.
+---
+
+## 2026-07-30 - US-005 (E2E: edit a household and see the effects)
+- Implemented US-16.6: `tests/e2e/customer-record.spec.ts`, seven tests following ONE household
+  through the four record edits and reading each consequence off the screen that would betray it.
+  The claim under test is the one no unit gate reaches - a correction typed on the record is in
+  force everywhere, immediately - so every assertion is made on a different screen than the edit.
+- Fixture: customer number 291, BLUE, active, certificate lapsed (31.12.2025), two reminders sent,
+  one card printed 1/1 and BLUE; pinned to the RED Thursday 08.01.2026, which is what makes a BLUE
+  household refused this morning and served this afternoon.
+- The seven tests: (1) the record as taken down, nothing on the cards-due list; (2) a baby added,
+  all four derived figures moving BEFORE the save and again from the server after it; (3) the row
+  on /karten-neuausstellung with both count sets and "Haushalt geaendert"; (4) the renewal resetting
+  the reminder count to 0 on the revalidated screen and on a fresh request; (5) a reissue bringing
+  the printed counts up to date and clearing the row; (6) WRONG_GROUP -> one move -> CLEAR_TO_SERVE
+  the same morning, both group sizes asserted as a delta, the stale-card GROUP note beside the
+  verdict; (7) the note read back verbatim at /ausgabe.
+- Files changed: `tests/e2e/customer-record.spec.ts` (new), `docs/technical_documentation.md` (the
+  tree listing and a paragraph in the e2e section), `src/i18n/de.ts` (separate commit - `recordLink`
+  had been inserted between `staleCardGroup`'s doc comment and its string, stacking two JSDoc blocks
+  on one entry; no string changed).
+- Checks: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (43 files, 899 tests),
+  `npm run build`, `npm run test:e2e` (72 passed, 1 skipped - the pre-existing quota skip).
+- **Learnings for future iterations:**
+  - The first full-suite run failed on `Unique constraint failed on the fields: (customerNumber)`
+    because 281 belongs to customer-list.spec.ts, whose numbers live in a `NUMBERS` object rather
+    than a `CUSTOMER_NUMBER` constant - so the obvious grep misses them. Now in the patterns block
+    with the full register of taken numbers.
+  - Ordering inside a serial spec is a design decision, not a convenience: the certificate had to be
+    renewed before the counter could be asked about the group, and the card had to be reissued
+    before the cards-due list could show GROUP_CHANGE. Both are consequences of a precedence rule
+    (`counterVerdict`, `staleCardReason`) that the spec would otherwise assert around.
+  - The record's radio-reset trap from US-004 never bit here: `page.getByTestId("group-RED").check()`
+    followed by `group-submit` and then a `toHaveText` on `group-sizes` passes without a reload,
+    because the action revalidates the record and the server re-renders both.
+  - `renewal-saved` is the record's confirmation test id (SaveFeedback prefix), while the counter's
+    is `renewal-confirmation` - same use case, same German words, two different screens.
 ---

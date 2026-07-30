@@ -1,28 +1,47 @@
 "use server";
 
 /**
- * The customer record's write actions — the thin adapters between the record's forms and the
- * `blockCustomer` / `unblockCustomer` (tasks/prd-us-08-block-unblock-customer.md §US-08.4) and
- * `reissueCard` (tasks/prd-us-09-reissue-card-after-loss.md §US-09.3) use cases.
+ * The write actions that belong to the customer record **alone**: the reissue after a loss
+ * (tasks/prd-us-09-reissue-card-after-loss.md §US-09.3) and the five edits the record is for —
+ * household, personal data, notes, group and a renewed certificate
+ * (tasks/prd-us-16-maintain-customer-record.md §US-16.5).
  *
- * Their only jobs are to read the customer id (and, for a block, the reason) off the form, call one
- * use case, and translate a typed domain error into a German sentence. Every rule — that a block
- * needs a non-empty reason, and that only an active customer can be blocked or a blocked one lifted —
- * lives in the domain and the use cases; the disabled save button is a courtesy, the state machine is
- * the guard. On success the record is revalidated so its status, reason and controls come back from
- * the store rather than from client memory.
+ * The actions shared with the counter live one level up beside the components that use them:
+ * `../block-actions.ts` and `../archive-actions.ts`. What is here is here because no other screen
+ * offers it.
+ *
+ * Each is one form, one use case, one audit entry — deliberately not a single `saveCustomer` that
+ * took every field at once (PRD §7). A merged action would write an audit entry naming every field
+ * on every save, and the log would stop saying what was actually decided.
+ *
+ * Their only job is to read the fields off the form, call one use case, and translate a typed domain
+ * error into a German sentence. Every rule lives in the domain and the use cases; a disabled save
+ * button is a courtesy, never the guard. On success the affected screens are revalidated, so what
+ * they show comes back from the store rather than from client memory — which is also how the record
+ * proves a change is in force: the counts, the portions, the price and the counter's verdict are all
+ * derived on the next read.
  */
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { blockCustomer } from "@/application/customers/block-customer";
+import { changeGroup } from "@/application/customers/change-group";
 import { reissueCard } from "@/application/customers/reissue-card";
-import { unblockCustomer } from "@/application/customers/unblock-customer";
-import { CustomerArchived, IllegalStatusTransition, MissingAuditReason } from "@/domain/errors";
-import { de } from "@/i18n/de";
+import { renewCertificate } from "@/application/customers/renew-certificate";
+import { updateCustomerDetails } from "@/application/customers/update-customer-details";
+import { updateHousehold } from "@/application/customers/update-household";
+import { updateNotes } from "@/application/customers/update-notes";
+import { parseGroup } from "@/domain/customer/group";
+import {
+  CertificateValidUntilInPast,
+  CustomerArchived,
+  GroupUnchanged,
+  MissingRequiredField,
+} from "@/domain/errors";
+import { customerFieldLabel, de } from "@/i18n/de";
 import { customerDeps } from "../deps";
-import { initialBlockState, type BlockState } from "./block-state";
+import { calendarDay, customerErrorMessage, householdRows } from "../neu/registration-input";
 import { initialReissueState, type ReissueState } from "./reissue-state";
+import { savedAfter, type RecordFormState } from "./record-state";
 
 /** A surrogate id as a hidden form field carries it — a positive whole number, or the form is stale. */
 const surrogateId = z
@@ -31,38 +50,49 @@ const surrogateId = z
   .transform((value): number => Number(value));
 
 /**
- * Block the customer named by the hidden `customerId`, storing the reason from the textarea.
- *
- * An empty reason is refused by `blockCustomer` even though the button is disabled until one is
- * typed, and blocking a non-active customer is an illegal transition — both come back as a German
- * sentence beside the form.
+ * The household as the record's editor submits it — the same three repeated fields the registration
+ * form uses, read by the same helper, so the two screens cannot come to disagree about what a
+ * half-typed row means (a row missing its birthdate reaches the domain and is refused there).
  */
-export async function blockCustomerAction(
-  _previous: BlockState,
-  formData: FormData,
-): Promise<BlockState> {
-  const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
-  if (!customerId.success) {
-    return { status: "error", message: de.customers.block.errors.unknown };
-  }
+const householdForm = z.object({
+  householdMembers: z.array(
+    z.object({ firstName: z.string(), lastName: z.string(), birthDate: calendarDay }),
+  ),
+});
 
-  try {
-    await blockCustomer(customerDeps, {
-      customerId: customerId.data,
-      reason: String(formData.get("reason") ?? ""),
-    });
-  } catch (error: unknown) {
-    if (error instanceof MissingAuditReason) {
-      return { status: "error", message: de.customers.block.errors.missingReason };
-    }
-    if (error instanceof IllegalStatusTransition) {
-      return { status: "error", message: de.customers.block.errors.notBlockable };
-    }
-    return { status: "error", message: de.customers.block.errors.unknown };
-  }
+/** Who the customer is and where they live. Note the absence of a customer number (FR-7). */
+const detailsForm = z.object({
+  firstName: z.string(),
+  lastName: z.string(),
+  birthDate: calendarDay,
+  street: z.string(),
+  houseNumber: z.string(),
+  zip: z.string(),
+  city: z.string(),
+});
 
-  revalidatePath(`/kunden/${customerId.data}`);
-  return initialBlockState;
+/** The renewed certificate: what kind of notice it is and the day it runs to. */
+const renewalForm = z.object({ type: z.string(), validUntil: calendarDay });
+
+/**
+ * The German sentence for a domain error one of the record's edits can raise.
+ *
+ * The rules about customer *data* are the registration's, and are translated by the shared
+ * `customerErrorMessage` so a correction and an intake cannot report the same broken rule
+ * differently. What is added here is the pair only an edit can hit: a record that has left the
+ * register, and the last word for anything unrecognised.
+ */
+function recordMessage(error: unknown): string {
+  if (error instanceof CustomerArchived) {
+    return de.customers.record.errors.archived;
+  }
+  return customerErrorMessage(error) ?? de.customers.record.errors.unknown;
+}
+
+/** The record and everything derived from it downstream: the counter's verdict, and the card view. */
+function revalidateRecord(customerId: number): void {
+  revalidatePath(`/kunden/${customerId}`);
+  revalidatePath("/ausgabe");
 }
 
 /**
@@ -102,27 +132,196 @@ export async function reissueCardAction(
 }
 
 /**
- * Lift the block on the customer named by the hidden `customerId`, after the form's confirmation step.
- * Lifting a customer who is not blocked is an illegal transition and comes back as a German sentence.
+ * Replace the household with the rows now on the screen (US-16.1).
+ *
+ * Nothing derived is submitted and there is no field for it: the counts, the portions and the price
+ * the editor shows while staff type are the browser's arithmetic over the same domain rule the save
+ * will apply, not values on their way to the database.
  */
-export async function unblockCustomerAction(
-  _previous: BlockState,
+export async function updateHouseholdAction(
+  previous: RecordFormState,
   formData: FormData,
-): Promise<BlockState> {
+): Promise<RecordFormState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
+  const members = householdForm.safeParse({ householdMembers: householdRows(formData) });
   if (!customerId.success) {
-    return { status: "error", message: de.customers.block.errors.unknown };
+    return { status: "error", message: de.customers.record.errors.unknown };
+  }
+  if (!members.success) {
+    return { status: "error", message: de.customers.errors.notADate };
   }
 
   try {
-    await unblockCustomer(customerDeps, { customerId: customerId.data });
+    await updateHousehold(customerDeps, {
+      customerId: customerId.data,
+      members: members.data.householdMembers,
+    });
   } catch (error: unknown) {
-    if (error instanceof IllegalStatusTransition) {
-      return { status: "error", message: de.customers.block.errors.notBlocked };
-    }
-    return { status: "error", message: de.customers.block.errors.unknown };
+    return { status: "error", message: recordMessage(error) };
   }
 
-  revalidatePath(`/kunden/${customerId.data}`);
-  return initialBlockState;
+  revalidateRecord(customerId.data);
+  return savedAfter(previous);
+}
+
+/**
+ * Correct the customer's name, birthdate and address (US-16.2).
+ *
+ * The customer number is not among the fields read here, and the use case takes none: a slot is
+ * assigned at registration and released by archiving, never edited (FR-7).
+ */
+export async function updateDetailsAction(
+  previous: RecordFormState,
+  formData: FormData,
+): Promise<RecordFormState> {
+  const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
+  const fields = detailsForm.safeParse({
+    firstName: String(formData.get("firstName") ?? ""),
+    lastName: String(formData.get("lastName") ?? ""),
+    birthDate: String(formData.get("birthDate") ?? ""),
+    street: String(formData.get("street") ?? ""),
+    houseNumber: String(formData.get("houseNumber") ?? ""),
+    zip: String(formData.get("zip") ?? ""),
+    city: String(formData.get("city") ?? ""),
+  });
+  if (!customerId.success) {
+    return { status: "error", message: de.customers.record.errors.unknown };
+  }
+  if (!fields.success) {
+    return { status: "error", message: de.customers.errors.notADate };
+  }
+
+  const { firstName, lastName, birthDate, street, houseNumber, zip, city } = fields.data;
+  try {
+    await updateCustomerDetails(customerDeps, {
+      customerId: customerId.data,
+      firstName,
+      lastName,
+      birthDate,
+      address: { street, houseNumber, zip, city },
+    });
+  } catch (error: unknown) {
+    return { status: "error", message: recordMessage(error) };
+  }
+
+  revalidateRecord(customerId.data);
+  return savedAfter(previous);
+}
+
+/**
+ * Save the free-text note the counter reads (US-16.3). An empty note is a legitimate answer, so
+ * nothing here refuses one — the only bound is the length, and it is the domain's.
+ */
+export async function updateNotesAction(
+  previous: RecordFormState,
+  formData: FormData,
+): Promise<RecordFormState> {
+  const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
+  if (!customerId.success) {
+    return { status: "error", message: de.customers.record.errors.unknown };
+  }
+
+  try {
+    await updateNotes(customerDeps, {
+      customerId: customerId.data,
+      notes: String(formData.get("notes") ?? ""),
+    });
+  } catch (error: unknown) {
+    return { status: "error", message: recordMessage(error) };
+  }
+
+  revalidateRecord(customerId.data);
+  return savedAfter(previous);
+}
+
+/**
+ * Move the household to the other balancing group (US-16.4).
+ *
+ * `GroupUnchanged` is named here rather than in {@link recordMessage} because the sentence quotes
+ * the group, and this is the layer that holds it as a parsed `Group` — the error carries the value
+ * as a bare string, and re-parsing it to look up a German word would be inventing a way for it to
+ * fail.
+ */
+export async function changeGroupAction(
+  previous: RecordFormState,
+  formData: FormData,
+): Promise<RecordFormState> {
+  const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
+  if (!customerId.success) {
+    return { status: "error", message: de.customers.record.errors.unknown };
+  }
+
+  let group;
+  try {
+    group = parseGroup(String(formData.get("group") ?? ""));
+  } catch {
+    return {
+      status: "error",
+      message: de.customers.errors.missingField(de.customers.fields.group),
+    };
+  }
+
+  try {
+    await changeGroup(customerDeps, { customerId: customerId.data, group });
+  } catch (error: unknown) {
+    if (error instanceof GroupUnchanged) {
+      return {
+        status: "error",
+        message: de.customers.errors.groupUnchanged(de.customers.groups[group]),
+      };
+    }
+    return { status: "error", message: recordMessage(error) };
+  }
+
+  revalidateRecord(customerId.data);
+  return savedAfter(previous);
+}
+
+/**
+ * Record a renewed needs certificate from the record (US-16.5, FR-6) — the same use case the counter
+ * calls (US-06.4), and therefore the same reset of the reminder count to zero.
+ *
+ * Unlike at the counter, it is offered whether or not the certificate has expired: a household that
+ * brings the renewal early should not have to be turned away first for the form to appear.
+ */
+export async function renewCertificateAction(
+  previous: RecordFormState,
+  formData: FormData,
+): Promise<RecordFormState> {
+  const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
+  const fields = renewalForm.safeParse({
+    type: String(formData.get("type") ?? ""),
+    validUntil: String(formData.get("validUntil") ?? ""),
+  });
+  if (!customerId.success) {
+    return { status: "error", message: de.customers.record.errors.unknown };
+  }
+  if (!fields.success) {
+    return { status: "error", message: de.distribution.certificate.renewal.errors.notADate };
+  }
+
+  try {
+    await renewCertificate(customerDeps, {
+      customerId: customerId.data,
+      type: fields.data.type,
+      validUntil: fields.data.validUntil,
+    });
+  } catch (error: unknown) {
+    if (error instanceof CertificateValidUntilInPast) {
+      return {
+        status: "error",
+        message: de.distribution.certificate.renewal.errors.validUntilInPast,
+      };
+    }
+    if (error instanceof MissingRequiredField) {
+      return {
+        status: "error",
+        message: de.customers.errors.missingField(customerFieldLabel(error.field)),
+      };
+    }
+    return { status: "error", message: de.distribution.certificate.renewal.errors.unknown };
+  }
+
+  revalidateRecord(customerId.data);
+  return savedAfter(previous);
 }

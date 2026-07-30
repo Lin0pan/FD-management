@@ -20,8 +20,8 @@
         "Typecheck passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Domain: createHouseholdMembers extracted from createCustomerDetails so an edit is judged by registration's rules. Application: updateHousehold (customer.householdUpdated audit entry); refuses an archived customer (record read-only, FR-8), allows a blocked one. Port + Prisma adapter: updateHousehold(id, members) replaces the member set in one transaction. Tests in src/application/customers/maintain-customer.test.ts drive the real listCardsDueForReissue to prove HOUSEHOLD_CHANGE follows a count change and a spelling fix does not."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -39,8 +39,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Modelling question (PRD §7) settled: the customer's own row and their household-member row are KEPT IN STEP in one write, not unified. A single source of truth needs either dropping the customer from their own household (which breaks EmptyHousehold and contradicts US-16.1) or giving member rows an identity they do not have. So domain replaceHouseholdMember(members, was, becomes) restates the row holding the customer's OLD name and birthdate; CustomerRepository.updateDetails(id, details, household) writes both halves in one transaction. No matching row = household left alone. Domain: createPersonalDetails and createNotes extracted from createCustomerDetails; NOTES_MAX_LENGTH 4000 with the new NotesTooLong error. updateNotes is its own use case (customer.notesUpdated); a test drives the real lookupCustomer to prove the note reaches the counter. Both refuse an archived customer, allow a blocked one. Decision recorded in docs/technical_documentation.md."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -57,8 +57,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Domain: Card gains a groupAtIssue snapshot — the card prints the group, so a move makes it wrong; without the snapshot there is nothing to notice a move against. That settles US-13's open question. staleCounts.ts is renamed staleCard.ts and staleCardReason takes CardFacts = { counts, group } on both sides, answering AGE_13 | HOUSEHOLD_CHANGE | GROUP_CHANGE; counts answer first, the group only when they agree. Application: changeGroup (customer.groupChanged) returns groupCounts read AFTER the write, refuses a no-op with the new GroupUnchanged error and an archived customer, allows a blocked one. Port + adapter: setGroup(id, group), a single column that deliberately leaves the cards alone. 'In force today' is proved by driving the real lookupCustomer on a RED distribution day (2026-08-05): WRONG_GROUP before, CLEAR_TO_SERVE after, one instant."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -79,8 +79,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Five forms, five use cases, five audit entries — no merged saveCustomer (PRD §7). HouseholdEditor derives counts/portions/price in the browser from composition/portionsFor/priceFor against the server's today, so the consequence of adding a child shows before the save; priceFor widened to a PriceValues Pick so the client holds only the four per-head numbers. readCustomer gained history (newest first, the record's own priceCents), groupCounts and today; lookupCustomer gained blockReason. Block controls moved up beside the archive ones and are now offered at the counter, which also links to the record (US-08.4 carry-over). Archived renders with zero inputs on the page. The group radios are the one uncontrolled field: React resets a form after its action and a reset restores a radio from its checked ATTRIBUTE, so a controlled one came back on the old group while the sizes beside it showed the new one. Verified in a real browser end to end (live figures, group move + no-op refusal, note reaching /ausgabe, name correction carrying into the customer's own household row only, renewal resetting the count, archived read-only)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
@@ -95,8 +95,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "tests/e2e/customer-record.spec.ts, one household (customer number 291 — 281–285 belong to customer-list) seeded BLUE with a lapsed certificate, two reminders and a card printed 1/1 BLUE, pinned to the RED Thursday 08.01.2026. Four edits, each read back off the screen that would betray it: adding a child moves all four derived figures BEFORE the save and then lands on /karten-neuausstellung as HOUSEHOLD_CHANGE; the renewal resets the reminder count to 0; the group move flips the counter from WRONG_GROUP to CLEAR_TO_SERVE on the same morning with both sizes moving as a delta; the note comes back verbatim at /ausgabe. The card is reissued between the household and group edits because stale counts answer the cards-due list first and GROUP_CHANGE would never be visible. Full suite 72 passed, 1 skipped."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

@@ -128,7 +128,13 @@ export async function registerCustomer(
         group,
         status: "ACTIVE",
         reminderCount: 0,
-        card: { index: 1, issuedAt: now, reason: "FIRST_ISSUE", countsAtIssue },
+        card: {
+          index: 1,
+          issuedAt: now,
+          reason: "FIRST_ISSUE",
+          countsAtIssue,
+          groupAtIssue: group,
+        },
         previousCustomerId,
       });
       await deps.audit.append({

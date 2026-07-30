@@ -2,9 +2,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type {
   CustomerDetails,
   CustomerStatus,
+  HouseholdMemberDetails,
   NewCustomer,
+  PersonalDetails,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
+import type { Group } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import {
   CertificateStillValid,
@@ -92,6 +95,43 @@ class FakeCustomerRepository implements CustomerRepository {
    */
   searchArchived(): Promise<ReadonlyArray<ArchivedCustomer>> {
     return Promise.resolve([]);
+  }
+
+  updateHousehold(id: number, members: ReadonlyArray<HouseholdMemberDetails>): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    const held = this.holders[index];
+    this.holders[index] = {
+      ...held,
+      details: { ...held.details, householdMembers: [...members] },
+    };
+    return Promise.resolve();
+  }
+
+  updateDetails(
+    id: number,
+    details: PersonalDetails,
+    household: ReadonlyArray<HouseholdMemberDetails>,
+  ): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    const held = this.holders[index];
+    this.holders[index] = {
+      ...held,
+      details: { ...held.details, ...details, householdMembers: [...household] },
+    };
+    return Promise.resolve();
+  }
+
+  updateNotes(id: number, notes: string): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    const held = this.holders[index];
+    this.holders[index] = { ...held, details: { ...held.details, notes } };
+    return Promise.resolve();
+  }
+
+  setGroup(id: number, group: Group): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    this.holders[index] = { ...this.holders[index], group };
+    return Promise.resolve();
   }
 
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
@@ -212,6 +252,7 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
+      groupAtIssue: "RED",
     },
     registeredOn: new Date(TODAY),
     previousCustomerId: null,

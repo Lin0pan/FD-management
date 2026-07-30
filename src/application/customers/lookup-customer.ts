@@ -16,7 +16,7 @@
  */
 
 import { formatCardNumber, parseCounterQuery } from "@/domain/card/cardNumber";
-import { staleCountsReason, type StaleCountsReason } from "@/domain/card/staleCounts";
+import { staleCardReason, type StaleCardReason } from "@/domain/card/staleCard";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
 import type { HouseholdComposition } from "@/domain/customer/householdComposition";
@@ -59,6 +59,15 @@ export interface CounterCustomerView {
   /** The day the needs certificate lapses — shown so staff can start the renewal conversation. */
   readonly certificateValidUntil: Date;
   readonly status: CustomerStatus;
+  /**
+   * Why this household is paused, or `null` while they are not (US-08).
+   *
+   * The verdict states it too, because it *is* the verdict for a blocked household. It is repeated
+   * here because the counter now offers to lift the block from the same screen (US-16.5), and the
+   * confirmation quotes the reason being lifted — a control reading it off the verdict union would
+   * be a second, quietly diverging account of which field the reason lives in.
+   */
+  readonly blockReason: string | null;
   readonly reminderCount: number;
   /**
    * How many of their own distributions this household has missed in a row (US-10.1). Read from the
@@ -75,16 +84,18 @@ export interface CounterCustomerView {
    * household *is* is `grownUps`/`children` above, derived from the birthdates like everywhere.
    */
   readonly countsOnCard: HouseholdComposition;
+  /** The group printed on that same piece of card, read only to be compared with `group` above. */
+  readonly groupOnCard: Group;
   /**
-   * Why the card in the household's pocket prints counts that are no longer true, or `null` when it
-   * still matches them (US-13.4). It is compared against the counts just derived above, so the note
-   * and the numbers beside it can never tell different stories.
+   * Why the card in the household's pocket no longer prints what is true of them, or `null` when it
+   * still does (US-13.4, US-16.4). It is compared against the counts and the group just read above,
+   * so the note and the values beside it can never tell different stories.
    *
    * Nothing follows from it. A stale card is never grounds to turn anyone away (FR-5): the verdict
    * is decided by `evaluateAtCounter`, which never sees this field, and the screen states it as a
    * quiet note beside the household's data rather than as a warning.
    */
-  readonly staleCounts: StaleCountsReason | null;
+  readonly staleCard: StaleCardReason | null;
 }
 
 /**
@@ -205,15 +216,20 @@ export async function lookupCustomer(
       priceCents: allowance.priceCents,
       certificateValidUntil: customer.details.certificate.validUntil,
       status: customer.status,
+      blockReason: customer.blockReason,
       reminderCount: customer.reminderCount,
       consecutiveNoShows,
       notes: customer.details.notes,
       cardNumber: formatCardNumber(customer.customerNumber, customer.card.index),
       countsOnCard: customer.card.countsAtIssue,
-      staleCounts: staleCountsReason(customer.card.countsAtIssue, {
-        grownUps: allowance.grownUps,
-        children: allowance.children,
-      }),
+      groupOnCard: customer.card.groupAtIssue,
+      staleCard: staleCardReason(
+        { counts: customer.card.countsAtIssue, group: customer.card.groupAtIssue },
+        {
+          counts: { grownUps: allowance.grownUps, children: allowance.children },
+          group: customer.group,
+        },
+      ),
     },
   };
 }

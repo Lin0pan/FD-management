@@ -54,9 +54,11 @@ deliberately and say why in the commit; do not add an inline disable.
 - **Derive, don't store** anything computable — grown-up/children counts, portion allowance, card
   validity. Two sources of truth is the Excel failure we are replacing. There are exactly two
   exceptions, each with an argument of its own kind:
-  - `Card.grownUpsAtIssue` / `childrenAtIssue` — a snapshot of what was _printed_ on a physical card,
-    so a birthday that overtook it can be spotted (US-13). Never read as the household's counts and
-    never updated: a reissue is how a change is recorded.
+  - `Card.grownUpsAtIssue` / `childrenAtIssue` / `groupAtIssue` — a snapshot of what was _printed_ on
+    a physical card, so a birthday that overtook the counts (US-13) or a move between RED and BLUE
+    (US-16.4) can be spotted. Never read as the household's counts or group — those are
+    `composition(members, today)` and `Customer.group` — and never updated: a reissue is how a change
+    is recorded.
   - `Customer.firstNameFolded` / `lastNameFolded` — a **search key**, not a fact (US-11). SQLite can
     fold neither umlauts nor Unicode case in a `WHERE` clause, so `foldName`'s output is stored and
     indexed. Never displayed and never read as the name; written from the names in the same
@@ -131,7 +133,11 @@ settings screen reporting that nothing is configured.
   A **nullable** relation must say `onDelete: Restrict` out loud: Prisma's default for an optional
   relation is `SetNull`, which the schema test cannot see, so it also greps the generated migration
   SQL. An integration test that clears the register therefore deletes children first — use
-  `clearRegister` from `src/infrastructure/prisma/test-support.ts`.
+  `clearRegister` from `src/infrastructure/prisma/test-support.ts`. The one deliberate exception is a
+  household's member rows: editing a household **replaces** the set (`updateHousehold`, and
+  `updateDetails` with it — the customer is one of those rows, so their own name lives there too),
+  because no history of past compositions is kept (US-16, FR-2) and what a household was survives on
+  the card that printed its counts. Nothing else in the schema may be deleted.
 - ❌ Don't skip the audit entry on a state change (archive, block, group move, card reissue, policy
   edit). With no login, the log is the only accountability the system has — and it records _what,
   when and why_, never _who_. The _why_ is required where it is the record (archive, block) and

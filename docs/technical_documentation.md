@@ -145,8 +145,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── card/card.test.ts         # its Vitest spec
 │   │   ├── card/cardNumber.ts        # the derived card number, e.g. `12k1`
 │   │   ├── card/cardNumber.test.ts   # its Vitest spec
-│   │   ├── card/staleCounts.ts       # do the printed counts still match, and what changed (US-13)
-│   │   ├── card/staleCounts.test.ts  # its Vitest spec
+│   │   ├── card/staleCard.ts         # does the card still print the truth, and what changed (US-13)
+│   │   ├── card/staleCard.test.ts    # its Vitest spec
 │   │   ├── distribution/weekColour.ts  # RED/BLUE alternation derived from the ISO calendar
 │   │   ├── distribution/weekColour.test.ts  # its Vitest spec
 │   │   ├── distribution/distributionDay.ts  # is today a distribution day, and when is the next
@@ -173,7 +173,10 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   searchArchivedCustomers (US-11, the archive search),
 │   │   │                             #   draftFromArchived (US-11, the registration pre-fill),
 │   │   │                             #   listCardsDueForReissue (US-13, cards a birthday overtook),
-│   │   │                             #   listCustomers (US-15, the searchable customer list)
+│   │   │                             #   listCustomers (US-15, the searchable customer list),
+│   │   │                             #   updateHousehold (US-16, replaces the member set),
+│   │   │                             #   updateCustomerDetails / updateNotes (US-16, record edits),
+│   │   │                             #   changeGroup (US-16, moves between RED and BLUE)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
 │   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
 │   │   ├── waiting-list/             # addToWaitingList, listWaiting, removeFromWaitingList,
@@ -204,6 +207,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── card.spec.ts                  # registration issues k1 and the card view shows it
 │   ├── counter.spec.ts               # every counter verdict, and that a lookup writes nothing
 │   ├── customer-list.spec.ts         # search, filters and the group balance on /kunden
+│   ├── customer-record.spec.ts       # four edits on the record, each read back off another screen
 │   ├── distribution.spec.ts          # the week-colour banner against a fixed clock
 │   ├── home.spec.ts                  # Playwright smoke test
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
@@ -275,18 +279,18 @@ The interfaces the application layer depends on. Per the TDD approach, ports **e
 needs** rather than being designed up front. Type-only, so it adds no runtime code to the
 coverage-measured layers.
 
-| Port                           | Shape                                                                                                                                                                                                         | Notes                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Clock`                        | `now(): Date`                                                                                                                                                                                                 | The one seam to the wall clock.                                                                                                                                                                                                                                                                                                                                                             |
-| `SettingsRepository`           | `listVersions()`, `append(version)`                                                                                                                                                                           | No update/delete — policy history is append-only.                                                                                                                                                                                                                                                                                                                                           |
-| `CustomerCounter`              | `countActive()`                                                                                                                                                                                               | The reality the quota `N` may not fall below.                                                                                                                                                                                                                                                                                                                                               |
-| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `findById(id)`, `findByCustomerNumber(n)`, `listWithStatus(status)`, `list(query)`, `searchArchived(query, limit)`, `create(customer)`, `setStatus(…)`, `archive(…)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`. `listWithStatus` is the one whole-register read — lowest number first, households and cards attached, for the cards-due list (US-13.2). `list` is the customer list's filtered read (US-15.2): every criterion of `CustomerListQuery` is a `WHERE` clause, ordered by ascending customer number. |
-| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issueCounts(customerId)`, `issue(customerId, card)`                                                                                                      | `currentCard` is the highest index — there is no `valid` flag to read; `issueCounts` counts the run and its losses in one aggregate (US-09.2); `issue` reports a lost race as `CardIndexTaken`.                                                                                                                                                                                             |
-| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`                                                                                                                    | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                                                                                                                                                                                              |
-| `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                                                                                                                                                | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3).                                                                                                                                                                    |
-| `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                                                                                                                                                  | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                                                                                                                                                                                          |
-| `WaitingListRepository`        | `listWaiting()`, `findWaiting(entryId)`, `add(entry)`, `remove(entryId, reason, removedOn)`                                                                                                                   | The applicants waiting for a slot (US-12). There is no `delete`: `remove` stamps the row, so the order of past promotions stays reconstructable (FR-7). It promises no ordering — that is `inArrivalOrder`'s.                                                                                                                                                                               |
-| `AuditLog`                     | `append(entry)`                                                                                                                                                                                               | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                                                                                                                                                                                   |
+| Port                           | Shape                                                                                                                                                                                                                                                                                                                                   | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Clock`                        | `now(): Date`                                                                                                                                                                                                                                                                                                                           | The one seam to the wall clock.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `SettingsRepository`           | `listVersions()`, `append(version)`                                                                                                                                                                                                                                                                                                     | No update/delete — policy history is append-only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `CustomerCounter`              | `countActive()`                                                                                                                                                                                                                                                                                                                         | The reality the quota `N` may not fall below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `findById(id)`, `findByCustomerNumber(n)`, `listWithStatus(status)`, `list(query)`, `searchArchived(query, limit)`, `create(customer)`, `updateHousehold(id, members)`, `updateDetails(id, details, household)`, `updateNotes(id, notes)`, `setGroup(id, group)`, `setStatus(…)`, `archive(…)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`. `setGroup` is a single column write (US-16.4) that deliberately leaves the cards printing the group they were issued with. `listWithStatus` is the one whole-register read — lowest number first, households and cards attached, for the cards-due list (US-13.2). `list` is the customer list's filtered read (US-15.2): every criterion of `CustomerListQuery` is a `WHERE` clause, ordered by ascending customer number. |
+| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issueCounts(customerId)`, `issue(customerId, card)`                                                                                                                                                                                                                                | `currentCard` is the highest index — there is no `valid` flag to read; `issueCounts` counts the run and its losses in one aggregate (US-09.2); `issue` reports a lost race as `CardIndexTaken`.                                                                                                                                                                                                                                                                                                                        |
+| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`                                                                                                                                                                                                                                              | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                                                                                                                                                                                                                                                                                                                         |
+| `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                                                                                                                                                                                                                                                                          | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3).                                                                                                                                                                                                                                                                                               |
+| `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                                                                                                                                                                                                                                                                            | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                                                                                                                                                                                                                                                                                                                     |
+| `WaitingListRepository`        | `listWaiting()`, `findWaiting(entryId)`, `add(entry)`, `remove(entryId, reason, removedOn)`                                                                                                                                                                                                                                             | The applicants waiting for a slot (US-12). There is no `delete`: `remove` stamps the row, so the order of past promotions stays reconstructable (FR-7). It promises no ordering — that is `inArrivalOrder`'s.                                                                                                                                                                                                                                                                                                          |
+| `AuditLog`                     | `append(entry)`                                                                                                                                                                                                                                                                                                                         | `AuditEntry` = `what` / `changedFields` / `when` / `why`.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 `AuditEntry` deliberately has **no actor field** — see §5.2 of the architecture sketch.
 
@@ -407,10 +411,13 @@ that customer owe last March" is to resolve the version that was in force then.
 
 `createSettings(input)` validates every invariant on construction (quota ≥ 1, portions ≥ 0,
 ISO weekday 1–7, an `YYYY-Www` anchor, non-negative integer cents) and throws
-`InvalidSettings` naming the field. `priceFor(settings, grownUps, children)` derives what a
+`InvalidSettings` naming the field. `priceFor(values, grownUps, children)` derives what a
 household owes — `grownUps × pricePerGrownUp + children × pricePerChild` — because FD charges per
 head. Every household size is therefore priceable and no table has to be kept in step with the
-sizes that actually turn up. The module is pure: no I/O, no wall clock, and it works over an already-loaded array so
+sizes that actually turn up. It takes a `PriceValues` — the two per-head prices picked off
+`Settings`, mirroring `portionsFor`'s `PortionValues` — so that the record's household editor can
+price a household in the browser from the four numbers that bear on the answer, without being handed
+the quota and the week anchor as well (US-16.5). The module is pure: no I/O, no wall clock, and it works over an already-loaded array so
 the counter screen (US-04) resolves settings without a per-field query.
 
 `changedSettingsFields(previous, next)` names the policy fields that differ between two versions —
@@ -614,7 +621,8 @@ applicant is not a customer and must not occupy a slot.
 
 ### `src/domain/card/card.ts`
 
-What an issued card _is_: `IssuedCard` = `index` + `issuedAt` + `reason` + `countsAtIssue`, and
+What an issued card _is_: `IssuedCard` = `index` + `issuedAt` + `reason` + `countsAtIssue` +
+`groupAtIssue`, and
 `CardIssueReason` = `FIRST_ISSUE | LOST | STALE_COUNTS | OTHER`. `parseCardIssueReason(value)` reads a
 stored reason word back — SQLite has no enum type, so the word is checked rather than trusted, exactly
 as `group` and `status` are, and an unknown one raises `InvalidCustomerRecord` instead of quietly
@@ -629,6 +637,13 @@ claims_, so the two can be compared and a reissue proposed. It is never updated:
 counts have been overtaken is replaced by a new card with reason `STALE_COUNTS`, and the reissue _is_
 how the change is recorded.
 
+`groupAtIssue` is the same kind of snapshot and carries the same argument (US-16.4). The card also
+prints which week the household collects in, so moving them between RED and BLUE makes the printed
+card wrong although nothing about the household changed. Nothing reads it as the household's group —
+that is `customer.group`, the only editable one — and, like the counts, it is never updated in place:
+without the snapshot there would be nothing to notice a move against, and a group change could not
+reach the cards-due list at all.
+
 It is the **one** shape of a card in the system: `NewCustomer.card` is an `IssuedCard` too, so the
 card written with a registration and the card written by `issueCard` cannot drift into two row
 shapes.
@@ -639,11 +654,12 @@ exist — the same argument that keeps the household counts derived. The reason 
 than free text because the audit log is read by people who did not make the change, and four words
 they can scan tell them more than a sentence typed to get past a form.
 
-### `src/domain/card/staleCounts.ts`
+### `src/domain/card/staleCard.ts`
 
-The counterpart to `countsAtIssue`: `staleCountsReason(printedOnCard, today)` answers `null` when the
-card still prints what the household is, and otherwise names what changed —
-`AGE_13 | HOUSEHOLD_CHANGE`.
+The counterpart to the two snapshots above: `staleCardReason(printedOnCard, today)` answers `null`
+when the card still prints what the record says, and otherwise names what changed —
+`AGE_13 | HOUSEHOLD_CHANGE | GROUP_CHANGE`. Both sides are a `CardFacts` — `{ counts, group }` — so
+neither can quietly grow a field the other does not have.
 
 A birthday is blamed only when it is the **whole** explanation: the household is the same size and
 grown-ups have gone up, so the same people are on the card and one or more crossed 13. A different
@@ -652,7 +668,12 @@ are changes a human made to the record, and reporting them as `AGE_13` would tel
 did not happen. The distinction is shown on the reissue list so it reads as "the software moved these
 numbers" rather than as an accusation that a record was filled in wrongly.
 
-The module takes **no clock and no members** — both sides are already-derived counts, so deciding
+The counts answer first and the group only when they agree. A reissue replaces the whole card at
+once, so the reason is not a work list but the sentence that explains the row, and when both moved the
+counts are the difference worth naming: they decide the portions and the price, while the group
+decides only which week the household is expected in.
+
+The module takes **no clock and no members** — both sides are already-derived facts, so deciding
 _when_ "today" is stays with the caller and this rule cannot acquire a second opinion about it.
 
 ### `src/domain/card/cardNumber.ts`
@@ -841,16 +862,17 @@ count and the distribution history are untouched, which is what the use case's t
 
 ### `src/application/customers/listCardsDueForReissue`
 
-Which households hold a card whose printed counts no longer match them (US-13.2). It writes nothing
-and reclassifies nobody: a child becomes a grown-up because `composition` derives the counts from the
-birthdates on every read — no job, no trigger, no event. What this adds is the _consequence_, that
-the piece of card in the household's pocket still shows the old numbers.
+Which households hold a card that no longer prints what their record says (US-13.2, US-16.4). It
+writes nothing, reclassifies nobody and moves nobody: a child becomes a grown-up because `composition`
+derives the counts from the birthdates on every read — no job, no trigger, no event. What this adds is
+the _consequence_, that the piece of card in the household's pocket still shows the old numbers, or
+names the wrong week.
 
 `listCardsDueForReissue(deps)` reads the clock once, asks `customers.listWithStatus("ACTIVE")` for the
-register, and for each household compares `card.countsAtIssue` with `composition(members, today)`
-through `staleCountsReason`. Each entry carries the surrogate id (what a reissue is written against),
-the customer number, the name, the card number, the number a reissue would hand out, **both** count
-sets and the reason. The repository's order — lowest customer number first — is handed on untouched
+register, and for each household compares `{ card.countsAtIssue, card.groupAtIssue }` with
+`{ composition(members, today), customer.group }` through `staleCardReason`. Each entry carries the
+surrogate id (what a reissue is written against), the customer number, the name, the card number, the
+number a reissue would hand out, **both** count sets, **both** groups and the reason. The repository's order — lowest customer number first — is handed on untouched
 rather than sorted again here.
 
 `countCardsDueForReissue(deps)` is the same question asked for the home screen's badge, and it
@@ -890,7 +912,14 @@ The two read-side use cases the customer screens sit on:
   It also carries `consecutiveNoShows` (US-10.4) — the household's own distributions missed in a row,
   through the `countNoShows` seam below — which is why it takes the read side of
   `DistributionRecordRepository`: a no-show is the absence of a record, so the history has to be read
-  to count one.
+  to count one. US-16.5 added three more, all of them for the record screen and none of them a new
+  query but one: `history`, the same hand-out records **sorted newest first** and shown with the
+  price each one actually cost (the record's own `priceCents`, never re-derived from today's
+  settings); `groupCounts`, both group sizes, because moving a household between RED and BLUE is a
+  decision made by comparing them (FR-4); and `today`, the day the record's household editor judges
+  its rows against while they are being typed — handed out for the reason `proposeRegistration`
+  hands out its own, because a browser counting against its own clock would flicker onto a different
+  answer than the save derives.
 - **`readCard`** answers what the _card_ shows (US-02.4): the current card number, the name, the
   group, the counts, portions and price as of today (all via `describeAllowance`), and the numbers
   this card replaced. It reads the customer's whole
@@ -1042,6 +1071,127 @@ state from today's date.
 somebody (US-01) to decide which group keeps the two weeks even, so it counts every active household
 regardless of the current filter (PRD FR-3) — a number that moved with the filter would be a
 different question wearing the same label.
+
+### `src/application/customers/updateHousehold`
+
+How a household changes after registration (US-16.1). `updateHousehold(deps, { customerId, members })`
+**replaces the whole member set** — it is not an add-and-remove pair, because staff edit the list in
+front of them and press save, and because no history of past compositions is kept (PRD §FR-2).
+
+The rows are judged by `createHouseholdMembers`, the same domain rule a registration is judged by, so
+an edit can never let through a household a registration would refuse: an empty list is
+`EmptyHousehold`, a member born after today is `BirthDateInFuture`, and a blank name names its row
+(`householdMembers.1.firstName`). The function was extracted from `createCustomerDetails` for exactly
+this reason — a second implementation would be free to diverge with the first rule that changed.
+
+A **blocked** household may be edited (a block turns them away at the counter, it does not freeze
+their record); an **archived** one may not, and is refused as `CustomerArchived` — their record is
+read-only (PRD §FR-8). Persistence is one `updateHousehold(id, members)` call; the audit entry is
+`customer.householdUpdated` with the single changed field `householdMembers` and an empty `why`,
+because what changed is what the record now says.
+
+**Nothing derived is written, and there is nothing to write.** The counts, the portion allowance and
+the price are read off the birthdates wherever they are needed, so they are already right the instant
+the call returns; the same is true of the cards-due-for-reissue list, which is why
+`maintain-customer.test.ts` proves the consequence rather than a queue — it drives the real
+`listCardsDueForReissue` over the fake register: after an edit that changes the counts the household turns
+up in `listCardsDueForReissue` with reason `HOUSEHOLD_CHANGE`, and after a spelling fix it does not.
+What the household _was_ survives in exactly one place, as a fact about a physical object: the counts
+printed on the card they hold.
+
+### `src/application/customers/updateCustomerDetails`
+
+Correcting who a customer is and where they live (US-16.2) — a misspelt surname, a birthdate typed a
+year out, a household that has moved house. The data is judged by `createPersonalDetails`, extracted
+from `createCustomerDetails` for the same reason `createHouseholdMembers` was: a correction must be
+judged by exactly the rules the registration was, and a second implementation would be free to accept
+what a registration refuses.
+
+**The customer number is not an input, and cannot be reached from here** (PRD §FR-7). A slot is
+assigned when a household joins the register and released when they leave it; editing it would hand a
+household a number another one may already hold, and every card ever printed for them would name the
+wrong slot. There is no field for it, which is the whole of the guarantee.
+
+#### Decision: the customer is one of their own household members, kept in step in one write
+
+A registered customer's name and birthdate sit on the record **twice** — once as the person the slot
+belongs to (`Customer.firstName`…), and once as a row among the people they live with
+(`HouseholdMember`), because every rule that counts heads reads the household rows and the customer is
+a head like any other. The PRD (§7) asks for a single source of truth. The register cannot have one
+without either
+
+- **dropping the customer from their own household**, which would make `EmptyHousehold` meaningless
+  and a one-person household unrepresentable — and US-16.1 shipped on the opposite rule; or
+- **giving household rows an identity**, which they do not have: two children of the same name and
+  birthdate are two rows and nothing tells them apart, which is exactly why `updateHousehold`
+  _replaces_ the set rather than diffing it.
+
+So the two copies are **kept in step in one write** instead. `replaceHouseholdMember(members, was,
+becomes)` — a pure domain rule — restates the row that held the customer's _old_ name and birthdate
+with the new ones, and `updateDetails(id, details, household)` writes the personal data and the
+household in a single transaction, so the two halves can never land apart. The row is found by what it
+says, because before the edit the customer's row is the one holding exactly their old values; only the
+first such row moves, since one person cannot live in a household twice. When **no** row says what the
+customer used to, the household is left exactly as it stands: nothing there claims to be them, and
+guessing which row meant them is how an edit rewrites somebody else.
+
+The consequence follows for free, and `maintain-customer.test.ts` proves it by driving the real
+`listCardsDueForReissue`: correcting a birthdate across the 13-year line changes the counts and puts
+the household on the cards-due list with reason `HOUSEHOLD_CHANGE`, while correcting a spelling does
+not. The audit entry is `customer.detailsUpdated` with the changed fields `firstName`, `lastName`,
+`birthDate`, `address` and an empty `why` — the household is deliberately **not** among them, because
+the row that moved is the customer's own name said a second time and not a member joining or leaving.
+
+A **blocked** customer may be corrected; an **archived** one is refused as `CustomerArchived`, because
+their record is read-only (PRD §FR-8).
+
+### `src/application/customers/updateNotes`
+
+The free-text note staff leave for the counter (US-16.3). `updateNotes(deps, { customerId, notes })`
+saves the text as written, line breaks and all; **an empty note is a legitimate answer**, unlike a
+block reason, whose whole purpose is to record a judgement. The one refusal is `NotesTooLong` past
+`NOTES_MAX_LENGTH` (4000 characters) — a bound on a text column so a pasted document cannot become a
+customer record, deliberately **not** a settings value beside the prices and portions FD edits.
+
+Nothing is derived from a note and nothing follows from changing one, so persistence is a single
+column write and there is nothing to keep in step: the counter lookup (US-04.2) reads back the very
+column this writes, which `maintain-customer.test.ts` proves by driving the real `lookupCustomer` over
+the same fake register. The audit entry is `customer.notesUpdated` with the single changed field
+`notes`; the note's **text** is deliberately not in it, neither before nor after, because a copy of
+every note ever written would turn the audit trail into a second, undeletable customer record.
+
+It is its own use case rather than a field of `updateCustomerDetails` because it is its own decision
+with its own audit entry — and an entry reading `firstName, lastName, birthDate, address, notes` every
+time would make the log unreadable for both.
+
+### `src/application/customers/changeGroup`
+
+Moving a household between the two halves of the distribution cycle (US-16.4).
+`changeGroup(deps, { customerId, group })` takes the group they should be in afterwards — never a
+direction to toggle — writes it through `setGroup`, and **returns the resulting group sizes**, counted
+after the write. The two groups have to stay roughly equal or one week overwhelms the volunteers while
+the other wastes the food collected for it; registration proposes the smaller group
+(`suggestGroup`), the register drifts as households come and go, and this is how staff correct it. The
+sizes come back with the answer because the decision it serves is a comparison: staff move somebody
+_in order to_ balance the register.
+
+The change is in force **immediately, including for today**: the counter derives its verdict from the
+group column every time it is asked (US-04), so a household moved to RED on a RED distribution day is
+servable the same afternoon with nothing to re-run. That is a consequence of deriving rather than
+anything implemented here, and `maintain-customer.test.ts` says so by driving the real
+`lookupCustomer` over the same fake register — `WRONG_GROUP` before the move, `CLEAR_TO_SERVE` after
+it, on one instant.
+
+What does _not_ follow automatically is the card, which prints the group. The household is left
+carrying a piece of paper naming the wrong week, and the cards-due list derives that on its next read
+with reason `GROUP_CHANGE` (see `staleCard.ts`) — nothing is enqueued and nothing can be forgotten.
+
+Moving to the group the customer is already in is refused as `GroupUnchanged` rather than quietly
+accepted: it would write an audit entry for a move that never happened and put the household on the
+cards-due list for a change nobody made. A **blocked** household may be moved — a block pauses them at
+the counter, and balancing the groups is FD's business rather than theirs — an **archived** one may
+not (PRD §FR-8). The audit entry is `customer.groupChanged` with the single changed field `group` and
+no `why`: unlike a block or an archive it turns on no judgement about the household.
 
 ### `src/application/customers/draftFromArchived`
 
@@ -1198,6 +1348,31 @@ makes the attribution safe. `setStatus(id, status, blockReason)` is the one writ
 `blockCustomer` / `unblockCustomer`: it updates the `status` and `blockReason` columns together, so
 the reason a blocked customer carries can never disagree with their status.
 
+`updateHousehold(id, members)` is the one write behind the household editor (US-16.1), and the only
+**delete** in this file: it removes the customer's member rows and creates the given ones inside a
+single `$transaction`. Matching the given rows against the stored ones is not possible — two children
+of the same name and birthdate are two rows and nothing distinguishes them — and a partial match would
+leave a household nobody typed. The delete is not customer data leaving the system: past compositions
+are deliberately not kept (US-16, FR-2), and the counts a household _had_ survive on the card that
+printed them. It is also the reason `HouseholdMember` is the one relation an integration test may
+clear directly (`clearRegister` deletes children first anyway).
+
+`setGroup(id, group)` is the write behind `changeGroup` (US-16.4) — one column, and deliberately
+nothing beside it. The cards the household has been issued are left alone: each printed the group that
+was true when it left the counter, and updating that snapshot is exactly what would hide the fact that
+the card in their pocket now names the wrong week.
+
+`updateDetails(id, details, household)` is the write behind `updateCustomerDetails` (US-16.2), and the
+one other place the member rows are replaced. The customer's columns, the folded search keys and the
+household go out in a **single `$transaction`**: the keys are rewritten from the names in the same
+statement, because they are a stored _search key_ rather than a fact and a name edited without them
+would leave the register findable only under a spelling nobody uses any more (US-11.1); the household
+travels along because the customer is one of its rows, and which row was them has already been decided
+by the domain (`replaceHouseholdMember`). It is written even when nothing in it moved, so there is one
+code path here rather than a comparison this layer has no business making. No argument reaches the
+customer number (PRD §FR-7). `updateNotes(id, notes)` is the shortest write in the file — one column,
+one statement — because nothing is derived from a note and there is nothing to keep in step with it.
+
 `archive(id, reason, archivedAt)` is the one write behind `archiveCustomer` (US-10): status, reason
 and instant in a single statement, with any block reason cleared alongside them. It is a plain
 `WHERE id` update and nothing more — no related row is touched and the customer number stays put,
@@ -1281,6 +1456,10 @@ nothing: `currentCard(customerId)` is the highest-indexed row, because that _is_
 `null` like a customer who simply holds no card — whether the household exists is the use case's
 question, asked once of the customer register.
 
+`toCard` puts the flat columns back into the domain's shape in one place, so `currentCard` and
+`listCards` cannot come to read a snapshot differently, and checks the stored `groupAtIssue` word
+through `parseGroup` rather than trusting it — SQLite has no enum type.
+
 `issue` translates a `P2002` naming `index` into the domain's `CardIndexTaken`. The constraint behind
 it is `@@unique([customerId, index])`, and it is what makes "exactly one valid card" (FR-3) true
 under two simultaneous issues: if both writes landed, two cards would share the highest index and
@@ -1297,7 +1476,10 @@ out.
 `toCard(row)` that `currentCard`, `listCards` and `issue` all go through — two mappings would be two
 readings of the same snapshot. They are the **only** stored counts in the schema and are documented in
 `schema.prisma` as a snapshot of the printed card rather than household truth, so a future maintainer
-does not "fix" the duplication; `Customer` still has no count column.
+does not "fix" the duplication; `Customer` still has no count column. `Card.groupAtIssue` travels with
+them through the same mapping and carries the same argument (US-16.4): the card prints which week the
+household collects in, so the printed group is a fact about the artefact and never about the
+household, whose group is `Customer.group`.
 
 `issueCounts(customerId)` answers both numbers behind the reissue count (US-09.2) in a **single**
 `groupBy(["reason"])`: the highest index is the largest of the groups' maxima and the loss count is
@@ -1438,28 +1620,77 @@ beyond it:
   blank must reach the domain and be rejected there rather than vanishing on the way. `redirect()`
   is called **outside** the `try`: it works by throwing, and catching it would turn a successful
   registration into "could not be saved".
-- **`[id]/page.tsx`** renders what `readCustomer` already derived — the counts from the birthdates,
-  the standard portions and price (US-07.4), and the card number from the slot and the card index. A
-  non-numeric id and an id nobody holds give the same German answer: there is no such customer. It
-  links on to the card view. It also hosts the **block controls** (US-08.4): an active customer sees
-  a "Sperre" section showing the current reason verbatim when blocked — and the **reissue control**
-  (US-09.3), because staff reach for whichever of the two screens is already open. It shows the
+- **`[id]/page.tsx`** is the **customer record** (US-16.5): everything known about one household and
+  everything editable about them. It renders what `readCustomer` already derived — the counts from
+  the birthdates, the standard portions and price (US-07.4), the card number from the slot and the
+  card index, the hand-out history and both group sizes — and reads `readCurrentSettings` beside it
+  for the four per-head values the household editor derives its live figures from. A non-numeric id
+  and an id nobody holds give the same German answer: there is no such customer. It shows the
   **consecutive-no-show count** only when it is greater than zero (US-10.4): a zero is one more number
-  to read past on every record and says nothing a decision could rest on. An **archived** record
-  renders read-only — the block, reissue and archive sections are all absent, because there is no
-  transition out of `ARCHIVED` — behind a banner naming the day and the reason, stated before anything
-  else on the page: every action below it is gone and the reader has to know why before looking for
-  one. "Aufgenommen" is the household's `registeredOn`, so a reissued card does not read as a later
-  registration.
-- **`[id]/block-controls.tsx`** is a client component (`useActionState`, and the save control stays
+  to read past on every record and says nothing a decision could rest on. "Aufgenommen" is the
+  household's `registeredOn`, so a reissued card does not read as a later registration. The sections
+  run in the order a record is _read_ rather than the order it is written — who this is, where they
+  live, who lives with them, what they may collect, what was noted, what they have collected — and
+  the **"Aktionen mit Folgen"** section comes last, holding the reissue, block and archive controls
+  together behind a heading that says what they are, each with its own confirmation, so none of them
+  is a stray click away from the household editor (PRD §6).
+- An **archived** record renders **fully read-only** (FR-8): every form is replaced by the same
+  values as text and the whole danger section is absent — there is no transition out of `ARCHIVED`,
+  the household holds no slot and is issued no card — behind a banner naming the day and the reason,
+  stated before anything else on the page. The `grown-ups` / `children` / `portions` / `price` boxes
+  and the `household-member` rows carry the same test ids in both modes, so a spec asserting the
+  derived figures does not have to know which one it is looking at.
+- **Five editing forms, five use cases, five audit entries.** `[id]/actions.ts` deliberately has no
+  `saveCustomer` taking every field at once (PRD §7): a merged action would write an entry naming
+  every field on every save, and the log would stop saying what was decided. Each action reads its
+  fields, calls one use case and translates the typed error through `recordMessage`, which delegates
+  the rules about customer _data_ to the registration's own `customerErrorMessage` — so a correction
+  and an intake cannot report the same broken rule differently — and adds only what an edit can hit.
+  Each revalidates the record **and** `/ausgabe`, because the counter's verdict, the notes it reads
+  out and the counts it prices are all derived from what was just written.
+  - **`household-editor.tsx`** is a client component because the counts, portions and price must
+    update _as staff type_ (FR-1): it calls `composition`, `portionsFor` and `priceFor` against the
+    server's `today` and the four policy values, so what is on screen is what the save derives.
+    There is no input for any of the four. The edit is a **replacement of the whole set** — rows are
+    addressed by position, because two members can share a name and a birthdate and a row has no
+    identity to diff on. Each row shows the member's **current age** beside their birthdate, derived
+    from the date in the field, which is what makes the 13-year boundary legible (PRD §6).
+  - **`details-editor.tsx`** corrects name, birthdate and address. There is no customer-number field
+    and nowhere to add one — the use case and the port method take none (FR-7). The hint says out
+    loud that the name also stands in the customer's own household row and travels there in the same
+    write, because the other reading — that the household list must be corrected too — is the one
+    that produces two people where there was one.
+  - **`notes-editor.tsx`** saves the free text the counter reads, explicitly and on its own, with a
+    hint saying where it turns up. Empty is a legitimate answer.
+  - **`group-control.tsx`** shows **both group sizes beside the choice** (FR-4) and states the two
+    consequences neither of which is visible here: the move applies to a distribution the same
+    afternoon, and the card still names the old group, which puts the household on the cards-due
+    list. Its radios are the one **uncontrolled** field on the record — React resets a form after its
+    action resolves, and a reset restores a radio from its `checked` _attribute_ rather than the
+    property React set, so a controlled radio comes back showing the group the household was in
+    before the move, silently disagreeing with the sizes beside it.
+  - **`renewal-form.tsx`** records a renewed certificate through the same `renewCertificate` use case
+    the counter calls, in the counter's own words, so the two screens cannot describe one event
+    differently. Unlike at the counter it is **always** offered rather than only while the
+    certificate is expired: a household that brings the renewal early should not have to be turned
+    away first for the form to appear. The confirmation names the reset, and the reminder count above
+    it comes back as 0 from the revalidated record.
+  - **`record-forms.tsx`** holds the field, save button and feedback line all five share; **five
+    identical state unions** would be five places to change, so `record-state.ts` defines one
+    `RecordFormState` for all of them. Its `saved` carries a **counter** rather than a flag, for the
+    reason the registration screen counts: saving the same correction twice produces an identical
+    state, and a form that only resets when a value changed would keep the previous text.
+- **`block-controls.tsx`** is a client component (`useActionState`, and the save control stays
   disabled until a reason is typed — a block's reason is its only record, so an empty one must be
   impossible to submit). It shows "Sperren" with a required multi-line reason for an `ACTIVE`
   customer, the current reason plus a confirming "Sperre aufheben" for a `BLOCKED` one, and nothing
-  for an `ARCHIVED` one — there is no transition out of archived. **`[id]/actions.ts`** relays a
-  block or unblock to `blockCustomer` / `unblockCustomer`, translates the typed error into German,
-  and `revalidatePath`s the record so the new status, reason and controls come from the store. The
-  reason itself is shown verbatim and in full at the counter by the US-04 verdict banner — it is not
-  re-derived here.
+  for an `ARCHIVED` one — there is no transition out of archived. Like `archive-controls.tsx` it sits
+  one level above `[id]/`, because US-16.5 offers it on the **counter** as well: US-08.4 shipped both
+  controls on the record only, which left a staff member who had decided at the counter with no route
+  off that screen. **`block-actions.ts`** relays a block or unblock to `blockCustomer` /
+  `unblockCustomer`, translates the typed error into German, and revalidates the record **and**
+  `/ausgabe`. The reason itself is shown verbatim and in full at the counter by the US-04 verdict
+  banner — it is not re-derived here.
 - **`[id]/reissue-controls.tsx`** is the "Karte neu ausstellen (Verlust)" control, rendered by
   **both** the record and the card view (US-09.3). It is a disclosure holding a confirmation that
   names the number being invalidated and the number about to be issued, then the button. The
@@ -1567,6 +1798,14 @@ then the question it asks about every person in the queue: may _this_ one collec
   the counts from the birthdates, portions and price from the settings in force today.
 - A number that is **not a number** (`?nummer=abc`) renders a German sentence beside the form; an
   unassigned one renders the `NOT_FOUND` banner, because that is an answer rather than a failure.
+- Below the details the counter offers a **link to the whole record** (`/kunden/[id]`) and, since
+  US-16.5, the **block controls** beside the archive ones — the reasons for both turn up here, in
+  front of the person they concern, and everything the counter shows is a slice of the record it now
+  links to. `lookupCustomer` therefore carries `blockReason` as well: the verdict states it too, but
+  the unblock confirmation quotes the reason being lifted, and a control reading it off the verdict
+  union would be a second account of which field the reason lives in. Both controls are keyed by
+  customer, like the certificate controls, so nothing typed about one household survives into the
+  next lookup.
 
 #### Recording the hand-out (`serve-controls.tsx`, `actions.ts`)
 
@@ -1610,9 +1849,11 @@ then the question it asks about every person in the queue: may _this_ one collec
 
 #### The stale-card note
 
-`lookupCustomer` compares the counts printed on the card the household holds (`countsOnCard`, the
-snapshot from US-13.3) with the ones it has just derived, and reports `staleCounts` — `AGE_13`,
-`HOUSEHOLD_CHANGE` or `null`. The counter renders it as the **smallest, quietest thing on the
+`lookupCustomer` compares what the card the household holds prints — the counts (`countsOnCard`, the
+snapshot from US-13.3) and the group (`groupOnCard`, US-16.4) — with what it has just derived, and
+reports `staleCard`: `AGE_13`, `HOUSEHOLD_CHANGE`, `GROUP_CHANGE` or `null`. A group difference gets a
+sentence of its own in the dictionary (`staleCardGroup`), because quoting two identical counts at the
+counter would read as a mistake. The counter renders it as the **smallest, quietest thing on the
 screen**: one grey line under the household's data, no border, no icon, no colour. It is neither a
 verdict nor a warning — `evaluateAtCounter` never sees the field, so nothing about serving changes,
 and the serve button stands exactly where it did. A stale card is never grounds to turn anyone away
@@ -1739,17 +1980,18 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   stored they would drift with every birthday, which is exactly what the Excel sheet did.
   `Card` is unique on `(customerId, index)`; the card number staff read out is derived from the
   customer number and the index, never stored. Its `grownUpsAtIssue` / `childrenAtIssue` are the
-  system's **only stored counts** and the one deliberate denormalisation in the model: a snapshot of
-  what was _printed_ on that piece of card, kept because the physical card is a real artefact whose
-  numbers a 13th birthday overtakes, and the cards-due-for-reissue list (US-13) needs something to
-  compare today's derivation against. They are written once, never updated. `Certificate` rows are **appended, never
+  system's **only stored counts** and, with `groupAtIssue` beside them, the one deliberate
+  denormalisation in the model: a snapshot of what was _printed_ on that piece of card, kept because
+  the physical card is a real artefact whose numbers a 13th birthday overtakes and whose group a move
+  between RED and BLUE invalidates (US-16.4), and the cards-due-for-reissue list (US-13) needs
+  something to compare today's derivation against. All three are written once, never updated. `Certificate` rows are **appended, never
   overwritten** (US-06.3): a renewal stacks a new row stamped `recordedAt`, the certificate on file
   is the latest by that instant, and the trail behind it says when each renewal was brought.
   `Customer.firstNameFolded` / `lastNameFolded` are the archive search's keys (US-11.1): the names as
   `foldName` compares them, written beside the names they come from and indexed with `birthDate`,
   because SQLite can fold neither umlauts nor Unicode case in a `WHERE` clause. They are a search key
   and never a name — nothing displays them — and they are non-nullable with no default so that every
-  writer, including a future edit of a name (US-16), has to state them.
+  writer, including an edit of a name (US-16.2, `updateDetails`), has to state them.
   `Customer.previousCustomerId` is a nullable **self-reference** to the archived record a
   registration was pre-filled from (US-11.3) — display metadata no rule reads, never a merge. Like
   every other relation it is `onDelete: Restrict`; note that Prisma's default for an _optional_
@@ -2068,6 +2310,23 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   URL, and the page reloaded — same rows, same controls, same address. Pinned to 08.01.2026 because
   the certificate states are relative to today, and the pinned-now file is deleted in `afterAll` like
   its neighbours.
+- `customer-record.spec.ts` covers US-16 end to end (§US-16.6): that a correction typed on the record
+  is in force everywhere, immediately. One household (customer number 291) is seeded through Prisma —
+  **BLUE**, active, certificate lapsed, two reminders sent, one card printed `1 / 1` and `BLUE` — and
+  then edited four times, each edit read back off the screen that would betray it. Adding a child
+  moves all four derived figures **before the save** (1 / 2, 4 Portionen, 4,00 €), which is the claim
+  the household editor exists to make and the one no unit gate can reach: the panel calls the same
+  domain rules the save applies, against the server's today. The save then puts the household on
+  `/karten-neuausstellung` with _Haushalt geändert_ and both count sets. A renewal recorded on the
+  record — the counter's use case, from the record's form — resets the reminder count to 0 on the
+  revalidated screen and on a fresh request. The group half is what the story turns on: pinned to the
+  **RED** Thursday 08.01.2026, the BLUE household is `WRONG_GROUP` at the counter with no serve
+  action, and after one move on the record it is `CLEAR_TO_SERVE` on the same morning — with both
+  group sizes moving together, asserted as a delta because they count the whole shared register. The
+  card is deliberately reissued in between: with the printed counts still out of date,
+  `HOUSEHOLD_CHANGE` answers the cards-due list first and _Gruppe gewechselt_ would never be visible.
+  Last, a note written on the record is read back verbatim at the counter. Pinned-now file deleted in
+  `afterAll`, like its neighbours.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

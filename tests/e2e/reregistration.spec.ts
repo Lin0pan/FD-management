@@ -400,7 +400,11 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     await expect(page.getByTestId("household-member")).toHaveCount(2);
     await expect(page.getByTestId("grown-ups")).toHaveText("1");
     await expect(page.getByTestId("children")).toHaveText("1");
-    await expect(page.getByRole("main")).toContainText(returning.child.firstName);
+    // The record's household is an editable set of rows now (US-16.5), so the child's name is a
+    // field value rather than page text — asserted on the row, not on the prose.
+    await expect(page.locator('input[name="memberFirstName"]').nth(1)).toHaveValue(
+      returning.child.firstName,
+    );
 
     const record = await prisma.customer.findUniqueOrThrow({
       where: { id: reregisteredId },

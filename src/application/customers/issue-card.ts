@@ -71,8 +71,8 @@ export async function issueCard(
 
   // What goes on the printed card, derived from the birthdates at this moment. It is written *with*
   // the card rather than read back later because the card leaves the building: from here on the
-  // household can change and this pair cannot, which is exactly what makes a stale card detectable
-  // (US-13.3). Nothing downstream treats it as the household's counts.
+  // household can change and this snapshot cannot, which is exactly what makes a stale card
+  // detectable (US-13.3). Nothing downstream treats it as the household's counts.
   const countsAtIssue = composition(customer.details.householdMembers, now);
 
   const card = await deps.cards.issue(customerId, {
@@ -80,6 +80,9 @@ export async function issueCard(
     issuedAt: now,
     reason,
     countsAtIssue,
+    // The group is printed beside them and is snapshotted for the same reason: it tells the
+    // household which week to come in, so moving them between groups makes this card wrong (US-16.4).
+    groupAtIssue: customer.group,
   });
   // The reason *is* the why: it was chosen by a human from a closed set, and a sentence typed beside
   // it would say the same thing less legibly to whoever reads the log months later.

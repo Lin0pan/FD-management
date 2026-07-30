@@ -38,7 +38,9 @@ export type DomainErrorCode =
   | "MissingAuditReason"
   | "IllegalStatusTransition"
   | "EmptySearchQuery"
-  | "InvalidEuroAmount";
+  | "InvalidEuroAmount"
+  | "NotesTooLong"
+  | "GroupUnchanged";
 
 /** Base class of every domain error. `code` lets callers switch over the closed set above. */
 export abstract class DomainError extends Error {
@@ -513,6 +515,47 @@ export class EmptySearchQuery extends DomainError {
   constructor(criteria: ReadonlyArray<string>) {
     super(`A search needs at least one of: ${criteria.join(", ")}`);
     this.criteria = criteria;
+  }
+}
+
+/**
+ * A note outgrew the length the record keeps for it (US-16.3). Carries both lengths, so the screen
+ * can say how far over the limit the text is rather than refusing without a number.
+ *
+ * The limit is not a business rule about what staff may write — notes are free text and an empty one
+ * is perfectly ordinary. It is a bound on a column that would otherwise accept a pasted document,
+ * which is why the number lives beside the field it guards (`NOTES_MAX_LENGTH`) rather than in
+ * settings with the prices and portions FD edits.
+ */
+export class NotesTooLong extends DomainError {
+  readonly code = "NotesTooLong";
+  readonly length: number;
+  readonly maxLength: number;
+
+  constructor(length: number, maxLength: number) {
+    super(`A note may hold at most ${maxLength} characters, not ${length}`);
+    this.length = length;
+    this.maxLength = maxLength;
+  }
+}
+
+/**
+ * A customer was moved to the group they are already in (US-16.4). Carries the group, so the screen
+ * can name it rather than reporting that something unspecified went wrong.
+ *
+ * It is refused rather than quietly accepted because a group change is not an idempotent save: it
+ * writes an audit entry, and it makes the card the household holds stale. Letting a no-op through
+ * would fill the log with moves that never happened and put households on the cards-due list for a
+ * change nobody made — and a staff member who pressed the button expecting something to happen
+ * would be told nothing.
+ */
+export class GroupUnchanged extends DomainError {
+  readonly code = "GroupUnchanged";
+  readonly group: string;
+
+  constructor(group: string) {
+    super(`The customer is already in group ${group}`);
+    this.group = group;
   }
 }
 
