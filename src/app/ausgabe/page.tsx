@@ -370,10 +370,6 @@ export default async function DistributionPage({
         </form>
         {lookup === null ? null : <LookupResult lookup={lookup} />}
       </section>
-
-      <Link href="/" className="underline underline-offset-4">
-        {de.customers.card.backToHome}
-      </Link>
     </main>
   );
 }

@@ -398,6 +398,24 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
     expect(await groupCounts(page)).toEqual(unfiltered);
   });
 
+  test("jede der drei Aktionen über der Liste führt auf ihre Seite", async ({ page }) => {
+    // The hub is the section's one page (US-17.2): the three things staff do *with* customers are
+    // reachable from it, and each link is checked by arriving — the heading of the screen it names.
+    const actions = [
+      { testId: "hub-new-customer", path: "/kunden/neu", heading: de.customers.new.heading },
+      { testId: "hub-waiting-list", path: "/warteliste", heading: de.waitingList.heading },
+      { testId: "hub-cards-due", path: "/karten-neuausstellung", heading: de.cardsDue.heading },
+    ];
+
+    for (const action of actions) {
+      await page.goto("/kunden");
+      await page.getByTestId(action.testId).click();
+      await page.waitForURL((url) => url.pathname === action.path);
+
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(action.heading);
+    }
+  });
+
   test("die Filter stehen in der URL und ein Reload stellt dieselbe Ansicht wieder her", async ({
     page,
   }) => {

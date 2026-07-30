@@ -11,7 +11,6 @@
  * the applicant and never a reason to drop them down the list (FR-5).
  */
 
-import Link from "next/link";
 import { proposeRegistration } from "@/application/customers/propose-registration";
 import { listWaiting, type WaitingListPlace } from "@/application/waiting-list/list-waiting";
 import { DomainError } from "@/domain/errors";
@@ -140,10 +139,6 @@ export default async function WaitingListPage(): Promise<React.ReactElement> {
       )}
 
       <AddApplicantForm />
-
-      <Link href="/" className="underline underline-offset-4">
-        {de.waitingList.backToHome}
-      </Link>
     </main>
   );
 }

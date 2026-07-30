@@ -1,0 +1,102 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-16-maintain-customer-record",
+  "description": "US-16 Maintain a Customer's Record — Household, address, group, notes and certificate renewal editing on the customer record, with counts, portions and price updating immediately.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "updateHousehold use case",
+      "description": "As a staff member, I want to add and remove household members, so the record reflects reality as households change. Source: tasks/prd-us-16-maintain-customer-record.md §US-16.1",
+      "acceptanceCriteria": [
+        "updateHousehold(deps, {customerId, members}) replaces the household member set",
+        "An empty member list rejects with EmptyHousehold and a future birthdate with BirthDateInFuture, reusing the registration domain rules rather than a second implementation",
+        "Derived counts, portions and price are never written",
+        "Test asserts a change that alters the counts puts the customer on the cards-due list with reason HOUSEHOLD_CHANGE",
+        "Test asserts a change that does not alter the counts (e.g. a spelling fix) does not put the customer on that list",
+        "Test asserts no history of the previous composition is kept",
+        "Writes an audit entry",
+        "Tested against hand-written fakes and a fake clock",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Domain: createHouseholdMembers extracted from createCustomerDetails so an edit is judged by registration's rules. Application: updateHousehold (customer.householdUpdated audit entry); refuses an archived customer (record read-only, FR-8), allows a blocked one. Port + Prisma adapter: updateHousehold(id, members) replaces the member set in one transaction. Tests in src/application/customers/maintain-customer.test.ts drive the real listCardsDueForReissue to prove HOUSEHOLD_CHANGE follows a count change and a spelling fix does not."
+    },
+    {
+      "id": "US-002",
+      "title": "updateCustomerDetails and updateNotes use cases",
+      "description": "As a staff member, I want to correct a customer's personal data, address and notes. Source: tasks/prd-us-16-maintain-customer-record.md §US-16.2 and §US-16.3",
+      "acceptanceCriteria": [
+        "updateCustomerDetails updates name, date of birth and address with the same validation as registration",
+        "The customer's own record and their household-member entry stay consistent when their name or birthdate changes; the mechanism is decided, documented and tested (a single source of truth is preferred)",
+        "The customer number is not editable through this use case",
+        "updateNotes saves free text as given; empty is allowed, and a maximum length (4000 chars) is enforced with a clear message",
+        "Test asserts notes are returned by the counter lookup",
+        "Both write audit entries",
+        "Tested against hand-written fakes",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Modelling question (PRD §7) settled: the customer's own row and their household-member row are KEPT IN STEP in one write, not unified. A single source of truth needs either dropping the customer from their own household (which breaks EmptyHousehold and contradicts US-16.1) or giving member rows an identity they do not have. So domain replaceHouseholdMember(members, was, becomes) restates the row holding the customer's OLD name and birthdate; CustomerRepository.updateDetails(id, details, household) writes both halves in one transaction. No matching row = household left alone. Domain: createPersonalDetails and createNotes extracted from createCustomerDetails; NOTES_MAX_LENGTH 4000 with the new NotesTooLong error. updateNotes is its own use case (customer.notesUpdated); a test drives the real lookupCustomer to prove the note reaches the counter. Both refuse an archived customer, allow a blocked one. Decision recorded in docs/technical_documentation.md."
+    },
+    {
+      "id": "US-003",
+      "title": "changeGroup use case",
+      "description": "As a staff member, I want to move a customer between Red and Blue, so the two groups stay roughly balanced. Source: tasks/prd-us-16-maintain-customer-record.md §US-16.4",
+      "acceptanceCriteria": [
+        "changeGroup(deps, {customerId, group}) sets the group and returns the resulting group sizes",
+        "Changing to the same group rejects as a no-op",
+        "Test asserts a customer moved to Red is servable in a Red week on the same day",
+        "The change puts the customer on the cards-due list with reason GROUP_CHANGE, since the card prints the group",
+        "Writes an audit entry",
+        "Tested against hand-written fakes and a fake clock",
+        "Tests pass",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Domain: Card gains a groupAtIssue snapshot — the card prints the group, so a move makes it wrong; without the snapshot there is nothing to notice a move against. That settles US-13's open question. staleCounts.ts is renamed staleCard.ts and staleCardReason takes CardFacts = { counts, group } on both sides, answering AGE_13 | HOUSEHOLD_CHANGE | GROUP_CHANGE; counts answer first, the group only when they agree. Application: changeGroup (customer.groupChanged) returns groupCounts read AFTER the write, refuses a no-op with the new GroupUnchanged error and an archived customer, allows a blocked one. Port + adapter: setGroup(id, group), a single column that deliberately leaves the cards alone. 'In force today' is proved by driving the real lookupCustomer on a RED distribution day (2026-08-05): WRONG_GROUP before, CLEAR_TO_SERVE after, one instant."
+    },
+    {
+      "id": "US-004",
+      "title": "Customer record editing on /kunden/[id]",
+      "description": "As a staff member, I want one screen where I can see and update everything about a customer. Source: tasks/prd-us-16-maintain-customer-record.md §US-16.5",
+      "acceptanceCriteria": [
+        "Household members can be added and removed inline; counts, portions and price update live",
+        "The group control shows both current group sizes next to the choice",
+        "Notes are a multi-line field saved explicitly, with an indication that they appear at the counter",
+        "The certificate renewal form is embedded and shows the reminder count resetting to 0",
+        "Destructive actions (reissue card, block/unblock, archive) are grouped in a clearly separated section, each with its own confirmation",
+        "Distribution history is listed newest first with date, showed-up, paid and the price that applied",
+        "Each household member shows their current age next to their birthdate",
+        "The counter screen (/ausgabe) links to this record and offers 'Sperren' / 'Sperre aufheben' there — carried over from US-08.4, which shipped both controls on the record only",
+        "An archived customer's record renders fully read-only",
+        "All user-facing strings come from src/i18n/de.ts",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Five forms, five use cases, five audit entries — no merged saveCustomer (PRD §7). HouseholdEditor derives counts/portions/price in the browser from composition/portionsFor/priceFor against the server's today, so the consequence of adding a child shows before the save; priceFor widened to a PriceValues Pick so the client holds only the four per-head numbers. readCustomer gained history (newest first, the record's own priceCents), groupCounts and today; lookupCustomer gained blockReason. Block controls moved up beside the archive ones and are now offered at the counter, which also links to the record (US-08.4 carry-over). Archived renders with zero inputs on the page. The group radios are the one uncontrolled field: React resets a form after its action and a reset restores a radio from its checked ATTRIBUTE, so a controlled one came back on the old group while the sizes beside it showed the new one. Verified in a real browser end to end (live figures, group move + no-op refusal, note reaching /ausgabe, name correction carrying into the customer's own household row only, renewal resetting the count, archived read-only)."
+    },
+    {
+      "id": "US-005",
+      "title": "E2E: edit a household and see the effects",
+      "description": "As a developer, I need a Playwright spec proving record edits propagate to counts, price, group and the counter. Source: tasks/prd-us-16-maintain-customer-record.md §US-16.6",
+      "acceptanceCriteria": [
+        "Spec opens a customer record, adds a child, and asserts counts, portions and price update and that the customer appears on the cards-due list",
+        "Spec changes the group and asserts both group sizes update and the counter verdict for today flips accordingly",
+        "Spec edits the notes and asserts the text appears on the counter screen for that customer",
+        "Spec records a renewed certificate and asserts the reminder count shows 0",
+        "npm run test:e2e passes",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "tests/e2e/customer-record.spec.ts, one household (customer number 291 — 281–285 belong to customer-list) seeded BLUE with a lapsed certificate, two reminders and a card printed 1/1 BLUE, pinned to the RED Thursday 08.01.2026. Four edits, each read back off the screen that would betray it: adding a child moves all four derived figures BEFORE the save and then lands on /karten-neuausstellung as HOUSEHOLD_CHANGE; the renewal resets the reminder count to 0; the group move flips the counter from WRONG_GROUP to CLEAR_TO_SERVE on the same morning with both sizes moving as a delta; the note comes back verbatim at /ausgabe. The card is reissued between the household and group edits because stale counts answer the cards-due list first and GROUP_CHANGE would never be visible. Full suite 72 passed, 1 skipped."
+    }
+  ]
+}

@@ -21,6 +21,28 @@ export function germanDate(date: Date): string {
 }
 
 /**
+ * A date written out, as `Donnerstag, 30. Juli 2026`.
+ *
+ * The long form exists for the one place a date is *read as a sentence* rather than looked up in a
+ * column: the Start dashboard, where the weekday is half the answer to "when is the next Ausgabe"
+ * (US-17.3). Everywhere else — tables, fields, the card — stays on the compact {@link germanDate},
+ * which is what staff copy off a form.
+ *
+ * Read in UTC for the same reason as {@link germanDate}: these are days, not instants.
+ */
+const longDate = new Intl.DateTimeFormat("de-DE", {
+  timeZone: "UTC",
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+export function germanLongDate(date: Date): string {
+  return longDate.format(date);
+}
+
+/**
  * A time of day as `HH:MM`, read in Europe/Berlin — the wall-clock the counter runs on.
  *
  * Unlike {@link germanDate}, a hand-out is an *instant*, not a day: the time a customer was served

@@ -127,6 +127,8 @@ export async function addApplicantAction(
   }
 
   revalidatePath("/warteliste");
+  // Both screens the free-slot banner stands on: the hub (US-17.2) and the home screen.
+  revalidatePath("/kunden");
   revalidatePath("/");
   return {
     status: "saved",
@@ -138,8 +140,8 @@ export async function addApplicantAction(
 /**
  * Take the applicant named by the hidden `entryId` off the list, keeping the reason on the row.
  *
- * The home screen is revalidated with the list: its banner names whoever is at the head, and a
- * removal is one of the two ways that can change.
+ * The hub and the home screen are revalidated with the list: their banner names whoever is at the
+ * head, and a removal is one of the two ways that can change.
  */
 export async function removeApplicantAction(
   _previous: RemoveApplicantState,
@@ -166,6 +168,8 @@ export async function removeApplicantAction(
   }
 
   revalidatePath("/warteliste");
+  // Both screens the free-slot banner stands on: the hub (US-17.2) and the home screen.
+  revalidatePath("/kunden");
   revalidatePath("/");
   return initialRemoveApplicantState;
 }

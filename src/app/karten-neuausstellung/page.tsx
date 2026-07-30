@@ -132,10 +132,6 @@ export default async function CardsDuePage(): Promise<React.ReactElement> {
           ))}
         </ul>
       )}
-
-      <Link href="/" className="underline underline-offset-4">
-        {de.cardsDue.backToHome}
-      </Link>
     </main>
   );
 }

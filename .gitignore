@@ -203,6 +203,12 @@ tmbootpicker.efi
 /blob-report/
 /playwright/.cache/
 
+# Playwright browser-session scratch from the dev-browser skill: page snapshots and console logs,
+# regenerated on every UI verification. Untracked and unignored, they would be swept into whatever
+# commit came next — which for a Ralph batch of UI stories is every commit.
+/.playwright/
+/.playwright-cli/
+
 # Prisma generated client
 /src/generated/
 

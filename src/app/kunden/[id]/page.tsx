@@ -88,9 +88,6 @@ function NotFound(): React.ReactElement {
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-8">
       <h1 className="text-3xl font-semibold">{de.customers.card.heading}</h1>
       <p className="max-w-prose">{de.customers.errors.notFound}</p>
-      <Link href="/" className="underline underline-offset-4">
-        {de.customers.card.backToHome}
-      </Link>
     </main>
   );
 }
@@ -415,9 +412,6 @@ function CustomerRecord({
           data-testid="card-view-link"
         >
           {de.customers.card.cardViewLink}
-        </Link>
-        <Link href="/" className="underline underline-offset-4">
-          {de.customers.card.backToHome}
         </Link>
       </div>
     </main>

@@ -121,7 +121,9 @@ served" is a property, not a query detail.
 ## 6. Design Considerations
 
 - The "a slot is free" banner is the feature's whole value: without it, staff must remember to check
-  the list. Show it on the waiting-list page **and** on the home screen.
+  the list. Show it on the waiting-list page **and** on the Kunden-verwalten hub at `/kunden`.
+  (It was placed on the home screen when that was the only route to anything; US-17.3 moved it to
+  the hub, one click away from every screen via the navigation bar.)
 - Deliberately omit column sorting from the table. A sortable list invites the exact unfairness the
   strict ordering exists to prevent.
 

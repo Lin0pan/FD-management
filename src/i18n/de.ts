@@ -11,23 +11,48 @@ export const de = {
     name: "Füllhorn Delbrück – Verwaltung",
     tagline: "Kundenverwaltung und Erfassung der Lebensmittelausgabe",
   },
+  /**
+   * The navigation bar (US-17.1). Four words, and each is the *only* name that area has: the label
+   * here and the heading on the page it leads to are deliberately identical, so a staff member
+   * following "Kunden verwalten" lands on a page that says it back to them.
+   */
+  nav: {
+    /** Names the bar for a screen reader, which otherwise hears four links and no context. */
+    label: "Hauptnavigation",
+    start: "Start",
+    distribution: "Ausgabe",
+    customers: "Kunden verwalten",
+    settings: "Einstellungen",
+  },
+  /**
+   * The Start dashboard (US-17.3). It is a screen to be read, not a menu: the nav bar carries the
+   * links now, so what is left is the date and the answer to "wann ist die nächste Ausgabe".
+   */
   home: {
     heading: "Füllhorn Delbrück – Verwaltung",
-    subheading:
-      "Die Anwendung ist einsatzbereit. Die Fachfunktionen folgen in den nächsten Schritten.",
+    welcome:
+      "Willkommen. Diese Seite sagt, welcher Tag heute ist und wann die nächste Ausgabe ist.",
+    /** The day, written out — and no clock time: the page has nothing that ticks (FR-7). */
+    today: (date: string): string => `Heute ist ${date}.`,
+    distribution: {
+      heading: "Ausgabe",
+      /**
+       * Today and a coming day are two sentences rather than one sentence styled two ways: on the
+       * day itself the line reads differently, not louder (PRD §6).
+       */
+      isToday: (colour: string): string => `Heute ist Ausgabe – Gruppe ${colour} holt ab.`,
+      next: (date: string, colour: string): string =>
+        `Nächste Ausgabe: ${date} – Gruppe ${colour} holt ab.`,
+      /**
+       * An unseeded database is not an error screen (FR-10). The date above still stands; only the
+       * distribution rhythm is missing, and the way to supply it is named.
+       */
+      notConfigured:
+        "Der Ausgaberhythmus ist noch nicht hinterlegt. Sobald Ausgabetag und Wochenfarbe in den " +
+        "Einstellungen stehen, steht hier die nächste Ausgabe.",
+    },
+    /** Also the way off the distribution screen and the hub when no settings are in force. */
     settingsLink: "Einstellungen",
-    distributionLink: "Ausgabe: Welche Gruppe ist dran?",
-    newCustomerLink: "Neue Kundin oder neuen Kunden aufnehmen",
-    cardsDueLink: "Karten neu ausstellen",
-    waitingListLink: "Warteliste",
-    customerListLink: "Kundenliste durchsuchen",
-    /**
-     * The badge beside that link (US-13.4). It states a number and nothing else — no colour, no
-     * exclamation mark, no "offen": the list is a to-do list, and a home screen that looks alarmed
-     * about it is how staff learn to ignore it (PRD §6). Shown at zero too, because "nothing to do"
-     * is the answer staff most often want from it.
-     */
-    cardsDueBadge: (count: number): string => (count === 1 ? "1 Karte" : `${count} Karten`),
   },
   customers: {
     groups: {
@@ -155,7 +180,6 @@ export const de = {
       validUntil: "gültig bis",
       registered: "Aufgenommen",
       reminderCount: "Erinnerungen an den Nachweis",
-      backToHome: "Zur Startseite",
       cardViewLink: "Kundenkarte anzeigen",
       /** A member's age beside their birthdate; German inflects the year at one. */
       memberAge: (age: number): string => (age === 1 ? "1 Jahr" : `${age} Jahre`),
@@ -439,10 +463,27 @@ export const de = {
    * number staff decide a new household's group by (US-01), and it stays whole whatever is filtered.
    */
   customerList: {
-    heading: "Kundenliste",
+    heading: "Kunden verwalten",
     intro:
       "Suchen und filtern wie früher in der Tabelle. Erwachsene, Kinder, Portionen und Preis " +
       "werden bei jedem Aufruf neu aus den Geburtsdaten und den Einstellungen berechnet.",
+    /**
+     * The three things staff do with customers, above the list (US-17.2). They are worded as the
+     * acts themselves rather than as the pages they lead to, and each says the same words as the
+     * heading of the screen it opens.
+     */
+    actions: {
+      newCustomer: "Neue Kundin oder neuen Kunden aufnehmen",
+      waitingList: "Warteliste",
+      cardsDue: "Karten neu ausstellen",
+      /**
+       * The badge beside the reissue link (US-13.4). It states a number and nothing else — no
+       * colour, no exclamation mark, no "offen": the list is a to-do list, and a screen that looks
+       * alarmed about it is how staff learn to ignore it (PRD §6). Shown at zero too, because
+       * "nothing to do" is the answer staff most often want from it.
+       */
+      cardsDueBadge: (count: number): string => (count === 1 ? "1 Karte" : `${count} Karten`),
+    },
     search: {
       label: "Suche",
       /** One box for all three, because choosing between them would be a question about the software. */
@@ -551,7 +592,6 @@ export const de = {
      */
     action: "Karte neu ausstellen",
     customerLink: "Kundenakte öffnen",
-    backToHome: "Zur Startseite",
   },
   /**
    * The waiting list at /warteliste (US-12.4).
@@ -589,7 +629,6 @@ export const de = {
     certificateExpired: "Nachweis abgelaufen",
     certificateExpiredHint:
       "Der Platz auf der Liste bleibt bestehen. Vor der Aufnahme wird ein neuer Nachweis benötigt.",
-    backToHome: "Zur Startseite",
     /**
      * The "a slot is free" banner — the feature's whole value (PRD §6). It names one applicant and
      * one number, because a banner that only said "es ist etwas frei" would leave the decision it

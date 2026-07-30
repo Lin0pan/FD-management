@@ -65,8 +65,10 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   └── migrations/                   # committed migration history
 ├── src/
 │   ├── app/                          # Next.js App Router — thin adapter layer
-│   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
-│   │   ├── page.tsx                  # home page: the links + the cards-due badge (US-13.4)
+│   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n, the nav bar
+│   │   ├── nav.tsx                   # client: the four-item navigation bar (US-17.1)
+│   │   ├── active-section.ts         # pure: which section a path belongs to (+ .test.ts)
+│   │   ├── page.tsx                  # Start dashboard: date + next distribution (US-17.3)
 │   │   ├── ausgabe/                  # distribution screen (US-03), counter (US-04), hand-out (US-05), reminder (US-06)
 │   │   │   ├── page.tsx              # server component: colour banner, counter lookup, week lookup
 │   │   │   ├── counter-lookup.tsx    # the verdict banner + the customer details below it (US-04.4)
@@ -76,7 +78,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   ├── serve-state.ts        # the state the counter's forms exchange with their actions
 │   │   │   └── deps.ts               # composition roots: the read deps and the write (audit) deps
 │   │   ├── kunden/                   # the customer screens (US-01)
-│   │   │   ├── page.tsx              # the customer list: GET-form filters in the URL (US-15.3)
+│   │   │   ├── page.tsx              # the Kunden-verwalten hub: actions, banner, badge + the list (US-17.2)
 │   │   │   ├── deps.ts               # composition root for the routes below
 │   │   │   ├── archive-controls.tsx  # client: Archivieren — shared by the record AND the counter (US-10.4)
 │   │   │   ├── archive-actions.ts    # "use server": Zod → archiveCustomer, revalidates both screens
@@ -107,7 +109,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   ├── page.tsx              # server component: banner, list in arrival order, add form
 │   │   │   ├── add-applicant-form.tsx  # client: "Auf die Warteliste setzen"
 │   │   │   ├── remove-applicant-controls.tsx  # client: Entfernen, reason required, entry retained
-│   │   │   ├── free-slot-banner.tsx  # shared by /warteliste and the home screen
+│   │   │   ├── free-slot-banner.tsx  # shared by /warteliste and the hub at /kunden
 │   │   │   ├── actions.ts            # "use server": Zod → addToWaitingList / removeFromWaitingList
 │   │   │   ├── waiting-list-state.ts # the two form states (not exportable from actions.ts)
 │   │   │   ├── deps.ts               # composition root: list + register + cards + settings
@@ -210,7 +212,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── customer-list.spec.ts         # search, filters and the group balance on /kunden
 │   ├── customer-record.spec.ts       # four edits on the record, each read back off another screen
 │   ├── distribution.spec.ts          # the week-colour banner against a fixed clock
-│   ├── home.spec.ts                  # Playwright smoke test
+│   ├── home.spec.ts                  # the Start dashboard against three pinned days
+│   ├── navigation.spec.ts            # the nav bar: every section reachable, the right one marked
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
 │   ├── reissue.spec.ts               # a lost card is replaced and stops working at the counter
@@ -580,7 +583,7 @@ today)` names the head of that order.
 
 The rule is **strictly first come, first served** — no priority, urgency or hardship override (FR-3) —
 and it lives in the domain rather than in an `ORDER BY` so that fairness is a property the tests pin
-down, and so the waiting-list screen, the home-screen banner and the promotion use case cannot each
+down, and so the waiting-list screen, the hub's banner and the promotion use case cannot each
 arrive at a slightly different head of the queue. The tie-break is the surrogate id and never the order
 the rows came back in: two applicants added the same morning would otherwise swap places between two
 page loads, which is exactly the unfairness the strict order exists to prevent. Ids ascend with time,
@@ -876,7 +879,7 @@ surrogate id (what a reissue is written against), the customer number, the name,
 number a reissue would hand out, **both** count sets, **both** groups and the reason. The repository's order — lowest customer number first — is handed on untouched
 rather than sorted again here.
 
-`countCardsDueForReissue(deps)` is the same question asked for the home screen's badge, and it
+`countCardsDueForReissue(deps)` is the same question asked for the hub's badge on `/kunden`, and it
 answers by taking the length of that list rather than counting anything of its own — badge and screen
 are then one statement and cannot drift apart. It is not a `COUNT(*)` for the same reason the list is
 not a `WHERE`.
@@ -1531,6 +1534,60 @@ removed entry exactly as it does for an id that never existed. `contactNote` is 
 none was given and `""` in the domain — one representation of an unanswered question per layer, and
 the translation is the adapter's.
 
+### `src/app/nav.tsx` and `src/app/active-section.ts` — the navigation shell
+
+The four-item bar every screen wears (US-17.1): Start → `/`, Ausgabe → `/ausgabe`, Kunden verwalten →
+`/kunden`, Einstellungen → `/einstellungen`. It is rendered in `layout.tsx` above `{children}`, so no
+route opts into it and none can forget it.
+
+- **`active-section.ts` is pure and unit-tested**, which is the point of it being a separate module:
+  the matching rule is the only thing in the shell that decides anything, and a decision inside a
+  client component can only be checked by rendering it. `NAV_ITEMS` is both the table the bar renders
+  and the table the rule matches against, so an item cannot fail to mark itself.
+- **A section owns its route and everything below it**, and the sub-route test appends the separator
+  (`pathname.startsWith(route + "/")`). That is what keeps `/` from matching every path in the
+  application and `/kundenkarten` from being swallowed by `/kunden`.
+- **The customer hub owns three roots**, not one: `/kunden`, `/warteliste` and
+  `/karten-neuausstellung` all mark _Kunden verwalten_. The waiting list and the reissue list are
+  things staff do with customers and have no item of their own; standing on one with no section
+  marked reads as a broken bar.
+- **`nav.tsx` is a client component for `usePathname` alone.** It reads no data, and neither may
+  `layout.tsx` — a fetch in the root layout would make every route in the application dynamic. Counts
+  therefore live on the pages that are already `force-dynamic`, never in the bar.
+- The current section is marked by a bottom rule, a tint **and** bold text, plus `aria-current="page"`
+  — never colour alone, the same rule as the group colours (US-03.4). The bar wraps at narrow widths
+  and, being a block above the page, cannot push content sideways.
+- **The bar replaced the “Zur Startseite” links, not every back-link** (US-17.4). A link that only
+  meant “go up” is gone from all seven places that carried one, because two ways home — one of them
+  worse — is what the bar exists to end. The ones that name a **record** stayed, since the bar cannot
+  express them: `Zurück zur Kundenübersicht` from a customer's card returns to _that_ customer, and
+  `Zurück zur Warteliste` from the promotion screen to the applicant they came from.
+
+### `src/app/page.tsx` — the Start dashboard
+
+What `/` shows since US-17.3: a welcome line, today's date written out (`Donnerstag, 30. Juli 2026`,
+`germanLongDate`), and one panel naming the next distribution and the group that collects. It was a
+list of seven links, which the nav bar carries now.
+
+- **The date only, never a clock time.** That is what keeps the page a plain server component: no
+  client boundary, no ticking state, no timer, and the same render under the fixed clock the e2e
+  suite pins. `force-dynamic` stays, because both the date and the next distribution turn over at
+  midnight with nothing being written.
+- **`getWeekColour` is its only read.** The page does no date arithmetic and reads no wall clock; the
+  `now` behind it is the injected `Clock`.
+- ⚠️ **The panel reads `nextDistribution.colour`, never `view.colour`.** The two agree only until the
+  week's distribution has passed: with a Thursday distribution, on a Saturday "this week is Red" and
+  "the next Ausgabe is Blue" are both true, and only the second answers the question the screen
+  exists for. `tests/e2e/home.spec.ts` pins a day _after_ a distribution for exactly this reason.
+- **Today and a coming day are two dictionary strings**, so the urgency is in the wording rather than
+  in styling the panel differently — and the group is named in words beside its colour.
+- **`NoSettingsInForce` costs the panel, not the screen** (FR-10): an unseeded database still gets
+  the date, plus a line saying the rhythm is not configured and a link to `/einstellungen`. The date
+  then comes from `deps.clock.now()` directly, since `getWeekColour` has no answer to give.
+- **The free-slot banner and the cards-due badge are not here.** Both moved to the hub in US-17.2,
+  where the rest of the customer administration is; the dashboard is a screen to be read, not a
+  to-do list.
+
 ### `src/app/einstellungen/` — the settings screen
 
 The first real screen, and the reference for how a route is wired:
@@ -1558,13 +1615,19 @@ The failure is a _runtime_ error at page load, not a build error, so it will not
 value the `InvalidSettings` error carries. Add a key there when adding a validated settings field,
 or the screen quotes an English identifier at staff.
 
-### `src/app/kunden/` — the customer list, the registration screen and the card view
+### `src/app/kunden/` — the Kunden-verwalten hub, the registration screen and the card view
 
 All routes share one `deps.ts`, and all follow the settings screen's wiring. What is worth knowing
 beyond it:
 
-- **`page.tsx`** is the **customer list** (US-15.3), the screen that replaces the spreadsheet: one
-  dense table over `listCustomers`, sorted by customer number, computing nothing — the counts,
+- **`page.tsx`** is the **Kunden-verwalten hub** (US-15.3, US-17.2). Above the list it carries the
+  three things staff do with customers — take somebody on (`/kunden/neu`), the waiting list, the
+  cards to reissue — plus the two signals that belong with them: the free-slot banner (US-12) and
+  the cards-due badge (`countCardsDueForReissue`, US-13.4), which is shown at zero too and in the
+  same grey as everything around it. Its heading is the nav label word for word, so the section has
+  one name. `proposeRegistration` throwing `NoSettingsInForce` leaves the banner out rather than
+  taking the screen down. Below that it is the **customer list**, the screen that replaces the
+  spreadsheet: one dense table over `listCustomers`, sorted by customer number, computing nothing — the counts,
   portions, price, card number and certificate state all arrive derived. The filters are a plain
   **GET form**, which is what puts them in the URL (FR-5); FD share one machine, and a view has to
   survive a reload and be passable to a colleague as a link. Every parameter falls back to "not
@@ -1884,9 +1947,10 @@ staff to ignore the list — or, far worse, to turn a household away over it (PR
   differs, and that reason is what keeps the loss count on the card view readable. On success it
   revalidates this list, the household's record and card view, and `/` — whose badge counts this very
   list.
-- The home screen's badge (`countCardsDueForReissue`) is shown at zero too and in the same grey as
-  everything around it: "nothing to do" is the answer staff most often want from it, and a home
-  screen that looks alarmed about outdated cards is how the list stops being read.
+- The badge counting this list (`countCardsDueForReissue`) is shown at zero too and in the same grey
+  as everything around it: "nothing to do" is the answer staff most often want from it, and a screen
+  that looks alarmed about outdated cards is how the list stops being read. It sits on the hub
+  (US-17.2), one click away from anywhere via the nav bar.
 
 ### `src/app/warteliste/` — the waiting list
 
@@ -1903,7 +1967,7 @@ rather than by asking `nextInLine` a second time — one statement of the order,
 list cannot name two different applicants.
 
 - **`free-slot-banner.tsx`** names **one** applicant and **one** number, and it is rendered on the
-  home screen as well (`showListLink`). Without it a freed customer number is only noticed by whoever
+  hub at `/kunden` as well (`showListLink`, US-17.2).  Without it a freed customer number is only noticed by whoever
   thinks to open the list, and the applicant who has waited longest waits on — which is the whole of
   FR-4. An expired certificate is repeated on the banner, because whoever acts on it needs to know a
   renewed notice will be wanted **before** they walk over to the applicant.
@@ -1918,7 +1982,7 @@ list cannot name two different applicants.
 - **`actions.ts`** reports an already-lapsed certificate as its own German sentence naming the day it
   ran out. It is the one rejection staff meet with the applicant standing in front of them, and
   "bitte prüfen" would not tell them what to ask for. Both actions revalidate `/warteliste` and `/`,
-  because the home screen's banner names whoever is at the head.
+  because the hub's and the waiting list's banner names whoever is at the head.
 
 #### `warteliste/[entryId]/registrieren/` — the promotion
 
@@ -2307,7 +2371,7 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   row, members, cards, distribution records and the audit-entry count are snapshotted either side of
   the clock change and compared, which fails if any of those four figures came from a write rather
   than a derivation. The second half is FR-5: the household now appears on `/karten-neuausstellung`
-  with both count sets and _13. Geburtstag_, and the home badge counts one more — but presenting the
+  with both count sets and _13. Geburtstag_, and the hub's badge counts one more — but presenting the
   outdated `271k1` at the counter is still `CLEAR_TO_SERVE`, with the grey note beside the serve
   button rather than instead of it. A reissue from the list hands out `271k2`, after which the row is
   gone, the badge is back where it started and the counter has no note left to make. The badge is
@@ -2323,8 +2387,8 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   **link** rather than a redirect — the form stays on screen, because the quota may be what should
   change. Two applicants are added through the list's own form and asserted in arrival order with no
   banner above them, because nothing is free. Archiving the first household frees number 1, and the
-  banner then names the applicant who joined first — on `/warteliste` **and** on the home screen
-  (PRD §6). Promoting them from the banner opens the registration form pre-filled from the entry
+  banner then names the applicant who joined first — on `/warteliste` **and** on the hub at
+  `/kunden` (PRD §6, relocated from the home screen by US-17.3). Promoting them from the banner opens the registration form pre-filled from the entry
   (surname, certificate, a one-person household deriving 1 / 0), and saving it hands them exactly the
   number the archived household released, with `1k1` on the card. The entry is then read straight
   from Prisma: still there, both rows still counted, `removedOn` stamped and `removalReason` reading
@@ -2349,7 +2413,9 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   which is FR-3. FR-5 is the last test: the filters are set through the controls, read back out of the
   URL, and the page reloaded — same rows, same controls, same address. Pinned to 08.01.2026 because
   the certificate states are relative to today, and the pinned-now file is deleted in `afterAll` like
-  its neighbours.
+  its neighbours. US-17.5 adds one test to it: from `/kunden`, each of the three action links above
+  the filters — register, waiting list, reissue — reaches the screen it names. They are asserted
+  here rather than in `navigation.spec.ts` because they belong to the hub, not to the bar.
 - `customer-record.spec.ts` covers US-16 end to end (§US-16.6): that a correction typed on the record
   is in force everywhere, immediately. One household (customer number 291) is seeded through Prisma —
   **BLUE**, active, certificate lapsed, two reminders sent, one card printed `1 / 1` and `BLUE` — and
@@ -2367,6 +2433,34 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   `HOUSEHOLD_CHANGE` answers the cards-due list first and _Gruppe gewechselt_ would never be visible.
   Last, a note written on the record is read back verbatim at the counter. Pinned-now file deleted in
   `afterAll`, like its neighbours.
+- `navigation.spec.ts` covers US-17 end to end (§US-17.5): the shell itself. `activeSection` is
+  already a pure function with a unit test, so nothing here re-tests the routing table — what the
+  spec adds is the bar as staff meet it. It states its own table of the four sections, path and
+  landing heading (importing `NAV_ITEMS` would only prove the bar agrees with itself), then from
+  **each** section clicks its way to each of the other three and asserts the path, the `<h1>` and
+  that the section just entered is the one marked. The marking is read as a **list** of the links
+  carrying `aria-current="page"`, which is what makes "and no second section at the same time"
+  assertable: `/` is a prefix of every path, so a naive prefix rule would mark Start everywhere.
+  `/warteliste` and `/karten-neuausstellung` each get a test of their own, because they are the two
+  screens the customer hub owns without naming them — a bar marking nothing there reads as broken.
+  The spec only reads: no household, no customer number, so it shares the register with the rest of
+  the `chromium` project. The three action links on the hub are asserted in `customer-list.spec.ts`
+  instead, beside the screen they sit on.
+- `home.spec.ts` covers the Start dashboard (§US-17.5). Both lines on that screen are functions of
+  the calendar, so it drives the same fixed-clock seam as `distribution.spec.ts` — `data/e2e-now.txt`
+  via `FD_FIXED_NOW_FILE` — and pins **three** days against the seeded anchor `2026-W02` = RED with
+  Thursday distributions: the RED distribution day 08.01.2026, the Tuesday before it, and the
+  Saturday after it. ⚠️ **The Saturday is the point.** On it the current week is still RED while the
+  next Ausgabe is the BLUE one on 15.01.2026, so a panel reading `view.colour` instead of
+  `nextDistribution.colour` announces the wrong group — and the spec proves the disagreement rather
+  than assuming it, by looking 10.01.2026 up on `/ausgabe`, the one screen that shows the week's own
+  colour, and finding RED there while the dashboard says BLUE. On the distribution day the line is
+  asserted as an **exact** text, because what must be shown is that it says _today_ rather than
+  naming a coming date, which a containment check cannot tell apart. A fourth test pins 31.12.2025 —
+  a day before the seeded settings version was recorded, hence `NoSettingsInForce` without emptying a
+  table the other specs read — and requires the heading, the date and the not-configured panel with
+  its link to `/einstellungen`: an unseeded database is not an error page (FR-10). The spec writes
+  nothing and deletes the pinned-now file in `afterAll`, like its neighbours.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

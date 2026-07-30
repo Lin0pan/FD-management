@@ -4,8 +4,8 @@ One `prd.json` per PRD from [`tasks/`](../../../tasks/), numbered in **build ord
 number). Each file is a complete, self-contained Ralph run: its own `branchName`, its own story IDs
 starting at `US-001`, its own priorities `1..n`.
 
-The combined 81-story file lives at [`../prd.json`](../prd.json) — that is what Ralph actually reads.
-These files are the batches you copy over it.
+[`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
+it. It currently holds **batch 17**.
 
 ## Workflow
 
@@ -70,9 +70,16 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 14  | `14-us-12-waiting-list.json`             | 5       | `ralph/us-12-waiting-list`             |
 | 15  | `15-us-15-customer-list.json`            | 4       | `ralph/us-15-customer-list`            |
 | 16  | `16-us-16-maintain-customer-record.json` | 5       | `ralph/us-16-maintain-customer-record` |
+| 17  | `17-us-17-navigation-shell.json`         | 6       | `ralph/us-17-navigation-shell`         |
 
-81 stories total. Every story cites its source PRD section in its `description`, so an iteration can
+87 stories total. Every story cites its source PRD section in its `description`, so an iteration can
 read the full context when a criterion is ambiguous.
+
+Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batch 17 is not one of
+them** — it is a structural change to how the finished screens are reached, so it runs after the MVP
+rather than in build order with it, and it touches only `src/app/**`, `src/i18n/de.ts` and
+`tests/e2e/**`. If an iteration of batch 17 finds itself editing `src/domain` or `src/application`,
+it has misread the story.
 
 ## Regenerating
 

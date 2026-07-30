@@ -1,5 +1,11 @@
 /**
- * The customer list at /kunden (tasks/prd-us-15-customer-list.md §US-15.3).
+ * The Kunden-verwalten hub at /kunden (US-15.3, extended by tasks/prd-us-17-navigation-shell.md
+ * §US-17.2).
+ *
+ * It is the customer list and, above it, the three things staff do with customers: take somebody on,
+ * work the waiting list, print the cards that have fallen behind. The section has one name — the nav
+ * item and this heading are the same words — so following "Kunden verwalten" lands on a page that
+ * says it back.
  *
  * This is the screen that replaces the spreadsheet, so it is built the way the sheet was read: one
  * dense table, sorted by customer number, with the filters above it and nothing between the rows.
@@ -18,11 +24,14 @@
 
 import Link from "next/link";
 import { z } from "zod";
+import { countCardsDueForReissue } from "@/application/customers/cards-due-for-reissue";
 import {
   listCustomers,
   type CustomerListRow,
   type CustomerListView,
 } from "@/application/customers/list-customers";
+import { proposeRegistration } from "@/application/customers/propose-registration";
+import { listWaiting } from "@/application/waiting-list/list-waiting";
 import { EXPIRING_SOON_DAYS, type CertificateState } from "@/domain/customer/certificate";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
@@ -30,6 +39,8 @@ import { DomainError } from "@/domain/errors";
 import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
+import { waitingListDeps } from "../warteliste/deps";
+import { FreeSlotBanner } from "../warteliste/free-slot-banner";
 import { customerDeps } from "./deps";
 
 /**
@@ -329,6 +340,44 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
   );
 }
 
+/**
+ * The three customer actions, above the list (FR-5).
+ *
+ * The reissue link carries its count so that "nothing to do" can be read without opening the list —
+ * which is why it is shown at zero as well (US-13.4). It is deliberately the same neutral grey as
+ * everything around it: a stale card is never a reason to turn a household away, and a badge that
+ * looks like an alarm is how staff learn to ignore the list it counts (PRD §6).
+ */
+function HubActions({ cardsDue }: { cardsDue: number }): React.ReactElement {
+  return (
+    <section data-testid="customer-actions" className="flex flex-wrap items-center gap-x-6 gap-y-3">
+      <Link
+        href="/kunden/neu"
+        data-testid="hub-new-customer"
+        className="rounded bg-foreground px-4 py-2 font-semibold text-background"
+      >
+        {de.customerList.actions.newCustomer}
+      </Link>
+      <Link
+        href="/warteliste"
+        data-testid="hub-waiting-list"
+        className="underline underline-offset-4"
+      >
+        {de.customerList.actions.waitingList}
+      </Link>
+      <Link href="/karten-neuausstellung" data-testid="hub-cards-due" className="flex gap-2">
+        <span className="underline underline-offset-4">{de.customerList.actions.cardsDue}</span>
+        <span
+          data-testid="cards-due-badge"
+          className="rounded-full bg-foreground/10 px-3 py-1 text-sm tabular-nums"
+        >
+          {de.customerList.actions.cardsDueBadge(cardsDue)}
+        </span>
+      </Link>
+    </section>
+  );
+}
+
 function Table({ rows }: { rows: ReadonlyArray<CustomerListRow> }): React.ReactElement {
   return (
     <div className="overflow-x-auto">
@@ -404,6 +453,27 @@ export default async function CustomerListPage({
     throw error;
   }
 
+  // The hub's two signals, both of which the list itself cannot show: how many cards have fallen
+  // behind, and whether a freed customer number is waiting for the applicant at the top of the list.
+  const [cardsDue, places, proposal] = await Promise.all([
+    countCardsDueForReissue(customerDeps),
+    listWaiting(waitingListDeps),
+    // Settings were in force a moment ago — `listCustomers` needs them too — but a saved change is in
+    // force immediately, so the answer is caught here as well: no quota means no answer about a free
+    // slot, and the page shows no banner rather than being an error.
+    proposeRegistration(customerDeps).catch((error: unknown) => {
+      if (error instanceof DomainError && error.code === "NoSettingsInForce") {
+        return null;
+      }
+      throw error;
+    }),
+  ]);
+
+  // The head of the list the domain ordered, and nobody else — the same reading the waiting-list
+  // screen makes, so the two screens cannot name two different applicants.
+  const [head] = places;
+  const freeNumber = proposal?.customerNumber ?? null;
+
   const filtered = activeFilters(filters, search);
   // "Nothing is filtered" is the plain /kunden URL: the archived clause is always in `filtered`, so
   // it alone does not make the register look filtered.
@@ -413,6 +483,15 @@ export default async function CustomerListPage({
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-8">
       <h1 className="text-3xl font-semibold">{de.customerList.heading}</h1>
       <p className="max-w-prose text-foreground/80">{de.customerList.intro}</p>
+
+      {/* First on the section's own page, because a freed customer number nobody notices is an
+          applicant who goes on waiting for no reason (US-12, PRD §6). The waiting list is not on
+          view here, so the banner offers the way to it as well. */}
+      {head !== undefined && freeNumber !== null ? (
+        <FreeSlotBanner head={head} customerNumber={freeNumber} showListLink />
+      ) : null}
+
+      <HubActions cardsDue={cardsDue} />
 
       {/* Above the filters, because it is the one number on this screen that the filters do not
           touch — and the one staff came for when they are registering somebody (FR-3). */}
@@ -445,10 +524,6 @@ export default async function CustomerListPage({
           <Table rows={view.rows} />
         </>
       )}
-
-      <Link href="/" className="underline underline-offset-4">
-        {de.customers.card.backToHome}
-      </Link>
     </main>
   );
 }
