@@ -94,6 +94,11 @@ deliberately and say why in the commit; do not add an inline disable.
   low-value tests.
 - Time-dependent rules deserve named boundary tests against a fake clock: the day before, the day of
   and the day after, plus 29 February.
+- **UI work is always driven with the `playwright-cli` skill** — building a screen and reviewing it, not
+  only when asked to test one. The e2e suite proves the contracts still hold; `playwright-cli` is how you
+  find out whether the screen is any good, because its accessibility snapshot shows what the markup
+  _means_ and a screenshot does not. `docs/ui_conversion_guide.md` has the workflow and the two
+  regressions that got through a green suite because nobody read the snapshot.
 
 ## Database migrations
 

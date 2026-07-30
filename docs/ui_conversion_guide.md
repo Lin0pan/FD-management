@@ -33,7 +33,8 @@ input label radio-group select table textarea`. Anything else needs `npx shadcn@
 - One `Card` per section, `gap-6` between them. `CardHeader` gets `CardTitle` (+ `CardDescription` for
   what was a hint paragraph); actions belonging to the section go in `CardAction`.
 - **Wrap the real heading inside `CardTitle`** — `<CardTitle><h2>…</h2></CardTitle>`. `CardTitle` is a
-  `div`; without this the screen loses its heading outline.
+  `div`; without this the screen loses its heading outline. See "Two traps" below — the pilot got this
+  wrong in two of its cards and nothing failed.
 - The back-link belongs in the header row, not stranded at the bottom.
 
 ## Mapping
@@ -83,6 +84,26 @@ covers `src/domain` and `src/application` only, so `src/app/` changes are invisi
    semantic role a theme may re-map, and US-03 FR-7 requires the colour to be named in words as well as
    painted. Everything else uses tokens.
 
+## Two traps the test suite cannot see
+
+Both of these shipped in the pilot's first pass. Lint, typecheck, 899 unit tests and all 72 e2e specs
+were green, and the screenshots looked right. They only surfaced in the accessibility tree — which is
+the argument for the `playwright-cli` workflow below, not an aside.
+
+The pattern behind both: **a shadcn primitive replaces a semantic element with a `div`.** Every time
+you delete an element, ask what it was telling a screen reader, and put that back.
+
+1. **A `Card` is not a section, and `CardTitle` is not a heading.** Converting
+   `<section><h2>…</h2></section>` to `<Card><CardHeader><CardTitle>` silently deletes the heading. The
+   pilot ended up with an entire screen whose only heading was the `<h1>`.
+   **Check:** `querySelectorAll('h1,h2,h3')` must list every section title on the screen.
+2. **A label and its value must stay in one node.** The old idiom was one paragraph —
+   `<p><span>Portionen: </span><span>4</span></p>` — announced as a single fact. Splitting it into a
+   styled `div` with two stacked `span`s leaves a screen reader reading "Portionen", then "4", with
+   nothing joining them: the relationship is then carried by the visual layout alone. Keep the wrapper
+   a `<p>`, or use a real `<table>` with `<th scope="row">` (which announces the row header with the
+   cell, and is better than what it replaced).
+
 ## Findings from the pilot
 
 - **`radix-nova` is compact.** `Button`/`Input` default to `h-8`, `Card` is `text-sm`. Where a control
@@ -105,12 +126,52 @@ covers `src/domain` and `src/application` only, so `src/app/` changes are invisi
 - `Confirmation`/`Rejection` notice components are duplicated across five client components. Extract
   them into `src/components/` when the second screen needs them, not before.
 
+## Always drive the screen with `playwright-cli`
+
+**Use the `playwright-cli` skill for every piece of UI work on this project** — building it and
+reviewing it. Not optional, and not a substitute for the e2e suite: the suite proves the contracts still
+hold, `playwright-cli` is how you find out whether the screen is any good. Run `playwright-cli --help`
+for the current command set.
+
+A screenshot only tells you what a sighted person sees in one state. The accessibility snapshot tells
+you what the markup _means_, and both of the traps above were invisible until it was read.
+
+```bash
+npm run build && npm run start -- --port 3100   # a built app, not `next dev`
+playwright-cli open http://127.0.0.1:3100/<route>
+playwright-cli snapshot                          # read this, not just the screenshot
+playwright-cli fill e18 "6" --submit             # exercise the real flow
+playwright-cli console                           # must be 0 errors
+playwright-cli close
+```
+
+What to actually check, beyond "it looks right":
+
+- **Read the snapshot.** Every section title a `heading`, every field a named `textbox`, every pill a
+  `Badge` with the right text, every notice a `status` or `alert` region. `generic` where you expected
+  a heading is the bug from "Two traps".
+- **Exercise the writes, don't just render them.** The pilot's reminder, serve, correct and remove
+  flows all behaved — but only clicking them proved that the `role="status"` override lands, the
+  `getElementById` refocus still works, and the two-step `<details>` guard genuinely blocks a single
+  click (the click on the closed disclosure _retries and fails_, which is the property).
+- **`playwright-cli console`** — zero errors. Warnings from browser-native inputs on hand-crafted URLs
+  are fine.
+- **Three widths**: ~1440, ~800, ~390. `document.documentElement.scrollWidth - clientWidth` must be
+  `0` at each, and any `[data-slot=table-container]` must not scroll unless it has to.
+- Ask whether **the thing that mattered before still dominates**. On the counter that is the banner and
+  the verdict; a restyle that evens everything out has made the screen worse.
+- Use **`playwright-cli show --annotate`** to put the live screen in front of the user for design
+  feedback rather than guessing.
+
+Note that driving real flows **writes to `data/fd.db`**. That is fine — it is dev data — but say so, and
+`npm run db:demo -- --reset` puts the demo register back.
+
 ## Definition of done, per screen
 
 `npm run lint && npm run typecheck && npm run test:coverage && npm run build`, then
 `npm run test:e2e` — **with no test edited**. If a spec fails, the conversion broke a contract; fix the
-code. Then look at the real screen at ~1280px and ~800px: no horizontal page scroll, and the thing
-that mattered before still dominates.
+code. Then the `playwright-cli` pass above: snapshot read, flows exercised, console clean, three widths
+checked.
 
 ## Progress
 
