@@ -1,6 +1,14 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { de } from "@/i18n/de";
+
+/**
+ * Inter is self-hosted by `next/font` at build time — no request to Google at runtime, which keeps
+ * the app usable on the day FD's internet is down. It is published as `--font-sans`, the variable
+ * `globals.css` maps onto Tailwind's `font-sans`, so every shadcn component picks it up.
+ */
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: de.app.name,
@@ -13,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="de" className="h-full antialiased">
+    <html lang="de" className={`h-full antialiased ${inter.variable}`}>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

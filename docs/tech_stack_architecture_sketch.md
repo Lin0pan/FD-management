@@ -86,7 +86,19 @@ maintainability over 5+ years — possibly by a different developer — is the r
 | Money         | Integer cents (never floats)                                            | Prices are money; SQLite has no decimal type.                                                                                         |
 | i18n          | German UI strings in one dictionary module, English identifiers in code | Staff-facing terms (Kunde, Bescheinigung, Gruppe) match how the team speaks; code stays greppable.                                    |
 
-### 3.1 Note on Next.js
+### 3.1 Note on shadcn/ui
+
+Initialised with the zinc base colour and CSS variables, so a re-theme is a change to the token
+block in `src/app/globals.css` and nothing else. The components live in `src/components/ui/` as
+ordinary project source: they are formatted and linted like the rest of the code, and they are ours
+to edit — re-running `shadcn add` for a component we have touched would overwrite that work.
+
+The primitives underneath them are **Radix** (`radix-ui`), not shadcn's newer Base UI default. Base
+UI was still `1.0.0-rc` when this was set up, and an app expected to run for five years with little
+maintenance should not sit on a release candidate. Switching later is a re-add of the components,
+not a rewrite of the screens.
+
+### 3.2 Note on Next.js
 
 Next.js is the most popular option but also the fastest-moving, and server components add
 conceptual weight this app does not need. Mitigation:
