@@ -79,8 +79,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Five forms, five use cases, five audit entries — no merged saveCustomer (PRD §7). HouseholdEditor derives counts/portions/price in the browser from composition/portionsFor/priceFor against the server's today, so the consequence of adding a child shows before the save; priceFor widened to a PriceValues Pick so the client holds only the four per-head numbers. readCustomer gained history (newest first, the record's own priceCents), groupCounts and today; lookupCustomer gained blockReason. Block controls moved up beside the archive ones and are now offered at the counter, which also links to the record (US-08.4 carry-over). Archived renders with zero inputs on the page. The group radios are the one uncontrolled field: React resets a form after its action and a reset restores a radio from its checked ATTRIBUTE, so a controlled one came back on the old group while the sizes beside it showed the new one. Verified in a real browser end to end (live figures, group move + no-op refusal, note reaching /ausgabe, name correction carrying into the customer's own household row only, renewal resetting the count, archived read-only)."
     },
     {
       "id": "US-005",
@@ -95,8 +95,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "tests/e2e/customer-record.spec.ts, one household (customer number 291 — 281–285 belong to customer-list) seeded BLUE with a lapsed certificate, two reminders and a card printed 1/1 BLUE, pinned to the RED Thursday 08.01.2026. Four edits, each read back off the screen that would betray it: adding a child moves all four derived figures BEFORE the save and then lands on /karten-neuausstellung as HOUSEHOLD_CHANGE; the renewal resets the reminder count to 0; the group move flips the counter from WRONG_GROUP to CLEAR_TO_SERVE on the same morning with both sizes moving as a delta; the note comes back verbatim at /ausgabe. The card is reissued between the household and group edits because stale counts answer the cards-due list first and GROUP_CHANGE would never be visible. Full suite 72 passed, 1 skipped."
     }
   ]
 }

@@ -64,6 +64,20 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   chain, so the whole suite fails at once: `PrismaClientKnownRequestError: The table main.Customer
   does not exist` or duplicate rows in `beforeAll`. Whole-suite failure = stale server, not your spec.
   (The `[ ]` trick is still needed for whatever pattern you do use, or pkill matches its own shell.)
+- A new e2e spec has to claim a customer number nobody else holds: the shared `data/e2e.db` is
+  seeded once per run and every spec inserts into it. Taken so far: counter 201-206/239, portions
+  211, serve 221-222, reminders 231, block 241, reissue 251, age-13 271, customer-list 281-285,
+  record 291 - and the registration/card/archive/re-registration specs allocate the LOW sequence
+  through the form. A collision surfaces as `Unique constraint failed on the fields:
+  (customerNumber)` inside `beforeAll`, i.e. one spec failing while the other 70 pass; a whole-suite
+  failure is the stale-server trap instead. `grep -rn "CUSTOMER_NUMBER = \|NUMBERS = " tests/e2e`.
+- The cards-due list answers with ONE reason and the counts answer first (`staleCardReason`), so a
+  spec that wants to see `GROUP_CHANGE` must first bring the card's printed counts up to date - a
+  reissue between the two edits. The same ordering applies to the counter: a lapsed certificate
+  changes the verdict, so record the renewal before asserting anything about a group or a card.
+- A figure that aggregates the WHOLE register - the two group sizes, the cards-due badge - is only
+  ever compared with itself in an e2e spec: read it before the edit, assert it as a delta after.
+  Neighbouring specs register households of their own.
 - A pure rule that has to hand the CALLER's row back is generic over it — `recordForDay<T extends
   AttendanceRecord>`, `nextInLine<T extends WaitingApplicant>`. Declare the minimal interface the
   rule reads, constrain `T` to it, return `T`: the application layer keeps its richer entry and the
@@ -220,6 +234,31 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
   errors.ts — typecheck catches it, lint does not. Its 100% coverage comes from the use-case test
   that raises it; there is no per-error test file.
 
+- A React form with an `action` is **reset by React once the action resolves**, and a reset restores
+  each field from its *attribute*, not from the property React set. Controlled text inputs and
+  textareas survive it (React re-applies `value` on the next render); a controlled RADIO does not —
+  it comes back on whatever was `checked` at SSR, silently disagreeing with the data beside it.
+  Render radios in an action form as `defaultChecked={x === current}`: the reset then restores what
+  the revalidated render wrote. Symptom: the control shows the old value while everything derived
+  from the new one is correct.
+- Turning a read-only list into an editable one BREAKS every e2e assertion that read a name off the
+  page: `toContainText` cannot see an `<input value=…>`. Grep the specs for the values the section
+  showed and move them to `toHaveValue` before running the suite.
+- A screen with several independent forms gets ONE state union (`RecordFormState`) and one
+  feedback/button/field module, not one per form — and its `saved` carries a COUNTER, so a `key` can
+  remount a form after a save that changed nothing visible.
+- An error translator shared by two screens must NOT own the fallback: `customerErrorMessage`
+  returns `string | null` and each screen supplies its own last word ("Die Aufnahme konnte nicht
+  gespeichert werden" vs "Die Änderung konnte nicht …"). The shared branches then cannot drift while
+  the wording stays each screen's own.
+- A page may call a SECOND read use case when the first cannot honestly supply the value
+  (`readCurrentSettings` beside `readCustomer`, for the four per-head numbers a browser-side
+  derivation needs). Check first that it adds no new failure mode — here `readCustomer` already
+  throws `NoSettingsInForce`, so there is no extra branch to cover.
+- Widening a domain function's parameter from `Settings` to a `Pick` (`priceFor` → `PriceValues`,
+  mirroring `portionsFor`) is source-compatible with every existing caller and is what lets a client
+  component hold only the values that bear on the answer.
+
 ---
 - Adding a method to `CustomerRepository` now costs EIGHT implementers: the Prisma adapter plus the
   fakes in customers.test.ts, cards-due-for-reissue.test.ts, certificate-reminder.test.ts,
@@ -365,4 +404,84 @@ block has to be pasted into the fresh one. The other durable channel is the CLAU
     .groupUnchanged` is already in the dictionary, unused, waiting for it.
   - No UI behaviour changed beyond the counter's stale-card sentence, so browser verification was
     covered by the e2e suite (64 passed); the record screen in US-004 will need the real thing.
+---
+
+## 2026-07-29 - US-004 (Customer record editing on /kunden/[id])
+- Implemented US-16.5: `/kunden/[id]` is now the customer record — everything known about a
+  household and everything editable about them, with the consequence of each edit visible.
+- Files changed:
+  - `src/app/kunden/[id]/page.tsx` rewritten: sections in the order a record is READ, the derived
+    figures and `household-member` rows carrying the same test ids editable or not, and a final
+    **"Aktionen mit Folgen"** section holding reissue + block + archive together, each with its own
+    confirmation (PRD §6).
+  - New client components: `household-editor.tsx` (live counts/portions/price and each member's age,
+    rows by position), `details-editor.tsx`, `notes-editor.tsx`, `group-control.tsx` (both group
+    sizes beside the choice), `renewal-form.tsx`, plus the shared `record-forms.tsx` /
+    `record-state.ts`.
+  - `src/app/kunden/[id]/actions.ts`: five actions, one use case each, each revalidating the record
+    AND `/ausgabe`.
+  - Refactor commit before it (`24cb748`): `block-controls.tsx` / `block-state.ts` / the two block
+    actions moved up to `src/app/kunden/`, beside the archive ones, so the counter can offer them.
+  - `src/app/ausgabe/page.tsx`: the record link and the block controls (US-08.4 carry-over).
+  - Application: `readCustomer` +`history` +`groupCounts` +`today`; `lookupCustomer` +`blockReason`
+    (both TDD). Domain: `priceFor` takes a `PriceValues` Pick.
+  - `src/i18n/de.ts` (`de.customers.record.*`, `counter.recordLink`; `card.heading` is now
+    "Kundenübersicht" — "Kundenkarte" is the printed card at `/karte`),
+    `src/app/kunden/deps.ts` (+`certificates`, for the renewal), `docs/technical_documentation.md`,
+    `tests/e2e/reregistration.spec.ts` (one assertion moved to `toHaveValue`).
+- **Learnings for future iterations:**
+  - The React form-reset trap cost the most time here and is now in the patterns block: only the
+    RADIO was affected, and the symptom was a control showing the old group while the two sizes
+    beside it showed the new one. Everything else on the record survived the reset untouched.
+  - Browser verification was done by driving the built app on port 3100 over a freshly reset dev
+    database with a throwaway Playwright script — registered a household, added a child and read the
+    four figures BEFORE saving, moved the group and hit the no-op refusal, checked the note at
+    `/ausgabe`, corrected the surname and confirmed only the customer's own household row moved,
+    recorded a renewal, then archived and asserted `input, textarea, select` count = 0. Delete the
+    script afterwards; `npm run db:reset` first or the seeded register is somebody else's.
+  - US-005 (the e2e spec) has every test id it needs: `add-member`, `member-first-name-N` /
+    `-last-name-N` / `-birth-date-N`, `household-submit`, `household-saved`, `group-RED` /
+    `group-BLUE`, `group-sizes`, `group-submit`, `notes-field`, `notes-submit`, `renewal-type` /
+    `renewal-valid-until` / `renewal-save` / `renewal-saved`, `history-row`, `counter-record-link`.
+    Note that the record screen reuses the counter's `renewal-*` ids — same use case, different page.
+  - Beware writing an e2e for this on the SHARED register: the group sizes are a whole-register
+    aggregate, so assert them as a delta (read `group-sizes` before seeding), exactly as the
+    cards-due badge is asserted.
+---
+
+## 2026-07-30 - US-005 (E2E: edit a household and see the effects)
+- Implemented US-16.6: `tests/e2e/customer-record.spec.ts`, seven tests following ONE household
+  through the four record edits and reading each consequence off the screen that would betray it.
+  The claim under test is the one no unit gate reaches - a correction typed on the record is in
+  force everywhere, immediately - so every assertion is made on a different screen than the edit.
+- Fixture: customer number 291, BLUE, active, certificate lapsed (31.12.2025), two reminders sent,
+  one card printed 1/1 and BLUE; pinned to the RED Thursday 08.01.2026, which is what makes a BLUE
+  household refused this morning and served this afternoon.
+- The seven tests: (1) the record as taken down, nothing on the cards-due list; (2) a baby added,
+  all four derived figures moving BEFORE the save and again from the server after it; (3) the row
+  on /karten-neuausstellung with both count sets and "Haushalt geaendert"; (4) the renewal resetting
+  the reminder count to 0 on the revalidated screen and on a fresh request; (5) a reissue bringing
+  the printed counts up to date and clearing the row; (6) WRONG_GROUP -> one move -> CLEAR_TO_SERVE
+  the same morning, both group sizes asserted as a delta, the stale-card GROUP note beside the
+  verdict; (7) the note read back verbatim at /ausgabe.
+- Files changed: `tests/e2e/customer-record.spec.ts` (new), `docs/technical_documentation.md` (the
+  tree listing and a paragraph in the e2e section), `src/i18n/de.ts` (separate commit - `recordLink`
+  had been inserted between `staleCardGroup`'s doc comment and its string, stacking two JSDoc blocks
+  on one entry; no string changed).
+- Checks: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (43 files, 899 tests),
+  `npm run build`, `npm run test:e2e` (72 passed, 1 skipped - the pre-existing quota skip).
+- **Learnings for future iterations:**
+  - The first full-suite run failed on `Unique constraint failed on the fields: (customerNumber)`
+    because 281 belongs to customer-list.spec.ts, whose numbers live in a `NUMBERS` object rather
+    than a `CUSTOMER_NUMBER` constant - so the obvious grep misses them. Now in the patterns block
+    with the full register of taken numbers.
+  - Ordering inside a serial spec is a design decision, not a convenience: the certificate had to be
+    renewed before the counter could be asked about the group, and the card had to be reissued
+    before the cards-due list could show GROUP_CHANGE. Both are consequences of a precedence rule
+    (`counterVerdict`, `staleCardReason`) that the spec would otherwise assert around.
+  - The record's radio-reset trap from US-004 never bit here: `page.getByTestId("group-RED").check()`
+    followed by `group-submit` and then a `toHaveText` on `group-sizes` passes without a reload,
+    because the action revalidates the record and the server re-renders both.
+  - `renewal-saved` is the record's confirmation test id (SaveFeedback prefix), while the counter's
+    is `renewal-confirmation` - same use case, same German words, two different screens.
 ---
