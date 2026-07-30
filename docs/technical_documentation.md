@@ -212,7 +212,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── customer-list.spec.ts         # search, filters and the group balance on /kunden
 │   ├── customer-record.spec.ts       # four edits on the record, each read back off another screen
 │   ├── distribution.spec.ts          # the week-colour banner against a fixed clock
-│   ├── home.spec.ts                  # Playwright smoke test
+│   ├── home.spec.ts                  # the Start dashboard against three pinned days
 │   ├── navigation.spec.ts            # the nav bar: every section reachable, the right one marked
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
@@ -2446,6 +2446,21 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   The spec only reads: no household, no customer number, so it shares the register with the rest of
   the `chromium` project. The three action links on the hub are asserted in `customer-list.spec.ts`
   instead, beside the screen they sit on.
+- `home.spec.ts` covers the Start dashboard (§US-17.5). Both lines on that screen are functions of
+  the calendar, so it drives the same fixed-clock seam as `distribution.spec.ts` — `data/e2e-now.txt`
+  via `FD_FIXED_NOW_FILE` — and pins **three** days against the seeded anchor `2026-W02` = RED with
+  Thursday distributions: the RED distribution day 08.01.2026, the Tuesday before it, and the
+  Saturday after it. ⚠️ **The Saturday is the point.** On it the current week is still RED while the
+  next Ausgabe is the BLUE one on 15.01.2026, so a panel reading `view.colour` instead of
+  `nextDistribution.colour` announces the wrong group — and the spec proves the disagreement rather
+  than assuming it, by looking 10.01.2026 up on `/ausgabe`, the one screen that shows the week's own
+  colour, and finding RED there while the dashboard says BLUE. On the distribution day the line is
+  asserted as an **exact** text, because what must be shown is that it says _today_ rather than
+  naming a coming date, which a containment check cannot tell apart. A fourth test pins 31.12.2025 —
+  a day before the seeded settings version was recorded, hence `NoSettingsInForce` without emptying a
+  table the other specs read — and requires the heading, the date and the not-configured panel with
+  its link to `/einstellungen`: an unseeded database is not an error page (FR-10). The spec writes
+  nothing and deletes the pinned-now file in `afterAll`, like its neighbours.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

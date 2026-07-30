@@ -74,6 +74,12 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
   through the form. A collision surfaces as `Unique constraint failed on the fields:
   (customerNumber)` inside `beforeAll`, i.e. one spec failing while the other 70 pass; a whole-suite
   failure is the stale-server trap instead. `grep -rn "CUSTOMER_NUMBER = \|NUMBERS = " tests/e2e`.
+- "No settings configured yet" is reachable in e2e by pinning `now` BEFORE the seed's
+  `SEED_RECORDED_AT` (2026-01-01): `resolveSettingsAt` then throws `NoSettingsInForce` on the
+  shared register, no table emptied and nothing to restore but the pin file.
+- `getByTestId` on a panel returns the whole `<section>`, heading included, so an EXACT `toHaveText`
+  has to address the `<p>` inside it. Reach for the exact form whenever the claim is a negative
+  ("says today, not a date") — `toContainText` cannot tell two wordings apart.
 - Verifying a server-rendered screen without Playwright: start `next dev` on a spare port with
   `FD_FIXED_NOW_FILE` pointed at a scratch file, rewrite that file between `curl`s and strip the
   `<main>` out of the HTML. Three pinned days take a minute and prove more than a screenshot.
@@ -502,4 +508,39 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
     old smoke test asserting the `<h1>`, and `docs/technical_documentation.md` still describes it as
     "Playwright smoke test" in the e2e file tree - line ~1580 already promises it pins a day after a
     distribution, so the doc is ahead of the code there.
+---
+
+## 2026-07-30 - US-006 (E2E - dashboard against a fixed clock)
+- `tests/e2e/home.spec.ts` rewritten from the one-line smoke test into four tests on the dashboard,
+  driving the `FD_FIXED_NOW_FILE` / `data/e2e-now.txt` seam exactly as distribution.spec.ts does:
+  the RED distribution day 08.01.2026 (line says TODAY, no coming date, and the to-do signals are
+  gone from `/`), the Tuesday before it (next = 08.01., Rot), the Saturday after it (next =
+  15.01., BLAU) and 31.12.2025 for the no-settings path. `afterAll` deletes the pin file.
+- Files changed: tests/e2e/home.spec.ts, docs/technical_documentation.md (the e2e file tree line
+  and a per-spec paragraph), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: lint, typecheck, test:coverage (912 unit tests, thresholds met - no unit code added),
+  build, format:check, and the FULL Playwright suite: 86 passed, 1 pre-existing skip (83 + 4 new
+  tests - the 1 test the old home.spec.ts had).
+- **Learnings for future iterations:**
+  - "An unseeded database" is reachable WITHOUT emptying a table: pin `now` to a day BEFORE the
+    seed's `SEED_RECORDED_AT` (2026-01-01) and `resolveSettingsAt` throws `NoSettingsInForce` -
+    the identical code path, on the shared register, costing nothing to restore. Any spec needing
+    "not configured yet" should use the clock rather than a `deleteMany`.
+  - `getByTestId("next-distribution")` is the whole `<section>`, so `toHaveText` sees the `<h2>`
+    heading glued to the sentence ("AusgabeHeute ist Ausgabe ..."). Locate the `<p>` inside
+    (`.locator("p")`) when the assertion must be EXACT - and it must be here, because half the
+    claim is a negative: today's wording rather than a future date, which `toContainText` cannot
+    distinguish.
+  - Both the dashboard panel AND the `/ausgabe` banner paint `nextDistribution.colour`. The one
+    place `view.colour` (the week the day sits in) is shown is the `lookup-colour` badge, i.e.
+    `/ausgabe?datum=YYYY-MM-DD`. That is the only way to prove on-screen that the two fields
+    disagree on a day after a distribution - a cross-check against `week-colour-group` fails,
+    because that field is the next distribution's colour too.
+  - `de.home.settingsLink` is "Einstellungen", which is ALSO a nav-bar label, so
+    `getByRole("link", { name })` matches two nodes on every screen now. Scope such a lookup to the
+    panel (`panel.getByRole(...)`) since the bar was added in US-17.1.
+  - The criterion "point the free-slot and cards-due assertions at /kunden" was already satisfied:
+    US-002/US-003 moved them in waiting-list.spec.ts:221 and age-13.spec.ts:213 as they went. Check
+    `grep -rn 'goto("/")' tests/e2e` before assuming a move is still outstanding.
+  - This closes the US-17 batch: all six stories pass.
 ---
