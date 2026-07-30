@@ -78,7 +78,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   ├── serve-state.ts        # the state the counter's forms exchange with their actions
 │   │   │   └── deps.ts               # composition roots: the read deps and the write (audit) deps
 │   │   ├── kunden/                   # the customer screens (US-01)
-│   │   │   ├── page.tsx              # the customer list: GET-form filters in the URL (US-15.3)
+│   │   │   ├── page.tsx              # the Kunden-verwalten hub: actions, banner, badge + the list (US-17.2)
 │   │   │   ├── deps.ts               # composition root for the routes below
 │   │   │   ├── archive-controls.tsx  # client: Archivieren — shared by the record AND the counter (US-10.4)
 │   │   │   ├── archive-actions.ts    # "use server": Zod → archiveCustomer, revalidates both screens
@@ -1584,13 +1584,19 @@ The failure is a _runtime_ error at page load, not a build error, so it will not
 value the `InvalidSettings` error carries. Add a key there when adding a validated settings field,
 or the screen quotes an English identifier at staff.
 
-### `src/app/kunden/` — the customer list, the registration screen and the card view
+### `src/app/kunden/` — the Kunden-verwalten hub, the registration screen and the card view
 
 All routes share one `deps.ts`, and all follow the settings screen's wiring. What is worth knowing
 beyond it:
 
-- **`page.tsx`** is the **customer list** (US-15.3), the screen that replaces the spreadsheet: one
-  dense table over `listCustomers`, sorted by customer number, computing nothing — the counts,
+- **`page.tsx`** is the **Kunden-verwalten hub** (US-15.3, US-17.2). Above the list it carries the
+  three things staff do with customers — take somebody on (`/kunden/neu`), the waiting list, the
+  cards to reissue — plus the two signals that belong with them: the free-slot banner (US-12) and
+  the cards-due badge (`countCardsDueForReissue`, US-13.4), which is shown at zero too and in the
+  same grey as everything around it. Its heading is the nav label word for word, so the section has
+  one name. `proposeRegistration` throwing `NoSettingsInForce` leaves the banner out rather than
+  taking the screen down. Below that it is the **customer list**, the screen that replaces the
+  spreadsheet: one dense table over `listCustomers`, sorted by customer number, computing nothing — the counts,
   portions, price, card number and certificate state all arrive derived. The filters are a plain
   **GET form**, which is what puts them in the URL (FR-5); FD share one machine, and a view has to
   survive a reload and be passable to a colleague as a link. Every parameter falls back to "not
@@ -1910,9 +1916,10 @@ staff to ignore the list — or, far worse, to turn a household away over it (PR
   differs, and that reason is what keeps the loss count on the card view readable. On success it
   revalidates this list, the household's record and card view, and `/` — whose badge counts this very
   list.
-- The home screen's badge (`countCardsDueForReissue`) is shown at zero too and in the same grey as
-  everything around it: "nothing to do" is the answer staff most often want from it, and a home
-  screen that looks alarmed about outdated cards is how the list stops being read.
+- The badge counting this list (`countCardsDueForReissue`) is shown at zero too and in the same grey
+  as everything around it: "nothing to do" is the answer staff most often want from it, and a screen
+  that looks alarmed about outdated cards is how the list stops being read. It sits on the hub
+  (US-17.2), one click away from anywhere via the nav bar.
 
 ### `src/app/warteliste/` — the waiting list
 
@@ -1929,7 +1936,7 @@ rather than by asking `nextInLine` a second time — one statement of the order,
 list cannot name two different applicants.
 
 - **`free-slot-banner.tsx`** names **one** applicant and **one** number, and it is rendered on the
-  home screen as well (`showListLink`). Without it a freed customer number is only noticed by whoever
+  hub at `/kunden` as well (`showListLink`, US-17.2).  Without it a freed customer number is only noticed by whoever
   thinks to open the list, and the applicant who has waited longest waits on — which is the whole of
   FR-4. An expired certificate is repeated on the banner, because whoever acts on it needs to know a
   renewed notice will be wanted **before** they walk over to the applicant.
@@ -1944,7 +1951,7 @@ list cannot name two different applicants.
 - **`actions.ts`** reports an already-lapsed certificate as its own German sentence naming the day it
   ran out. It is the one rejection staff meet with the applicant standing in front of them, and
   "bitte prüfen" would not tell them what to ask for. Both actions revalidate `/warteliste` and `/`,
-  because the home screen's banner names whoever is at the head.
+  because the hub's and the home screen's banner names whoever is at the head.
 
 #### `warteliste/[entryId]/registrieren/` — the promotion
 

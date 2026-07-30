@@ -58,6 +58,8 @@ export async function reissueStaleCardAction(
   revalidatePath("/karten-neuausstellung");
   revalidatePath(`/kunden/${customerId.data}`);
   revalidatePath(`/kunden/${customerId.data}/karte`);
+  // Both screens that count this list: the hub (US-17.2) and the home screen.
+  revalidatePath("/kunden");
   revalidatePath("/");
   return initialStaleReissueState;
 }

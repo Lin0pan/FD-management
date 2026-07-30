@@ -60,7 +60,7 @@ export default async function Home(): Promise<React.ReactElement> {
           data-testid="cards-due-badge"
           className="rounded-full bg-foreground/10 px-3 py-1 text-sm tabular-nums"
         >
-          {de.home.cardsDueBadge(cardsDue)}
+          {de.customerList.actions.cardsDueBadge(cardsDue)}
         </span>
       </Link>
       <Link href="/warteliste" className="underline underline-offset-4">

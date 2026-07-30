@@ -34,13 +34,6 @@ export const de = {
     cardsDueLink: "Karten neu ausstellen",
     waitingListLink: "Warteliste",
     customerListLink: "Kundenliste durchsuchen",
-    /**
-     * The badge beside that link (US-13.4). It states a number and nothing else — no colour, no
-     * exclamation mark, no "offen": the list is a to-do list, and a home screen that looks alarmed
-     * about it is how staff learn to ignore it (PRD §6). Shown at zero too, because "nothing to do"
-     * is the answer staff most often want from it.
-     */
-    cardsDueBadge: (count: number): string => (count === 1 ? "1 Karte" : `${count} Karten`),
   },
   customers: {
     groups: {
@@ -452,10 +445,27 @@ export const de = {
    * number staff decide a new household's group by (US-01), and it stays whole whatever is filtered.
    */
   customerList: {
-    heading: "Kundenliste",
+    heading: "Kunden verwalten",
     intro:
       "Suchen und filtern wie früher in der Tabelle. Erwachsene, Kinder, Portionen und Preis " +
       "werden bei jedem Aufruf neu aus den Geburtsdaten und den Einstellungen berechnet.",
+    /**
+     * The three things staff do with customers, above the list (US-17.2). They are worded as the
+     * acts themselves rather than as the pages they lead to, and each says the same words as the
+     * heading of the screen it opens.
+     */
+    actions: {
+      newCustomer: "Neue Kundin oder neuen Kunden aufnehmen",
+      waitingList: "Warteliste",
+      cardsDue: "Karten neu ausstellen",
+      /**
+       * The badge beside the reissue link (US-13.4). It states a number and nothing else — no
+       * colour, no exclamation mark, no "offen": the list is a to-do list, and a screen that looks
+       * alarmed about it is how staff learn to ignore it (PRD §6). Shown at zero too, because
+       * "nothing to do" is the answer staff most often want from it.
+       */
+      cardsDueBadge: (count: number): string => (count === 1 ? "1 Karte" : `${count} Karten`),
+    },
     search: {
       label: "Suche",
       /** One box for all three, because choosing between them would be a question about the software. */
