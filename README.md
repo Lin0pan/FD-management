@@ -16,6 +16,39 @@ npm run db:seed             # provisional policy values, so the app boots usable
 npm run dev                 # http://localhost:3000
 ```
 
+That gives you a working app with an **empty register**. To click around with something to look at,
+add the demo data below.
+
+## Demo data
+
+```bash
+npm run db:demo             # seeds twenty synthetic households
+npm run db:demo -- --reset  # wipes the register first, then re-seeds
+```
+
+Twenty households — 12 active, 3 blocked, 5 archived, 1–6 people each — with the states that are
+tedious to reach by hand: lapsed certificates with reminder trails, two expiring within the month, a
+card reissued after a loss, a child who just turned 13 and a household moved between groups (both
+land on the cards-due list), a re-registration linked to the archived record it came from, eight
+past distribution days including no-shows and unpaid hand-outs, and three waiting-list applicants.
+The script prints a table of what it created and why each household is there.
+
+Today deliberately has no hand-outs recorded, so the counter is yours to try.
+
+Worth knowing:
+
+- **It is opt-in.** Nothing runs it for you — not `db:seed`, not the E2E suite, not CI. `db:reset`
+  wipes it, so re-run `db:demo` after one.
+- **It is invisible to git.** `data/*.db` is git-ignored; seed and re-seed as often as you like.
+- **It writes through the real use cases**, never Prisma directly, so the result is a database the
+  application could have produced — invariants hold and the audit log reads forwards.
+- **Never point it at FD's database.** It is a development fixture, and `--reset` deletes customer
+  data outright. It refuses to run over a non-empty register unless you pass that flag.
+
+Two customer numbers appear twice in its output. That is the slot rule, not a bug: archiving
+releases the number and a later registration takes it, while the archived record keeps the one it
+had. See `docs/technical_documentation.md` for the full description.
+
 ## Stack
 
 TypeScript (strict) · Next.js 16 (App Router) · React 19 · Tailwind CSS v4 · SQLite via Prisma · Zod

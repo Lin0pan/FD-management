@@ -60,7 +60,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 ├── prisma/
 │   ├── schema.prisma                 # datasource + models (SettingsVersion, AuditEntry, Customer,
 │   │                                 #   HouseholdMember, Certificate, Card, DistributionRecord)
-│   ├── seed.ts                       # `npm run db:seed` entry point
+│   ├── seed.ts                       # `npm run db:seed` entry point — settings only, deploy-safe
+│   ├── demo-seed.ts                  # `npm run db:demo` — twenty synthetic households (dev only)
 │   └── migrations/                   # committed migration history
 ├── src/
 │   ├── app/                          # Next.js App Router — thin adapter layer
@@ -2050,6 +2051,45 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   per child, anchor `2026-W02` = RED, Thursday — _only_ when the table is empty, so running it after
   every deploy is safe and never overwrites an operator's edit. Every one of those numbers is
   provisional and must be confirmed with FD; correcting them is a settings edit, not a migration.
+
+### The demo register (`prisma/demo-seed.ts`, `npm run db:demo`)
+
+A **development fixture**, not a seed: twenty synthetic households so the screens have something to
+show. It is deliberately a separate script from `prisma/seed.ts` — that one is deploy-safe and
+inserts only settings, this one invents customer data and must never be pointed at FD's database. It
+refuses to run over a non-empty register unless `--reset` is passed, which clears the register (via
+`clearRegister`), the waiting list and the audit log first.
+
+Two properties are worth knowing, because they are what make the fixture worth trusting:
+
+- **It writes nothing with Prisma.** Every household is registered by `registerCustomer`, blocked by
+  `blockCustomer`, archived by `archiveCustomer`; every card comes from `issueCard`/`reissueCard` and
+  every hand-out from `recordAttendance`. The result is a database the application could have
+  produced — the invariants hold, the cards carry the counts that were true when they were printed,
+  and the audit log tells the whole story. A fixture assembled from `INSERT`s would drift from the
+  rules the moment one changed, and would teach its next reader that impossible states are reachable.
+- **The clock is wound, not faked.** Because time is injected everywhere, the script hands the use
+  cases a clock it moves: events are sorted by their instant and replayed in order, so a card issued
+  six months ago carries a six-month-old issue date without a single back-dating `UPDATE`.
+
+What it creates: 12 active, 3 blocked (distinct reasons) and 5 archived (distinct reasons)
+households of 1–6 people; 3 lapsed certificates with reminder trails of 1–3 plus one renewed (which
+resets the count) and 2 expiring within 30 days; a card reissued after a loss; a household whose
+child turned 13 and one moved between groups, so both reasons appear on the cards-due list; a
+re-registration linked to the archived record it came from; eight past distribution days of
+hand-outs including no-shows and unpaid ones; and three waiting-list applicants.
+
+Attendance and payment are varied by **counting, not by a random draw** (`NO_SHOW_EVERY`,
+`UNPAID_EVERY`). A fixture exists to guarantee what it demonstrates, and an earlier version that
+drew the paid flag from Faker produced 37 hand-outs of which every one was paid — leaving the
+screens that show an unpaid customer nothing to show. Faker still invents the identities, seeded
+fixedly so two runs produce the same people; the _shape_ is fixed but the _timeline floats_, since
+every date is an offset from today.
+
+One constraint the script asserts rather than assumes: nothing may be registered before the oldest
+settings version exists, because a registration resolves the policy that prices it. The offsets are
+all under 200 days for that reason, and `main` fails with an explicit message if the fixture is ever
+stretched past the seeded `2026-01-01`.
 
 ### ⚠️ SQLite path resolution (important gotcha)
 
