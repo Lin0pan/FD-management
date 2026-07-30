@@ -216,9 +216,9 @@ test.describe("Warteliste", () => {
     await page.goto("/warteliste");
     await expect(page.getByTestId("waiting-list-free-slot-detail")).toHaveText(names);
 
-    // And on the home screen too (PRD §6): a freed slot that is only visible to somebody who thinks
-    // to open the waiting list is a slot the list cannot do its job with.
-    await page.goto("/");
+    // And on the Kunden-verwalten hub too (PRD §6, US-17.2): a freed slot that is only visible to
+    // somebody who thinks to open the waiting list is a slot the list cannot do its job with.
+    await page.goto("/kunden");
     await expect(page.getByTestId("waiting-list-free-slot-detail")).toHaveText(names);
   });
 

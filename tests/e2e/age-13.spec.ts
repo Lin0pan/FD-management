@@ -202,7 +202,7 @@ function dueRow(page: Page): Locator {
 }
 
 /**
- * How many cards the home badge says are due.
+ * How many cards the hub's badge says are due.
  *
  * Read rather than asserted outright: the badge counts the whole register, and the other specs
  * sharing `data/e2e.db` may well have left households on the list. What this spec can claim is that
@@ -210,7 +210,7 @@ function dueRow(page: Page): Locator {
  * with itself.
  */
 async function badgeCount(page: Page): Promise<number> {
-  await page.goto("/");
+  await page.goto("/kunden");
   const badge = await page.getByTestId("cards-due-badge").innerText();
   const count = Number(badge.split(" ")[0]);
   expect(Number.isInteger(count)).toBe(true);

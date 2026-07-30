@@ -68,7 +68,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n, the nav bar
 │   │   ├── nav.tsx                   # client: the four-item navigation bar (US-17.1)
 │   │   ├── active-section.ts         # pure: which section a path belongs to (+ .test.ts)
-│   │   ├── page.tsx                  # home page: the links + the cards-due badge (US-13.4)
+│   │   ├── page.tsx                  # Start dashboard: date + next distribution (US-17.3)
 │   │   ├── ausgabe/                  # distribution screen (US-03), counter (US-04), hand-out (US-05), reminder (US-06)
 │   │   │   ├── page.tsx              # server component: colour banner, counter lookup, week lookup
 │   │   │   ├── counter-lookup.tsx    # the verdict banner + the customer details below it (US-04.4)
@@ -109,7 +109,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   ├── page.tsx              # server component: banner, list in arrival order, add form
 │   │   │   ├── add-applicant-form.tsx  # client: "Auf die Warteliste setzen"
 │   │   │   ├── remove-applicant-controls.tsx  # client: Entfernen, reason required, entry retained
-│   │   │   ├── free-slot-banner.tsx  # shared by /warteliste and the home screen
+│   │   │   ├── free-slot-banner.tsx  # shared by /warteliste and the hub at /kunden
 │   │   │   ├── actions.ts            # "use server": Zod → addToWaitingList / removeFromWaitingList
 │   │   │   ├── waiting-list-state.ts # the two form states (not exportable from actions.ts)
 │   │   │   ├── deps.ts               # composition root: list + register + cards + settings
@@ -582,7 +582,7 @@ today)` names the head of that order.
 
 The rule is **strictly first come, first served** — no priority, urgency or hardship override (FR-3) —
 and it lives in the domain rather than in an `ORDER BY` so that fairness is a property the tests pin
-down, and so the waiting-list screen, the home-screen banner and the promotion use case cannot each
+down, and so the waiting-list screen, the hub's banner and the promotion use case cannot each
 arrive at a slightly different head of the queue. The tie-break is the surrogate id and never the order
 the rows came back in: two applicants added the same morning would otherwise swap places between two
 page loads, which is exactly the unfairness the strict order exists to prevent. Ids ascend with time,
@@ -878,7 +878,7 @@ surrogate id (what a reissue is written against), the customer number, the name,
 number a reissue would hand out, **both** count sets, **both** groups and the reason. The repository's order — lowest customer number first — is handed on untouched
 rather than sorted again here.
 
-`countCardsDueForReissue(deps)` is the same question asked for the home screen's badge, and it
+`countCardsDueForReissue(deps)` is the same question asked for the hub's badge on `/kunden`, and it
 answers by taking the length of that list rather than counting anything of its own — badge and screen
 are then one statement and cannot drift apart. It is not a `COUNT(*)` for the same reason the list is
 not a `WHERE`.
@@ -1557,6 +1557,31 @@ route opts into it and none can forget it.
   — never colour alone, the same rule as the group colours (US-03.4). The bar wraps at narrow widths
   and, being a block above the page, cannot push content sideways.
 
+### `src/app/page.tsx` — the Start dashboard
+
+What `/` shows since US-17.3: a welcome line, today's date written out (`Donnerstag, 30. Juli 2026`,
+`germanLongDate`), and one panel naming the next distribution and the group that collects. It was a
+list of seven links, which the nav bar carries now.
+
+- **The date only, never a clock time.** That is what keeps the page a plain server component: no
+  client boundary, no ticking state, no timer, and the same render under the fixed clock the e2e
+  suite pins. `force-dynamic` stays, because both the date and the next distribution turn over at
+  midnight with nothing being written.
+- **`getWeekColour` is its only read.** The page does no date arithmetic and reads no wall clock; the
+  `now` behind it is the injected `Clock`.
+- ⚠️ **The panel reads `nextDistribution.colour`, never `view.colour`.** The two agree only until the
+  week's distribution has passed: with a Thursday distribution, on a Saturday "this week is Red" and
+  "the next Ausgabe is Blue" are both true, and only the second answers the question the screen
+  exists for. `tests/e2e/home.spec.ts` pins a day _after_ a distribution for exactly this reason.
+- **Today and a coming day are two dictionary strings**, so the urgency is in the wording rather than
+  in styling the panel differently — and the group is named in words beside its colour.
+- **`NoSettingsInForce` costs the panel, not the screen** (FR-10): an unseeded database still gets
+  the date, plus a line saying the rhythm is not configured and a link to `/einstellungen`. The date
+  then comes from `deps.clock.now()` directly, since `getWeekColour` has no answer to give.
+- **The free-slot banner and the cards-due badge are not here.** Both moved to the hub in US-17.2,
+  where the rest of the customer administration is; the dashboard is a screen to be read, not a
+  to-do list.
+
 ### `src/app/einstellungen/` — the settings screen
 
 The first real screen, and the reference for how a route is wired:
@@ -1951,7 +1976,7 @@ list cannot name two different applicants.
 - **`actions.ts`** reports an already-lapsed certificate as its own German sentence naming the day it
   ran out. It is the one rejection staff meet with the applicant standing in front of them, and
   "bitte prüfen" would not tell them what to ask for. Both actions revalidate `/warteliste` and `/`,
-  because the hub's and the home screen's banner names whoever is at the head.
+  because the hub's and the waiting list's banner names whoever is at the head.
 
 #### `warteliste/[entryId]/registrieren/` — the promotion
 
@@ -2340,7 +2365,7 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   row, members, cards, distribution records and the audit-entry count are snapshotted either side of
   the clock change and compared, which fails if any of those four figures came from a write rather
   than a derivation. The second half is FR-5: the household now appears on `/karten-neuausstellung`
-  with both count sets and _13. Geburtstag_, and the home badge counts one more — but presenting the
+  with both count sets and _13. Geburtstag_, and the hub's badge counts one more — but presenting the
   outdated `271k1` at the counter is still `CLEAR_TO_SERVE`, with the grey note beside the serve
   button rather than instead of it. A reissue from the list hands out `271k2`, after which the row is
   gone, the badge is back where it started and the counter has no note left to make. The badge is
@@ -2356,8 +2381,8 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   **link** rather than a redirect — the form stays on screen, because the quota may be what should
   change. Two applicants are added through the list's own form and asserted in arrival order with no
   banner above them, because nothing is free. Archiving the first household frees number 1, and the
-  banner then names the applicant who joined first — on `/warteliste` **and** on the home screen
-  (PRD §6). Promoting them from the banner opens the registration form pre-filled from the entry
+  banner then names the applicant who joined first — on `/warteliste` **and** on the hub at
+  `/kunden` (PRD §6, relocated from the home screen by US-17.3). Promoting them from the banner opens the registration form pre-filled from the entry
   (surname, certificate, a one-person household deriving 1 / 0), and saving it hands them exactly the
   number the archived household released, with `1k1` on the card. The entry is then read straight
   from Prisma: still there, both rows still counted, `removedOn` stamped and `removalReason` reading

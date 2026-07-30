@@ -90,7 +90,8 @@ match their household.
       `STALE_COUNTS`; on success the row disappears
 - [ ] The counter screen shows a low-key note when the customer in front of you has a stale card — it
       must **not** look like a warning or a verdict, and must never suppress the serve action
-- [ ] A count badge for the list is shown on the home screen
+- [ ] A count badge for the list is shown on the Kunden-verwalten hub at `/kunden` (originally the
+      home screen; moved by US-17.3 with the rest of the customer administration)
 - [ ] Verify in browser using dev-browser skill
 
 ### US-13.5: E2E — a birthday changes the numbers

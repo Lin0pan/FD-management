@@ -24,16 +24,35 @@ export const de = {
     customers: "Kunden verwalten",
     settings: "Einstellungen",
   },
+  /**
+   * The Start dashboard (US-17.3). It is a screen to be read, not a menu: the nav bar carries the
+   * links now, so what is left is the date and the answer to "wann ist die nächste Ausgabe".
+   */
   home: {
     heading: "Füllhorn Delbrück – Verwaltung",
-    subheading:
-      "Die Anwendung ist einsatzbereit. Die Fachfunktionen folgen in den nächsten Schritten.",
+    welcome:
+      "Willkommen. Diese Seite sagt, welcher Tag heute ist und wann die nächste Ausgabe ist.",
+    /** The day, written out — and no clock time: the page has nothing that ticks (FR-7). */
+    today: (date: string): string => `Heute ist ${date}.`,
+    distribution: {
+      heading: "Ausgabe",
+      /**
+       * Today and a coming day are two sentences rather than one sentence styled two ways: on the
+       * day itself the line reads differently, not louder (PRD §6).
+       */
+      isToday: (colour: string): string => `Heute ist Ausgabe – Gruppe ${colour} holt ab.`,
+      next: (date: string, colour: string): string =>
+        `Nächste Ausgabe: ${date} – Gruppe ${colour} holt ab.`,
+      /**
+       * An unseeded database is not an error screen (FR-10). The date above still stands; only the
+       * distribution rhythm is missing, and the way to supply it is named.
+       */
+      notConfigured:
+        "Der Ausgaberhythmus ist noch nicht hinterlegt. Sobald Ausgabetag und Wochenfarbe in den " +
+        "Einstellungen stehen, steht hier die nächste Ausgabe.",
+    },
+    /** Also the way off the distribution screen and the hub when no settings are in force. */
     settingsLink: "Einstellungen",
-    distributionLink: "Ausgabe: Welche Gruppe ist dran?",
-    newCustomerLink: "Neue Kundin oder neuen Kunden aufnehmen",
-    cardsDueLink: "Karten neu ausstellen",
-    waitingListLink: "Warteliste",
-    customerListLink: "Kundenliste durchsuchen",
   },
   customers: {
     groups: {
