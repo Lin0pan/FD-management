@@ -754,16 +754,16 @@ export const de = {
        * the one above with other words in it: nothing about the household's numbers has changed, and
        * quoting two identical counts at the counter would read as a mistake.
        */
+      staleCardGroup: (cardNumber: string, onCard: string, today: string): string =>
+        `Die Karte ${cardNumber} ist noch für die Gruppe ${onCard} gedruckt; der Haushalt ` +
+        `gehört jetzt zu ${today}. Es gilt die heutige Gruppe. Eine neue Karte kann bei ` +
+        `Gelegenheit ausgestellt werden.`,
       /**
        * The way from the counter to the whole record (US-16.5). Named after what it leads to rather
        * than "Mehr": the counter shows a slice of the record, and the next question — who else lives
        * there, what was noted, when did they last collect — is answered only there.
        */
       recordLink: "Zur Kundenübersicht",
-      staleCardGroup: (cardNumber: string, onCard: string, today: string): string =>
-        `Die Karte ${cardNumber} ist noch für die Gruppe ${onCard} gedruckt; der Haushalt ` +
-        `gehört jetzt zu ${today}. Es gilt die heutige Gruppe. Eine neue Karte kann bei ` +
-        `Gelegenheit ausgestellt werden.`,
       errors: {
         notANumber:
           "Das ist keine Kundennummer und keine Kartennummer. Erwartet werden zum Beispiel 50 " +
