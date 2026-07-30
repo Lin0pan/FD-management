@@ -12,10 +12,16 @@
  * again, ready for the next customer in the queue.
  */
 
+import { CircleAlert } from "lucide-react";
 import Link from "next/link";
 import { z } from "zod";
 import { lookupCustomer, type CounterLookup } from "@/application/customers/lookup-customer";
 import { getWeekColour, type WeekColourView } from "@/application/distribution/get-week-colour";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { DomainError } from "@/domain/errors";
 import type { WeekColour } from "@/domain/policy/settings";
@@ -40,7 +46,13 @@ function permitsServing(verdict: Verdict): boolean {
 /** The colour turns over at midnight and settings change under the screen, so never cache it. */
 export const dynamic = "force-dynamic";
 
-/** The group's colour, matching the customer card so the two are recognisably the same thing. */
+/**
+ * The group's colour, matching the customer card so the two are recognisably the same thing.
+ *
+ * Deliberately literal palette values rather than theme tokens: RED and BLUE are the printed cards
+ * FD hands out, not a semantic role the theme could re-map. Everything else on this screen is styled
+ * from the design tokens.
+ */
 const COLOUR_STYLES = {
   RED: "bg-red-600 text-white",
   BLUE: "bg-blue-700 text-white",
@@ -88,51 +100,67 @@ function Banner({ view }: { view: WeekColourView }): React.ReactElement {
   return (
     <section
       data-testid="week-colour-banner"
-      className={`flex flex-col gap-3 rounded-xl p-10 shadow-sm ${COLOUR_STYLES[colour]}`}
+      className={`flex flex-col gap-2 rounded-2xl p-8 ring-1 ring-black/10 md:p-10 ${COLOUR_STYLES[colour]}`}
     >
-      <p className="text-2xl font-medium">
+      <p className="text-xl font-medium text-white/90 md:text-2xl">
         {view.isDistributionDay
           ? de.distribution.banner.isDistributionDay
           : de.distribution.banner.noDistributionDay}
       </p>
-      <p data-testid="week-colour-group" className="text-6xl font-bold sm:text-7xl">
+      <p data-testid="week-colour-group" className="text-6xl font-bold tracking-tight sm:text-7xl">
         {colourName(colour)}
       </p>
       {view.isDistributionDay ? null : (
-        <p data-testid="next-distribution" className="text-2xl font-medium">
+        <p
+          data-testid="next-distribution"
+          className="text-xl font-medium text-white/90 md:text-2xl"
+        >
           {de.distribution.banner.next(
             germanDate(view.nextDistribution.date),
             de.distribution.colours[colour],
           )}
         </p>
       )}
-      <p className="text-lg opacity-90">
+      <p className="text-base text-white/80 md:text-lg">
         {germanDate(view.date)} · {de.distribution.banner.week(view.isoWeek)}
       </p>
     </section>
   );
 }
 
+/**
+ * A German sentence explaining why a lookup produced nothing.
+ *
+ * Always a validation message, never a verdict: the verdict has its own painted banner, and these two
+ * cases (an unreadable date, a number that is not a number) are about what was typed.
+ */
+function ErrorNote({ message, testId }: { message: string; testId: string }): React.ReactElement {
+  return (
+    <Alert variant="destructive">
+      <CircleAlert />
+      <AlertDescription data-testid={testId} className="max-w-prose">
+        {message}
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 function LookupResult({ lookup }: { lookup: Lookup }): React.ReactElement {
   if (lookup.view === null) {
-    return (
-      <p data-testid="lookup-error" className="max-w-prose text-foreground/80">
-        {lookup.error}
-      </p>
-    );
+    return <ErrorNote message={lookup.error} testId="lookup-error" />;
   }
 
   const view = lookup.view;
   return (
     <div data-testid="lookup-result" className="flex flex-col gap-2">
-      <p className="flex flex-wrap items-center gap-3 text-lg">
-        <span
-          className={`rounded-full px-4 py-1 font-semibold ${COLOUR_STYLES[view.colour]}`}
+      <p className="flex flex-wrap items-center gap-3 text-base">
+        <Badge
           data-testid="lookup-colour"
+          className={`h-7 px-3 text-sm font-semibold ${COLOUR_STYLES[view.colour]}`}
         >
           {colourName(view.colour)}
-        </span>
-        <span>
+        </Badge>
+        <span className="text-foreground">
           {de.distribution.lookup.result(
             germanDate(view.date),
             view.isoWeek,
@@ -140,7 +168,7 @@ function LookupResult({ lookup }: { lookup: Lookup }): React.ReactElement {
           )}
         </span>
       </p>
-      <p className="text-foreground/70">
+      <p className="text-sm text-muted-foreground">
         {view.isDistributionDay
           ? de.distribution.lookup.isDistributionDay
           : de.distribution.lookup.nextDistribution(
@@ -202,6 +230,25 @@ async function lookUp(raw: string | string[] | undefined): Promise<Lookup | null
   }
 }
 
+/**
+ * The page frame, shared by the screen and its no-settings fallback so both read as the same place.
+ * Wider than the other screens (`max-w-6xl`) because the household's figures are laid out in four
+ * columns, and the counter reads them standing up.
+ */
+const SHELL = "mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6 md:p-8";
+
+/**
+ * No back-link beside the heading: the navigation bar in the root layout reaches Start from every
+ * screen (US-17.4), so one here would be a second, worse way home.
+ */
+function PageHeader(): React.ReactElement {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <h1 className="text-3xl font-semibold tracking-tight">{de.distribution.heading}</h1>
+    </div>
+  );
+}
+
 export default async function DistributionPage({
   searchParams,
 }: {
@@ -215,12 +262,16 @@ export default async function DistributionPage({
   } catch (error: unknown) {
     if (error instanceof DomainError) {
       return (
-        <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-8">
-          <h1 className="text-3xl font-semibold">{de.distribution.heading}</h1>
-          <p className="max-w-prose">{messageFor(error)}</p>
-          <Link href="/einstellungen" className="underline underline-offset-4">
-            {de.home.settingsLink}
-          </Link>
+        <main className={SHELL}>
+          <PageHeader />
+          <Card>
+            <CardContent className="flex flex-col items-start gap-4">
+              <ErrorNote message={messageFor(error)} testId="settings-missing" />
+              <Button asChild>
+                <Link href="/einstellungen">{de.home.settingsLink}</Link>
+              </Button>
+            </CardContent>
+          </Card>
         </main>
       );
     }
@@ -230,87 +281,93 @@ export default async function DistributionPage({
   const [lookup, counter] = await Promise.all([lookUp(datum), lookUpNumber(nummer)]);
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 p-8">
-      <h1 className="text-3xl font-semibold">{de.distribution.heading}</h1>
+    <main className={SHELL}>
+      <PageHeader />
 
       <Banner view={today} />
 
       {/* The counter loop, keyboard only: type the number, press Enter, read the verdict. The form
           navigates, so the input comes back empty and — being autofocused — ready for the next
-          customer without touching the mouse. */}
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">{de.distribution.counter.heading}</h2>
-        <p className="max-w-prose text-foreground/70">{de.distribution.counter.hint}</p>
-        <form method="get" className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-sm text-foreground/70">{de.distribution.counter.label}</span>
-            <input
-              // Not `type="number"`: a card number carries a `k`, and a spinner has no meaning here.
-              type="text"
-              name="nummer"
-              id="counter-input"
-              inputMode="numeric"
-              autoComplete="off"
-              autoFocus
-              data-testid="counter-input"
-              className="w-40 rounded border border-foreground/20 px-3 py-2 text-2xl tabular-nums"
-            />
-          </label>
-          <button
-            type="submit"
-            className="rounded border border-foreground/20 px-4 py-2 font-medium"
-          >
-            {de.distribution.counter.submit}
-          </button>
-        </form>
-        {counter === null ? null : counter.lookup === null ? (
-          <p data-testid="counter-error" className="max-w-prose text-foreground/80">
-            {counter.error}
-          </p>
-        ) : (
-          <>
-            <VerdictBanner verdict={counter.lookup.verdict} />
-            {counter.lookup.customer === null ? null : (
-              <CustomerDetails customer={counter.lookup.customer} />
-            )}
-            {counter.lookup.customerId === null ? null : (
-              <>
-                {/* Keyed by customer so a confirmation from one lookup cannot survive into the
+          customer without touching the mouse. A native `<label>` rather than the shadcn one: this
+          form is deliberately server-rendered with no client component, and Radix's label would drag
+          a client boundary onto the counter's critical path for nothing. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">{de.distribution.counter.heading}</CardTitle>
+          <CardDescription className="max-w-prose">{de.distribution.counter.hint}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form method="get" className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="counter-input" className="text-sm font-medium">
+                {de.distribution.counter.label}
+              </label>
+              <Input
+                // Not `type="number"`: a card number carries a `k`, and a spinner has no meaning here.
+                type="text"
+                name="nummer"
+                id="counter-input"
+                inputMode="numeric"
+                autoComplete="off"
+                autoFocus
+                data-testid="counter-input"
+                className="h-12 w-44 text-2xl tabular-nums md:text-2xl"
+              />
+            </div>
+            <Button type="submit" size="lg" className="h-12 px-6">
+              {de.distribution.counter.submit}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      {counter === null ? null : counter.lookup === null ? (
+        <ErrorNote message={counter.error} testId="counter-error" />
+      ) : (
+        <>
+          <VerdictBanner verdict={counter.lookup.verdict} />
+          {counter.lookup.customer === null ? null : (
+            <CustomerDetails customer={counter.lookup.customer} />
+          )}
+          {counter.lookup.customerId === null ? null : (
+            <>
+              {/* Keyed by customer so a confirmation from one lookup cannot survive into the
                     next customer's screen; within one customer the state rides out revalidation,
                     which is what keeps the renewal confirmation visible once the certificate
                     reads as valid again. */}
-                <CertificateControls
-                  key={counter.lookup.customerId}
-                  customerId={counter.lookup.customerId}
-                  expired={counter.lookup.verdict.kind === "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED"}
-                  reminderLoggedToday={counter.lookup.reminderLoggedToday}
-                />
-                <ServeControls
-                  customerId={counter.lookup.customerId}
-                  canServe={permitsServing(counter.lookup.verdict)}
-                  todaysRecord={
-                    counter.lookup.todaysRecord === null
-                      ? null
-                      : {
-                          recordId: counter.lookup.todaysRecord.recordId,
-                          time: germanTime(counter.lookup.todaysRecord.at),
-                          paid: counter.lookup.todaysRecord.paid,
-                        }
-                  }
-                />
-                {/* The way off this screen and onto the whole record (US-16.5). Everything the
+              <CertificateControls
+                key={counter.lookup.customerId}
+                customerId={counter.lookup.customerId}
+                expired={counter.lookup.verdict.kind === "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED"}
+                reminderLoggedToday={counter.lookup.reminderLoggedToday}
+              />
+              <ServeControls
+                customerId={counter.lookup.customerId}
+                canServe={permitsServing(counter.lookup.verdict)}
+                todaysRecord={
+                  counter.lookup.todaysRecord === null
+                    ? null
+                    : {
+                        recordId: counter.lookup.todaysRecord.recordId,
+                        time: germanTime(counter.lookup.todaysRecord.at),
+                        paid: counter.lookup.todaysRecord.paid,
+                      }
+                }
+              />
+              {/* The way off this screen and onto the whole record (US-16.5). Everything the
                     counter shows is a slice of it, and the question staff most often have next —
                     who else lives there, what was noted, when did they last collect — is answered
                     there and nowhere here. */}
+              <Button variant="outline" asChild className="self-start">
                 <Link
                   href={`/kunden/${counter.lookup.customerId}`}
                   data-testid="counter-record-link"
-                  className="self-start underline underline-offset-4"
                 >
                   {de.distribution.counter.recordLink}
                 </Link>
+              </Button>
 
-                {/* Blocking and archiving are offered here because the reasons for both show up at
+              {/* Blocking and archiving are offered here because the reasons for both show up at
                     the counter: the certificate still expired after several reminders, the no-show
                     run above (FR-2), and whatever a household does in front of the person serving
                     them. US-08.4 shipped the block controls on the record only, which left a staff
@@ -318,58 +375,63 @@ export default async function DistributionPage({
                     Both are the same closed disclosures as on the record, last on the screen and
                     never a prompt: the queue must not have to dismiss anything to get the next
                     customer served (PRD §6). Keyed by customer, like the certificate controls, so
-                    nothing typed about one household survives into the next lookup. */}
-                {counter.lookup.customer === null ? null : (
-                  <>
-                    <BlockControls
-                      key={`block-${counter.lookup.customerId}`}
-                      customerId={counter.lookup.customerId}
-                      status={counter.lookup.customer.status}
-                      blockReason={counter.lookup.customer.blockReason}
-                    />
-                    <ArchiveControls
-                      key={counter.lookup.customerId}
-                      customerId={counter.lookup.customerId}
-                      customerNumber={counter.lookup.customer.customerNumber}
-                      status={counter.lookup.customer.status}
-                    />
-                  </>
-                )}
-              </>
-            )}
-          </>
-        )}
-      </section>
+                    nothing typed about one household survives into the next lookup. Still the
+                    pre-shadcn disclosures: they are shared with the customer record, so restyling
+                    them is that screen's change, not this one's. */}
+              {counter.lookup.customer === null ? null : (
+                <div className="flex flex-col gap-3">
+                  <BlockControls
+                    key={`block-${counter.lookup.customerId}`}
+                    customerId={counter.lookup.customerId}
+                    status={counter.lookup.customer.status}
+                    blockReason={counter.lookup.customer.blockReason}
+                  />
+                  <ArchiveControls
+                    key={counter.lookup.customerId}
+                    customerId={counter.lookup.customerId}
+                    customerNumber={counter.lookup.customer.customerNumber}
+                    status={counter.lookup.customer.status}
+                  />
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
 
       {/* A plain GET form: the looked-up day belongs in the URL, so a colour staff have checked can
           be reloaded or shared without re-typing it. */}
-      <section className="flex flex-col gap-3">
-        <h2 className="text-xl font-semibold">{de.distribution.lookup.heading}</h2>
-        <p className="max-w-prose text-foreground/70">{de.distribution.lookup.hint}</p>
-        <form method="get" className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-sm text-foreground/70">{de.distribution.lookup.label}</span>
-            <input
-              type="date"
-              name="datum"
-              defaultValue={typeof datum === "string" ? datum : ""}
-              className="rounded border border-foreground/20 px-3 py-2"
-            />
-          </label>
-          <button
-            type="submit"
-            className="rounded border border-foreground/20 px-4 py-2 font-medium"
-          >
-            {de.distribution.lookup.submit}
-          </button>
-          {lookup === null ? null : (
-            <Link href="/ausgabe" className="underline underline-offset-4">
-              {de.distribution.lookup.reset}
-            </Link>
-          )}
-        </form>
-        {lookup === null ? null : <LookupResult lookup={lookup} />}
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">{de.distribution.lookup.heading}</CardTitle>
+          <CardDescription className="max-w-prose">{de.distribution.lookup.hint}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <form method="get" className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="lookup-date" className="text-sm font-medium">
+                {de.distribution.lookup.label}
+              </label>
+              <Input
+                type="date"
+                id="lookup-date"
+                name="datum"
+                defaultValue={typeof datum === "string" ? datum : ""}
+                className="h-9 w-44"
+              />
+            </div>
+            <Button type="submit" variant="secondary" className="h-9">
+              {de.distribution.lookup.submit}
+            </Button>
+            {lookup === null ? null : (
+              <Button variant="ghost" asChild className="h-9">
+                <Link href="/ausgabe">{de.distribution.lookup.reset}</Link>
+              </Button>
+            )}
+          </form>
+          {lookup === null ? null : <LookupResult lookup={lookup} />}
+        </CardContent>
+      </Card>
     </main>
   );
 }

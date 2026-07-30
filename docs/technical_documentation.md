@@ -39,9 +39,12 @@ This file describes _how_ the current codebase is organised and how to work in i
 **Deviations from the original sketch** (all recorded in `fd_dev_setup_overview.md`):
 
 - **Native SQLite provider**, not the `better-sqlite3` driver adapter — deferred until real queries exist.
-- **No `next/font/google`** — a system-font stack avoids a build-time network dependency.
 - **No `tailwind.config.*`** — Tailwind v4 configures the theme inline in `src/app/globals.css`.
-- **shadcn/ui not yet initialised** — added with the first real components.
+- **`next/font/google` after all** — Inter, but self-hosted at build time, so there is still no request
+  to Google at runtime and the app stays usable on a day FD's internet is down.
+- **shadcn/ui initialised** (style `radix-nova`, base colour zinc) — the primitives live in
+  `src/components/ui/` and are ordinary project source. `src/app/ausgabe/` is the first screen built on
+  them; the rest are still hand-rolled Tailwind and are being converted screen by screen.
 
 ---
 
@@ -1811,6 +1814,26 @@ read into a variable inside the `try` and build the JSX after it.
 The screen that answers the question the counter asks first — which group collects (US-03.4) — and
 then the question it asks about every person in the queue: may _this_ one collect (US-04.4).
 
+**This is the pilot screen for the shadcn/ui conversion** — the first in `src/app/` to compose the
+primitives in `src/components/ui/`, and the reference the other screens follow. What it settled:
+
+- Each section of the screen is a `Card`; the page frame is `max-w-6xl` rather than the `max-w-4xl` the
+  other screens use, because the household's four figures are laid out in four columns.
+- Secondary text is `text-muted-foreground` and borders are `border-border`, replacing the ad-hoc
+  `text-foreground/70` / `border-foreground/20` convention the hand-rolled screens still use.
+- **The two banners keep literal palette colours** (`bg-red-600`, `bg-blue-700`, and the verdict's
+  green / amber / red) rather than theme tokens. RED and BLUE are the printed cards FD hands out and
+  the verdict tones are the counter's traffic light — neither is a semantic role a theme may re-map.
+- **The paid checkboxes stay native `<input type="checkbox">`.** The actions read paid as _presence_ in
+  the `FormData`, which is the HTML idiom for a boolean; Radix's checkbox is a `button[role=checkbox]`
+  that submits nothing of its own, and a hidden input to work around that buys nothing but a nicer box.
+- **The removal disclosure stays a native `<details>`**, for the reason it always was: at the counter
+  the queue is waiting, and nothing here may have to be dismissed before the next customer is served.
+- The number input keeps its `id="counter-input"` and a plain `<label htmlFor>` rather than the shadcn
+  `Label`, which is a client component — the counter's critical path stays server-rendered.
+- The block and archive disclosures are still the pre-shadcn markup: they are shared with the customer
+  record, so restyling them belongs to that screen's change.
+
 - **`deps.ts`** holds two composition roots. `distributionDeps` — the page's — carries
   `CustomerRepository`, `SettingsRepository`, the **reading** sides of `DistributionRecordRepository`
   (for the hand-out already made today, shown beside the serve action) and `ReminderLogRepository`
@@ -1851,15 +1874,19 @@ then the question it asks about every person in the queue: may _this_ one collec
   archiving question askable at the counter at all.
 - The **consecutive-no-show count** appears in the household details when it is greater than zero
   (US-10.4), and the **archive control** last on the screen, below the serve action — an ordinary
-  collapsed disclosure like every other control here. Neither reacts to any threshold: the two
-  archiving triggers are made visible and the decision stays human (US-10, FR-1, PRD §5).
+  collapsed disclosure, never a prompt. Neither reacts to any threshold: the two archiving triggers
+  are made visible and the decision stays human (US-10, FR-1, PRD §5).
 - The detail line is `whitespace-pre-line`. Every verdict but one is a single dictionary sentence,
   which renders the same either way; the exception is the **block reason** (US-08), typed by hand
   into a multi-line field and shown verbatim, so the paragraphs a colleague wrote have to survive to
   the counter rather than collapse into one run-on line. The e2e asserts the rule itself, because
   Playwright's `toHaveText` normalises whitespace and cannot see the difference.
 - Everything below the banner is on screen at once (FR-2). All of it is derived by `lookupCustomer`:
-  the counts from the birthdates, portions and price from the settings in force today.
+  the counts from the birthdates, portions and price from the settings in force today. Those four
+  figures — grown-ups, children, portions, price — are set apart as large tiles above the rest,
+  because they are what the person serving reads out loud; the remaining fields sit in a key/value
+  table below and are looked at only when something is off. The group and the status are `Badge`s in
+  the card's header, being the two facts that decide whether the rest matters at all.
 - A number that is **not a number** (`?nummer=abc`) renders a German sentence beside the form; an
   unassigned one renders the `NOT_FOUND` banner, because that is an answer rather than a failure.
 - Below the details the counter offers a **link to the whole record** (`/kunden/[id]`) and, since
