@@ -213,6 +213,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── customer-record.spec.ts       # four edits on the record, each read back off another screen
 │   ├── distribution.spec.ts          # the week-colour banner against a fixed clock
 │   ├── home.spec.ts                  # Playwright smoke test
+│   ├── navigation.spec.ts            # the nav bar: every section reachable, the right one marked
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
 │   ├── reissue.spec.ts               # a lost card is replaced and stops working at the counter
@@ -2412,7 +2413,9 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   which is FR-3. FR-5 is the last test: the filters are set through the controls, read back out of the
   URL, and the page reloaded — same rows, same controls, same address. Pinned to 08.01.2026 because
   the certificate states are relative to today, and the pinned-now file is deleted in `afterAll` like
-  its neighbours.
+  its neighbours. US-17.5 adds one test to it: from `/kunden`, each of the three action links above
+  the filters — register, waiting list, reissue — reaches the screen it names. They are asserted
+  here rather than in `navigation.spec.ts` because they belong to the hub, not to the bar.
 - `customer-record.spec.ts` covers US-16 end to end (§US-16.6): that a correction typed on the record
   is in force everywhere, immediately. One household (customer number 291) is seeded through Prisma —
   **BLUE**, active, certificate lapsed, two reminders sent, one card printed `1 / 1` and `BLUE` — and
@@ -2430,6 +2433,19 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   `HOUSEHOLD_CHANGE` answers the cards-due list first and _Gruppe gewechselt_ would never be visible.
   Last, a note written on the record is read back verbatim at the counter. Pinned-now file deleted in
   `afterAll`, like its neighbours.
+- `navigation.spec.ts` covers US-17 end to end (§US-17.5): the shell itself. `activeSection` is
+  already a pure function with a unit test, so nothing here re-tests the routing table — what the
+  spec adds is the bar as staff meet it. It states its own table of the four sections, path and
+  landing heading (importing `NAV_ITEMS` would only prove the bar agrees with itself), then from
+  **each** section clicks its way to each of the other three and asserts the path, the `<h1>` and
+  that the section just entered is the one marked. The marking is read as a **list** of the links
+  carrying `aria-current="page"`, which is what makes "and no second section at the same time"
+  assertable: `/` is a prefix of every path, so a naive prefix rule would mark Start everywhere.
+  `/warteliste` and `/karten-neuausstellung` each get a test of their own, because they are the two
+  screens the customer hub owns without naming them — a bar marking nothing there reads as broken.
+  The spec only reads: no household, no customer number, so it shares the register with the rest of
+  the `chromium` project. The three action links on the hub are asserted in `customer-list.spec.ts`
+  instead, beside the screen they sit on.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

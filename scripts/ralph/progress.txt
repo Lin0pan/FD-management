@@ -469,3 +469,37 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
   - `pkill -f "next[ ]dev"` in the same Bash call as other commands returned exit 144 and swallowed
     the output; run a kill on its own line and check with `ps aux | grep "[n]ext-server"`.
 ---
+
+## 2026-07-30 - US-005 (E2E - navigation bar and hub links)
+- New `tests/e2e/navigation.spec.ts` (10 tests): the four labels in order on an arbitrary screen;
+  from EACH of the four sections a click on the bar reaches each of the other three, asserting the
+  path, the `<h1>` of the landing screen and that the section just entered is the only one marked;
+  `/` marks Start and nothing else; `/kunden`, `/warteliste` and `/karten-neuausstellung` each mark
+  Kunden verwalten; `/kunden/neu` does too (a sub-route the table never names).
+- `tests/e2e/customer-list.spec.ts` gained one test: from `/kunden` each of the three action links
+  (hub-new-customer, hub-waiting-list, hub-cards-due) reaches the screen it names.
+- `docs/technical_documentation.md`: navigation.spec.ts in the e2e file tree, a paragraph for it in
+  the per-spec list, and a sentence on the new customer-list test.
+- Checks: lint, typecheck, `test:coverage` (912 unit tests, thresholds met - the story adds no unit
+  code), `npm run build` (route table unchanged), `format:check`, and the FULL Playwright suite:
+  83 passed, 1 pre-existing skip (was 72 + 1; +10 nav, +1 customer-list).
+- **Learnings for future iterations:**
+  - An e2e spec that only READS needs no customer number and no isolated project - navigation.spec.ts
+    seeds nothing and rides the shared `data/e2e.db` happily. The number-allocation list in the
+    Codebase Patterns only concerns specs that write.
+  - Do NOT import `NAV_ITEMS` (or any implementation table) into a spec: the spec would then only
+    prove the bar agrees with itself. State path -> expected `<h1>` in the spec, and take only the
+    German strings from `de` (the dictionary rule still applies to tests).
+  - "Exactly one section marked" is assertable by reading `aria-current` as a LIST -
+    `locator('a[aria-current="page"]').evaluateAll(...)` returning the `data-testid`s - and compared
+    with `toEqual([...])`. A `toHaveAttribute` on one link cannot catch a second marked section,
+    which is exactly the `/`-is-a-prefix-of-everything bug.
+  - `page.waitForURL((url) => url.pathname === path)` is the reliable wait after a nav click; a bare
+    regex on the href also matches the origin, and `/` matches every URL.
+  - Reaching each section from each other section is 12 moves; one test PER ORIGIN (not one for all
+    twelve) makes a failure name the screen whose bar is broken.
+  - US-006 is next and rewrites `tests/e2e/home.spec.ts` for the dashboard. That file is still the
+    old smoke test asserting the `<h1>`, and `docs/technical_documentation.md` still describes it as
+    "Playwright smoke test" in the e2e file tree - line ~1580 already promises it pins a day after a
+    distribution, so the doc is ahead of the code there.
+---
