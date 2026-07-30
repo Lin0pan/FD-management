@@ -65,7 +65,9 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   └── migrations/                   # committed migration history
 ├── src/
 │   ├── app/                          # Next.js App Router — thin adapter layer
-│   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n
+│   │   ├── layout.tsx                # root layout, <html lang="de">, metadata from i18n, the nav bar
+│   │   ├── nav.tsx                   # client: the four-item navigation bar (US-17.1)
+│   │   ├── active-section.ts         # pure: which section a path belongs to (+ .test.ts)
 │   │   ├── page.tsx                  # home page: the links + the cards-due badge (US-13.4)
 │   │   ├── ausgabe/                  # distribution screen (US-03), counter (US-04), hand-out (US-05), reminder (US-06)
 │   │   │   ├── page.tsx              # server component: colour banner, counter lookup, week lookup
@@ -1530,6 +1532,30 @@ register somebody the screen had already removed; `findWaiting` therefore answer
 removed entry exactly as it does for an id that never existed. `contactNote` is `null` in SQL when
 none was given and `""` in the domain — one representation of an unanswered question per layer, and
 the translation is the adapter's.
+
+### `src/app/nav.tsx` and `src/app/active-section.ts` — the navigation shell
+
+The four-item bar every screen wears (US-17.1): Start → `/`, Ausgabe → `/ausgabe`, Kunden verwalten →
+`/kunden`, Einstellungen → `/einstellungen`. It is rendered in `layout.tsx` above `{children}`, so no
+route opts into it and none can forget it.
+
+- **`active-section.ts` is pure and unit-tested**, which is the point of it being a separate module:
+  the matching rule is the only thing in the shell that decides anything, and a decision inside a
+  client component can only be checked by rendering it. `NAV_ITEMS` is both the table the bar renders
+  and the table the rule matches against, so an item cannot fail to mark itself.
+- **A section owns its route and everything below it**, and the sub-route test appends the separator
+  (`pathname.startsWith(route + "/")`). That is what keeps `/` from matching every path in the
+  application and `/kundenkarten` from being swallowed by `/kunden`.
+- **The customer hub owns three roots**, not one: `/kunden`, `/warteliste` and
+  `/karten-neuausstellung` all mark _Kunden verwalten_. The waiting list and the reissue list are
+  things staff do with customers and have no item of their own; standing on one with no section
+  marked reads as a broken bar.
+- **`nav.tsx` is a client component for `usePathname` alone.** It reads no data, and neither may
+  `layout.tsx` — a fetch in the root layout would make every route in the application dynamic. Counts
+  therefore live on the pages that are already `force-dynamic`, never in the bar.
+- The current section is marked by a bottom rule, a tint **and** bold text, plus `aria-current="page"`
+  — never colour alone, the same rule as the group colours (US-03.4). The bar wraps at narrow widths
+  and, being a block above the page, cannot push content sideways.
 
 ### `src/app/einstellungen/` — the settings screen
 

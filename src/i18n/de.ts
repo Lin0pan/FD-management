@@ -11,6 +11,19 @@ export const de = {
     name: "Füllhorn Delbrück – Verwaltung",
     tagline: "Kundenverwaltung und Erfassung der Lebensmittelausgabe",
   },
+  /**
+   * The navigation bar (US-17.1). Four words, and each is the *only* name that area has: the label
+   * here and the heading on the page it leads to are deliberately identical, so a staff member
+   * following "Kunden verwalten" lands on a page that says it back to them.
+   */
+  nav: {
+    /** Names the bar for a screen reader, which otherwise hears four links and no context. */
+    label: "Hauptnavigation",
+    start: "Start",
+    distribution: "Ausgabe",
+    customers: "Kunden verwalten",
+    settings: "Einstellungen",
+  },
   home: {
     heading: "Füllhorn Delbrück – Verwaltung",
     subheading:
