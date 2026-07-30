@@ -293,7 +293,9 @@ export default async function DistributionPage({
           a client boundary onto the counter's critical path for nothing. */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">{de.distribution.counter.heading}</CardTitle>
+          <CardTitle className="text-lg">
+            <h2>{de.distribution.counter.heading}</h2>
+          </CardTitle>
           <CardDescription className="max-w-prose">{de.distribution.counter.hint}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -403,7 +405,9 @@ export default async function DistributionPage({
           be reloaded or shared without re-typing it. */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">{de.distribution.lookup.heading}</CardTitle>
+          <CardTitle className="text-lg">
+            <h2>{de.distribution.lookup.heading}</h2>
+          </CardTitle>
           <CardDescription className="max-w-prose">{de.distribution.lookup.hint}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

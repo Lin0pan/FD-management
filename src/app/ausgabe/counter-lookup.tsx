@@ -163,6 +163,10 @@ const GROUP_STYLES = {
  * One of the four figures the hand-out itself turns on: how many people, how many portions, what it
  * costs. Set apart from the rest because these are what the person serving reads out loud — the
  * remaining fields are looked at only when something is off.
+ *
+ * A `<p>` and not a `<div>`: the label and the number are one fact, and a paragraph is announced as
+ * one node. Two stacked `<div>`s would leave a screen reader reading "Portionen" and "4" as unrelated
+ * text, which is the tile's whole meaning lost to anyone not seeing the layout.
  */
 function Stat({
   label,
@@ -174,12 +178,12 @@ function Stat({
   testId: string;
 }): React.ReactElement {
   return (
-    <div className="flex flex-col gap-1 rounded-lg bg-muted/50 px-4 py-3">
+    <p className="flex flex-col gap-1 rounded-lg bg-muted/50 px-4 py-3">
       <span className="text-xs leading-snug text-muted-foreground">{label}</span>
       <span data-testid={testId} className="text-3xl font-semibold tabular-nums">
         {value}
       </span>
-    </div>
+    </p>
   );
 }
 
