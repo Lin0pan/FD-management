@@ -180,7 +180,6 @@ export const de = {
       validUntil: "gültig bis",
       registered: "Aufgenommen",
       reminderCount: "Erinnerungen an den Nachweis",
-      backToHome: "Zur Startseite",
       cardViewLink: "Kundenkarte anzeigen",
       /** A member's age beside their birthdate; German inflects the year at one. */
       memberAge: (age: number): string => (age === 1 ? "1 Jahr" : `${age} Jahre`),
@@ -593,7 +592,6 @@ export const de = {
      */
     action: "Karte neu ausstellen",
     customerLink: "Kundenakte öffnen",
-    backToHome: "Zur Startseite",
   },
   /**
    * The waiting list at /warteliste (US-12.4).
@@ -631,7 +629,6 @@ export const de = {
     certificateExpired: "Nachweis abgelaufen",
     certificateExpiredHint:
       "Der Platz auf der Liste bleibt bestehen. Vor der Aufnahme wird ein neuer Nachweis benötigt.",
-    backToHome: "Zur Startseite",
     /**
      * The "a slot is free" banner — the feature's whole value (PRD §6). It names one applicant and
      * one number, because a banner that only said "es ist etwas frei" would leave the decision it

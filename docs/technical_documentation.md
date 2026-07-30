@@ -1556,6 +1556,11 @@ route opts into it and none can forget it.
 - The current section is marked by a bottom rule, a tint **and** bold text, plus `aria-current="page"`
   — never colour alone, the same rule as the group colours (US-03.4). The bar wraps at narrow widths
   and, being a block above the page, cannot push content sideways.
+- **The bar replaced the “Zur Startseite” links, not every back-link** (US-17.4). A link that only
+  meant “go up” is gone from all seven places that carried one, because two ways home — one of them
+  worse — is what the bar exists to end. The ones that name a **record** stayed, since the bar cannot
+  express them: `Zurück zur Kundenübersicht` from a customer's card returns to _that_ customer, and
+  `Zurück zur Warteliste` from the promotion screen to the applicant they came from.
 
 ### `src/app/page.tsx` — the Start dashboard
 

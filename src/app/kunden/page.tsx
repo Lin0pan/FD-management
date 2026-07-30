@@ -524,10 +524,6 @@ export default async function CustomerListPage({
           <Table rows={view.rows} />
         </>
       )}
-
-      <Link href="/" className="underline underline-offset-4">
-        {de.customers.card.backToHome}
-      </Link>
     </main>
   );
 }
