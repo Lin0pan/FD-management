@@ -74,6 +74,13 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
   through the form. A collision surfaces as `Unique constraint failed on the fields:
   (customerNumber)` inside `beforeAll`, i.e. one spec failing while the other 70 pass; a whole-suite
   failure is the stale-server trap instead. `grep -rn "CUSTOMER_NUMBER = \|NUMBERS = " tests/e2e`.
+- Verifying a server-rendered screen without Playwright: start `next dev` on a spare port with
+  `FD_FIXED_NOW_FILE` pointed at a scratch file, rewrite that file between `curl`s and strip the
+  `<main>` out of the HTML. Three pinned days take a minute and prove more than a screenshot.
+  Two gotchas: `next dev` REWRITES `next-env.d.ts` to `./.next/dev/types/routes.d.ts` — revert it
+  before committing — and the dev server is `next dev`, not `next-server`, when you go to kill it.
+- Moving a signal off a screen breaks the e2e specs that assert it there, even when the story that
+  moves it lists no test work. `grep -rn 'goto("/")' tests/e2e` before removing anything from a page.
 - The cards-due list answers with ONE reason and the counts answer first (`staleCardReason`), so a
   spec that wants to see `GROUP_CHANGE` must first bring the card's printed counts up to date - a
   reissue between the two edits. The same ordering applies to the counter: a lapsed certificate
@@ -394,4 +401,35 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
     nothing to register anybody with, so the action band would offer a dead end.
   - No e2e spec asserted the "Kundenliste" heading (only a `describe` name), so the rename cost
     nothing. `grep` the German string before renaming a heading anyway.
+---
+
+## 2026-07-30 21:0x - US-003 (Start dashboard)
+- `/` is now the Start dashboard: welcome line, today's date written out, and one panel naming the
+  next distribution and the group that collects. The seven link rows are gone (the nav bar carries
+  them), and with them the free-slot banner and the cards-due badge, which US-002 had already put
+  on the hub. `getWeekColour` is the page's only read; it is still `force-dynamic`.
+- Files: `src/app/page.tsx` (rewritten), `src/i18n/format.ts` (+`germanLongDate`), `src/i18n/de.ts`
+  (`home` block rewritten, the five `*Link` keys dropped, `settingsLink` kept because the Ausgabe
+  and hub screens use it), `docs/technical_documentation.md` (a section for the dashboard + the
+  home-screen references), `tasks/prd-us-12-waiting-list.md`, `tasks/prd-us-13-...md` (both amended
+  to name the hub as the signal's home), `tests/e2e/age-13.spec.ts`, `tests/e2e/waiting-list.spec.ts`
+  (badge and banner assertions pointed at `/kunden`).
+- Verified in the browser against a pinned clock on the seeded db (Thursday distribution, anchor
+  2026-W02 RED): Thu 30.07 "Heute ist Ausgabe - Gruppe Blau", Tue 28.07 "Naechste Ausgabe:
+  Donnerstag, 30. Juli 2026 - Gruppe Blau", Sat 01.08 "Donnerstag, 6. August 2026 - Gruppe Rot" —
+  the Saturday case is the one that proves `nextDistribution.colour` rather than `colour`, since
+  that week is still Blau. A day before any settings version renders HTTP 200 with the date and the
+  "rhythm not configured" panel.
+- **Learnings for future iterations:**
+  - The AC said "German long form via the existing `germanDate`", but `germanDate` is `30.07.2026`.
+    Added `germanLongDate` (Intl, `timeZone: "UTC"`, weekday+long month) beside it rather than
+    changing `germanDate`, which ~15 call sites depend on. Long form is for prose, compact for tables.
+  - `app/` may read `deps.clock.now()` — `src/app/einstellungen/page.tsx` already does. The rule is
+    that the WALL clock is read only in `src/infrastructure/clock.ts`; the injected clock is fine.
+    The dashboard needs it for exactly one case: `NoSettingsInForce`, where `getWeekColour` has no
+    date to give and the screen must still name the day.
+  - `de.home.settingsLink` is NOT a home-page key any more — `/ausgabe` and `/kunden` both use it for
+    their "no settings" links. Check `grep -rn "de\.home\."` before deleting a `home` key.
+  - US-004 next: it removes the `backToHome` links. `src/app/ausgabe/page.tsx` ends with one that
+    uses `de.customers.card.backToHome`, i.e. the keys are not all named after their own screen.
 ---
