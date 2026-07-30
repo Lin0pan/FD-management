@@ -18,6 +18,7 @@ are stated. `CONTRIBUTING.md` covers human onboarding (setup, commands, why each
 | How is the code actually organised?      | `docs/technical_documentation.md`        |
 | How is the dev setup and pipeline built? | `docs/fd_dev_setup_overview.md`          |
 | What am I building next, story by story? | `tasks/` (one PRD per user story)        |
+| How do I style a screen?                 | `docs/ui_conversion_guide.md`            |
 
 `docs/` is the source of truth for _what FD needs_ — treat it as given unless a decision changed, in
 which case update it. `tasks/` is the implementation-facing translation of it.
