@@ -81,6 +81,9 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
   before committing — and the dev server is `next dev`, not `next-server`, when you go to kill it.
 - Moving a signal off a screen breaks the e2e specs that assert it there, even when the story that
   moves it lists no test work. `grep -rn 'goto("/")' tests/e2e` before removing anything from a page.
+- Deleting JSX from a page: the leftover `next/link` (or any) import is a LINT error, not a typecheck
+  error, so `npm run typecheck` alone will wave it through. And a page's `NotFound()` branch usually
+  carries the same links as its happy path — grep the whole file, and curl an id nobody holds.
 - The cards-due list answers with ONE reason and the counts answer first (`staleCardReason`), so a
   spec that wants to see `GROUP_CHANGE` must first bring the card's printed counts up to date - a
   reissue between the two edits. The same ordering applies to the counter: a lapsed certificate
@@ -432,4 +435,37 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
     their "no settings" links. Check `grep -rn "de\.home\."` before deleting a `home` key.
   - US-004 next: it removes the `backToHome` links. `src/app/ausgabe/page.tsx` ends with one that
     uses `de.customers.card.backToHome`, i.e. the keys are not all named after their own screen.
+---
+
+## 2026-07-30 - US-004 (Remove the back-links the nav bar replaces)
+- Removed the seven "Zur Startseite" links now covered by the nav bar, and the three
+  `backToHome` dictionary keys behind them (`customers.card`, `cardsDue`, `waitingList`).
+  Kept the two back-links that name a RECORD rather than a section — `cardView.backToCustomer`
+  and `waitingList.promote.backToList` — because the bar cannot express "back to *that* customer".
+- Files changed: src/app/ausgabe/page.tsx, src/app/karten-neuausstellung/page.tsx,
+  src/app/kunden/page.tsx, src/app/kunden/[id]/page.tsx (two: the NotFound state and the
+  record's link row), src/app/kunden/[id]/karte/page.tsx (NotFound), src/app/warteliste/page.tsx,
+  src/i18n/de.ts, docs/technical_documentation.md (a bullet in the navigation-shell section
+  recording which back-links survived and why).
+- Checks: lint, typecheck, 912 unit tests, build and the FULL e2e suite (72 passed, 1 pre-existing
+  skip) all green. Browser-verified with the curl technique below on all ten routes.
+- **Learnings for future iterations:**
+  - The criterion "any e2e step that navigated by clicking a removed link is updated" cost nothing
+    here: NO spec ever clicked "Zur Startseite" — the suite navigates with `page.goto`, and the only
+    `goto("/")` is home.spec.ts. `grep -rn 'getByRole("link"\|getByText("Zur' tests/e2e` before
+    assuming test work is needed for a link removal.
+  - Removing the last `<Link>` from a page leaves an unused `next/link` import that TYPECHECK does
+    not catch — only lint does. `grep -c '<Link' <file>` before deleting one; warteliste/page.tsx
+    was the only file that hit zero.
+  - Two of the seven links were in `NotFound()` states, not on the happy path, so a `curl` sweep has
+    to include a customer id nobody holds (`/kunden/99999`, `/kunden/99999/karte`) or half the
+    removal goes unverified.
+  - The curl-sweep verification recipe, refined: start `npx next dev -p 3111`, then loop the routes
+    asserting BOTH the thing that must be there (`data-testid="main-nav"`) and the thing that must be
+    gone (`Zur Startseite`) with `grep -c`. Two counts per route reads as a table and catches a page
+    that 500s (both zero). Remember to `git checkout next-env.d.ts` afterwards — `next dev` rewrites
+    it — and note a real customer id has to be read off `/kunden` first, since the seed's ids are not
+    1..n.
+  - `pkill -f "next[ ]dev"` in the same Bash call as other commands returned exit 144 and swallowed
+    the output; run a kill on its own line and check with `ps aux | grep "[n]ext-server"`.
 ---
