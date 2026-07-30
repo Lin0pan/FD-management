@@ -207,6 +207,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── card.spec.ts                  # registration issues k1 and the card view shows it
 │   ├── counter.spec.ts               # every counter verdict, and that a lookup writes nothing
 │   ├── customer-list.spec.ts         # search, filters and the group balance on /kunden
+│   ├── customer-record.spec.ts       # four edits on the record, each read back off another screen
 │   ├── distribution.spec.ts          # the week-colour banner against a fixed clock
 │   ├── home.spec.ts                  # Playwright smoke test
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
@@ -2309,6 +2310,23 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   URL, and the page reloaded — same rows, same controls, same address. Pinned to 08.01.2026 because
   the certificate states are relative to today, and the pinned-now file is deleted in `afterAll` like
   its neighbours.
+- `customer-record.spec.ts` covers US-16 end to end (§US-16.6): that a correction typed on the record
+  is in force everywhere, immediately. One household (customer number 291) is seeded through Prisma —
+  **BLUE**, active, certificate lapsed, two reminders sent, one card printed `1 / 1` and `BLUE` — and
+  then edited four times, each edit read back off the screen that would betray it. Adding a child
+  moves all four derived figures **before the save** (1 / 2, 4 Portionen, 4,00 €), which is the claim
+  the household editor exists to make and the one no unit gate can reach: the panel calls the same
+  domain rules the save applies, against the server's today. The save then puts the household on
+  `/karten-neuausstellung` with _Haushalt geändert_ and both count sets. A renewal recorded on the
+  record — the counter's use case, from the record's form — resets the reminder count to 0 on the
+  revalidated screen and on a fresh request. The group half is what the story turns on: pinned to the
+  **RED** Thursday 08.01.2026, the BLUE household is `WRONG_GROUP` at the counter with no serve
+  action, and after one move on the record it is `CLEAR_TO_SERVE` on the same morning — with both
+  group sizes moving together, asserted as a delta because they count the whole shared register. The
+  card is deliberately reissued in between: with the printed counts still out of date,
+  `HOUSEHOLD_CHANGE` answers the cards-due list first and _Gruppe gewechselt_ would never be visible.
+  Last, a note written on the record is read back verbatim at the counter. Pinned-now file deleted in
+  `afterAll`, like its neighbours.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.
