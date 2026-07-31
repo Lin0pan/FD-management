@@ -4,8 +4,10 @@ A UX analysis of the customer hub as it stands today, and a concept for rebuildi
 shadcn/ui primitives — the second screen in the conversion `docs/ui_conversion_guide.md` describes,
 after the `/ausgabe` pilot.
 
-**Status:** analysis and concept only. Nothing in `src/` has been changed. This document is the
-argument that the implementation PR should be able to point at.
+**Status:** **built**, as §8 steps 1 and 2 — the conversion with the sticky-header fix, then the copy
+and the column headers. Step 3 (the balance as two stat tiles) is still open. The measurements in §3
+are the "before"; §12 records what the screen measures now and the four places the concept turned out
+to be wrong.
 
 ---
 
@@ -511,3 +513,48 @@ Driving the screen writes to `data/fd.db`; `npm run db:demo -- --reset` restores
 3. **The intro paragraph** — cut entirely, or keep one line as `CardDescription`? Recommend cutting.
 4. **Karte** — is the issue count (`k1` vs `k2`) read from this list at all, or only at the counter?
    If not, the column merges away without a suffix.
+
+---
+
+## 12. What was built, and where this document was wrong
+
+Measured the same way as §3 — live DOM, demo register, production build, 1440×900.
+
+| Claim                                   | Before | After                         |
+| --------------------------------------- | ------ | ----------------------------- |
+| Top of `<table>`                        | 628px  | **485px**                     |
+| Rows readable without scrolling         | 5      | **9**                         |
+| Tinted pills on 15 rows                 | 45     | **23**, all 8 exceptions in   |
+| Name column                             | 159px  | **236px**                     |
+| Sticky header at the bottom of the list | −213px | **48px**, flush under the nav |
+| Headings below the `h1`                 | 0      | **2**                         |
+| Page overflow at 1920/1440/1280/800/390 | 0      | **0**                         |
+| Console errors                          | 0      | **0**                         |
+
+`tests/e2e/customer-list.spec.ts` passes unedited, and so do the other 86 specs.
+
+Four things this document got wrong, all found by building it:
+
+1. **The sticky header needed three overflow fixes, not two.** §3.6 named the table container and the
+   offset. It missed that `Card` itself ships `overflow-hidden`, which makes the card a second
+   scrollport above the first — so a conversion that moves the table into a `Card`, which is the whole
+   point of the conversion, re-breaks the header it just fixed.
+2. **`overflow-x-auto overflow-y-visible` (§4.3) is not a valid pair** — the second computes back to
+   `auto`. What works is `overflow-x-auto xl:overflow-x-visible` via a `containerClassName` added to
+   the `Table` primitive. And it is `xl`, not `lg`: at 1024 the ten columns need ~1000px against a
+   928px content box, and turning the container off there pushed the page sideways by 26px.
+3. **Merging Karte into Nr. (§4.3) is not a restyle.** `customer-list.spec.ts:366` asserts
+   `customer-row-card` `toHaveText("281k2")` exactly, so a `·k2` suffix breaks a spec the conversion
+   promised not to touch. The column stayed; only Erwachsene + Kinder merged, which §7.4's two-spans
+   rule makes free.
+4. **≤ 300px was not reachable** and the target should not have been stated without a budget behind
+   it. What is above the table is now: the `h1` row (36), the overview card (133) and the list card's
+   header and filters (188), plus three `gap-6`s and the page's own padding. Cutting prose bought
+   143px of the 328 §4.1 asked for; the rest can only come from dissolving the overview card into the
+   header row, which is a design decision and not a conversion. Nine rows instead of five is what a
+   restyle can buy on its own.
+
+Two smaller departures, both recorded in the commits: `Portionen` and `Erinnerungen` kept their full
+words rather than being abbreviated (German compounds do not shorten gracefully, and the reminder
+column's real problem was 13 noughts, which a dash answers), and the group balance kept its single
+string — §4.2c option 2, which is what let the spec stand unedited.

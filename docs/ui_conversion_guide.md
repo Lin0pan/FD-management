@@ -113,6 +113,34 @@ you delete an element, ask what it was telling a screen reader, and put that bac
    a `<p>`, or use a real `<table>` with `<th scope="row">` (which announces the row header with the
    cell, and is better than what it replaced).
 
+## Colour is a budget; the word is not part of it
+
+`/kunden` painted three tinted pills on every row — group, status, certificate — which is 45 marks on
+a 15-row demo of which 8 were news. Red carried the group _and_ a block _and_ a lapsed certificate, so
+a household could wear two unrelated red pills side by side and the eye had no signal left to spend.
+**Colour applied to every row is not emphasis; it is texture.**
+
+The rule that came out of it, and it applies to every screen with a status column:
+
+> **Chrome marks the exception. The default state gets the word and nothing else.**
+
+"aktiv" is 90% of the register and "gültig" is most of the rest; a pill on each says only "this row is
+normal". Dropping those 22 pills lost nothing and left the 8 that matter as the only marks on screen.
+Before adding a badge, count how many rows will wear it — if it is most of them, it is not a badge.
+
+**The word never goes with the chrome.** US-03.4 requires it (a colour is a distinction only some of
+the staff can make), and the specs assert it with an exact `toHaveText`. So the testid stays on a span
+holding exactly the word, and the badge is wrapped _around_ that span rather than replacing it:
+
+```tsx
+const label = <span data-testid={testId}>{word}</span>;
+return chrome === null ? label : <Badge variant={chrome.variant}>{label}</Badge>;
+```
+
+That is the general answer to "make this pill conditional without touching a spec" — see `StateWord`
+in `src/app/kunden/page.tsx`. Keep the chrome in a `Record<State, Chrome | null>` beside it, so which
+states are exceptions is one table to read rather than a condition to trace.
+
 ## A sticky table header inside a scroll container does not stick
 
 `/kunden` carries a `<thead className="sticky top-0">` and a comment explaining that at 240 rows the
@@ -120,7 +148,7 @@ columns are otherwise unreadable halfway down. **It has never worked**, and noth
 at 1440×500 scrolled to y=841, the header's `getBoundingClientRect().top` is `-213` — it has left the
 window with the rows.
 
-Two causes, and a conversion has to fix both or neither is worth doing:
+**Three** causes, and a conversion has to fix all of them or none is worth fixing:
 
 1. The table sits in `overflow-x-auto`. When one axis is not `visible` the other computes to `auto`,
    so that div is a **scroll container**, and `sticky` inside it sticks to _that_ container's
@@ -128,9 +156,25 @@ Two causes, and a conversion has to fix both or neither is worth doing:
    therefore never engages while the page scrolls. **shadcn's `Table` wraps itself the same way**
    (`data-slot="table-container"`, `relative w-full overflow-x-auto`), so converting to the primitive
    preserves the bug rather than fixing it.
-2. `top-0` is the wrong offset anyway. `<Nav>` is `sticky top-0 z-40` and `h-12`, so a header that did
-   stick would park underneath it. Use `top-12`, an **opaque** `bg-background` (the nav is
-   translucent, and rows read through it), and a `z-10` that sits above the rows and below the bar.
+2. **`Card` ships `overflow-hidden`.** Putting the table in a `Card` — which is what the conversion
+   does — adds a second scrollport above the first, so fixing only the table container changes
+   nothing. Override it on that one card (`<Card className="overflow-visible">`); `cn` is `twMerge`,
+   so the later class wins.
+3. `top-0` is the wrong offset anyway. `<Nav>` is `sticky top-0 z-40` and `h-12`, so a header that did
+   stick would park underneath it. Use `top-12`, an **opaque** background (`bg-card` inside a card —
+   the nav is translucent, and rows read through it), and a `z-10` that sits above the rows and below
+   the bar.
+
+Two things that look like fixes and are not:
+
+- **`overflow-x-auto overflow-y-visible` is not a valid pair.** The computed value of the second is
+  `auto` again, so the div is still a scroll container. What works is turning the container's
+  overflow off at the widths where the table actually fits: `overflow-x-auto xl:overflow-x-visible`,
+  which is why the `Table` primitive takes a `containerClassName`. Below that width the table scrolls
+  sideways and the header gives up sticking, which is the right way round.
+- **Picking that breakpoint by eye.** `/kunden` was first written `lg:` and pushed the whole _page_
+  sideways by 26px at 1024, because ten columns need about 1000px and an `lg` content box has 928.
+  Measure `documentElement.scrollWidth - clientWidth` at the breakpoint before believing it.
 
 The check is one scroll in `playwright-cli`, and it is not optional on any screen with a long table:
 scroll to the bottom of the list and confirm the header is still there and still opaque.
@@ -143,19 +187,54 @@ scroll to the bottom of the list and confirm the header is still there and still
 - `Card` uses `ring-1 ring-foreground/10`, **not** `border` + `shadow`. Don't add a border back.
 - `variant="destructive"` is a **soft tint**, not solid red. Right for a confirm step; if you need a
   loud red, say so with a `className`.
-- **`Label` and `Table` are `"use client"`.** Importing them into a server component creates a client
-  boundary. In a server-rendered form with no interactivity, a plain `<label htmlFor>` styled
-  `text-sm font-medium` is the better trade.
+- **`Label` is `"use client"`.** Importing it into a server component creates a client boundary. In a
+  server-rendered form with no interactivity, a plain `<label htmlFor>` styled `text-sm font-medium`
+  is the better trade. `Table` shipped the same way and **the directive has been removed** — nothing
+  in it is client-only, and `/kunden` would otherwise have pushed 240 rows across the boundary for
+  nothing. Deleting a `"use client"` only widens where a component may be used, so it is the right
+  answer wherever a primitive turns out to have no interactivity; deleting it from one that _does_ is
+  a build error, not a silent bug.
 - `Alert` hardcodes `role="alert"`. Pass `role="status"` to override it for confirmations.
-- **Three local components shadow shadcn names** and will collide on import: `Badge` and `Table` in
-  `kunden/page.tsx`, `Card` in `kunden/[id]/karte/page.tsx`. Rename the local one as part of converting
-  that screen.
+- **Local components that shadow shadcn names** collide on import; rename or delete the local one as
+  part of converting that screen. `Badge` and `Table` in `kunden/page.tsx` are gone; `Card` in
+  `kunden/[id]/karte/page.tsx` is still there.
 - **Not every label/value grid wants a `Table`.** Prefer it for genuinely tabular data. For a handful
   of key/value pairs, lift the two or three figures that drive the decision into large tiles and put
   the rest in a two-column table with no header row — that is what turned the counter's eleven
   identical boxes into something readable.
 - `Confirmation`/`Rejection` notice components are duplicated across five client components. Extract
   them into `src/components/` when the second screen needs them, not before.
+
+## Findings from `/kunden`
+
+- **`Card` ships `overflow-hidden`.** It is there to round images, and it clips anything meant to
+  escape the card — a sticky header above all (see above), but equally a popover or a hanging focus
+  ring. `<Card className="overflow-visible">` on the one card that needs it; `cn` is `twMerge`, so the
+  later class wins.
+- **`TableRow`'s `hover:bg-muted/50` applies to the header row too**, which makes the column headings
+  light up under the cursor as if they were a record. Put `hover:bg-transparent` on the `TableRow`
+  inside `TableHeader`.
+- **`Badge` is `h-5 text-xs`** — right for a dense table, small beside a `text-3xl` figure. It is a
+  `span`, so it nests happily inside a `<Button asChild><Link>`, which is how a count travels _inside_
+  the link it counts rather than beside it.
+- **A native `<select>` that has to stay native still gets the tokens.** Keep the recipe in one const
+  (`FILTER_SELECT` in `kunden/page.tsx`) so a row of them cannot drift apart:
+  `h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none
+focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30`.
+  Give every control in a filter row the same height — three heights in one row reads as a ragged
+  baseline, and it is the first thing that makes a form look unfinished.
+- **A nested `<label><span>…</span><control/></label>` works only by nesting.** It survives until
+  somebody moves the control. Converting a form is the moment to make it `<label htmlFor>` + `id`;
+  the accessibility snapshot then names the `textbox` and the `combobox`es, which is what `getByLabel`
+  needs anyway.
+- **Merging two columns leaves two dead dictionary keys.** Delete them in the same commit — an unused
+  key reads as a column somebody removed by accident.
+- **A column heading is a width.** `whitespace-nowrap` on `TableHead` gives every column a hard floor
+  equal to its German label, so "Nachweis gültig bis" cost 217px to show a ten-character date and the
+  name column paid for it. But German compounds do not shorten gracefully: prefer cutting the heading
+  to a shorter _true_ phrase ("Nachweis bis") over an abbreviation nobody says out loud, and where the
+  column's real problem is repetition rather than width, fix the cell instead — thirteen noughts down
+  a column of fifteen became a muted dash, and the two real tallies became the only thing visible.
 
 ## Always drive the screen with `playwright-cli`
 
@@ -176,6 +255,19 @@ playwright-cli console                           # must be 0 errors
 playwright-cli close
 ```
 
+> ⚠️ **`next start` serves the build it booted with.** Rebuilding does not reach a running server, and
+> a server left over from an earlier session will happily answer on the port and show you the old
+> screen. **Kill it and restart after every `npm run build`**, and prove which build you are looking
+> at before you measure anything:
+>
+> ```bash
+> pkill -f next-server && npm run build && npm run start -- --port 3100 &
+> curl -s http://127.0.0.1:3100/<route> | grep -c "<a string you just added>"   # must be ≥ 1
+> ```
+>
+> This is not hypothetical: the first `/kunden` measurement of this session was taken off a stale
+> server and was wrong by 150px. A measurement you cannot trace to a build is not a measurement.
+
 What to actually check, beyond "it looks right":
 
 - **Read the snapshot.** Every section title a `heading`, every field a named `textbox`, every pill a
@@ -187,8 +279,16 @@ What to actually check, beyond "it looks right":
   click (the click on the closed disclosure _retries and fails_, which is the property).
 - **`playwright-cli console`** — zero errors. Warnings from browser-native inputs on hand-crafted URLs
   are fine.
-- **Three widths**: ~1440, ~800, ~390. `document.documentElement.scrollWidth - clientWidth` must be
-  `0` at each, and any `[data-slot=table-container]` must not scroll unless it has to.
+- **Three widths, plus every breakpoint you introduced**: ~1440, ~800, ~390, and both sides of any
+  `md:`/`lg:`/`xl:` the screen now depends on. `document.documentElement.scrollWidth - clientWidth`
+  must be `0` at each, and any `[data-slot=table-container]` must not scroll unless it has to. The
+  1024 overflow on `/kunden` existed only _at_ the breakpoint and was invisible at all three of the
+  standard widths.
+- **Measure the claim, before and after.** If the reason for the restyle is "the table starts too far
+  down" or "the search box is too small", that is a number: take it on the old build, take it again on
+  the new one, and put both in the commit message. It is the only way to tell an improvement from a
+  rearrangement — and if the target turns out not to be reachable, say so with the budget that shows
+  why rather than quietly dropping it.
 - Ask whether **the thing that mattered before still dominates**. On the counter that is the banner and
   the verdict; a restyle that evens everything out has made the screen worse.
 - Use **`playwright-cli show --annotate`** to put the live screen in front of the user for design
@@ -201,8 +301,18 @@ Note that driving real flows **writes to `data/fd.db`**. That is fine — it is 
 
 `npm run lint && npm run typecheck && npm run test:coverage && npm run build`, then
 `npm run test:e2e` — **with no test edited**. If a spec fails, the conversion broke a contract; fix the
-code. Then the `playwright-cli` pass above: snapshot read, flows exercised, console clean, three widths
-checked.
+code. Then the `playwright-cli` pass above, against a server you restarted after the build: snapshot
+read, flows exercised, console clean, widths checked, and the before/after number for whatever the
+restyle claimed to fix.
+
+**Split the commits by what they change.** A conversion touches JSX structure and `className`, and its
+proof is the e2e suite passing untouched. Changing what the screen _says_ — a paragraph cut, a heading
+reworded, a value printed differently — is a second commit, so that the first one's green run means
+what it says. Anything that needs a spec edited is a third, and wants its own argument.
+
+**Add what you learned here.** A conversion that turns up a trap, a primitive that behaves unexpectedly
+or a rule worth reusing is only worth its cost once; this file is where it stops being worth it a
+second time.
 
 ## Progress
 
@@ -210,10 +320,10 @@ checked.
 - [x] Global chrome — the navigation bar in `src/app/nav.tsx`, worn by every screen from
       `src/app/layout.tsx`.
 - [ ] `/` home
-- [ ] `/kunden`, `/kunden/[id]`, `/kunden/[id]/karte`, `/kunden/neu` — `/kunden` is analysed and
-      planned in `docs/ui_redesign_kunden_verwalten.md`; read it before starting, particularly §7,
-      which lists the constraints `tests/e2e/customer-list.spec.ts` puts on the conversion (the three
-      filters cannot become Radix `Select`s).
+- [x] `/kunden` — the hub itself, per `docs/ui_redesign_kunden_verwalten.md`. Read §7 before touching
+      it: it lists the constraints `tests/e2e/customer-list.spec.ts` puts on the screen (the three
+      filters cannot become Radix `Select`s, and every `customer-row-*` testid is asserted exactly).
+- [ ] `/kunden/[id]`, `/kunden/[id]/karte`, `/kunden/neu`
 - [ ] `/warteliste`, `/warteliste/[entryId]/registrieren`
 - [ ] `/karten-neuausstellung`
 - [ ] `/einstellungen`
