@@ -18,6 +18,7 @@ are stated. `CONTRIBUTING.md` covers human onboarding (setup, commands, why each
 | How is the code actually organised?      | `docs/technical_documentation.md`        |
 | How is the dev setup and pipeline built? | `docs/fd_dev_setup_overview.md`          |
 | What am I building next, story by story? | `tasks/` (one PRD per user story)        |
+| How do I style a screen?                 | `docs/ui_conversion_guide.md`            |
 
 `docs/` is the source of truth for _what FD needs_ — treat it as given unless a decision changed, in
 which case update it. `tasks/` is the implementation-facing translation of it.
@@ -93,6 +94,11 @@ deliberately and say why in the commit; do not add an inline disable.
   low-value tests.
 - Time-dependent rules deserve named boundary tests against a fake clock: the day before, the day of
   and the day after, plus 29 February.
+- **UI work is always driven with the `playwright-cli` skill** — building a screen and reviewing it, not
+  only when asked to test one. The e2e suite proves the contracts still hold; `playwright-cli` is how you
+  find out whether the screen is any good, because its accessibility snapshot shows what the markup
+  _means_ and a screenshot does not. `docs/ui_conversion_guide.md` has the workflow and the two
+  regressions that got through a green suite because nobody read the snapshot.
 
 ## Database migrations
 

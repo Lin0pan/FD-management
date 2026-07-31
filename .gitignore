@@ -203,9 +203,10 @@ tmbootpicker.efi
 /blob-report/
 /playwright/.cache/
 
-# Playwright browser-session scratch from the dev-browser skill: page snapshots and console logs,
-# regenerated on every UI verification. Untracked and unignored, they would be swept into whatever
-# commit came next — which for a Ralph batch of UI stories is every commit.
+# playwright-cli: per-session page snapshots, console logs and browser config, regenerated on every
+# UI verification. Every UI change is driven through it (docs/ui_conversion_guide.md), so these
+# appear on any branch that touches a screen. Untracked and unignored, they would be swept into
+# whatever commit came next — which for a Ralph batch of UI stories is every commit.
 /.playwright/
 /.playwright-cli/
 

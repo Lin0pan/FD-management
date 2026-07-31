@@ -853,6 +853,8 @@ export const de = {
      * the count should mean, because that judgement is deliberately the staff's (FR-6).
      */
     certificate: {
+      /** Names the pair of actions as one thing on the counter screen; the renewal keeps its own. */
+      heading: "Bedarfsnachweis",
       reminder: {
         submit: "Erinnerung erfassen",
         /** The explanatory label the disabled button carries for the rest of the day (FR-5). */

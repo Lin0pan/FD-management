@@ -11,8 +11,21 @@
  * a blank banner.
  */
 
+import { Check, CircleHelp, TriangleAlert, X, type LucideIcon } from "lucide-react";
 import type { CounterCustomerView } from "@/application/customers/lookup-customer";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { formatCardNumber } from "@/domain/card/cardNumber";
+import type { CustomerStatus } from "@/domain/customer/customer";
+import type { Group } from "@/domain/customer/group";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
@@ -34,13 +47,17 @@ type Tone = "serve" | "warn" | "refuse" | "unknown";
 /**
  * The paint and the icon per tone. The icon is decorative — it repeats the headline, never replaces
  * it — so it is hidden from screen readers, which get the sentence instead.
+ *
+ * The paint is literal palette values, not theme tokens: these four are the counter's traffic light
+ * and must not move when the theme does. Amber for an expired certificate rather than red is the
+ * point of US-06 — the verdict is still "serve".
  */
 const TONES = {
-  serve: { className: "bg-green-700 text-white", icon: "✓" },
-  warn: { className: "bg-amber-500 text-black", icon: "!" },
-  refuse: { className: "bg-red-700 text-white", icon: "✕" },
-  unknown: { className: "bg-foreground/10 text-foreground", icon: "?" },
-} as const satisfies Record<Tone, { className: string; icon: string }>;
+  serve: { className: "bg-green-700 text-white ring-black/10", Icon: Check },
+  warn: { className: "bg-amber-500 text-black ring-black/10", Icon: TriangleAlert },
+  refuse: { className: "bg-red-700 text-white ring-black/10", Icon: X },
+  unknown: { className: "bg-muted text-foreground ring-foreground/10", Icon: CircleHelp },
+} as const satisfies Record<Tone, { className: string; Icon: LucideIcon }>;
 
 /**
  * The German statement for one verdict.
@@ -104,16 +121,15 @@ function statementFor(verdict: Verdict): Statement {
 /** The verdict, full width and stated in words — the one thing on this screen that cannot be missed. */
 export function VerdictBanner({ verdict }: { verdict: Verdict }): React.ReactElement {
   const { tone, headline, detail } = statementFor(verdict);
+  const { className, Icon } = TONES[tone];
 
   return (
     <section
       data-testid="counter-verdict"
       data-verdict={verdict.kind}
-      className={`flex w-full items-start gap-6 rounded-xl p-8 shadow-sm ${TONES[tone].className}`}
+      className={`flex w-full items-start gap-5 rounded-2xl p-8 ring-1 md:p-10 ${className}`}
     >
-      <span aria-hidden="true" className="text-5xl leading-none font-bold">
-        {TONES[tone].icon}
-      </span>
+      <Icon aria-hidden="true" className="size-12 shrink-0 md:size-14" strokeWidth={2.5} />
       <div className="flex flex-col gap-2">
         <p data-testid="counter-verdict-headline" className="text-4xl font-bold sm:text-5xl">
           {headline}
@@ -130,6 +146,48 @@ export function VerdictBanner({ verdict }: { verdict: Verdict }): React.ReactEle
   );
 }
 
+/** The badge variant per status. The group has its own paint; a status is a state, so it uses tokens. */
+const STATUS_VARIANTS = {
+  ACTIVE: "secondary",
+  BLOCKED: "destructive",
+  ARCHIVED: "outline",
+} as const satisfies Record<CustomerStatus, "secondary" | "destructive" | "outline">;
+
+/** The same paint as the week banner and the printed card, so the three are one colour to staff. */
+const GROUP_STYLES = {
+  RED: "bg-red-600 text-white",
+  BLUE: "bg-blue-700 text-white",
+} as const satisfies Record<Group, string>;
+
+/**
+ * One of the four figures the hand-out itself turns on: how many people, how many portions, what it
+ * costs. Set apart from the rest because these are what the person serving reads out loud — the
+ * remaining fields are looked at only when something is off.
+ *
+ * A `<p>` and not a `<div>`: the label and the number are one fact, and a paragraph is announced as
+ * one node. Two stacked `<div>`s would leave a screen reader reading "Portionen" and "4" as unrelated
+ * text, which is the tile's whole meaning lost to anyone not seeing the layout.
+ */
+function Stat({
+  label,
+  value,
+  testId,
+}: {
+  label: string;
+  value: string;
+  testId: string;
+}): React.ReactElement {
+  return (
+    <p className="flex flex-col gap-1 rounded-lg bg-muted/50 px-4 py-3">
+      <span className="text-xs leading-snug text-muted-foreground">{label}</span>
+      <span data-testid={testId} className="text-3xl font-semibold tabular-nums">
+        {value}
+      </span>
+    </p>
+  );
+}
+
+/** A field that is read only when it matters: the certificate, the reminder tally, a no-show run. */
 function Field({
   label,
   value,
@@ -140,12 +198,21 @@ function Field({
   testId: string;
 }): React.ReactElement {
   return (
-    <p className="rounded border border-foreground/15 px-3 py-2">
-      <span className="text-sm text-foreground/70">{label}: </span>
-      <span data-testid={testId} className="font-medium tabular-nums">
-        {value}
-      </span>
-    </p>
+    <TableRow>
+      <TableHeadCell>{label}</TableHeadCell>
+      <TableCell className="font-medium tabular-nums">
+        <span data-testid={testId}>{value}</span>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+/** The label column. A `<th>` in a key/value table, so the value's row header is announced with it. */
+function TableHeadCell({ children }: { children: string }): React.ReactElement {
+  return (
+    <th scope="row" className="w-72 p-2 text-left align-middle font-normal text-muted-foreground">
+      {children}
+    </th>
   );
 }
 
@@ -159,101 +226,112 @@ export function CustomerDetails({
   customer: CounterCustomerView;
 }): React.ReactElement {
   return (
-    <section data-testid="counter-customer" className="flex flex-col gap-4">
-      <h2 data-testid="counter-name" className="text-2xl font-semibold">
-        {customer.firstName} {customer.lastName}
-      </h2>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field
-          label={de.customers.fields.customerNumber}
-          value={String(customer.customerNumber)}
-          testId="counter-customer-number"
-        />
-        <Field
-          label={de.customers.fields.cardNumber}
-          value={customer.cardNumber}
-          testId="counter-card-number"
-        />
-        <Field
-          label={de.customers.fields.group}
-          value={de.customers.groups[customer.group]}
-          testId="counter-group"
-        />
-        <Field
-          label={de.customers.fields.status}
-          value={de.customers.status[customer.status]}
-          testId="counter-status"
-        />
-        <Field
-          label={de.customers.derived.grownUps}
-          value={String(customer.grownUps)}
-          testId="counter-grown-ups"
-        />
-        <Field
-          label={de.customers.derived.children}
-          value={String(customer.children)}
-          testId="counter-children"
-        />
-        <Field
-          label={de.customers.derived.portions}
-          value={String(customer.portions)}
-          testId="counter-portions"
-        />
-        <Field
-          label={de.customers.derived.price}
-          value={formatEuros(customer.priceCents)}
-          testId="counter-price"
-        />
-        <Field
-          label={de.customers.fields.certificateValidUntil}
-          value={germanDate(customer.certificateValidUntil)}
-          testId="counter-certificate-valid-until"
-        />
-        <Field
-          label={de.distribution.counter.details.reminderCount}
-          value={String(customer.reminderCount)}
-          testId="counter-reminder-count"
-        />
-        {/* The second archiving trigger (US-10.4), shown only when there is a run to see: a household
-            that has quietly stopped coming is invisible at the counter otherwise. It is a number and
-            nothing more — no threshold, no warning, no action follows from it (PRD §5). */}
-        {customer.consecutiveNoShows === 0 ? null : (
-          <Field
-            label={de.customers.derived.noShows}
-            value={de.customers.derived.noShowsValue(customer.consecutiveNoShows)}
-            testId="counter-no-shows"
+    <Card data-testid="counter-customer">
+      <CardHeader>
+        <CardTitle className="text-2xl">
+          <h2 data-testid="counter-name">
+            {customer.firstName} {customer.lastName}
+          </h2>
+        </CardTitle>
+        <CardDescription>
+          {de.customers.fields.customerNumber}{" "}
+          <span data-testid="counter-customer-number" className="font-medium text-foreground">
+            {String(customer.customerNumber)}
+          </span>
+          {" · "}
+          {de.customers.fields.cardNumber}{" "}
+          <span data-testid="counter-card-number" className="font-medium text-foreground">
+            {customer.cardNumber}
+          </span>
+        </CardDescription>
+        {/* The group and the status, the two facts that decide whether the rest matters at all. */}
+        <CardAction className="flex flex-wrap items-center gap-2">
+          <Badge data-testid="counter-group" className={GROUP_STYLES[customer.group]}>
+            {de.customers.groups[customer.group]}
+          </Badge>
+          <Badge data-testid="counter-status" variant={STATUS_VARIANTS[customer.status]}>
+            {de.customers.status[customer.status]}
+          </Badge>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat
+            label={de.customers.derived.grownUps}
+            value={String(customer.grownUps)}
+            testId="counter-grown-ups"
           />
+          <Stat
+            label={de.customers.derived.children}
+            value={String(customer.children)}
+            testId="counter-children"
+          />
+          <Stat
+            label={de.customers.derived.portions}
+            value={String(customer.portions)}
+            testId="counter-portions"
+          />
+          <Stat
+            label={de.customers.derived.price}
+            value={formatEuros(customer.priceCents)}
+            testId="counter-price"
+          />
+        </div>
+        <Table>
+          <TableBody>
+            <Field
+              label={de.customers.fields.certificateValidUntil}
+              value={germanDate(customer.certificateValidUntil)}
+              testId="counter-certificate-valid-until"
+            />
+            <Field
+              label={de.distribution.counter.details.reminderCount}
+              value={String(customer.reminderCount)}
+              testId="counter-reminder-count"
+            />
+            {/* The second archiving trigger (US-10.4), shown only when there is a run to see: a
+                household that has quietly stopped coming is invisible at the counter otherwise. It is
+                a number and nothing more — no threshold, no warning, no action follows from it
+                (PRD §5). */}
+            {customer.consecutiveNoShows === 0 ? null : (
+              <Field
+                label={de.customers.derived.noShows}
+                value={de.customers.derived.noShowsValue(customer.consecutiveNoShows)}
+                testId="counter-no-shows"
+              />
+            )}
+          </TableBody>
+        </Table>
+        <p className="text-xs text-muted-foreground">{de.customers.derived.standardValues}</p>
+        {/* The stale-card note (US-13.4). Deliberately the smallest, quietest thing on the screen —
+            the same grey as the hint above it, no border, no icon, no colour — because it is neither a
+            verdict nor a warning: the verdict is the banner, and the serve action below is untouched
+            by this. A card that has fallen behind is never grounds to turn anyone away (FR-5). */}
+        {customer.staleCard === null ? null : (
+          <p data-testid="counter-stale-card" className="max-w-prose text-xs text-muted-foreground">
+            {customer.staleCard === "GROUP_CHANGE"
+              ? de.distribution.counter.staleCardGroup(
+                  customer.cardNumber,
+                  de.customers.groups[customer.groupOnCard],
+                  de.customers.groups[customer.group],
+                )
+              : de.distribution.counter.staleCard(
+                  customer.cardNumber,
+                  de.customers.derived.countsValue(
+                    customer.countsOnCard.grownUps,
+                    customer.countsOnCard.children,
+                  ),
+                  de.customers.derived.countsValue(customer.grownUps, customer.children),
+                )}
+          </p>
         )}
-      </div>
-      <p className="text-xs text-foreground/60">{de.customers.derived.standardValues}</p>
-      {/* The stale-card note (US-13.4). Deliberately the smallest, quietest thing on the screen —
-          the same grey as the hint above it, no border, no icon, no colour — because it is neither a
-          verdict nor a warning: the verdict is the banner, and the serve action below is untouched
-          by this. A card that has fallen behind is never grounds to turn anyone away (FR-5). */}
-      {customer.staleCard === null ? null : (
-        <p data-testid="counter-stale-card" className="max-w-prose text-xs text-foreground/60">
-          {customer.staleCard === "GROUP_CHANGE"
-            ? de.distribution.counter.staleCardGroup(
-                customer.cardNumber,
-                de.customers.groups[customer.groupOnCard],
-                de.customers.groups[customer.group],
-              )
-            : de.distribution.counter.staleCard(
-                customer.cardNumber,
-                de.customers.derived.countsValue(
-                  customer.countsOnCard.grownUps,
-                  customer.countsOnCard.children,
-                ),
-                de.customers.derived.countsValue(customer.grownUps, customer.children),
-              )}
-        </p>
-      )}
-      <div className="flex flex-col gap-1">
-        <span className="text-sm text-foreground/70">{de.customers.fields.notes}</span>
-        <p data-testid="counter-notes" className="max-w-prose">
-          {customer.notes === "" ? de.distribution.counter.details.noNotes : customer.notes}
-        </p>
-      </div>
-    </section>
+        <div className="flex flex-col gap-1 border-t pt-4">
+          <span className="text-sm text-muted-foreground">{de.customers.fields.notes}</span>
+          <p data-testid="counter-notes" className="max-w-prose">
+            {customer.notes === "" ? de.distribution.counter.details.noNotes : customer.notes}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

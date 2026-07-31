@@ -16,32 +16,36 @@
  * already shows the certificate as valid again.
  */
 
+import { Check, CircleAlert } from "lucide-react";
 import { useActionState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { de } from "@/i18n/de";
 import { logReminder, recordRenewal } from "./actions";
 import { initialReminderState, initialRenewalState } from "./serve-state";
 
 function Confirmation({ text, testId }: { text: string; testId: string }): React.ReactElement {
   return (
-    <p
-      role="status"
-      data-testid={testId}
-      className="max-w-prose rounded border border-green-600/40 bg-green-600/10 px-3 py-2"
-    >
-      {text}
-    </p>
+    <Alert role="status" className="border-green-600/40 bg-green-600/10">
+      <Check className="text-green-700" />
+      <AlertDescription data-testid={testId} className="max-w-prose text-foreground">
+        {text}
+      </AlertDescription>
+    </Alert>
   );
 }
 
 function Rejection({ message, testId }: { message: string; testId: string }): React.ReactElement {
   return (
-    <p
-      role="status"
-      data-testid={testId}
-      className="max-w-prose rounded border border-red-500/40 bg-red-500/10 px-3 py-2"
-    >
-      {message}
-    </p>
+    <Alert role="status" variant="destructive" className="border-destructive/40 bg-destructive/5">
+      <CircleAlert />
+      <AlertDescription data-testid={testId} className="max-w-prose">
+        {message}
+      </AlertDescription>
+    </Alert>
   );
 }
 
@@ -73,80 +77,91 @@ export function CertificateControls({
   const alreadyLogged = reminderLoggedToday || reminderState.status === "logged";
 
   return (
-    <section data-testid="certificate-controls" className="flex flex-col gap-4">
-      {renewalSaved ? (
-        <Confirmation text={words.renewal.saved} testId="renewal-confirmation" />
-      ) : null}
+    <Card data-testid="certificate-controls">
+      <CardHeader>
+        <CardTitle className="text-lg">
+          <h2>{words.heading}</h2>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-6">
+        {renewalSaved ? (
+          <Confirmation text={words.renewal.saved} testId="renewal-confirmation" />
+        ) : null}
 
-      {expired ? (
-        <>
-          <form action={remind} className="flex flex-col gap-2">
-            <input type="hidden" name="customerId" value={customerId} />
-            <div>
-              <button
-                type="submit"
-                disabled={alreadyLogged || reminding}
-                data-testid="reminder-button"
-                className="rounded bg-amber-500 px-6 py-3 text-lg font-semibold text-black disabled:opacity-60"
-              >
-                {alreadyLogged ? words.reminder.loggedToday : words.reminder.submit}
-              </button>
-            </div>
-            {reminderState.status === "logged" ? (
-              <Confirmation
-                text={words.reminder.confirmed(reminderState.count)}
-                testId="reminder-confirmation"
-              />
-            ) : null}
-            {reminderState.status === "error" ? (
-              <Rejection message={reminderState.message} testId="reminder-error" />
-            ) : null}
-          </form>
+        {expired ? (
+          <>
+            {/* Still a real form around the button: the reminder is a write, and the e2e submits it
+                through `closest("form").requestSubmit()`. */}
+            <form action={remind} className="flex flex-col gap-3">
+              <input type="hidden" name="customerId" value={customerId} />
+              <div>
+                <Button
+                  type="submit"
+                  size="lg"
+                  disabled={alreadyLogged || reminding}
+                  data-testid="reminder-button"
+                  className="h-12 bg-amber-500 px-6 text-lg font-semibold text-black hover:bg-amber-600"
+                >
+                  {alreadyLogged ? words.reminder.loggedToday : words.reminder.submit}
+                </Button>
+              </div>
+              {reminderState.status === "logged" ? (
+                <Confirmation
+                  text={words.reminder.confirmed(reminderState.count)}
+                  testId="reminder-confirmation"
+                />
+              ) : null}
+              {reminderState.status === "error" ? (
+                <Rejection message={reminderState.message} testId="reminder-error" />
+              ) : null}
+            </form>
 
-          <form action={renew} className="flex flex-col gap-3">
-            <input type="hidden" name="customerId" value={customerId} />
-            <h3 className="text-lg font-semibold">{words.renewal.heading}</h3>
-            <p className="max-w-prose text-foreground/70">{words.renewal.hint}</p>
-            <div className="flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1">
-                <span className="text-sm text-foreground/70">
-                  {de.customers.fields.certificateType}
-                </span>
-                <input
-                  type="text"
-                  name="type"
-                  required
-                  data-testid="renewal-type"
-                  className="rounded border border-foreground/20 px-3 py-2"
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-sm text-foreground/70">
-                  {de.customers.fields.certificateValidUntil}
-                </span>
-                <input
-                  type="date"
-                  name="validUntil"
-                  required
-                  data-testid="renewal-valid-until"
-                  className="rounded border border-foreground/20 px-3 py-2"
-                />
-              </label>
-              <button
-                type="submit"
-                disabled={renewing}
-                data-testid="renewal-save"
-                className="rounded border border-foreground/20 px-4 py-2 font-medium disabled:opacity-60"
-              >
-                {words.renewal.submit}
-              </button>
-            </div>
-            {renewalState.status === "error" ? (
-              <Rejection message={renewalState.message} testId="renewal-error" />
-            ) : null}
-          </form>
-        </>
-      ) : null}
-    </section>
+            <form action={renew} className="flex flex-col gap-3 border-t pt-6">
+              <input type="hidden" name="customerId" value={customerId} />
+              <h3 className="font-heading text-base font-medium">{words.renewal.heading}</h3>
+              <p className="max-w-prose text-sm text-muted-foreground">{words.renewal.hint}</p>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="renewal-type">{de.customers.fields.certificateType}</Label>
+                  <Input
+                    type="text"
+                    id="renewal-type"
+                    name="type"
+                    required
+                    data-testid="renewal-type"
+                    className="h-9 w-64"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="renewal-valid-until">
+                    {de.customers.fields.certificateValidUntil}
+                  </Label>
+                  <Input
+                    type="date"
+                    id="renewal-valid-until"
+                    name="validUntil"
+                    required
+                    data-testid="renewal-valid-until"
+                    className="h-9 w-44"
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  variant="outline"
+                  disabled={renewing}
+                  data-testid="renewal-save"
+                  className="h-9"
+                >
+                  {words.renewal.submit}
+                </Button>
+              </div>
+              {renewalState.status === "error" ? (
+                <Rejection message={renewalState.message} testId="renewal-error" />
+              ) : null}
+            </form>
+          </>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
