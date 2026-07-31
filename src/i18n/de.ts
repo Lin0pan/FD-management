@@ -464,9 +464,12 @@ export const de = {
    */
   customerList: {
     heading: "Kunden verwalten",
-    intro:
-      "Suchen und filtern wie früher in der Tabelle. Erwachsene, Kinder, Portionen und Preis " +
-      "werden bei jedem Aufruf neu aus den Geburtsdaten und den Einstellungen berechnet.",
+    /*
+     * There is deliberately no intro paragraph. It used to say that the counts and the price are
+     * recalculated on every request, which explains the software to an audience that learned it
+     * years ago — two lines of tax at the top of a screen staff open twenty times a day, and the
+     * screen has one job, which is the register below.
+     */
     /** The two cards the screen is made of. Each is a real `<h2>`, so the page has an outline. */
     overviewTitle: "Übersicht und Aktionen",
     listTitle: "Kundenliste",
@@ -517,9 +520,12 @@ export const de = {
       /** The unset option of every filter — "no filter", never "no results". */
       all: "Alle",
       includeArchived: "Archivierte Haushalte anzeigen",
-      includeArchivedHint:
-        "Archivierte Haushalte sind nicht mehr bezugsberechtigt und ihre Kundennummer ist wieder " +
-        "vergeben. Sie bleiben auffindbar, werden aber nur auf Wunsch angezeigt.",
+      /**
+       * One clause, on the checkbox it is about. It used to be two sentences standing in a band of
+       * their own below the form, which is a lot of prose to explain a tick-box — and the half of it
+       * that mattered is the half staff cannot infer: the number has been given to somebody else.
+       */
+      includeArchivedHint: "Nicht mehr bezugsberechtigt; die Kundennummer ist wieder vergeben.",
       submit: "Filtern",
       reset: "Filter zurücksetzen",
     },
@@ -560,8 +566,21 @@ export const de = {
       household: "Erw. + Kinder",
       portions: "Portionen",
       price: "Preis",
-      certificate: "Nachweis gültig bis",
+      /**
+       * "Nachweis gültig bis" set the column's floor at 217px — a fifth of the table — to show a
+       * ten-character date, and every pixel of it came out of the name, which is the column staff
+       * scan. Shortened, but not to "Nachweis" alone: the cell holds a date, and a date under that
+       * heading could as easily be read as the day the certificate was handed in.
+       */
+      certificate: "Nachweis bis",
       reminders: "Erinnerungen",
+      /**
+       * A tally of nought, printed as a dash. Thirteen zeroes down a column of fifteen is noise a
+       * reader has to look past to find the two rows where somebody was actually reminded; a dash
+       * reads as "nothing here" without competing for the eye. Kept as a word in the dictionary
+       * rather than a literal in the JSX, like every other thing the screen says.
+       */
+      noReminders: "–",
     },
     /**
      * What stands where the table would be empty. It names the filters that are in force, because

@@ -282,8 +282,11 @@ function CustomerRow({ row }: { row: CustomerListRow }): React.ReactElement {
           chrome={CERTIFICATE_CHROME[row.certificateState]}
         />
       </TableCell>
-      <TableCell data-testid="customer-row-reminders" className="text-right tabular-nums">
-        {row.reminderCount}
+      <TableCell
+        data-testid="customer-row-reminders"
+        className={`text-right tabular-nums ${row.reminderCount === 0 ? "text-muted-foreground" : ""}`}
+      >
+        {row.reminderCount === 0 ? de.customerList.table.noReminders : row.reminderCount}
       </TableCell>
     </TableRow>
   );
@@ -666,7 +669,6 @@ export default async function CustomerListPage({
           </Link>
         </Button>
       </div>
-      <p className="max-w-prose text-muted-foreground">{de.customerList.intro}</p>
 
       {/* No banner here any more (US-18.3). Naming one applicant and one number at the top of the
           register was a decision about somebody else standing in front of the thing staff came for;
