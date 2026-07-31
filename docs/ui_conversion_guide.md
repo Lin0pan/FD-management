@@ -258,6 +258,28 @@ scroll to the bottom of the list and confirm the header is still there and still
   requires put it at 323. Say that with the arithmetic rather than dropping either — the number the
   restyle actually moved was the row height, 258px to 167.5px.
 
+## Findings from `/warteliste`
+
+- **A plain string exported from a `"use client"` module and read by a server component is not a
+  string.** It arrives as a client-reference proxy, and interpolating it into an attribute writes
+  `#function(){throw Error("Attempted to call ADD_FORM_ANCHOR() from the server…")}` into the DOM.
+  Nothing throws, the page renders, lint and the whole suite stay green — the link simply has a
+  nonsense `href`. It was visible **only** in the accessibility snapshot, which is the third time
+  that has been the case on this conversion. A constant shared across the boundary belongs in a
+  module with no directive, exactly like the `*-state.ts` files a `"use server"` module forces.
+- **A translucent tint inside a tinted card composites into a third colour.** `bg-amber-500/10` for
+  a lapsed certificate over the banner's `bg-emerald-600/15` is olive, which is neither meaning. Let
+  the inner notice keep the card's opaque fill and carry its colour in the border instead.
+- **`Card` brings `ring-1`, not `border`.** To give one card a coloured edge —
+  `<Card className="ring-0 border border-emerald-600/40 …">`: the ring has to be turned off or the
+  card wears two outlines a pixel apart.
+- **A `<details>` as a flex item in the row's first line is fine.** Closed it sizes to its summary
+  and sits where `ms-auto` puts it; opened, the form grows downward and wraps onto its own line when
+  it no longer fits. No `absolute` positioning and no second layout needed.
+- **A `waitForURL("**/warteliste")` does not match a URL carrying a fragment.** Adding
+  `#warteliste-aufnehmen` to a link a spec follows turns a passing test red for a reason that has
+  nothing to do with what the spec is about. Worth knowing before promising a deep link.
+
 ## Findings from `/kunden`
 
 - **`Card` ships `overflow-hidden`.** It is there to round images, and it clips anything meant to
@@ -377,10 +399,10 @@ second time.
       it: it lists the constraints `tests/e2e/customer-list.spec.ts` puts on the screen (the three
       filters cannot become Radix `Select`s, and every `customer-row-*` testid is asserted exactly).
 - [ ] `/kunden/[id]`, `/kunden/[id]/karte`, `/kunden/neu`
-- [ ] `/warteliste`, `/warteliste/[entryId]/registrieren`, per `docs/ui_redesign_warteliste.md`. Read
-      §7 before touching it, and note two things that reach outside the screen: `FreeSlotBanner` is
-      shared with `/kunden/neu`, and the promotion screen renders `/kunden/neu`'s `RegistrationForm`,
-      which is **not** this pass's to convert.
+- [x] `/warteliste`, `/warteliste/[entryId]/registrieren`, per `docs/ui_redesign_warteliste.md`. The
+      banner wears the hub's emerald, the row is 117px instead of 214, and the promotion screen's
+      frame and expired step are converted. `RegistrationForm` inside it is **not** — it belongs to
+      the `/kunden/neu` pass, so that screen still shows a seam.
 - [x] `/karten-neuausstellung`, per `docs/ui_redesign_karten_neuausstellung.md`. The two count sets
       now line up on one baseline, and a `GROUP_CHANGE` row prints the colour that changed.
 - [ ] `/einstellungen`

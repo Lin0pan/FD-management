@@ -28,7 +28,8 @@ import {
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
-import { AddApplicantForm, ADD_FORM_ANCHOR } from "./add-applicant-form";
+import { AddApplicantForm } from "./add-applicant-form";
+import { ADD_FORM_ANCHOR } from "./add-form-anchor";
 import { waitingListDeps } from "./deps";
 import { FreeSlotBanner } from "./free-slot-banner";
 import { RemoveApplicantControls } from "./remove-applicant-controls";

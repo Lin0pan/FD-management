@@ -49,9 +49,13 @@ export function FreeSlotBanner({
           {de.waitingList.banner.names(applicant, customerNumber)}
         </p>
         {/* Stated on the banner as well as on the row: whoever acts on the banner has to know a
-            renewed notice will be needed before they walk over to the applicant, not after. */}
+            renewed notice will be needed before they walk over to the applicant, not after.
+
+            The border carries the amber and the fill stays the card's own: a translucent amber tint
+            over the banner's emerald composites into olive, which is neither colour and reads as a
+            third state. */}
         {head.certificateExpired ? (
-          <Alert role="status" className="border-amber-500/40 bg-amber-500/10">
+          <Alert role="status" className="border-amber-500/40">
             <AlertDescription data-testid="waiting-list-free-slot-expired" className="max-w-prose">
               {de.waitingList.certificateExpired} — {de.waitingList.certificateExpiredHint}
             </AlertDescription>

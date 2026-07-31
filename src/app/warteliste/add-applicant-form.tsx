@@ -24,13 +24,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { de } from "@/i18n/de";
 import { addApplicantAction } from "./actions";
+import { ADD_FORM_ANCHOR } from "./add-form-anchor";
 import { initialAddApplicantState } from "./waiting-list-state";
-
-/**
- * The id the "auf die Warteliste setzen" button beside the `h1` jumps to. `scroll-mt-16` clears the
- * sticky navigation bar, which would otherwise cover the card's own heading on arrival.
- */
-export const ADD_FORM_ANCHOR = "warteliste-aufnehmen";
 
 /**
  * `<Label htmlFor>` + `<Input id>` rather than the control nested inside its label. The `id`s are
@@ -88,7 +83,8 @@ export function AddApplicantForm(): React.ReactElement {
   return (
     // Named, so the button beside the heading can jump here. Staff arrive on this screen from
     // /kunden/neu's "stattdessen auf die Warteliste setzen" with a person standing in front of
-    // them, and the form they were sent for is below the whole queue.
+    // them, and the form they were sent for is below the whole queue. `scroll-mt-16` clears the
+    // sticky bar, which would otherwise cover this card's own heading on arrival.
     <Card id={ADD_FORM_ANCHOR} className="scroll-mt-16">
       <CardHeader>
         <CardTitle className="text-lg">

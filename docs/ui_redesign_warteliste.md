@@ -4,7 +4,15 @@ A UX analysis of the waiting-list screen as it stands today, and a concept for r
 shadcn/ui primitives — the third screen in the conversion `docs/ui_conversion_guide.md` describes,
 after the `/ausgabe` pilot and `/kunden`.
 
-**Status:** analysed, not built. Everything below §3 is a proposal.
+**Status:** built. §§4–6 describe the screen as it now stands; §§1–3 are the analysis it came from,
+kept as the record of what was wrong. Three departures, all recorded in the commits: §10's first-row
+(≤360px) and page-height (≤1200px) targets came out at 431 and 1293, with the budget that shows why
+— the banner is 146px and the order rule needs two lines as the list card's description; the anchor
+of §4.2f was built, but **not** the matching fragment on `/kunden/neu`'s link, because
+`waiting-list.spec.ts:177` waits for `**/warteliste` and that glob does not match a URL with a hash;
+and §4.2's tinted notice inside the emerald banner carries its amber in the border, because a
+translucent amber over emerald composites into olive. §11 q1, q2 and q4 are still open; q3 is
+answered — the anchor is built and worth keeping.
 
 Read `docs/ui_redesign_kunden_verwalten.md` alongside this: the colour budget it arrived at, the
 "chrome marks the exception" rule and the argument for measuring the claim all carry over, and this
