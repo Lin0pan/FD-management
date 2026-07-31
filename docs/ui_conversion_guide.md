@@ -21,21 +21,25 @@ input label radio-group select table textarea`. Anything else needs `npx shadcn@
 <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6 md:p-8">
   <div className="flex flex-wrap items-center justify-between gap-3">
     <h1 className="text-3xl font-semibold tracking-tight">{de.…heading}</h1>
-    <Button variant="ghost" asChild>
-      <Link href="/"><ArrowLeft />{de.customers.card.backToHome}</Link>
-    </Button>
+    {/* only where the screen has one — see the back-link rule below */}
   </div>
   <Card>…</Card>
 </main>
 ```
 
+- The page sits under the navigation bar from `layout.tsx`, which uses this same `max-w-6xl` container.
+  A screen that picks a different width no longer lines up with the bar above it — reason enough to
+  stay with `max-w-6xl` unless the content argues otherwise.
 - `max-w-6xl` where the content is wide (tables, multi-column figures); `max-w-4xl` for a form.
 - One `Card` per section, `gap-6` between them. `CardHeader` gets `CardTitle` (+ `CardDescription` for
   what was a hint paragraph); actions belonging to the section go in `CardAction`.
 - **Wrap the real heading inside `CardTitle`** — `<CardTitle><h2>…</h2></CardTitle>`. `CardTitle` is a
   `div`; without this the screen loses its heading outline. See "Two traps" below — the pilot got this
   wrong in two of its cards and nothing failed.
-- The back-link belongs in the header row, not stranded at the bottom.
+- **No back-link to a section** — the bar reaches all four from everywhere, so one would be a second,
+  worse way home (US-17.4). A back-link that names a _record_ stays ("Zurück zur Kundenübersicht" from
+  a customer's card), because the bar cannot say which customer you came from; it belongs in the header
+  row, not stranded at the bottom.
 
 ## Mapping
 
@@ -83,6 +87,11 @@ covers `src/domain` and `src/application` only, so `src/app/` changes are invisi
    the printed cards FD hands out, and the counter's green/amber/red is its traffic light. Neither is a
    semantic role a theme may re-map, and US-03 FR-7 requires the colour to be named in words as well as
    painted. Everything else uses tokens.
+10. **The navigation bar holds exactly four links, and nothing else.** `navigation.spec.ts` asserts the
+    four labels of `main-nav` as an exact list, so a wordmark, a search box or a settings icon _inside_
+    the `<nav>` breaks it — put such a thing beside `<Nav />` in `layout.tsx`. The `nav-<section>`
+    testids and `aria-current="page"` are the contract; the active section is marked three ways at once
+    (rule, tint, weight) because colour alone is a distinction only some of the staff can make.
 
 ## Two traps the test suite cannot see
 
@@ -176,6 +185,8 @@ checked.
 ## Progress
 
 - [x] `/ausgabe` — the counter (pilot)
+- [x] Global chrome — the navigation bar in `src/app/nav.tsx`, worn by every screen from
+      `src/app/layout.tsx`.
 - [ ] `/` home
 - [ ] `/kunden`, `/kunden/[id]`, `/kunden/[id]/karte`, `/kunden/neu`
 - [ ] `/warteliste`, `/warteliste/[entryId]/registrieren`
@@ -183,5 +194,3 @@ checked.
 - [ ] `/einstellungen`
 - [ ] `kunden/archive-controls.tsx` + `kunden/block-controls.tsx` — shared by the record **and** the
       counter, so converting them changes two screens; do it with `/kunden/[id]`.
-- [ ] Global chrome in `src/app/layout.tsx`. There is none today: `body` is `flex flex-col` and every
-      page is `flex-1`, so a nav shell can be added without fighting them.
