@@ -16,7 +16,10 @@
  */
 
 import { useActionState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { de } from "@/i18n/de";
+import { cn } from "@/lib/utils";
 import { reissueStaleCardAction } from "./actions";
 import { initialStaleReissueState } from "./reissue-state";
 
@@ -34,34 +37,37 @@ export function StaleCardControls({
   const [state, action, pending] = useActionState(reissueStaleCardAction, initialStaleReissueState);
 
   return (
-    <form action={action} className="flex flex-col gap-3">
+    <form action={action} className="flex flex-col gap-2">
       <input type="hidden" name="customerId" value={customerId} />
-      <details className="rounded border border-foreground/20">
-        <summary data-testid="stale-reissue-open" className="cursor-pointer px-4 py-2 font-medium">
+      {/* A real `<details>`, not a `Dialog`: the disclosure is a product decision (nothing may have
+          to be dismissed before the rest of the list can be read) and a dialog would portal its
+          contents out of the row. What changes is only its weight — closed it now reads as the
+          control it is rather than as a collapsed section spanning the row. */}
+      <details>
+        <summary
+          data-testid="stale-reissue-open"
+          className={cn(
+            buttonVariants({ variant: "outline" }),
+            "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden",
+          )}
+        >
           {de.cardsDue.action}
         </summary>
-        <div className="flex flex-col gap-3 px-4 pb-4">
+        <div className="mt-3 flex flex-col items-start gap-3">
           <p data-testid="stale-reissue-confirm" className="max-w-prose">
             {de.customers.reissue.confirm(cardNumber, nextCardNumber)}
           </p>
-          <button
-            type="submit"
-            disabled={pending}
-            data-testid="stale-reissue-submit"
-            className="self-start rounded bg-foreground px-6 py-3 font-semibold text-background disabled:opacity-60"
-          >
+          <Button type="submit" disabled={pending} data-testid="stale-reissue-submit">
             {pending ? de.customers.reissue.submitting : de.customers.reissue.submit}
-          </button>
+          </Button>
         </div>
       </details>
       {state.status === "error" ? (
-        <p
-          role="status"
-          data-testid="stale-reissue-error"
-          className="max-w-prose rounded border border-red-500/40 bg-red-500/10 px-3 py-2"
-        >
-          {state.message}
-        </p>
+        <Alert variant="destructive" role="status">
+          <AlertDescription data-testid="stale-reissue-error" className="max-w-prose">
+            {state.message}
+          </AlertDescription>
+        </Alert>
       ) : null}
     </form>
   );
