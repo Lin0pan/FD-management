@@ -16,6 +16,8 @@
 
 import { useState } from "react";
 import type { RegistrationProposal } from "@/application/customers/propose-registration";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { ArchiveSearchPanel, type ArchiveSelection } from "./archive-search-panel";
@@ -39,38 +41,39 @@ export function RegistrationScreen({
   const words = de.customers.archiveSearch.prefilled;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <ArchiveSearchPanel onSelect={apply} />
 
       {selection === null ? null : (
         // Stated before the form and not inside it, because it is not about any one field: the
         // riskiest mistake this feature can produce is a staff member believing the archived record
         // was reactivated (PRD §6), and the correction has to be read before the form is.
-        <section
-          role="status"
-          data-testid="archive-prefill-notice"
-          className="flex max-w-prose flex-col gap-3 rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3"
-        >
-          <h2 className="font-semibold">{words.heading}</h2>
-          <p data-testid="archive-prefill-detail">
-            {words.detail(
-              `${selection.match.firstName} ${selection.match.lastName}`,
-              selection.match.formerCustomerNumber,
-              germanDate(selection.match.archivedAt),
-            )}
-          </p>
-          <p className="text-sm text-foreground/70">{words.editableHint}</p>
-          <div>
-            <button
+        //
+        // Neutral, not amber. Amber means one thing across the application — a certificate has
+        // lapsed — and this is not a warning at all: it is a statement of provenance with an undo
+        // attached. The `<h2>` stays, because `Alert` supplies no heading of its own.
+        <Alert role="status" data-testid="archive-prefill-notice">
+          <AlertDescription className="flex max-w-prose flex-col items-start gap-3">
+            <h2 className="font-semibold text-foreground">{words.heading}</h2>
+            <p data-testid="archive-prefill-detail">
+              {words.detail(
+                `${selection.match.firstName} ${selection.match.lastName}`,
+                selection.match.formerCustomerNumber,
+                germanDate(selection.match.archivedAt),
+              )}
+            </p>
+            <p className="text-sm">{words.editableHint}</p>
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               data-testid="archive-prefill-clear"
               onClick={() => apply(null)}
-              className="rounded border border-foreground/20 px-3 py-1 text-sm"
             >
               {words.clear}
-            </button>
-          </div>
-        </section>
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       <RegistrationForm

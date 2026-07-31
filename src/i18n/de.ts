@@ -81,6 +81,11 @@ export const de = {
       addMember: "Weiteres Haushaltsmitglied",
       removeMember: "Zeile entfernen",
       memberRow: (position: number): string => `Haushaltsmitglied ${position}`,
+      /**
+       * The household table's first column: the row's position, which used to be carried inside the
+       * first field's label and wrapped there. Short because the column holds one or two digits.
+       */
+      memberNumberColumn: "Nr.",
       submit: "Aufnehmen",
       submitting: "Wird gespeichert …",
       /**
@@ -296,6 +301,12 @@ export const de = {
           "gehört möglicherweise bereits einem anderen Haushalt.",
         select: "Daten übernehmen",
         selecting: "Wird übernommen …",
+        /**
+         * What opens the rest of one result row. A match row answers "is this them?" with the name,
+         * the birthdate and the address; the household size, the archive reason and the former
+         * number are what is read once that answer is probably yes.
+         */
+        moreDetail: "Mehr zu diesem Haushalt",
       },
       /**
        * The banner over a pre-filled form. It states the one thing a staff member could otherwise

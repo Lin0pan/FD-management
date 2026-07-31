@@ -25,6 +25,7 @@ import { customerDeps } from "../deps";
 import { waitingListDeps } from "../../warteliste/deps";
 import { FreeSlotBanner } from "../../warteliste/free-slot-banner";
 import { RegistrationScreen } from "./registration-screen";
+import { SHELL } from "../../shell";
 
 /**
  * Every registration changes the next free number and both group sizes, so a proposal cached at
@@ -48,8 +49,8 @@ export default async function NewCustomerPage(): Promise<React.ReactElement> {
     // could never be saved.
     if (error instanceof DomainError && error.code === "NoSettingsInForce") {
       return (
-        <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-8">
-          <h1 className="text-3xl font-semibold">{de.customers.new.heading}</h1>
+        <main className={SHELL}>
+          <h1 className="text-3xl font-semibold tracking-tight">{de.customers.new.heading}</h1>
           <p className="max-w-prose">{de.settings.errors.noSettings}</p>
         </main>
       );
@@ -60,10 +61,10 @@ export default async function NewCustomerPage(): Promise<React.ReactElement> {
   const [head] = places;
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 p-8">
+    <main className={SHELL}>
       <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold">{de.customers.new.heading}</h1>
-        <p className="max-w-prose text-foreground/70">{de.customers.new.intro}</p>
+        <h1 className="text-3xl font-semibold tracking-tight">{de.customers.new.heading}</h1>
+        <p className="max-w-prose text-muted-foreground">{de.customers.new.intro}</p>
       </header>
 
       {/* Above the form, so it is read before the first field is typed: the number this screen is
