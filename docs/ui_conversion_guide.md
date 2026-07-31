@@ -141,6 +141,28 @@ That is the general answer to "make this pill conditional without touching a spe
 in `src/app/kunden/page.tsx`. Keep the chrome in a `Record<State, Chrome | null>` beside it, so which
 states are exceptions is one table to read rather than a condition to trace.
 
+**A meaning gets one colour across the whole application, not one per screen.** "A slot is free" is
+`border-emerald-600/40 bg-emerald-600/15` on the hub badge (`FREE_SLOT_ACCENT`, US-18.2) and plain
+grey on `/warteliste`, where the act is actually performed — the same fact, painted twice, and the
+paler one is where it matters. Before inventing a treatment for a state, grep for the state: if
+another screen already says it, say it the same way. The converse holds too: two unrelated meanings
+must not share a tint on one screen. `/warteliste` paints "the certificate lapsed" — explicitly _not_
+a verdict — and "you are about to remove somebody from a queue" in the same amber.
+
+## A comparison that wraps is not a comparison
+
+`/karten-neuausstellung` exists to show two count sets side by side. Measured, its two values are
+`Erwachsene: 2, Kinder: 2` on one line and `Erwachsene: 3, Kinder: 1` broken across two, because
+their labels are different lengths and the box is 253px wide. The two figures a reader has to diff
+end up 24px apart vertically and 372px apart horizontally. Nothing failed; the screen simply stopped
+doing its job.
+
+Whenever two values are on screen **to be compared**, they need a shared baseline, a shared
+`x`-offset within their tile, `tabular-nums`, and enough width that neither wraps — the pilot's
+`Stat` shape (label above value, wrapped in one `<p>`) gives all four. And check it with
+`element.getClientRects()`, which prints one entry per line box: a screenshot shows two boxes that
+look fine and says nothing about where the numbers inside them landed.
+
 ## A sticky table header inside a scroll container does not stick
 
 `/kunden` carries a `<thead className="sticky top-0">` and a comment explaining that at 240 rows the
@@ -324,8 +346,13 @@ second time.
       it: it lists the constraints `tests/e2e/customer-list.spec.ts` puts on the screen (the three
       filters cannot become Radix `Select`s, and every `customer-row-*` testid is asserted exactly).
 - [ ] `/kunden/[id]`, `/kunden/[id]/karte`, `/kunden/neu`
-- [ ] `/warteliste`, `/warteliste/[entryId]/registrieren`
-- [ ] `/karten-neuausstellung`
+- [ ] `/warteliste`, `/warteliste/[entryId]/registrieren`, per `docs/ui_redesign_warteliste.md`. Read
+      §7 before touching it, and note two things that reach outside the screen: `FreeSlotBanner` is
+      shared with `/kunden/neu`, and the promotion screen renders `/kunden/neu`'s `RegistrationForm`,
+      which is **not** this pass's to convert.
+- [ ] `/karten-neuausstellung`, per `docs/ui_redesign_karten_neuausstellung.md`. §7 lists what
+      `age-13.spec.ts` and `customer-record.spec.ts` pin down — most importantly that both count
+      strings are asserted exactly and must be rendered even when they are equal.
 - [ ] `/einstellungen`
 - [ ] `kunden/archive-controls.tsx` + `kunden/block-controls.tsx` — shared by the record **and** the
       counter, so converting them changes two screens; do it with `/kunden/[id]`.
