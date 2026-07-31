@@ -13,6 +13,9 @@
 
 import { proposeRegistration } from "@/application/customers/propose-registration";
 import { listWaiting, type WaitingListPlace } from "@/application/waiting-list/list-waiting";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
@@ -28,51 +31,80 @@ import { RemoveApplicantControls } from "./remove-applicant-controls";
  */
 export const dynamic = "force-dynamic";
 
+/** The page frame, the same one every converted screen uses, so they line up under the bar. */
+const SHELL = "mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6 md:p-8";
+
+/**
+ * One label and its value, in one `<p>` — the shape the conversion guide's second trap asks for.
+ * Split into two stacked nodes they are announced as two unrelated facts, joined only by the layout.
+ */
 function Detail({ label, value }: { label: string; value: string }): React.ReactElement {
   return (
     <p>
-      <span className="text-sm text-foreground/70">{label}: </span>
+      <span className="text-muted-foreground">{label}: </span>
       <span className="font-medium">{value}</span>
     </p>
   );
 }
 
-function Row({ place }: { place: WaitingListPlace }): React.ReactElement {
+function Row({
+  place,
+  headOfList,
+}: {
+  place: WaitingListPlace;
+  headOfList: boolean;
+}): React.ReactElement {
   const applicant = `${place.entry.firstName} ${place.entry.lastName}`;
 
   return (
     <li
       data-testid="waiting-list-row"
       data-position={place.position}
-      className="flex flex-col gap-4 rounded-xl border border-foreground/15 p-6"
+      // Three lines, not four bands. The row used to spend a 780px bordered bar — the only boxed
+      // thing in it, so the first thing the eye landed on — on the action staff perform least.
+      // A quiet tint on the head of the list when a slot is free, and only then: it says "this is
+      // the row the banner is about", which nothing did. It is not a state, so it is not a badge,
+      // and there is no second "Jetzt registrieren" here — two buttons doing one thing is how they
+      // come to disagree.
+      className={`flex flex-col gap-2 border-b border-border px-3 py-4 first:rounded-t-lg last:rounded-b-lg last:border-0 ${
+        headOfList ? "bg-muted/50" : ""
+      }`}
     >
-      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <span
-          data-testid="waiting-list-position"
-          className="rounded-full bg-foreground/10 px-3 py-1 text-sm tabular-nums"
-        >
-          {de.waitingList.position} {place.position}
-        </span>
-        <h3 data-testid="waiting-list-applicant" className="text-xl font-semibold">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Badge variant="secondary" className="tabular-nums">
+          <span data-testid="waiting-list-position">
+            {de.waitingList.position} {place.position}
+          </span>
+        </Badge>
+        <h3 data-testid="waiting-list-applicant" className="text-lg font-semibold">
           {applicant}
         </h3>
         {/* A fact stated beside the applicant, never a colour that reads as a verdict: they keep
-            the place they waited for, and what is asked for is a renewed notice. */}
+            the place they waited for, and what is asked for is a renewed notice. Amber, which on
+            this screen now means this and nothing else — the removal confirmation used to share it
+            and is red. */}
         {place.certificateExpired ? (
-          <span
-            data-testid="waiting-list-expired-badge"
+          <Badge
+            variant="outline"
             title={de.waitingList.certificateExpiredHint}
-            className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-sm"
+            className="border-amber-500/40 bg-amber-500/10"
           >
-            {de.waitingList.certificateExpired}
-          </span>
+            <span data-testid="waiting-list-expired-badge">
+              {de.waitingList.certificateExpired}
+            </span>
+          </Badge>
         ) : null}
+        <div className="ms-auto">
+          <RemoveApplicantControls entryId={place.entry.id} applicant={applicant} />
+        </div>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-3">
+      {/* `flex flex-wrap` rather than a three-column grid: a short list of facts printed in fixed
+          columns is three ragged columns, and these three are read together or not at all. */}
+      <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
         <Detail label={de.waitingList.addedOn} value={germanDate(place.entry.addedOn)} />
         <p>
-          <span className="text-sm text-foreground/70">{de.waitingList.waited}: </span>
+          <span className="text-muted-foreground">{de.waitingList.waited}: </span>
           <span data-testid="waiting-list-days" className="font-medium tabular-nums">
             {de.waitingList.waitedValue(place.daysWaiting)}
           </span>
@@ -84,10 +116,10 @@ function Row({ place }: { place: WaitingListPlace }): React.ReactElement {
       </div>
 
       {place.entry.contactNote === "" ? null : (
-        <Detail label={de.waitingList.contactNote} value={place.entry.contactNote} />
+        <div className="text-sm">
+          <Detail label={de.waitingList.contactNote} value={place.entry.contactNote} />
+        </div>
       )}
-
-      <RemoveApplicantControls entryId={place.entry.id} applicant={applicant} />
     </li>
   );
 }
@@ -114,29 +146,43 @@ export default async function WaitingListPage(): Promise<React.ReactElement> {
   const [head] = places;
   const freeNumber = proposal?.customerNumber ?? null;
 
+  const slotIsFree = head !== undefined && freeNumber !== null;
+
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-8">
-      <h1 className="text-3xl font-semibold">{de.waitingList.heading}</h1>
-      <p className="max-w-prose text-foreground/80">{de.waitingList.intro}</p>
-      <p data-testid="waiting-list-order-rule" className="max-w-prose text-foreground/80">
+    <main className={SHELL}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-semibold tracking-tight">{de.waitingList.heading}</h1>
+      </div>
+      <p className="max-w-prose text-muted-foreground">{de.waitingList.intro}</p>
+      <p data-testid="waiting-list-order-rule" className="max-w-prose text-muted-foreground">
         {de.waitingList.orderRule}
       </p>
 
-      {head !== undefined && freeNumber !== null ? (
-        <FreeSlotBanner head={head} customerNumber={freeNumber} />
-      ) : null}
+      {slotIsFree ? <FreeSlotBanner head={head} customerNumber={freeNumber} /> : null}
 
-      {places.length === 0 ? (
-        <p data-testid="waiting-list-empty" className="max-w-prose">
-          {de.waitingList.empty}
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-4">
-          {places.map((place) => (
-            <Row key={place.entry.id} place={place} />
-          ))}
-        </ul>
-      )}
+      {/* One card with divided rows rather than a card per applicant: fifteen nested rounded boxes
+          read as a pile of panels, and this is a list. */}
+      <Card>
+        <CardContent>
+          {places.length === 0 ? (
+            <Alert role="status">
+              <AlertDescription data-testid="waiting-list-empty">
+                {de.waitingList.empty}
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <ul className="flex flex-col">
+              {places.map((place) => (
+                <Row
+                  key={place.entry.id}
+                  place={place}
+                  headOfList={slotIsFree && place.position === 1}
+                />
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <AddApplicantForm />
     </main>

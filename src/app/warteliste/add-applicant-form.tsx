@@ -17,12 +17,21 @@
  */
 
 import { useActionState } from "react";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { de } from "@/i18n/de";
 import { addApplicantAction } from "./actions";
 import { initialAddApplicantState } from "./waiting-list-state";
 
-const fieldClass = "w-full rounded border border-foreground/20 bg-transparent px-2 py-1";
-
+/**
+ * `<Label htmlFor>` + `<Input id>` rather than the control nested inside its label. The `id`s are
+ * load-bearing anyway — `waiting-list.spec.ts` fills every field by CSS id, never by label — so the
+ * binding costs nothing and makes the accessibility snapshot name each `textbox`, which is also
+ * what `getByLabel` needs.
+ */
 function Field({
   name,
   label,
@@ -33,17 +42,17 @@ function Field({
   type?: "text" | "date";
 }): React.ReactElement {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-sm text-foreground/70">{label}</span>
-      <input className={fieldClass} type={type} name={name} id={name} defaultValue="" />
-    </label>
+    <div className="flex flex-col gap-1">
+      <Label htmlFor={name}>{label}</Label>
+      <Input type={type} name={name} id={name} defaultValue="" />
+    </div>
   );
 }
 
 function Fields(): React.ReactElement {
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Field name="firstName" label={de.customers.fields.firstName} />
         <Field name="lastName" label={de.customers.fields.lastName} />
         <Field name="birthDate" label={de.customers.fields.birthDate} type="date" />
@@ -58,11 +67,11 @@ function Fields(): React.ReactElement {
           type="date"
         />
       </div>
-      <label className="flex flex-col gap-1">
-        <span className="text-sm text-foreground/70">{de.waitingList.add.contactNoteLabel}</span>
-        <input className={fieldClass} type="text" name="contactNote" id="contactNote" />
-        <span className="text-xs text-foreground/60">{de.waitingList.add.contactNoteHint}</span>
-      </label>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor="contactNote">{de.waitingList.add.contactNoteLabel}</Label>
+        <Input type="text" name="contactNote" id="contactNote" />
+        <span className="text-xs text-muted-foreground">{de.waitingList.add.contactNoteHint}</span>
+      </div>
     </>
   );
 }
@@ -71,43 +80,45 @@ export function AddApplicantForm(): React.ReactElement {
   const [state, action, pending] = useActionState(addApplicantAction, initialAddApplicantState);
 
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-foreground/15 p-6">
-      <h2 className="text-xl font-semibold">{de.waitingList.add.heading}</h2>
-      <p className="max-w-prose text-sm text-foreground/70">{de.waitingList.add.hint}</p>
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg">
+          <h2>{de.waitingList.add.heading}</h2>
+        </CardTitle>
+        <CardDescription className="max-w-prose">{de.waitingList.add.hint}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form action={action} className="flex flex-col gap-4">
+          {/* The remount that clears the form for the next applicant. It keys on how many have been
+              saved, not on the message, so a second applicant of the same name still resets it. */}
+          <Fields key={state.savedCount} />
 
-      <form action={action} className="flex flex-col gap-4">
-        <Fields key={state.savedCount} />
+          {state.status === "error" ? (
+            <Alert variant="destructive" role="status">
+              <AlertDescription data-testid="waiting-list-add-error" className="max-w-prose">
+                {state.message}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {state.status === "saved" ? (
+            <Alert role="status">
+              <AlertDescription data-testid="waiting-list-add-saved" className="max-w-prose">
+                {state.message}
+              </AlertDescription>
+            </Alert>
+          ) : null}
 
-        {state.status === "error" ? (
-          <p
-            role="status"
-            data-testid="waiting-list-add-error"
-            className="max-w-prose rounded border border-red-500/40 bg-red-500/10 px-3 py-2"
-          >
-            {state.message}
-          </p>
-        ) : null}
-        {state.status === "saved" ? (
-          <p
-            role="status"
-            data-testid="waiting-list-add-saved"
-            className="max-w-prose rounded border border-foreground/20 px-3 py-2"
-          >
-            {state.message}
-          </p>
-        ) : null}
-
-        <div>
-          <button
+          <Button
             type="submit"
+            size="lg"
+            className="self-start"
             disabled={pending}
             data-testid="waiting-list-add-submit"
-            className="rounded bg-foreground px-4 py-2 text-background disabled:opacity-60"
           >
             {pending ? de.waitingList.add.submitting : de.waitingList.add.submit}
-          </button>
-        </div>
-      </form>
-    </section>
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
   );
 }

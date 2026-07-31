@@ -14,6 +14,8 @@
 
 import { useState } from "react";
 import type { RegistrationProposal } from "@/application/customers/propose-registration";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PrefillDraft } from "@/app/kunden/neu/archive-search-state";
 import { RegistrationForm } from "@/app/kunden/neu/registration-form";
 import { de } from "@/i18n/de";
@@ -35,27 +37,34 @@ export function PromotionScreen({
 }): React.ReactElement {
   const [acknowledged, setAcknowledged] = useState(!certificateExpired);
 
+  // Amber, which is what a lapsed certificate is painted everywhere in this product. A step and not
+  // a Dialog: nothing is dismissed, the way back to the list stays in the heading row above it, and
+  // the applicant is never refused.
   if (!acknowledged) {
     return (
-      <section
+      <Card
         data-testid="promotion-expired-warning"
-        className="flex max-w-prose flex-col gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-6"
+        className="max-w-prose border border-amber-500/40 bg-amber-500/10 ring-0"
       >
-        <h2 className="text-xl font-semibold">{de.waitingList.promote.expiredHeading}</h2>
-        <p data-testid="promotion-expired-detail">
-          {de.waitingList.promote.expiredDetail(certificateValidUntil)}
-        </p>
-        <div>
-          <button
+        <CardHeader>
+          <CardTitle className="text-lg">
+            <h2>{de.waitingList.promote.expiredHeading}</h2>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col items-start gap-3">
+          <p data-testid="promotion-expired-detail">
+            {de.waitingList.promote.expiredDetail(certificateValidUntil)}
+          </p>
+          <Button
             type="button"
+            size="lg"
             data-testid="promotion-expired-continue"
             onClick={() => setAcknowledged(true)}
-            className="rounded bg-foreground px-4 py-2 font-semibold text-background"
           >
             {de.waitingList.promote.expiredContinue}
-          </button>
-        </div>
-      </section>
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 

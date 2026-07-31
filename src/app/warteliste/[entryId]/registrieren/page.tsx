@@ -10,10 +10,13 @@
  * said months ago; what is saved is what the person in front of staff confirms today.
  */
 
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { proposeRegistration } from "@/application/customers/propose-registration";
 import { promoteFromWaitingList } from "@/application/waiting-list/promote-from-waiting-list";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { NoFreeCustomerNumber, WaitingListEntryNotFound } from "@/domain/errors";
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
@@ -31,12 +34,19 @@ export const dynamic = "force-dynamic";
 
 function Frame({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-8">
-      <h1 className="text-3xl font-semibold">{de.waitingList.promote.heading}</h1>
+    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6 md:p-8">
+      {/* The back-link stays — it names the list this applicant came from, which the four-item bar
+          cannot say — but it belongs beside the heading rather than stranded below the form. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-semibold tracking-tight">{de.waitingList.promote.heading}</h1>
+        <Button variant="ghost" asChild>
+          <Link href="/warteliste">
+            <ArrowLeft aria-hidden="true" />
+            {de.waitingList.promote.backToList}
+          </Link>
+        </Button>
+      </div>
       {children}
-      <Link href="/warteliste" className="underline underline-offset-4">
-        {de.waitingList.promote.backToList}
-      </Link>
     </main>
   );
 }
@@ -64,16 +74,22 @@ export default async function PromoteApplicantPage({
     if (error instanceof NoFreeCustomerNumber) {
       return (
         <Frame>
-          <p data-testid="promotion-no-free-number" className="max-w-prose">
-            {de.waitingList.errors.noFreeCustomerNumber}
-          </p>
+          <Alert role="status">
+            <AlertDescription data-testid="promotion-no-free-number" className="max-w-prose">
+              {de.waitingList.errors.noFreeCustomerNumber}
+            </AlertDescription>
+          </Alert>
         </Frame>
       );
     }
     if (error instanceof DomainError && error.code === "NoSettingsInForce") {
       return (
         <Frame>
-          <p className="max-w-prose">{de.settings.errors.noSettings}</p>
+          <Alert role="status">
+            <AlertDescription className="max-w-prose">
+              {de.settings.errors.noSettings}
+            </AlertDescription>
+          </Alert>
         </Frame>
       );
     }
@@ -95,7 +111,7 @@ export default async function PromoteApplicantPage({
 
   return (
     <Frame>
-      <p data-testid="promotion-intro" className="max-w-prose text-foreground/80">
+      <p data-testid="promotion-intro" className="max-w-prose text-muted-foreground">
         {de.waitingList.promote.intro(applicant, promotion.customerNumber)}
       </p>
       <PromotionScreen

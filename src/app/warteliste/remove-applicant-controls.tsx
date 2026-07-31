@@ -13,6 +13,10 @@
  */
 
 import { useActionState, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { de } from "@/i18n/de";
 import { removeApplicantAction } from "./actions";
 import { initialRemoveApplicantState } from "./waiting-list-state";
@@ -30,51 +34,58 @@ export function RemoveApplicantControls({
     initialRemoveApplicantState,
   );
   const [reason, setReason] = useState("");
+  // One of these renders per row, so the id a label points at cannot be a constant.
+  const reasonId = `waiting-list-remove-reason-${entryId}`;
 
   return (
-    <details className="rounded border border-foreground/20">
-      <summary data-testid="waiting-list-remove-open" className="cursor-pointer px-4 py-2 text-sm">
+    <details className="text-sm">
+      {/* A quiet summary, not a 780px slab: this is the rarest act on the screen and it should not
+          be the first thing the eye lands on in every row. It stays a `<details>` — nothing may have
+          to be dismissed before the rest of the list can be read. */}
+      <summary
+        data-testid="waiting-list-remove-open"
+        className="w-fit cursor-pointer list-none rounded-md px-1 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
+      >
         {de.waitingList.remove.action}
       </summary>
-      <form action={action} className="flex flex-col gap-3 px-4 pb-4">
+      <form action={action} className="mt-3 flex flex-col gap-3">
         <input type="hidden" name="entryId" value={entryId} />
-        <p
-          data-testid="waiting-list-remove-confirm"
-          className="max-w-prose rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm"
-        >
-          {de.waitingList.remove.confirm(applicant)}
-        </p>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-foreground/70">{de.waitingList.remove.reasonLabel}</span>
-          <textarea
+        {/* Red, not amber. Amber on this screen states that a certificate lapsed — explicitly not a
+            verdict — and this is a caution before an act that takes somebody off a queue they have
+            stood in for months. The two cannot go on sharing a paint tin. */}
+        <Alert variant="destructive">
+          <AlertDescription data-testid="waiting-list-remove-confirm" className="max-w-prose">
+            {de.waitingList.remove.confirm(applicant)}
+          </AlertDescription>
+        </Alert>
+        <div className="flex flex-col gap-1">
+          <Label htmlFor={reasonId}>{de.waitingList.remove.reasonLabel}</Label>
+          <Textarea
+            id={reasonId}
             name="reason"
             rows={2}
             required
             data-testid="waiting-list-remove-reason"
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            className="w-full rounded border border-foreground/20 bg-transparent px-3 py-2"
           />
-          <span className="text-xs text-foreground/60">{de.waitingList.remove.reasonHint}</span>
-        </label>
-        <div>
-          <button
-            type="submit"
-            disabled={reason.trim() === "" || pending}
-            data-testid="waiting-list-remove-submit"
-            className="rounded bg-foreground px-4 py-2 text-sm font-semibold text-background disabled:opacity-60"
-          >
-            {pending ? de.waitingList.remove.submitting : de.waitingList.remove.submit}
-          </button>
+          <span className="text-xs text-muted-foreground">{de.waitingList.remove.reasonHint}</span>
         </div>
+        <Button
+          type="submit"
+          variant="destructive"
+          className="self-start"
+          disabled={reason.trim() === "" || pending}
+          data-testid="waiting-list-remove-submit"
+        >
+          {pending ? de.waitingList.remove.submitting : de.waitingList.remove.submit}
+        </Button>
         {state.status === "error" ? (
-          <p
-            role="status"
-            data-testid="waiting-list-remove-error"
-            className="max-w-prose rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm"
-          >
-            {state.message}
-          </p>
+          <Alert variant="destructive" role="status">
+            <AlertDescription data-testid="waiting-list-remove-error" className="max-w-prose">
+              {state.message}
+            </AlertDescription>
+          </Alert>
         ) : null}
       </form>
     </details>
