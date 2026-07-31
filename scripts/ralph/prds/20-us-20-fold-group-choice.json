@@ -1,0 +1,75 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-20-fold-group-choice",
+  "description": "US-20 Fold the group choice away on /kunden/neu — the two radios move behind a closed <details> whose summary names the proposed group inline ('Gruppe: Rot — andere Gruppe wählen'), while the suggestion and the two group sizes stay visible. Presentation and e2e only: NO domain, application, port, infrastructure or schema change. A diff touching src/domain, src/application, src/infrastructure or prisma/ means the change was misread. Exactly THREE spec files may be edited — archive.spec.ts, card.spec.ts and reregistration.spec.ts — and only to open the disclosure before checking a radio. Source: tasks/prd-us-20-fold-group-choice.md",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "The group summary names the proposed group and can be reached by testid",
+      "description": "As a staff member, I want the proposed group readable without opening a control, because accepting the proposal is what I almost always do. Source: tasks/prd-us-20-fold-group-choice.md §US-020.1",
+      "acceptanceCriteria": [
+        "In src/app/kunden/neu/registration-form.tsx the Gruppe <fieldset> sits inside a <details>, and the <summary> carries data-testid=\"group-choice-open\"",
+        "The <summary> names the proposed group inline, e.g. 'Gruppe: Rot — andere Gruppe wählen', with the group WORD wearing GROUP_STYLES[proposal.suggestedGroup] from src/app/accents.ts",
+        "The colour never travels without the word: a colour is a distinction only some of the staff can make (US-03.4), and the specs assert the word",
+        "de.customers.assignment.suggestedGroup and de.customers.assignment.groupSizes stay OUTSIDE the <details>, visible while it is closed — the two sizes are what an override is decided from, and staff must not have to open the control to see whether the register is lopsided",
+        "The <details> KEEPS its open attribute in this story. Closing it here would turn three specs red, because they check #group-RED by CSS id and a radio inside a closed <details> has no bounding box — US-002 closes it together with the spec edits that make it safe",
+        "The <details> sits INSIDE the <form>: a <details> is not a form boundary, and the radios must still be submitted with everything else",
+        "The radios stay NATIVE <input type=\"radio\"> with defaultChecked on the proposal. The action reads 'group' out of the FormData and Radix's RadioGroup submits nothing of its own (guide rule 3). Do NOT make them controlled — src/app/kunden/[id]/group-control.tsx carries a four-sentence comment on why a controlled radio comes back showing the old group after React resets the form",
+        "#group-RED and #group-BLUE keep their ids, their name=\"group\", their values and their defaultChecked behaviour",
+        "w-fit IS right on this summary — unlike the archive search's, it is a control rather than a card header",
+        "No German literal in the component; every new string lives in src/i18n/de.ts",
+        "No spec file is edited in this story",
+        "Typecheck passes",
+        "Lint passes",
+        "Full e2e suite passes: npm run test:e2e",
+        "Verify in browser using the playwright-cli skill against a PRODUCTION build (npm run build && npm run start -- --port 3100, killing any next-server first), reading the ACCESSIBILITY SNAPSHOT: the summary must announce the proposed group, and both radios must be named radio elements once opened"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Close the group choice by default, and open it in the three specs that override the group",
+      "description": "As a staff member, I want the Zuordnung card to be two lines instead of five, so the submit button is reachable without hunting for it. Source: tasks/prd-us-20-fold-group-choice.md §US-020.2, §US-020.3",
+      "acceptanceCriteria": [
+        "The group <details> renders WITHOUT the open attribute — closed on every load of /kunden/neu",
+        "The open/closed state is NOT persisted: no localStorage, no cookie, no server state",
+        "tests/e2e/archive.spec.ts, tests/e2e/card.spec.ts and tests/e2e/reregistration.spec.ts each click getByTestId('group-choice-open') before checking #group-RED or #group-BLUE",
+        "Each spec opens the disclosure with a real CLICK on the summary. Do NOT use evaluate(d => d.open = true)",
+        "tests/e2e/customer-record.spec.ts is NOT touched. It checks getByTestId('group-RED') on the CUSTOMER RECORD, which is a different control in src/app/kunden/[id]/group-control.tsx and stays visible",
+        "Those three files are the ONLY specs touched. If any other spec goes red, the fix is in the component",
+        "Submitting the registration WITHOUT ever opening the disclosure saves the proposed group — check this by hand as well as by the suite",
+        "proposed-number still holds exactly the proposed number, and registration-error is still the testid of at most one element on screen at a time",
+        "Measured at 1440x900 on the freshly seeded demo register (npm run db:reset && npm run db:demo): the Zuordnung card is <= 210px tall, and the top of the Aufnehmen button has risen by at least 100px",
+        "document.documentElement.scrollWidth - clientWidth is 0 at 1920, 1280, 1024, 800 and 390",
+        "The before and after numbers go in the commit message",
+        "Typecheck passes",
+        "Lint passes",
+        "Full e2e suite passes: npm run test:e2e",
+        "Verify in browser using the playwright-cli skill against a PRODUCTION build: register a household without opening the disclosure and confirm the saved group is the proposed one, then open it and override the group on a second registration"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Record the fold in the design documents",
+      "description": "As the next developer, I want the documents to say the group choice is now folded and why the record's is not, so the two are not made to match by mistake. Source: tasks/prd-us-20-fold-group-choice.md",
+      "acceptanceCriteria": [
+        "docs/ui_redesign_kunden_neu.md §12 is updated: the group radios are now behind a CLOSED <details>, no longer 'not built', and the three spec edits that made it possible are named",
+        "§12's numbers table gains the measured Zuordnung card height and the new top of the Aufnehmen button",
+        "The document states that the RECORD's group control (/kunden/[id]) is deliberately NOT folded: there the choice is why you opened the card, and its two sizes sit beside it by US-16.4 FR-4",
+        "docs/ui_conversion_guide.md's finding 'A disclosure a spec fills or checks cannot be closed by default' is updated to say both /kunden/neu disclosures are now closed and how the specs reach them",
+        "No source file and no spec file is changed in this story",
+        "Prettier formatting passes: npm run format:check",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
