@@ -611,10 +611,12 @@ export const de = {
    */
   cardsDue: {
     heading: "Karten neu ausstellen",
-    intro:
-      "Bei diesen Haushalten stimmt der Aufdruck der Karte nicht mehr mit der Kundenakte " +
-      "überein — meistens, weil ein Kind 13 Jahre alt geworden ist, seltener weil sich der " +
-      "Haushalt oder die Gruppe geändert hat.",
+    /**
+     * The list itself, under the "keine Eile" sentence. Its count is `customerList.actions
+     * .cardsDueBadge`, deliberately not a second wording of its own: the hub states the same number
+     * in the same words, and two phrasings of one fact are how the two screens come to disagree.
+     */
+    listTitle: "Karten",
     notUrgent:
       "Das hat keine Eile. Erwachsene, Kinder, Portionen und Preis berechnet die Anwendung bei " +
       "jedem Aufruf neu; die Karte ist nur ein Ausdruck. Eine veraltete Karte ist nie ein Grund, " +
@@ -622,7 +624,6 @@ export const de = {
     empty: "Zurzeit ist keine Karte neu auszustellen.",
     countsOnCard: "Auf der Karte gedruckt",
     countsToday: "Haushalt heute",
-    reasonLabel: "Unterschied",
     /** Why the card and the record differ — the three cases `StaleCardReason` names. */
     reasons: {
       AGE_13: "13. Geburtstag",

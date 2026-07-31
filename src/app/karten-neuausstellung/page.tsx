@@ -20,7 +20,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { de } from "@/i18n/de";
 import { customerDeps } from "../kunden/deps";
 import { StaleCardControls } from "./stale-card-controls";
@@ -74,9 +74,9 @@ function Row({ due }: { due: CardDueForReissue }): React.ReactElement {
       className="flex flex-col gap-3 border-b border-border py-4 first:pt-0 last:border-0 last:pb-0"
     >
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="text-lg font-semibold">
+        <h3 className="text-lg font-semibold">
           {due.firstName} {due.lastName}
-        </h2>
+        </h3>
         {/* The reason is not a third data point beside the two count sets — it is their summary, and
             it is what the eye scans a row for. Neutral grey: a to-do list, not an alert queue. */}
         <Badge variant="secondary">
@@ -138,7 +138,6 @@ export default async function CardsDuePage(): Promise<React.ReactElement> {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-semibold tracking-tight">{de.cardsDue.heading}</h1>
       </div>
-      <p className="max-w-prose text-muted-foreground">{de.cardsDue.intro}</p>
 
       {/* Above the list, not beneath it: whoever opens this screen has to read that nothing here is
           urgent before they read the first row, not after they have worked through it. A `status`
@@ -153,6 +152,17 @@ export default async function CardsDuePage(): Promise<React.ReactElement> {
       {/* One card with divided rows, not a card per household: two nested rounded boxes read as a
           pile of panels, and this is a list. */}
       <Card>
+        {/* A real <h2> inside the CardTitle — a Card is not a section and a CardTitle is not a
+            heading, so without it the row names would be the only headings on the screen and would
+            be announced with nothing above them saying what the collection is. */}
+        <CardHeader className="border-b">
+          <CardTitle className="text-lg">
+            <h2>{de.cardsDue.listTitle}</h2>
+          </CardTitle>
+          <CardAction className="text-sm text-muted-foreground">
+            {de.customerList.actions.cardsDueBadge(due.length)}
+          </CardAction>
+        </CardHeader>
         <CardContent>
           {due.length === 0 ? (
             <Alert role="status">
