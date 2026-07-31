@@ -14,7 +14,7 @@
  * criteria are not part of the registration that gets saved.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { RegistrationProposal } from "@/application/customers/propose-registration";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -38,11 +38,35 @@ export function RegistrationScreen({
     setFormGeneration((generation) => generation + 1);
   }
 
+  /**
+   * Put the cursor in the first field after a household has been applied.
+   *
+   * The pre-fill lands ~700px below the fold and moves the page not at all, so without this the
+   * only evidence of a click is a notice that has scrolled halfway into view. Focusing the field
+   * scrolls the form into view and says "you can start typing" in the same gesture — the counter's
+   * refocus after a lookup, for the same reason.
+   *
+   * `formGeneration` is what makes it fire at the right moment: the form is remounted on every
+   * apply, so the new `#firstName` does not exist until that render has happened. `selection` is a
+   * dependency too, and harmlessly — `apply` is the only thing that sets either, and it sets both
+   * together. The guard is what stops the first paint and "leer beginnen" stealing the focus:
+   * clearing a pre-fill is a step backwards, and the cursor should stay where staff put it.
+   */
+  useEffect(() => {
+    if (selection === null) {
+      return;
+    }
+    document.getElementById("firstName")?.focus();
+  }, [formGeneration, selection]);
+
   const words = de.customers.archiveSearch.prefilled;
 
   return (
     <div className="flex flex-col gap-6">
-      <ArchiveSearchPanel onSelect={apply} />
+      <ArchiveSearchPanel
+        onSelect={apply}
+        appliedCustomerId={selection?.match.customerId ?? null}
+      />
 
       {selection === null ? null : (
         // Stated before the form and not inside it, because it is not about any one field: the

@@ -44,20 +44,27 @@ export async function searchArchive(
   formData: FormData,
 ): Promise<ArchiveSearchState> {
   const text = (name: string): string => String(formData.get(name) ?? "");
+  // Carried back on both paths so the panel can refill the fields: an answer whose question has
+  // been deleted cannot be narrowed, and a refusal that clears what it is refusing is worse still.
+  const criteria = {
+    lastName: text("archiveLastName"),
+    firstName: text("archiveFirstName"),
+    birthDate: text("archiveBirthDate"),
+  };
 
   try {
     const found = await searchArchivedCustomers(customerDeps, {
-      lastName: text("archiveLastName"),
-      firstName: text("archiveFirstName"),
-      birthDate: optionalCalendarDay(text("archiveBirthDate")),
+      lastName: criteria.lastName,
+      firstName: criteria.firstName,
+      birthDate: optionalCalendarDay(criteria.birthDate),
     });
-    return { status: "results", matches: found.matches, truncated: found.truncated };
+    return { status: "results", matches: found.matches, truncated: found.truncated, criteria };
   } catch (error: unknown) {
     const message =
       error instanceof EmptySearchQuery
         ? de.customers.archiveSearch.noCriteria
         : de.customers.archiveSearch.errors.unknown;
-    return { status: "error", matches: [], truncated: false, message };
+    return { status: "error", matches: [], truncated: false, message, criteria };
   }
 }
 

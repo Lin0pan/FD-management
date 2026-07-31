@@ -17,6 +17,7 @@
 import { useActionState, useState } from "react";
 import type { ArchivedCustomerMatch } from "@/application/customers/search-archived-customers";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,10 +35,13 @@ export interface ArchiveSelection {
 function Criterion({
   name,
   label,
+  value,
   type = "text",
 }: {
   name: string;
   label: string;
+  /** What was last submitted, so React's post-action reset restores it instead of clearing it. */
+  value: string;
   type?: "text" | "date";
 }): React.ReactElement {
   return (
@@ -45,7 +49,7 @@ function Criterion({
       <label htmlFor={name} className="text-sm font-medium">
         {label}
       </label>
-      <Input type={type} name={name} id={name} defaultValue="" />
+      <Input type={type} name={name} id={name} defaultValue={value} />
     </div>
   );
 }
@@ -62,10 +66,13 @@ function Detail({ label, value }: { label: string; value: string }): React.React
 function MatchRow({
   match,
   pending,
+  applied,
   onSelect,
 }: {
   match: ArchivedCustomerMatch;
   pending: boolean;
+  /** Whether the form below is currently filled from *this* row. */
+  applied: boolean;
   onSelect: () => void;
 }): React.ReactElement {
   const words = de.customers.archiveSearch.result;
@@ -90,17 +97,27 @@ function MatchRow({
         <p className="text-sm text-muted-foreground">
           {`${match.address.street} ${match.address.houseNumber}, ${match.address.zip} ${match.address.city}`}
         </p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          data-testid={`archive-select-${match.customerId}`}
-          disabled={pending}
-          onClick={onSelect}
-          className="ms-auto"
-        >
-          {pending ? words.selecting : words.select}
-        </Button>
+        {/* The row that was clicked says so. Applying a household fills a form below the fold and
+            moves nothing; with twenty rows on screen and every one of them still offering "Daten
+            übernehmen", a staff member's only evidence that anything happened was a paragraph that
+            had scrolled halfway into view. */}
+        {applied ? (
+          <Badge variant="secondary" className="ms-auto" data-testid="archive-match-applied">
+            {words.applied}
+          </Badge>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-testid={`archive-select-${match.customerId}`}
+            disabled={pending}
+            onClick={onSelect}
+            className="ms-auto"
+          >
+            {pending ? words.selecting : words.select}
+          </Button>
+        )}
       </div>
       <details className="text-sm">
         <summary className="w-fit cursor-pointer text-muted-foreground underline-offset-4 hover:underline">
@@ -138,8 +155,11 @@ function MatchRow({
 
 export function ArchiveSearchPanel({
   onSelect,
+  appliedCustomerId,
 }: {
   onSelect: (selection: ArchiveSelection) => void;
+  /** The archived household the form is filled from, or `null` — owned by the screen, not here. */
+  appliedCustomerId: number | null;
 }): React.ReactElement {
   const [state, formAction, searching] = useActionState(searchArchive, initialArchiveSearchState);
   // Which row is being read, so only that row's button says "Wird übernommen …" — with twenty rows
@@ -192,9 +212,22 @@ export function ArchiveSearchPanel({
           {/* The three criteria and the button on one row: the button used to sit on a line of its
               own, which is most of what made this panel 270px tall to be a three-field search. */}
           <form action={formAction} className="grid items-end gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Criterion name="archiveLastName" label={de.customers.fields.lastName} />
-            <Criterion name="archiveFirstName" label={de.customers.fields.firstName} />
-            <Criterion name="archiveBirthDate" label={de.customers.fields.birthDate} type="date" />
+            <Criterion
+              name="archiveLastName"
+              label={de.customers.fields.lastName}
+              value={state.criteria.lastName}
+            />
+            <Criterion
+              name="archiveFirstName"
+              label={de.customers.fields.firstName}
+              value={state.criteria.firstName}
+            />
+            <Criterion
+              name="archiveBirthDate"
+              label={de.customers.fields.birthDate}
+              type="date"
+              value={state.criteria.birthDate}
+            />
             <Button
               type="submit"
               variant="outline"
@@ -243,6 +276,7 @@ export function ArchiveSearchPanel({
                     key={match.customerId}
                     match={match}
                     pending={loadingId === match.customerId}
+                    applied={appliedCustomerId === match.customerId}
                     onSelect={() => void select(match)}
                   />
                 ))}

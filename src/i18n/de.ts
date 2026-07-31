@@ -302,6 +302,8 @@ export const de = {
           "gehört möglicherweise bereits einem anderen Haushalt.",
         select: "Daten übernehmen",
         selecting: "Wird übernommen …",
+        /** What the row that filled the form says instead of offering to fill it again. */
+        applied: "Übernommen",
         /**
          * What opens the rest of one result row. A match row answers "is this them?" with the name,
          * the birthdate and the address; the household size, the archive reason and the former
