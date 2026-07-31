@@ -163,6 +163,13 @@ Whenever two values are on screen **to be compared**, they need a shared baselin
 `element.getClientRects()`, which prints one entry per line box: a screenshot shows two boxes that
 look fine and says nothing about where the numbers inside them landed.
 
+The recipe that fixed it, in one line each: `whitespace-nowrap` on the value so it cannot break, and
+a `min-w-` floor on the tile wide enough for the longest German string it will ever hold. Both are
+needed — the floor alone lets a longer string wrap, and `nowrap` alone lets the two tiles end up
+different widths, which moves the second value's `x` and undoes the comparison just as thoroughly.
+With `min-w-56` the two cards-due tiles are both 225px at every width from 1920 down to 800, and the
+values sit 16px inside each; below that they stack, which is the right way to give up.
+
 ## A sticky table header inside a scroll container does not stick
 
 `/kunden` carries a `<thead className="sticky top-0">` and a comment explaining that at 240 rows the
@@ -226,6 +233,30 @@ scroll to the bottom of the list and confirm the header is still there and still
   identical boxes into something readable.
 - `Confirmation`/`Rejection` notice components are duplicated across five client components. Extract
   them into `src/components/` when the second screen needs them, not before.
+
+## Findings from `/karten-neuausstellung`
+
+- **A `<summary>` can be made to read as a button without ceasing to be one.** Rule 4 keeps the
+  disclosure, but closed it must not look like a collapsed section spanning the row. Wrap
+  `buttonVariants({ variant: "outline" })` around it with `cn` and add three things the variant does
+  not bring: `w-fit` (a `<summary>` is a block and would otherwise span its container), `list-none`
+  and `[&::-webkit-details-marker]:hidden` for the triangle. `inline-flex` from the variant already
+  overrides `display: list-item`, and clicking still toggles — which is what the specs do.
+- **`Dialog` is not an option for a disclosure a spec reads inside a row.** It portals its content to
+  `document.body`, so `row.getByTestId(…)` stops resolving even though the text is on screen. That is
+  a second, mechanical reason for rule 4 on top of the product one.
+- **`reuseExistingServer: !CI` in `playwright.config.ts` is the `next start` trap again, wearing a
+  suit.** A server left running on 3000 or 3001 from an earlier `npm run test:e2e` is reused by the
+  next run, which then tests the build that server booted with. It cost a green suite that should
+  have been red here, and the symptom is a new `data-testid` reported as "element(s) not found" while
+  `curl` shows it in the HTML. Rebuild **and** `pkill -f next-server` before believing an e2e run
+  that follows a UI change.
+- **`CardHeader className="border-b"` is the supported way to rule off a header** — `Card` carries a
+  `[.border-b]:pb-(--card-spacing)` selector that adds the padding to match.
+- **A card header costs about 65px, and it is usually worth more than the target it breaks.** The
+  concept asked for the first row at ≤260px; a real `<h2>` for the list plus the alert the product
+  requires put it at 323. Say that with the arithmetic rather than dropping either — the number the
+  restyle actually moved was the row height, 258px to 167.5px.
 
 ## Findings from `/kunden`
 
@@ -350,9 +381,8 @@ second time.
       §7 before touching it, and note two things that reach outside the screen: `FreeSlotBanner` is
       shared with `/kunden/neu`, and the promotion screen renders `/kunden/neu`'s `RegistrationForm`,
       which is **not** this pass's to convert.
-- [ ] `/karten-neuausstellung`, per `docs/ui_redesign_karten_neuausstellung.md`. §7 lists what
-      `age-13.spec.ts` and `customer-record.spec.ts` pin down — most importantly that both count
-      strings are asserted exactly and must be rendered even when they are equal.
+- [x] `/karten-neuausstellung`, per `docs/ui_redesign_karten_neuausstellung.md`. The two count sets
+      now line up on one baseline, and a `GROUP_CHANGE` row prints the colour that changed.
 - [ ] `/einstellungen`
 - [ ] `kunden/archive-controls.tsx` + `kunden/block-controls.tsx` — shared by the record **and** the
       counter, so converting them changes two screens; do it with `/kunden/[id]`.
