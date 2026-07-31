@@ -120,7 +120,7 @@ columns are otherwise unreadable halfway down. **It has never worked**, and noth
 at 1440×500 scrolled to y=841, the header's `getBoundingClientRect().top` is `-213` — it has left the
 window with the rows.
 
-Two causes, and a conversion has to fix both or neither is worth doing:
+**Three** causes, and a conversion has to fix all of them or none is worth fixing:
 
 1. The table sits in `overflow-x-auto`. When one axis is not `visible` the other computes to `auto`,
    so that div is a **scroll container**, and `sticky` inside it sticks to _that_ container's
@@ -128,9 +128,25 @@ Two causes, and a conversion has to fix both or neither is worth doing:
    therefore never engages while the page scrolls. **shadcn's `Table` wraps itself the same way**
    (`data-slot="table-container"`, `relative w-full overflow-x-auto`), so converting to the primitive
    preserves the bug rather than fixing it.
-2. `top-0` is the wrong offset anyway. `<Nav>` is `sticky top-0 z-40` and `h-12`, so a header that did
-   stick would park underneath it. Use `top-12`, an **opaque** `bg-background` (the nav is
-   translucent, and rows read through it), and a `z-10` that sits above the rows and below the bar.
+2. **`Card` ships `overflow-hidden`.** Putting the table in a `Card` — which is what the conversion
+   does — adds a second scrollport above the first, so fixing only the table container changes
+   nothing. Override it on that one card (`<Card className="overflow-visible">`); `cn` is `twMerge`,
+   so the later class wins.
+3. `top-0` is the wrong offset anyway. `<Nav>` is `sticky top-0 z-40` and `h-12`, so a header that did
+   stick would park underneath it. Use `top-12`, an **opaque** background (`bg-card` inside a card —
+   the nav is translucent, and rows read through it), and a `z-10` that sits above the rows and below
+   the bar.
+
+Two things that look like fixes and are not:
+
+- **`overflow-x-auto overflow-y-visible` is not a valid pair.** The computed value of the second is
+  `auto` again, so the div is still a scroll container. What works is turning the container's
+  overflow off at the widths where the table actually fits: `overflow-x-auto xl:overflow-x-visible`,
+  which is why the `Table` primitive takes a `containerClassName`. Below that width the table scrolls
+  sideways and the header gives up sticking, which is the right way round.
+- **Picking that breakpoint by eye.** `/kunden` was first written `lg:` and pushed the whole _page_
+  sideways by 26px at 1024, because ten columns need about 1000px and an `lg` content box has 928.
+  Measure `documentElement.scrollWidth - clientWidth` at the breakpoint before believing it.
 
 The check is one scroll in `playwright-cli`, and it is not optional on any screen with a long table:
 scroll to the bottom of the list and confirm the header is still there and still opaque.
@@ -143,13 +159,17 @@ scroll to the bottom of the list and confirm the header is still there and still
 - `Card` uses `ring-1 ring-foreground/10`, **not** `border` + `shadow`. Don't add a border back.
 - `variant="destructive"` is a **soft tint**, not solid red. Right for a confirm step; if you need a
   loud red, say so with a `className`.
-- **`Label` and `Table` are `"use client"`.** Importing them into a server component creates a client
-  boundary. In a server-rendered form with no interactivity, a plain `<label htmlFor>` styled
-  `text-sm font-medium` is the better trade.
+- **`Label` is `"use client"`.** Importing it into a server component creates a client boundary. In a
+  server-rendered form with no interactivity, a plain `<label htmlFor>` styled `text-sm font-medium`
+  is the better trade. `Table` shipped the same way and **the directive has been removed** — nothing
+  in it is client-only, and `/kunden` would otherwise have pushed 240 rows across the boundary for
+  nothing. Deleting a `"use client"` only widens where a component may be used, so it is the right
+  answer wherever a primitive turns out to have no interactivity; deleting it from one that _does_ is
+  a build error, not a silent bug.
 - `Alert` hardcodes `role="alert"`. Pass `role="status"` to override it for confirmations.
-- **Three local components shadow shadcn names** and will collide on import: `Badge` and `Table` in
-  `kunden/page.tsx`, `Card` in `kunden/[id]/karte/page.tsx`. Rename the local one as part of converting
-  that screen.
+- **Local components that shadow shadcn names** collide on import; rename or delete the local one as
+  part of converting that screen. `Badge` and `Table` in `kunden/page.tsx` are gone; `Card` in
+  `kunden/[id]/karte/page.tsx` is still there.
 - **Not every label/value grid wants a `Table`.** Prefer it for genuinely tabular data. For a handful
   of key/value pairs, lift the two or three figures that drive the decision into large tiles and put
   the rest in a two-column table with no header row — that is what turned the counter's eleven
@@ -210,10 +230,10 @@ checked.
 - [x] Global chrome — the navigation bar in `src/app/nav.tsx`, worn by every screen from
       `src/app/layout.tsx`.
 - [ ] `/` home
-- [ ] `/kunden`, `/kunden/[id]`, `/kunden/[id]/karte`, `/kunden/neu` — `/kunden` is analysed and
-      planned in `docs/ui_redesign_kunden_verwalten.md`; read it before starting, particularly §7,
-      which lists the constraints `tests/e2e/customer-list.spec.ts` puts on the conversion (the three
-      filters cannot become Radix `Select`s).
+- [x] `/kunden` — the hub itself, per `docs/ui_redesign_kunden_verwalten.md`. Read §7 before touching
+      it: it lists the constraints `tests/e2e/customer-list.spec.ts` puts on the screen (the three
+      filters cannot become Radix `Select`s, and every `customer-row-*` testid is asserted exactly).
+- [ ] `/kunden/[id]`, `/kunden/[id]/karte`, `/kunden/neu`
 - [ ] `/warteliste`, `/warteliste/[entryId]/registrieren`
 - [ ] `/karten-neuausstellung`
 - [ ] `/einstellungen`
