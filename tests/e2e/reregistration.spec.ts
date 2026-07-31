@@ -192,8 +192,23 @@ async function belongings(id: number): Promise<string> {
   return JSON.stringify({ customer, cards, records });
 }
 
-/** Search the archive as staff do: type into the panel beside the form and press Suchen. */
+/**
+ * Search the archive as staff do: unfold the panel beside the form, type into it and press Suchen.
+ *
+ * The panel is a `<details>` that starts closed (US-19.1), so the click is not a flourish — a
+ * control inside a closed disclosure has no bounding box and `fill()` would time out against it.
+ * It is a *real* click on the summary rather than `evaluate(d => (d.open = true))` for the same
+ * reason the fold is worth testing at all: a summary that silently stopped opening has to turn this
+ * spec red, and setting the property by hand would step around exactly the thing that broke.
+ *
+ * Called once per page load, never twice — a second click would fold the panel away again. Every
+ * caller below does `page.goto("/kunden/neu")` first, and the wait on `#archiveLastName` is what
+ * says the panel opened rather than the fill merely finding it.
+ */
 async function searchArchive(page: Page, lastName: string): Promise<void> {
+  await page.getByTestId("archive-search-open").click();
+  await expect(page.locator("#archiveLastName")).toBeVisible();
+
   await page.locator("#archiveLastName").fill(lastName);
   await page.getByTestId("archive-search-submit").click();
 }

@@ -184,17 +184,20 @@ export function ArchiveSearchPanel({
   return (
     <Card>
       {/*
-       * A disclosure, still open by default — the fold itself is US-19.2's, and it cannot land
-       * before the spec that fills this panel learns to open it: `reregistration.spec.ts` reaches
-       * `#archiveLastName` by id, and a control inside a closed `<details>` has no bounding box, so
-       * `fill()` times out against it. What lands here is the handle that makes closing it safe.
+       * Closed on every load (US-19.1) — a household coming back from the archive is twice in
+       * twenty, and the three fields cost the form 160px above the first thing staff came to type.
+       * Nothing remembers the state: it is a `<details>` and no more, so every load starts closed.
        *
-       * The `<summary>` is that handle, addressed by `archive-search-open`, and it carries the
-       * *question* rather than the feature name: the cost of missing this search is a second record
-       * for a household FD already has, which is the whole of US-11, so the prompt to check has to
-       * survive the fold that hides the fields.
+       * What makes the fold safe is that the `<summary>` asks the *question* rather than naming the
+       * feature. The cost of missing this search is a second record for a household FD already has,
+       * which is the whole of US-11, and a control that must be opened is one that can be forgotten
+       * on the day it matters (`docs/ui_redesign_kunden_neu.md` §4.2b). The prompt therefore has to
+       * survive the fold that hides the fields, and it is the only thing standing in for them.
+       *
+       * `reregistration.spec.ts` clicks `archive-search-open` before it fills — a real click, so a
+       * fold that stopped opening turns that spec red instead of passing.
        */}
-      <details open>
+      <details>
         {/* No `w-fit` here, unlike the danger-zone summaries: this one wraps a `CardHeader`, and
             shrinking a header to its minimum content width wraps the description into a column —
             measured at 348px tall for two lines of text. A summary that *is* the card's header

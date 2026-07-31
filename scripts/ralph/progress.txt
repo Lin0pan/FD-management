@@ -61,12 +61,23 @@ The Next.js, i18n, e2e and playwright entries are the ones that apply.)
   exclude: give the archived household and the active one the same surname, so only the status
   filter keeps them apart.
 - Killing the e2e server: the process is called **`next-server`**, not `next start`, so
-  `pkill -f "next[ ]start"` finds NOTHING and leaves it running. Use `pkill -f "next-server"` (and
-  check with `ps aux | grep "[n]ext-server"` — it exits 1/144 when it killed something). A survivor
-  is adopted by `reuseExistingServer`, which serves the OLD build and skips the delete-migrate-seed
-  chain, so the whole suite fails at once: `PrismaClientKnownRequestError: The table main.Customer
-  does not exist` or duplicate rows in `beforeAll`. Whole-suite failure = stale server, not your spec.
-  (The `[ ]` trick is still needed for whatever pattern you do use, or pkill matches its own shell.)
+  `pkill -f "next[ ]start"` finds NOTHING and leaves it running. Always write it as
+  `pkill -f "[n]ext-server"` — an unbracketed `pkill -f "next-server"` matches the Bash tool's OWN
+  shell and KILLS IT, so the call returns exit 144 and everything chained after it never runs. Check
+  with `ps aux | grep "[n]ext-server"`. A survivor is adopted by `reuseExistingServer`, which serves
+  the OLD build and skips the delete-migrate-seed chain, so the whole suite fails at once:
+  `PrismaClientKnownRequestError: The table main.Customer does not exist` or duplicate rows in
+  `beforeAll`. Whole-suite failure = stale server, not your spec.
+- A `<details>` keeps its `open` state through any re-render — only a REMOUNT closes it. Before
+  assuming a disclosure survives an action, check whether the panel itself sits under a `key`:
+  on `/kunden/neu` the `key` is on the registration form, so a search and a pre-fill both leave the
+  archive panel open, and the e2e helper may click the summary once per page load rather than guard
+  against re-closing it.
+- A height budget stated in a PRD is worth re-deriving before trusting it. Measure the whole stack
+  (page header / banner / the folded card / the form's own header), not just the target element:
+  US-19's `<= 470px` subtracted the archive card's WHOLE 160px for a fold that leaves a 78px header
+  on screen, so it contradicted the same story's `closed card <= 90px`. The breakdown is what shows
+  which of two criteria was miscomputed.
 - A new e2e spec has to claim a customer number nobody else holds: the shared `data/e2e.db` is
   seeded once per run and every spec inserts into it. Taken so far: counter 201-206/239, portions
   211, serve 221-222, reminders 231, block 241, reissue 251, age-13 271, customer-list 281-285,
@@ -321,5 +332,49 @@ The Next.js, i18n, e2e and playwright entries are the ones that apply.)
     and the free-slot banner the measurements depend on needs the demo households.
   - Baseline for US-002, measured at 1440x900 with the free-slot banner on screen: top of
     `#firstName` **630px**, archive card (still open) **160px**. Targets: <= 470px and <= 90px.
+
+---
+
+## 2026-07-31 22:20 - US-002 (US-19.2 + US-19.3) — the archive search folds away
+
+- `src/app/kunden/neu/archive-search-panel.tsx`: `<details open>` -> `<details>`. The comment above
+  it now carries the argument for the fold and names the mitigation (the summary asks the question)
+  instead of explaining why the panel could not yet close.
+- `tests/e2e/reregistration.spec.ts`: `searchArchive` clicks `getByTestId("archive-search-open")`
+  and waits for `#archiveLastName` to be visible before filling. A real click, not
+  `evaluate(d => d.open = true)`. The only spec file touched; the whole suite stayed green
+  (90 passed, 1 pre-existing skip).
+- No dictionary, domain, application, infrastructure or schema change.
+
+- **Measured** on a production build at 1440x900, demo register, free-slot banner on screen:
+  - closed archive card **160px -> 78px** (target <= 90) — met.
+  - top of `#firstName` **630px -> 548px** (target <= 470) — **missed, and the target is
+    unreachable as written.** 470 is 630 - 160, i.e. it assumes the card takes zero height once
+    closed; the same story's other criterion requires a closed card of up to 90px. 78px is what a
+    `CardHeader` of title + question measures. What is left above `#firstName`: page header 92px,
+    free-slot banner 146px (explicit non-goal to touch), form's own section header 80px. The form
+    now starts at 468px. Only deleting the panel would reach 470, which is a non-goal.
+  - `scrollWidth - clientWidth` = 0 at 1920, 1280, 1024, 800 and 390. 0 console messages.
+  - Opened by clicking the summary: the three criteria and `Suchen` appear, a search for an
+    archived surname keeps the criteria, keeps the panel open and renders the match row
+    (`archive-match-name` / `-household-size` / `-reason` / `-former-number`, reason still
+    `white-space: pre-line`); a miss renders `archive-search-empty`.
+
+- **Learnings for future iterations:**
+  - **`pkill -f "next-server"` from the Bash tool kills the tool's own shell** — the pattern matches
+    the shell's own command line, and the call comes back as exit 144 with everything after it
+    unrun. The `[n]ext-server` bracket trick is not optional here, it is the difference between
+    killing the server and killing yourself.
+  - A `<details>` that a client component re-renders (a `useActionState` submit, a result list
+    appearing) stays open: the DOM keeps `open` as long as the element is not REMOUNTED. On
+    `/kunden/neu` the `key` remount is on the registration form, not on the panel, so a search and a
+    pre-fill both leave the panel open. Check for a `key` on the panel's own element before assuming
+    a disclosure survives an action.
+  - A height budget in a PRD is worth re-deriving before trusting it: this one subtracted the
+    element's WHOLE height for a fold that leaves its header on screen, so two criteria in one story
+    contradicted each other. Measure the stack (header / banner / card / form header) rather than
+    only the target element — the breakdown is what shows which criterion was miscomputed.
+  - Mobile widths measure differently and are not what these criteria are about: at 390px the closed
+    card is 98px because the question wraps to two lines. The stated viewport is part of the number.
 
 ---
