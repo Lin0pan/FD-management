@@ -44,8 +44,8 @@
         "Verify in browser using the playwright-cli skill in BOTH states — with a free number and with a full register"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "de.customerList.actions.waitingListBadge now takes a required second argument, freeSlot, and appends ' · Platz frei' when it is true — required rather than optional so the word can never be left off the tint. The pill markup of both hub badges was extracted into a local CountBadge in src/app/kunden/page.tsx (blessed by PRD §6); it always renders a border, transparent in the neutral state, so tinting one badge changes its colour and not its height. The accent is border-emerald-600/40 bg-emerald-600/15 — the register's own subtle green for an active household, neither red nor amber. HubActions takes freeSlot = head !== undefined && freeNumber !== null, off the listWaiting and proposeRegistration calls the page already made; the NoSettingsInForce catch is untouched. data-free-slot=\"true\"|\"false\" sits on the badge beside its testid. Verified in the browser via playwright-cli in all three states: free number + 3 waiting → link \"Warteliste 3 Wartende · Platz frei\", data-free-slot=\"true\", tinted; quota lowered to 2 so the register was full → link \"Warteliste 3 Wartende\", data-free-slot=\"false\", pill identical to the cards-due one; waiting list emptied while a number was free → \"niemand wartet\", data-free-slot=\"false\" (the word never appears without both halves). The dev database was restored afterwards."
     },
     {
       "id": "US-003",

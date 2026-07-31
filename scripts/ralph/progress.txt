@@ -353,6 +353,17 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
   snapshot then reads `link "Warteliste 3 Wartende"` rather than a link and a loose number: that one
   line is the whole check the criterion asks for, and a screenshot cannot make it.
 
+- Two badges that stand side by side are ONE component (CountBadge in src/app/kunden/page.tsx), and
+  the one that can be tinted carries `border` in every state — transparent when neutral. A border
+  added only in the accent state makes that pill 2px taller than its neighbour, which is the kind of
+  thing a screenshot shows and no assertion catches.
+- A state a badge carries by colour also goes on the element as data (`data-free-slot`), so an e2e
+  spec asserts what it means rather than what shade it is painted — and the German word carries the
+  state anyway, because a tint alone is a distinction only some of the staff can make (US-03.4).
+- Driving the "register is full" state against the DEV database is a two-line flip of
+  `SettingsVersion.quotaN` below the lowest free customer number (`select customerNumber from
+  Customer where status != 'ARCHIVED'`), then back to 240. No reseed, no settings edit through the UI,
+  and no audit row in the demo register.
 
 ## 2026-07-31 09:35 - US-001 (US-18.1) — waiting-list count badge on the Kunden hub
 - `HubActions` in src/app/kunden/page.tsx now takes `waiting` beside `cardsDue` and renders a badge
@@ -384,4 +395,43 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
   - `docs/technical_documentation.md` describes the hub's signals in one paragraph (§`src/app/kunden/`).
     A signal added to or removed from that row belongs in it, and US-003 will have to revise the same
     sentences again when the banner leaves.
+---
+
+## 2026-07-31 09:40 - US-002 (US-18.2) — "Platz frei" on the waiting-list badge
+- `de.customerList.actions.waitingListBadge(count, freeSlot)` gained a **required** second argument
+  and appends „ · Platz frei“ when it is true. Required rather than optional on purpose: the tint and
+  the word have to travel together, so every call site has to say which state it is in.
+- The pill both hub badges are made of is now a local `CountBadge` in src/app/kunden/page.tsx (PRD §6
+  explicitly allows the extraction, and asks that it stay in that file). It always renders a border —
+  `border-transparent` when neutral — so the free-slot tint changes the badge's colour and not its
+  size, and the two pills stay the same height side by side.
+- The accent is `border-emerald-600/40 bg-emerald-600/15`, the same subtle green the register already
+  uses for an ACTIVE household. Not red, not amber: those are a blocked status and a lapsing
+  certificate, and a free slot is good news rather than an alarm.
+- `HubActions` takes `freeSlot={head !== undefined && freeNumber !== null}` — both halves off the
+  `listWaiting` and `proposeRegistration` calls already in the page's `Promise.all`. No use case, port
+  method or query was added, and the `NoSettingsInForce` catch around `proposeRegistration` is
+  untouched. The banner is still on the hub; US-003 moves it.
+- Files changed: src/app/kunden/page.tsx, src/i18n/de.ts, docs/technical_documentation.md,
+  scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: lint, typecheck, format:check, `test:coverage` (44 files, 912 tests) and `build` all green.
+  The e2e suite was not run — US-004 is the story that rewrites those specs.
+- Browser verification (playwright-cli, accessibility snapshot first, screenshot only to compare the
+  two pills):
+  - free number + 3 waiting → `link "Warteliste 3 Wartende · Platz frei"`, `data-free-slot="true"`,
+    tinted; the count and the word are one node inside the link.
+  - quota lowered to 2 (register full) → `link "Warteliste 3 Wartende"`, `data-free-slot="false"`,
+    and the pill is pixel-identical to `2 Karten` beside it.
+  - waiting list emptied while a number was free → `"niemand wartet"`, `data-free-slot="false"`. The
+    word never appears without both halves, and the accent never without the word.
+  - The dev database was put back afterwards: quotaN 240, `removedOn` NULL on entries 10, 11, 12.
+- **Learnings for future iterations:**
+  - Making the dictionary function's `freeSlot` argument required is what enforces "the accent never
+    appears without the word" — with a default it would be one forgotten argument away from a
+    colour-only marking, which is the thing US-03.4 forbids.
+  - `next dev` rewrites `next-env.d.ts` (`./.next/types` → `./.next/dev/types`) and `next build`
+    writes it back. It shows up in `git status` as an unrelated modification — `git checkout
+    next-env.d.ts` after the browser round, and check `git status` again after `build`.
+  - The dev register's active numbers are 1, 2, 6–18, so the lowest free number is 3 and `quotaN = 2`
+    is the smallest change that makes the register full.
 ---

@@ -1631,8 +1631,13 @@ beyond it:
   shape — `listWaiting`'s count, read off the call the page already makes (US-18.1) — so the two read
   as one row of counts rather than as two competing widgets. It is shown at zero as well, reading
   „niemand wartet“, for the reason the cards badge is: a badge that vanishes cannot be told apart from
-  a badge that failed to load. Its heading is the nav label word for word, so the section has
-  one name. `proposeRegistration` throwing `NoSettingsInForce` leaves the banner out rather than
+  a badge that failed to load. When a customer number is actually free — `proposeRegistration` returns
+  one and somebody is waiting for it — that badge additionally reads „Platz frei“ and wears a subtle
+  green tint (US-18.2): a queue that can be served now is not the same fact as a queue that merely
+  exists. The word carries the state and the tint only seconds it, because a colour is a distinction
+  only some of the staff can make (US-03.4); `data-free-slot` puts the same state on the element, so a
+  spec asserts what the badge means rather than what shade it is painted. Its heading is the nav label
+  word for word, so the section has one name. `proposeRegistration` throwing `NoSettingsInForce` leaves the banner out rather than
   taking the screen down. Below that it is the **customer list**, the screen that replaces the
   spreadsheet: one dense table over `listCustomers`, sorted by customer number, computing nothing — the counts,
   portions, price, card number and certificate state all arrive derived. The filters are a plain
