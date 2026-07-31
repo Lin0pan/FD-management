@@ -4,7 +4,8 @@ A UX analysis of the customer record as it stands today, and a concept for rebui
 shadcn/ui primitives — the sixth screen in the conversion `docs/ui_conversion_guide.md` describes,
 and the largest one left.
 
-**Status:** concept. Nothing here is built.
+**Status:** built. See `docs/ui_conversion_guide.md` for the outcome and the numbers;
+the open questions in §11 were put to FD and their answers are recorded in §12.
 
 This pass also converts **`kunden/archive-controls.tsx` and `kunden/block-controls.tsx`**, which the
 record shares with the counter. They are already on a converted screen, so they are a visible seam
@@ -618,3 +619,52 @@ seed: `npm run db:reset && npm run db:demo` before and after.
    visits, or is that the counter's business only?
 5. **Is `Kundenübersicht` load-bearing as a word?** §4.2b deletes it as a heading. If FD refer to the
    screen by that name out loud, it should stay somewhere — most likely as the browser tab title.
+
+---
+
+## 12. What was decided, and what was built
+
+FD were asked the questions in §11 before any code was written. Their answers:
+
+| Question                                      | Answer                                                          |
+| --------------------------------------------- | --------------------------------------------------------------- |
+| §11.1 / §8 ⚠️ The section order               | Reorder to the reading order — built as §4.2g describes         |
+| §11.2 Does anybody read `Bisherige Ausgaben`? | Fold it away — built as a closed `<details>`                    |
+| §11.3 Show the previous record?               | Out of scope: a feature, not a restyle. Still open              |
+| §11.4 `Bezahlt: nein` chrome                  | Settled from §4.4's own recommendation: no chrome               |
+| §11.5 Is `Kundenübersicht` load-bearing?      | Kept as the browser tab title and the not-found heading         |
+| §8 ⚠️ `card-view-link` into the header        | Built — the guide's stated exception for a link naming a record |
+| §8 ⚠️ The block reason under the header       | Built; the measurement settles it, 2 602px → 116px              |
+
+The hand-out history can be closed by default where `/kunden/neu`'s archive search cannot, because
+no spec reaches inside it (§3.12) — the same fact that made it the riskiest part of this pass makes
+it the safest to fold.
+
+### Numbers, before and after
+
+| Claim                                                       | Before  | Target  | After |
+| ----------------------------------------------------------- | ------- | ------- | ----- |
+| Page height, record 13                                      | 3 623px | ≤ 2 600 | 2 907 |
+| Top of the first derived figure (`grown-ups`)               | 1 537px | ≤ 400   | 255   |
+| Top of `Bedarfsnachweis`                                    | 2 126px | ≤ 1 200 | 953   |
+| Top of `Bemerkung`                                          | 2 484px | ≤ 1 600 | 1 330 |
+| `customer-status` → `block-reason-current`, record 7        | 2 602px | ≤ 200   | 116   |
+| Household row: first input vs. its neighbours, all six rows | +20px   | 0       | 0     |
+| Bordered boxes above the fold that are not form fields      | 4       | 1 card  | 1     |
+| Content box left edge vs. the nav's                         | +128px  | 0       | 0     |
+| Headings on an archived record naming the banner            | 0       | 1       | 1     |
+| Page height, record 3 (archived)                            | 1 640px | —       | 1 443 |
+
+Four of the five depth targets are beaten. Page height lands at 2 907 against 2 600: nine card
+headers at ~65px and nine card paddings are ~1 000px the flat sections never spent, and they are
+what makes each of the eight forms' extent legible — §3.1's actual complaint. Folding
+`Bisherige Ausgaben` bought 297px. Getting under 2 600 needs a second section folded, and which one
+is a question for FD rather than a number to chase.
+
+### Still open after this pass
+
+- **§11.3, the previous record for a re-registered household.** `previousCustomerId` is carried
+  through registration and nothing shows it; a returning household still looks brand new. That is a
+  feature with a use case behind it, not a restyle.
+- **A spec for the archive-search criteria and the apply feedback.** Both were fixed and both were
+  hand-verified; neither could be given a test without touching the suite this work held still.
