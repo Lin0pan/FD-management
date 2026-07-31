@@ -18,8 +18,9 @@
 
 import { useActionState } from "react";
 import { de } from "@/i18n/de";
+import { Input } from "@/components/ui/input";
 import { renewCertificateAction } from "./actions";
-import { fieldClass, SaveButton, SaveFeedback } from "./record-forms";
+import { FormFooter, GRID, SaveButton, SaveFeedback } from "./record-forms";
 import { initialRecordFormState } from "./record-state";
 
 export function RenewalForm({ customerId }: { customerId: number }): React.ReactElement {
@@ -37,33 +38,37 @@ export function RenewalForm({ customerId }: { customerId: number }): React.React
     >
       <input type="hidden" name="customerId" value={customerId} />
       <h3 className="text-lg font-semibold">{words.heading}</h3>
-      <p className="max-w-prose text-sm text-foreground/70">{words.hint}</p>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-foreground/70">{de.customers.fields.certificateType}</span>
-          <input
-            className={fieldClass}
+      <p className="max-w-prose text-sm text-muted-foreground">{words.hint}</p>
+      <div className={GRID}>
+        <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-6">
+          <label htmlFor="renewal-type-field" className="text-sm font-medium">
+            {de.customers.fields.certificateType}
+          </label>
+          <Input
+            id="renewal-type-field"
             type="text"
             name="type"
             required
             data-testid="renewal-type"
           />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-foreground/70">
+        </div>
+        <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-6">
+          <label htmlFor="renewal-valid-until-field" className="text-sm font-medium">
             {de.customers.fields.certificateValidUntil}
-          </span>
-          <input
-            className={fieldClass}
+          </label>
+          <Input
+            id="renewal-valid-until-field"
             type="date"
             name="validUntil"
             required
             data-testid="renewal-valid-until"
           />
-        </label>
+        </div>
       </div>
-      <SaveButton label={words.submit} pending={pending} testId="renewal-save" />
-      <SaveFeedback state={state} testId="renewal" savedText={words.saved} />
+      <FormFooter>
+        <SaveButton label={words.submit} pending={pending} testId="renewal-save" />
+        <SaveFeedback state={state} testId="renewal" savedText={words.saved} />
+      </FormFooter>
     </form>
   );
 }

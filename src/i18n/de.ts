@@ -70,7 +70,6 @@ export const de = {
       intro:
         "Kundennummer und Gruppe schlägt die Anwendung vor. Erwachsene und Kinder werden aus den " +
         "Geburtsdaten berechnet und können nicht eingetragen werden.",
-      personalHeading: "Person",
       addressHeading: "Anschrift",
       certificateHeading: "Bedarfsnachweis",
       householdHeading: "Haushalt",
@@ -81,6 +80,11 @@ export const de = {
       addMember: "Weiteres Haushaltsmitglied",
       removeMember: "Zeile entfernen",
       memberRow: (position: number): string => `Haushaltsmitglied ${position}`,
+      /**
+       * The household table's first column: the row's position, which used to be carried inside the
+       * first field's label and wrapped there. Short because the column holds one or two digits.
+       */
+      memberNumberColumn: "Nr.",
       submit: "Aufnehmen",
       submitting: "Wird gespeichert …",
       /**
@@ -256,10 +260,12 @@ export const de = {
      */
     archiveSearch: {
       heading: "Im Archiv suchen",
-      intro:
-        "Wenn dieser Haushalt früher schon aufgenommen war, können Person, Anschrift und " +
-        "Haushaltsmitglieder aus dem Archiv übernommen werden. Es wird trotzdem ein neuer " +
-        "Datensatz angelegt; der archivierte bleibt unverändert.",
+      /**
+       * One line, and it asks the question rather than explaining the feature. It was three lines
+       * describing how the pre-fill works to somebody who has not used it yet — and the two things
+       * it explained are both said again, in the right place, by the notice over a filled form.
+       */
+      intro: "War dieser Haushalt schon einmal aufgenommen?",
       submit: "Suchen",
       submitting: "Wird gesucht …",
       /** The result list, headed by how many of them there are — German inflects the one. */
@@ -296,6 +302,14 @@ export const de = {
           "gehört möglicherweise bereits einem anderen Haushalt.",
         select: "Daten übernehmen",
         selecting: "Wird übernommen …",
+        /** What the row that filled the form says instead of offering to fill it again. */
+        applied: "Übernommen",
+        /**
+         * What opens the rest of one result row. A match row answers "is this them?" with the name,
+         * the birthdate and the address; the household size, the archive reason and the former
+         * number are what is read once that answer is probably yes.
+         */
+        moreDetail: "Mehr zu diesem Haushalt",
       },
       /**
        * The banner over a pre-filled form. It states the one thing a staff member could otherwise
@@ -370,7 +384,15 @@ export const de = {
      * the card the household is carrying out of date.
      */
     record: {
-      masterDataHeading: "Stammdaten",
+      /**
+       * What separates the facts on the record's identity line — customer number, card number and
+       * the day they joined. They were four boxes under a "Stammdaten" heading; the heading is gone
+       * with the section, because the line under the household's name says the same three things in
+       * a quarter of the space.
+       */
+      identitySeparator: " · ",
+      /** What the hand-out history says about itself while it is folded away. */
+      historyDisclosure: "Aufklappen, wenn eine Ausgabe strittig ist.",
       detailsHeading: "Person und Anschrift",
       detailsHint:
         "Korrekturen an Name, Geburtsdatum und Anschrift. Der Name gilt zugleich für die Zeile " +
@@ -401,6 +423,11 @@ export const de = {
         "Der Preis ist der, der an diesem Tag galt — spätere Änderungen an den Einstellungen " +
         "ändern ihn nicht.",
       historyEmpty: "Für diesen Haushalt ist noch keine Ausgabe erfasst.",
+      /**
+       * The household table's age column. It used to live inside the birthdate label — where it
+       * made that label differ on every row — and a column is what stops it doing that.
+       */
+      ageColumn: "Alter",
       historyColumns: {
         date: "Datum",
         showedUp: "Erschienen",

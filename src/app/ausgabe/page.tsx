@@ -33,6 +33,7 @@ import { CertificateControls } from "./certificate-controls";
 import { CustomerDetails, VerdictBanner } from "./counter-lookup";
 import { distributionDeps } from "./deps";
 import { ServeControls } from "./serve-controls";
+import { SHELL } from "../shell";
 
 /**
  * Whether a verdict permits recording a hand-out. Only the two clear-to-serve outcomes do — an
@@ -229,13 +230,6 @@ async function lookUp(raw: string | string[] | undefined): Promise<Lookup | null
     throw error;
   }
 }
-
-/**
- * The page frame, shared by the screen and its no-settings fallback so both read as the same place.
- * Wider than the other screens (`max-w-6xl`) because the household's figures are laid out in four
- * columns, and the counter reads them standing up.
- */
-const SHELL = "mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6 md:p-8";
 
 /**
  * No back-link beside the heading: the navigation bar in the root layout reaches Start from every

@@ -26,17 +26,36 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import type { RegistrationProposal } from "@/application/customers/propose-registration";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { composition } from "@/domain/customer/householdComposition";
 import { GROUPS } from "@/domain/customer/group";
 import { de } from "@/i18n/de";
+import { GROUP_STYLES } from "../../accents";
+import { Stat } from "../../stat";
 import { submitRegistration } from "./actions";
 import type { PrefillDraft } from "./archive-search-state";
 import {
   initialRegisterCustomerState,
   type RegisterCustomerState,
 } from "./register-customer-state";
-
-const fieldClass = "w-full rounded border border-foreground/20 bg-transparent px-2 py-1";
 
 /** A household row as the form holds it: the raw strings, exactly as they were typed. */
 interface MemberRow {
@@ -79,33 +98,82 @@ function derivedCounts(
   }
 }
 
-function TextField({
+/**
+ * One field of the form, in a slot of the twelve-column grid.
+ *
+ * The span is the point. Every field on this screen used to be 408px because all four sections
+ * shared one `sm:grid-cols-2`, so `PLZ` promised as much room as `Straße` — and a field's width is
+ * the most reliable hint a form has about what it wants. `<label htmlFor>` + `<Input id>` rather
+ * than the old nested `<label><span>`, which worked only by nesting and left the accessibility
+ * snapshot with unnamed textboxes.
+ */
+function Field({
   name,
   label,
+  span,
+  type = "text",
   value,
   onChange,
-  type = "text",
+  defaultValue,
 }: {
   name: string;
   label: string;
-  value: string;
-  onChange: (value: string) => void;
+  /** Columns of twelve at `lg`. Below that the grid collapses and the span stops applying. */
+  span: string;
   type?: "text" | "date";
+  /** A controlled field — the three the household's first row mirrors. */
+  value?: string;
+  onChange?: (value: string) => void;
+  /** An uncontrolled field, read out of the `FormData` on submit. */
+  defaultValue?: string;
 }): React.ReactElement {
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-sm text-foreground/70">{label}</span>
-      <input
-        className={fieldClass}
+    <div className={`flex flex-col gap-1.5 ${span}`}>
+      <label htmlFor={name} className="text-sm font-medium">
+        {label}
+      </label>
+      <Input
         type={type}
         name={name}
         id={name}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+        {...(onChange === undefined
+          ? { defaultValue: defaultValue ?? "" }
+          : { value: value ?? "", onChange: (event) => onChange(event.target.value) })}
       />
-    </label>
+    </div>
   );
 }
+
+/** A section of the form: one card, one real `<h2>` inside its title (guide trap 1). */
+function Section({
+  heading,
+  description,
+  children,
+  footer,
+}: {
+  heading: string;
+  description?: string;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          <h2>{heading}</h2>
+        </CardTitle>
+        {description === undefined ? null : <CardDescription>{description}</CardDescription>}
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">{children}</CardContent>
+      {footer === undefined ? null : (
+        <CardFooter className="flex-col items-start gap-3">{footer}</CardFooter>
+      )}
+    </Card>
+  );
+}
+
+/** The field grid: twelve columns at `lg`, two at `sm`, one below. */
+const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
 
 /** The household as the form starts out: the archived one if there is a draft, otherwise one blank row. */
 function initialRows(draft: PrefillDraft | null): ReadonlyArray<MemberRow> {
@@ -175,286 +243,299 @@ export function RegistrationForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-8">
+    <form action={formAction} className="flex flex-col gap-6">
       {/* Absent rather than empty for a walk-in: the field is metadata about where these people
           came from, and a blank string is not an answer to that. */}
       {previousCustomerId === null ? null : (
         <input type="hidden" name="previousCustomerId" value={previousCustomerId} />
       )}
       {entryId === null ? null : <input type="hidden" name="entryId" value={entryId} />}
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">{de.customers.new.personalHeading}</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <TextField
+
+      {/*
+       * The refusal, at the top of the form rather than 1 600px down at the bottom of `Zuordnung`.
+       *
+       * A full register is not a dead end — turning an applicant away is precisely what the waiting
+       * list exists to prevent (US-12, FR-3) — so the way onto it is offered with the refusal, as a
+       * button rather than an underlined link. The form stays on screen below, disabled and not
+       * removed: staff need to see that the fields exist and why they cannot be used.
+       */}
+      {full ? (
+        <Alert variant="destructive" role="status">
+          <AlertDescription
+            data-testid="registration-error"
+            className="flex max-w-prose flex-col items-start gap-3"
+          >
+            <p>{de.customers.errors.noFreeCustomerNumber(proposal.quotaN)}</p>
+            <Button variant="outline" asChild>
+              <Link href="/warteliste" data-testid="registration-waiting-list-link">
+                {de.customers.new.waitingListLink}
+              </Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {/*
+       * One card, not three.
+       *
+       * `Person` and `Anschrift` are one act — who this is and where they live — and the record
+       * already calls that pair by one name (`record.detailsHeading`); using the same words on both
+       * screens is most of what makes them read as one product. The certificate joins them because
+       * it is what decides whether this household may be registered at all, and as a card of its
+       * own it was two fields and 102px between two much larger sections. `Anschrift` survives as a
+       * muted sub-label rather than a second `h2`.
+       *
+       * The saving is two card headers and two card paddings, ~180px, off the top of the form.
+       */}
+      <Section heading={de.customers.record.detailsHeading}>
+        <div className={GRID}>
+          <Field
             name="firstName"
             label={de.customers.fields.firstName}
+            span="lg:col-span-4"
             value={firstName}
             onChange={setFirstName}
           />
-          <TextField
+          <Field
             name="lastName"
             label={de.customers.fields.lastName}
+            span="lg:col-span-4"
             value={lastName}
             onChange={setLastName}
           />
-          <TextField
+          <Field
             name="birthDate"
             label={de.customers.fields.birthDate}
+            span="lg:col-span-4"
+            type="date"
             value={birthDate}
             onChange={setBirthDate}
-            type="date"
           />
-          <label className="flex flex-col gap-1">
-            <span className="text-sm text-foreground/70">{de.customers.fields.notes}</span>
-            <input
-              className={fieldClass}
-              type="text"
-              name="notes"
-              id="notes"
-              defaultValue={draft?.notes ?? ""}
-            />
-          </label>
         </div>
-      </section>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">{de.customers.new.addressHeading}</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-sm text-foreground/70">{de.customers.fields.street}</span>
-            <input
-              className={fieldClass}
-              type="text"
-              name="street"
-              id="street"
-              defaultValue={draft?.street ?? ""}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-sm text-foreground/70">{de.customers.fields.houseNumber}</span>
-            <input
-              className={fieldClass}
-              type="text"
-              name="houseNumber"
-              id="houseNumber"
-              defaultValue={draft?.houseNumber ?? ""}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-sm text-foreground/70">{de.customers.fields.zip}</span>
-            <input
-              className={fieldClass}
-              type="text"
-              name="zip"
-              id="zip"
-              defaultValue={draft?.zip ?? ""}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-sm text-foreground/70">{de.customers.fields.city}</span>
-            <input
-              className={fieldClass}
-              type="text"
-              name="city"
-              id="city"
-              defaultValue={draft?.city ?? ""}
-            />
-          </label>
+        <p className="text-sm font-medium text-muted-foreground">
+          {de.customers.new.addressHeading}
+        </p>
+        <div className={GRID}>
+          <Field
+            name="street"
+            label={de.customers.fields.street}
+            span="lg:col-span-5"
+            defaultValue={draft?.street ?? ""}
+          />
+          <Field
+            name="houseNumber"
+            label={de.customers.fields.houseNumber}
+            span="lg:col-span-2"
+            defaultValue={draft?.houseNumber ?? ""}
+          />
+          <Field
+            name="zip"
+            label={de.customers.fields.zip}
+            span="lg:col-span-2"
+            defaultValue={draft?.zip ?? ""}
+          />
+          <Field
+            name="city"
+            label={de.customers.fields.city}
+            span="lg:col-span-3"
+            defaultValue={draft?.city ?? ""}
+          />
         </div>
-      </section>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">{de.customers.new.certificateHeading}</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1">
-            <span className="text-sm text-foreground/70">
-              {de.customers.fields.certificateType}
-            </span>
-            <input
-              className={fieldClass}
-              type="text"
-              name="certificateType"
-              id="certificateType"
-              defaultValue={draft?.certificateType ?? ""}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-sm text-foreground/70">
-              {de.customers.fields.certificateValidUntil}
-            </span>
-            <input
-              className={fieldClass}
-              type="date"
-              name="certificateValidUntil"
-              id="certificateValidUntil"
-              defaultValue={draft?.certificateValidUntil ?? ""}
-            />
-          </label>
+        <p className="text-sm font-medium text-muted-foreground">
+          {de.customers.new.certificateHeading}
+        </p>
+        <div className={GRID}>
+          <Field
+            name="certificateType"
+            label={de.customers.fields.certificateType}
+            span="lg:col-span-6"
+            defaultValue={draft?.certificateType ?? ""}
+          />
+          <Field
+            name="certificateValidUntil"
+            label={de.customers.fields.certificateValidUntil}
+            span="lg:col-span-6"
+            type="date"
+            defaultValue={draft?.certificateValidUntil ?? ""}
+          />
+          <Field
+            name="notes"
+            label={de.customers.fields.notes}
+            span="sm:col-span-2 lg:col-span-12"
+            defaultValue={draft?.notes ?? ""}
+          />
         </div>
-      </section>
+      </Section>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">{de.customers.new.householdHeading}</h2>
-        <p className="max-w-prose text-sm text-foreground/70">{de.customers.new.householdHint}</p>
-
-        <ul className="flex flex-col gap-4">
-          {members.map((row, index) => (
-            // Rows are addressed by position: two members can share a name and a birthdate, and a
-            // row has no identity of its own until it is saved.
-            <li key={index} data-testid="household-row" className="grid gap-3 sm:grid-cols-4">
-              <label className="flex flex-col gap-1">
-                <span className="text-sm text-foreground/70">
-                  {de.customers.new.memberRow(index + 1)} — {de.customers.fields.firstName}
-                </span>
-                <input
-                  className={fieldClass}
-                  type="text"
-                  name="memberFirstName"
-                  id={`memberFirstName-${index}`}
-                  value={row.firstName}
-                  onChange={(event) => updateRow(index, { firstName: event.target.value })}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-sm text-foreground/70">{de.customers.fields.lastName}</span>
-                <input
-                  className={fieldClass}
-                  type="text"
-                  name="memberLastName"
-                  id={`memberLastName-${index}`}
-                  value={row.lastName}
-                  onChange={(event) => updateRow(index, { lastName: event.target.value })}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-sm text-foreground/70">{de.customers.fields.birthDate}</span>
-                <input
-                  className={fieldClass}
-                  type="date"
-                  name="memberBirthDate"
-                  id={`memberBirthDate-${index}`}
-                  value={row.birthDate}
-                  onChange={(event) => updateRow(index, { birthDate: event.target.value })}
-                />
-              </label>
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  data-testid={`remove-member-${index}`}
-                  onClick={() => removeRow(index)}
-                  className="rounded border border-foreground/20 px-3 py-1 text-sm"
-                >
-                  {de.customers.new.removeMember}
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+      <Section
+        heading={de.customers.new.householdHeading}
+        description={de.customers.new.householdHint}
+      >
+        {/* Three fields repeating per member with identical meanings is tabular data. As a list of
+            labelled grids the row identity had to live in the first field's label
+            ("Haushaltsmitglied 1 — Vorname"), which wrapped to two lines in its column and started
+            that input 20px below its two neighbours — in every row. As a table the identity is a
+            narrow first column and the field names are said once. */}
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="w-10">{de.customers.new.memberNumberColumn}</TableHead>
+              <TableHead>{de.customers.fields.firstName}</TableHead>
+              <TableHead>{de.customers.fields.lastName}</TableHead>
+              <TableHead>{de.customers.fields.birthDate}</TableHead>
+              <TableHead className="w-0" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {members.map((row, index) => (
+              // Rows are addressed by position: two members can share a name and a birthdate, and a
+              // row has no identity of its own until it is saved.
+              <TableRow key={index} data-testid="household-row" className="hover:bg-transparent">
+                <TableCell className="text-muted-foreground tabular-nums">{index + 1}</TableCell>
+                {/* Each input keeps the string its visible label used to carry as `aria-label`, so
+                    nothing a screen reader hears is lost: a column heading names a column, not a
+                    cell. */}
+                <TableCell>
+                  <Input
+                    type="text"
+                    name="memberFirstName"
+                    id={`memberFirstName-${index}`}
+                    aria-label={`${de.customers.new.memberRow(index + 1)} — ${de.customers.fields.firstName}`}
+                    value={row.firstName}
+                    onChange={(event) => updateRow(index, { firstName: event.target.value })}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="text"
+                    name="memberLastName"
+                    id={`memberLastName-${index}`}
+                    aria-label={`${de.customers.new.memberRow(index + 1)} — ${de.customers.fields.lastName}`}
+                    value={row.lastName}
+                    onChange={(event) => updateRow(index, { lastName: event.target.value })}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="date"
+                    name="memberBirthDate"
+                    id={`memberBirthDate-${index}`}
+                    aria-label={`${de.customers.new.memberRow(index + 1)} — ${de.customers.fields.birthDate}`}
+                    value={row.birthDate}
+                    onChange={(event) => updateRow(index, { birthDate: event.target.value })}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    data-testid={`remove-member-${index}`}
+                    onClick={() => removeRow(index)}
+                  >
+                    {de.customers.new.removeMember}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
 
         <div>
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             data-testid="add-member"
             onClick={() => setRows([...members, EMPTY_ROW])}
-            className="rounded border border-foreground/20 px-3 py-1 text-sm"
           >
             {de.customers.new.addMember}
-          </button>
+          </Button>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <p className="rounded border border-foreground/15 px-3 py-2">
-            <span className="text-sm text-foreground/70">{de.customers.derived.grownUps}: </span>
-            <span data-testid="grown-ups" className="font-semibold tabular-nums">
-              {counts === null ? de.customers.derived.unknown : counts.grownUps}
-            </span>
-          </p>
-          <p className="rounded border border-foreground/15 px-3 py-2">
-            <span className="text-sm text-foreground/70">{de.customers.derived.children}: </span>
-            <span data-testid="children" className="font-semibold tabular-nums">
-              {counts === null ? de.customers.derived.unknown : counts.children}
-            </span>
-          </p>
+        {/* The two figures the household section exists to produce, at the counter's rank rather
+            than in two 408px bordered boxes holding one digit each. */}
+        <div className="flex flex-wrap gap-3">
+          <Stat
+            label={de.customers.derived.grownUps}
+            value={String(counts === null ? de.customers.derived.unknown : counts.grownUps)}
+            testId="grown-ups"
+            className="min-w-40"
+          />
+          <Stat
+            label={de.customers.derived.children}
+            value={String(counts === null ? de.customers.derived.unknown : counts.children)}
+            testId="children"
+            className="min-w-40"
+          />
         </div>
-        <p className="text-xs text-foreground/60">{de.customers.derived.hint}</p>
-      </section>
+        <p className="text-xs text-muted-foreground">{de.customers.derived.hint}</p>
+      </Section>
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xl font-semibold">{de.customers.new.assignmentHeading}</h2>
-        <p className="rounded border border-foreground/15 px-3 py-2">
-          <span className="text-sm text-foreground/70">
-            {de.customers.assignment.proposedNumber}:{" "}
-          </span>
-          <span data-testid="proposed-number" className="font-semibold tabular-nums">
-            {proposal.customerNumber ?? de.customers.derived.unknown}
-          </span>
-        </p>
+      <Section
+        heading={de.customers.new.assignmentHeading}
+        footer={
+          <>
+            {state.status === "error" && state.message !== undefined ? (
+              <Alert variant="destructive" role="status">
+                <AlertDescription data-testid="registration-error" className="max-w-prose">
+                  {state.message}
+                </AlertDescription>
+              </Alert>
+            ) : null}
 
-        <fieldset className="flex flex-col gap-2">
-          <legend className="text-sm text-foreground/70">{de.customers.fields.group}</legend>
-          <div className="flex gap-4">
-            {GROUPS.map((group) => (
-              <label key={group} className="flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="group"
-                  id={`group-${group}`}
-                  value={group}
-                  defaultChecked={group === proposal.suggestedGroup}
-                />
-                <span>{de.customers.groups[group]}</span>
-              </label>
-            ))}
-          </div>
-          <p className="text-xs text-foreground/60">
-            {de.customers.assignment.suggestedGroup(de.customers.groups[proposal.suggestedGroup])} ·{" "}
-            {de.customers.assignment.groupSizes(
-              proposal.groupCounts.red,
-              proposal.groupCounts.blue,
-            )}
-          </p>
-        </fieldset>
+            <Button type="submit" size="lg" disabled={pending || full}>
+              {pending ? de.customers.new.submitting : de.customers.new.submit}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-wrap items-start gap-6">
+          <Stat
+            label={de.customers.assignment.proposedNumber}
+            value={String(proposal.customerNumber ?? de.customers.derived.unknown)}
+            testId="proposed-number"
+            className="min-w-56"
+          />
 
-        {/* A full register is not a dead end. Turning an applicant away is precisely what the
-            waiting list exists to prevent (US-12, FR-3), so the way onto it is offered here rather
-            than left for staff to find. */}
-        {full ? (
-          <div
-            role="status"
-            data-testid="registration-error"
-            className="flex max-w-prose flex-col gap-2 rounded border border-red-500/40 bg-red-500/10 px-3 py-2"
-          >
-            <p>{de.customers.errors.noFreeCustomerNumber(proposal.quotaN)}</p>
-            <Link
-              href="/warteliste"
-              data-testid="registration-waiting-list-link"
-              className="self-start underline underline-offset-4"
-            >
-              {de.customers.new.waitingListLink}
-            </Link>
-          </div>
-        ) : null}
-
-        {state.status === "error" && state.message !== undefined ? (
-          <p
-            role="status"
-            data-testid="registration-error"
-            className="max-w-prose rounded border border-red-500/40 bg-red-500/10 px-3 py-2"
-          >
-            {state.message}
-          </p>
-        ) : null}
-
-        <div>
-          <button
-            type="submit"
-            disabled={pending || full}
-            className="rounded bg-foreground px-4 py-2 text-background disabled:opacity-60"
-          >
-            {pending ? de.customers.new.submitting : de.customers.new.submit}
-          </button>
+          {/* Native radios, not Radix: the action reads `group` out of the `FormData` and a
+              `RadioGroup` submits nothing of its own. `#group-RED` is reached by CSS id in three
+              specs, so the ids are load-bearing too. What changes is that each option now wears the
+              colour it names — this is the one screen where the group is actually *chosen*, and it
+              was the one screen showing RED and BLUE in black and white. */}
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-sm font-medium">{de.customers.fields.group}</legend>
+            <div className="flex flex-wrap gap-2">
+              {GROUPS.map((group) => (
+                <label
+                  key={group}
+                  className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${GROUP_STYLES[group]}`}
+                >
+                  <input
+                    type="radio"
+                    name="group"
+                    id={`group-${group}`}
+                    value={group}
+                    defaultChecked={group === proposal.suggestedGroup}
+                    className="accent-current"
+                  />
+                  <span>{de.customers.groups[group]}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {de.customers.assignment.suggestedGroup(de.customers.groups[proposal.suggestedGroup])}{" "}
+              ·{" "}
+              {de.customers.assignment.groupSizes(
+                proposal.groupCounts.red,
+                proposal.groupCounts.blue,
+              )}
+            </p>
+          </fieldset>
         </div>
-      </section>
+      </Section>
     </form>
   );
 }

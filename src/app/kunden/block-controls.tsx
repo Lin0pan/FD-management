@@ -21,21 +21,29 @@
  * there is no transition out of archived.
  */
 
-import { useActionState, useState } from "react";
+import { useActionState, useId, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import { de } from "@/i18n/de";
+import { cn } from "@/lib/utils";
 import { blockCustomerAction, unblockCustomerAction } from "./block-actions";
 import { initialBlockState } from "./block-state";
 
+/**
+ * The `<summary>` recipe shared by the two disclosures here and by `ArchiveControls`: closed, a
+ * control must not read as a collapsed section spanning the row (`/karten-neuausstellung`).
+ */
+const SUMMARY = "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden";
+
 function Rejection({ message }: { message: string }): React.ReactElement {
   return (
-    <p
-      role="status"
-      data-testid="block-error"
-      className="max-w-prose rounded border border-red-500/40 bg-red-500/10 px-3 py-2"
-    >
-      {message}
-    </p>
+    <Alert variant="destructive" role="status">
+      <AlertDescription data-testid="block-error" className="max-w-prose">
+        {message}
+      </AlertDescription>
+    </Alert>
   );
 }
 
@@ -43,38 +51,44 @@ function Rejection({ message }: { message: string }): React.ReactElement {
 function BlockForm({ customerId }: { customerId: number }): React.ReactElement {
   const [state, action, pending] = useActionState(blockCustomerAction, initialBlockState);
   const [reason, setReason] = useState("");
+  const reasonId = useId();
   const empty = reason.trim() === "";
 
   return (
-    <details className="rounded border border-red-500/40">
-      <summary data-testid="block-open" className="cursor-pointer px-4 py-2 font-medium">
+    <details>
+      <summary
+        data-testid="block-open"
+        className={cn(buttonVariants({ variant: "outline" }), SUMMARY)}
+      >
         {de.customers.block.action}
       </summary>
-      <form action={action} className="flex flex-col gap-3 px-4 pb-4">
+      <form action={action} className="mt-3 flex flex-col items-start gap-3">
         <input type="hidden" name="customerId" value={customerId} />
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-foreground/70">{de.customers.block.reasonLabel}</span>
-          <textarea
+        <div className="flex w-full max-w-prose flex-col gap-1">
+          <label htmlFor={reasonId} className="text-sm font-medium">
+            {de.customers.block.reasonLabel}
+          </label>
+          <Textarea
+            id={reasonId}
             name="reason"
             rows={4}
             required
             data-testid="block-reason"
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            className="w-full rounded border border-foreground/20 bg-transparent px-3 py-2"
           />
-          <span className="text-xs text-foreground/60">{de.customers.block.reasonHint}</span>
-        </label>
-        <div>
-          <button
-            type="submit"
-            disabled={empty || pending}
-            data-testid="block-submit"
-            className="rounded bg-red-700 px-6 py-3 font-semibold text-white disabled:opacity-60"
-          >
-            {pending ? de.customers.block.submitting : de.customers.block.submit}
-          </button>
+          <span className="text-xs text-muted-foreground">{de.customers.block.reasonHint}</span>
         </div>
+        {/* `destructive` is a soft tint, not the solid `bg-red-700` this replaced — which was the
+            only solid red in the application and shouted louder than the archive above it. */}
+        <Button
+          type="submit"
+          variant="destructive"
+          disabled={empty || pending}
+          data-testid="block-submit"
+        >
+          {pending ? de.customers.block.submitting : de.customers.block.submit}
+        </Button>
         {state.status === "error" ? <Rejection message={state.message} /> : null}
       </form>
     </details>
@@ -94,20 +108,23 @@ function UnblockForm({
   return (
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="customerId" value={customerId} />
-      <details className="rounded border border-foreground/20">
-        <summary data-testid="unblock-open" className="cursor-pointer px-4 py-2 font-medium">
+      <details>
+        <summary
+          data-testid="unblock-open"
+          className={cn(buttonVariants({ variant: "outline" }), SUMMARY)}
+        >
           {de.customers.block.unblock}
         </summary>
-        <div className="flex flex-col gap-3 px-4 pb-4">
-          <p className="max-w-prose">{de.customers.block.unblockConfirm(reason)}</p>
-          <button
-            type="submit"
-            disabled={pending}
-            data-testid="unblock-submit"
-            className="self-start rounded bg-foreground px-6 py-3 font-semibold text-background disabled:opacity-60"
-          >
+        {/* Neutral, not destructive: lifting a block is consequential but it takes nothing away. */}
+        <div className="mt-3 flex flex-col items-start gap-3">
+          <Alert>
+            <AlertDescription className="max-w-prose">
+              {de.customers.block.unblockConfirm(reason)}
+            </AlertDescription>
+          </Alert>
+          <Button type="submit" disabled={pending} data-testid="unblock-submit">
             {pending ? de.customers.block.unblocking : de.customers.block.unblockSubmit}
-          </button>
+          </Button>
         </div>
       </details>
       {state.status === "error" ? <Rejection message={state.message} /> : null}

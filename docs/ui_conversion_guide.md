@@ -358,6 +358,29 @@ focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:b
   column's real problem is repetition rather than width, fix the cell instead — thirteen noughts down
   a column of fifteen became a muted dash, and the two real tallies became the only thing visible.
 
+## Findings from the two customer screens
+
+- **A `<summary>` that wraps a `CardHeader` must not be `w-fit`.** The danger-zone recipe above adds
+  `w-fit` because a `<summary>` is a block and would otherwise span its container — but when the
+  summary _is_ the card's header, shrinking it to its minimum content width wraps the
+  `CardDescription` into a column. Measured on the archive-search card: **348px tall for two lines
+  of text**, and the card came out at 454px where the flat panel it replaced was 270. Without
+  `w-fit` it is 160. `w-fit` for a control, full width for a header.
+- **A disclosure a spec fills or checks cannot be closed by default.** `locator.fill()` and
+  `locator.check()` require visibility, and an element inside a closed `<details>` has none, so the
+  action retries and times out. `#archiveLastName` and `#group-RED` are both reached by CSS id, so
+  those two disclosures are `<details open>`; the hand-out history, which no spec reaches, is
+  genuinely closed. Grep the specs for the ids before promising a fold.
+- **A restyle that tidies `Feld: Wert` into `Feld Wert` breaks the sweeps.** Four specs assert
+  `getByRole("main")` `toContainText("Kundennummer: 1")`. The record's new identity line dropped the
+  colon for a cleaner line and turned all four red — a failure that names no testid and points at
+  `<main>`, so it reads like a missing element rather than a changed separator. The label and the
+  separator are part of the contract wherever a sweep is how a value is asserted.
+- **`useId` beats the field name for a form's `htmlFor`.** The record carries two forms that both
+  hold a `firstName`; ids taken from the name would collide and point every label at whichever
+  rendered first. Where a spec reaches a field by CSS id — `/kunden/neu` does, sixteen times — the
+  id is load-bearing and stays; where it reaches by testid, generate it.
+
 ## Always drive the screen with `playwright-cli`
 
 **Use the `playwright-cli` skill for every piece of UI work on this project** — building it and
@@ -445,15 +468,13 @@ second time.
 - [x] `/kunden` — the hub itself, per `docs/ui_redesign_kunden_verwalten.md`. Read §7 before touching
       it: it lists the constraints `tests/e2e/customer-list.spec.ts` puts on the screen (the three
       filters cannot become Radix `Select`s, and every `customer-row-*` testid is asserted exactly).
-- [ ] `/kunden/neu`, per `docs/ui_redesign_kunden_neu.md`. Read §7 first: sixteen field `#id`s are
-      filled by CSS id rather than by label, and `registration-error` is the testid of **two**
-      elements that are never on screen together. The pass also makes two extractions the whole
-      conversion has been waiting for — `SHELL`, now copy-pasted into five files, and the `Stat`
-      tile, which exists twice and is wanted four times.
-- [ ] `/kunden/[id]`, per `docs/ui_redesign_kunden_record.md` — the largest screen left, at 3 623px
-      and 72 inputs. It carries `kunden/archive-controls.tsx` and `kunden/block-controls.tsx` with
-      it (see below), and §3.12 lists what has **no** e2e coverage: the entire personal-data form,
-      the hand-out history, the no-show figure and the archived note.
+- [x] `/kunden/neu`, per `docs/ui_redesign_kunden_neu.md`. The form starts at 630px instead of 752,
+      a match row is 56px instead of 280, and the search keeps its criteria. `SHELL` and `Stat` were
+      extracted in this pass (`src/app/shell.ts`, `src/app/stat.tsx`).
+- [x] `/kunden/[id]`, per `docs/ui_redesign_kunden_record.md`. 2 907px instead of 3 623, the four
+      derived figures at 255px instead of 1 537, and the block reason 116px below the status it
+      explains instead of 2 602. It carried `kunden/archive-controls.tsx` and
+      `kunden/block-controls.tsx` with it, in a commit of their own first.
 - [ ] `/kunden/[id]/karte`
 - [x] `/warteliste`, `/warteliste/[entryId]/registrieren`, per `docs/ui_redesign_warteliste.md`. The
       banner wears the hub's emerald, the row is 117px instead of 214, and the promotion screen's
@@ -462,8 +483,6 @@ second time.
 - [x] `/karten-neuausstellung`, per `docs/ui_redesign_karten_neuausstellung.md`. The two count sets
       now line up on one baseline, and a `GROUP_CHANGE` row prints the colour that changed.
 - [ ] `/einstellungen`
-- [ ] `kunden/archive-controls.tsx` + `kunden/block-controls.tsx` — shared by the record **and** the
-      counter, so converting them changes two screens; do it with `/kunden/[id]`, in a commit of
-      their own **first** (`docs/ui_redesign_kunden_record.md` §4.3, §8). Measured on the converted
-      `/ausgabe`, they are 1088×42px bars at `border-radius: 4px` beside a `Card` at 14px and
-      `Button`s at 10px: three radii in one column, on a screen that has already been signed off.
+- [x] `kunden/archive-controls.tsx` + `kunden/block-controls.tsx` — shared by the record **and** the
+      counter. Done first, in a commit of their own; the summaries are now 209×32px at `10px`
+      against the `Card`'s 14, on both screens.

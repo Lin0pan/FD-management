@@ -20,7 +20,7 @@
 import { useActionState, useState } from "react";
 import { de } from "@/i18n/de";
 import { updateDetailsAction } from "./actions";
-import { SaveButton, SaveFeedback, TextField } from "./record-forms";
+import { FormFooter, GRID, SaveButton, SaveFeedback, TextField } from "./record-forms";
 import { initialRecordFormState } from "./record-state";
 
 /** The personal data as the record holds it, every day already written as ISO by the server. */
@@ -51,9 +51,9 @@ export function DetailsEditor({
   return (
     <form action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="customerId" value={customerId} />
-      <p className="max-w-prose text-sm text-foreground/70">{de.customers.record.detailsHint}</p>
+      <p className="max-w-prose text-sm text-muted-foreground">{de.customers.record.detailsHint}</p>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className={GRID}>
         <TextField
           name="firstName"
           testId="details-first-name"
@@ -79,9 +79,10 @@ export function DetailsEditor({
       </div>
 
       <h3 className="text-lg font-semibold">{de.customers.new.addressHeading}</h3>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className={GRID}>
         <TextField
           name="street"
+          span="sm:col-span-2 lg:col-span-6"
           testId="details-street"
           label={de.customers.fields.street}
           value={draft.street}
@@ -89,6 +90,7 @@ export function DetailsEditor({
         />
         <TextField
           name="houseNumber"
+          span="lg:col-span-2"
           testId="details-house-number"
           label={de.customers.fields.houseNumber}
           value={draft.houseNumber}
@@ -96,6 +98,7 @@ export function DetailsEditor({
         />
         <TextField
           name="zip"
+          span="lg:col-span-2"
           testId="details-zip"
           label={de.customers.fields.zip}
           value={draft.zip}
@@ -110,12 +113,14 @@ export function DetailsEditor({
         />
       </div>
 
-      <SaveButton
-        label={de.customers.record.detailsSubmit}
-        pending={pending}
-        testId="details-submit"
-      />
-      <SaveFeedback state={state} testId="details" />
+      <FormFooter>
+        <SaveButton
+          label={de.customers.record.detailsSubmit}
+          pending={pending}
+          testId="details-submit"
+        />
+        <SaveFeedback state={state} testId="details" />
+      </FormFooter>
     </form>
   );
 }

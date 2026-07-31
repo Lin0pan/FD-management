@@ -21,12 +21,33 @@ export interface ArchiveSearchState {
   /** Whether the register held more matches than the list shows — see `MAX_ARCHIVE_SEARCH_RESULTS`. */
   readonly truncated: boolean;
   readonly message?: string;
+  /**
+   * What was actually asked, handed straight back so the panel can put it in the fields again.
+   *
+   * React resets a form once its action resolves, and a reset restores each input from its
+   * `defaultValue` *attribute* — so three `defaultValue=""` inputs came back empty and the screen
+   * showed an answer with the question deleted. Feeding the submitted criteria back through this
+   * makes that same reset restore the question instead, which is the mechanism `group-control.tsx`
+   * relies on from the other side.
+   */
+  readonly criteria: ArchiveSearchCriteria;
 }
+
+/** The three criteria exactly as they were typed — raw strings, never parsed here. */
+export interface ArchiveSearchCriteria {
+  readonly lastName: string;
+  readonly firstName: string;
+  /** `YYYY-MM-DD`, or `""`. Kept as the field submitted it, malformed values included. */
+  readonly birthDate: string;
+}
+
+const NO_CRITERIA: ArchiveSearchCriteria = { lastName: "", firstName: "", birthDate: "" };
 
 export const initialArchiveSearchState: ArchiveSearchState = {
   status: "idle",
   matches: [],
   truncated: false,
+  criteria: NO_CRITERIA,
 };
 
 /**

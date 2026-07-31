@@ -27,8 +27,9 @@
 import { useActionState } from "react";
 import { GROUPS, type Group } from "@/domain/customer/group";
 import { de } from "@/i18n/de";
+import { GROUP_STYLES } from "../../accents";
 import { changeGroupAction } from "./actions";
-import { SaveButton, SaveFeedback } from "./record-forms";
+import { FormFooter, SaveButton, SaveFeedback } from "./record-forms";
 import { initialRecordFormState } from "./record-state";
 
 export function GroupControl({
@@ -48,28 +49,40 @@ export function GroupControl({
     <form action={formAction} className="flex flex-col gap-3">
       <input type="hidden" name="customerId" value={customerId} />
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm text-foreground/70">{de.customers.fields.group}</legend>
-        <div className="flex gap-4">
+        <legend className="text-sm font-medium">{de.customers.fields.group}</legend>
+        {/* Each option wears the colour it names: RED and BLUE *are* the printed cards FD hands
+            out, and the word stays inside the tint rather than being replaced by it (US-03.4). */}
+        <div className="flex flex-wrap gap-2">
           {GROUPS.map((candidate) => (
-            <label key={candidate} className="flex items-center gap-2">
+            <label
+              key={candidate}
+              className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${GROUP_STYLES[candidate]}`}
+            >
               <input
                 type="radio"
                 name="group"
                 value={candidate}
                 data-testid={`group-${candidate}`}
                 defaultChecked={candidate === group}
+                className="accent-current"
               />
               <span>{de.customers.groups[candidate]}</span>
             </label>
           ))}
         </div>
-        <p data-testid="group-sizes" className="text-sm text-foreground/70">
+        <p data-testid="group-sizes" className="text-sm text-muted-foreground">
           {de.customers.record.groupSizes(counts.red, counts.blue)}
         </p>
       </fieldset>
-      <p className="max-w-prose text-sm text-foreground/70">{de.customers.record.groupHint}</p>
-      <SaveButton label={de.customers.record.groupSubmit} pending={pending} testId="group-submit" />
-      <SaveFeedback state={state} testId="group" />
+      <p className="max-w-prose text-sm text-muted-foreground">{de.customers.record.groupHint}</p>
+      <FormFooter>
+        <SaveButton
+          label={de.customers.record.groupSubmit}
+          pending={pending}
+          testId="group-submit"
+        />
+        <SaveFeedback state={state} testId="group" />
+      </FormFooter>
     </form>
   );
 }

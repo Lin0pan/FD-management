@@ -19,15 +19,31 @@
 import Link from "next/link";
 import { readCustomer, type CustomerCardView } from "@/application/customers/read-customer";
 import { readCurrentSettings } from "@/application/settings/read-current-settings";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
 import { DomainError } from "@/domain/errors";
 import { formatEuros } from "@/domain/money";
 import type { Settings } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
+import { GROUP_STYLES } from "../../accents";
+import { SHELL } from "../../shell";
+import { Stat } from "../../stat";
 import { ArchiveControls } from "../archive-controls";
 import { BlockControls } from "../block-controls";
 import { customerDeps } from "../deps";
+import { STATUS_CHROME, StateWord } from "../state-word";
 import { isoDay } from "../neu/registration-input";
 import { DetailsEditor } from "./details-editor";
 import { GroupControl } from "./group-control";
@@ -39,35 +55,27 @@ import { RenewalForm } from "./renewal-form";
 /** The record shows data its own forms write, so it must never be served from a cache. */
 export const dynamic = "force-dynamic";
 
+/**
+ * A label and its value as one fact. A `<p>`, not two stacked `<div>`s: split, a screen reader
+ * reads "Kundennummer" and then "13" with nothing joining them (guide trap 2).
+ */
 function Field({ label, value }: { label: string; value: string }): React.ReactElement {
   return (
-    <p className="rounded border border-foreground/15 px-3 py-2">
-      <span className="text-sm text-foreground/70">{label}: </span>
+    <p className="rounded-lg bg-muted/50 px-4 py-3">
+      <span className="text-sm text-muted-foreground">{label}: </span>
       <span className="font-medium">{value}</span>
     </p>
   );
 }
 
-/** A derived figure, in the same box whether the record is editable or read-only. */
-function Derived({
-  label,
-  value,
-  testId,
-}: {
-  label: string;
-  value: string;
-  testId: string;
-}): React.ReactElement {
-  return (
-    <p className="rounded border border-foreground/15 px-3 py-2">
-      <span className="text-sm text-foreground/70">{label}: </span>
-      <span data-testid={testId} className="font-semibold tabular-nums">
-        {value}
-      </span>
-    </p>
-  );
-}
-
+/**
+ * A section of the record: one card, one form, one save. A card is what says where a form ends —
+ * the screen carries five of them, and their five save buttons used to be five identical slabs at
+ * five unpredictable depths with nothing bounding the form each belonged to.
+ *
+ * The `<h2>` is written out inside `CardTitle`, which is a `div`: without it the record's heading
+ * outline would collapse to its `h1` (guide trap 1).
+ */
 function Section({
   heading,
   children,
@@ -76,17 +84,21 @@ function Section({
   children: React.ReactNode;
 }): React.ReactElement {
   return (
-    <section className="flex flex-col gap-4">
-      <h2 className="text-xl font-semibold">{heading}</h2>
-      {children}
-    </section>
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          <h2>{heading}</h2>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">{children}</CardContent>
+    </Card>
   );
 }
 
 function NotFound(): React.ReactElement {
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-8">
-      <h1 className="text-3xl font-semibold">{de.customers.card.heading}</h1>
+    <main className={SHELL}>
+      <h1 className="text-3xl font-semibold tracking-tight">{de.customers.card.heading}</h1>
       <p className="max-w-prose">{de.customers.errors.notFound}</p>
     </main>
   );
@@ -105,20 +117,30 @@ function ArchivedBanner({
   reason: string | null;
 }): React.ReactElement {
   return (
-    <section
+    // The headline is a real `<h2>` — it was a `<p className="text-2xl font-bold">`, so the single
+    // most important element of this variant of the screen contributed nothing to the outline and
+    // an archived record announced as `h1 → h2 Stammdaten → …` (guide trap 1, from the direction
+    // of a heading never written rather than one a primitive deleted).
+    //
+    // `outline` weight rather than another grey fill on a grey page: being archived is a state, not
+    // an alarm — the household is simply gone.
+    <Alert
       data-testid="archived-banner"
-      className="flex flex-col gap-2 rounded-xl border border-foreground/30 bg-foreground/10 p-6"
+      className="border-foreground/30 ring-0 [&>div]:flex [&>div]:flex-col [&>div]:gap-2"
     >
-      <p className="text-2xl font-bold">{de.customers.archive.bannerHeading}</p>
-      <p data-testid="archived-reason" className="max-w-prose text-lg whitespace-pre-line">
-        {/* The pair is written together and never cleared (US-10.2), so only a hand-edited row can
-            arrive with one of them missing — and then the record says so rather than inventing one. */}
-        {archivedAt === null || reason === null
-          ? de.customers.archive.bannerNoReason
-          : de.customers.archive.bannerDetail(germanDate(archivedAt), reason)}
-      </p>
-      <p className="max-w-prose text-foreground/80">{de.customers.archive.bannerReadOnly}</p>
-    </section>
+      <AlertDescription>
+        <h2 className="text-2xl font-bold text-foreground">{de.customers.archive.bannerHeading}</h2>
+        <p data-testid="archived-reason" className="max-w-prose text-lg whitespace-pre-line">
+          {/* The pair is written together and never cleared (US-10.2), so only a hand-edited row
+              can arrive with one of them missing — and then the record says so rather than
+              inventing one. */}
+          {archivedAt === null || reason === null
+            ? de.customers.archive.bannerNoReason
+            : de.customers.archive.bannerDetail(germanDate(archivedAt), reason)}
+        </p>
+        <p className="max-w-prose">{de.customers.archive.bannerReadOnly}</p>
+      </AlertDescription>
+    </Alert>
   );
 }
 
@@ -127,39 +149,59 @@ function HouseholdReadOnly({ view }: { view: CustomerCardView }): React.ReactEle
   const { composition, household, allowance } = view;
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Derived
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat
           label={de.customers.derived.grownUps}
           value={String(composition.grownUps)}
           testId="grown-ups"
         />
-        <Derived
+        <Stat
           label={de.customers.derived.children}
           value={String(composition.children)}
           testId="children"
         />
-        <Derived
+        <Stat
           label={de.customers.derived.portions}
           value={String(allowance.portions)}
           testId="portions"
         />
-        <Derived
+        <Stat
           label={de.customers.derived.price}
           value={formatEuros(allowance.priceCents)}
           testId="price"
         />
       </div>
-      <ul className="flex flex-col gap-1">
-        {household.map((member, index) => (
-          // Two members can share a name and a birthdate, so the position is the only key there is.
-          <li key={index} data-testid="household-member" className="text-foreground/80">
-            {member.firstName} {member.lastName} — {germanDate(member.birthDate)} (
-            {de.customers.card.memberAge(member.age)})
-          </li>
-        ))}
-      </ul>
-      <p className="text-xs text-foreground/60">{de.customers.derived.hint}</p>
-      <p className="text-xs text-foreground/60">{de.customers.derived.standardValues}</p>
+      {/* The same table as the editable variant, with the values as text — one shape for both, so
+          an archived household is read the same way as an active one. A plain `<th scope="row">`
+          rather than `Label`, which is `"use client"`: this half of the record is server-rendered
+          and has no interactivity to pay a client boundary for. */}
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="w-10">{de.customers.new.memberNumberColumn}</TableHead>
+            <TableHead>{de.customers.fields.firstName}</TableHead>
+            <TableHead>{de.customers.fields.lastName}</TableHead>
+            <TableHead>{de.customers.fields.birthDate}</TableHead>
+            <TableHead className="whitespace-nowrap">{de.customers.record.ageColumn}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {household.map((member, index) => (
+            // Two members can share a name and a birthdate, so the position is the only key there is.
+            <TableRow key={index} data-testid="household-member" className="hover:bg-transparent">
+              <TableCell className="text-muted-foreground tabular-nums">{index + 1}</TableCell>
+              <TableCell>{member.firstName}</TableCell>
+              <TableCell>{member.lastName}</TableCell>
+              <TableCell className="tabular-nums">{germanDate(member.birthDate)}</TableCell>
+              <TableCell className="whitespace-nowrap tabular-nums">
+                {de.customers.card.memberAge(member.age)}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+      <p className="text-xs text-muted-foreground">{de.customers.derived.hint}</p>
+      <p className="text-xs text-muted-foreground">{de.customers.derived.standardValues}</p>
     </>
   );
 }
@@ -173,40 +215,46 @@ function HouseholdReadOnly({ view }: { view: CustomerCardView }): React.ReactEle
 function History({ records }: { records: ReadonlyArray<DistributionRecord> }): React.ReactElement {
   const words = de.customers.record;
   if (records.length === 0) {
+    // An `Alert`, not a bare paragraph: a sentence on its own where a table was expected reads like
+    // a table that failed to load — the same reason `waiting-list-empty` became one.
     return (
-      <p data-testid="history-empty" className="max-w-prose text-foreground/80">
-        {words.historyEmpty}
-      </p>
+      <Alert role="status">
+        <AlertDescription data-testid="history-empty" className="max-w-prose">
+          {words.historyEmpty}
+        </AlertDescription>
+      </Alert>
     );
   }
 
   return (
     <>
-      <table className="w-full border-collapse text-left">
-        <thead>
-          <tr className="border-b border-foreground/20">
-            <th className="py-2 pr-4 font-medium">{words.historyColumns.date}</th>
-            <th className="py-2 pr-4 font-medium">{words.historyColumns.showedUp}</th>
-            <th className="py-2 pr-4 font-medium">{words.historyColumns.paid}</th>
-            <th className="py-2 pr-4 font-medium">{words.historyColumns.price}</th>
-          </tr>
-        </thead>
-        <tbody>
+      {/* No chrome on "Bezahlt: nein". It is 8 of 42 hand-outs across the demo register, which is a
+          badge's worth of rarity — but "Erschienen: nein" is a second exception in the same small
+          table and a no-show is not a debt, so two chromes here would be texture rather than
+          emphasis. The words already say it, which is the requirement. */}
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>{words.historyColumns.date}</TableHead>
+            <TableHead>{words.historyColumns.showedUp}</TableHead>
+            <TableHead>{words.historyColumns.paid}</TableHead>
+            <TableHead>{words.historyColumns.price}</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {records.map((record) => (
-            <tr key={record.id} data-testid="history-row" className="border-b border-foreground/10">
-              <td className="py-2 pr-4 tabular-nums">{germanDate(record.date)}</td>
-              <td className="py-2 pr-4">{record.showedUp ? words.yes : words.no}</td>
-              <td data-testid="history-paid" className="py-2 pr-4">
-                {record.paid ? words.yes : words.no}
-              </td>
-              <td data-testid="history-price" className="py-2 pr-4 tabular-nums">
+            <TableRow key={record.id} data-testid="history-row">
+              <TableCell className="tabular-nums">{germanDate(record.date)}</TableCell>
+              <TableCell>{record.showedUp ? words.yes : words.no}</TableCell>
+              <TableCell data-testid="history-paid">{record.paid ? words.yes : words.no}</TableCell>
+              <TableCell data-testid="history-price" className="tabular-nums">
                 {formatEuros(record.priceCents)}
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
-      <p className="max-w-prose text-xs text-foreground/60">{words.historyHint}</p>
+        </TableBody>
+      </Table>
+      <p className="max-w-prose text-xs text-muted-foreground">{words.historyHint}</p>
     </>
   );
 }
@@ -232,49 +280,140 @@ function CustomerRecord({
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 p-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold">{de.customers.card.heading}</h1>
-        <p className="text-xl">
-          {details.firstName} {details.lastName}
-        </p>
+    <main className={SHELL}>
+      {/*
+       * The `h1` is the household, not the screen. Every record used to be headed
+       * "Kundenübersicht" with the name as a `<p>` below it — but the navigation bar already says
+       * which section you are in, and the one thing this page has that no other page has is *which
+       * household*. `Stammdaten` disappears as a section and nothing in it is lost: the two numbers
+       * and the registration date become the muted line under the name, and the status and the
+       * group become badges beside it, using the same chrome table as /kunden.
+       *
+       * `card-number` and `customer-status` keep their exact text in spans of their own; the labels
+       * and the separators sit outside them, and the badge wraps the span rather than replacing it.
+       */}
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight">
+              {details.firstName} {details.lastName}
+            </h1>
+            <Badge className={GROUP_STYLES[customer.group]}>
+              {de.customers.groups[customer.group]}
+            </Badge>
+            <StateWord
+              word={de.customers.status[customer.status]}
+              testId="customer-status"
+              chrome={STATUS_CHROME[customer.status]}
+            />
+          </div>
+          {/* Each fact keeps the `Feld: Wert` shape the boxes under "Stammdaten" had. It is not
+              only a house style: four specs sweep `getByRole("main")` for "Kundennummer: 1", and
+              dropping the colon for a tidier line turned all four red. The separators and the
+              labels stay *outside* the `card-number` span, which holds exactly its value. */}
+          <p className="text-sm text-muted-foreground">
+            {de.customers.fields.customerNumber}:{" "}
+            <span className="font-medium text-foreground tabular-nums">
+              {customer.customerNumber}
+            </span>
+            {words.identitySeparator}
+            {de.customers.fields.cardNumber}:{" "}
+            <span data-testid="card-number" className="font-medium text-foreground tabular-nums">
+              {cardNumber}
+            </span>
+            {words.identitySeparator}
+            {/* The household's start is their first card, not the one they hold: a card replaced
+                after a loss must not read as a later registration date (US-10.1). */}
+            {de.customers.card.registered}: {germanDate(customer.registeredOn)}
+          </p>
+          {/* Shown only when there is something to see. A zero would be one more number to read
+              past on every record, and it says nothing an archiving decision could rest on. */}
+          {view.consecutiveNoShows === 0 ? null : (
+            <p className="text-sm">
+              <span className="text-muted-foreground">{de.customers.derived.noShows}: </span>
+              <span data-testid="no-shows" className="font-semibold tabular-nums">
+                {de.customers.derived.noShowsValue(view.consecutiveNoShows)}
+              </span>
+            </p>
+          )}
+        </div>
+        {/* The guide's stated exception to "no back-links": this one names a *record* — this
+            household's printed card — which the four-item bar cannot say. It belongs in the header
+            row rather than stranded under the danger zone. */}
+        <Button variant="outline" asChild>
+          <Link href={`/kunden/${customer.id}/karte`} data-testid="card-view-link">
+            {de.customers.card.cardViewLink}
+          </Link>
+        </Button>
       </header>
 
       {archived ? (
         <ArchivedBanner archivedAt={customer.archivedAt} reason={customer.archiveReason} />
       ) : null}
 
-      <Section heading={words.masterDataHeading}>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            label={de.customers.fields.customerNumber}
-            value={String(customer.customerNumber)}
+      {/* The fact belongs where states are stated; the control stays behind the heading that says
+          it is irreversible. It was 2 609px below the status it explains — the same split /kunden
+          and the counter already make, arriving on the screen you go to to find out what happened. */}
+      {customer.status === "BLOCKED" ? (
+        <Alert variant="destructive">
+          <AlertDescription className="max-w-prose whitespace-pre-line">
+            <span className="text-sm">{de.customers.block.currentReason}: </span>
+            <span data-testid="block-reason-current" className="font-medium">
+              {customer.blockReason}
+            </span>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {/*
+       * The sections are ordered the way a record is *read*, which is not the order it is written.
+       *
+       * The previous order — who this is, where they live, who lives with them, what they may
+       * collect — was documented as deliberate, and for a paper record it is right. On screen it
+       * put the least-read section, the address, 480px above the most-read one, and it put the
+       * certificate and the note — which both exist for the counter — below 2 100px. FD were asked
+       * and chose the reading order. Nothing is removed and nothing is renamed; only the order
+       * changes, and it is trivially reversible.
+       */}
+      <Section heading={de.customers.card.householdHeading}>
+        {archived ? (
+          <HouseholdReadOnly view={view} />
+        ) : (
+          <HouseholdEditor
+            customerId={customer.id}
+            members={household.map((member) => ({
+              firstName: member.firstName,
+              lastName: member.lastName,
+              birthDate: isoDay(member.birthDate),
+            }))}
+            today={view.today}
+            policy={policy}
           />
-          <p className="rounded border border-foreground/15 px-3 py-2">
-            <span className="text-sm text-foreground/70">{de.customers.fields.cardNumber}: </span>
-            <span data-testid="card-number" className="font-medium tabular-nums">
-              {cardNumber}
-            </span>
+        )}
+      </Section>
+
+      <Section heading={de.customers.card.certificateHeading}>
+        <p>
+          {details.certificate.type} — {de.customers.card.validUntil}{" "}
+          {germanDate(details.certificate.validUntil)}
+        </p>
+        <p>
+          <span className="text-sm text-muted-foreground">{de.customers.card.reminderCount}: </span>
+          <span data-testid="reminder-count" className="font-medium tabular-nums">
+            {customer.reminderCount}
+          </span>
+        </p>
+        {archived ? null : <RenewalForm customerId={customer.id} />}
+      </Section>
+
+      <Section heading={words.notesHeading}>
+        {archived ? (
+          <p data-testid="notes-text" className="max-w-prose whitespace-pre-line">
+            {details.notes === "" ? words.notesEmpty : details.notes}
           </p>
-          <p className="rounded border border-foreground/15 px-3 py-2">
-            <span className="text-sm text-foreground/70">{de.customers.fields.status}: </span>
-            <span data-testid="customer-status" className="font-medium">
-              {de.customers.status[customer.status]}
-            </span>
-          </p>
-          {/* The household's start is their first card, not the one they hold: a card replaced after
-              a loss must not read as a later registration date (US-10.1). */}
-          <Field label={de.customers.card.registered} value={germanDate(customer.registeredOn)} />
-          {/* Shown only when there is something to see. A zero would be one more number to read past
-              on every record, and it says nothing an archiving decision could rest on (PRD §5). */}
-          {view.consecutiveNoShows === 0 ? null : (
-            <Derived
-              label={de.customers.derived.noShows}
-              value={de.customers.derived.noShowsValue(view.consecutiveNoShows)}
-              testId="no-shows"
-            />
-          )}
-        </div>
+        ) : (
+          <NotesEditor customerId={customer.id} notes={details.notes} />
+        )}
       </Section>
 
       <Section heading={words.detailsHeading}>
@@ -306,23 +445,6 @@ function CustomerRecord({
         )}
       </Section>
 
-      <Section heading={de.customers.card.householdHeading}>
-        {archived ? (
-          <HouseholdReadOnly view={view} />
-        ) : (
-          <HouseholdEditor
-            customerId={customer.id}
-            members={household.map((member) => ({
-              firstName: member.firstName,
-              lastName: member.lastName,
-              birthDate: isoDay(member.birthDate),
-            }))}
-            today={view.today}
-            policy={policy}
-          />
-        )}
-      </Section>
-
       <Section heading={words.groupHeading}>
         {archived ? (
           <Field label={de.customers.fields.group} value={de.customers.groups[customer.group]} />
@@ -331,36 +453,24 @@ function CustomerRecord({
         )}
       </Section>
 
-      <Section heading={de.customers.card.certificateHeading}>
-        <p>
-          {details.certificate.type} — {de.customers.card.validUntil}{" "}
-          {germanDate(details.certificate.validUntil)}
-        </p>
-        <p className="text-foreground/80">
-          <span className="text-sm text-foreground/70">{de.customers.card.reminderCount}: </span>
-          <span data-testid="reminder-count" className="font-medium tabular-nums">
-            {customer.reminderCount}
-          </span>
-        </p>
-        {archived ? null : <RenewalForm customerId={customer.id} />}
-      </Section>
-
-      <Section heading={words.notesHeading}>
-        {archived ? (
-          <p
-            data-testid="notes-text"
-            className="max-w-prose whitespace-pre-line text-foreground/80"
-          >
-            {details.notes === "" ? words.notesEmpty : details.notes}
-          </p>
-        ) : (
-          <NotesEditor customerId={customer.id} notes={details.notes} />
-        )}
-      </Section>
-
-      <Section heading={words.historyHeading}>
-        <History records={view.history} />
-      </Section>
+      {/* A disclosure, per FD: on a two-year-old record this is fifty rows of something consulted
+          only when a visit is disputed, and nothing in the suite reaches it (§3.12), so unlike the
+          archive search it can genuinely be closed. */}
+      <Card>
+        <details>
+          <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            <CardHeader>
+              <CardTitle>
+                <h2>{words.historyHeading}</h2>
+              </CardTitle>
+              <CardDescription>{words.historyDisclosure}</CardDescription>
+            </CardHeader>
+          </summary>
+          <CardContent className="mt-6 flex flex-col gap-4">
+            <History records={view.history} />
+          </CardContent>
+        </details>
+      </Card>
 
       {/* Every irreversible action on one household, together and behind a heading that says what
           they are — so none of them is a stray click away from the household editor (PRD §6). Each
@@ -368,52 +478,43 @@ function CustomerRecord({
           way back out of ARCHIVED, they hold no slot and they are issued no card. */}
       {archived ? null : (
         <Section heading={words.dangerHeading}>
-          <p className="max-w-prose text-sm text-foreground/70">{words.dangerHint}</p>
+          <p className="max-w-prose text-sm text-muted-foreground">{words.dangerHint}</p>
 
-          <div className="flex flex-col gap-3 rounded-xl border border-foreground/20 p-4">
-            <h3 className="text-lg font-semibold">{de.customers.reissue.heading}</h3>
-            <ReissueControls
-              customerId={customer.id}
-              cardNumber={cardNumber}
-              nextCardNumber={nextCardNumber}
-            />
+          {/* One card holds the section already, so the inner frame goes: it was one more bordered
+              box on a screen whose only bordered things were 22 hairlines. The three `<h3>`s stay —
+              they are what says which control is which. */}
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-3">
+              <h3 className="text-lg font-semibold">{de.customers.reissue.heading}</h3>
+              <ReissueControls
+                customerId={customer.id}
+                cardNumber={cardNumber}
+                nextCardNumber={nextCardNumber}
+              />
+            </div>
 
-            <h3 className="text-lg font-semibold">{de.customers.block.heading}</h3>
-            {customer.status === "BLOCKED" ? (
-              <p className="max-w-prose rounded border border-red-500/40 bg-red-500/10 px-3 py-2 whitespace-pre-line">
-                <span className="text-sm text-foreground/70">
-                  {de.customers.block.currentReason}:{" "}
-                </span>
-                <span data-testid="block-reason-current" className="font-medium">
-                  {customer.blockReason}
-                </span>
-              </p>
-            ) : null}
-            <BlockControls
-              customerId={customer.id}
-              status={customer.status}
-              blockReason={customer.blockReason}
-            />
+            <div className="flex flex-col gap-3">
+              <h3 className="text-lg font-semibold">{de.customers.block.heading}</h3>
+              {/* The reason is stated once, under the header — duplicating it here would make
+                  `block-reason-current` strict-mode-ambiguous as well as saying it twice. */}
+              <BlockControls
+                customerId={customer.id}
+                status={customer.status}
+                blockReason={customer.blockReason}
+              />
+            </div>
 
-            <h3 className="text-lg font-semibold">{de.customers.archive.heading}</h3>
-            <ArchiveControls
-              customerId={customer.id}
-              customerNumber={customer.customerNumber}
-              status={customer.status}
-            />
+            <div className="flex flex-col gap-3">
+              <h3 className="text-lg font-semibold">{de.customers.archive.heading}</h3>
+              <ArchiveControls
+                customerId={customer.id}
+                customerNumber={customer.customerNumber}
+                status={customer.status}
+              />
+            </div>
           </div>
         </Section>
       )}
-
-      <div className="flex flex-wrap gap-6">
-        <Link
-          href={`/kunden/${customer.id}/karte`}
-          className="underline underline-offset-4"
-          data-testid="card-view-link"
-        >
-          {de.customers.card.cardViewLink}
-        </Link>
-      </div>
     </main>
   );
 }

@@ -14,8 +14,10 @@
  * criteria are not part of the registration that gets saved.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { RegistrationProposal } from "@/application/customers/propose-registration";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { ArchiveSearchPanel, type ArchiveSelection } from "./archive-search-panel";
@@ -36,41 +38,66 @@ export function RegistrationScreen({
     setFormGeneration((generation) => generation + 1);
   }
 
+  /**
+   * Put the cursor in the first field after a household has been applied.
+   *
+   * The pre-fill lands ~700px below the fold and moves the page not at all, so without this the
+   * only evidence of a click is a notice that has scrolled halfway into view. Focusing the field
+   * scrolls the form into view and says "you can start typing" in the same gesture — the counter's
+   * refocus after a lookup, for the same reason.
+   *
+   * `formGeneration` is what makes it fire at the right moment: the form is remounted on every
+   * apply, so the new `#firstName` does not exist until that render has happened. `selection` is a
+   * dependency too, and harmlessly — `apply` is the only thing that sets either, and it sets both
+   * together. The guard is what stops the first paint and "leer beginnen" stealing the focus:
+   * clearing a pre-fill is a step backwards, and the cursor should stay where staff put it.
+   */
+  useEffect(() => {
+    if (selection === null) {
+      return;
+    }
+    document.getElementById("firstName")?.focus();
+  }, [formGeneration, selection]);
+
   const words = de.customers.archiveSearch.prefilled;
 
   return (
-    <div className="flex flex-col gap-8">
-      <ArchiveSearchPanel onSelect={apply} />
+    <div className="flex flex-col gap-6">
+      <ArchiveSearchPanel
+        onSelect={apply}
+        appliedCustomerId={selection?.match.customerId ?? null}
+      />
 
       {selection === null ? null : (
         // Stated before the form and not inside it, because it is not about any one field: the
         // riskiest mistake this feature can produce is a staff member believing the archived record
         // was reactivated (PRD §6), and the correction has to be read before the form is.
-        <section
-          role="status"
-          data-testid="archive-prefill-notice"
-          className="flex max-w-prose flex-col gap-3 rounded border border-amber-500/40 bg-amber-500/10 px-4 py-3"
-        >
-          <h2 className="font-semibold">{words.heading}</h2>
-          <p data-testid="archive-prefill-detail">
-            {words.detail(
-              `${selection.match.firstName} ${selection.match.lastName}`,
-              selection.match.formerCustomerNumber,
-              germanDate(selection.match.archivedAt),
-            )}
-          </p>
-          <p className="text-sm text-foreground/70">{words.editableHint}</p>
-          <div>
-            <button
+        //
+        // Neutral, not amber. Amber means one thing across the application — a certificate has
+        // lapsed — and this is not a warning at all: it is a statement of provenance with an undo
+        // attached. The `<h2>` stays, because `Alert` supplies no heading of its own.
+        <Alert role="status" data-testid="archive-prefill-notice">
+          <AlertDescription className="flex max-w-prose flex-col items-start gap-3">
+            <h2 className="font-semibold text-foreground">{words.heading}</h2>
+            <p data-testid="archive-prefill-detail">
+              {words.detail(
+                `${selection.match.firstName} ${selection.match.lastName}`,
+                selection.match.formerCustomerNumber,
+                germanDate(selection.match.archivedAt),
+              )}
+            </p>
+            <p className="text-sm">{words.editableHint}</p>
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               data-testid="archive-prefill-clear"
               onClick={() => apply(null)}
-              className="rounded border border-foreground/20 px-3 py-1 text-sm"
             >
               {words.clear}
-            </button>
-          </div>
-        </section>
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       <RegistrationForm

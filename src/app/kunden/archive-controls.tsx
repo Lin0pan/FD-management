@@ -16,9 +16,13 @@
  * the household's own record stays reachable while it is open.
  */
 
-import { useActionState, useState } from "react";
+import { useActionState, useId, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import { de } from "@/i18n/de";
+import { cn } from "@/lib/utils";
 import { archiveCustomerAction } from "./archive-actions";
 import { initialArchiveState } from "./archive-state";
 
@@ -34,6 +38,7 @@ export function ArchiveControls({
 }): React.ReactElement | null {
   const [state, action, pending] = useActionState(archiveCustomerAction, initialArchiveState);
   const [reason, setReason] = useState("");
+  const reasonId = useId();
 
   // An archived household has nowhere left to go: there is no transition out of ARCHIVED, so the
   // control is absent rather than disabled. A blocked one may still leave the register.
@@ -42,49 +47,57 @@ export function ArchiveControls({
   }
 
   return (
-    <details className="rounded border border-foreground/20">
-      <summary data-testid="archive-open" className="cursor-pointer px-4 py-2 font-medium">
+    <details>
+      {/* Closed, this must read as the control it is rather than as a collapsed section spanning
+          the row — the recipe from `/karten-neuausstellung`. `w-fit` because a `<summary>` is a
+          block; `list-none` and the webkit override remove the triangle the variant does not. */}
+      <summary
+        data-testid="archive-open"
+        className={cn(
+          buttonVariants({ variant: "outline" }),
+          "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden",
+        )}
+      >
         {de.customers.archive.action}
       </summary>
-      <form action={action} className="flex flex-col gap-3 px-4 pb-4">
+      <form action={action} className="mt-3 flex flex-col items-start gap-3">
         <input type="hidden" name="customerId" value={customerId} />
-        <p
-          data-testid="archive-confirm"
-          className="max-w-prose rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2"
-        >
-          {de.customers.archive.confirm(customerNumber)}
-        </p>
-        <label className="flex flex-col gap-1">
-          <span className="text-sm text-foreground/70">{de.customers.archive.reasonLabel}</span>
-          <textarea
+        {/* Destructive rather than amber: amber is the lapsed certificate, application-wide, and
+            this is the one step on the card that cannot be typed over afterwards. */}
+        <Alert variant="destructive">
+          <AlertDescription data-testid="archive-confirm" className="max-w-prose">
+            {de.customers.archive.confirm(customerNumber)}
+          </AlertDescription>
+        </Alert>
+        <div className="flex w-full max-w-prose flex-col gap-1">
+          <label htmlFor={reasonId} className="text-sm font-medium">
+            {de.customers.archive.reasonLabel}
+          </label>
+          <Textarea
+            id={reasonId}
             name="reason"
             rows={3}
             required
             data-testid="archive-reason"
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            className="w-full rounded border border-foreground/20 bg-transparent px-3 py-2"
           />
-          <span className="text-xs text-foreground/60">{de.customers.archive.reasonHint}</span>
-        </label>
-        <div>
-          <button
-            type="submit"
-            disabled={reason.trim() === "" || pending}
-            data-testid="archive-submit"
-            className="rounded bg-foreground px-6 py-3 font-semibold text-background disabled:opacity-60"
-          >
-            {pending ? de.customers.archive.submitting : de.customers.archive.submit}
-          </button>
+          <span className="text-xs text-muted-foreground">{de.customers.archive.reasonHint}</span>
         </div>
+        <Button
+          type="submit"
+          variant="destructive"
+          disabled={reason.trim() === "" || pending}
+          data-testid="archive-submit"
+        >
+          {pending ? de.customers.archive.submitting : de.customers.archive.submit}
+        </Button>
         {state.status === "error" ? (
-          <p
-            role="status"
-            data-testid="archive-error"
-            className="max-w-prose rounded border border-red-500/40 bg-red-500/10 px-3 py-2"
-          >
-            {state.message}
-          </p>
+          <Alert variant="destructive" role="status">
+            <AlertDescription data-testid="archive-error" className="max-w-prose">
+              {state.message}
+            </AlertDescription>
+          </Alert>
         ) : null}
       </form>
     </details>

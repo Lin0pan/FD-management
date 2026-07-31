@@ -4,7 +4,8 @@ A UX analysis of the registration screen as it stands today, and a concept for r
 shadcn/ui primitives — the fifth screen in the conversion `docs/ui_conversion_guide.md` describes,
 after the `/ausgabe` pilot, `/kunden`, `/warteliste` and `/karten-neuausstellung`.
 
-**Status:** concept. Nothing here is built.
+**Status:** built. See `docs/ui_conversion_guide.md` for the outcome and the numbers;
+the open questions in §11 were put to FD and their answers are recorded in §12.
 
 Read `docs/ui_redesign_kunden_record.md` alongside this. The two screens are the same household seen
 before and after it joins the register, they share three components that are converted once, and the
@@ -633,3 +634,48 @@ register back.
 4. **The certificate at intake.** `Bedarfsnachweis` is two fields and 102px between two much larger
    sections. Would FD rather it sat beside the personal data, given it is the thing that decides
    whether the household may be registered at all?
+
+---
+
+## 12. What was decided, and what was built
+
+FD were asked the questions in §11 before any code was written. Their answers:
+
+| Question                                     | Answer                                                              |
+| -------------------------------------------- | ------------------------------------------------------------------- |
+| §11.1 Is the archive search used?            | Fold it away — but see the caveat below                             |
+| §11.2 `Bemerkung` at intake                  | Keep it, at the end of the merged card, full width                  |
+| §11.3 Does the group ever get overridden?    | Fold the radios away — **not built**, see below                     |
+| §11.4 The certificate at intake              | Move it beside the personal data, in the merged card                |
+| §8 ⚠️ The full-register alert under the `h1` | Yes, with a plain link to `/warteliste` — no fragment, no spec edit |
+
+**The archive search is `<details open>`, not closed.** Three specs reach `#archiveLastName` and
+`#group-RED` by CSS id, and an element inside a closed `<details>` is invisible to `fill()` and
+`check()`, which then retry and time out. Closing it by default therefore needs
+`reregistration.spec.ts`, `archive.spec.ts` and `card.spec.ts` edited — the third-commit-with-its-own-
+argument this document reserves for exactly that. The fold exists and staff may use it; the default
+state is the one the contract requires. §4.2b's argument against closing it (a control that must be
+opened is one that will be forgotten on the day it matters, which is the whole of US-11) still stands
+and should be put to FD again with the screen in front of them.
+
+**The group radios were not folded away** for the same reason and with less to gain: a disclosure
+around two radios that has to be open by default is noise. They wear `GROUP_STYLES` instead, which
+was the other half of §3.11.
+
+### Numbers, before and after
+
+| Claim                                         | Before  | Target | After |
+| --------------------------------------------- | ------- | ------ | ----- |
+| Top of `#firstName`, banner on screen         | 752px   | ≤ 560  | 630   |
+| Archive panel height, idle                    | 270px   | ≈ 150  | 160   |
+| One match row, closed                         | 280px   | ≈ 64   | 56    |
+| Page scroll height, empty form                | 1 838px | ≤ 1250 | 1 627 |
+| Household row: first input vs. its neighbours | +20px   | 0      | 0     |
+| Content box left edge vs. the nav's           | +128px  | 0      | 0     |
+| Headings on the screen                        | 8       | —      | 6     |
+
+Two targets were not reached, and the arithmetic rather than a quiet drop: §10's budget for
+`#firstName` left out the page's own intro paragraph (~48px plus its gap), which §5 says to keep, and
+the card's content padding above the first field (~24px). 549 + 80 = 629 against a measured 630. The
+page-height target fails for the same reason at scale — four card headers and four card paddings are
+~360px the flat sections did not spend, and they are what makes each form's extent legible.

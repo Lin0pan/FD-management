@@ -14,7 +14,8 @@
 import { useActionState, useState } from "react";
 import { de } from "@/i18n/de";
 import { updateNotesAction } from "./actions";
-import { SaveButton, SaveFeedback } from "./record-forms";
+import { Textarea } from "@/components/ui/textarea";
+import { FormFooter, SaveButton, SaveFeedback } from "./record-forms";
 import { initialRecordFormState } from "./record-state";
 
 export function NotesEditor({
@@ -30,20 +31,28 @@ export function NotesEditor({
   return (
     <form action={formAction} className="flex flex-col gap-3">
       <input type="hidden" name="customerId" value={customerId} />
-      <label className="flex flex-col gap-1">
-        <span className="text-sm text-foreground/70">{de.customers.fields.notes}</span>
-        <textarea
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="notes-editor-field" className="text-sm font-medium">
+          {de.customers.fields.notes}
+        </label>
+        <Textarea
+          id="notes-editor-field"
           name="notes"
           rows={4}
           data-testid="notes-field"
           value={text}
           onChange={(event) => setText(event.target.value)}
-          className="w-full rounded border border-foreground/20 bg-transparent px-3 py-2"
         />
-      </label>
-      <p className="max-w-prose text-sm text-foreground/70">{de.customers.record.notesHint}</p>
-      <SaveButton label={de.customers.record.notesSubmit} pending={pending} testId="notes-submit" />
-      <SaveFeedback state={state} testId="notes" />
+      </div>
+      <p className="max-w-prose text-sm text-muted-foreground">{de.customers.record.notesHint}</p>
+      <FormFooter>
+        <SaveButton
+          label={de.customers.record.notesSubmit}
+          pending={pending}
+          testId="notes-submit"
+        />
+        <SaveFeedback state={state} testId="notes" />
+      </FormFooter>
     </form>
   );
 }
