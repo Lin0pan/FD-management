@@ -113,6 +113,28 @@ you delete an element, ask what it was telling a screen reader, and put that bac
    a `<p>`, or use a real `<table>` with `<th scope="row">` (which announces the row header with the
    cell, and is better than what it replaced).
 
+## A sticky table header inside a scroll container does not stick
+
+`/kunden` carries a `<thead className="sticky top-0">` and a comment explaining that at 240 rows the
+columns are otherwise unreadable halfway down. **It has never worked**, and nothing said so: measured
+at 1440×500 scrolled to y=841, the header's `getBoundingClientRect().top` is `-213` — it has left the
+window with the rows.
+
+Two causes, and a conversion has to fix both or neither is worth doing:
+
+1. The table sits in `overflow-x-auto`. When one axis is not `visible` the other computes to `auto`,
+   so that div is a **scroll container**, and `sticky` inside it sticks to _that_ container's
+   scrollport — which is as tall as the whole table and never scrolls internally. The header
+   therefore never engages while the page scrolls. **shadcn's `Table` wraps itself the same way**
+   (`data-slot="table-container"`, `relative w-full overflow-x-auto`), so converting to the primitive
+   preserves the bug rather than fixing it.
+2. `top-0` is the wrong offset anyway. `<Nav>` is `sticky top-0 z-40` and `h-12`, so a header that did
+   stick would park underneath it. Use `top-12`, an **opaque** `bg-background` (the nav is
+   translucent, and rows read through it), and a `z-10` that sits above the rows and below the bar.
+
+The check is one scroll in `playwright-cli`, and it is not optional on any screen with a long table:
+scroll to the bottom of the list and confirm the header is still there and still opaque.
+
 ## Findings from the pilot
 
 - **`radix-nova` is compact.** `Button`/`Input` default to `h-8`, `Card` is `text-sm`. Where a control
@@ -188,7 +210,10 @@ checked.
 - [x] Global chrome — the navigation bar in `src/app/nav.tsx`, worn by every screen from
       `src/app/layout.tsx`.
 - [ ] `/` home
-- [ ] `/kunden`, `/kunden/[id]`, `/kunden/[id]/karte`, `/kunden/neu`
+- [ ] `/kunden`, `/kunden/[id]`, `/kunden/[id]/karte`, `/kunden/neu` — `/kunden` is analysed and
+      planned in `docs/ui_redesign_kunden_verwalten.md`; read it before starting, particularly §7,
+      which lists the constraints `tests/e2e/customer-list.spec.ts` puts on the conversion (the three
+      filters cannot become Radix `Select`s).
 - [ ] `/warteliste`, `/warteliste/[entryId]/registrieren`
 - [ ] `/karten-neuausstellung`
 - [ ] `/einstellungen`
