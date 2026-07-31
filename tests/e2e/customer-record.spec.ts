@@ -372,6 +372,11 @@ test.describe("Kundenakte pflegen", () => {
       de.customers.derived.countsValue(1, 2),
     );
     await expect(row.getByTestId("cards-due-reason")).toHaveText(de.cardsDue.reasons.GROUP_CHANGE);
+
+    // ...and because they agree, the row has to print the thing that does not: the colour on the
+    // card against the colour the household is in today. Both in words, never only as a tint.
+    await expect(row.getByTestId("cards-due-group-on-card")).toHaveText(de.customers.groups.BLUE);
+    await expect(row.getByTestId("cards-due-group-today")).toHaveText(de.customers.groups.RED);
   });
 
   test("a note written on the record is read out at the counter", async ({ page }) => {
