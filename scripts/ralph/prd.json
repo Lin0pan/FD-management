@@ -65,8 +65,8 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Docs only — no source and no spec file touched. ui_redesign_kunden_neu.md §12 now reads 'The archive search is a closed <details>', names reregistration.spec.ts and its click on archive-search-open as the spec edit that made it possible, and records that archive.spec.ts and card.spec.ts needed no edit after all (they reach #group-RED, and the group radios were never folded). §12 gained a second numbers table with the US-19 measurements — top of #firstName 752 -> 630 -> 548 against a <= 470 target, archive card 270 -> 160 -> 78 against <= 90 — plus the breakdown showing why the two targets could not both hold. §4.2b is kept and answered rather than deleted: its heading carries a superseded marker pointing forward, and a blockquote states that the risk stands and the mitigation is the question in the summary. ui_conversion_guide.md's finding is now 'cannot be closed by default until the spec opens it' and carries the two rules that make the edit honest (a real click, never evaluate(d => d.open = true); check for a key before assuming one click per load suffices). Also added the panel's closed default to technical_documentation.md, which described everything about the panel except that. format:check, typecheck and lint pass."
     }
   ]
 }

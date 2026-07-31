@@ -366,11 +366,19 @@ focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:b
   `CardDescription` into a column. Measured on the archive-search card: **348px tall for two lines
   of text**, and the card came out at 454px where the flat panel it replaced was 270. Without
   `w-fit` it is 160. `w-fit` for a control, full width for a header.
-- **A disclosure a spec fills or checks cannot be closed by default.** `locator.fill()` and
-  `locator.check()` require visibility, and an element inside a closed `<details>` has none, so the
-  action retries and times out. `#archiveLastName` and `#group-RED` are both reached by CSS id, so
-  those two disclosures are `<details open>`; the hand-out history, which no spec reaches, is
-  genuinely closed. Grep the specs for the ids before promising a fold.
+- **A disclosure a spec fills or checks cannot be closed by default _until the spec opens it_.**
+  `locator.fill()` and `locator.check()` require visibility, and an element inside a closed
+  `<details>` has none, so the action retries and times out. Grep the specs for the ids before
+  promising a fold: that is what the fold costs, and the price is paid in spec edits, not in
+  `className`. The archive search on `/kunden/neu` shipped as `<details open>` for this reason and is
+  **now closed** (US-19) — `tests/e2e/reregistration.spec.ts` is the only spec that fills it, and its
+  `searchArchive` helper clicks `getByTestId("archive-search-open")`, then waits for
+  `#archiveLastName` to be visible, before typing. Two rules make that edit honest: give the
+  `<summary>` a testid of its own and click it **for real**, never `evaluate(d => d.open = true)` — a
+  fold that silently stopped opening has to turn the suite red — and check whether the panel sits
+  under a `key`, because a `<details>` keeps `open` through any re-render and only a remount closes
+  it, so one click per page load is enough (on `/kunden/neu` the `key` is on the registration form,
+  not the panel). The hand-out history, which no spec reaches, was closed from the start.
 - **A restyle that tidies `Feld: Wert` into `Feld Wert` breaks the sweeps.** Four specs assert
   `getByRole("main")` `toContainText("Kundennummer: 1")`. The record's new identity line dropped the
   colon for a cleaner line and turned all four red — a failure that names no testid and points at

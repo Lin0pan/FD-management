@@ -73,6 +73,13 @@ The Next.js, i18n, e2e and playwright entries are the ones that apply.)
   on `/kunden/neu` the `key` is on the registration form, so a search and a pre-fill both leave the
   archive panel open, and the e2e helper may click the summary once per page load rather than guard
   against re-closing it.
+- A UI decision has to reach THREE documents, not two: the screen's `docs/ui_redesign_*.md` (§12,
+  "what was decided and built", plus its numbers table), `docs/ui_conversion_guide.md` (the finding,
+  if the decision changes one), and `docs/technical_documentation.md`'s per-file bullet, where a
+  default state (open/closed, persisted or not) belongs. And when a document says "this could not be
+  done because X", closing it out means re-checking X — §12 named three blocking specs and only one
+  was. Answer a superseded argument in place rather than deleting it: it is the only record of what
+  the change risks.
 - A height budget stated in a PRD is worth re-deriving before trusting it. Measure the whole stack
   (page header / banner / the folded card / the form's own header), not just the target element:
   US-19's `<= 470px` subtracted the archive card's WHOLE 160px for a fold that leaves a 78px header
@@ -376,5 +383,41 @@ The Next.js, i18n, e2e and playwright entries are the ones that apply.)
     only the target element — the breakdown is what shows which criterion was miscomputed.
   - Mobile widths measure differently and are not what these criteria are about: at 390px the closed
     card is 98px because the question wraps to two lines. The stated viewport is part of the number.
+
+---
+
+## 2026-07-31 22:55 - US-003 (US-19 documentation) — the fold is written down
+
+- `docs/ui_redesign_kunden_neu.md` §12: "The archive search is `<details open>`, not closed" becomes
+  "The archive search is a closed `<details>`", naming `tests/e2e/reregistration.spec.ts` and its
+  click on `archive-search-open` as the spec edit that made it possible, and correcting the old
+  claim that three specs stood in the way — only that one fills the panel; `archive.spec.ts` and
+  `card.spec.ts` reach `#group-RED`, and the group radios were never folded.
+- §12 gained a second numbers table for US-19 (top of `#firstName` 752 -> 630 -> 548 against a
+  <= 470 target; archive card 270 -> 160 -> 78 against <= 90) with the stack breakdown that shows
+  why the two targets contradict each other, and the 390px caveat.
+- §4.2b is answered, not deleted: the heading keeps "and stays open" with a superseded marker, and a
+  blockquote below states that the risk it names (a control that must be opened is one that will be
+  forgotten, which is the whole of US-11) still stands and that the mitigation is the question in
+  the summary — one line of prompt, with auto-opening as the next step if a household is missed.
+- `docs/ui_conversion_guide.md`: the finding is now "cannot be closed by default **until the spec
+  opens it**", with the two rules that make such an edit honest — a real click on a `<summary>` that
+  has its own testid, never `evaluate(d => d.open = true)`; and check for a `key` on the panel
+  before assuming one click per page load is enough.
+- `docs/technical_documentation.md`: the `archive-search-panel.tsx` bullet said everything about the
+  panel except that it is now closed by default and how a spec reaches it. Added.
+- No source file and no spec file changed. `format:check`, `typecheck` and `lint` pass.
+
+- **Learnings for future iterations:**
+  - A superseded argument in a design document is worth more answered than deleted: §4.2b is the
+    only record of what the fold risks, and US-19's mitigation is only legible next to it. Mark the
+    stale headline claim in place and put the answer underneath — deleting it would make the next
+    reader re-derive the decision from nothing.
+  - A doc that records "why this could not be done" ages into a false claim the moment it is done.
+    §12 asserted that THREE specs blocked the fold; only one did. When closing out such a note,
+    re-grep the ids it names rather than inverting the sentence.
+  - `docs/technical_documentation.md` is the third document a UI decision has to reach — the two
+    redesign/guide documents are the ones a PRD names, but the per-file bullets in §"app" are what a
+    developer reads first, and a default state (open/closed, persisted or not) belongs there.
 
 ---

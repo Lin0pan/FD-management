@@ -1692,6 +1692,12 @@ beyond it:
   believing the old record was reactivated (PRD §6).
 - **`neu/archive-search-panel.tsx`** is a **sibling** of the registration form, never nested in it:
   HTML forms do not nest, and the search criteria are not part of the registration that gets saved.
+  It is a **closed** `<details>` (US-19): the state is not persisted, so every load of `/kunden/neu`
+  starts closed, and the `<summary>` carries the question — "War dieser Haushalt schon einmal
+  aufgenommen?" — rather than only the feature name, so the prompt to check the archive is on screen
+  while the panel is folded. `tests/e2e/reregistration.spec.ts` opens it by clicking
+  `data-testid="archive-search-open"`; anything else that has to fill the panel must do the same,
+  because a control inside a closed `<details>` has no bounding box.
   Searching is a `useActionState` form; picking a result is an ordinary button that awaits
   `loadArchivedDraft` and hands the draft upwards through `onSelect`. Each row shows the former
   customer number under a label that says _frühere_, with the sentence explaining that the number was
