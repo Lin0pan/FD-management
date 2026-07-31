@@ -15,7 +15,14 @@ import { proposeRegistration } from "@/application/customers/propose-registratio
 import { listWaiting, type WaitingListPlace } from "@/application/waiting-list/list-waiting";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
@@ -153,16 +160,26 @@ export default async function WaitingListPage(): Promise<React.ReactElement> {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-semibold tracking-tight">{de.waitingList.heading}</h1>
       </div>
-      <p className="max-w-prose text-muted-foreground">{de.waitingList.intro}</p>
-      <p data-testid="waiting-list-order-rule" className="max-w-prose text-muted-foreground">
-        {de.waitingList.orderRule}
-      </p>
-
       {slotIsFree ? <FreeSlotBanner head={head} customerNumber={freeNumber} /> : null}
 
       {/* One card with divided rows rather than a card per applicant: fifteen nested rounded boxes
           read as a pile of panels, and this is a list. */}
       <Card>
+        {/* A real <h2> for the list, which it never had: its applicants were announced as
+            subordinate to "Ein Platz ist frei", which is untrue of all but one of them. The order
+            rule is its description rather than a paragraph two blocks above with a banner in
+            between — it is the fairness contract, and it belongs against the rows it governs. */}
+        <CardHeader className="border-b">
+          <CardTitle className="text-lg">
+            <h2>{de.waitingList.listTitle}</h2>
+          </CardTitle>
+          <CardDescription data-testid="waiting-list-order-rule" className="max-w-prose">
+            {de.waitingList.orderRule}
+          </CardDescription>
+          <CardAction className="text-sm text-muted-foreground">
+            {de.waitingList.waitingCount(places.length)}
+          </CardAction>
+        </CardHeader>
         <CardContent>
           {places.length === 0 ? (
             <Alert role="status">
