@@ -420,6 +420,48 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
     );
   });
 
+  test("Erwachsene und Kinder teilen eine Spalte und bleiben doch zwei Angaben", async ({
+    page,
+  }) => {
+    // The two counts were merged into one cell to give the name column back the 174px that two long
+    // German headings were costing it. They are still two facts — a screen reader announces them
+    // apart, and every other screen states them apart — so the cell holds two spans and not one
+    // string reading "1 + 1". Nothing else in the suite watches that: collapsing them would be
+    // invisible on a green run, and it is exactly the shortcut a later tidy-up would take.
+    await page.goto("/kunden");
+    const household = row(page, NUMBERS.searched);
+
+    await expect(household.getByTestId("customer-row-grown-ups")).toHaveText("1");
+    await expect(household.getByTestId("customer-row-children")).toHaveText("1");
+  });
+
+  test("eine Erinnerungszahl von null steht als Strich, eine gezählte als Zahl", async ({
+    page,
+  }) => {
+    // Thirteen noughts down a column of fifteen is noise a reader has to look past to find the rows
+    // where somebody was actually reminded. The dash says "nothing here" without competing for the
+    // eye — but only if a real tally still reads as its number.
+    await page.goto("/kunden");
+
+    await expect(row(page, NUMBERS.searched).getByTestId("customer-row-reminders")).toHaveText(
+      de.customerList.table.noReminders,
+    );
+    await expect(row(page, NUMBERS.expired).getByTestId("customer-row-reminders")).toHaveText("2");
+  });
+
+  test("beide Karten der Seite tragen eine echte Überschrift", async ({ page }) => {
+    // The one regression `docs/ui_conversion_guide.md` says the suite cannot see: `CardTitle` is a
+    // `div`, so converting `<section><h2>` to a `Card` silently deletes the heading and leaves the
+    // screen with nothing between its `h1` and 240 rows. The pilot shipped that twice. Asserted here
+    // so that this screen, at least, the suite can see it.
+    await page.goto("/kunden");
+
+    await expect(page.getByRole("heading", { level: 2 })).toHaveText([
+      de.customerList.overviewTitle,
+      de.customerList.listTitle,
+    ]);
+  });
+
   test("die Gruppenzahlen zählen den ganzen Bestand und ändern sich durch einen Filter nicht", async ({
     page,
   }) => {
