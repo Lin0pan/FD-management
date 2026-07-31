@@ -88,15 +88,25 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 16  | `16-us-16-maintain-customer-record.json` | 5       | `ralph/us-16-maintain-customer-record` |
 | 17  | `17-us-17-navigation-shell.json`         | 6       | `ralph/us-17-navigation-shell`         |
 | 18  | `18-us-18-waiting-list-signals.json`     | 4       | `ralph/us-18-waiting-list-signals`     |
+| 19  | `19-us-19-fold-archive-search.json`      | 3       | `ralph/us-19-fold-archive-search`      |
+| 20  | `20-us-20-fold-group-choice.json`        | 3       | `ralph/us-20-fold-group-choice`        |
 
-87 stories total. Every story cites its source PRD section in its `description`, so an iteration can
-read the full context when a criterion is ambiguous.
+97 stories total — the rows sum to it, which the previous figure of 87 did not: every per-batch count
+was right and only the total had drifted. Every story cites its source PRD section in its
+`description`, so an iteration can read the full context when a criterion is ambiguous.
 
-Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 and 18 are not
-among them** — 17 is a structural change to how the finished screens are reached and 18 re-places the
-waiting-list signals it introduced, so they run after the MVP rather than in build order with it.
-Both touch only `src/app/**`, `src/i18n/de.ts` and `tests/e2e/**`. If an iteration of either finds
-itself editing `src/domain` or `src/application`, it has misread the story.
+Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 to 20 are not
+among them** — 17 is a structural change to how the finished screens are reached, 18 re-places the
+waiting-list signals it introduced, and 19 and 20 finish the `/kunden/neu` restyle, so they run after
+the MVP rather than in build order with it. All four touch only `src/app/**`, `src/i18n/de.ts` and
+`tests/e2e/**`. If an iteration of any of them finds itself editing `src/domain` or
+`src/application`, it has misread the story.
+
+**19 and 20 are the only batches that edit an existing spec**, and they are the reason the "merge
+before starting the next batch" rule matters more than usual here: both change
+`tests/e2e/reregistration.spec.ts`, so starting 20 before 19 has merged gives 20 a branch cut from a
+`main` that does not have 19's edit, and the two will conflict. `docs/ui_redesign_kunden_neu.md` §12
+records why the edits are needed — Playwright cannot reach a control inside a closed `<details>`.
 
 ## Regenerating
 
