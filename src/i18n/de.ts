@@ -412,6 +412,11 @@ export const de = {
         "Der Preis ist der, der an diesem Tag galt — spätere Änderungen an den Einstellungen " +
         "ändern ihn nicht.",
       historyEmpty: "Für diesen Haushalt ist noch keine Ausgabe erfasst.",
+      /**
+       * The household table's age column. It used to live inside the birthdate label — where it
+       * made that label differ on every row — and a column is what stops it doing that.
+       */
+      ageColumn: "Alter",
       historyColumns: {
         date: "Datum",
         showedUp: "Erschienen",

@@ -12,10 +12,30 @@
  * `useActionState` and hands the result down.
  */
 
+import { useId } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { RecordFormState } from "./record-state";
 import { de } from "@/i18n/de";
 
-export const fieldClass = "w-full rounded border border-foreground/20 bg-transparent px-2 py-1";
+/**
+ * The field grid the record's forms are laid out on: twelve columns at `lg`, two at `sm`, one
+ * below. The same scheme `/kunden/neu` uses, so a house number is not as wide as a street on either
+ * screen.
+ */
+export const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
+
+/**
+ * The action row at the foot of one form: the save, and what the server said about the last one.
+ * Ruled off, so a reader can see where the form it belongs to ends — which is most of what a card
+ * buys a screen carrying five of them.
+ */
+export function FormFooter({ children }: { children: React.ReactNode }): React.ReactElement {
+  return (
+    <div className="flex flex-col items-start gap-3 border-t border-border pt-4">{children}</div>
+  );
+}
 
 export function TextField({
   name,
@@ -24,6 +44,7 @@ export function TextField({
   onChange,
   type = "text",
   testId,
+  span = "sm:col-span-2 lg:col-span-4",
 }: {
   name: string;
   label: string;
@@ -31,19 +52,26 @@ export function TextField({
   onChange: (value: string) => void;
   type?: "text" | "date";
   testId?: string;
+  /** Columns of twelve at `lg` — a field's width is what it promises about its contents. */
+  span?: string;
 }): React.ReactElement {
+  // Generated rather than taken from `name`: two forms on this record both hold a `firstName`, and
+  // duplicate ids would point every label at whichever came first.
+  const id = useId();
   return (
-    <label className="flex flex-col gap-1">
-      <span className="text-sm text-foreground/70">{label}</span>
-      <input
-        className={fieldClass}
+    <div className={`flex flex-col gap-1.5 ${span}`}>
+      <label htmlFor={id} className="text-sm font-medium">
+        {label}
+      </label>
+      <Input
+        id={id}
         type={type}
         name={name}
         data-testid={testId}
         value={value}
         onChange={(event) => onChange(event.target.value)}
       />
-    </label>
+    </div>
   );
 }
 
@@ -67,16 +95,9 @@ export function SaveButton({
   testId: string;
 }): React.ReactElement {
   return (
-    <div>
-      <button
-        type="submit"
-        disabled={pending || disabled}
-        data-testid={testId}
-        className="rounded bg-foreground px-4 py-2 text-background disabled:opacity-60"
-      >
-        {pending ? de.customers.record.saving : label}
-      </button>
-    </div>
+    <Button type="submit" disabled={pending || disabled} data-testid={testId}>
+      {pending ? de.customers.record.saving : label}
+    </Button>
   );
 }
 
@@ -99,25 +120,25 @@ export function SaveFeedback({
   savedText?: string;
 }): React.ReactElement | null {
   if (state.status === "saved") {
+    // No green. Green means "a slot is free" across the application (`FREE_SLOT_ACCENT`), and a
+    // save confirmation is not a fact about the household — it is transient feedback that is gone
+    // on the next render. It loses nothing: it is a `role="status"` region whose text says
+    // "gespeichert", and it is asserted by that text rather than by its colour.
     return (
-      <p
-        role="status"
-        data-testid={`${testId}-saved`}
-        className="max-w-prose rounded border border-green-600/40 bg-green-600/10 px-3 py-2"
-      >
-        {savedText}
-      </p>
+      <Alert role="status">
+        <AlertDescription data-testid={`${testId}-saved`} className="max-w-prose">
+          {savedText}
+        </AlertDescription>
+      </Alert>
     );
   }
   if (state.status === "error") {
     return (
-      <p
-        role="status"
-        data-testid={`${testId}-error`}
-        className="max-w-prose rounded border border-red-500/40 bg-red-500/10 px-3 py-2"
-      >
-        {state.message}
-      </p>
+      <Alert variant="destructive" role="status">
+        <AlertDescription data-testid={`${testId}-error`} className="max-w-prose">
+          {state.message}
+        </AlertDescription>
+      </Alert>
     );
   }
   return null;

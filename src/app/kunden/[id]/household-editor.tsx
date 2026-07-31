@@ -21,13 +21,24 @@
  */
 
 import { useActionState, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { ageInYears, composition } from "@/domain/customer/householdComposition";
 import { formatEuros } from "@/domain/money";
 import { portionsFor, type PortionValues } from "@/domain/policy/portions";
 import { priceFor, type PriceValues } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
+import { Stat } from "../../stat";
 import { updateHouseholdAction } from "./actions";
-import { fieldClass, SaveButton, SaveFeedback } from "./record-forms";
+import { FormFooter, SaveButton, SaveFeedback } from "./record-forms";
 import { initialRecordFormState } from "./record-state";
 
 /** A household row as the form holds it: the raw strings, exactly as they were typed. */
@@ -76,26 +87,6 @@ function derived(
   }
 }
 
-/** One derived figure, in the same box the read-only record shows it in. */
-function Derived({
-  label,
-  value,
-  testId,
-}: {
-  label: string;
-  value: string;
-  testId: string;
-}): React.ReactElement {
-  return (
-    <p className="rounded border border-foreground/15 px-3 py-2">
-      <span className="text-sm text-foreground/70">{label}: </span>
-      <span data-testid={testId} className="font-semibold tabular-nums">
-        {value}
-      </span>
-    </p>
-  );
-}
-
 export function HouseholdEditor({
   customerId,
   members,
@@ -126,112 +117,137 @@ export function HouseholdEditor({
     <form action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="customerId" value={customerId} />
 
-      <ul className="flex flex-col gap-4">
-        {rows.map((row, index) => {
-          const day = typedDay(row.birthDate);
-          return (
-            // Rows are addressed by position: two members can share a name and a birthdate, and a
-            // row has no identity of its own.
-            <li key={index} data-testid="household-member" className="grid gap-3 sm:grid-cols-4">
-              <label className="flex flex-col gap-1">
-                <span className="text-sm text-foreground/70">
-                  {de.customers.new.memberRow(index + 1)} — {de.customers.fields.firstName}
-                </span>
-                <input
-                  className={fieldClass}
-                  type="text"
-                  name="memberFirstName"
-                  data-testid={`member-first-name-${index}`}
-                  value={row.firstName}
-                  onChange={(event) => updateRow(index, { firstName: event.target.value })}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-sm text-foreground/70">{de.customers.fields.lastName}</span>
-                <input
-                  className={fieldClass}
-                  type="text"
-                  name="memberLastName"
-                  data-testid={`member-last-name-${index}`}
-                  value={row.lastName}
-                  onChange={(event) => updateRow(index, { lastName: event.target.value })}
-                />
-              </label>
-              <label className="flex flex-col gap-1">
-                {/* The age beside the birthdate, so the 13-year boundary is legible and a reissue
-                    can be anticipated rather than discovered (PRD §6). It is derived from the date
-                    in the field, so it follows a correction immediately. */}
-                <span className="text-sm text-foreground/70">
-                  {de.customers.fields.birthDate}
-                  {day === null ? "" : ` (${de.customers.card.memberAge(ageInYears(day, today))})`}
-                </span>
-                <input
-                  className={fieldClass}
-                  type="date"
-                  name="memberBirthDate"
-                  data-testid={`member-birth-date-${index}`}
-                  value={row.birthDate}
-                  onChange={(event) => updateRow(index, { birthDate: event.target.value })}
-                />
-              </label>
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  data-testid={`remove-member-${index}`}
-                  onClick={() => setRows(rows.filter((_row, position) => position !== index))}
-                  className="rounded border border-foreground/20 px-3 py-1 text-sm"
-                >
-                  {de.customers.new.removeMember}
-                </button>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      <div>
-        <button
-          type="button"
-          data-testid="add-member"
-          onClick={() => setRows([...rows, EMPTY_ROW])}
-          className="rounded border border-foreground/20 px-3 py-1 text-sm"
-        >
-          {de.customers.new.addMember}
-        </button>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Derived
+      {/* The four figures the household section exists to produce, at the rank the counter gives
+          them: FR-1 is that the consequences of an edit are visible before it is saved, and as four
+          408px bordered boxes holding one digit each they were the least emphatic thing in the
+          section. Above the table, so an edit and its consequence are read in that order. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat
           label={de.customers.derived.grownUps}
           value={figures === null ? unknown : String(figures.grownUps)}
           testId="grown-ups"
         />
-        <Derived
+        <Stat
           label={de.customers.derived.children}
           value={figures === null ? unknown : String(figures.children)}
           testId="children"
         />
-        <Derived
+        <Stat
           label={de.customers.derived.portions}
           value={figures === null ? unknown : String(figures.portions)}
           testId="portions"
         />
-        <Derived
+        <Stat
           label={de.customers.derived.price}
           value={figures === null ? unknown : formatEuros(figures.priceCents)}
           testId="price"
         />
       </div>
-      <p className="text-xs text-foreground/60">{de.customers.derived.hint}</p>
-      <p className="text-xs text-foreground/60">{de.customers.derived.standardValues}</p>
-      <p className="max-w-prose text-sm text-foreground/70">{de.customers.record.householdHint}</p>
 
-      <SaveButton
-        label={de.customers.record.householdSubmit}
-        pending={pending}
-        testId="household-submit"
-      />
-      <SaveFeedback state={state} testId="household" />
+      {/* Tabular data, and a table: as a list of labelled grids the row identity lived inside the
+          first field's label ("Haushaltsmitglied 3 — Vorname"), which wrapped in its column and
+          started that input 20px below its neighbours — six ragged baselines on a six-member
+          household. The age gets a column of its own for the same reason: jammed into the birthdate
+          label it made the third column's heading differ on every row. */}
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="w-10">{de.customers.new.memberNumberColumn}</TableHead>
+            <TableHead>{de.customers.fields.firstName}</TableHead>
+            <TableHead>{de.customers.fields.lastName}</TableHead>
+            <TableHead>{de.customers.fields.birthDate}</TableHead>
+            <TableHead className="whitespace-nowrap">{de.customers.record.ageColumn}</TableHead>
+            <TableHead className="w-0" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row, index) => {
+            const day = typedDay(row.birthDate);
+            return (
+              // Rows are addressed by position: two members can share a name and a birthdate, and a
+              // row has no identity of its own.
+              <TableRow key={index} data-testid="household-member" className="hover:bg-transparent">
+                <TableCell className="text-muted-foreground tabular-nums">{index + 1}</TableCell>
+                {/* Each input keeps the string its visible label used to carry as `aria-label`: a
+                    column heading names a column, not a cell. */}
+                <TableCell>
+                  <Input
+                    type="text"
+                    name="memberFirstName"
+                    data-testid={`member-first-name-${index}`}
+                    aria-label={`${de.customers.new.memberRow(index + 1)} — ${de.customers.fields.firstName}`}
+                    value={row.firstName}
+                    onChange={(event) => updateRow(index, { firstName: event.target.value })}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="text"
+                    name="memberLastName"
+                    data-testid={`member-last-name-${index}`}
+                    aria-label={`${de.customers.new.memberRow(index + 1)} — ${de.customers.fields.lastName}`}
+                    value={row.lastName}
+                    onChange={(event) => updateRow(index, { lastName: event.target.value })}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="date"
+                    name="memberBirthDate"
+                    data-testid={`member-birth-date-${index}`}
+                    aria-label={`${de.customers.new.memberRow(index + 1)} — ${de.customers.fields.birthDate}`}
+                    value={row.birthDate}
+                    onChange={(event) => updateRow(index, { birthDate: event.target.value })}
+                  />
+                </TableCell>
+                {/* Derived from the date in the field beside it, so the 13-year boundary follows a
+                    correction immediately and a reissue can be anticipated (PRD §6). */}
+                <TableCell className="whitespace-nowrap tabular-nums">
+                  {day === null ? "—" : de.customers.card.memberAge(ageInYears(day, today))}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    data-testid={`remove-member-${index}`}
+                    onClick={() => setRows(rows.filter((_row, position) => position !== index))}
+                  >
+                    {de.customers.new.removeMember}
+                  </Button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+
+      <div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="add-member"
+          onClick={() => setRows([...rows, EMPTY_ROW])}
+        >
+          {de.customers.new.addMember}
+        </Button>
+      </div>
+
+      <p className="text-xs text-muted-foreground">{de.customers.derived.hint}</p>
+      <p className="text-xs text-muted-foreground">{de.customers.derived.standardValues}</p>
+
+      <FormFooter>
+        <p className="max-w-prose text-sm text-muted-foreground">
+          {de.customers.record.householdHint}
+        </p>
+        <SaveButton
+          label={de.customers.record.householdSubmit}
+          pending={pending}
+          testId="household-submit"
+        />
+        <SaveFeedback state={state} testId="household" />
+      </FormFooter>
     </form>
   );
 }
