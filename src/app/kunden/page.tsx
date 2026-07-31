@@ -53,7 +53,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EXPIRING_SOON_DAYS, type CertificateState } from "@/domain/customer/certificate";
-import type { CustomerStatus } from "@/domain/customer/customer";
 import { DomainError } from "@/domain/errors";
 import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
@@ -62,6 +61,7 @@ import { FREE_SLOT_ACCENT, GROUP_STYLES } from "../accents";
 import { waitingListDeps } from "../warteliste/deps";
 import { customerDeps } from "./deps";
 import { SHELL } from "../shell";
+import { STATUS_CHROME, StateWord, type Chrome } from "./state-word";
 
 /**
  * Half of what the list shows changes at midnight with nothing being written — a 13th birthday moves
@@ -93,30 +93,7 @@ const filterParams = z.object({
 
 type Filters = z.infer<typeof filterParams>;
 
-/** What a state word wears, when it wears anything: a badge variant, a tint, or both. */
-interface Chrome {
-  readonly variant?: "destructive" | "outline";
-  readonly className?: string;
-}
-
-/**
- * The chrome for a status and for a certificate state — `null` for the two that are simply normal.
- *
- * Nine rows in ten are "aktiv" and "gültig", and a pill on each of them is texture rather than
- * emphasis: three tinted pills per row is 45 marks on 15 rows, of which 8 are news. Red in
- * particular cannot go on being the group *and* a block *and* a lapsed certificate — the eye stops
- * reading it as anything. So the default states print no chrome at all, and what is left is a mark
- * per exception, plus the group.
- *
- * The word is never what is dropped: it stands in both cases, badge or no badge, because a colour is
- * a distinction only some of the staff can make (US-03.4) — and because the spec asserts it.
- */
-const STATUS_CHROME: Record<CustomerStatus, Chrome | null> = {
-  ACTIVE: null,
-  BLOCKED: { variant: "destructive" },
-  ARCHIVED: { variant: "outline" },
-};
-
+/** The chrome for a certificate state — `null` for the one that is simply normal. */
 const CERTIFICATE_CHROME: Record<CertificateState, Chrome | null> = {
   VALID: null,
   EXPIRING_SOON: { variant: "outline", className: "border-amber-500/40 bg-amber-500/10" },
@@ -166,35 +143,6 @@ function activeFilters(filters: Filters, search: string): ReadonlyArray<string> 
       : de.customerList.empty.archivedHidden,
   );
   return named;
-}
-
-/**
- * A state word, badged only where the state is an exception.
- *
- * The testid sits on the `<span>` holding the word in both branches — never on the badge — so that
- * what a spec reads is the word itself whether or not there is chrome around it today.
- */
-function StateWord({
-  word,
-  testId,
-  chrome,
-}: {
-  word: string;
-  testId: string;
-  chrome: Chrome | null;
-}): React.ReactElement {
-  const label = (
-    <span data-testid={testId} className={chrome === null ? "text-muted-foreground" : undefined}>
-      {word}
-    </span>
-  );
-  return chrome === null ? (
-    label
-  ) : (
-    <Badge variant={chrome.variant} className={chrome.className}>
-      {label}
-    </Badge>
-  );
 }
 
 function CustomerRow({ row }: { row: CustomerListRow }): React.ReactElement {

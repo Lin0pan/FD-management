@@ -20,7 +20,9 @@ import Link from "next/link";
 import { readCustomer, type CustomerCardView } from "@/application/customers/read-customer";
 import { readCurrentSettings } from "@/application/settings/read-current-settings";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -35,11 +37,13 @@ import { formatEuros } from "@/domain/money";
 import type { Settings } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
+import { GROUP_STYLES } from "../../accents";
 import { SHELL } from "../../shell";
 import { Stat } from "../../stat";
 import { ArchiveControls } from "../archive-controls";
 import { BlockControls } from "../block-controls";
 import { customerDeps } from "../deps";
+import { STATUS_CHROME, StateWord } from "../state-word";
 import { isoDay } from "../neu/registration-input";
 import { DetailsEditor } from "./details-editor";
 import { GroupControl } from "./group-control";
@@ -277,53 +281,139 @@ function CustomerRecord({
 
   return (
     <main className={SHELL}>
-      <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">{de.customers.card.heading}</h1>
-        <p className="text-xl">
-          {details.firstName} {details.lastName}
-        </p>
-      </header>
-
-      {archived ? (
-        <ArchivedBanner archivedAt={customer.archivedAt} reason={customer.archiveReason} />
-      ) : null}
-
-      <Section heading={words.masterDataHeading}>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Field
-            label={de.customers.fields.customerNumber}
-            value={String(customer.customerNumber)}
-          />
-          <p className="rounded-lg bg-muted/50 px-4 py-3">
-            <span className="text-sm text-muted-foreground">
-              {de.customers.fields.cardNumber}:{" "}
+      {/*
+       * The `h1` is the household, not the screen. Every record used to be headed
+       * "Kundenübersicht" with the name as a `<p>` below it — but the navigation bar already says
+       * which section you are in, and the one thing this page has that no other page has is *which
+       * household*. `Stammdaten` disappears as a section and nothing in it is lost: the two numbers
+       * and the registration date become the muted line under the name, and the status and the
+       * group become badges beside it, using the same chrome table as /kunden.
+       *
+       * `card-number` and `customer-status` keep their exact text in spans of their own; the labels
+       * and the separators sit outside them, and the badge wraps the span rather than replacing it.
+       */}
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight">
+              {details.firstName} {details.lastName}
+            </h1>
+            <Badge className={GROUP_STYLES[customer.group]}>
+              {de.customers.groups[customer.group]}
+            </Badge>
+            <StateWord
+              word={de.customers.status[customer.status]}
+              testId="customer-status"
+              chrome={STATUS_CHROME[customer.status]}
+            />
+          </div>
+          {/* Each fact keeps the `Feld: Wert` shape the boxes under "Stammdaten" had. It is not
+              only a house style: four specs sweep `getByRole("main")` for "Kundennummer: 1", and
+              dropping the colon for a tidier line turned all four red. The separators and the
+              labels stay *outside* the `card-number` span, which holds exactly its value. */}
+          <p className="text-sm text-muted-foreground">
+            {de.customers.fields.customerNumber}:{" "}
+            <span className="font-medium text-foreground tabular-nums">
+              {customer.customerNumber}
             </span>
-            <span data-testid="card-number" className="font-medium tabular-nums">
+            {words.identitySeparator}
+            {de.customers.fields.cardNumber}:{" "}
+            <span data-testid="card-number" className="font-medium text-foreground tabular-nums">
               {cardNumber}
             </span>
+            {words.identitySeparator}
+            {/* The household's start is their first card, not the one they hold: a card replaced
+                after a loss must not read as a later registration date (US-10.1). */}
+            {de.customers.card.registered}: {germanDate(customer.registeredOn)}
           </p>
-          <p className="rounded-lg bg-muted/50 px-4 py-3">
-            <span className="text-sm text-muted-foreground">{de.customers.fields.status}: </span>
-            <span data-testid="customer-status" className="font-medium">
-              {de.customers.status[customer.status]}
-            </span>
-          </p>
-          {/* The household's start is their first card, not the one they hold: a card replaced after
-              a loss must not read as a later registration date (US-10.1). */}
-          <Field label={de.customers.card.registered} value={germanDate(customer.registeredOn)} />
-          {/* Shown only when there is something to see. A zero would be one more number to read past
-              on every record, and it says nothing an archiving decision could rest on (PRD §5). */}
+          {/* Shown only when there is something to see. A zero would be one more number to read
+              past on every record, and it says nothing an archiving decision could rest on. */}
           {view.consecutiveNoShows === 0 ? null : (
-            <p className="rounded-lg bg-muted/50 px-4 py-3">
-              <span className="text-sm text-muted-foreground">
-                {de.customers.derived.noShows}:{" "}
-              </span>
+            <p className="text-sm">
+              <span className="text-muted-foreground">{de.customers.derived.noShows}: </span>
               <span data-testid="no-shows" className="font-semibold tabular-nums">
                 {de.customers.derived.noShowsValue(view.consecutiveNoShows)}
               </span>
             </p>
           )}
         </div>
+        {/* The guide's stated exception to "no back-links": this one names a *record* — this
+            household's printed card — which the four-item bar cannot say. It belongs in the header
+            row rather than stranded under the danger zone. */}
+        <Button variant="outline" asChild>
+          <Link href={`/kunden/${customer.id}/karte`} data-testid="card-view-link">
+            {de.customers.card.cardViewLink}
+          </Link>
+        </Button>
+      </header>
+
+      {archived ? (
+        <ArchivedBanner archivedAt={customer.archivedAt} reason={customer.archiveReason} />
+      ) : null}
+
+      {/* The fact belongs where states are stated; the control stays behind the heading that says
+          it is irreversible. It was 2 609px below the status it explains — the same split /kunden
+          and the counter already make, arriving on the screen you go to to find out what happened. */}
+      {customer.status === "BLOCKED" ? (
+        <Alert variant="destructive">
+          <AlertDescription className="max-w-prose whitespace-pre-line">
+            <span className="text-sm">{de.customers.block.currentReason}: </span>
+            <span data-testid="block-reason-current" className="font-medium">
+              {customer.blockReason}
+            </span>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {/*
+       * The sections are ordered the way a record is *read*, which is not the order it is written.
+       *
+       * The previous order — who this is, where they live, who lives with them, what they may
+       * collect — was documented as deliberate, and for a paper record it is right. On screen it
+       * put the least-read section, the address, 480px above the most-read one, and it put the
+       * certificate and the note — which both exist for the counter — below 2 100px. FD were asked
+       * and chose the reading order. Nothing is removed and nothing is renamed; only the order
+       * changes, and it is trivially reversible.
+       */}
+      <Section heading={de.customers.card.householdHeading}>
+        {archived ? (
+          <HouseholdReadOnly view={view} />
+        ) : (
+          <HouseholdEditor
+            customerId={customer.id}
+            members={household.map((member) => ({
+              firstName: member.firstName,
+              lastName: member.lastName,
+              birthDate: isoDay(member.birthDate),
+            }))}
+            today={view.today}
+            policy={policy}
+          />
+        )}
+      </Section>
+
+      <Section heading={de.customers.card.certificateHeading}>
+        <p>
+          {details.certificate.type} — {de.customers.card.validUntil}{" "}
+          {germanDate(details.certificate.validUntil)}
+        </p>
+        <p>
+          <span className="text-sm text-muted-foreground">{de.customers.card.reminderCount}: </span>
+          <span data-testid="reminder-count" className="font-medium tabular-nums">
+            {customer.reminderCount}
+          </span>
+        </p>
+        {archived ? null : <RenewalForm customerId={customer.id} />}
+      </Section>
+
+      <Section heading={words.notesHeading}>
+        {archived ? (
+          <p data-testid="notes-text" className="max-w-prose whitespace-pre-line">
+            {details.notes === "" ? words.notesEmpty : details.notes}
+          </p>
+        ) : (
+          <NotesEditor customerId={customer.id} notes={details.notes} />
+        )}
       </Section>
 
       <Section heading={words.detailsHeading}>
@@ -355,23 +445,6 @@ function CustomerRecord({
         )}
       </Section>
 
-      <Section heading={de.customers.card.householdHeading}>
-        {archived ? (
-          <HouseholdReadOnly view={view} />
-        ) : (
-          <HouseholdEditor
-            customerId={customer.id}
-            members={household.map((member) => ({
-              firstName: member.firstName,
-              lastName: member.lastName,
-              birthDate: isoDay(member.birthDate),
-            }))}
-            today={view.today}
-            policy={policy}
-          />
-        )}
-      </Section>
-
       <Section heading={words.groupHeading}>
         {archived ? (
           <Field label={de.customers.fields.group} value={de.customers.groups[customer.group]} />
@@ -380,33 +453,24 @@ function CustomerRecord({
         )}
       </Section>
 
-      <Section heading={de.customers.card.certificateHeading}>
-        <p>
-          {details.certificate.type} — {de.customers.card.validUntil}{" "}
-          {germanDate(details.certificate.validUntil)}
-        </p>
-        <p>
-          <span className="text-sm text-muted-foreground">{de.customers.card.reminderCount}: </span>
-          <span data-testid="reminder-count" className="font-medium tabular-nums">
-            {customer.reminderCount}
-          </span>
-        </p>
-        {archived ? null : <RenewalForm customerId={customer.id} />}
-      </Section>
-
-      <Section heading={words.notesHeading}>
-        {archived ? (
-          <p data-testid="notes-text" className="max-w-prose whitespace-pre-line">
-            {details.notes === "" ? words.notesEmpty : details.notes}
-          </p>
-        ) : (
-          <NotesEditor customerId={customer.id} notes={details.notes} />
-        )}
-      </Section>
-
-      <Section heading={words.historyHeading}>
-        <History records={view.history} />
-      </Section>
+      {/* A disclosure, per FD: on a two-year-old record this is fifty rows of something consulted
+          only when a visit is disputed, and nothing in the suite reaches it (§3.12), so unlike the
+          archive search it can genuinely be closed. */}
+      <Card>
+        <details>
+          <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            <CardHeader>
+              <CardTitle>
+                <h2>{words.historyHeading}</h2>
+              </CardTitle>
+              <CardDescription>{words.historyDisclosure}</CardDescription>
+            </CardHeader>
+          </summary>
+          <CardContent className="mt-6 flex flex-col gap-4">
+            <History records={view.history} />
+          </CardContent>
+        </details>
+      </Card>
 
       {/* Every irreversible action on one household, together and behind a heading that says what
           they are — so none of them is a stray click away from the household editor (PRD §6). Each
@@ -431,16 +495,8 @@ function CustomerRecord({
 
             <div className="flex flex-col gap-3">
               <h3 className="text-lg font-semibold">{de.customers.block.heading}</h3>
-              {customer.status === "BLOCKED" ? (
-                <Alert variant="destructive">
-                  <AlertDescription className="max-w-prose whitespace-pre-line">
-                    <span className="text-sm">{de.customers.block.currentReason}: </span>
-                    <span data-testid="block-reason-current" className="font-medium">
-                      {customer.blockReason}
-                    </span>
-                  </AlertDescription>
-                </Alert>
-              ) : null}
+              {/* The reason is stated once, under the header — duplicating it here would make
+                  `block-reason-current` strict-mode-ambiguous as well as saying it twice. */}
               <BlockControls
                 customerId={customer.id}
                 status={customer.status}
@@ -459,16 +515,6 @@ function CustomerRecord({
           </div>
         </Section>
       )}
-
-      <div className="flex flex-wrap gap-6">
-        <Link
-          href={`/kunden/${customer.id}/karte`}
-          className="underline underline-offset-4"
-          data-testid="card-view-link"
-        >
-          {de.customers.card.cardViewLink}
-        </Link>
-      </div>
     </main>
   );
 }

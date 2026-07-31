@@ -384,7 +384,15 @@ export const de = {
      * the card the household is carrying out of date.
      */
     record: {
-      masterDataHeading: "Stammdaten",
+      /**
+       * What separates the facts on the record's identity line — customer number, card number and
+       * the day they joined. They were four boxes under a "Stammdaten" heading; the heading is gone
+       * with the section, because the line under the household's name says the same three things in
+       * a quarter of the space.
+       */
+      identitySeparator: " · ",
+      /** What the hand-out history says about itself while it is folded away. */
+      historyDisclosure: "Aufklappen, wenn eine Ausgabe strittig ist.",
       detailsHeading: "Person und Anschrift",
       detailsHint:
         "Korrekturen an Name, Geburtsdatum und Anschrift. Der Name gilt zugleich für die Zeile " +
