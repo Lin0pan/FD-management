@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Group } from "@/domain/customer/group";
 import { de } from "@/i18n/de";
-import { GROUP_STYLES } from "../group-styles";
+import { GROUP_STYLES } from "../accents";
 import { customerDeps } from "../kunden/deps";
 import { StaleCardControls } from "./stale-card-controls";
 

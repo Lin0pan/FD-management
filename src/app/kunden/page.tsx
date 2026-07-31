@@ -58,7 +58,7 @@ import { DomainError } from "@/domain/errors";
 import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
-import { GROUP_STYLES } from "../group-styles";
+import { FREE_SLOT_ACCENT, GROUP_STYLES } from "../accents";
 import { waitingListDeps } from "../warteliste/deps";
 import { customerDeps } from "./deps";
 
@@ -431,17 +431,6 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
     </form>
   );
 }
-
-/**
- * The tint the waiting-list badge wears when a customer number is actually free (US-18.2).
- *
- * It is the same subtle green the register uses for an active household, and deliberately neither
- * red nor amber: those are spoken for by a blocked status and a lapsing certificate, and a free slot
- * is not an alarm — it is the ordinary good news that somebody who has waited can now be served. The
- * tint never travels alone: `waitingListBadge` puts "Platz frei" in the badge in the same breath,
- * because a colour is a distinction only some of the staff can make (US-03.4).
- */
-const FREE_SLOT_ACCENT = "border-emerald-600/40 bg-emerald-600/15";
 
 /**
  * The overview card: the group balance, and the two customer actions that are not the primary one.

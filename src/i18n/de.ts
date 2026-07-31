@@ -497,8 +497,9 @@ export const de = {
        * where that decision is made (PRD §5, FR-5).
        */
       waitingListBadge: (count: number, freeSlot: boolean): string => {
-        const waiting =
-          count === 0 ? "niemand wartet" : count === 1 ? "1 Wartende:r" : `${count} Wartende`;
+        // The count itself is the waiting list's own wording — the two screens state one number and
+        // must state it identically. What the hub adds is only the second clause.
+        const waiting = de.waitingList.waitingCount(count);
         // `freeSlot` is a required argument rather than an optional flag: when a number is free the
         // badge is tinted, and a tint is a distinction only some of the staff can make (US-03.4), so
         // the word has to travel with it. Requiring the caller to state it is what keeps them
@@ -651,10 +652,22 @@ export const de = {
    */
   waitingList: {
     heading: "Warteliste",
-    intro:
-      "Wer aufgenommen werden möchte, obwohl alle Kundennummern vergeben sind, kommt auf diese " +
-      "Liste. Ein gültiger Bedarfsnachweis ist auch dafür Voraussetzung.",
-    /** Stated above the list, because it is the rule the list exists to keep. */
+    /**
+     * The list itself. `orderRule` is its description, because it is the rule it is ordered by, and
+     * a caption two blocks above the rows it governs is not a caption.
+     *
+     * There is no `intro` any more. It defined who ends up on the list, which whoever is reading it
+     * already knows — they either put somebody here or came to serve somebody from it.
+     */
+    listTitle: "Wer wartet",
+    /**
+     * How many are on it, in the hub badge's words minus the "Platz frei" the hub adds — which is
+     * why `customerList.actions.waitingListBadge` is written in terms of this rather than the other
+     * way round. Two phrasings of one number is how the two screens come to disagree.
+     */
+    waitingCount: (count: number): string =>
+      count === 0 ? "niemand wartet" : count === 1 ? "1 Wartende:r" : `${count} Wartende`,
+    /** The list's own description, because it is the rule the list exists to keep. */
     orderRule:
       "Die Reihenfolge ist das Datum der Anmeldung — wer am längsten wartet, steht oben und ist " +
       "als Nächstes an der Reihe. Die Liste lässt sich bewusst nicht umsortieren.",
