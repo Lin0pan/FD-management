@@ -364,6 +364,24 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
   `SettingsVersion.quotaN` below the lowest free customer number (`select customerNumber from
   Customer where status != 'ARCHIVED'`), then back to 240. No reseed, no settings edit through the UI,
   and no audit row in the demo register.
+- A signal belongs on the screen where the thing it is about actually happens. A banner naming one
+  applicant and one number is a decision about somebody else; on a hub it stands in front of what
+  staff came to read, on the screen that hands out the number it is the fact they need before typing.
+  Moving one is a two-file diff — and the reads stay where they were if a quieter signal still needs
+  them (/kunden keeps `listWaiting` and `proposeRegistration` for its badge).
+- Two independent reads in a server component go in ONE `Promise.all` inside the existing `try`, not
+  in sequence and not in a second try: the `NoSettingsInForce` branch then covers both, and the
+  screen the staff member is waiting for is not gated behind two round trips.
+- Removing a render can leave a binding that lies. `const [head] = places` was "who the banner names";
+  once the banner is gone it is only "is anybody waiting", and `places.length > 0` says that. A name
+  that describes a use which no longer exists is the next reader's wrong turn.
+- The docs describe screens by what they carry, so MOVING an element edits the prose in three places
+  at once: the file tree comment, the source screen's paragraph and the target screen's. `grep -n`
+  the component name across `docs/` before committing — `docs/technical_documentation.md` names
+  `free-slot-banner.tsx` in four separate sentences.
+- `docs/technical_documentation.md` contains NON-BREAKING SPACES (U+00A0) mid-sentence. A python
+  heredoc patch fails its `assert old in s` on a line that looks identical in the terminal; `sed -n
+  '<line>p' file | cat -A` shows them as `M-BM- `, and the literal has to carry `\u00a0`.
 
 ## 2026-07-31 09:35 - US-001 (US-18.1) — waiting-list count badge on the Kunden hub
 - `HubActions` in src/app/kunden/page.tsx now takes `waiting` beside `cardsDue` and renders a badge
@@ -434,4 +452,45 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
     next-env.d.ts` after the browser round, and check `git status` again after `build`.
   - The dev register's active numbers are 1, 2, 6–18, so the lowest free number is 3 and `quotaN = 2`
     is the smallest change that makes the register full.
+---
+
+## 2026-07-31 09:50 - US-003 (US-18.3) — the free-slot banner moves to /kunden/neu
+- `FreeSlotBanner` is gone from src/app/kunden/page.tsx: import and render both. /kunden renders no
+  `waiting-list-free-slot` element in any state. The `listWaiting` and `proposeRegistration` calls
+  stay exactly where they were — the badge from US-001/US-002 needs both — and the
+  `NoSettingsInForce` catch around the proposal is untouched.
+- With the banner gone the hub no longer needs the *head* of the queue, only whether there is one, so
+  `const [head] = places` became `const anybodyWaiting = places.length > 0`. /kunden now names nobody,
+  which is the whole point of the story; the binding said otherwise.
+- src/app/kunden/neu/page.tsx awaits `proposeRegistration` and `listWaiting` **concurrently** in one
+  `Promise.all`, inside the existing `try` so the `NoSettingsInForce` branch still covers the screen,
+  and renders the banner between the header and `RegistrationScreen` when somebody is waiting AND
+  `proposal.customerNumber !== null`, with `showListLink` (the list is not on view here).
+  `waitingListDeps` and `FreeSlotBanner` are imported across route folders, the move /kunden already
+  made. `FreeSlotBanner` itself is unmodified, and it gates nothing — the form renders in full below.
+- Files changed: src/app/kunden/page.tsx, src/app/kunden/neu/page.tsx,
+  docs/technical_documentation.md, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: lint, typecheck, format:check, `test:coverage` (44 files, 912 tests) and `build` all green.
+  The e2e suite is deliberately NOT green yet: the assertion that reads the banner on /kunden is
+  US-004's to re-point, and the PRD prescribes this order so /kunden is never left without any
+  waiting-list signal.
+- Browser verification (playwright-cli, accessibility snapshot):
+  - 3 waiting + number 3 free → on /kunden/neu the banner stands below the intro and above „Im Archiv
+    suchen“: heading „Ein Platz ist frei“, „Kundennummer 3 ist frei. Am längsten wartet Mayra
+    Koszewski.“, `link "Jetzt registrieren" → /warteliste/10/registrieren`, `link "Warteliste öffnen"`.
+  - waiting list emptied → no banner, and both forms (archive search + registration) still render.
+  - quota lowered to 2 so the register was full → no banner, and the form says it itself: „Alle 2
+    Kundennummern sind vergeben.“
+  - /kunden in every state: `waiting-list-free-slot` count 0, badge still
+    `link "Warteliste 3 Wartende · Platz frei"`.
+  - /warteliste untouched: banner present, same detail sentence, still no list link (`showListLink`
+    is false there, because the list *is* on view).
+  - The dev database was restored: quotaN 240, `removedOn` NULL on entries 10, 11, 12.
+- **Learnings for future iterations:**
+  - The banner's conditions are stated twice in the codebase now (here and on /warteliste) but read
+    the head the same way — `listWaiting`'s first place, never re-sorted. That is what stops two
+    screens naming two different applicants, and it is worth re-checking in review rather than
+    trusting the comment.
+  - Docs edits on a move are three-place edits, and `docs/technical_documentation.md` hides U+00A0
+    characters mid-sentence that break a heredoc patch. Both are in Codebase Patterns above.
 ---

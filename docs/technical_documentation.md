@@ -81,13 +81,13 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   ├── serve-state.ts        # the state the counter's forms exchange with their actions
 │   │   │   └── deps.ts               # composition roots: the read deps and the write (audit) deps
 │   │   ├── kunden/                   # the customer screens (US-01)
-│   │   │   ├── page.tsx              # the Kunden-verwalten hub: actions, banner, badge + the list (US-17.2)
+│   │   │   ├── page.tsx              # the Kunden-verwalten hub: actions, two badges + the list (US-17.2)
 │   │   │   ├── deps.ts               # composition root for the routes below
 │   │   │   ├── archive-controls.tsx  # client: Archivieren — shared by the record AND the counter (US-10.4)
 │   │   │   ├── archive-actions.ts    # "use server": Zod → archiveCustomer, revalidates both screens
 │   │   │   ├── archive-state.ts      # the archive form state (not exportable from an action module)
 │   │   │   ├── neu/                  # the registration screen
-│   │   │   │   ├── page.tsx          # server component: reads the proposal, renders the screen
+│   │   │   │   ├── page.tsx          # server: the proposal, the free-slot banner, the screen
 │   │   │   │   ├── registration-screen.tsx  # client: the archive panel, the pre-fill banner and the form (US-11.4)
 │   │   │   │   ├── registration-form.tsx  # client component: repeatable rows + live counts
 │   │   │   │   ├── archive-search-panel.tsx  # client: "Im Archiv suchen" + the result list (US-11.4)
@@ -112,7 +112,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   ├── page.tsx              # server component: banner, list in arrival order, add form
 │   │   │   ├── add-applicant-form.tsx  # client: "Auf die Warteliste setzen"
 │   │   │   ├── remove-applicant-controls.tsx  # client: Entfernen, reason required, entry retained
-│   │   │   ├── free-slot-banner.tsx  # shared by /warteliste and the hub at /kunden
+│   │   │   ├── free-slot-banner.tsx  # shared by /warteliste and /kunden/neu (US-18.3)
 │   │   │   ├── actions.ts            # "use server": Zod → addToWaitingList / removeFromWaitingList
 │   │   │   ├── waiting-list-state.ts # the two form states (not exportable from actions.ts)
 │   │   │   ├── deps.ts               # composition root: list + register + cards + settings
@@ -586,8 +586,8 @@ today)` names the head of that order.
 
 The rule is **strictly first come, first served** — no priority, urgency or hardship override (FR-3) —
 and it lives in the domain rather than in an `ORDER BY` so that fairness is a property the tests pin
-down, and so the waiting-list screen, the hub's banner and the promotion use case cannot each
-arrive at a slightly different head of the queue. The tie-break is the surrogate id and never the order
+down, and so the waiting-list screen, the registration screen's banner and the promotion use case
+cannot each arrive at a slightly different head of the queue. The tie-break is the surrogate id and never the order
 the rows came back in: two applicants added the same morning would otherwise swap places between two
 page loads, which is exactly the unfairness the strict order exists to prevent. Ids ascend with time,
 so the tie-break only ever refines arrival order and never contradicts it.
@@ -1625,9 +1625,9 @@ beyond it:
 
 - **`page.tsx`** is the **Kunden-verwalten hub** (US-15.3, US-17.2). Above the list it carries the
   three things staff do with customers — take somebody on (`/kunden/neu`), the waiting list, the
-  cards to reissue — plus the two signals that belong with them: the free-slot banner (US-12) and
-  the cards-due badge (`countCardsDueForReissue`, US-13.4), which is shown at zero too and in the
-  same grey as everything around it. The waiting-list link carries a badge of its own in exactly that
+  cards to reissue — plus the two counts that belong with them. The cards-due badge
+  (`countCardsDueForReissue`, US-13.4) is shown at zero too and in the same grey as everything around
+  it. The waiting-list link carries a badge of its own in exactly that
   shape — `listWaiting`'s count, read off the call the page already makes (US-18.1) — so the two read
   as one row of counts rather than as two competing widgets. It is shown at zero as well, reading
   „niemand wartet“, for the reason the cards badge is: a badge that vanishes cannot be told apart from
@@ -1637,8 +1637,13 @@ beyond it:
   exists. The word carries the state and the tint only seconds it, because a colour is a distinction
   only some of the staff can make (US-03.4); `data-free-slot` puts the same state on the element, so a
   spec asserts what the badge means rather than what shade it is painted. Its heading is the nav label
-  word for word, so the section has one name. `proposeRegistration` throwing `NoSettingsInForce` leaves the banner out rather than
-  taking the screen down. Below that it is the **customer list**, the screen that replaces the
+  word for word, so the section has one name. `proposeRegistration` throwing `NoSettingsInForce` costs
+  the badge its free-slot state, not the screen: the count still renders, neutral.
+  What is deliberately **not** here is the free-slot banner. It stood at the top of this screen until
+  US-18.3 and now stands on `/kunden/neu`: naming one applicant and one number put a decision about
+  somebody else in front of the register staff came to read, and the number is handed out on the
+  registration screen, not on the hub. The quiet half of that signal — that a number is free at all —
+  survives here as the badge's „Platz frei“. Below that it is the **customer list**, the screen that replaces the
   spreadsheet: one dense table over `listCustomers`, sorted by customer number, computing nothing — the counts,
   portions, price, card number and certificate state all arrive derived. The filters are a plain
   **GET form**, which is what puts them in the URL (FR-5); FD share one machine, and a view has to
@@ -1657,6 +1662,13 @@ beyond it:
   not a reservation: nothing is held, and `registerCustomer` allocates again on submit. The partial
   unique index, not this reading, is the authority on a free slot. A full register arrives as
   `customerNumber: null` rather than as a thrown error, because the screen still has to render.
+  Alongside the proposal it reads `listWaiting` — the two run **concurrently**, since neither needs
+  the other — and renders the **free-slot banner** above the form when somebody is waiting _and_ a
+  number is free (US-18.3). This is the screen on which the next number is actually handed out, so it
+  is the screen on which whoever has been waiting for it is named, before the first field is typed.
+  The banner gates nothing: a walk-in may still be registered, because who is served is FD's decision
+  and not the software's. The head is `listWaiting`'s first place and is not re-derived, so this
+  screen and `/warteliste` can never name two different applicants.
 - **`neu/registration-form.tsx`** is a client component for two reasons: `useActionState`, and the
   household counts have to update **as staff type**. It does not compute them — it calls the domain
   rule (`composition`) against the day the server handed it, so the number on screen is the number
@@ -2002,8 +2014,8 @@ unfairness the strict ordering exists to prevent (PRD §6). The head of the list
 rather than by asking `nextInLine` a second time — one statement of the order, so the banner and the
 list cannot name two different applicants.
 
-- **`free-slot-banner.tsx`** names **one** applicant and **one** number, and it is rendered on the
-  hub at `/kunden` as well (`showListLink`, US-17.2).  Without it a freed customer number is only noticed by whoever
+- **`free-slot-banner.tsx`** names **one** applicant and **one** number, and it is rendered on
+  `/kunden/neu` as well (`showListLink`, US-18.3). Without it a freed customer number is only noticed by whoever
   thinks to open the list, and the applicant who has waited longest waits on — which is the whole of
   FR-4. An expired certificate is repeated on the banner, because whoever acts on it needs to know a
   renewed notice will be wanted **before** they walk over to the applicant.

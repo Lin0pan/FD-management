@@ -40,7 +40,6 @@ import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { waitingListDeps } from "../warteliste/deps";
-import { FreeSlotBanner } from "../warteliste/free-slot-banner";
 import { customerDeps } from "./deps";
 
 /**
@@ -511,13 +510,13 @@ export default async function CustomerListPage({
   }
 
   // The hub's two signals, both of which the list itself cannot show: how many cards have fallen
-  // behind, and whether a freed customer number is waiting for the applicant at the top of the list.
+  // behind, and how many applicants are waiting — the latter marked when a customer number is free.
   const [cardsDue, places, proposal] = await Promise.all([
     countCardsDueForReissue(customerDeps),
     listWaiting(waitingListDeps),
     // Settings were in force a moment ago — `listCustomers` needs them too — but a saved change is in
     // force immediately, so the answer is caught here as well: no quota means no answer about a free
-    // slot, and the page shows no banner rather than being an error.
+    // slot, and the badge states its count in the neutral state rather than the page being an error.
     proposeRegistration(customerDeps).catch((error: unknown) => {
       if (error instanceof DomainError && error.code === "NoSettingsInForce") {
         return null;
@@ -526,9 +525,9 @@ export default async function CustomerListPage({
     }),
   ]);
 
-  // The head of the list the domain ordered, and nobody else — the same reading the waiting-list
-  // screen makes, so the two screens cannot name two different applicants.
-  const [head] = places;
+  // Whether anybody is waiting at all. Who that is belongs to /kunden/neu, where the number is
+  // handed out — the hub deliberately names nobody (US-18.3).
+  const anybodyWaiting = places.length > 0;
   const freeNumber = proposal?.customerNumber ?? null;
 
   const filtered = activeFilters(filters, search);
@@ -541,19 +540,16 @@ export default async function CustomerListPage({
       <h1 className="text-3xl font-semibold">{de.customerList.heading}</h1>
       <p className="max-w-prose text-foreground/80">{de.customerList.intro}</p>
 
-      {/* First on the section's own page, because a freed customer number nobody notices is an
-          applicant who goes on waiting for no reason (US-12, PRD §6). The waiting list is not on
-          view here, so the banner offers the way to it as well. */}
-      {head !== undefined && freeNumber !== null ? (
-        <FreeSlotBanner head={head} customerNumber={freeNumber} showListLink />
-      ) : null}
-
+      {/* No banner here any more (US-18.3). Naming one applicant and one number at the top of the
+          register was a decision about somebody else standing in front of the thing staff came for;
+          it now stands on /kunden/neu, where the number is actually about to be handed out. What
+          survives here is the badge — the same fact, stated quietly. */}
       <HubActions
         cardsDue={cardsDue}
         waiting={places.length}
         // Both halves are required: a free number with nobody waiting is not news, and a queue with
         // no number to give out is the state the badge already states plainly (US-18.2).
-        freeSlot={head !== undefined && freeNumber !== null}
+        freeSlot={anybodyWaiting && freeNumber !== null}
       />
 
       {/* Above the filters, because it is the one number on this screen that the filters do not
