@@ -26,15 +26,14 @@ import { de } from "@/i18n/de";
 import { GROUP_STYLES } from "../accents";
 import { customerDeps } from "../kunden/deps";
 import { StaleCardControls } from "./stale-card-controls";
+import { SHELL } from "../shell";
+import { Stat } from "../stat";
 
 /**
  * The list changes at midnight without anything being written — a birthday is a read-time derivation
  * (PRD §5) — so a cached render would be a screen that quietly stopped being true.
  */
 export const dynamic = "force-dynamic";
-
-/** The page frame, the same one `/ausgabe` and `/kunden` use, so all three line up under the bar. */
-const SHELL = "mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6 md:p-8";
 
 /**
  * One of the two count sets, shaped so that the pair can actually be compared.
@@ -47,7 +46,10 @@ const SHELL = "mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6 md:p-8";
  * horizontally, and the screen stopped doing the one thing it exists for.
  *
  * The label and the value stay inside one `<p>`: split into two stacked nodes they are announced as
- * two unrelated facts, with only the layout joining them.
+ * two unrelated facts, with only the layout joining them. That much is `Stat`'s, shared with the
+ * counter and the customer screens; what this screen adds is the width floor, the one-line value and
+ * the group hanging off the tile — the three things the comparison needs and a single figure does
+ * not.
  */
 function Counts({
   label,
@@ -62,11 +64,13 @@ function Counts({
   group: { value: Group; testId: string } | null;
 }): React.ReactElement {
   return (
-    <p className="flex min-w-56 flex-col gap-0.5 rounded-lg bg-muted/50 px-4 py-3">
-      <span className="text-xs leading-snug text-muted-foreground">{label}</span>
-      <span data-testid={testId} className="text-base font-semibold whitespace-nowrap tabular-nums">
-        {de.customers.derived.countsValue(counts.grownUps, counts.children)}
-      </span>
+    <Stat
+      label={label}
+      value={de.customers.derived.countsValue(counts.grownUps, counts.children)}
+      testId={testId}
+      className="min-w-56 gap-0.5"
+      valueClassName="text-base whitespace-nowrap"
+    >
       {group === null ? null : (
         <span className="mt-1 flex flex-wrap items-center gap-1.5 text-sm">
           <span className="text-muted-foreground">{de.customers.fields.group}:</span>
@@ -78,7 +82,7 @@ function Counts({
           </Badge>
         </span>
       )}
-    </p>
+    </Stat>
   );
 }
 

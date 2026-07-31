@@ -61,6 +61,7 @@ import { germanDate } from "@/i18n/format";
 import { FREE_SLOT_ACCENT, GROUP_STYLES } from "../accents";
 import { waitingListDeps } from "../warteliste/deps";
 import { customerDeps } from "./deps";
+import { SHELL } from "../shell";
 
 /**
  * Half of what the list shows changes at midnight with nothing being written — a 13th birthday moves
@@ -68,9 +69,6 @@ import { customerDeps } from "./deps";
  * be a screen that quietly stopped being true.
  */
 export const dynamic = "force-dynamic";
-
-/** The page frame, shared with the no-settings fallback so both read as the same place. */
-const SHELL = "mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6 md:p-8";
 
 const STATUS_OPTIONS = ["ACTIVE", "BLOCKED", "ARCHIVED"] as const;
 const GROUP_OPTIONS = ["RED", "BLUE"] as const;

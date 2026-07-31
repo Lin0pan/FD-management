@@ -25,6 +25,7 @@ import type { PrefillDraft } from "@/app/kunden/neu/archive-search-state";
 import { isoDay, toPrefillDraft } from "@/app/kunden/neu/registration-input";
 import { waitingListDeps } from "../../deps";
 import { PromotionScreen } from "./promotion-screen";
+import { SHELL } from "../../../shell";
 
 /**
  * Which number is free and whether the certificate has lapsed are both answers about *today*, and
@@ -34,7 +35,7 @@ export const dynamic = "force-dynamic";
 
 function Frame({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6 md:p-8">
+    <main className={SHELL}>
       {/* The back-link stays — it names the list this applicant came from, which the four-item bar
           cannot say — but it belongs beside the heading rather than stranded below the form. */}
       <div className="flex flex-wrap items-center justify-between gap-3">

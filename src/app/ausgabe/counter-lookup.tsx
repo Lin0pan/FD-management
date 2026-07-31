@@ -30,6 +30,7 @@ import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
+import { Stat } from "../stat";
 
 /**
  * What the banner has to say, over and above its colour: an icon, a headline readable from a metre
@@ -158,34 +159,6 @@ const GROUP_STYLES = {
   RED: "bg-red-600 text-white",
   BLUE: "bg-blue-700 text-white",
 } as const satisfies Record<Group, string>;
-
-/**
- * One of the four figures the hand-out itself turns on: how many people, how many portions, what it
- * costs. Set apart from the rest because these are what the person serving reads out loud — the
- * remaining fields are looked at only when something is off.
- *
- * A `<p>` and not a `<div>`: the label and the number are one fact, and a paragraph is announced as
- * one node. Two stacked `<div>`s would leave a screen reader reading "Portionen" and "4" as unrelated
- * text, which is the tile's whole meaning lost to anyone not seeing the layout.
- */
-function Stat({
-  label,
-  value,
-  testId,
-}: {
-  label: string;
-  value: string;
-  testId: string;
-}): React.ReactElement {
-  return (
-    <p className="flex flex-col gap-1 rounded-lg bg-muted/50 px-4 py-3">
-      <span className="text-xs leading-snug text-muted-foreground">{label}</span>
-      <span data-testid={testId} className="text-3xl font-semibold tabular-nums">
-        {value}
-      </span>
-    </p>
-  );
-}
 
 /** A field that is read only when it matters: the certificate, the reminder tally, a no-show run. */
 function Field({

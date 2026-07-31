@@ -33,6 +33,7 @@ import { ADD_FORM_ANCHOR } from "./add-form-anchor";
 import { waitingListDeps } from "./deps";
 import { FreeSlotBanner } from "./free-slot-banner";
 import { RemoveApplicantControls } from "./remove-applicant-controls";
+import { SHELL } from "../shell";
 
 /**
  * Both halves of this screen change without anything being written: a wait grows a day at midnight,
@@ -40,9 +41,6 @@ import { RemoveApplicantControls } from "./remove-applicant-controls";
  * being true.
  */
 export const dynamic = "force-dynamic";
-
-/** The page frame, the same one every converted screen uses, so they line up under the bar. */
-const SHELL = "mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6 md:p-8";
 
 /**
  * One label and its value, in one `<p>` — the shape the conversion guide's second trap asks for.
