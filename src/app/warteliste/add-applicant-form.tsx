@@ -27,6 +27,12 @@ import { addApplicantAction } from "./actions";
 import { initialAddApplicantState } from "./waiting-list-state";
 
 /**
+ * The id the "auf die Warteliste setzen" button beside the `h1` jumps to. `scroll-mt-16` clears the
+ * sticky navigation bar, which would otherwise cover the card's own heading on arrival.
+ */
+export const ADD_FORM_ANCHOR = "warteliste-aufnehmen";
+
+/**
  * `<Label htmlFor>` + `<Input id>` rather than the control nested inside its label. The `id`s are
  * load-bearing anyway — `waiting-list.spec.ts` fills every field by CSS id, never by label — so the
  * binding costs nothing and makes the accessibility snapshot name each `textbox`, which is also
@@ -80,7 +86,10 @@ export function AddApplicantForm(): React.ReactElement {
   const [state, action, pending] = useActionState(addApplicantAction, initialAddApplicantState);
 
   return (
-    <Card>
+    // Named, so the button beside the heading can jump here. Staff arrive on this screen from
+    // /kunden/neu's "stattdessen auf die Warteliste setzen" with a person standing in front of
+    // them, and the form they were sent for is below the whole queue.
+    <Card id={ADD_FORM_ANCHOR} className="scroll-mt-16">
       <CardHeader>
         <CardTitle className="text-lg">
           <h2>{de.waitingList.add.heading}</h2>

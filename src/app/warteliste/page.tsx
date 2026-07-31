@@ -11,10 +11,12 @@
  * the applicant and never a reason to drop them down the list (FR-5).
  */
 
+import { UserPlus } from "lucide-react";
 import { proposeRegistration } from "@/application/customers/propose-registration";
 import { listWaiting, type WaitingListPlace } from "@/application/waiting-list/list-waiting";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -26,7 +28,7 @@ import {
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
-import { AddApplicantForm } from "./add-applicant-form";
+import { AddApplicantForm, ADD_FORM_ANCHOR } from "./add-applicant-form";
 import { waitingListDeps } from "./deps";
 import { FreeSlotBanner } from "./free-slot-banner";
 import { RemoveApplicantControls } from "./remove-applicant-controls";
@@ -157,8 +159,19 @@ export default async function WaitingListPage(): Promise<React.ReactElement> {
 
   return (
     <main className={SHELL}>
+      {/* The screen's other job, beside the heading where a screen's primary action goes. Job A —
+          a number came free — keeps the top of the page; job B now costs one click from anywhere on
+          it rather than a scroll past the whole queue. An anchor rather than moving the form above
+          the list: with fifteen applicants the form is 2000px down, and whoever came to *look* is
+          the more common visitor. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-semibold tracking-tight">{de.waitingList.heading}</h1>
+        <Button variant="outline" size="lg" asChild>
+          <a href={`#${ADD_FORM_ANCHOR}`} data-testid="waiting-list-add-link">
+            <UserPlus aria-hidden="true" />
+            {de.waitingList.add.heading}
+          </a>
+        </Button>
       </div>
       {slotIsFree ? <FreeSlotBanner head={head} customerNumber={freeNumber} /> : null}
 
