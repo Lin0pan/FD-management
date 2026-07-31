@@ -1627,7 +1627,11 @@ beyond it:
   three things staff do with customers — take somebody on (`/kunden/neu`), the waiting list, the
   cards to reissue — plus the two signals that belong with them: the free-slot banner (US-12) and
   the cards-due badge (`countCardsDueForReissue`, US-13.4), which is shown at zero too and in the
-  same grey as everything around it. Its heading is the nav label word for word, so the section has
+  same grey as everything around it. The waiting-list link carries a badge of its own in exactly that
+  shape — `listWaiting`'s count, read off the call the page already makes (US-18.1) — so the two read
+  as one row of counts rather than as two competing widgets. It is shown at zero as well, reading
+  „niemand wartet“, for the reason the cards badge is: a badge that vanishes cannot be told apart from
+  a badge that failed to load. Its heading is the nav label word for word, so the section has
   one name. `proposeRegistration` throwing `NoSettingsInForce` leaves the banner out rather than
   taking the screen down. Below that it is the **customer list**, the screen that replaces the
   spreadsheet: one dense table over `listCustomers`, sorted by customer number, computing nothing — the counts,

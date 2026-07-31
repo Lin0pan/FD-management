@@ -1,0 +1,130 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-17-navigation-shell",
+  "description": "US-17 Navigation Shell, Customer Hub and Start Dashboard — a persistent four-item navigation bar, /kunden as the Kunden-verwalten hub, and a home screen that states the date and the next distribution. Presentation and e2e only: no domain, application, port or schema change.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Navigation bar in the root layout",
+      "description": "As a staff member, I want the four main areas always visible at the top of the screen, so I can move between them without going through the home page. Source: tasks/prd-us-17-navigation-shell.md §US-17.1",
+      "acceptanceCriteria": [
+        "A pure activeSection(pathname) is exported from its own module (e.g. src/app/active-section.ts) and returns which of the four sections a path belongs to, or nothing for an unknown path",
+        "'/' marks Start by exact match only — it must not match every path",
+        "'/ausgabe' and '/einstellungen' and their sub-routes mark their own section",
+        "'/kunden', '/kunden/neu', '/kunden/<id>', '/warteliste' and '/karten-neuausstellung' ALL mark Kunden verwalten — the hub owns the waiting list and the reissue list, and a staff member on /warteliste seeing no section marked reads the bar as broken",
+        "A unit test written before the implementation covers every route listed above plus an unknown path",
+        "src/app/nav.tsx renders a <nav> with exactly four links, in this order: Start → /, Ausgabe → /ausgabe, Kunden verwalten → /kunden, Einstellungen → /einstellungen",
+        "The current section is marked visually AND carries aria-current=\"page\"; the marking is never colour alone",
+        "The bar is rendered in src/app/layout.tsx above {children}, so every route gets it without opting in",
+        "layout.tsx stays a server component and performs NO data read — a fetch there would force every route in the app to be dynamic; the nav therefore carries no counts",
+        "The bar is present on /kunden/<id>/karte too: that screen is the card as it exists digitally, the physical card comes from a separate system, so no print rule is needed",
+        "The bar wraps or scrolls at narrow widths and never pushes page content sideways",
+        "All four labels come from de.nav.* in src/i18n/de.ts; no German literal in the component",
+        "Tests pass",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "/kunden becomes the Kunden-verwalten hub",
+      "description": "As a staff member, I want the customer list page to also offer the three customer actions, so everything about customers is on one page. Source: tasks/prd-us-17-navigation-shell.md §US-17.2",
+      "acceptanceCriteria": [
+        "The page heading changes from 'Kundenliste' to 'Kunden verwalten', matching the nav label exactly — one name for the section, in the bar and on the page",
+        "Above the existing filter form, /kunden links to /kunden/neu (register a customer), /warteliste (the waiting list) and /karten-neuausstellung (reissue outdated cards)",
+        "The reissue link carries the cards-due count badge, taken from the existing countCardsDueForReissue use case — no new application code",
+        "The badge keeps the neutral to-do styling it has on the home page today: no alarm colour, no exclamation mark, and shown at zero because 'nothing to do' is an answer (US-13.4)",
+        "The free-slot banner (US-12) is shown when a customer number is free and someone is waiting, with the same content as on the waiting-list page",
+        "If proposeRegistration throws NoSettingsInForce the banner is simply absent and the page still renders — the same handling the home page has today",
+        "The list itself, its filters, its URL query parameters and the group-balance line are otherwise untouched",
+        "This story must land BEFORE US-003, which removes the banner and the badge from the home page — landing them the other way round leaves the app with neither signal anywhere",
+        "New strings live in src/i18n/de.ts; none inline",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Start dashboard",
+      "description": "As a staff member, I want the home screen to tell me the date and when the next distribution is and which group collects, so opening the app answers the question I actually have. Source: tasks/prd-us-17-navigation-shell.md §US-17.3",
+      "acceptanceCriteria": [
+        "/ shows a short welcome line and today's date in German long form (e.g. 'Donnerstag, 30. Juli 2026') via the existing germanDate formatter in src/i18n/format.ts",
+        "The date only — NO clock time. The page stays server-rendered with no client component, no ticking state and no timer",
+        "The next-distribution line is shown on EVERY day, however far off it is: FD distributes weekly so it is never more than six days out, and this is the question the screen exists to answer",
+        "On a distribution day the line says TODAY — 'Heute ist Ausgabe' plus today's group — and must not skip to next week",
+        "The two wordings are distinct strings in the dictionary (today vs. a future date), so the urgency is carried by the text and not by styling the panel differently",
+        "The colour shown is ALWAYS the colour of the distribution being named: read nextDistribution.colour from getWeekColour, never the sibling colour field. The two disagree on the days after a distribution — with a Thursday weekday, on a Saturday 'this week is Red' and 'the next Ausgabe is Blue' are both true and only the second answers the question. Taking the wrong field is the likely bug in this story.",
+        "The group is conveyed by text plus colour, never colour alone",
+        "Every value comes from the existing getWeekColour use case; the page performs no date arithmetic of its own and reads no wall clock (CLAUDE.md: time is injected)",
+        "NoSettingsInForce degrades gracefully: the welcome line and date still render and the distribution panel states that the rhythm is not configured yet, with a link to /einstellungen. An unseeded database must not produce an error page.",
+        "The free-slot banner and the cards-due badge are REMOVED from this screen — US-002 has already put both on the hub, so no capability is lost",
+        "Because they are gone, the home page no longer calls proposeRegistration, listWaiting or countCardsDueForReissue; getWeekColour is its only read",
+        "The seven plain link rows are removed — the nav bar carries them now — and the obsolete de.home.*Link dictionary keys go with them, leaving no orphans",
+        "export const dynamic = \"force-dynamic\" is kept: the date and the next distribution both change at midnight without anything being written",
+        "tasks/prd-us-12-waiting-list.md and tasks/prd-us-13-age-13-reclassification.md §US-13.4 are amended — both currently require their signal 'on the home screen', which is now the hub. Change the location in those documents rather than leaving the record contradicting the code.",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Remove the back-links the nav bar replaces",
+      "description": "As a staff member, I don't want two ways back on every screen, one of which is worse. Source: tasks/prd-us-17-navigation-shell.md §US-17.4",
+      "acceptanceCriteria": [
+        "The 'Zur Startseite' links on the sub-screens are removed wherever the nav bar now covers the same move (the de.*.backToHome keys and the links behind them)",
+        "Back-links that mean something MORE specific than 'go up' are kept, because the bar cannot express them — e.g. 'Zurück zur Kundenübersicht' from a customer's card and 'Zurück zur Warteliste' from the promotion screen. These return to a record, not to a section.",
+        "Every removed dictionary key is removed from src/i18n/de.ts as well — no orphans left behind",
+        "Any e2e step that navigated by clicking a removed link is updated to use the nav bar instead, so no spec loses a step",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "E2E — navigation bar and hub links",
+      "description": "As a developer, I want the shell covered end to end, so a broken link or a mismarked section fails the build. Source: tasks/prd-us-17-navigation-shell.md §US-17.5",
+      "acceptanceCriteria": [
+        "tests/e2e/navigation.spec.ts asserts that from each of the four sections every other section is reachable by clicking the bar, and that the landing page is the expected one",
+        "The spec asserts aria-current=\"page\" is on Kunden verwalten while on /warteliste and while on /karten-neuausstellung, not only on /kunden",
+        "The spec asserts '/' marks Start and does not leave a second section marked at the same time",
+        "tests/e2e/customer-list.spec.ts gains a check that from /kunden each of the three action links reaches its page",
+        "The whole e2e suite passes",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "E2E — dashboard against a fixed clock",
+      "description": "As a developer, I want the dashboard's date and next-distribution line proved against a pinned today, so the wrong colour field cannot pass. Source: tasks/prd-us-17-navigation-shell.md §US-17.5",
+      "acceptanceCriteria": [
+        "tests/e2e/home.spec.ts is rewritten for the dashboard and asserts the date line and the next-distribution line using the existing fixed-clock seam: FD_FIXED_NOW_FILE / data/e2e-now.txt, as tests/e2e/distribution.spec.ts already drives it",
+        "Three pinned days are covered: (a) a distribution day, (b) a day BEFORE that week's distribution, (c) a day AFTER it",
+        "Case (c) is the one that matters: the next distribution is then in the following ISO week, so the asserted colour must be the OPPOSITE of the current week's — this is the assertion that catches nextDistribution.colour being confused with colour",
+        "Case (a) asserts the line says today rather than naming a future date",
+        "The spec restores the clock afterwards (delete the pin file), so the specs that assume the wall clock still pass",
+        "A spec asserts an unseeded database still renders / without an error page",
+        "The assertions for the free-slot banner and the cards-due badge in tests/e2e/waiting-list.spec.ts and tests/e2e/age-13.spec.ts are pointed at /kunden instead of / — the assertions stay, only the page they run against changes",
+        "The whole e2e suite passes",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}

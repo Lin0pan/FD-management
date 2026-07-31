@@ -347,8 +347,19 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
  * which is why it is shown at zero as well (US-13.4). It is deliberately the same neutral grey as
  * everything around it: a stale card is never a reason to turn a household away, and a badge that
  * looks like an alarm is how staff learn to ignore the list it counts (PRD §6).
+ *
+ * The waiting list carries the same badge, in the same shape, for the same reason (US-18.1): the two
+ * are one row of counts, read the same way, rather than two widgets competing for attention. Each
+ * badge sits *inside* its link, so the number is part of what is clicked rather than a figure
+ * standing beside it.
  */
-function HubActions({ cardsDue }: { cardsDue: number }): React.ReactElement {
+function HubActions({
+  cardsDue,
+  waiting,
+}: {
+  cardsDue: number;
+  waiting: number;
+}): React.ReactElement {
   return (
     <section data-testid="customer-actions" className="flex flex-wrap items-center gap-x-6 gap-y-3">
       <Link
@@ -358,12 +369,14 @@ function HubActions({ cardsDue }: { cardsDue: number }): React.ReactElement {
       >
         {de.customerList.actions.newCustomer}
       </Link>
-      <Link
-        href="/warteliste"
-        data-testid="hub-waiting-list"
-        className="underline underline-offset-4"
-      >
-        {de.customerList.actions.waitingList}
+      <Link href="/warteliste" data-testid="hub-waiting-list" className="flex gap-2">
+        <span className="underline underline-offset-4">{de.customerList.actions.waitingList}</span>
+        <span
+          data-testid="waiting-list-badge"
+          className="rounded-full bg-foreground/10 px-3 py-1 text-sm tabular-nums"
+        >
+          {de.customerList.actions.waitingListBadge(waiting)}
+        </span>
       </Link>
       <Link href="/karten-neuausstellung" data-testid="hub-cards-due" className="flex gap-2">
         <span className="underline underline-offset-4">{de.customerList.actions.cardsDue}</span>
@@ -491,7 +504,7 @@ export default async function CustomerListPage({
         <FreeSlotBanner head={head} customerNumber={freeNumber} showListLink />
       ) : null}
 
-      <HubActions cardsDue={cardsDue} />
+      <HubActions cardsDue={cardsDue} waiting={places.length} />
 
       {/* Above the filters, because it is the one number on this screen that the filters do not
           touch — and the one staff came for when they are registering somebody (FR-3). */}

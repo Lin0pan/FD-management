@@ -5,7 +5,8 @@ number). Each file is a complete, self-contained Ralph run: its own `branchName`
 starting at `US-001`, its own priorities `1..n`.
 
 [`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
-it. It currently holds **batch 17**.
+it. It currently holds **batch 18**. `done/` holds the finished copy of each batch that has run —
+the same file with every story's `passes` flipped to `true`.
 
 ## Workflow
 
@@ -71,15 +72,16 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 15  | `15-us-15-customer-list.json`            | 4       | `ralph/us-15-customer-list`            |
 | 16  | `16-us-16-maintain-customer-record.json` | 5       | `ralph/us-16-maintain-customer-record` |
 | 17  | `17-us-17-navigation-shell.json`         | 6       | `ralph/us-17-navigation-shell`         |
+| 18  | `18-us-18-waiting-list-signals.json`     | 4       | `ralph/us-18-waiting-list-signals`     |
 
 87 stories total. Every story cites its source PRD section in its `description`, so an iteration can
 read the full context when a criterion is ambiguous.
 
-Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batch 17 is not one of
-them** — it is a structural change to how the finished screens are reached, so it runs after the MVP
-rather than in build order with it, and it touches only `src/app/**`, `src/i18n/de.ts` and
-`tests/e2e/**`. If an iteration of batch 17 finds itself editing `src/domain` or `src/application`,
-it has misread the story.
+Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 and 18 are not
+among them** — 17 is a structural change to how the finished screens are reached and 18 re-places the
+waiting-list signals it introduced, so they run after the MVP rather than in build order with it.
+Both touch only `src/app/**`, `src/i18n/de.ts` and `tests/e2e/**`. If an iteration of either finds
+itself editing `src/domain` or `src/application`, it has misread the story.
 
 ## Regenerating
 

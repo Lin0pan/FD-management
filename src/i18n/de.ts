@@ -483,6 +483,19 @@ export const de = {
        * "nothing to do" is the answer staff most often want from it.
        */
       cardsDueBadge: (count: number): string => (count === 1 ? "1 Karte" : `${count} Karten`),
+      /**
+       * The badge beside the waiting-list link (US-18.1). Same shape and same reasoning as the
+       * reissue badge beside it: a number, shown at zero as well, because "niemand wartet" is the
+       * answer staff most often want and a badge that disappears cannot be told apart from a badge
+       * that failed to load. It names nobody and no customer number — the hub is deliberately not
+       * where that decision is made (PRD §5, FR-5).
+       */
+      waitingListBadge: (count: number): string => {
+        if (count === 0) {
+          return "niemand wartet";
+        }
+        return count === 1 ? "1 Wartende:r" : `${count} Wartende`;
+      },
     },
     search: {
       label: "Suche",
