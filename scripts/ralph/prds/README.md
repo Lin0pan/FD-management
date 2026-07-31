@@ -5,7 +5,7 @@ number). Each file is a complete, self-contained Ralph run: its own `branchName`
 starting at `US-001`, its own priorities `1..n`.
 
 [`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
-it. It currently holds **batch 18**. `done/` holds the finished copy of each batch that has run —
+it. It currently holds **batch 19**. `done/` holds the finished copy of each batch that has run —
 the same file with every story's `passes` flipped to `true`.
 
 ## Workflow
@@ -24,6 +24,21 @@ cp scripts/ralph/prds/02-us-01-register-customer.json scripts/ralph/prd.json
 
 `ralph.sh` archives the finished run to `archive/YYYY-MM-DD-<feature>/` by itself, because the
 `branchName` changed since `.last-branch` was written.
+
+**Copy the finished `prd.json` into `done/` before you overwrite it.** The archive `ralph.sh` writes
+is named after the branch in `.last-branch` — the batch that just _finished_ — but the `prd.json` it
+copies in is whatever the file holds at that moment, which by then is the batch about to _start_
+(`ralph.sh` lines 47–57). So the archive folder ends up with the right `progress.txt` and the wrong
+`prd.json`. `done/<n>-<feature>.json` is therefore the only record of which stories actually passed,
+and it has to be written by hand, before the `cp`:
+
+```bash
+cp scripts/ralph/prd.json scripts/ralph/prds/done/18-us-18-waiting-list-signals.json
+cp scripts/ralph/prds/19-us-19-fold-archive-search.json scripts/ralph/prd.json
+```
+
+Leave `.last-branch` alone while you do it: it still names the finished batch, which is exactly what
+makes the next run archive that run's `progress.txt` under the right name.
 
 ## Four things to get right
 
@@ -73,15 +88,25 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 16  | `16-us-16-maintain-customer-record.json` | 5       | `ralph/us-16-maintain-customer-record` |
 | 17  | `17-us-17-navigation-shell.json`         | 6       | `ralph/us-17-navigation-shell`         |
 | 18  | `18-us-18-waiting-list-signals.json`     | 4       | `ralph/us-18-waiting-list-signals`     |
+| 19  | `19-us-19-fold-archive-search.json`      | 3       | `ralph/us-19-fold-archive-search`      |
+| 20  | `20-us-20-fold-group-choice.json`        | 3       | `ralph/us-20-fold-group-choice`        |
 
-87 stories total. Every story cites its source PRD section in its `description`, so an iteration can
-read the full context when a criterion is ambiguous.
+97 stories total — the rows sum to it, which the previous figure of 87 did not: every per-batch count
+was right and only the total had drifted. Every story cites its source PRD section in its
+`description`, so an iteration can read the full context when a criterion is ambiguous.
 
-Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 and 18 are not
-among them** — 17 is a structural change to how the finished screens are reached and 18 re-places the
-waiting-list signals it introduced, so they run after the MVP rather than in build order with it.
-Both touch only `src/app/**`, `src/i18n/de.ts` and `tests/e2e/**`. If an iteration of either finds
-itself editing `src/domain` or `src/application`, it has misread the story.
+Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 to 20 are not
+among them** — 17 is a structural change to how the finished screens are reached, 18 re-places the
+waiting-list signals it introduced, and 19 and 20 finish the `/kunden/neu` restyle, so they run after
+the MVP rather than in build order with it. All four touch only `src/app/**`, `src/i18n/de.ts` and
+`tests/e2e/**`. If an iteration of any of them finds itself editing `src/domain` or
+`src/application`, it has misread the story.
+
+**19 and 20 are the only batches that edit an existing spec**, and they are the reason the "merge
+before starting the next batch" rule matters more than usual here: both change
+`tests/e2e/reregistration.spec.ts`, so starting 20 before 19 has merged gives 20 a branch cut from a
+`main` that does not have 19's edit, and the two will conflict. `docs/ui_redesign_kunden_neu.md` §12
+records why the edits are needed — Playwright cannot reach a control inside a closed `<details>`.
 
 ## Regenerating
 
