@@ -71,6 +71,20 @@ const NUMBERS = {
 const SURNAME = "Müllerhoff";
 const SEARCH_PREFIX = "müllerh";
 
+/**
+ * The applicants this spec puts on the waiting list to read the hub's badge, and the surname it
+ * takes them off again by.
+ *
+ * Invented for the same reason {@link SURNAME} is, and the count is stated once because the badge
+ * spells it out: the assertion is the *number*, so it may not be a length nobody wrote down. The
+ * waiting list is otherwise untouched on the shared register — `waiting-list.spec.ts` owns its own —
+ * which is what lets this spec read the empty state as well as the counted one.
+ */
+const WAITING_SURNAME = "Wartenbrink";
+const WAITING_APPLICANTS = 2;
+/** Before {@link TODAY}, so the applicants are already waiting on the day the screen is read. */
+const WAITING_ADDED_ON = "2026-01-05T09:00:00.000Z";
+
 /** Born well before 13 years ago: a grown-up. Comfortably inside the last 13 years: a child. */
 const GROWN_UP_BIRTH_DATE = "1985-02-11";
 const CHILD_BIRTH_DATE = "2020-06-15";
@@ -235,6 +249,33 @@ async function seedHousehold(seed: Seed): Promise<void> {
   });
 }
 
+/**
+ * Put {@link WAITING_APPLICANTS} people on the waiting list, straight through Prisma.
+ *
+ * Through the database rather than through the form because the claim under test is the *count* on
+ * the hub: `waiting-list.spec.ts` already drives the form, and typing two applications here would
+ * prove US-12 again at the cost of two page loads.
+ */
+async function seedWaitingList(): Promise<void> {
+  for (let index = 0; index < WAITING_APPLICANTS; index += 1) {
+    await prisma.waitingListEntry.create({
+      data: {
+        firstName: faker.person.firstName(),
+        lastName: WAITING_SURNAME,
+        birthDate: new Date(`${GROWN_UP_BIRTH_DATE}T00:00:00.000Z`),
+        street: faker.location.street(),
+        houseNumber: faker.location.buildingNumber(),
+        zip: faker.location.zipCode("#####"),
+        city: faker.location.city(),
+        contactNote: null,
+        certificateType: "Jobcenter-Bescheid",
+        certificateValidUntil: new Date(`${CERTIFICATES.valid}T00:00:00.000Z`),
+        addedOn: new Date(WAITING_ADDED_ON),
+      },
+    });
+  }
+}
+
 /** The customer numbers on screen, in the order the table lists them. */
 async function shownNumbers(page: Page): Promise<ReadonlyArray<string>> {
   return page
@@ -296,6 +337,11 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
     // The pinned today goes with the spec: leaving it behind would freeze January for every spec
     // that follows, not just this one.
     rmSync(NOW_FILE, { force: true });
+    // The applicants go with it too. The seeded households stay — they are the register, and the
+    // register is what the other specs read a delta against — but a waiting list this spec left
+    // behind would be a count on the hub that nobody wrote. The entries have no relations, so the
+    // spec that owns them clears them itself (`clearRegister` is for the register alone).
+    await prisma.waitingListEntry.deleteMany({ where: { lastName: WAITING_SURNAME } });
     await prisma.$disconnect();
   });
 
@@ -414,6 +460,41 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
 
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(action.heading);
     }
+  });
+
+  test("das Warteliste-Badge zählt die Wartenden und meldet einen freien Platz in Worten", async ({
+    page,
+  }) => {
+    const badge = page.getByTestId("waiting-list-badge");
+
+    // Nobody is waiting yet, and the badge says so in words rather than disappearing (US-18.1): a
+    // badge that vanished at zero could not be told apart from one whose number failed to load.
+    await page.goto("/kunden");
+    await expect(badge).toHaveText(de.customerList.actions.waitingListBadge(0, false));
+    await expect(badge).toHaveAttribute("data-free-slot", "false");
+
+    await seedWaitingList();
+    await page.goto("/kunden");
+
+    // The shared register is nowhere near its quota, so a number is free the moment somebody waits.
+    // The state is read off the element as data, never off its colour — the tint is the half of this
+    // marking that not every staff member can see, which is why "Platz frei" is in the text at all
+    // (US-18.2, US-03.4).
+    await expect(badge).toHaveText(
+      de.customerList.actions.waitingListBadge(WAITING_APPLICANTS, true),
+    );
+    await expect(badge).toHaveAttribute("data-free-slot", "true");
+
+    // It names nobody and no customer number, and the hub carries no banner in this state either:
+    // who gets the number is decided on /kunden/neu, not above the register (FR-1, FR-5).
+    await expect(badge).not.toContainText(WAITING_SURNAME);
+    await expect(page.getByTestId("waiting-list-free-slot")).toHaveCount(0);
+
+    // The number is part of the link rather than a figure standing beside it — clicking it opens the
+    // queue it counts.
+    await badge.click();
+    await page.waitForURL((url) => url.pathname === "/warteliste");
+    await expect(page.getByTestId("waiting-list-row")).toHaveCount(WAITING_APPLICANTS);
   });
 
   test("die Filter stehen in der URL und ein Reload stellt dieselbe Ansicht wieder her", async ({

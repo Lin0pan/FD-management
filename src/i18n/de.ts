@@ -483,6 +483,24 @@ export const de = {
        * "nothing to do" is the answer staff most often want from it.
        */
       cardsDueBadge: (count: number): string => (count === 1 ? "1 Karte" : `${count} Karten`),
+      /**
+       * The badge beside the waiting-list link (US-18.1). Same shape and same reasoning as the
+       * reissue badge beside it: a number, shown at zero as well, because "niemand wartet" is the
+       * answer staff most often want and a badge that disappears cannot be told apart from a badge
+       * that failed to load. It names nobody and no customer number — the hub is deliberately not
+       * where that decision is made (PRD §5, FR-5).
+       */
+      waitingListBadge: (count: number, freeSlot: boolean): string => {
+        const waiting =
+          count === 0 ? "niemand wartet" : count === 1 ? "1 Wartende:r" : `${count} Wartende`;
+        // `freeSlot` is a required argument rather than an optional flag: when a number is free the
+        // badge is tinted, and a tint is a distinction only some of the staff can make (US-03.4), so
+        // the word has to travel with it. Requiring the caller to state it is what keeps them
+        // together. It says *that* a number is free and not *which* one, and it names nobody — the
+        // applicant and the number belong to the banner, on the screen where somebody is actually
+        // being registered (US-18.2, FR-5).
+        return freeSlot ? `${waiting} · Platz frei` : waiting;
+      },
     },
     search: {
       label: "Suche",

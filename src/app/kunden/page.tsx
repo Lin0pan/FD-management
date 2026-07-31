@@ -40,7 +40,6 @@ import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { waitingListDeps } from "../warteliste/deps";
-import { FreeSlotBanner } from "../warteliste/free-slot-banner";
 import { customerDeps } from "./deps";
 
 /**
@@ -341,14 +340,69 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
 }
 
 /**
+ * The count pill both hub badges are made of (PRD §6). It is one component so that the two cannot
+ * drift apart: they stand next to each other and are read as one row, and a pill a pixel taller than
+ * its neighbour is how that stops being true. The border is always there — transparent in the
+ * neutral state — so tinting one of them changes its colour and not its size.
+ */
+function CountBadge({
+  label,
+  testId,
+  accent = "border-transparent",
+  ...rest
+}: {
+  label: string;
+  testId: string;
+  accent?: string;
+} & React.ComponentPropsWithoutRef<"span">): React.ReactElement {
+  return (
+    <span
+      data-testid={testId}
+      className={`rounded-full border bg-foreground/10 px-3 py-1 text-sm tabular-nums ${accent}`}
+      {...rest}
+    >
+      {label}
+    </span>
+  );
+}
+
+/**
+ * The tint the waiting-list badge wears when a customer number is actually free (US-18.2).
+ *
+ * It is the same subtle green the register uses for an active household, and deliberately neither
+ * red nor amber: those are spoken for by a blocked status and a lapsing certificate, and a free slot
+ * is not an alarm — it is the ordinary good news that somebody who has waited can now be served. The
+ * tint never travels alone: `waitingListBadge` puts "Platz frei" in the badge in the same breath,
+ * because a colour is a distinction only some of the staff can make (US-03.4).
+ */
+const FREE_SLOT_ACCENT = "border-emerald-600/40 bg-emerald-600/15";
+
+/**
  * The three customer actions, above the list (FR-5).
  *
  * The reissue link carries its count so that "nothing to do" can be read without opening the list —
  * which is why it is shown at zero as well (US-13.4). It is deliberately the same neutral grey as
  * everything around it: a stale card is never a reason to turn a household away, and a badge that
  * looks like an alarm is how staff learn to ignore the list it counts (PRD §6).
+ *
+ * The waiting list carries the same badge, in the same shape, for the same reason (US-18.1): the two
+ * are one row of counts, read the same way, rather than two widgets competing for attention. Each
+ * badge sits *inside* its link, so the number is part of what is clicked rather than a figure
+ * standing beside it.
+ *
+ * `freeSlot` is the one thing that separates them: a queue that can be served *now* reads
+ * differently from a queue that merely exists (US-18.2). It still names nobody — who gets the number
+ * is decided on `/kunden/neu`, not here.
  */
-function HubActions({ cardsDue }: { cardsDue: number }): React.ReactElement {
+function HubActions({
+  cardsDue,
+  waiting,
+  freeSlot,
+}: {
+  cardsDue: number;
+  waiting: number;
+  freeSlot: boolean;
+}): React.ReactElement {
   return (
     <section data-testid="customer-actions" className="flex flex-wrap items-center gap-x-6 gap-y-3">
       <Link
@@ -358,21 +412,23 @@ function HubActions({ cardsDue }: { cardsDue: number }): React.ReactElement {
       >
         {de.customerList.actions.newCustomer}
       </Link>
-      <Link
-        href="/warteliste"
-        data-testid="hub-waiting-list"
-        className="underline underline-offset-4"
-      >
-        {de.customerList.actions.waitingList}
+      <Link href="/warteliste" data-testid="hub-waiting-list" className="flex gap-2">
+        <span className="underline underline-offset-4">{de.customerList.actions.waitingList}</span>
+        {/* The state is on the element as data, not only in its colour, so a spec asserts what the
+            badge means rather than what shade it happens to be painted. */}
+        <CountBadge
+          testId="waiting-list-badge"
+          data-free-slot={freeSlot ? "true" : "false"}
+          accent={freeSlot ? FREE_SLOT_ACCENT : undefined}
+          label={de.customerList.actions.waitingListBadge(waiting, freeSlot)}
+        />
       </Link>
       <Link href="/karten-neuausstellung" data-testid="hub-cards-due" className="flex gap-2">
         <span className="underline underline-offset-4">{de.customerList.actions.cardsDue}</span>
-        <span
-          data-testid="cards-due-badge"
-          className="rounded-full bg-foreground/10 px-3 py-1 text-sm tabular-nums"
-        >
-          {de.customerList.actions.cardsDueBadge(cardsDue)}
-        </span>
+        <CountBadge
+          testId="cards-due-badge"
+          label={de.customerList.actions.cardsDueBadge(cardsDue)}
+        />
       </Link>
     </section>
   );
@@ -454,13 +510,13 @@ export default async function CustomerListPage({
   }
 
   // The hub's two signals, both of which the list itself cannot show: how many cards have fallen
-  // behind, and whether a freed customer number is waiting for the applicant at the top of the list.
+  // behind, and how many applicants are waiting — the latter marked when a customer number is free.
   const [cardsDue, places, proposal] = await Promise.all([
     countCardsDueForReissue(customerDeps),
     listWaiting(waitingListDeps),
     // Settings were in force a moment ago — `listCustomers` needs them too — but a saved change is in
     // force immediately, so the answer is caught here as well: no quota means no answer about a free
-    // slot, and the page shows no banner rather than being an error.
+    // slot, and the badge states its count in the neutral state rather than the page being an error.
     proposeRegistration(customerDeps).catch((error: unknown) => {
       if (error instanceof DomainError && error.code === "NoSettingsInForce") {
         return null;
@@ -469,9 +525,9 @@ export default async function CustomerListPage({
     }),
   ]);
 
-  // The head of the list the domain ordered, and nobody else — the same reading the waiting-list
-  // screen makes, so the two screens cannot name two different applicants.
-  const [head] = places;
+  // Whether anybody is waiting at all. Who that is belongs to /kunden/neu, where the number is
+  // handed out — the hub deliberately names nobody (US-18.3).
+  const anybodyWaiting = places.length > 0;
   const freeNumber = proposal?.customerNumber ?? null;
 
   const filtered = activeFilters(filters, search);
@@ -484,14 +540,17 @@ export default async function CustomerListPage({
       <h1 className="text-3xl font-semibold">{de.customerList.heading}</h1>
       <p className="max-w-prose text-foreground/80">{de.customerList.intro}</p>
 
-      {/* First on the section's own page, because a freed customer number nobody notices is an
-          applicant who goes on waiting for no reason (US-12, PRD §6). The waiting list is not on
-          view here, so the banner offers the way to it as well. */}
-      {head !== undefined && freeNumber !== null ? (
-        <FreeSlotBanner head={head} customerNumber={freeNumber} showListLink />
-      ) : null}
-
-      <HubActions cardsDue={cardsDue} />
+      {/* No banner here any more (US-18.3). Naming one applicant and one number at the top of the
+          register was a decision about somebody else standing in front of the thing staff came for;
+          it now stands on /kunden/neu, where the number is actually about to be handed out. What
+          survives here is the badge — the same fact, stated quietly. */}
+      <HubActions
+        cardsDue={cardsDue}
+        waiting={places.length}
+        // Both halves are required: a free number with nobody waiting is not news, and a queue with
+        // no number to give out is the state the badge already states plainly (US-18.2).
+        freeSlot={anybodyWaiting && freeNumber !== null}
+      />
 
       {/* Above the filters, because it is the one number on this screen that the filters do not
           touch — and the one staff came for when they are registering somebody (FR-3). */}

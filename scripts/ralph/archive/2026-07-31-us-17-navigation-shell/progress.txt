@@ -1,11 +1,11 @@
 # Ralph Progress Log
-Started: Fri Jul 31 09:24:00 CEST 2026
+Started: Thu Jul 30 20:21:46 CEST 2026
 ---
 
 ## Codebase Patterns
-(Carried forward by hand from the US-17 log — the archive rotation wipes this file, so the
+(Carried forward by hand from the US-16 log — the archive rotation wipes this file, so the
 patterns block has to be pasted into the fresh one. The other durable channel is the CLAUDE.md
-files. Batch 18 is presentation and e2e only, so most of what follows is background rather than
+files. Batch 17 is presentation-only, so most of what follows is background rather than
 instruction: the ports, fakes and migration notes below describe layers this batch must not
 touch. The Next.js, i18n and e2e entries are the ones that apply.)
 - Adding a method to a port interface (e.g. CustomerRepository) forces EVERY implementer to compile:
@@ -176,11 +176,6 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
   low numbers free. Everything that merely writes stays on the shared server.
 - Each server has its OWN `FD_FIXED_NOW_FILE`, so pinning the clock in one project cannot move the
   other's calendar. A new server needs its now-file added to `.gitignore` beside `data/e2e-now.txt`.
-- An assertion about "somebody is waiting and NOTHING is free" belongs in the isolated spec and
-  nowhere else: the shared register is never full, so its badge reads free-slot=true whenever anyone
-  waits. Split a two-state UI signal across the two projects — the shared spec proves the count and
-  the servable state, the isolated one proves the neutral state — rather than trying to fill the
-  shared register.
 - A `node -e "…"` command inside playwright.config.ts is double-quoted by the shell, so any array
   literal in it must use SINGLE quotes — `JSON.stringify` emits double quotes and the shell eats
   them (`ReferenceError: data is not defined`).
@@ -346,200 +341,206 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
   "Einstellungen" and "Ausgabe" now appear in the bar on every page. Nothing broke here (the specs
   select by testid), but grep the labels before adding an item, and give each link its own
   `data-testid="nav-<section>"` so a spec never has to name it by German text.
-- A LEFTOVER `next-server` from an earlier run holds the verification port and silently serves the
-  OLD build: `next dev -p 3100` then dies with `EADDRINUSE` in its log while the browser keeps
-  showing the previous markup, which reads exactly like "my edit did nothing". When a change does not
-  appear, `ps aux | grep "[n]ext"` BEFORE doubting the code — a `next dev` that is really running
-  recompiles on save, so a stale screen is almost always a stale process.
-- Driving a screen's zero/one/many states against the DEV database is done by flipping the rows, not
-  by reseeding: set `removedOn` on the waiting-list entries, read the badge, then null it back in the
-  same session. Record the ids first — `db:reset` would take the demo register with it.
-- A count badge belongs INSIDE its link, as a sibling `<span>` of the label. The accessibility
-  snapshot then reads `link "Warteliste 3 Wartende"` rather than a link and a loose number: that one
-  line is the whole check the criterion asks for, and a screenshot cannot make it.
 
-- Two badges that stand side by side are ONE component (CountBadge in src/app/kunden/page.tsx), and
-  the one that can be tinted carries `border` in every state — transparent when neutral. A border
-  added only in the accent state makes that pill 2px taller than its neighbour, which is the kind of
-  thing a screenshot shows and no assertion catches.
-- A state a badge carries by colour also goes on the element as data (`data-free-slot`), so an e2e
-  spec asserts what it means rather than what shade it is painted — and the German word carries the
-  state anyway, because a tint alone is a distinction only some of the staff can make (US-03.4).
-- Driving the "register is full" state against the DEV database is a two-line flip of
-  `SettingsVersion.quotaN` below the lowest free customer number (`select customerNumber from
-  Customer where status != 'ARCHIVED'`), then back to 240. No reseed, no settings edit through the UI,
-  and no audit row in the demo register.
-- A signal belongs on the screen where the thing it is about actually happens. A banner naming one
-  applicant and one number is a decision about somebody else; on a hub it stands in front of what
-  staff came to read, on the screen that hands out the number it is the fact they need before typing.
-  Moving one is a two-file diff — and the reads stay where they were if a quieter signal still needs
-  them (/kunden keeps `listWaiting` and `proposeRegistration` for its badge).
-- Two independent reads in a server component go in ONE `Promise.all` inside the existing `try`, not
-  in sequence and not in a second try: the `NoSettingsInForce` branch then covers both, and the
-  screen the staff member is waiting for is not gated behind two round trips.
-- Removing a render can leave a binding that lies. `const [head] = places` was "who the banner names";
-  once the banner is gone it is only "is anybody waiting", and `places.length > 0` says that. A name
-  that describes a use which no longer exists is the next reader's wrong turn.
-- The docs describe screens by what they carry, so MOVING an element edits the prose in three places
-  at once: the file tree comment, the source screen's paragraph and the target screen's. `grep -n`
-  the component name across `docs/` before committing — `docs/technical_documentation.md` names
-  `free-slot-banner.tsx` in four separate sentences.
-- `docs/technical_documentation.md` contains NON-BREAKING SPACES (U+00A0) mid-sentence. A python
-  heredoc patch fails its `assert old in s` on a line that looks identical in the terminal; `sed -n
-  '<line>p' file | cat -A` shows them as `M-BM- `, and the literal has to carry `\u00a0`.
-
-## 2026-07-31 09:35 - US-001 (US-18.1) — waiting-list count badge on the Kunden hub
-- `HubActions` in src/app/kunden/page.tsx now takes `waiting` beside `cardsDue` and renders a badge
-  inside the `/warteliste` link, in the cards-due badge's exact pill (`rounded-full bg-foreground/10
-  px-3 py-1 text-sm tabular-nums`). The count is `places.length` off the `listWaiting` call the page
-  already made in its `Promise.all` — no use case, port method or count query was added.
-- `de.customerList.actions.waitingListBadge(count)` inflects at one and states the zero case in
-  words: "niemand wartet" / "1 Wartende:r" / "3 Wartende".
-- The free-slot banner is untouched; US-003 moves it, and removing it first would leave /kunden with
-  no waiting-list signal at all.
-- Files changed: src/app/kunden/page.tsx, src/i18n/de.ts, docs/technical_documentation.md,
-  scripts/ralph/prd.json, scripts/ralph/progress.txt.
-- Checks: lint, typecheck, `test:coverage` (44 files, 912 tests) and `build` all green. The e2e suite
-  was not run for this story — US-004 rewrites those specs.
-- Browser verification (playwright-cli, accessibility snapshot rather than a screenshot):
-  - 3 waiting → `link "Warteliste 3 Wartende"`, directly above `link "Karten neu ausstellen 2
-    Karten"`. The badge reads as part of the link, which is what the criterion asks.
-  - 1 waiting → `link "Warteliste 1 Wartende:r"`.
-  - 0 waiting → `link "Warteliste niemand wartet"`, and the free-slot banner correctly disappeared
-    with the last applicant.
-  - Clicking the badge navigated to /warteliste.
+## 2026-07-30 20:35 - US-001 (Navigation bar in the root layout)
+- Implemented the navigation shell: a pure `activeSection(pathname)` matcher with its own unit test
+  (written first, watched fail), the four-item `<nav>`, and its wiring into the root layout.
+- Files changed:
+  - `src/app/active-section.test.ts` (new) — 13 named cases: every route the PRD lists (`/`,
+    `/ausgabe`, `/einstellungen`, `/kunden`, `/kunden/neu`, `/kunden/<id>`, `/kunden/<id>/karte`,
+    `/warteliste`, `/warteliste/<id>/registrieren`, `/karten-neuausstellung`), an unknown path, and
+    the two traps: `/` must not mark every path, `/kundenkarten` must not match `/kunden`.
+  - `src/app/active-section.ts` (new) — `NAV_ITEMS` + `activeSection`, returning `null` for a path
+    no section owns.
+  - `src/app/nav.tsx` (new) — client component (`usePathname` only, no data read); marks the current
+    section with a bottom rule + tint + bold **and** `aria-current="page"`.
+  - `src/app/layout.tsx` — renders `<Nav />` above `{children}`; still a server component, still no
+    data read.
+  - `src/i18n/de.ts` — new `de.nav.*` (label, start, distribution, customers, settings).
+  - `docs/technical_documentation.md` — the file tree plus a new §4 section on the shell.
+- Verification: lint, typecheck, `test:coverage` (912 tests, thresholds met), `npm run build` (route
+  table unchanged — the layout did not turn anything dynamic), and the FULL Playwright suite
+  (72 passed, 1 skipped) with the bar now on every screen.
+- Browser-verified against the built app on :3100 with Playwright directly: the four labels in
+  order, exactly one `aria-current` per page, Kunden verwalten marked on `/warteliste`,
+  `/karten-neuausstellung`, `/kunden/neu` and a customer record, and a client-side click from `/`
+  keeping the marking in step. At a 360px viewport the bar wraps to two rows and
+  `document.documentElement.scrollWidth` is still 360 — it never pushes content sideways.
 - **Learnings for future iterations:**
-  - The verification port was held by a `next-server` left over from an earlier iteration. It served
-    the previous build for three rounds of "why is my badge not there" while `next dev` was dying on
-    EADDRINUSE in a log nobody read. `ps aux | grep "[n]ext"` is the first check, not the last.
-  - The dev database (data/fd.db) carries 3 waiting applicants (ids 10, 11, 12) and 20 customers, so
-    a badge's plural, singular and zero states are all reachable by flipping `removedOn` and putting
-    it back — no reseed, and the demo register survives.
-  - `docs/technical_documentation.md` describes the hub's signals in one paragraph (§`src/app/kunden/`).
-    A signal added to or removed from that row belongs in it, and US-003 will have to revise the same
-    sentences again when the banner leaves.
+  - The story after this one (US-002) moves the free-slot banner and the cards-due badge to
+    `/kunden`; US-003 removes them from `/`. That order is load-bearing — the PRD says so — because
+    the reverse leaves the app with neither signal anywhere.
+  - `curl <page> | grep 'aria-current'` is a fast way to check the marking per route before
+    reaching for a browser; the bar is server-rendered, so SSR already tells the truth.
+  - Killing the built server after a browser check: `pkill -f "next-server"` (exit 144 means it
+    killed something), per the pattern above.
+  - `@playwright/test` cannot be imported from a script in `/tmp` — copy the throwaway script into
+    the repo root so node resolves `node_modules`, and delete it afterwards.
 ---
 
-## 2026-07-31 09:40 - US-002 (US-18.2) — "Platz frei" on the waiting-list badge
-- `de.customerList.actions.waitingListBadge(count, freeSlot)` gained a **required** second argument
-  and appends „ · Platz frei“ when it is true. Required rather than optional on purpose: the tint and
-  the word have to travel together, so every call site has to say which state it is in.
-- The pill both hub badges are made of is now a local `CountBadge` in src/app/kunden/page.tsx (PRD §6
-  explicitly allows the extraction, and asks that it stay in that file). It always renders a border —
-  `border-transparent` when neutral — so the free-slot tint changes the badge's colour and not its
-  size, and the two pills stay the same height side by side.
-- The accent is `border-emerald-600/40 bg-emerald-600/15`, the same subtle green the register already
-  uses for an ACTIVE household. Not red, not amber: those are a blocked status and a lapsing
-  certificate, and a free slot is good news rather than an alarm.
-- `HubActions` takes `freeSlot={head !== undefined && freeNumber !== null}` — both halves off the
-  `listWaiting` and `proposeRegistration` calls already in the page's `Promise.all`. No use case, port
-  method or query was added, and the `NoSettingsInForce` catch around `proposeRegistration` is
-  untouched. The banner is still on the hub; US-003 moves it.
-- Files changed: src/app/kunden/page.tsx, src/i18n/de.ts, docs/technical_documentation.md,
-  scripts/ralph/prd.json, scripts/ralph/progress.txt.
-- Checks: lint, typecheck, format:check, `test:coverage` (44 files, 912 tests) and `build` all green.
-  The e2e suite was not run — US-004 is the story that rewrites those specs.
-- Browser verification (playwright-cli, accessibility snapshot first, screenshot only to compare the
-  two pills):
-  - free number + 3 waiting → `link "Warteliste 3 Wartende · Platz frei"`, `data-free-slot="true"`,
-    tinted; the count and the word are one node inside the link.
-  - quota lowered to 2 (register full) → `link "Warteliste 3 Wartende"`, `data-free-slot="false"`,
-    and the pill is pixel-identical to `2 Karten` beside it.
-  - waiting list emptied while a number was free → `"niemand wartet"`, `data-free-slot="false"`. The
-    word never appears without both halves, and the accent never without the word.
-  - The dev database was put back afterwards: quotaN 240, `removedOn` NULL on entries 10, 11, 12.
+## 2026-07-30 21:05 - US-002 (/kunden becomes the Kunden-verwalten hub)
+- The customer list is now the section's hub: heading "Kunden verwalten" (the nav label word for
+  word), the free-slot banner and a band of three action links above the filter form, the reissue
+  link carrying the cards-due badge.
+- Files changed:
+  - `src/app/kunden/page.tsx` — imports `countCardsDueForReissue`, `listWaiting` and
+    `proposeRegistration` (the last with the `NoSettingsInForce` catch the home page has), renders
+    `FreeSlotBanner` (with `showListLink`, since the list is not on view here) and a new
+    `HubActions` section. The list, its filters, its query parameters and the group balance are
+    untouched.
+  - `src/i18n/de.ts` — `de.customerList.heading` "Kundenliste" → "Kunden verwalten"; new
+    `de.customerList.actions.*`, into which `de.home.cardsDueBadge` MOVED.
+  - `src/app/page.tsx` — one line: the badge now reads the moved key. Everything else on the home
+    screen is US-003's business.
+  - `src/app/warteliste/actions.ts`, `src/app/karten-neuausstellung/actions.ts` — `revalidatePath("/kunden")`
+    beside the existing `revalidatePath("/")`, because both signals now stand there too.
+  - `docs/technical_documentation.md` — the file tree, the `src/app/kunden/` section, and the two
+    places that said the banner and the badge live on the home screen.
+- Verification: lint, typecheck, `test:coverage` (912 tests — no new unit test, the story adds no
+  logic), `npm run build` (route table unchanged), and the FULL Playwright suite twice (72 passed,
+  1 skipped).
+- Browser-verified against the built app on :3100: heading "Kunden verwalten", the banner naming
+  Kundennummer 3 and the longest wait, the badge reading "2 Karten", and each of the three action
+  links reaching its page with "Kunden verwalten" still marked in the bar.
 - **Learnings for future iterations:**
-  - Making the dictionary function's `freeSlot` argument required is what enforces "the accent never
-    appears without the word" — with a default it would be one forgotten argument away from a
-    colour-only marking, which is the thing US-03.4 forbids.
-  - `next dev` rewrites `next-env.d.ts` (`./.next/types` → `./.next/dev/types`) and `next build`
-    writes it back. It shows up in `git status` as an unrelated modification — `git checkout
-    next-env.d.ts` after the browser round, and check `git status` again after `build`.
-  - The dev register's active numbers are 1, 2, 6–18, so the lowest free number is 3 and `quotaN = 2`
-    is the smallest change that makes the register full.
+  - US-003 removes the banner, the badge and the seven link rows from `/`, and with them the
+    `de.home.*Link` keys — `de.home.cardsDueBadge` is already gone, so do not go looking for it.
+  - `de.customerList.heading` is used TWICE in `kunden/page.tsx`: the page and the `NoSettings`
+    fallback. The fallback deliberately keeps only the settings link — without settings there is
+    nothing to register anybody with, so the action band would offer a dead end.
+  - No e2e spec asserted the "Kundenliste" heading (only a `describe` name), so the rename cost
+    nothing. `grep` the German string before renaming a heading anyway.
 ---
 
-## 2026-07-31 09:50 - US-003 (US-18.3) — the free-slot banner moves to /kunden/neu
-- `FreeSlotBanner` is gone from src/app/kunden/page.tsx: import and render both. /kunden renders no
-  `waiting-list-free-slot` element in any state. The `listWaiting` and `proposeRegistration` calls
-  stay exactly where they were — the badge from US-001/US-002 needs both — and the
-  `NoSettingsInForce` catch around the proposal is untouched.
-- With the banner gone the hub no longer needs the *head* of the queue, only whether there is one, so
-  `const [head] = places` became `const anybodyWaiting = places.length > 0`. /kunden now names nobody,
-  which is the whole point of the story; the binding said otherwise.
-- src/app/kunden/neu/page.tsx awaits `proposeRegistration` and `listWaiting` **concurrently** in one
-  `Promise.all`, inside the existing `try` so the `NoSettingsInForce` branch still covers the screen,
-  and renders the banner between the header and `RegistrationScreen` when somebody is waiting AND
-  `proposal.customerNumber !== null`, with `showListLink` (the list is not on view here).
-  `waitingListDeps` and `FreeSlotBanner` are imported across route folders, the move /kunden already
-  made. `FreeSlotBanner` itself is unmodified, and it gates nothing — the form renders in full below.
-- Files changed: src/app/kunden/page.tsx, src/app/kunden/neu/page.tsx,
-  docs/technical_documentation.md, scripts/ralph/prd.json, scripts/ralph/progress.txt.
-- Checks: lint, typecheck, format:check, `test:coverage` (44 files, 912 tests) and `build` all green.
-  The e2e suite is deliberately NOT green yet: the assertion that reads the banner on /kunden is
-  US-004's to re-point, and the PRD prescribes this order so /kunden is never left without any
-  waiting-list signal.
-- Browser verification (playwright-cli, accessibility snapshot):
-  - 3 waiting + number 3 free → on /kunden/neu the banner stands below the intro and above „Im Archiv
-    suchen“: heading „Ein Platz ist frei“, „Kundennummer 3 ist frei. Am längsten wartet Mayra
-    Koszewski.“, `link "Jetzt registrieren" → /warteliste/10/registrieren`, `link "Warteliste öffnen"`.
-  - waiting list emptied → no banner, and both forms (archive search + registration) still render.
-  - quota lowered to 2 so the register was full → no banner, and the form says it itself: „Alle 2
-    Kundennummern sind vergeben.“
-  - /kunden in every state: `waiting-list-free-slot` count 0, badge still
-    `link "Warteliste 3 Wartende · Platz frei"`.
-  - /warteliste untouched: banner present, same detail sentence, still no list link (`showListLink`
-    is false there, because the list *is* on view).
-  - The dev database was restored: quotaN 240, `removedOn` NULL on entries 10, 11, 12.
+## 2026-07-30 21:0x - US-003 (Start dashboard)
+- `/` is now the Start dashboard: welcome line, today's date written out, and one panel naming the
+  next distribution and the group that collects. The seven link rows are gone (the nav bar carries
+  them), and with them the free-slot banner and the cards-due badge, which US-002 had already put
+  on the hub. `getWeekColour` is the page's only read; it is still `force-dynamic`.
+- Files: `src/app/page.tsx` (rewritten), `src/i18n/format.ts` (+`germanLongDate`), `src/i18n/de.ts`
+  (`home` block rewritten, the five `*Link` keys dropped, `settingsLink` kept because the Ausgabe
+  and hub screens use it), `docs/technical_documentation.md` (a section for the dashboard + the
+  home-screen references), `tasks/prd-us-12-waiting-list.md`, `tasks/prd-us-13-...md` (both amended
+  to name the hub as the signal's home), `tests/e2e/age-13.spec.ts`, `tests/e2e/waiting-list.spec.ts`
+  (badge and banner assertions pointed at `/kunden`).
+- Verified in the browser against a pinned clock on the seeded db (Thursday distribution, anchor
+  2026-W02 RED): Thu 30.07 "Heute ist Ausgabe - Gruppe Blau", Tue 28.07 "Naechste Ausgabe:
+  Donnerstag, 30. Juli 2026 - Gruppe Blau", Sat 01.08 "Donnerstag, 6. August 2026 - Gruppe Rot" —
+  the Saturday case is the one that proves `nextDistribution.colour` rather than `colour`, since
+  that week is still Blau. A day before any settings version renders HTTP 200 with the date and the
+  "rhythm not configured" panel.
 - **Learnings for future iterations:**
-  - The banner's conditions are stated twice in the codebase now (here and on /warteliste) but read
-    the head the same way — `listWaiting`'s first place, never re-sorted. That is what stops two
-    screens naming two different applicants, and it is worth re-checking in review rather than
-    trusting the comment.
-  - Docs edits on a move are three-place edits, and `docs/technical_documentation.md` hides U+00A0
-    characters mid-sentence that break a heredoc patch. Both are in Codebase Patterns above.
+  - The AC said "German long form via the existing `germanDate`", but `germanDate` is `30.07.2026`.
+    Added `germanLongDate` (Intl, `timeZone: "UTC"`, weekday+long month) beside it rather than
+    changing `germanDate`, which ~15 call sites depend on. Long form is for prose, compact for tables.
+  - `app/` may read `deps.clock.now()` — `src/app/einstellungen/page.tsx` already does. The rule is
+    that the WALL clock is read only in `src/infrastructure/clock.ts`; the injected clock is fine.
+    The dashboard needs it for exactly one case: `NoSettingsInForce`, where `getWeekColour` has no
+    date to give and the screen must still name the day.
+  - `de.home.settingsLink` is NOT a home-page key any more — `/ausgabe` and `/kunden` both use it for
+    their "no settings" links. Check `grep -rn "de\.home\."` before deleting a `home` key.
+  - US-004 next: it removes the `backToHome` links. `src/app/ausgabe/page.tsx` ends with one that
+    uses `de.customers.card.backToHome`, i.e. the keys are not all named after their own screen.
 ---
 
-## 2026-07-31 - US-004 (US-18.4: e2e follows the signals to their new screens)
-- Re-pointed and extended the Playwright suite so the move US-001..US-003 made is a contract:
-  - tests/e2e/waiting-list.spec.ts (isolated project):
-    - "archiving a household frees a number ..." - the `waiting-list-free-slot-detail` assertion that
-      stood on /kunden now stands on /kunden/neu, same expected text (`de.waitingList.banner.names`),
-      with `proposed-number` = the freed number asserted beside it: the banner is on screen *and* the
-      form is proposing the number, which is what "it states a fact and gates nothing" means.
-    - Same test: /kunden asserted to hold ZERO `waiting-list-free-slot` elements, and to carry the
-      badge instead - `waitingListBadge(2, true)`, `data-free-slot="true"`.
-    - "two applicants join the list ..." - the register is still full there, so it is the only place
-      where somebody waits and nothing is free: `waitingListBadge(2, false)`, `data-free-slot="false"`.
-  - tests/e2e/customer-list.spec.ts (shared project):
-    - New test "das Warteliste-Badge zaehlt die Wartenden und meldet einen freien Platz in Worten":
-      the empty list first ("niemand wartet", rendered rather than hidden, `data-free-slot="false"`),
-      then two applicants seeded straight through Prisma under an invented surname (Wartenbrink) ->
-      `waitingListBadge(2, true)`, `data-free-slot="true"`, the badge naming neither applicant, no
-      banner anywhere on the hub, and a click on the BADGE landing on /warteliste with both rows on
-      it (which is how "the number is part of the link" is asserted rather than assumed).
-    - `afterAll` deletes those applicants beside the existing pinned-clock cleanup.
-  - tests/e2e/home.spec.ts untouched, as the PRD requires; the three-actions test untouched and green.
-- Files changed: tests/e2e/waiting-list.spec.ts, tests/e2e/customer-list.spec.ts,
-  docs/technical_documentation.md (both spec descriptions), scripts/ralph/prd.json, this log.
-- Checks: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (44 files, 912 tests, domain
-  and application still 100%), `npm run build`, and the full Playwright suite - 87 passed, 1 skipped
-  (the pre-existing settings skip).
+## 2026-07-30 - US-004 (Remove the back-links the nav bar replaces)
+- Removed the seven "Zur Startseite" links now covered by the nav bar, and the three
+  `backToHome` dictionary keys behind them (`customers.card`, `cardsDue`, `waitingList`).
+  Kept the two back-links that name a RECORD rather than a section — `cardView.backToCustomer`
+  and `waitingList.promote.backToList` — because the bar cannot express "back to *that* customer".
+- Files changed: src/app/ausgabe/page.tsx, src/app/karten-neuausstellung/page.tsx,
+  src/app/kunden/page.tsx, src/app/kunden/[id]/page.tsx (two: the NotFound state and the
+  record's link row), src/app/kunden/[id]/karte/page.tsx (NotFound), src/app/warteliste/page.tsx,
+  src/i18n/de.ts, docs/technical_documentation.md (a bullet in the navigation-shell section
+  recording which back-links survived and why).
+- Checks: lint, typecheck, 912 unit tests, build and the FULL e2e suite (72 passed, 1 pre-existing
+  skip) all green. Browser-verified with the curl technique below on all ten routes.
 - **Learnings for future iterations:**
-  - The two-project split is a *test-design* constraint, not only an infrastructure detail: a state
-    that needs a full register can only be proved in `waiting-list.spec.ts`, and a state that needs a
-    register with room only on the shared one. Splitting the states across the two specs is far
-    cheaper than moving a spec into the isolated project (a second Next server for the whole run).
-  - A leftover next-server adopted by `reuseExistingServer` serves the OLD build - `pkill -f
-    "next-server"` (exit 144 means it killed something) before running the suite after a build. The
-    previous iteration's browser verification leaves one behind.
-  - Seeding a waiting-list entry through Prisma needs `contactNote` stated explicitly as `null` (the
-    column is nullable and the adapter translates it to `""`), and `addedOn` before the spec's pinned
-    today, or the applicant is "waiting" from the future.
-  - A spec that seeds a relation-free table cleans up with its own `deleteMany` keyed on an invented
-    surname - `clearRegister` is for the register alone. Do it in `afterAll` rather than at the end of
-    the test: in serial mode a mid-test failure would otherwise leak rows into the next run's
-    zero-state assertion.
-  - `de.customerList.actions.waitingListBadge(count, freeSlot)` takes BOTH arguments, so a spec
-    calling it with one does not compile - the word and the tint cannot drift apart in a test either.
+  - The criterion "any e2e step that navigated by clicking a removed link is updated" cost nothing
+    here: NO spec ever clicked "Zur Startseite" — the suite navigates with `page.goto`, and the only
+    `goto("/")` is home.spec.ts. `grep -rn 'getByRole("link"\|getByText("Zur' tests/e2e` before
+    assuming test work is needed for a link removal.
+  - Removing the last `<Link>` from a page leaves an unused `next/link` import that TYPECHECK does
+    not catch — only lint does. `grep -c '<Link' <file>` before deleting one; warteliste/page.tsx
+    was the only file that hit zero.
+  - Two of the seven links were in `NotFound()` states, not on the happy path, so a `curl` sweep has
+    to include a customer id nobody holds (`/kunden/99999`, `/kunden/99999/karte`) or half the
+    removal goes unverified.
+  - The curl-sweep verification recipe, refined: start `npx next dev -p 3111`, then loop the routes
+    asserting BOTH the thing that must be there (`data-testid="main-nav"`) and the thing that must be
+    gone (`Zur Startseite`) with `grep -c`. Two counts per route reads as a table and catches a page
+    that 500s (both zero). Remember to `git checkout next-env.d.ts` afterwards — `next dev` rewrites
+    it — and note a real customer id has to be read off `/kunden` first, since the seed's ids are not
+    1..n.
+  - `pkill -f "next[ ]dev"` in the same Bash call as other commands returned exit 144 and swallowed
+    the output; run a kill on its own line and check with `ps aux | grep "[n]ext-server"`.
+---
+
+## 2026-07-30 - US-005 (E2E - navigation bar and hub links)
+- New `tests/e2e/navigation.spec.ts` (10 tests): the four labels in order on an arbitrary screen;
+  from EACH of the four sections a click on the bar reaches each of the other three, asserting the
+  path, the `<h1>` of the landing screen and that the section just entered is the only one marked;
+  `/` marks Start and nothing else; `/kunden`, `/warteliste` and `/karten-neuausstellung` each mark
+  Kunden verwalten; `/kunden/neu` does too (a sub-route the table never names).
+- `tests/e2e/customer-list.spec.ts` gained one test: from `/kunden` each of the three action links
+  (hub-new-customer, hub-waiting-list, hub-cards-due) reaches the screen it names.
+- `docs/technical_documentation.md`: navigation.spec.ts in the e2e file tree, a paragraph for it in
+  the per-spec list, and a sentence on the new customer-list test.
+- Checks: lint, typecheck, `test:coverage` (912 unit tests, thresholds met - the story adds no unit
+  code), `npm run build` (route table unchanged), `format:check`, and the FULL Playwright suite:
+  83 passed, 1 pre-existing skip (was 72 + 1; +10 nav, +1 customer-list).
+- **Learnings for future iterations:**
+  - An e2e spec that only READS needs no customer number and no isolated project - navigation.spec.ts
+    seeds nothing and rides the shared `data/e2e.db` happily. The number-allocation list in the
+    Codebase Patterns only concerns specs that write.
+  - Do NOT import `NAV_ITEMS` (or any implementation table) into a spec: the spec would then only
+    prove the bar agrees with itself. State path -> expected `<h1>` in the spec, and take only the
+    German strings from `de` (the dictionary rule still applies to tests).
+  - "Exactly one section marked" is assertable by reading `aria-current` as a LIST -
+    `locator('a[aria-current="page"]').evaluateAll(...)` returning the `data-testid`s - and compared
+    with `toEqual([...])`. A `toHaveAttribute` on one link cannot catch a second marked section,
+    which is exactly the `/`-is-a-prefix-of-everything bug.
+  - `page.waitForURL((url) => url.pathname === path)` is the reliable wait after a nav click; a bare
+    regex on the href also matches the origin, and `/` matches every URL.
+  - Reaching each section from each other section is 12 moves; one test PER ORIGIN (not one for all
+    twelve) makes a failure name the screen whose bar is broken.
+  - US-006 is next and rewrites `tests/e2e/home.spec.ts` for the dashboard. That file is still the
+    old smoke test asserting the `<h1>`, and `docs/technical_documentation.md` still describes it as
+    "Playwright smoke test" in the e2e file tree - line ~1580 already promises it pins a day after a
+    distribution, so the doc is ahead of the code there.
+---
+
+## 2026-07-30 - US-006 (E2E - dashboard against a fixed clock)
+- `tests/e2e/home.spec.ts` rewritten from the one-line smoke test into four tests on the dashboard,
+  driving the `FD_FIXED_NOW_FILE` / `data/e2e-now.txt` seam exactly as distribution.spec.ts does:
+  the RED distribution day 08.01.2026 (line says TODAY, no coming date, and the to-do signals are
+  gone from `/`), the Tuesday before it (next = 08.01., Rot), the Saturday after it (next =
+  15.01., BLAU) and 31.12.2025 for the no-settings path. `afterAll` deletes the pin file.
+- Files changed: tests/e2e/home.spec.ts, docs/technical_documentation.md (the e2e file tree line
+  and a per-spec paragraph), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: lint, typecheck, test:coverage (912 unit tests, thresholds met - no unit code added),
+  build, format:check, and the FULL Playwright suite: 86 passed, 1 pre-existing skip (83 + 4 new
+  tests - the 1 test the old home.spec.ts had).
+- **Learnings for future iterations:**
+  - "An unseeded database" is reachable WITHOUT emptying a table: pin `now` to a day BEFORE the
+    seed's `SEED_RECORDED_AT` (2026-01-01) and `resolveSettingsAt` throws `NoSettingsInForce` -
+    the identical code path, on the shared register, costing nothing to restore. Any spec needing
+    "not configured yet" should use the clock rather than a `deleteMany`.
+  - `getByTestId("next-distribution")` is the whole `<section>`, so `toHaveText` sees the `<h2>`
+    heading glued to the sentence ("AusgabeHeute ist Ausgabe ..."). Locate the `<p>` inside
+    (`.locator("p")`) when the assertion must be EXACT - and it must be here, because half the
+    claim is a negative: today's wording rather than a future date, which `toContainText` cannot
+    distinguish.
+  - Both the dashboard panel AND the `/ausgabe` banner paint `nextDistribution.colour`. The one
+    place `view.colour` (the week the day sits in) is shown is the `lookup-colour` badge, i.e.
+    `/ausgabe?datum=YYYY-MM-DD`. That is the only way to prove on-screen that the two fields
+    disagree on a day after a distribution - a cross-check against `week-colour-group` fails,
+    because that field is the next distribution's colour too.
+  - `de.home.settingsLink` is "Einstellungen", which is ALSO a nav-bar label, so
+    `getByRole("link", { name })` matches two nodes on every screen now. Scope such a lookup to the
+    panel (`panel.getByRole(...)`) since the bar was added in US-17.1.
+  - The criterion "point the free-slot and cards-due assertions at /kunden" was already satisfied:
+    US-002/US-003 moved them in waiting-list.spec.ts:221 and age-13.spec.ts:213 as they went. Check
+    `grep -rn 'goto("/")' tests/e2e` before assuming a move is still outstanding.
+  - This closes the US-17 batch: all six stories pass.
 ---

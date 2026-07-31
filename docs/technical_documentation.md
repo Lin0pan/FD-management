@@ -81,13 +81,13 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   ├── serve-state.ts        # the state the counter's forms exchange with their actions
 │   │   │   └── deps.ts               # composition roots: the read deps and the write (audit) deps
 │   │   ├── kunden/                   # the customer screens (US-01)
-│   │   │   ├── page.tsx              # the Kunden-verwalten hub: actions, banner, badge + the list (US-17.2)
+│   │   │   ├── page.tsx              # the Kunden-verwalten hub: actions, two badges + the list (US-17.2)
 │   │   │   ├── deps.ts               # composition root for the routes below
 │   │   │   ├── archive-controls.tsx  # client: Archivieren — shared by the record AND the counter (US-10.4)
 │   │   │   ├── archive-actions.ts    # "use server": Zod → archiveCustomer, revalidates both screens
 │   │   │   ├── archive-state.ts      # the archive form state (not exportable from an action module)
 │   │   │   ├── neu/                  # the registration screen
-│   │   │   │   ├── page.tsx          # server component: reads the proposal, renders the screen
+│   │   │   │   ├── page.tsx          # server: the proposal, the free-slot banner, the screen
 │   │   │   │   ├── registration-screen.tsx  # client: the archive panel, the pre-fill banner and the form (US-11.4)
 │   │   │   │   ├── registration-form.tsx  # client component: repeatable rows + live counts
 │   │   │   │   ├── archive-search-panel.tsx  # client: "Im Archiv suchen" + the result list (US-11.4)
@@ -112,7 +112,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   ├── page.tsx              # server component: banner, list in arrival order, add form
 │   │   │   ├── add-applicant-form.tsx  # client: "Auf die Warteliste setzen"
 │   │   │   ├── remove-applicant-controls.tsx  # client: Entfernen, reason required, entry retained
-│   │   │   ├── free-slot-banner.tsx  # shared by /warteliste and the hub at /kunden
+│   │   │   ├── free-slot-banner.tsx  # shared by /warteliste and /kunden/neu (US-18.3)
 │   │   │   ├── actions.ts            # "use server": Zod → addToWaitingList / removeFromWaitingList
 │   │   │   ├── waiting-list-state.ts # the two form states (not exportable from actions.ts)
 │   │   │   ├── deps.ts               # composition root: list + register + cards + settings
@@ -586,8 +586,8 @@ today)` names the head of that order.
 
 The rule is **strictly first come, first served** — no priority, urgency or hardship override (FR-3) —
 and it lives in the domain rather than in an `ORDER BY` so that fairness is a property the tests pin
-down, and so the waiting-list screen, the hub's banner and the promotion use case cannot each
-arrive at a slightly different head of the queue. The tie-break is the surrogate id and never the order
+down, and so the waiting-list screen, the registration screen's banner and the promotion use case
+cannot each arrive at a slightly different head of the queue. The tie-break is the surrogate id and never the order
 the rows came back in: two applicants added the same morning would otherwise swap places between two
 page loads, which is exactly the unfairness the strict order exists to prevent. Ids ascend with time,
 so the tie-break only ever refines arrival order and never contradicts it.
@@ -1625,11 +1625,25 @@ beyond it:
 
 - **`page.tsx`** is the **Kunden-verwalten hub** (US-15.3, US-17.2). Above the list it carries the
   three things staff do with customers — take somebody on (`/kunden/neu`), the waiting list, the
-  cards to reissue — plus the two signals that belong with them: the free-slot banner (US-12) and
-  the cards-due badge (`countCardsDueForReissue`, US-13.4), which is shown at zero too and in the
-  same grey as everything around it. Its heading is the nav label word for word, so the section has
-  one name. `proposeRegistration` throwing `NoSettingsInForce` leaves the banner out rather than
-  taking the screen down. Below that it is the **customer list**, the screen that replaces the
+  cards to reissue — plus the two counts that belong with them. The cards-due badge
+  (`countCardsDueForReissue`, US-13.4) is shown at zero too and in the same grey as everything around
+  it. The waiting-list link carries a badge of its own in exactly that
+  shape — `listWaiting`'s count, read off the call the page already makes (US-18.1) — so the two read
+  as one row of counts rather than as two competing widgets. It is shown at zero as well, reading
+  „niemand wartet“, for the reason the cards badge is: a badge that vanishes cannot be told apart from
+  a badge that failed to load. When a customer number is actually free — `proposeRegistration` returns
+  one and somebody is waiting for it — that badge additionally reads „Platz frei“ and wears a subtle
+  green tint (US-18.2): a queue that can be served now is not the same fact as a queue that merely
+  exists. The word carries the state and the tint only seconds it, because a colour is a distinction
+  only some of the staff can make (US-03.4); `data-free-slot` puts the same state on the element, so a
+  spec asserts what the badge means rather than what shade it is painted. Its heading is the nav label
+  word for word, so the section has one name. `proposeRegistration` throwing `NoSettingsInForce` costs
+  the badge its free-slot state, not the screen: the count still renders, neutral.
+  What is deliberately **not** here is the free-slot banner. It stood at the top of this screen until
+  US-18.3 and now stands on `/kunden/neu`: naming one applicant and one number put a decision about
+  somebody else in front of the register staff came to read, and the number is handed out on the
+  registration screen, not on the hub. The quiet half of that signal — that a number is free at all —
+  survives here as the badge's „Platz frei“. Below that it is the **customer list**, the screen that replaces the
   spreadsheet: one dense table over `listCustomers`, sorted by customer number, computing nothing — the counts,
   portions, price, card number and certificate state all arrive derived. The filters are a plain
   **GET form**, which is what puts them in the URL (FR-5); FD share one machine, and a view has to
@@ -1648,6 +1662,13 @@ beyond it:
   not a reservation: nothing is held, and `registerCustomer` allocates again on submit. The partial
   unique index, not this reading, is the authority on a free slot. A full register arrives as
   `customerNumber: null` rather than as a thrown error, because the screen still has to render.
+  Alongside the proposal it reads `listWaiting` — the two run **concurrently**, since neither needs
+  the other — and renders the **free-slot banner** above the form when somebody is waiting _and_ a
+  number is free (US-18.3). This is the screen on which the next number is actually handed out, so it
+  is the screen on which whoever has been waiting for it is named, before the first field is typed.
+  The banner gates nothing: a walk-in may still be registered, because who is served is FD's decision
+  and not the software's. The head is `listWaiting`'s first place and is not re-derived, so this
+  screen and `/warteliste` can never name two different applicants.
 - **`neu/registration-form.tsx`** is a client component for two reasons: `useActionState`, and the
   household counts have to update **as staff type**. It does not compute them — it calls the domain
   rule (`composition`) against the day the server handed it, so the number on screen is the number
@@ -1993,8 +2014,8 @@ unfairness the strict ordering exists to prevent (PRD §6). The head of the list
 rather than by asking `nextInLine` a second time — one statement of the order, so the banner and the
 list cannot name two different applicants.
 
-- **`free-slot-banner.tsx`** names **one** applicant and **one** number, and it is rendered on the
-  hub at `/kunden` as well (`showListLink`, US-17.2).  Without it a freed customer number is only noticed by whoever
+- **`free-slot-banner.tsx`** names **one** applicant and **one** number, and it is rendered on
+  `/kunden/neu` as well (`showListLink`, US-18.3). Without it a freed customer number is only noticed by whoever
   thinks to open the list, and the applicant who has waited longest waits on — which is the whole of
   FR-4. An expired certificate is repeated on the banner, because whoever acts on it needs to know a
   renewed notice will be wanted **before** they walk over to the applicant.
@@ -2413,9 +2434,14 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   left to give: no proposed number, the limit named, and the way onto the waiting list offered as a
   **link** rather than a redirect — the form stays on screen, because the quota may be what should
   change. Two applicants are added through the list's own form and asserted in arrival order with no
-  banner above them, because nothing is free. Archiving the first household frees number 1, and the
-  banner then names the applicant who joined first — on `/warteliste` **and** on the hub at
-  `/kunden` (PRD §6, relocated from the home screen by US-17.3). Promoting them from the banner opens the registration form pre-filled from the entry
+  banner above them, because nothing is free — and, on `/kunden`, with the hub's badge reading two
+  waiting and `data-free-slot="false"`. That last assertion lives here and nowhere else: a queue that
+  cannot be served needs a **full** register, which only the isolated project can produce (US-18.4).
+  Archiving the first household frees number 1, and the banner then names the applicant who joined
+  first — on `/warteliste` **and** on `/kunden/neu`, where the number is handed out (US-18.3), with
+  the proposal on screen beneath it to show the banner gates nothing. The hub is asserted to carry
+  **no** banner in that state at all, only the same badge, now reading `Platz frei` and
+  `data-free-slot="true"`. Promoting them from the banner opens the registration form pre-filled from the entry
   (surname, certificate, a one-person household deriving 1 / 0), and saving it hands them exactly the
   number the archived household released, with `1k1` on the card. The entry is then read straight
   from Prisma: still there, both rows still counted, `removedOn` stamped and `removalReason` reading
@@ -2442,7 +2468,15 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   the certificate states are relative to today, and the pinned-now file is deleted in `afterAll` like
   its neighbours. US-17.5 adds one test to it: from `/kunden`, each of the three action links above
   the filters — register, waiting list, reissue — reaches the screen it names. They are asserted
-  here rather than in `navigation.spec.ts` because they belong to the hub, not to the bar.
+  here rather than in `navigation.spec.ts` because they belong to the hub, not to the bar. US-18.4
+  adds a second: the waiting-list badge, read first on an **empty** list (`niemand wartet`, shown
+  rather than hidden) and then with two applicants seeded through Prisma — the count in words, the
+  free-slot state read off `data-free-slot` and never off a colour, no applicant named, no banner on
+  the hub, and a click on the badge itself landing on `/warteliste`, which is how "the number is part
+  of the link" is asserted. The register here is nowhere near its quota, so a number is always free;
+  the neutral half of that state belongs to `waiting-list.spec.ts`. The applicants share an invented
+  surname and are deleted in `afterAll` — the entries have no relations, so the spec that owns them
+  clears them itself, and a waiting list left behind would be a count on the hub nobody wrote.
 - `customer-record.spec.ts` covers US-16 end to end (§US-16.6): that a correction typed on the record
   is in force everywhere, immediately. One household (customer number 291) is seeded through Prisma —
   **BLUE**, active, certificate lapsed, two reminders sent, one card printed `1 / 1` and `BLUE` — and

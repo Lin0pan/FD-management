@@ -1,0 +1,98 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-18-waiting-list-signals",
+  "description": "US-18 Where the Waiting List Speaks — /kunden loses the free-slot banner and gains a small waiting-list count badge beside the Warteliste link; the banner moves to /kunden/neu, where a registration is actually about to happen. Presentation and e2e only: NO domain, application, port, infrastructure or schema change. A diff touching src/domain, src/application, src/infrastructure or prisma/ means the change was misread. Source: tasks/prd-us-18-waiting-list-signals.md",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Waiting-list count badge on the Kunden hub",
+      "description": "As a staff member, I want the Kunden-verwalten screen to tell me at a glance how many people are on the waiting list, so I can see the queue without opening it. Source: tasks/prd-us-18-waiting-list-signals.md §US-18.1",
+      "acceptanceCriteria": [
+        "HubActions in src/app/kunden/page.tsx renders a badge beside the existing '/warteliste' link, in the same row as the cards-due badge",
+        "The badge reuses the cards-due badge's exact styling in its neutral state — same rounded pill, same neutral grey, same tabular numerals — so the two read as one row of counts, not two competing widgets",
+        "The count is the number of applicants still waiting, taken from the listWaiting call the page ALREADY makes (const places): use places.length. Do NOT add a use case, a port method or a count query",
+        "The badge is shown at zero too, reading 'niemand wartet' — a badge that vanishes leaves staff unable to tell 'nobody waiting' from 'the number failed to load' (same reasoning as the cards-due badge, US-13.4)",
+        "German inflects at one: '1 Wartende:r' for one, '3 Wartende' for more",
+        "All strings live in de.customerList.actions.* in src/i18n/de.ts; no German literal in the component",
+        "The badge carries data-testid=\"waiting-list-badge\"",
+        "The badge sits INSIDE the Link to /warteliste, exactly as the cards-due badge sits inside its link, so clicking it opens the waiting list",
+        "Do not touch the free-slot banner in this story — US-003 removes it. Landing the removal before the badge exists would leave /kunden with no waiting-list signal at all",
+        "Typecheck passes",
+        "Lint passes",
+        "Verify in browser using the playwright-cli skill, reading the ACCESSIBILITY SNAPSHOT and not only a screenshot: the badge must read as part of the 'Warteliste' link, not as a stray number"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "The badge says 'Platz frei' when a customer number is free",
+      "description": "As a staff member, I want the waiting-list badge to look different when a customer number is actually free, so the queue that can be served right now stands out from the queue that merely exists. Source: tasks/prd-us-18-waiting-list-signals.md §US-18.2",
+      "acceptanceCriteria": [
+        "When proposeRegistration reports a non-null customerNumber AND at least one applicant is waiting, the badge reads the count followed by 'Platz frei' (e.g. '3 Wartende · Platz frei')",
+        "In that state the badge carries a subtle accent — a tinted background and border. NOT red and NOT amber: those are spoken for by blocked status and expiring certificates, and this is not an alarm",
+        "The accent is NEVER the only carrier of the state — the word 'Platz frei' always accompanies it. A colour-only marking is forbidden by docs/ui_conversion_guide.md and US-03.4 (one shared machine, variable lighting)",
+        "Otherwise the badge is the plain neutral pill from US-001, count only",
+        "The word never appears without a free number, and the accent never appears without the word",
+        "The badge names NO applicant and NO customer number — those belong to the banner, and the hub is deliberately not where that decision is made",
+        "The page already calls proposeRegistration and already catches NoSettingsInForce by returning null. Keep that catch: with no settings the badge still renders its count in the neutral state and the page does NOT become an error screen",
+        "The badge carries data-free-slot=\"true\" | \"false\" alongside its data-testid, so e2e can assert the state rather than a colour",
+        "Strings in de.customerList.actions.* in src/i18n/de.ts; none inline",
+        "Typecheck passes",
+        "Lint passes",
+        "Verify in browser using the playwright-cli skill in BOTH states — with a free number and with a full register"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "The free-slot banner leaves /kunden and lands on /kunden/neu",
+      "description": "As a staff member about to register a new household, I want to be told that somebody has been waiting for the very number I am about to hand out, so a walk-in does not quietly jump the queue. Source: tasks/prd-us-18-waiting-list-signals.md §US-18.3",
+      "acceptanceCriteria": [
+        "FreeSlotBanner is removed from src/app/kunden/page.tsx entirely — the import goes, the render goes, and /kunden shows no waiting-list-free-slot element in ANY state",
+        "The listWaiting and proposeRegistration calls in /kunden STAY: US-001 and US-002 need both for the badge",
+        "src/app/kunden/neu/page.tsx renders FreeSlotBanner above RegistrationScreen, below the heading and intro, so it is read before the first field is typed",
+        "The banner appears ONLY when someone is waiting AND proposal.customerNumber is not null. With an empty waiting list there is no banner at all; with a full register there is no number to offer and the form already says so",
+        "The head of the queue is listWaiting's FIRST place and nobody else — the same reading /warteliste makes, so the two screens can never name two different applicants. Do not re-sort or re-derive it",
+        "/kunden/neu already awaits proposeRegistration; add the listWaiting call CONCURRENTLY (Promise.all), not in sequence",
+        "waitingListDeps is imported from src/app/warteliste/deps.ts — the same cross-route import /kunden already makes",
+        "showListLink is TRUE here: the waiting list is not on view on this screen, so the banner offers the way to it",
+        "FreeSlotBanner itself is NOT modified — it already takes head, customerNumber and showListLink",
+        "The banner does not block, disable or pre-empt the registration form. It states a fact; FD decide who is served, not the software",
+        "/kunden/neu still renders normally with an empty waiting list, and its existing NoSettingsInForce branch is untouched",
+        "/warteliste is untouched: same banner, same conditions, same content",
+        "No new German strings are needed",
+        "Typecheck passes",
+        "Lint passes",
+        "Verify in browser using the playwright-cli skill in three states: empty waiting list, waiting list plus a free number, waiting list plus a full register"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "E2E follows the signals to their new screens",
+      "description": "As a maintainer, I want the Playwright suite to assert where each signal now lives, so the move is a contract and not a coincidence. Source: tasks/prd-us-18-waiting-list-signals.md §US-18.4",
+      "acceptanceCriteria": [
+        "tests/e2e/waiting-list.spec.ts: the assertion in 'archiving a household frees a number and the banner names the longest wait' that reads waiting-list-free-slot-detail on /kunden is MOVED to /kunden/neu, with the same expected text",
+        "Same test gains an assertion that /kunden shows NO waiting-list-free-slot element after that archive",
+        "tests/e2e/customer-list.spec.ts: the waiting-list-badge states the number of applicants waiting, and reads 'niemand wartet' when the list is empty",
+        "The badge's data-free-slot is asserted as \"true\" when a number is free and \"false\" when the register is full, using the existing archive fixture — never by reading a colour",
+        "Expected German comes from the de dictionary in the spec, never as a literal string",
+        "The existing 'jede der drei Aktionen über der Liste führt auf ihre Seite' test still passes",
+        "tests/e2e/home.spec.ts is UNCHANGED — the Start dashboard never carried either signal, and its 'waiting-list-free-slot has count 0' assertion stays true",
+        "No assertion is deleted, only re-pointed",
+        "The full Playwright suite is green",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
