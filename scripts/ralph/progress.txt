@@ -292,3 +292,34 @@ The Next.js, i18n, e2e and playwright entries are the ones that apply.)
 
 
 ---
+
+## 2026-07-31 21:15 - US-001 (US-19.1) — the archive-search summary gets a handle
+
+- `src/app/kunden/neu/archive-search-panel.tsx`: `data-testid="archive-search-open"` on the
+  `<summary>`, and the comment above `<details open>` rewritten — it argued the panel must *never*
+  close, which is no longer the decision; it now says the fold is US-19.2's and cannot land before
+  the spec that fills the panel learns to open it.
+- No dictionary change was needed: `de.customers.archiveSearch.intro` is already the question
+  ("War dieser Haushalt schon einmal aufgenommen?") and already sits inside the `<summary>` as the
+  `CardDescription`. Read the dictionary before planning an i18n edit from a PRD — PR #62 had
+  already done half of this story.
+- `<details>` deliberately KEEPS `open`; no spec touched.
+
+- **Learnings for future iterations:**
+  - The `<summary>` announces as a `generic` inside a `group`, not as a `button`, in Playwright's
+    accessibility snapshot — its accessible name is the whole header ("Im Archiv suchen War dieser
+    Haushalt schon einmal aufgenommen?"). The shipped disclosures on `/kunden/[id]` announce exactly
+    the same way, so that is this repo's baseline rather than a regression to chase.
+  - Measuring on a production build: `pkill` alone is not enough — a server started as
+    `(npm run start &)` from a Bash tool call dies with its parent shell and leaves `curl` returning
+    000 with the log still saying "Ready". Start it with the Bash tool's own background mode.
+  - `curl` inside this sandbox goes through the proxy and cannot reach 127.0.0.1; use
+    `curl --noproxy '*'` for a readiness check against a local port.
+  - `playwright-cli open --browser=chrome` fails here (no Chrome distribution); plain
+    `playwright-cli open` gets Chromium.
+  - The demo register is `npm run db:reset && npm run db:demo` — reset alone seeds settings only,
+    and the free-slot banner the measurements depend on needs the demo households.
+  - Baseline for US-002, measured at 1440x900 with the free-slot banner on screen: top of
+    `#firstName` **630px**, archive card (still open) **160px**. Targets: <= 470px and <= 90px.
+
+---

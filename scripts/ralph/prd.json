@@ -21,8 +21,8 @@
         "Verify in browser using the playwright-cli skill against a PRODUCTION build (npm run build && npm run start -- --port 3100, killing any next-server first), reading the ACCESSIBILITY SNAPSHOT and not only a screenshot: the summary must announce, and 'Im Archiv suchen' must still be a heading in the outline"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "de.customers.archiveSearch.intro was already the question and already inside the <summary> (PR #62), so this story was the testid and the comment that explains what it is for. Verified on a production build at 1440x900 on the demo register: h1/h2/h3 outline still lists 'Im Archiv suchen' as an H2, summary announces 'Im Archiv suchen War dieser Haushalt schon einmal aufgenommen?', 0 console messages. Before-numbers recorded for US-002: top of #firstName 630px, archive card 160px."
     },
     {
       "id": "US-002",

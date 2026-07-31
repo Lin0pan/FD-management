@@ -184,22 +184,25 @@ export function ArchiveSearchPanel({
   return (
     <Card>
       {/*
-       * A disclosure, and open by default.
+       * A disclosure, still open by default — the fold itself is US-19.2's, and it cannot land
+       * before the spec that fills this panel learns to open it: `reregistration.spec.ts` reaches
+       * `#archiveLastName` by id, and a control inside a closed `<details>` has no bounding box, so
+       * `fill()` times out against it. What lands here is the handle that makes closing it safe.
        *
-       * FD asked for this panel to fold away — it is 150px spent on a job done a few times a year,
-       * standing above the one the screen is actually for. What it must not become is *closed* by
-       * default: the cost of missing this search is a second record for a household FD already has,
-       * which is the whole of US-11, and three specs reach `#archiveLastName` and `#group-RED` by id
-       * — a control inside a closed `<details>` is invisible, and `fill()` and `check()` time out
-       * against it. So the fold exists and staff may use it; the default state is the one the
-       * contract requires.
+       * The `<summary>` is that handle, addressed by `archive-search-open`, and it carries the
+       * *question* rather than the feature name: the cost of missing this search is a second record
+       * for a household FD already has, which is the whole of US-11, so the prompt to check has to
+       * survive the fold that hides the fields.
        */}
       <details open>
         {/* No `w-fit` here, unlike the danger-zone summaries: this one wraps a `CardHeader`, and
             shrinking a header to its minimum content width wraps the description into a column —
             measured at 348px tall for two lines of text. A summary that *is* the card's header
             spans the card. */}
-        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        <summary
+          data-testid="archive-search-open"
+          className="cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+        >
           <CardHeader>
             <CardTitle>
               <h2>{words.heading}</h2>
