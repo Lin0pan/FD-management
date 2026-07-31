@@ -198,6 +198,15 @@ test.describe("Warteliste", () => {
     // Nothing is free, so nothing is offered: the banner exists to point at a slot, and one that
     // appeared without a slot behind it would send staff to fetch somebody who cannot be registered.
     await expect(page.getByTestId("waiting-list-free-slot")).toHaveCount(0);
+
+    // The hub states the queue's length either way (US-18.1) — a queue that cannot be served yet is
+    // still a queue — and marks it as *not* servable. This is the only spec that can make that
+    // assertion: the register has to be full for the badge to be neutral while somebody waits, and
+    // filling it is what the isolated project is for.
+    await page.goto("/kunden");
+    const badge = page.getByTestId("waiting-list-badge");
+    await expect(badge).toHaveText(de.customerList.actions.waitingListBadge(2, false));
+    await expect(badge).toHaveAttribute("data-free-slot", "false");
   });
 
   test("archiving a household frees a number and the banner names the longest wait", async ({
@@ -216,10 +225,22 @@ test.describe("Warteliste", () => {
     await page.goto("/warteliste");
     await expect(page.getByTestId("waiting-list-free-slot-detail")).toHaveText(names);
 
-    // And on the Kunden-verwalten hub too (PRD §6, US-17.2): a freed slot that is only visible to
-    // somebody who thinks to open the waiting list is a slot the list cannot do its job with.
-    await page.goto("/kunden");
+    // And on the screen where that number is actually handed out (US-18.3): the staff member about
+    // to take a walk-in on is told, before the first field is typed, that somebody has been waiting
+    // for exactly this number. It states a fact and gates nothing — the proposal is on screen
+    // beneath it, so a walk-in may still be registered. FD decide who is served, not the software.
+    await page.goto("/kunden/neu");
     await expect(page.getByTestId("waiting-list-free-slot-detail")).toHaveText(names);
+    await expect(page.getByTestId("proposed-number")).toHaveText(filler.customerNumber);
+
+    // The hub carries no banner any more, in any state (FR-1): it named one applicant and one number
+    // above the register staff came for, and that decision now stands where it is made. What is left
+    // there is the count, marked servable in words as well as in colour (US-18.2).
+    await page.goto("/kunden");
+    await expect(page.getByTestId("waiting-list-free-slot")).toHaveCount(0);
+    const badge = page.getByTestId("waiting-list-badge");
+    await expect(badge).toHaveText(de.customerList.actions.waitingListBadge(2, true));
+    await expect(badge).toHaveAttribute("data-free-slot", "true");
   });
 
   test("promoting the applicant hands them the freed number and takes them off the list", async ({

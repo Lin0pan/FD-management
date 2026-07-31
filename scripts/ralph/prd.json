@@ -91,8 +91,8 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "No assertion deleted, only re-pointed and added to. waiting-list.spec.ts (isolated project): the waiting-list-free-slot-detail assertion that stood on /kunden moved to /kunden/neu with the same expected text, and gained proposed-number = the freed number beside it, so the banner is proved not to gate the form; /kunden is then asserted to hold zero waiting-list-free-slot elements and the badge instead, reading waitingListBadge(2, true) with data-free-slot=\"true\". The neutral half of that state went into the earlier 'two applicants join the list' test, where the register is still full: waitingListBadge(2, false) and data-free-slot=\"false\". That is the only place it can live — the shared register is never full, so 'somebody waiting and nothing free' is unreachable there. customer-list.spec.ts (shared project) covers the count: the badge on an empty list ('niemand wartet', shown rather than hidden, data-free-slot=\"false\"), then two applicants seeded through Prisma under an invented surname, giving waitingListBadge(2, true) and data-free-slot=\"true\"; the badge is asserted not to name the applicants, /kunden to carry no banner, and a click on the badge itself to land on /warteliste with both rows on it. Expected German comes from the de dictionary throughout; the state is read off data-free-slot, never off a colour. The applicants are deleted in afterAll (the table has no relations, so the spec that owns them clears them itself). home.spec.ts untouched; the three-actions test untouched and still green. Full suite: 87 passed, 1 skipped (the pre-existing settings skip). Lint, typecheck, test:coverage (912 tests) and build all green. docs/technical_documentation.md updated for both spec descriptions."
     }
   ]
 }

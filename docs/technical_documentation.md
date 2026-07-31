@@ -2434,9 +2434,14 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   left to give: no proposed number, the limit named, and the way onto the waiting list offered as a
   **link** rather than a redirect — the form stays on screen, because the quota may be what should
   change. Two applicants are added through the list's own form and asserted in arrival order with no
-  banner above them, because nothing is free. Archiving the first household frees number 1, and the
-  banner then names the applicant who joined first — on `/warteliste` **and** on the hub at
-  `/kunden` (PRD §6, relocated from the home screen by US-17.3). Promoting them from the banner opens the registration form pre-filled from the entry
+  banner above them, because nothing is free — and, on `/kunden`, with the hub's badge reading two
+  waiting and `data-free-slot="false"`. That last assertion lives here and nowhere else: a queue that
+  cannot be served needs a **full** register, which only the isolated project can produce (US-18.4).
+  Archiving the first household frees number 1, and the banner then names the applicant who joined
+  first — on `/warteliste` **and** on `/kunden/neu`, where the number is handed out (US-18.3), with
+  the proposal on screen beneath it to show the banner gates nothing. The hub is asserted to carry
+  **no** banner in that state at all, only the same badge, now reading `Platz frei` and
+  `data-free-slot="true"`. Promoting them from the banner opens the registration form pre-filled from the entry
   (surname, certificate, a one-person household deriving 1 / 0), and saving it hands them exactly the
   number the archived household released, with `1k1` on the card. The entry is then read straight
   from Prisma: still there, both rows still counted, `removedOn` stamped and `removalReason` reading
@@ -2463,7 +2468,15 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   the certificate states are relative to today, and the pinned-now file is deleted in `afterAll` like
   its neighbours. US-17.5 adds one test to it: from `/kunden`, each of the three action links above
   the filters — register, waiting list, reissue — reaches the screen it names. They are asserted
-  here rather than in `navigation.spec.ts` because they belong to the hub, not to the bar.
+  here rather than in `navigation.spec.ts` because they belong to the hub, not to the bar. US-18.4
+  adds a second: the waiting-list badge, read first on an **empty** list (`niemand wartet`, shown
+  rather than hidden) and then with two applicants seeded through Prisma — the count in words, the
+  free-slot state read off `data-free-slot` and never off a colour, no applicant named, no banner on
+  the hub, and a click on the badge itself landing on `/warteliste`, which is how "the number is part
+  of the link" is asserted. The register here is nowhere near its quota, so a number is always free;
+  the neutral half of that state belongs to `waiting-list.spec.ts`. The applicants share an invented
+  surname and are deleted in `afterAll` — the entries have no relations, so the spec that owns them
+  clears them itself, and a waiting list left behind would be a count on the hub nobody wrote.
 - `customer-record.spec.ts` covers US-16 end to end (§US-16.6): that a correction typed on the record
   is in force everywhere, immediately. One household (customer number 291) is seeded through Prisma —
   **BLUE**, active, certificate lapsed, two reminders sent, one card printed `1 / 1` and `BLUE` — and

@@ -176,6 +176,11 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
   low numbers free. Everything that merely writes stays on the shared server.
 - Each server has its OWN `FD_FIXED_NOW_FILE`, so pinning the clock in one project cannot move the
   other's calendar. A new server needs its now-file added to `.gitignore` beside `data/e2e-now.txt`.
+- An assertion about "somebody is waiting and NOTHING is free" belongs in the isolated spec and
+  nowhere else: the shared register is never full, so its badge reads free-slot=true whenever anyone
+  waits. Split a two-state UI signal across the two projects — the shared spec proves the count and
+  the servable state, the isolated one proves the neutral state — rather than trying to fill the
+  shared register.
 - A `node -e "…"` command inside playwright.config.ts is double-quoted by the shell, so any array
   literal in it must use SINGLE quotes — `JSON.stringify` emits double quotes and the shell eats
   them (`ReferenceError: data is not defined`).
@@ -493,4 +498,48 @@ touch. The Next.js, i18n and e2e entries are the ones that apply.)
     trusting the comment.
   - Docs edits on a move are three-place edits, and `docs/technical_documentation.md` hides U+00A0
     characters mid-sentence that break a heredoc patch. Both are in Codebase Patterns above.
+---
+
+## 2026-07-31 - US-004 (US-18.4: e2e follows the signals to their new screens)
+- Re-pointed and extended the Playwright suite so the move US-001..US-003 made is a contract:
+  - tests/e2e/waiting-list.spec.ts (isolated project):
+    - "archiving a household frees a number ..." - the `waiting-list-free-slot-detail` assertion that
+      stood on /kunden now stands on /kunden/neu, same expected text (`de.waitingList.banner.names`),
+      with `proposed-number` = the freed number asserted beside it: the banner is on screen *and* the
+      form is proposing the number, which is what "it states a fact and gates nothing" means.
+    - Same test: /kunden asserted to hold ZERO `waiting-list-free-slot` elements, and to carry the
+      badge instead - `waitingListBadge(2, true)`, `data-free-slot="true"`.
+    - "two applicants join the list ..." - the register is still full there, so it is the only place
+      where somebody waits and nothing is free: `waitingListBadge(2, false)`, `data-free-slot="false"`.
+  - tests/e2e/customer-list.spec.ts (shared project):
+    - New test "das Warteliste-Badge zaehlt die Wartenden und meldet einen freien Platz in Worten":
+      the empty list first ("niemand wartet", rendered rather than hidden, `data-free-slot="false"`),
+      then two applicants seeded straight through Prisma under an invented surname (Wartenbrink) ->
+      `waitingListBadge(2, true)`, `data-free-slot="true"`, the badge naming neither applicant, no
+      banner anywhere on the hub, and a click on the BADGE landing on /warteliste with both rows on
+      it (which is how "the number is part of the link" is asserted rather than assumed).
+    - `afterAll` deletes those applicants beside the existing pinned-clock cleanup.
+  - tests/e2e/home.spec.ts untouched, as the PRD requires; the three-actions test untouched and green.
+- Files changed: tests/e2e/waiting-list.spec.ts, tests/e2e/customer-list.spec.ts,
+  docs/technical_documentation.md (both spec descriptions), scripts/ralph/prd.json, this log.
+- Checks: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (44 files, 912 tests, domain
+  and application still 100%), `npm run build`, and the full Playwright suite - 87 passed, 1 skipped
+  (the pre-existing settings skip).
+- **Learnings for future iterations:**
+  - The two-project split is a *test-design* constraint, not only an infrastructure detail: a state
+    that needs a full register can only be proved in `waiting-list.spec.ts`, and a state that needs a
+    register with room only on the shared one. Splitting the states across the two specs is far
+    cheaper than moving a spec into the isolated project (a second Next server for the whole run).
+  - A leftover next-server adopted by `reuseExistingServer` serves the OLD build - `pkill -f
+    "next-server"` (exit 144 means it killed something) before running the suite after a build. The
+    previous iteration's browser verification leaves one behind.
+  - Seeding a waiting-list entry through Prisma needs `contactNote` stated explicitly as `null` (the
+    column is nullable and the adapter translates it to `""`), and `addedOn` before the spec's pinned
+    today, or the applicant is "waiting" from the future.
+  - A spec that seeds a relation-free table cleans up with its own `deleteMany` keyed on an invented
+    surname - `clearRegister` is for the register alone. Do it in `afterAll` rather than at the end of
+    the test: in serial mode a mid-test failure would otherwise leak rows into the next run's
+    zero-state assertion.
+  - `de.customerList.actions.waitingListBadge(count, freeSlot)` takes BOTH arguments, so a spec
+    calling it with one does not compile - the word and the tint cannot drift apart in a test either.
 ---
