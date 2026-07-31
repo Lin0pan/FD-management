@@ -54,11 +54,11 @@ import {
 } from "@/components/ui/table";
 import { EXPIRING_SOON_DAYS, type CertificateState } from "@/domain/customer/certificate";
 import type { CustomerStatus } from "@/domain/customer/customer";
-import type { Group } from "@/domain/customer/group";
 import { DomainError } from "@/domain/errors";
 import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
+import { GROUP_STYLES } from "../group-styles";
 import { waitingListDeps } from "../warteliste/deps";
 import { customerDeps } from "./deps";
 
@@ -94,18 +94,6 @@ const filterParams = z.object({
 });
 
 type Filters = z.infer<typeof filterParams>;
-
-/**
- * The group's colour, matching the counter and the customer card so they read as the same thing.
- *
- * Literal palette values rather than theme tokens, and the one colour on this screen that is painted
- * on every single row: RED and BLUE *are* the printed cards FD hands out, so the group column is the
- * only place where the colour is the datum rather than a decoration of it.
- */
-const GROUP_STYLES: Record<Group, string> = {
-  RED: "border-red-600/40 bg-red-600/10",
-  BLUE: "border-blue-700/40 bg-blue-700/10",
-};
 
 /** What a state word wears, when it wears anything: a badge variant, a tint, or both. */
 interface Chrome {

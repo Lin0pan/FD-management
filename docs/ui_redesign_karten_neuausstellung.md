@@ -4,7 +4,11 @@ A UX analysis of the cards-due-for-reissue screen as it stands today, and a conc
 on the shadcn/ui primitives — the fourth screen in the conversion `docs/ui_conversion_guide.md`
 describes, after the `/ausgabe` pilot, `/kunden` and `/warteliste`.
 
-**Status:** analysed, not built. Everything below §3 is a proposal.
+**Status:** built. §§4–6 describe the screen as it now stands; §§1–3 are the analysis it came from,
+kept as the record of what was wrong. Two departures, both in `docs/ui_conversion_guide.md`: §10's
+"first row ≤ 260px" was not reachable once the list had a real heading — it is 323px, and the budget
+is in the commit — and the group pair of §4.2d is shown only where the group is what changed (§11 q4
+answered "no"). §11 q1 and q3 are still open.
 
 The two screens analysed before this one turned up the rules this one is measured against: colour is
 a budget (`docs/ui_redesign_kunden_verwalten.md` §3.2), a label and its value stay one node, and a
