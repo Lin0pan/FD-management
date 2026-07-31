@@ -258,6 +258,53 @@ scroll to the bottom of the list and confirm the header is still there and still
   requires put it at 323. Say that with the arithmetic rather than dropping either — the number the
   restyle actually moved was the row height, 258px to 167.5px.
 
+## Repeated field rows want a table, and a label that names the row will wrap
+
+Both customer screens lay a household out as a list of rows, each a `sm:grid-cols-4` grid of three
+inputs, and each labelled `Haushaltsmitglied N — Vorname`, `Nachname`, `Geburtsdatum`. Measured on
+`/kunden/[id]` at 1440: in a 199px column the first label needs **two lines to the others' one**
+(40px against 20), so **the first input in every row starts 20px below its two neighbours** — six
+rows, six ragged baselines, and the three fields that are one person's data stop looking like one
+row. `/kunden/neu` has the same defect in its single row.
+
+The label is long because it carries the row's identity, which a per-field label is the wrong place
+for. When the same fields repeat per row with identical meanings, that is **tabular data and wants a
+`Table`**: the identity becomes a narrow first column, the field names become column headings once
+instead of `N × 3` times, and anything jammed into a label to save space (`Geburtsdatum (39 Jahre)`)
+gets a column of its own, which is what stops the headings differing per row.
+
+What must not be lost in the move: **every input keeps a real accessible name**. Put the string the
+visible label used to carry — `Haushaltsmitglied 2 — Vorname` — on the input as `aria-label`, so the
+snapshot still names each `textbox` uniquely and nothing a screen reader hears changes. A column
+heading names a column, not a cell.
+
+## A form action clears every uncontrolled field it owns
+
+`/kunden/neu`'s archive search takes three criteria and reports matches through `useActionState`.
+Measured: after a search for `Nachname = Mohr`, all three inputs read `""` while the results say
+"1 archivierter Haushalt gefunden". React resets a form once its action resolves, and an
+`<input defaultValue="">` comes back empty — so the screen shows an answer with the question deleted,
+and narrowing the search means retyping it.
+
+Nothing fails, nothing warns, and it is invisible in a screenshot taken before the submit. The same
+mechanism, from the other side, is why `group-control.tsx` renders its radios `defaultChecked` and
+says so in a four-sentence comment: there, the reset is what restores the truth. **Whenever a form
+submits through an action, decide deliberately for each field whether the post-action reset is
+wanted** — and check it in `playwright-cli` by reading `input.value` after the submit, not by
+looking at the page.
+
+## Field width is a promise
+
+Every field on `/kunden/neu` is 408px, because all four sections use one `sm:grid-cols-2`. `PLZ` is
+408px for five digits, and so is `Hausnummer`. A field's width is the most reliable hint a form has
+about what it wants, and a form where every field is the same width makes the same promise about all
+of them.
+
+Give a form a 12-column grid and spend it: 2 columns for a postcode or a house number, 4 for a name,
+6 for a street, 12 for a note. It is `className` only, and on a long form it is the cheapest
+legibility there is. Cards take the shell's full width; the field grid inside them does not — a
+1152px text input is worse than a 400px one.
+
 ## Findings from `/warteliste`
 
 - **A plain string exported from a `"use client"` module and read by a server component is not a
@@ -398,7 +445,16 @@ second time.
 - [x] `/kunden` — the hub itself, per `docs/ui_redesign_kunden_verwalten.md`. Read §7 before touching
       it: it lists the constraints `tests/e2e/customer-list.spec.ts` puts on the screen (the three
       filters cannot become Radix `Select`s, and every `customer-row-*` testid is asserted exactly).
-- [ ] `/kunden/[id]`, `/kunden/[id]/karte`, `/kunden/neu`
+- [ ] `/kunden/neu`, per `docs/ui_redesign_kunden_neu.md`. Read §7 first: sixteen field `#id`s are
+      filled by CSS id rather than by label, and `registration-error` is the testid of **two**
+      elements that are never on screen together. The pass also makes two extractions the whole
+      conversion has been waiting for — `SHELL`, now copy-pasted into five files, and the `Stat`
+      tile, which exists twice and is wanted four times.
+- [ ] `/kunden/[id]`, per `docs/ui_redesign_kunden_record.md` — the largest screen left, at 3 623px
+      and 72 inputs. It carries `kunden/archive-controls.tsx` and `kunden/block-controls.tsx` with
+      it (see below), and §3.12 lists what has **no** e2e coverage: the entire personal-data form,
+      the hand-out history, the no-show figure and the archived note.
+- [ ] `/kunden/[id]/karte`
 - [x] `/warteliste`, `/warteliste/[entryId]/registrieren`, per `docs/ui_redesign_warteliste.md`. The
       banner wears the hub's emerald, the row is 117px instead of 214, and the promotion screen's
       frame and expired step are converted. `RegistrationForm` inside it is **not** — it belongs to
@@ -407,4 +463,7 @@ second time.
       now line up on one baseline, and a `GROUP_CHANGE` row prints the colour that changed.
 - [ ] `/einstellungen`
 - [ ] `kunden/archive-controls.tsx` + `kunden/block-controls.tsx` — shared by the record **and** the
-      counter, so converting them changes two screens; do it with `/kunden/[id]`.
+      counter, so converting them changes two screens; do it with `/kunden/[id]`, in a commit of
+      their own **first** (`docs/ui_redesign_kunden_record.md` §4.3, §8). Measured on the converted
+      `/ausgabe`, they are 1088×42px bars at `border-radius: 4px` beside a `Card` at 14px and
+      `Button`s at 10px: three radii in one column, on a screen that has already been signed off.
