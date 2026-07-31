@@ -467,6 +467,9 @@ export const de = {
     intro:
       "Suchen und filtern wie früher in der Tabelle. Erwachsene, Kinder, Portionen und Preis " +
       "werden bei jedem Aufruf neu aus den Geburtsdaten und den Einstellungen berechnet.",
+    /** The two cards the screen is made of. Each is a real `<h2>`, so the page has an outline. */
+    overviewTitle: "Übersicht und Aktionen",
+    listTitle: "Kundenliste",
     /**
      * The three things staff do with customers, above the list (US-17.2). They are worded as the
      * acts themselves rather than as the pages they lead to, and each says the same words as the
@@ -549,8 +552,12 @@ export const de = {
       cardNumber: "Karte",
       group: "Gruppe",
       status: "Status",
-      grownUps: "Erwachsene",
-      children: "Kinder",
+      /**
+       * Erwachsene and Kinder stand in one column, because they are read as one fact: how many
+       * people the household is. Two columns headed by two long German words cost 174px to show one
+       * digit each, and the name — the thing staff actually scan — was the column that paid for it.
+       */
+      household: "Erw. + Kinder",
       portions: "Portionen",
       price: "Preis",
       certificate: "Nachweis gültig bis",

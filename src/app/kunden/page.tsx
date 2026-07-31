@@ -20,8 +20,15 @@
  * The group balance stands above the table and deliberately does not move with the filters: it is
  * the number staff assign a new household's group by (US-01), and it counts every active household
  * whatever is currently on screen.
+ *
+ * The screen is two cards — the overview and the list — following
+ * `docs/ui_redesign_kunden_verwalten.md`. One job runs through it: **find a household.** Everything
+ * else earns its place by being a single glance (the balance, the three actions) or an aid to
+ * finding (the filters), which is why the filters live inside the list card rather than above it and
+ * why the primary action stands beside the `h1` rather than in a band of its own.
  */
 
+import { Search, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { z } from "zod";
 import { countCardsDueForReissue } from "@/application/customers/cards-due-for-reissue";
@@ -32,6 +39,19 @@ import {
 } from "@/application/customers/list-customers";
 import { proposeRegistration } from "@/application/customers/propose-registration";
 import { listWaiting } from "@/application/waiting-list/list-waiting";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { EXPIRING_SOON_DAYS, type CertificateState } from "@/domain/customer/certificate";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
@@ -48,6 +68,9 @@ import { customerDeps } from "./deps";
  * be a screen that quietly stopped being true.
  */
 export const dynamic = "force-dynamic";
+
+/** The page frame, shared with the no-settings fallback so both read as the same place. */
+const SHELL = "mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6 md:p-8";
 
 const STATUS_OPTIONS = ["ACTIVE", "BLOCKED", "ARCHIVED"] as const;
 const GROUP_OPTIONS = ["RED", "BLUE"] as const;
@@ -72,24 +95,53 @@ const filterParams = z.object({
 
 type Filters = z.infer<typeof filterParams>;
 
-/** The group's colour, matching the counter and the customer card so they read as the same thing. */
+/**
+ * The group's colour, matching the counter and the customer card so they read as the same thing.
+ *
+ * Literal palette values rather than theme tokens, and the one colour on this screen that is painted
+ * on every single row: RED and BLUE *are* the printed cards FD hands out, so the group column is the
+ * only place where the colour is the datum rather than a decoration of it.
+ */
 const GROUP_STYLES: Record<Group, string> = {
   RED: "border-red-600/40 bg-red-600/10",
   BLUE: "border-blue-700/40 bg-blue-700/10",
 };
 
-/** Status colours. They only ever repeat the word in the same cell — never a badge without text. */
-const STATUS_STYLES: Record<CustomerStatus, string> = {
-  ACTIVE: "border-emerald-600/40 bg-emerald-600/10",
-  BLOCKED: "border-red-500/40 bg-red-500/10",
-  ARCHIVED: "border-foreground/25 bg-foreground/10",
+/** What a state word wears, when it wears anything: a badge variant, a tint, or both. */
+interface Chrome {
+  readonly variant?: "destructive" | "outline";
+  readonly className?: string;
+}
+
+/**
+ * The chrome for a status and for a certificate state — `null` for the two that are simply normal.
+ *
+ * Nine rows in ten are "aktiv" and "gültig", and a pill on each of them is texture rather than
+ * emphasis: three tinted pills per row is 45 marks on 15 rows, of which 8 are news. Red in
+ * particular cannot go on being the group *and* a block *and* a lapsed certificate — the eye stops
+ * reading it as anything. So the default states print no chrome at all, and what is left is a mark
+ * per exception, plus the group.
+ *
+ * The word is never what is dropped: it stands in both cases, badge or no badge, because a colour is
+ * a distinction only some of the staff can make (US-03.4) — and because the spec asserts it.
+ */
+const STATUS_CHROME: Record<CustomerStatus, Chrome | null> = {
+  ACTIVE: null,
+  BLOCKED: { variant: "destructive" },
+  ARCHIVED: { variant: "outline" },
 };
 
-const CERTIFICATE_STYLES: Record<CertificateState, string> = {
-  VALID: "border-transparent",
-  EXPIRING_SOON: "border-amber-500/40 bg-amber-500/10",
-  EXPIRED: "border-red-500/40 bg-red-500/10",
+const CERTIFICATE_CHROME: Record<CertificateState, Chrome | null> = {
+  VALID: null,
+  EXPIRING_SOON: { variant: "outline", className: "border-amber-500/40 bg-amber-500/10" },
+  EXPIRED: { variant: "outline", className: "border-red-500/40 bg-red-500/10" },
 };
+
+/** The three filter selects, styled from the same string so they cannot drift apart. */
+const FILTER_SELECT =
+  "h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm transition-colors " +
+  "outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 " +
+  "dark:bg-input/30";
 
 /** The German name of a certificate state as a *filter option*, which spells out what it includes. */
 function certificateFilterLabel(state: CertificateState): string {
@@ -130,239 +182,262 @@ function activeFilters(filters: Filters, search: string): ReadonlyArray<string> 
   return named;
 }
 
-function Badge({
-  label,
-  style,
+/**
+ * A state word, badged only where the state is an exception.
+ *
+ * The testid sits on the `<span>` holding the word in both branches — never on the badge — so that
+ * what a spec reads is the word itself whether or not there is chrome around it today.
+ */
+function StateWord({
+  word,
   testId,
+  chrome,
 }: {
-  label: string;
-  style: string;
+  word: string;
   testId: string;
+  chrome: Chrome | null;
 }): React.ReactElement {
-  return (
-    <span
-      data-testid={testId}
-      className={`inline-block rounded border px-2 py-0.5 text-sm whitespace-nowrap ${style}`}
-    >
-      {label}
+  const label = (
+    <span data-testid={testId} className={chrome === null ? "text-muted-foreground" : undefined}>
+      {word}
     </span>
   );
-}
-
-/** One column heading. `scope="col"` so the table reads as a table to anyone not looking at it. */
-function Heading({
-  label,
-  numeric = false,
-}: {
-  label: string;
-  numeric?: boolean;
-}): React.ReactElement {
-  return (
-    <th
-      scope="col"
-      className={`px-2 py-2 font-semibold whitespace-nowrap ${numeric ? "text-right" : "text-left"}`}
-    >
+  return chrome === null ? (
+    label
+  ) : (
+    <Badge variant={chrome.variant} className={chrome.className}>
       {label}
-    </th>
+    </Badge>
   );
 }
 
-function Row({ row }: { row: CustomerListRow }): React.ReactElement {
+function CustomerRow({ row }: { row: CustomerListRow }): React.ReactElement {
   // An archived household is dimmed *and* carries the word "archiviert" in its status cell. The
   // shading alone would be a distinction only some readers can make, and this is the one row on the
   // screen whose customer number may already belong to somebody else (US-10).
   const archived = row.status === "ARCHIVED";
 
   return (
-    <tr
+    <TableRow
       data-testid="customer-row"
       data-customer-number={row.customerNumber}
       data-status={row.status}
-      className={`border-t border-foreground/10 align-top ${archived ? "bg-foreground/5 text-foreground/60" : ""}`}
+      className={archived ? "bg-muted/50 text-muted-foreground" : undefined}
     >
-      <td data-testid="customer-row-number" className="px-2 py-2 text-right tabular-nums">
+      <TableCell data-testid="customer-row-number" className="text-right tabular-nums">
         {row.customerNumber}
-      </td>
-      <td className="px-2 py-2">
+      </TableCell>
+      <TableCell className="min-w-56">
+        {/* Underlined on hover rather than always: 240 permanent underlines is 240 pieces of noise,
+            and the whole row lights up under the cursor anyway. */}
         <Link
           href={`/kunden/${row.customerId}`}
           data-testid="customer-row-link"
-          className="underline underline-offset-4"
+          className="font-medium underline-offset-4 hover:underline"
         >
           {row.lastName}, {row.firstName}
         </Link>
-      </td>
-      <td data-testid="customer-row-card" className="px-2 py-2 tabular-nums">
+      </TableCell>
+      <TableCell data-testid="customer-row-card" className="tabular-nums">
         {row.cardNumber}
-      </td>
-      <td className="px-2 py-2">
+      </TableCell>
+      <TableCell>
         <Badge
-          label={de.customers.groups[row.group]}
-          style={GROUP_STYLES[row.group]}
-          testId="customer-row-group"
-        />
-      </td>
-      <td className="px-2 py-2">
-        <Badge
-          label={de.customers.status[row.status]}
-          style={STATUS_STYLES[row.status]}
+          data-testid="customer-row-group"
+          variant="outline"
+          className={GROUP_STYLES[row.group]}
+        >
+          {de.customers.groups[row.group]}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <StateWord
+          word={de.customers.status[row.status]}
           testId="customer-row-status"
+          chrome={STATUS_CHROME[row.status]}
         />
-      </td>
-      <td data-testid="customer-row-grown-ups" className="px-2 py-2 text-right tabular-nums">
-        {row.grownUps}
-      </td>
-      <td data-testid="customer-row-children" className="px-2 py-2 text-right tabular-nums">
-        {row.children}
-      </td>
-      <td data-testid="customer-row-portions" className="px-2 py-2 text-right tabular-nums">
+      </TableCell>
+      {/* Two heads in one cell, and deliberately two spans rather than one reading "4 + 0": the
+          grown-ups and the children are separate facts that happen to be read together. */}
+      <TableCell className="text-right tabular-nums">
+        <span data-testid="customer-row-grown-ups">{row.grownUps}</span>
+        {" + "}
+        <span data-testid="customer-row-children">{row.children}</span>
+      </TableCell>
+      <TableCell data-testid="customer-row-portions" className="text-right tabular-nums">
         {row.portions}
-      </td>
-      <td data-testid="customer-row-price" className="px-2 py-2 text-right tabular-nums">
+      </TableCell>
+      <TableCell data-testid="customer-row-price" className="text-right tabular-nums">
         {formatEuros(row.priceCents)}
-      </td>
+      </TableCell>
       {/* The date and where it stands today, side by side: the state is what staff scan for, the
           date is what they say to the household. */}
-      <td className="px-2 py-2 whitespace-nowrap">
+      <TableCell>
         <span data-testid="customer-row-certificate" className="tabular-nums">
           {germanDate(row.certificateValidUntil)}
         </span>{" "}
-        <Badge
-          label={de.customerList.certificateStates[row.certificateState]}
-          style={CERTIFICATE_STYLES[row.certificateState]}
+        <StateWord
+          word={de.customerList.certificateStates[row.certificateState]}
           testId="customer-row-certificate-state"
+          chrome={CERTIFICATE_CHROME[row.certificateState]}
         />
-      </td>
-      <td data-testid="customer-row-reminders" className="px-2 py-2 text-right tabular-nums">
+      </TableCell>
+      <TableCell data-testid="customer-row-reminders" className="text-right tabular-nums">
         {row.reminderCount}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
 
 /**
- * The filters, as a plain GET form.
+ * One filter control and the label that names it.
+ *
+ * A real `<label htmlFor>` and not a nested `<span>`: the old idiom worked only because the control
+ * sat *inside* the label, which stops being true the moment a control is moved. A plain `<label>`
+ * rather than the `Label` primitive, which is `"use client"` and would drag the whole form across a
+ * client boundary for a font weight.
+ */
+function FilterField({
+  id,
+  label,
+  children,
+}: {
+  id: string;
+  label: string;
+  children: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-sm font-medium">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * The filters, as a plain GET form, inside the list card they belong to.
  *
  * No JavaScript is involved: submitting navigates, which is what writes the filters into the URL and
  * makes the view bookmarkable. Every control is labelled, and the unset option of each select says
  * "Alle" rather than being blank.
+ *
+ * The three selects stay **native** `<select>` elements, styled with the theme tokens. Radix's
+ * `Select` renders a button plus a portalled listbox, which neither `selectOption` nor `toHaveValue`
+ * can drive — the same trade the conversion guide records for `Label`. The search box is given the
+ * widest track of the four because it is the control the screen exists for.
  */
 function FilterForm({ filters, search }: { filters: Filters; search: string }): React.ReactElement {
   return (
-    <form method="get" className="flex flex-wrap items-end gap-3">
-      <label className="flex flex-1 flex-col gap-1">
-        <span className="text-sm text-foreground/70">{de.customerList.search.label}</span>
-        <input
-          // Not `type="number"`: the same box takes a name and a card number's `k`.
-          type="text"
-          name="suche"
-          data-testid="customer-search"
-          placeholder={de.customerList.search.placeholder}
-          defaultValue={search}
-          autoComplete="off"
-          className="min-w-64 rounded border border-foreground/20 px-3 py-2"
-        />
-      </label>
+    <form method="get" className="flex flex-col gap-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2.2fr)_repeat(3,minmax(0,1fr))]">
+        <FilterField id="filter-search" label={de.customerList.search.label}>
+          <div className="relative">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              id="filter-search"
+              // Not `type="number"`: the same box takes a name and a card number's `k`.
+              type="text"
+              name="suche"
+              data-testid="customer-search"
+              placeholder={de.customerList.search.placeholder}
+              defaultValue={search}
+              autoComplete="off"
+              className="h-9 pl-8"
+            />
+          </div>
+        </FilterField>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-sm text-foreground/70">{de.customerList.filters.status}</span>
-        <select
-          name="status"
-          data-testid="status-filter"
-          defaultValue={filters.status ?? ""}
-          className="rounded border border-foreground/20 px-3 py-2"
-        >
-          <option value="">{de.customerList.filters.all}</option>
-          {STATUS_OPTIONS.map((status) => (
-            <option key={status} value={status}>
-              {de.customers.status[status]}
-            </option>
-          ))}
-        </select>
-      </label>
+        <FilterField id="filter-status" label={de.customerList.filters.status}>
+          <select
+            id="filter-status"
+            name="status"
+            data-testid="status-filter"
+            defaultValue={filters.status ?? ""}
+            className={FILTER_SELECT}
+          >
+            <option value="">{de.customerList.filters.all}</option>
+            {STATUS_OPTIONS.map((status) => (
+              <option key={status} value={status}>
+                {de.customers.status[status]}
+              </option>
+            ))}
+          </select>
+        </FilterField>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-sm text-foreground/70">{de.customerList.filters.group}</span>
-        <select
-          name="gruppe"
-          data-testid="group-filter"
-          defaultValue={filters.gruppe ?? ""}
-          className="rounded border border-foreground/20 px-3 py-2"
-        >
-          <option value="">{de.customerList.filters.all}</option>
-          {GROUP_OPTIONS.map((group) => (
-            <option key={group} value={group}>
-              {de.customers.groups[group]}
-            </option>
-          ))}
-        </select>
-      </label>
+        <FilterField id="filter-group" label={de.customerList.filters.group}>
+          <select
+            id="filter-group"
+            name="gruppe"
+            data-testid="group-filter"
+            defaultValue={filters.gruppe ?? ""}
+            className={FILTER_SELECT}
+          >
+            <option value="">{de.customerList.filters.all}</option>
+            {GROUP_OPTIONS.map((group) => (
+              <option key={group} value={group}>
+                {de.customers.groups[group]}
+              </option>
+            ))}
+          </select>
+        </FilterField>
 
-      <label className="flex flex-col gap-1">
-        <span className="text-sm text-foreground/70">{de.customerList.filters.certificate}</span>
-        <select
-          name="nachweis"
-          data-testid="certificate-filter"
-          defaultValue={filters.nachweis ?? ""}
-          className="rounded border border-foreground/20 px-3 py-2"
-        >
-          <option value="">{de.customerList.filters.all}</option>
-          {CERTIFICATE_OPTIONS.map((state) => (
-            <option key={state} value={state}>
-              {certificateFilterLabel(state)}
-            </option>
-          ))}
-        </select>
-      </label>
+        <FilterField id="filter-certificate" label={de.customerList.filters.certificate}>
+          <select
+            id="filter-certificate"
+            name="nachweis"
+            data-testid="certificate-filter"
+            defaultValue={filters.nachweis ?? ""}
+            className={FILTER_SELECT}
+          >
+            <option value="">{de.customerList.filters.all}</option>
+            {CERTIFICATE_OPTIONS.map((state) => (
+              <option key={state} value={state}>
+                {certificateFilterLabel(state)}
+              </option>
+            ))}
+          </select>
+        </FilterField>
+      </div>
 
-      {/* Ticked deliberately, never by default (FR-4). Unticked it submits nothing at all, so the
-          plain /kunden URL is the working view of who FD serves. */}
-      <label className="flex items-center gap-2 py-2">
-        <input
-          type="checkbox"
-          name="archiv"
-          value="1"
-          data-testid="archived-toggle"
-          defaultChecked={filters.archiv === "1"}
-          className="size-4"
-        />
-        <span>{de.customerList.filters.includeArchived}</span>
-      </label>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Ticked deliberately, never by default (FR-4). Unticked it submits nothing at all, so the
+            plain /kunden URL is the working view of who FD serves. Native, because the action reads
+            it as presence in the FormData and Radix's Checkbox submits nothing of its own. */}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <input
+              id="filter-archived"
+              type="checkbox"
+              name="archiv"
+              value="1"
+              data-testid="archived-toggle"
+              defaultChecked={filters.archiv === "1"}
+              className="size-4 accent-primary"
+            />
+            <label htmlFor="filter-archived" className="text-sm">
+              {de.customerList.filters.includeArchived}
+            </label>
+          </div>
+          <p className="max-w-prose text-xs text-muted-foreground">
+            {de.customerList.filters.includeArchivedHint}
+          </p>
+        </div>
 
-      <button type="submit" className="rounded border border-foreground/20 px-4 py-2 font-medium">
-        {de.customerList.filters.submit}
-      </button>
-      <Link href="/kunden" className="py-2 underline underline-offset-4">
-        {de.customerList.filters.reset}
-      </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="submit" size="lg">
+            {de.customerList.filters.submit}
+          </Button>
+          <Button variant="ghost" size="lg" asChild>
+            <Link href="/kunden">{de.customerList.filters.reset}</Link>
+          </Button>
+        </div>
+      </div>
     </form>
-  );
-}
-
-/**
- * The count pill both hub badges are made of (PRD §6). It is one component so that the two cannot
- * drift apart: they stand next to each other and are read as one row, and a pill a pixel taller than
- * its neighbour is how that stops being true. The border is always there — transparent in the
- * neutral state — so tinting one of them changes its colour and not its size.
- */
-function CountBadge({
-  label,
-  testId,
-  accent = "border-transparent",
-  ...rest
-}: {
-  label: string;
-  testId: string;
-  accent?: string;
-} & React.ComponentPropsWithoutRef<"span">): React.ReactElement {
-  return (
-    <span
-      data-testid={testId}
-      className={`rounded-full border bg-foreground/10 px-3 py-1 text-sm tabular-nums ${accent}`}
-      {...rest}
-    >
-      {label}
-    </span>
   );
 }
 
@@ -378,7 +453,7 @@ function CountBadge({
 const FREE_SLOT_ACCENT = "border-emerald-600/40 bg-emerald-600/15";
 
 /**
- * The three customer actions, above the list (FR-5).
+ * The overview card: the group balance, and the two customer actions that are not the primary one.
  *
  * The reissue link carries its count so that "nothing to do" can be read without opening the list —
  * which is why it is shown at zero as well (US-13.4). It is deliberately the same neutral grey as
@@ -393,75 +468,116 @@ const FREE_SLOT_ACCENT = "border-emerald-600/40 bg-emerald-600/15";
  * `freeSlot` is the one thing that separates them: a queue that can be served *now* reads
  * differently from a queue that merely exists (US-18.2). It still names nobody — who gets the number
  * is decided on `/kunden/neu`, not here.
+ *
+ * The balance sits beneath them and deliberately does not move with the filters: it answers "which
+ * group is smaller", which is a question about the whole register (FR-3). Its wording is one string
+ * and stays one string — two tiles would read better and cannot carry it, so that is a change for
+ * its own commit rather than a thing to smuggle into a restyle.
  */
-function HubActions({
+function Overview({
   cardsDue,
   waiting,
   freeSlot,
+  groupCounts,
 }: {
   cardsDue: number;
   waiting: number;
   freeSlot: boolean;
+  groupCounts: { readonly red: number; readonly blue: number };
 }): React.ReactElement {
   return (
-    <section data-testid="customer-actions" className="flex flex-wrap items-center gap-x-6 gap-y-3">
-      <Link
-        href="/kunden/neu"
-        data-testid="hub-new-customer"
-        className="rounded bg-foreground px-4 py-2 font-semibold text-background"
-      >
-        {de.customerList.actions.newCustomer}
-      </Link>
-      <Link href="/warteliste" data-testid="hub-waiting-list" className="flex gap-2">
-        <span className="underline underline-offset-4">{de.customerList.actions.waitingList}</span>
-        {/* The state is on the element as data, not only in its colour, so a spec asserts what the
-            badge means rather than what shade it happens to be painted. */}
-        <CountBadge
-          testId="waiting-list-badge"
-          data-free-slot={freeSlot ? "true" : "false"}
-          accent={freeSlot ? FREE_SLOT_ACCENT : undefined}
-          label={de.customerList.actions.waitingListBadge(waiting, freeSlot)}
-        />
-      </Link>
-      <Link href="/karten-neuausstellung" data-testid="hub-cards-due" className="flex gap-2">
-        <span className="underline underline-offset-4">{de.customerList.actions.cardsDue}</span>
-        <CountBadge
-          testId="cards-due-badge"
-          label={de.customerList.actions.cardsDueBadge(cardsDue)}
-        />
-      </Link>
-    </section>
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          <h2>{de.customerList.overviewTitle}</h2>
+        </CardTitle>
+        <CardAction data-testid="customer-actions" className="flex flex-wrap items-center gap-1">
+          <Button variant="ghost" size="lg" asChild>
+            <Link href="/warteliste" data-testid="hub-waiting-list">
+              {de.customerList.actions.waitingList}
+              {/* The state is on the element as data, not only in its colour, so a spec asserts what
+                  the badge means rather than what shade it happens to be painted. */}
+              <Badge
+                variant="secondary"
+                data-testid="waiting-list-badge"
+                data-free-slot={freeSlot ? "true" : "false"}
+                className={freeSlot ? FREE_SLOT_ACCENT : undefined}
+              >
+                {de.customerList.actions.waitingListBadge(waiting, freeSlot)}
+              </Badge>
+            </Link>
+          </Button>
+          <Button variant="ghost" size="lg" asChild>
+            <Link href="/karten-neuausstellung" data-testid="hub-cards-due">
+              {de.customerList.actions.cardsDue}
+              <Badge variant="secondary" data-testid="cards-due-badge">
+                {de.customerList.actions.cardsDueBadge(cardsDue)}
+              </Badge>
+            </Link>
+          </Button>
+        </CardAction>
+      </CardHeader>
+      {/* The balance and its explanation side by side rather than stacked: the sentence is what the
+          number means, and a screen whose first job is the register below cannot spend a band on
+          each of them. */}
+      <CardContent className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <p
+          data-testid="group-counts"
+          data-red={groupCounts.red}
+          data-blue={groupCounts.blue}
+          className="text-2xl font-semibold tabular-nums"
+        >
+          {de.customerList.groupBalance(groupCounts.red, groupCounts.blue)}
+        </p>
+        <p className="max-w-prose text-sm text-muted-foreground">
+          {de.customerList.groupBalanceHint}
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
-function Table({ rows }: { rows: ReadonlyArray<CustomerListRow> }): React.ReactElement {
+/**
+ * The register itself.
+ *
+ * The header sticks, which took three separate overflow overrides and had never once worked before
+ * (see `docs/ui_conversion_guide.md`): `Card` ships `overflow-hidden`, the `Table` primitive wraps
+ * itself in `overflow-x-auto`, and either one on its own makes *itself* the scrollport the header
+ * sticks to — so the header parks at the top of a box as tall as the table and leaves the window
+ * with the rows. Below `xl` the container keeps its horizontal scroll and the header gives up
+ * sticking, which is the right way round: FD work at desktop width, and a table that cannot be
+ * scrolled sideways on a narrow screen is worse than one whose header scrolls away.
+ *
+ * `xl` and not `lg`, measured rather than guessed: ten columns need about 1000px, which a `lg`
+ * viewport's content box does not have, so turning the scroll container off there pushed the whole
+ * *page* sideways by 26px. The width the concept names as the target is 1280 anyway.
+ *
+ * `top-12` is the height of the sticky nav above it, and the background is `bg-card` and opaque —
+ * the nav is translucent, and a header that copied that would have rows reading through it.
+ */
+function CustomerTable({ rows }: { rows: ReadonlyArray<CustomerListRow> }): React.ReactElement {
   return (
-    <div className="overflow-x-auto">
-      <table data-testid="customer-table" className="w-full border-collapse text-sm">
-        {/* The header stays put while the register is scrolled — at 240 rows the columns are
-            otherwise unreadable halfway down (PRD §6). */}
-        <thead className="sticky top-0 bg-background">
-          <tr className="border-b border-foreground/20">
-            <Heading label={de.customerList.table.customerNumber} numeric />
-            <Heading label={de.customerList.table.name} />
-            <Heading label={de.customerList.table.cardNumber} />
-            <Heading label={de.customerList.table.group} />
-            <Heading label={de.customerList.table.status} />
-            <Heading label={de.customerList.table.grownUps} numeric />
-            <Heading label={de.customerList.table.children} numeric />
-            <Heading label={de.customerList.table.portions} numeric />
-            <Heading label={de.customerList.table.price} numeric />
-            <Heading label={de.customerList.table.certificate} />
-            <Heading label={de.customerList.table.reminders} numeric />
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <Row key={row.customerId} row={row} />
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Table data-testid="customer-table" containerClassName="overflow-x-auto xl:overflow-x-visible">
+      <TableHeader className="sticky top-12 z-10 bg-card">
+        <TableRow className="hover:bg-transparent">
+          <TableHead className="text-right">{de.customerList.table.customerNumber}</TableHead>
+          <TableHead>{de.customerList.table.name}</TableHead>
+          <TableHead>{de.customerList.table.cardNumber}</TableHead>
+          <TableHead>{de.customerList.table.group}</TableHead>
+          <TableHead>{de.customerList.table.status}</TableHead>
+          <TableHead className="text-right">{de.customerList.table.household}</TableHead>
+          <TableHead className="text-right">{de.customerList.table.portions}</TableHead>
+          <TableHead className="text-right">{de.customerList.table.price}</TableHead>
+          <TableHead>{de.customerList.table.certificate}</TableHead>
+          <TableHead className="text-right">{de.customerList.table.reminders}</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {rows.map((row) => (
+          <CustomerRow key={row.customerId} row={row} />
+        ))}
+      </TableBody>
+    </Table>
   );
 }
 
@@ -472,12 +588,14 @@ function Table({ rows }: { rows: ReadonlyArray<CustomerListRow> }): React.ReactE
  */
 function NoSettings(): React.ReactElement {
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-8">
-      <h1 className="text-3xl font-semibold">{de.customerList.heading}</h1>
-      <p className="max-w-prose">{de.settings.errors.noSettings}</p>
-      <Link href="/einstellungen" className="underline underline-offset-4">
-        {de.home.settingsLink}
-      </Link>
+    <main className={SHELL}>
+      <h1 className="text-3xl font-semibold tracking-tight">{de.customerList.heading}</h1>
+      <Alert>
+        <AlertDescription>{de.settings.errors.noSettings}</AlertDescription>
+      </Alert>
+      <Button className="self-start" asChild>
+        <Link href="/einstellungen">{de.home.settingsLink}</Link>
+      </Button>
     </main>
   );
 }
@@ -536,53 +654,61 @@ export default async function CustomerListPage({
   const unfiltered = filtered.length === 1 && filters.archiv === undefined;
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-8">
-      <h1 className="text-3xl font-semibold">{de.customerList.heading}</h1>
-      <p className="max-w-prose text-foreground/80">{de.customerList.intro}</p>
+    <main className={SHELL}>
+      {/* The one *write* on this screen stands beside the heading, where the page skeleton puts a
+          screen's primary action — rather than opening a band of its own above the register. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-semibold tracking-tight">{de.customerList.heading}</h1>
+        <Button size="lg" asChild>
+          <Link href="/kunden/neu" data-testid="hub-new-customer">
+            <UserPlus aria-hidden="true" />
+            {de.customerList.actions.newCustomer}
+          </Link>
+        </Button>
+      </div>
+      <p className="max-w-prose text-muted-foreground">{de.customerList.intro}</p>
 
       {/* No banner here any more (US-18.3). Naming one applicant and one number at the top of the
           register was a decision about somebody else standing in front of the thing staff came for;
           it now stands on /kunden/neu, where the number is actually about to be handed out. What
           survives here is the badge — the same fact, stated quietly. */}
-      <HubActions
+      <Overview
         cardsDue={cardsDue}
         waiting={places.length}
         // Both halves are required: a free number with nobody waiting is not news, and a queue with
         // no number to give out is the state the badge already states plainly (US-18.2).
         freeSlot={anybodyWaiting && freeNumber !== null}
+        groupCounts={view.groupCounts}
       />
 
-      {/* Above the filters, because it is the one number on this screen that the filters do not
-          touch — and the one staff came for when they are registering somebody (FR-3). */}
-      <section className="flex flex-col gap-1">
-        <p
-          data-testid="group-counts"
-          data-red={view.groupCounts.red}
-          data-blue={view.groupCounts.blue}
-          className="text-2xl font-semibold"
-        >
-          {de.customerList.groupBalance(view.groupCounts.red, view.groupCounts.blue)}
-        </p>
-        <p className="max-w-prose text-sm text-foreground/70">{de.customerList.groupBalanceHint}</p>
-      </section>
-
-      <FilterForm filters={filters} search={search} />
-      <p className="text-sm text-foreground/70">{de.customerList.filters.includeArchivedHint}</p>
-
-      {view.rows.length === 0 ? (
-        <p data-testid="customer-list-empty" className="max-w-prose">
-          {unfiltered
-            ? de.customerList.empty.unfiltered
-            : de.customerList.empty.filtered(filtered.join(", "))}
-        </p>
-      ) : (
-        <>
-          <p data-testid="customer-list-count" className="text-sm text-foreground/70">
-            {de.customerList.resultCount(view.rows.length)}
-          </p>
-          <Table rows={view.rows} />
-        </>
-      )}
+      {/* One card, because the filters have no meaning apart from the table they filter: a wrapped
+          control row inside a card still reads as one form, which loose page furniture does not. */}
+      <Card className="overflow-visible">
+        <CardHeader>
+          <CardTitle>
+            <h2>{de.customerList.listTitle}</h2>
+          </CardTitle>
+          {view.rows.length === 0 ? null : (
+            <CardAction data-testid="customer-list-count" className="text-sm text-muted-foreground">
+              {de.customerList.resultCount(view.rows.length)}
+            </CardAction>
+          )}
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <FilterForm filters={filters} search={search} />
+          {view.rows.length === 0 ? (
+            <Alert role="status">
+              <AlertDescription data-testid="customer-list-empty">
+                {unfiltered
+                  ? de.customerList.empty.unfiltered
+                  : de.customerList.empty.filtered(filtered.join(", "))}
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <CustomerTable rows={view.rows} />
+          )}
+        </CardContent>
+      </Card>
     </main>
   );
 }
