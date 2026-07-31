@@ -70,7 +70,6 @@ export const de = {
       intro:
         "Kundennummer und Gruppe schlägt die Anwendung vor. Erwachsene und Kinder werden aus den " +
         "Geburtsdaten berechnet und können nicht eingetragen werden.",
-      personalHeading: "Person",
       addressHeading: "Anschrift",
       certificateHeading: "Bedarfsnachweis",
       householdHeading: "Haushalt",
@@ -261,10 +260,12 @@ export const de = {
      */
     archiveSearch: {
       heading: "Im Archiv suchen",
-      intro:
-        "Wenn dieser Haushalt früher schon aufgenommen war, können Person, Anschrift und " +
-        "Haushaltsmitglieder aus dem Archiv übernommen werden. Es wird trotzdem ein neuer " +
-        "Datensatz angelegt; der archivierte bleibt unverändert.",
+      /**
+       * One line, and it asks the question rather than explaining the feature. It was three lines
+       * describing how the pre-fill works to somebody who has not used it yet — and the two things
+       * it explained are both said again, in the right place, by the notice over a filled form.
+       */
+      intro: "War dieser Haushalt schon einmal aufgenommen?",
       submit: "Suchen",
       submitting: "Wird gesucht …",
       /** The result list, headed by how many of them there are — German inflects the one. */

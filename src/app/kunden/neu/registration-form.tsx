@@ -250,7 +250,44 @@ export function RegistrationForm({
         <input type="hidden" name="previousCustomerId" value={previousCustomerId} />
       )}
       {entryId === null ? null : <input type="hidden" name="entryId" value={entryId} />}
-      <Section heading={de.customers.new.personalHeading}>
+
+      {/*
+       * The refusal, at the top of the form rather than 1 600px down at the bottom of `Zuordnung`.
+       *
+       * A full register is not a dead end — turning an applicant away is precisely what the waiting
+       * list exists to prevent (US-12, FR-3) — so the way onto it is offered with the refusal, as a
+       * button rather than an underlined link. The form stays on screen below, disabled and not
+       * removed: staff need to see that the fields exist and why they cannot be used.
+       */}
+      {full ? (
+        <Alert variant="destructive" role="status">
+          <AlertDescription
+            data-testid="registration-error"
+            className="flex max-w-prose flex-col items-start gap-3"
+          >
+            <p>{de.customers.errors.noFreeCustomerNumber(proposal.quotaN)}</p>
+            <Button variant="outline" asChild>
+              <Link href="/warteliste" data-testid="registration-waiting-list-link">
+                {de.customers.new.waitingListLink}
+              </Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {/*
+       * One card, not three.
+       *
+       * `Person` and `Anschrift` are one act — who this is and where they live — and the record
+       * already calls that pair by one name (`record.detailsHeading`); using the same words on both
+       * screens is most of what makes them read as one product. The certificate joins them because
+       * it is what decides whether this household may be registered at all, and as a card of its
+       * own it was two fields and 102px between two much larger sections. `Anschrift` survives as a
+       * muted sub-label rather than a second `h2`.
+       *
+       * The saving is two card headers and two card paddings, ~180px, off the top of the form.
+       */}
+      <Section heading={de.customers.record.detailsHeading}>
         <div className={GRID}>
           <Field
             name="firstName"
@@ -274,21 +311,16 @@ export function RegistrationForm({
             value={birthDate}
             onChange={setBirthDate}
           />
-          <Field
-            name="notes"
-            label={de.customers.fields.notes}
-            span="sm:col-span-2 lg:col-span-12"
-            defaultValue={draft?.notes ?? ""}
-          />
         </div>
-      </Section>
 
-      <Section heading={de.customers.new.addressHeading}>
+        <p className="text-sm font-medium text-muted-foreground">
+          {de.customers.new.addressHeading}
+        </p>
         <div className={GRID}>
           <Field
             name="street"
             label={de.customers.fields.street}
-            span="lg:col-span-6"
+            span="lg:col-span-5"
             defaultValue={draft?.street ?? ""}
           />
           <Field
@@ -306,13 +338,14 @@ export function RegistrationForm({
           <Field
             name="city"
             label={de.customers.fields.city}
-            span="lg:col-span-4"
+            span="lg:col-span-3"
             defaultValue={draft?.city ?? ""}
           />
         </div>
-      </Section>
 
-      <Section heading={de.customers.new.certificateHeading}>
+        <p className="text-sm font-medium text-muted-foreground">
+          {de.customers.new.certificateHeading}
+        </p>
         <div className={GRID}>
           <Field
             name="certificateType"
@@ -326,6 +359,12 @@ export function RegistrationForm({
             span="lg:col-span-6"
             type="date"
             defaultValue={draft?.certificateValidUntil ?? ""}
+          />
+          <Field
+            name="notes"
+            label={de.customers.fields.notes}
+            span="sm:col-span-2 lg:col-span-12"
+            defaultValue={draft?.notes ?? ""}
           />
         </div>
       </Section>
@@ -439,25 +478,6 @@ export function RegistrationForm({
         heading={de.customers.new.assignmentHeading}
         footer={
           <>
-            {/* A full register is not a dead end. Turning an applicant away is precisely what the
-                waiting list exists to prevent (US-12, FR-3), so the way onto it is offered here
-                rather than left for staff to find. */}
-            {full ? (
-              <Alert variant="destructive" role="status">
-                <AlertDescription
-                  data-testid="registration-error"
-                  className="flex max-w-prose flex-col items-start gap-3"
-                >
-                  <p>{de.customers.errors.noFreeCustomerNumber(proposal.quotaN)}</p>
-                  <Button variant="outline" asChild>
-                    <Link href="/warteliste" data-testid="registration-waiting-list-link">
-                      {de.customers.new.waitingListLink}
-                    </Link>
-                  </Button>
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
             {state.status === "error" && state.message !== undefined ? (
               <Alert variant="destructive" role="status">
                 <AlertDescription data-testid="registration-error" className="max-w-prose">
