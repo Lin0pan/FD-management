@@ -9,9 +9,12 @@
  *
  * Three decisions are worth stating, because each could plausibly have gone the other way:
  *
- * - **The group walked is the banner's**, `getWeekColour`'s `nextDistribution.colour` — today's on a
- *   distribution day and the next distribution's otherwise (PRD §FR-1). It deliberately does *not*
- *   follow the group of the household on screen, so the screen never names two groups at once.
+ * - **The group walked is the week's own**, `getWeekColour`'s `colour` — the one the banner badges
+ *   beside the calendar week, and on a distribution day necessarily the group being served. It is
+ *   deliberately *not* `nextDistribution.colour`: those part company on the days between a
+ *   distribution and the next one, and a screen that says "blaue Woche" while its walk hands out red
+ *   households is answering a question nobody asked. It does not follow the group of the household on
+ *   screen either, so the screen never names two groups at once.
  * - **A looked-up number need not belong to the group.** `neighbours` compares numerically, so a Rot
  *   household looked up on a Blau day still positions the walk between the Blau numbers around it
  *   (§FR-5) rather than stranding the controls.
@@ -47,7 +50,7 @@ const WALKED_STATUSES: ReadonlyArray<CustomerStatus> = ["ACTIVE", "BLOCKED"];
 
 /** What the walk controls beside the number field know. */
 export interface GroupRosterView {
-  /** The group being walked — the one the banner names, stated in words on screen. */
+  /** The group being walked — the week's own, stated in words on screen. */
   readonly group: WeekColour;
   /** The number **Zurück** leads to, or `null` when that end has been walked out. */
   readonly previous: number | null;
@@ -61,7 +64,7 @@ export interface GroupRosterView {
 }
 
 /**
- * The group collecting next, and the numbers either side of `rawQuery` within it.
+ * The group of the week being read in, and the numbers either side of `rawQuery` within it.
  *
  * `rawQuery` is whatever stands in the screen's `nummer` parameter, read with the domain's
  * `counterQueryOrNull`: `50` and `50k3` both mean the number 50 (§FR-6), and anything unreadable — or
@@ -77,7 +80,7 @@ export async function readGroupRoster(
   rawQuery?: string,
 ): Promise<GroupRosterView> {
   const week = await getWeekColour(deps);
-  const group = week.nextDistribution.colour;
+  const group = week.colour;
   const members = await deps.customers.list({ statuses: WALKED_STATUSES, group });
   // The register's order is the walk's raw material, not its rule: `neighbours` scans, so nothing
   // here restates that the list came back lowest number first.

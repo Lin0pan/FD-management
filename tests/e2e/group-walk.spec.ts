@@ -45,9 +45,17 @@ const NOW_FILE = "data/e2e-now.txt";
  *
  * It follows from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor `2026-W02`
  * = RED, distributions on ISO weekday 4. So it is a distribution day and the group collecting — the
- * group the banner names and therefore the one the controls walk — is RED.
+ * week's own group, which is what the controls walk — is RED.
+ *
+ * The last spec below moves the clock to the Saturday of that same week, where the week is still RED
+ * but the next distribution is already BLUE. The walk must stay on RED: it belongs to the week it is
+ * read in, and following the next distribution instead put next week's households behind the buttons
+ * under a badge naming this week's colour.
  */
 const TODAY = "2026-01-08T09:00:00.000Z";
+
+/** Saturday of the same RED week — after its distribution, before the BLUE one of the week after. */
+const SATURDAY_OF_THE_SAME_WEEK = "2026-01-10T09:00:00.000Z";
 
 /**
  * The numbers this spec owns: one contiguous band, above every other spec's (the highest is the
@@ -299,5 +307,19 @@ test.describe("Gruppe durchgehen", () => {
     await step(page, "walk-previous", WALKED[0]);
 
     expect(await snapshotRegister()).toBe(before);
+  });
+  test("stays on the week's own group on the Saturday after its distribution", async ({ page }) => {
+    // The week is still RED here while the next Ausgabe is the BLUE one of the week after, and the
+    // banner says both. Following the next distribution instead would put 314 — the BLUE household
+    // sitting in the middle of this block — behind Weiter, under a badge naming the week RED.
+    // Pinned last in the file, and the pin is dropped in `afterAll` with the rest.
+    writeFileSync(NOW_FILE, SATURDAY_OF_THE_SAME_WEEK, "utf8");
+
+    await standOn(page, NUMBERS.first);
+
+    await expect(page.getByTestId("week-colour-week")).toHaveText(de.distribution.colours.RED);
+    await expect(page.getByTestId("walk-hint")).toContainText(RED_GROUP);
+    await step(page, "walk-next", NUMBERS.blocked);
+    await step(page, "walk-next", NUMBERS.last);
   });
 });

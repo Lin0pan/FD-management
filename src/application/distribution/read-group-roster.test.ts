@@ -259,18 +259,19 @@ describe("readGroupRoster", () => {
     expect(roster.next).toBe(10);
   });
 
-  it("walks the next distribution's group, not the current week's, on a non-distribution day", async () => {
+  it("walks the current week's group, not the next distribution's, on a non-distribution day", async () => {
     customers.holders.push(
       customerRecord({ customerNumber: 10, group: "RED" }),
       customerRecord({ customerNumber: 20, group: "BLUE" }),
     );
 
-    // Friday 9 January 2026 stands in the RED week 2026-W02, but its next distribution is the
-    // Thursday of 2026-W03 — a BLUE one. The banner names BLUE, so the walk does too.
+    // Friday 9 January 2026 stands in the RED week 2026-W02, and its next distribution is the
+    // Thursday of 2026-W03 — a BLUE one. The walk follows the week it is being read in, which is the
+    // colour the banner badges beside the calendar week.
     const roster = await readGroupRoster(deps(DAY_AFTER_A_RED_DISTRIBUTION));
 
-    expect(roster.group).toBe("BLUE");
-    expect(roster.next).toBe(20);
+    expect(roster.group).toBe("RED");
+    expect(roster.next).toBe(10);
   });
 
   it("does not walk archived households", async () => {

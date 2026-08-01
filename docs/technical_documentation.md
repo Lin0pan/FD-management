@@ -365,9 +365,13 @@ no audit entry — because navigating is a read, like the lookup it drives (US-0
 
 Three decisions carry it:
 
-- The group walked is the **banner's**, `getWeekColour`'s `nextDistribution.colour` — today's on a
-  distribution day and the next distribution's otherwise (FR-1). It does not follow the group of the
-  household on screen, so the screen never names two groups at once.
+- The group walked is the **week's own**, `getWeekColour`'s `colour` — the colour the banner badges
+  beside the calendar week, and on a distribution day necessarily the group being served (FR-1,
+  amended). It was `nextDistribution.colour` until FD walked the counter on a day between two
+  distributions and met red households on a screen saying "blaue Woche": the two fields part company
+  from the day after a distribution until the next Monday, and the walk belongs to the week it is
+  read in. It does not follow the group of the household on screen either, so the screen never names
+  two groups at once.
 - Membership is `CustomerRepository.list({ statuses: ["ACTIVE", "BLOCKED"], group })`. **No port
   method was added**: the adapter already filters by group and status and already answers lowest
   customer number first. Blocked households are walked because stating the block is the point of
@@ -2637,11 +2641,13 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   Saturday after it. ⚠️ **The Saturday is the point.** On it the current week is still RED while the
   next Ausgabe is the BLUE one on 15.01.2026, so a panel reading `view.colour` instead of
   `nextDistribution.colour` announces the wrong group. The spec used to prove that the two fields
-  disagree by looking 10.01.2026 up on `/ausgabe` — until US-22 removed that lookup, after which **no
-  screen renders `view.colour` at all** (the Ausgabe banner paints `nextDistribution.colour` too),
-  so there was nowhere to re-point it. The disagreement is now proved a layer down, in
-  `src/application/distribution/distribution.test.ts` — "names the next distribution and its colour on
-  a day that is not one" — and the e2e spec asserts the dashboard's BLUE alone. On the distribution
+  disagree by looking 10.01.2026 up on `/ausgabe` — until US-22 removed that lookup, leaving nowhere
+  to re-point it; the disagreement moved a layer down, to
+  `src/application/distribution/distribution.test.ts` ("names the next distribution and its colour on
+  a day that is not one"), and the e2e spec asserts the dashboard's BLUE alone. `/ausgabe` reads
+  **both** fields again today — `view.colour` in the week badge and in the group the walk steps
+  through, `nextDistribution.colour` in the sentence and the paint — and `distribution.spec.ts` pins
+  that same Saturday to prove they are told apart. On the distribution
   day the line is
   asserted as an **exact** text, because what must be shown is that it says _today_ rather than
   naming a coming date, which a containment check cannot tell apart. A fourth test pins 31.12.2025 —
