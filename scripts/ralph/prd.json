@@ -41,8 +41,8 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done after US-003, which had to delete the specs that read these keys first (tsconfig includes tests/). The 'grep for notADate returns nothing' criterion is read as scoped to de.distribution.errors.notADate: customers.errors.notADate and distribution.certificate.renewal.errors.notADate are live strings, used by the registration and renewal actions, and both stay. Also narrowed the docblock over `distribution:` — it promised 'today and in any other week' — and gave the two surviving errors a comment saying they are banner-reachable, so the pair is not read as more lookup leftovers. No render change, so no browser pass: the deleted keys had no reader after US-001."
     },
     {
       "id": "US-003",

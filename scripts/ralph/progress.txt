@@ -98,3 +98,30 @@ Started: Sat Aug  1 18:54:45 CEST 2026
     the whole process table including the caller.
   - A story's "no other file is modified" criterion is worth checking against the previous story's
     notes before starting: US-001 had already found the home.spec.ts coupling and written it down.
+
+## 2026-08-01 - US-002 (batch 21 / US-22): Remove the German strings the lookup owned
+
+- Deleted `de.distribution.lookup` in full from `src/i18n/de.ts` (heading, hint, label, submit,
+  reset, result, isDistributionDay, nextDistribution) and `de.distribution.errors.notADate`.
+- `de.distribution.errors.noSettings` and `.invalidAnchor` stay, and now carry a comment saying *why*
+  — both are reachable from the banner alone, so the next reader does not take them for more lookup
+  leftovers and delete them too.
+- Narrowed the docblock over `distribution:`; it still promised "which group collects, today and in
+  any other week".
+- `banner.*`, `colours`, `group` and `counter.*` untouched. Files changed: `src/i18n/de.ts` only.
+- lint, typecheck, format:check, test:coverage (44 files, 912 tests) and build all pass. No browser
+  pass: after US-001 nothing rendered these keys, so the screen is byte-identical.
+
+- **Learnings for future iterations:**
+  - **`notADate` is three different strings in `de.ts`**, one per namespace: `customers.errors`,
+    `distribution.certificate.renewal.errors` and (until now) `distribution.errors`. The PRD's
+    criterion "a grep for `notADate` returns nothing" cannot be taken literally — the other two are
+    live, read by `src/app/kunden/neu/registration-input.ts`, `src/app/kunden/[id]/actions.ts` and
+    `src/app/ausgabe/actions.ts`. Read a bare-key grep criterion as scoped to its namespace.
+  - **Deleting a dictionary key is safe to do last but not first.** The compiler finds every reader
+    (`de.ts` is a plain object literal, so the key types are inferred and `tsc` fails on a dead
+    reference), which is what made US-003-before-US-002 necessary and what makes this story's own
+    verification cheap: a green `npm run typecheck` *is* the proof that nothing read the key.
+  - When a key survives a deletion sweep for a non-obvious reason, say so in a comment beside it. The
+    next sweep is done by someone who does not have this PRD open.
+---
