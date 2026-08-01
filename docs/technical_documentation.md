@@ -1927,8 +1927,9 @@ primitives in `src/components/ui/`, and the reference the other screens follow. 
   deliberately **no audit log**: everything the page renders is a read (US-04, FR-4).
   `counterActionDeps` — the server actions' — adds the audit log, the certificate history and the
   writable stores, and is the one object here that writes.
-- **`page.tsx`** calls `getWeekColour` once, for today. The page arranges the answer and decides
-  nothing.
+- **`page.tsx`** calls `getWeekColour` for today, then awaits `lookupCustomer` and `readGroupRoster`
+  **in one `Promise.all`** — the walk asks who is in today's group, not who this number is, so it must
+  not be sequenced behind the lookup. The page arranges the answers and decides nothing.
 - The **banner** is the dominant element and is painted in the colour it _names_ — on a day without a
   distribution that is the **next** distribution's colour, which need not be the current week's. The
   colour is always written out in words ("Gruppe Rot") as well as painted: several staff share one
@@ -1943,6 +1944,34 @@ primitives in `src/components/ui/`, and the reference the other screens follow. 
   would otherwise have been painted as a week `NaN-WNaN` in a confidently-named colour — renders the
   ordinary screen. A bookmark from before the removal still works; it simply shows today.
   `distribution.spec.ts` pins that down.
+
+#### Walking today's group (`page.tsx`, US-21)
+
+- Two controls sit **in the counter card, on the row with the number field and after `Nachschlagen`**:
+  `walk-previous` ("Zurück") and `walk-next` ("Weiter"). They are the same act as typing a number —
+  they decide who the screen is about — which is why they are there and not beside the verdict, where
+  they would read as acting on the household shown. `variant="outline"` keeps `Nachschlagen` the
+  primary path, and `h-12 px-6` matches the row's deliberately taller baseline (`radix-nova` defaults
+  to `h-8`).
+- Their order in the DOM **is** the tab order: number field → `Nachschlagen` → `Zurück` → `Weiter`, so
+  a staff member on the keyboard never tabs through navigation to reach the field they type in.
+- Each is a `<Button asChild>` around a `<Link href="/ausgabe?nummer=N">` — a plain GET, so the
+  browser's Back button retraces the queue — and a **disabled `<Button>` carrying the same testid**
+  when there is no neighbour. Never hidden: the end of a group must be visible, and a control that
+  vanished would shuffle the row under the hand reaching for it. Being inside the lookup form, the
+  disabled one says `type="button"` or it would submit.
+- `walk-hint` under the row names the group **in words** and is tinted from `GROUP_STYLES`. It has
+  four sentences, not one that hedges: nothing looked up yet (where `Weiter` lands), walking, the end
+  of the group, and a group with no walkable household — "nothing looked up" and "standing on the
+  first number" both leave `Zurück` disabled but mean different things. All four live under
+  `de.distribution.walk.hints`.
+- Which of the four the page shows for "nothing looked up" is read off `lookUpNumber` returning
+  `null`, not parsed a second time: that is `null` for an absent, blank or unreadable `nummer`, which
+  is exactly when `readGroupRoster` walks from the start.
+- The group walked is the **banner's** — today's on a distribution day, the next distribution's
+  otherwise — so the screen never names two groups. `readGroupRoster` and `neighbours` hold the rules;
+  see the application and domain sections. Nothing about the walk is written: it is a read, like the
+  lookup it drives.
 
 #### The counter lookup (`counter-lookup.tsx`)
 

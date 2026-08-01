@@ -22,6 +22,10 @@ import { CircleAlert } from "lucide-react";
 import Link from "next/link";
 import { lookupCustomer, type CounterLookup } from "@/application/customers/lookup-customer";
 import { getWeekColour, type WeekColourView } from "@/application/distribution/get-week-colour";
+import {
+  readGroupRoster,
+  type GroupRosterView,
+} from "@/application/distribution/read-group-roster";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +41,7 @@ import { CertificateControls } from "./certificate-controls";
 import { CustomerDetails, VerdictBanner } from "./counter-lookup";
 import { distributionDeps } from "./deps";
 import { ServeControls } from "./serve-controls";
+import { GROUP_STYLES } from "../accents";
 import { SHELL } from "../shell";
 
 /**
@@ -158,6 +163,71 @@ async function lookUpNumber(raw: string | string[] | undefined): Promise<Counter
   }
 }
 
+/** The height the counter row is built to: the field and `Nachschlagen` are deliberately taller. */
+const WALK_CONTROL = "h-12 px-6";
+
+/**
+ * One step of the walk through today's group (US-21).
+ *
+ * A link when there is somewhere to go — a plain GET, so the browser's Back button retraces the
+ * queue exactly as it does after a typed lookup — and a *disabled button* when there is not. Not
+ * hidden: the end of a group is something staff must be able to see, and a control that vanished
+ * would shuffle the row under the hand reaching for it (FR-8).
+ */
+function WalkControl({
+  target,
+  label,
+  testId,
+}: {
+  target: number | null;
+  label: string;
+  testId: string;
+}): React.ReactElement {
+  if (target === null) {
+    return (
+      // `type="button"`: it sits inside the lookup form, and a bare <button> there would submit it.
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
+        disabled
+        data-testid={testId}
+        className={WALK_CONTROL}
+      >
+        {label}
+      </Button>
+    );
+  }
+
+  return (
+    <Button variant="outline" size="lg" asChild className={WALK_CONTROL}>
+      <Link href={`/ausgabe?nummer=${target}`} data-testid={testId}>
+        {label}
+      </Link>
+    </Button>
+  );
+}
+
+/**
+ * The German sentence for where the walk stands.
+ *
+ * Four states, four sentences, rather than one sentence that hedges: "nothing looked up yet" and
+ * "standing on the first number" both leave `Zurück` unavailable but mean different things about
+ * where `Weiter` lands, and an empty group is not the same as having walked to the end of one.
+ */
+function walkHint(roster: GroupRosterView, fromStart: boolean): string {
+  const group = colourName(roster.group);
+  const hints = de.distribution.walk.hints;
+
+  if (roster.isEmpty) {
+    return hints.empty(group);
+  }
+  if (fromStart) {
+    return hints.fromStart(group);
+  }
+  return roster.next === null ? hints.end(group) : hints.walking(group);
+}
+
 /**
  * No back-link beside the heading: the navigation bar in the root layout reaches Start from every
  * screen (US-17.4), so one here would be a second, worse way home.
@@ -199,7 +269,19 @@ export default async function DistributionPage({
     throw error;
   }
 
-  const counter = await lookUpNumber(nummer);
+  // The walk is independent of the lookup — it asks who is in today's group, not who this number is
+  // — so it must not be sequenced behind it. `readGroupRoster` resolves the week's colour a second
+  // time; that is a settings read, and passing this view in would tie the two use cases together for
+  // one query (PRD §Technical Considerations).
+  const [counter, roster] = await Promise.all([
+    lookUpNumber(nummer),
+    readGroupRoster(distributionDeps, typeof nummer === "string" ? nummer : undefined),
+  ]);
+
+  // Where `readGroupRoster` stands when it has no number to stand at: nothing typed, or something
+  // typed that is not a number. The same two cases `lookUpNumber` answers `null` for, which is why
+  // this is read off the lookup rather than parsed a second time here.
+  const walkFromStart = counter === null || counter.lookup === null;
 
   return (
     <main className={SHELL}>
@@ -219,7 +301,7 @@ export default async function DistributionPage({
           </CardTitle>
           <CardDescription className="max-w-prose">{de.distribution.counter.hint}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-3">
           <form method="get" className="flex flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="counter-input" className="text-sm font-medium">
@@ -240,7 +322,31 @@ export default async function DistributionPage({
             <Button type="submit" size="lg" className="h-12 px-6">
               {de.distribution.counter.submit}
             </Button>
+            {/* The walk (US-21) belongs on this row because it is the same act as typing a number:
+                it decides who the screen is about. It comes *after* `Nachschlagen` so a staff member
+                on the keyboard never tabs through navigation to reach the field they type in, and
+                both stay `outline` so the row does not read as three equal choices. They are links,
+                not submits — nothing here posts. */}
+            <WalkControl
+              target={roster.previous}
+              label={de.distribution.walk.previous}
+              testId="walk-previous"
+            />
+            <WalkControl
+              target={roster.next}
+              label={de.distribution.walk.next}
+              testId="walk-next"
+            />
           </form>
+          {/* Tinted from GROUP_STYLES, and naming the group in words in the same breath: the walk
+              moves through a group the staff member cannot otherwise see, and a colour never
+              travels without the word (US-03.4). */}
+          <p
+            data-testid="walk-hint"
+            className={`self-start rounded-lg border px-3 py-2 text-sm ${GROUP_STYLES[roster.group]}`}
+          >
+            {walkHint(roster, walkFromStart)}
+          </p>
         </CardContent>
       </Card>
 

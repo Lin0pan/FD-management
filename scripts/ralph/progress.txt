@@ -29,6 +29,12 @@ Started: Sat Aug  1 20:30:00 CEST 2026
   makes it stale and no gate can tell. Grep that file for the *spec file name* after touching a
   spec, and for the feature's vocabulary after removing a feature — it is 2,500 lines and describes
   the same thing from the layer's side, the screen's side and the suite's side.
+- **`playwright-cli eval` takes one expression.** Multi-statement JS fails inside `UtilityScript`;
+  wrap it in an arrow IIFE — `"(() => { const x = …; return JSON.stringify(x); })()"` — and quote
+  attribute selectors (`[data-testid=\"walk-hint\"]`).
+- **A disabled control is skipped by Tab**, so tab traversal cannot prove DOM order at the ends of a
+  row. Read the order with one `querySelectorAll` over the row's testids, and check the traversal on
+  a state where every control is enabled.
 - **A retracted requirement is struck through, marked and kept**, never deleted: `~~criterion~~`
   plus `[withdrawn]` and the reason, in both `docs/user_stories_mvp.md` and the story's PRD. Say
   what is *not* withdrawn too, or the next reader removes a parameter that still has callers.
@@ -89,3 +95,39 @@ Started: Sat Aug  1 20:30:00 CEST 2026
   - US-003 calls this in the page's existing `Promise.all`. Note `readGroupRoster` calls
     `getWeekColour` itself, so /ausgabe resolves the colour twice per request — deliberate (PRD
     §Technical Considerations); do not "fix" it by caching.
+
+---
+
+## 2026-08-01 20:50 - US-003 (Zurück and Weiter beside the number field)
+- Put the walk on `/ausgabe`: two controls in the counter card, on the row with the number field and
+  after `Nachschlagen`, driven by `readGroupRoster` (US-002), plus a hint line naming the group.
+- Files changed:
+  - `src/app/ausgabe/page.tsx` (`WalkControl`, `walkHint`, `readGroupRoster` in a new `Promise.all`,
+    `CardContent` becomes a column so the hint sits under the row)
+  - `src/i18n/de.ts` (`de.distribution.walk` — `previous`, `next`, four `hints`)
+  - `docs/technical_documentation.md` (`#### Walking today's group`, and the `page.tsx` bullet that
+    said `getWeekColour` is called once)
+  - `scripts/ralph/prd.json` (US-003 passes: true), `scripts/ralph/progress.txt`
+- Gates: lint, typecheck, `test:coverage` (46 files / 938 tests), `next build` and the **full e2e
+  suite** (89 passed, 1 pre-existing skip) all green. No spec was touched — US-004 adds the walk's own.
+- Browser: verified against a **production** build on 3100 with playwright-cli. Accessibility snapshot
+  announces `link "Weiter" → /ausgabe?nummer=1` and `button "Zurück" [disabled]`; the hint is a
+  paragraph, not a tooltip. Walked 1 → 7 → 9 → 11 → 13 and 17 (last RED: `Weiter` disabled, hint reads
+  "Ende von Gruppe Rot"). `11k1` gives the same neighbours as `11`; `?nummer=abc` walks from the start.
+  Typing 11 and pressing Enter still works after a walk. `scrollWidth - clientWidth` is 0 at 1920,
+  1280, 1024, 800 and 390.
+- **Learnings for future iterations:**
+  - **"Nothing looked up yet" is already on the page**: `lookUpNumber` answers `null` for an absent,
+    blank *or* unreadable `nummer`, which is exactly the condition under which `readGroupRoster`'s
+    `positionOf` returns `null` (both go through `counterQueryOrNull` / `parseCounterQuery`). Read the
+    state off the lookup — do not parse `nummer` a second time in the page.
+  - `GroupRosterView` deliberately carries no "did anything get looked up" flag, so the hint's
+    *fromStart* vs *walking* distinction has to come from the page. Standing on the first number and
+    standing nowhere both leave `previous === null`; only the page can tell them apart.
+  - The walk controls live **inside** the lookup `<form>` (that is what puts them on the row and in
+    the tab order). A `<Button>` there defaults to `type="submit"`, so the disabled variant needs
+    `type="button"` explicitly; the enabled one is `asChild` around a `<Link>` and never submits.
+  - `Button` needs both `size="lg"` and `className="h-12 px-6"` to match the counter row — `lg` is
+    `h-9` in radix-nova. The submit button already does exactly this; copy it rather than inventing.
+  - US-004 can rely on: `walk-previous` / `walk-next` always present (link or disabled button),
+    `walk-hint` always present, and the hint sentences keyed at `de.distribution.walk.hints`.

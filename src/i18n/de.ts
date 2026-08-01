@@ -902,6 +902,35 @@ export const de = {
       },
     },
     /**
+     * Walking today's group at the counter (tasks/prd-us-21-step-through-group.md §US-021.3).
+     *
+     * The two controls are named after the movement, not after the household: `Weiter` and `Zurück`
+     * say what pressing them does, while "Nächster Haushalt" would claim the software knows who is
+     * standing outside — it knows only the customer numbers of the group (PRD §Non-Goals).
+     *
+     * The hint reads differently in each of the four states the walk can be in, rather than one
+     * sentence that hedges over all of them. It always names the group in words: the controls
+     * navigate a group the staff member cannot see, and the banner above is the only other thing
+     * that says which one.
+     */
+    walk: {
+      previous: "Zurück",
+      next: "Weiter",
+      hints: {
+        /** Nothing looked up yet: `Zurück` is unavailable, so say where `Weiter` lands (FR-4). */
+        fromStart: (group: string): string =>
+          `${group} durchgehen: Weiter beginnt bei der ersten Nummer.`,
+        /** Standing on a number, with somewhere to go in at least one direction. */
+        walking: (group: string): string =>
+          `${group} durchgehen: Weiter zur nächsten, Zurück zur vorherigen Nummer.`,
+        /** The last number of the group. Said in words because a disabled button alone is mute. */
+        end: (group: string): string =>
+          `Ende von ${group}: nach dieser Nummer kommt keine weitere.`,
+        /** No walkable household at all — not the same thing as having walked to the end. */
+        empty: (group: string): string => `${group} hat zurzeit keinen Haushalt.`,
+      },
+    },
+    /**
      * Recording the hand-out — the one write the counter makes (tasks/prd-us-05-record-attendance.md
      * §US-05.4). The serve action appears only for a verdict that permits it; once a record exists
      * for today, the same place shows it and the controls to correct or remove it.

@@ -75,8 +75,8 @@
         "Verify in browser using the playwright-cli skill against a PRODUCTION build, reading the ACCESSIBILITY SNAPSHOT: both controls are announced as links with distinct names (or as disabled buttons at the ends), and the hint is readable text rather than a tooltip"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Two WalkControl buttons in the counter card after Nachschlagen (h-12 px-6, outline), link when the neighbour exists and a disabled type=\"button\" with the same testid when it does not, plus a GROUP_STYLES-tinted walk-hint with four sentences under de.distribution.walk.hints. readGroupRoster joins lookupCustomer in a new Promise.all; the page stays a server component. Verified against a production build with playwright-cli: the a11y snapshot announces link \"Weiter\" / disabled button \"Zurück\", tab order is field → Nachschlagen → Zurück → Weiter, hint is one line, and scrollWidth - clientWidth is 0 at 1920/1280/1024/800/390. Full e2e suite green (89 passed, 1 pre-existing skip)."
     },
     {
       "id": "US-004",
