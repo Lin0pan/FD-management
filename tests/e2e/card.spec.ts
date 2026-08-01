@@ -49,7 +49,11 @@ test("a registration issues card k1 and the card view shows it", async ({ page }
   await page.locator("#certificateValidUntil").fill(CERTIFICATE_VALID_UNTIL);
 
   // Chosen by hand rather than accepted from the suggestion, so the card is asserted against the
-  // registration input and not against whichever group happened to be smaller.
+  // registration input and not against whichever group happened to be smaller. The choice sits
+  // behind a `<details>` that starts closed (US-20.2): a radio inside a closed disclosure has no
+  // bounding box, so the summary is really clicked — `evaluate(d => (d.open = true))` would step
+  // around the very control this proves staff can reach.
+  await page.getByTestId("group-choice-open").click();
   await page.locator("#group-BLUE").check();
 
   // The applicant mirrors into the first household row; the other two are added by hand.

@@ -516,9 +516,13 @@ export function RegistrationForm({
            * The `<details>` sits inside the `<form>` on purpose: a `<details>` is not a form
            * boundary, so the radios are submitted with everything else and a registration that
            * never opened it saves the `defaultChecked` proposal.
+           *
+           * It renders closed on every load and the state is not persisted anywhere: which group
+           * the last registration chose says nothing about this one, and a control that remembers
+           * being open would put the decision back on screen for the staff who never make it.
            */}
           <div className="flex flex-col gap-2">
-            <details open>
+            <details>
               {/* `w-fit` is right here, unlike the archive search's summary: this one is a control,
                   not a card header (`docs/ui_conversion_guide.md`). */}
               <summary

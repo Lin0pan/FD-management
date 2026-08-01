@@ -126,6 +126,11 @@ async function register(page: Page, lastName: string): Promise<Household> {
   await page.locator("#city").fill(address.city);
   await page.locator("#certificateType").fill("Jobcenter-Bescheid");
   await page.locator("#certificateValidUntil").fill(CERTIFICATE_VALID_UNTIL);
+
+  // Both disclosures on this screen start closed. This one is the group choice (US-20.2): clicked
+  // for real, once per page load, because a radio inside a closed `<details>` has no bounding box —
+  // the same reason `searchArchive` below clicks its own summary rather than setting `open`.
+  await page.getByTestId("group-choice-open").click();
   await page.locator("#group-RED").check();
 
   // The applicant mirrors into the first household row; only the child is added by hand.
