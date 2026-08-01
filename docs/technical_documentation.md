@@ -1933,7 +1933,7 @@ primitives in `src/components/ui/`, and the reference the other screens follow. 
   `counterActionDeps` — the server actions' — adds the audit log, the certificate history and the
   writable stores, and is the one object here that writes.
 - **`page.tsx`** calls `getWeekColour` for today, then awaits `lookupCustomer` and `readGroupRoster`
-  **in one `Promise.all`** — the walk asks who is in today's group, not who this number is, so it must
+  **in one `Promise.all`** — the walk asks who is in the week's group, not who this number is, so it must
   not be sequenced behind the lookup. The page arranges the answers and decides nothing.
 - The **banner is compact, and names the group only on a distribution day.** On an Ausgabetag it is a
   band painted in the group's colour with the group written out beside it ("Gruppe Rot", `text-3xl`);
@@ -1942,22 +1942,30 @@ primitives in `src/components/ui/`, and the reference the other screens follow. 
   on the screen every day of the week, shouting a group at staff who cannot serve anybody four days
   out of five and pushing the number field — the reason the screen exists — down the page. Off-day
   the group survives only inside the sentence that names its date, so neither a word nor a paint can
-  be read as "the group collecting now". Both arms take their colour from `nextDistribution`, never
-  `view.colour`: after a Thursday distribution the current week is still Rot while the next
-  distribution is already Blau, and only the second answers the question this screen is read for.
+  be read as "the group collecting now". The paint and the sentence take their colour from
+  `nextDistribution`: after a Thursday distribution the current week is still Rot while the next
+  distribution is already Blau, and only the second answers "who collects at the next Ausgabe".
   The colour is written out in words wherever it is painted (FR-7): several staff share one screen in
   variable lighting, so colour alone is never the message.
 - The banner's meta line reads `01.08.2026 · KW 31` with a small group-coloured badge after it. The
   ISO year is dropped from `isoWeekOf`'s `2026-W31` by `isoWeekNumber` (`src/i18n/format.ts`) — the
   date beside it already carries the year, and staff check the week against a wall calendar, which
   prints two digits.
-- The **badge is the one thing on this screen reading `view.colour`**, and it is a badge because the
-  two colours can disagree: on the Saturday after a red Thursday the week is still Rot while the next
-  distribution is already Blau, and both are true at once. It sits beside the week number because it
-  is a property of the calendar, like the number itself, and not of the hand-out the sentence above
-  it announces. On a distribution day the two are necessarily equal, so it is left off rather than
-  repeat the headline in miniature on the paint it is already wearing.
-  `distribution.spec.ts` pins that Saturday down (`week-colour-week`).
+- The **badge states `view.colour`**, and it is a badge because the two colours can disagree: on the
+  Saturday after a red Thursday the week is still Rot while the next distribution is already Blau,
+  and both are true at once. It sits beside the week number because it is a property of the calendar,
+  like the number itself, and not of the hand-out the sentence above it announces. On a distribution
+  day the two are necessarily equal, so it is left off rather than repeat the headline in miniature
+  on the paint it is already wearing. `distribution.spec.ts` pins that Saturday down
+  (`week-colour-week`).
+- **So one screen renders both fields, and which is which is the thing to keep straight.**
+  `view.colour` — the week — drives the badge _and_ the group the walk steps through, and it is what
+  `lookupCustomer` judges a household against. `nextDistribution.colour` drives only the paint and the
+  "nächste Ausgabe" sentence, which are about a hand-out on a named date. The walk read the second of
+  those until FD met red households under a badge saying the week was blue; worse, the counter then
+  answered `WRONG_GROUP` for the very number the walk had handed over, because the verdict was
+  already reading `view.colour`. Anything about _who is served_ takes the week; only a statement
+  about the coming Ausgabe takes the next distribution.
 - **There is no second card asking about another week**, and that is deliberate. A date lookup lived
   under the counter until **US-22** (`tasks/prd-us-22-drop-week-colour-lookup.md`): FD said they need
   no week but this one, so the card, its strings, its error path and its two specs went, and
@@ -2190,7 +2198,11 @@ The shapes values are written in for German-speaking staff, beside the dictionar
 words. `germanDate(date)` writes `TT.MM.JJJJ` and reads the date **in UTC**, because dates here are
 calendar days stored at midnight UTC — formatting in the server's zone would show the day before for
 anyone west of Greenwich. It lives here rather than in a page because it was copied into two of
-them, and two copies is how two screens start rendering the same date two ways. `germanTime(instant)`
+them, and two copies is how two screens start rendering the same date two ways.
+`isoWeekNumber(isoWeek)` takes `isoWeekOf`'s `2026-W31` down to `31` for the counter's banner, which
+prints it as `KW 31`: the date beside it already carries the year, and a string it does not recognise
+is handed back whole rather than refused, because a formatter on the counter's critical path must not
+be able to fail a render. `germanTime(instant)`
 writes `HH:MM` and reads the instant **in Europe/Berlin**: a hand-out is a moment, not a day, so its
 time must read as the wall clock staff saw — the same zone `berlinDayKey` counts the day in, so
 "served at 23:59" and "already served today" cannot disagree about the day.

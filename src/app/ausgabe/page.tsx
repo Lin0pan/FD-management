@@ -197,7 +197,7 @@ async function lookUpNumber(raw: string | string[] | undefined): Promise<Counter
 const WALK_CONTROL = "h-12 px-6";
 
 /**
- * One step of the walk through today's group (US-21).
+ * One step of the walk through the week's group (US-21).
  *
  * A link when there is somewhere to go — a plain GET, so the browser's Back button retraces the
  * queue exactly as it does after a typed lookup — and a *disabled button* when there is not. Not
@@ -299,7 +299,7 @@ export default async function DistributionPage({
     throw error;
   }
 
-  // The walk is independent of the lookup — it asks who is in today's group, not who this number is
+  // The walk is independent of the lookup — it asks who is in the week's group, not who this number is
   // — so it must not be sequenced behind it. `readGroupRoster` resolves the week's colour a second
   // time; that is a settings read, and passing this view in would tie the two use cases together for
   // one query (PRD §Technical Considerations).

@@ -25,7 +25,7 @@ import { foldName } from "@/domain/customer/nameSearch";
  * no other spec's registrations can land between them and change what "the next number" is. They
  * cover the three things the walk must get right about membership: a BLOCKED household still holds
  * its slot and **is** walked, an ARCHIVED one no longer does and is **stepped over**, and a
- * household of the *other* group is not in today's group at all.
+ * household of the *other* group is not in the walked group at all.
  *
  * The two ends of the group are the one thing this spec cannot seed its way to: whether a number is
  * the last RED one depends on the whole shared register, which the specs before this one have been
@@ -308,6 +308,7 @@ test.describe("Gruppe durchgehen", () => {
 
     expect(await snapshotRegister()).toBe(before);
   });
+
   test("stays on the week's own group on the Saturday after its distribution", async ({ page }) => {
     // The week is still RED here while the next Ausgabe is the BLUE one of the week after, and the
     // banner says both. Following the next distribution instead would put 314 — the BLUE household
@@ -321,5 +322,15 @@ test.describe("Gruppe durchgehen", () => {
     await expect(page.getByTestId("walk-hint")).toContainText(RED_GROUP);
     await step(page, "walk-next", NUMBERS.blocked);
     await step(page, "walk-next", NUMBERS.last);
+
+    // The whole point, one assertion: the household the walk hands over is one the counter clears.
+    // `lookupCustomer` judges against the *week's* colour, so a walk that followed the next
+    // distribution handed over BLUE households and the same screen answered WRONG_GROUP for the very
+    // number it had just supplied.
+    await expect(page.getByTestId("counter-group")).toHaveText(de.customers.groups.RED);
+    await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
+      "data-verdict",
+      "CLEAR_TO_SERVE",
+    );
   });
 });

@@ -510,8 +510,10 @@ What to actually check, beyond "it looks right":
   the new one, and put both in the commit message. It is the only way to tell an improvement from a
   rearrangement — and if the target turns out not to be reachable, say so with the budget that shows
   why rather than quietly dropping it.
-- Ask whether **the thing that mattered before still dominates**. On the counter that is the banner and
-  the verdict; a restyle that evens everything out has made the screen worse.
+- Ask whether **the thing that matters still dominates**. On the counter that is the number field and
+  the verdict; a restyle that evens everything out has made the screen worse. Note that this is a
+  question about the screen's job, not about whatever is loudest today: the week-colour banner used to
+  dominate `/ausgabe` and was cut down precisely because it outshouted the field staff type into.
 - Use **`playwright-cli show --annotate`** to put the live screen in front of the user for design
   feedback rather than guessing.
 
