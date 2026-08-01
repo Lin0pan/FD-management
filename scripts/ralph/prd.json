@@ -59,8 +59,8 @@
         "Full e2e suite passes: npm run test:e2e. Rebuild AND pkill -f next-server first — playwright.config.ts reuses an existing server outside CI and would otherwise test the old build"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done BEFORE US-002, out of priority order and deliberately: tsconfig includes tests/, so the two lookup specs' references to de.distribution.lookup.* and de.distribution.errors.notADate meant US-002 could not pass typecheck until they were gone. Doing this story first keeps both commits green; doing US-002 first would have required deleting these very tests inside it. The 'no other spec file is modified' criterion could NOT hold, as US-001 flagged: tests/e2e/home.spec.ts ended its third test by visiting /ausgabe?datum=2026-01-10 and asserting lookup-colour. That cross-check is deleted, not re-pointed — after US-22 NO screen renders view.colour (both /ausgabe's banner and the hub paint nextDistribution.colour), so there is nowhere to re-point it. Its reason survives as a comment naming distribution.test.ts's 'names the next distribution and its colour on a day that is not one', which asserts the two fields differ. The new inert-URL test locates errors by [data-slot=\"alert\"], NOT getByRole('alert') — Next injects a route announcer with role=alert into every page client-side, so the role locator always finds one. Full suite: 89 passed, 1 pre-existing skip."
     },
     {
       "id": "US-004",

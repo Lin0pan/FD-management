@@ -13,8 +13,17 @@ Started: Sat Aug  1 18:54:45 CEST 2026
 - **A grep across `tests/` is part of removing a UI element**, not only `src/`. A spec in a
   *different* file can drive the screen being removed (see US-001 below).
 - **The dev server on 3100 reads `data/fd.db`**; the e2e servers read `data/e2e.db` (3000) and
-  `data/e2e-isolated.db` (3001). Playwright's config reuses an existing server outside CI, so
-  `pkill -f next-server` before `npm run test:e2e` or the suite tests the previous build.
+  `data/e2e-isolated.db` (3001). Playwright's config reuses an existing server outside CI, so kill
+  any `next-server` before `npm run test:e2e` or the suite tests the previous build.
+- **Never `pkill -f next-server` from the Bash tool** — the pattern matches the tool's own wrapper
+  command line and kills the shell (exit 144, no output). `pgrep -f "port 3100" | xargs kill` does
+  the same. Use `ps -eo pid,args | grep -E "next-serve[r]"` and `kill` the pid.
+- **`getByRole("alert")` is never 0 in this app.** Next injects a client-side route announcer with
+  `role="alert"` into every page — invisible in the SSR HTML, so `curl | grep` disagrees with
+  Playwright. Assert the absence of an error with `page.locator('[data-slot="alert"]')`; every
+  shadcn `ui/` primitive carries a `data-slot`.
+- **`tsconfig.json` includes `tests/`**, so `npm run typecheck` type-checks the specs. Deleting a key
+  from `src/i18n/de.ts` fails typecheck while any spec still reads it — the spec has to go first.
 
 ---
 
@@ -52,3 +61,40 @@ Started: Sat Aug  1 18:54:45 CEST 2026
   - This story leaves the e2e suite red on purpose (two lookup specs still drive a deleted card).
     That is what US-003 is for — the batch is green as a branch, not commit by commit.
 ---
+
+## 2026-08-01 - US-003 (batch 21 / US-22): Retire the two e2e tests that drove the lookup
+
+- **Taken out of priority order, before US-002, on purpose.** `tsconfig.json` includes `tests/`, so
+  `npm run typecheck` type-checks the specs. The two lookup specs referenced
+  `de.distribution.lookup.*` and `de.distribution.errors.notADate`, which US-002 deletes — so US-002
+  could not have passed its own "typecheck passes" criterion without deleting these tests inside it.
+  This order gives two green commits instead of one mixed one.
+- `tests/e2e/distribution.spec.ts`: deleted "refuses a day the calendar does not have and leaves the
+  banner standing" and "looks up the colour of a week two years out". Added "ignores a ?datum= left
+  over from the retired lookup" — banner stands on 2026-13-45, no error. Header comment now records
+  that the banner is the whole of what the screen says about the calendar, and why the last spec is
+  what is left of the two.
+- The three banner tests, the pinned-clock setup and the `afterAll` are untouched.
+- `tests/e2e/home.spec.ts`: the cross-check at the end of "names next week's group on a day after
+  this week's distribution" is **deleted**, not re-pointed. It read the current week's RED off the
+  lookup card to show the hub announces the *next* distribution's BLUE.
+- lint, typecheck, format:check, test:coverage (912) and build pass. `npm run test:e2e`: **89 passed,
+  1 pre-existing skip** — the suite is green again for the first time since US-001.
+
+- **Learnings for future iterations:**
+  - **`getByRole("alert")` can never be 0 on a page.** Next injects a client-side route announcer
+    (`<next-route-announcer>`, `role="alert"`) into every page, and it is absent from the SSR HTML —
+    so `curl | grep 'role="alert"'` says 0 while Playwright says 1. Assert the *absence* of a shadcn
+    `Alert` with `page.locator('[data-slot="alert"]')`. Every `ui/` primitive carries a `data-slot`.
+  - **After US-22 nothing renders `WeekColourView.colour`.** Both the `/ausgabe` banner and the hub
+    panel paint `nextDistribution.colour`. Any e2e assertion that wants the colour of the week the
+    reader is standing in has nowhere to read it — that distinction is now only assertable in
+    `src/application/distribution/distribution.test.ts`. Worth knowing before writing a spec that
+    assumes the screen still shows it.
+  - **`pkill -f next-server` from the Bash tool kills the tool's own shell** (exit 144, no output):
+    the pattern matches the wrapper's command line, which contains the string. Same for
+    `pgrep -f "port 3100" | xargs kill`. Use `ps -eo pid,args | grep -E "next-serve[r]"` and `kill`
+    the pid — the bracket keeps the *grep* from self-matching but not `pkill`, because pkill scans
+    the whole process table including the caller.
+  - A story's "no other file is modified" criterion is worth checking against the previous story's
+    notes before starting: US-001 had already found the home.spec.ts coupling and written it down.
