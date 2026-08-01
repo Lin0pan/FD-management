@@ -790,7 +790,7 @@ export const de = {
       unknown: "Die Änderung konnte nicht gespeichert werden.",
     },
   },
-  /** The distribution screen at /ausgabe — which group collects, today and in any other week. */
+  /** The distribution screen at /ausgabe — which group collects today, and who is at the counter. */
   distribution: {
     heading: "Ausgabe",
     colours: {
@@ -974,23 +974,13 @@ export const de = {
         },
       },
     },
-    lookup: {
-      heading: "Andere Woche nachschlagen",
-      hint: "Zeigt die Gruppe einer beliebigen vergangenen oder künftigen Woche.",
-      label: "Datum",
-      // Named after what it looks up, not just "Nachschlagen": the counter form above it is a
-      // lookup too, and two buttons with the same accessible name are indistinguishable to anyone
-      // reading the page by keyboard or screen reader.
-      submit: "Woche nachschlagen",
-      reset: "Zurück zu heute",
-      result: (date: string, isoWeek: string, colour: string): string =>
-        `${date} (Kalenderwoche ${isoWeek}): Gruppe ${colour}`,
-      isDistributionDay: "An diesem Tag ist Ausgabe.",
-      nextDistribution: (date: string, colour: string): string =>
-        `Nächste Ausgabe ab diesem Tag: ${date}, Gruppe ${colour}`,
-    },
+    /**
+     * Both are reachable from the banner alone: the screen resolves the settings in force today, and
+     * either there are none or the anchor week they name is not a week of the calendar. The strings
+     * the retired week-colour lookup owned are gone with it (US-22) — there is no date to type here
+     * any more, so nothing left says "Datum".
+     */
     errors: {
-      notADate: "Bitte ein Datum im Format TT.MM.JJJJ auswählen.",
       noSettings:
         "Für dieses Datum sind keine Einstellungen hinterlegt. Bitte die Grundeinstellungen " +
         "einspielen.",
