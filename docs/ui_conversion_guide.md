@@ -498,7 +498,8 @@ second time.
       derived figures at 255px instead of 1 537, and the block reason 116px below the status it
       explains instead of 2 602. It carried `kunden/archive-controls.tsx` and
       `kunden/block-controls.tsx` with it, in a commit of their own first.
-- [ ] `/kunden/[id]/karte`
+- [ ] `/kunden/[id]/karte` — concept written, `docs/ui_redesign_kunden_karte.md`. Read §4.5 before
+      touching it: the type sizes are US-02.4's "legible across a desk", not a style choice.
 - [x] `/warteliste`, `/warteliste/[entryId]/registrieren`, per `docs/ui_redesign_warteliste.md`. The
       banner wears the hub's emerald, the row is 117px instead of 214, and the promotion screen's
       frame and expired step are converted. `RegistrationForm` inside it is **not** — it belongs to
