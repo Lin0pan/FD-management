@@ -487,7 +487,9 @@ second time.
 - [x] `/ausgabe` — the counter (pilot)
 - [x] Global chrome — the navigation bar in `src/app/nav.tsx`, worn by every screen from
       `src/app/layout.tsx`.
-- [ ] `/` home
+- [ ] `/` home — concept written, `docs/ui_redesign_start.md`. Read §7.1 first: `home.spec.ts` reads
+      the distribution panel as `locator("p")` with an exact `toHaveText`, so a second `<p>` inside
+      it — a `Stat`, a hint — is a strict-mode violation on three assertions.
 - [x] `/kunden` — the hub itself, per `docs/ui_redesign_kunden_verwalten.md`. Read §7 before touching
       it: it lists the constraints `tests/e2e/customer-list.spec.ts` puts on the screen (the three
       filters cannot become Radix `Select`s, and every `customer-row-*` testid is asserted exactly).
@@ -498,14 +500,16 @@ second time.
       derived figures at 255px instead of 1 537, and the block reason 116px below the status it
       explains instead of 2 602. It carried `kunden/archive-controls.tsx` and
       `kunden/block-controls.tsx` with it, in a commit of their own first.
-- [ ] `/kunden/[id]/karte`
+- [ ] `/kunden/[id]/karte` — concept written, `docs/ui_redesign_kunden_karte.md`. Read §4.5 before
+      touching it: the type sizes are US-02.4's "legible across a desk", not a style choice.
 - [x] `/warteliste`, `/warteliste/[entryId]/registrieren`, per `docs/ui_redesign_warteliste.md`. The
       banner wears the hub's emerald, the row is 117px instead of 214, and the promotion screen's
       frame and expired step are converted. `RegistrationForm` inside it is **not** — it belongs to
       the `/kunden/neu` pass, so that screen still shows a seam.
 - [x] `/karten-neuausstellung`, per `docs/ui_redesign_karten_neuausstellung.md`. The two count sets
       now line up on one baseline, and a `GROUP_CHANGE` row prints the colour that changed.
-- [ ] `/einstellungen`
+- [ ] `/einstellungen` — concept written, `docs/ui_redesign_einstellungen.md`. Read §3.1 first: a
+      rejected save silently discards every edit, valid ones included, and no screenshot shows it.
 - [x] `kunden/archive-controls.tsx` + `kunden/block-controls.tsx` — shared by the record **and** the
       counter. Done first, in a commit of their own; the summaries are now 209×32px at `10px`
       against the `Card`'s 14, on both screens.
