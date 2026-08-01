@@ -10,15 +10,19 @@
  * out. Both are reads — turning someone away records nothing (FR-4) — so a plain GET form carries
  * the query in the URL, which also means Enter reloads the page with the input empty and focused
  * again, ready for the next customer in the queue.
+ *
+ * The screen answers about *now* and about nothing else. It once carried a second card that looked
+ * up the colour of any day; FD said they do not need it, so US-22 withdrew the requirement
+ * (tasks/prd-us-22-drop-week-colour-lookup.md). A `?datum=` still in someone's history is read by
+ * nobody now — deliberately inert rather than an error. `getWeekColour`'s date parameter stays: it
+ * is what `lookupCustomer` and `recordAttendance` pass their instant to.
  */
 
 import { CircleAlert } from "lucide-react";
 import Link from "next/link";
-import { z } from "zod";
 import { lookupCustomer, type CounterLookup } from "@/application/customers/lookup-customer";
 import { getWeekColour, type WeekColourView } from "@/application/distribution/get-week-colour";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -58,25 +62,6 @@ const COLOUR_STYLES = {
   RED: "bg-red-600 text-white",
   BLUE: "bg-blue-700 text-white",
 } as const;
-
-/**
- * A calendar day as `<input type="date">` submits it, read as the UTC day it names.
- *
- * The shape check is not enough: `2026-13-45` matches it and parses to an Invalid Date, whose NaN
- * would flow through the calendar arithmetic and be *rendered* — `NaN.NaN.NaN`, week `NaN-WNaN`, and
- * a colour picked by a parity comparison against NaN. The day itself has to be a day. Only the URL
- * can carry one that is not, but that is enough.
- */
-const lookupDate = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .transform((value): Date => new Date(`${value}T00:00:00.000Z`))
-  .refine((date): boolean => !Number.isNaN(date.getTime()));
-
-/** Either the looked-up day or the German sentence explaining why there is none. */
-type Lookup =
-  | { readonly view: WeekColourView; readonly error: null }
-  | { readonly view: null; readonly error: string };
 
 /** The German sentence for a domain error this screen can provoke. */
 function messageFor(error: DomainError): string {
@@ -130,10 +115,11 @@ function Banner({ view }: { view: WeekColourView }): React.ReactElement {
 }
 
 /**
- * A German sentence explaining why a lookup produced nothing.
+ * A German sentence explaining why the screen has no answer.
  *
- * Always a validation message, never a verdict: the verdict has its own painted banner, and these two
- * cases (an unreadable date, a number that is not a number) are about what was typed.
+ * Never a verdict: the verdict has its own painted banner. This is either something the installation
+ * is missing (no settings in force) or something about what was typed (a number that is not a
+ * number).
  */
 function ErrorNote({ message, testId }: { message: string; testId: string }): React.ReactElement {
   return (
@@ -146,47 +132,6 @@ function ErrorNote({ message, testId }: { message: string; testId: string }): Re
   );
 }
 
-function LookupResult({ lookup }: { lookup: Lookup }): React.ReactElement {
-  if (lookup.view === null) {
-    return <ErrorNote message={lookup.error} testId="lookup-error" />;
-  }
-
-  const view = lookup.view;
-  return (
-    <div data-testid="lookup-result" className="flex flex-col gap-2">
-      <p className="flex flex-wrap items-center gap-3 text-base">
-        <Badge
-          data-testid="lookup-colour"
-          className={`h-7 px-3 text-sm font-semibold ${COLOUR_STYLES[view.colour]}`}
-        >
-          {colourName(view.colour)}
-        </Badge>
-        <span className="text-foreground">
-          {de.distribution.lookup.result(
-            germanDate(view.date),
-            view.isoWeek,
-            de.distribution.colours[view.colour],
-          )}
-        </span>
-      </p>
-      <p className="text-sm text-muted-foreground">
-        {view.isDistributionDay
-          ? de.distribution.lookup.isDistributionDay
-          : de.distribution.lookup.nextDistribution(
-              germanDate(view.nextDistribution.date),
-              de.distribution.colours[view.nextDistribution.colour],
-            )}
-      </p>
-    </div>
-  );
-}
-
-/**
- * The colour of a submitted day, or `null` when nothing was asked.
- *
- * The lookup fails on its own: an unreadable date, or a day before FD had any settings, must leave
- * today's banner standing rather than take the screen down with it.
- */
 /** The counter answer for a typed number, or the German sentence explaining why there is none. */
 type CounterResult =
   | { readonly lookup: CounterLookup; readonly error: null }
@@ -213,24 +158,6 @@ async function lookUpNumber(raw: string | string[] | undefined): Promise<Counter
   }
 }
 
-async function lookUp(raw: string | string[] | undefined): Promise<Lookup | null> {
-  if (typeof raw !== "string" || raw === "") {
-    return null;
-  }
-  const parsed = lookupDate.safeParse(raw);
-  if (!parsed.success) {
-    return { view: null, error: de.distribution.errors.notADate };
-  }
-  try {
-    return { view: await getWeekColour(distributionDeps, parsed.data), error: null };
-  } catch (error: unknown) {
-    if (error instanceof DomainError) {
-      return { view: null, error: messageFor(error) };
-    }
-    throw error;
-  }
-}
-
 /**
  * No back-link beside the heading: the navigation bar in the root layout reaches Start from every
  * screen (US-17.4), so one here would be a second, worse way home.
@@ -246,9 +173,9 @@ function PageHeader(): React.ReactElement {
 export default async function DistributionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ datum?: string | string[]; nummer?: string | string[] }>;
+  searchParams: Promise<{ nummer?: string | string[] }>;
 }): Promise<React.ReactElement> {
-  const { datum, nummer } = await searchParams;
+  const { nummer } = await searchParams;
 
   let today: WeekColourView;
   try {
@@ -272,7 +199,7 @@ export default async function DistributionPage({
     throw error;
   }
 
-  const [lookup, counter] = await Promise.all([lookUp(datum), lookUpNumber(nummer)]);
+  const counter = await lookUpNumber(nummer);
 
   return (
     <main className={SHELL}>
@@ -394,42 +321,6 @@ export default async function DistributionPage({
           )}
         </>
       )}
-
-      {/* A plain GET form: the looked-up day belongs in the URL, so a colour staff have checked can
-          be reloaded or shared without re-typing it. */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            <h2>{de.distribution.lookup.heading}</h2>
-          </CardTitle>
-          <CardDescription className="max-w-prose">{de.distribution.lookup.hint}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <form method="get" className="flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="lookup-date" className="text-sm font-medium">
-                {de.distribution.lookup.label}
-              </label>
-              <Input
-                type="date"
-                id="lookup-date"
-                name="datum"
-                defaultValue={typeof datum === "string" ? datum : ""}
-                className="h-9 w-44"
-              />
-            </div>
-            <Button type="submit" variant="secondary" className="h-9">
-              {de.distribution.lookup.submit}
-            </Button>
-            {lookup === null ? null : (
-              <Button variant="ghost" asChild className="h-9">
-                <Link href="/ausgabe">{de.distribution.lookup.reset}</Link>
-              </Button>
-            )}
-          </form>
-          {lookup === null ? null : <LookupResult lookup={lookup} />}
-        </CardContent>
-      </Card>
     </main>
   );
 }

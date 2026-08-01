@@ -102,14 +102,15 @@ test.describe("Start", () => {
       de.home.distribution.next("Donnerstag, 15. Januar 2026", de.distribution.colours.BLUE),
     );
 
-    // And the week that same Saturday belongs to is still red — looked up on the Ausgabe screen,
-    // which is the one place `colour` rather than `nextDistribution.colour` is shown. That the two
-    // disagree today is what makes the assertion above worth making: on a day where they agreed,
-    // either field would pass.
-    await page.goto("/ausgabe?datum=2026-01-10");
-    await expect(page.getByTestId("lookup-colour")).toHaveText(
-      de.distribution.group(de.distribution.colours.RED),
-    );
+    // The week that same Saturday belongs to is still RED, and that the two disagree today is what
+    // makes the assertion above worth making: on a day where they agreed, either field would pass.
+    // That used to be cross-checked here by looking 10.01.2026 up on the Ausgabe screen, the one
+    // place `colour` rather than `nextDistribution.colour` was rendered. US-22 removed that lookup
+    // (tasks/prd-us-22-drop-week-colour-lookup.md) and no screen renders `colour` any more — the
+    // Ausgabe banner paints `nextDistribution.colour` too, which on this Saturday is the same BLUE
+    // asserted above. So the disagreement is now pinned down one layer down, in
+    // `src/application/distribution/distribution.test.ts`: "names the next distribution and its
+    // colour on a day that is not one" asserts the two fields differ.
   });
 
   test("still renders when no settings are in force, instead of an error page", async ({

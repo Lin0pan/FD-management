@@ -90,17 +90,35 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 18  | `18-us-18-waiting-list-signals.json`     | 4       | `ralph/us-18-waiting-list-signals`     |
 | 19  | `19-us-19-fold-archive-search.json`      | 3       | `ralph/us-19-fold-archive-search`      |
 | 20  | `20-us-20-fold-group-choice.json`        | 3       | `ralph/us-20-fold-group-choice`        |
+| 21  | `21-us-22-drop-week-colour-lookup.json`  | 4       | `ralph/us-22-drop-week-colour-lookup`  |
+| 22  | `22-us-21-step-through-group.json`       | 4       | `ralph/us-21-step-through-group`       |
+| 23  | `23-us-23-group-progress.json`           | 5       | `ralph/us-23-group-progress`           |
 
-97 stories total — the rows sum to it, which the previous figure of 87 did not: every per-batch count
-was right and only the total had drifted. Every story cites its source PRD section in its
+110 stories total — the rows sum to it. Every story cites its source PRD section in its
 `description`, so an iteration can read the full context when a criterion is ambiguous.
 
-Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 to 20 are not
+Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 onwards are not
 among them** — 17 is a structural change to how the finished screens are reached, 18 re-places the
 waiting-list signals it introduced, and 19 and 20 finish the `/kunden/neu` restyle, so they run after
-the MVP rather than in build order with it. All four touch only `src/app/**`, `src/i18n/de.ts` and
+the MVP rather than in build order with it. Those four touch only `src/app/**`, `src/i18n/de.ts` and
 `tests/e2e/**`. If an iteration of any of them finds itself editing `src/domain` or
 `src/application`, it has misread the story.
+
+**Batches 21 to 23 are the three changes FD asked for after using the counter**, and they are the
+first post-MVP batches that are _not_ presentation-only:
+
+- **21 (US-22)** removes the week-colour date lookup from `/ausgabe` — a **withdrawn requirement**,
+  so it edits `docs/user_stories_mvp.md` and `tasks/prd-us-03-week-colour.md` as well as the screen.
+  Presentation, e2e and docs only.
+- **22 (US-21)** adds Zurück/Weiter, walking today's group by customer number. Domain + application +
+  presentation + e2e; **no schema change and no new port method**.
+- **23 (US-23)** adds the "x von y abgeholt" tally and the group list behind it. Domain +
+  **one new port method** (`listForDay`) + application + presentation + e2e; still no schema change.
+
+All three edit `src/app/ausgabe/page.tsx`, so the "merge before starting the next batch" rule is
+load-bearing here for the same reason it was for 19 and 20. **Run them in this order**: 21 frees the
+vertical space, 22 creates `read-group-roster.ts`, and 23 extends that same file rather than adding a
+second use case that would load the group a second time.
 
 **19 and 20 are the only batches that edit an existing spec**, and they are the reason the "merge
 before starting the next batch" rule matters more than usual here: both change

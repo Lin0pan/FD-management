@@ -1,428 +1,169 @@
 # Ralph Progress Log
-Started: Sat Aug  1 10:10:46 CEST 2026
+Started: Sat Aug  1 18:54:45 CEST 2026
 ---
 
 ## Codebase Patterns
-(Carried forward by hand from the US-19 log — the archive rotation wipes this file, so the
-patterns block has to be pasted into the fresh one. The other durable channel is the CLAUDE.md
-files. Batch 20 folds the group choice on /kunden/neu: presentation and e2e only, so the domain,
-application, port, migration and schema entries below are background rather than instruction.
-The Next.js, i18n, e2e and playwright entries are the ones that apply.)
-- Adding a method to a port interface (e.g. CustomerRepository) forces EVERY implementer to compile:
-  the real Prisma adapter AND the hand-written fakes, which live in several test files —
-  customers.test.ts, certificate-reminder.test.ts, lookup-customer.test.ts,
-  cards-due-for-reissue.test.ts and distribution/record-attendance.test.ts.
-  `grep -rln "implements <Port>" src/` before you start. Miss one and typecheck fails, not lint.
-- Adding a field to RegisteredCustomer ripples the same way: every fake `create` returning
-  `{ ...customer, id }` and every builder literal needs the new field.
-- Adding a REQUIRED column to Customer ripples further still: ~12 fixtures write customer rows
-  straight through Prisma (5 infra *-repository.test.ts + 7 tests/e2e/*.spec.ts). That is the price
-  of a column the database will not default — and it is the point, because a fixture that skipped it
-  would be a row the feature can never find. `grep -rn "prisma.customer.create" src tests`.
-- `issueCard` (application/customers/issue-card.ts) is the ONE path by which a card comes into
-  existence; `reissueCard` delegates to it and only narrows the reason. Never write a second issuing
-  path — validity is "holds the highest index", so a parallel path is how two valid cards appear.
-- Prisma migrations are pre-release disposable. `npx prisma migrate dev --name init` REGENERATES the
-  single init migration and DROPS the hand-written partial unique index at its end — re-append it
-  from the previous migration (`git show HEAD:prisma/migrations/<old>/migration.sql | tail -16`) or
-  the slot rule is enforced by application code alone. `npm run db:reset` afterwards, and note that
-  `migrate dev` refuses non-interactively if the dev db is ahead — delete data/fd.db first.
-- Status changes go through `transition(from, to, reason?)` in domain/customer/status.ts, never an
-  ad-hoc status assignment; persist via CustomerRepository.setStatus — except the archive, which has
-  its own `archive(id, reason, archivedAt)` write because it stamps three columns and clears
-  blockReason in one statement.
-- Derive-don't-store: household counts, ages, card validity and the card number are all derived on
-  read (readCustomer / readCard / describeAllowance), never stored. The only two exceptions are
-  named in the root CLAUDE.md — the card's printed counts, and the folded name search keys.
-- Narrowing a nullable pair that is non-null "exactly when status is X" belongs in the ADAPTER, not
-  in the use case: define the narrowed type in ports.ts (e.g. `ArchivedCustomer extends
-  RegisteredCustomer`) and let infrastructure refuse a hand-edited row with InvalidCustomerRecord.
-  Doing it in application/ costs a defensive branch against the 100% coverage gate.
-- Prisma defaults `onDelete` to `SetNull` for an OPTIONAL relation and `Restrict` for a required one,
-  so every nullable relation must spell `onDelete: Restrict` out. schema.test.ts greps the schema for
-  the words AND the migration SQL for `ON DELETE SET NULL` / `ON DELETE CASCADE`.
-- A self-referencing FK (Customer.previousCustomerId) means "children first" is not enough to tear the
-  register down: `clearRegister` nulls the links before `customer.deleteMany()`.
-- SQLite reports a FK violation as P2003 with EMPTY `meta` — unlike P2002, the offending column cannot
-  be read off the error, so attribution has to come from what the write itself contains.
-- German UI strings only in `src/i18n/de.ts`; inflected forms are functions in the dictionary.
-- The Edit tool struggles with strings containing umlauts/em-dashes; patch such lines with a small
-  `python3 - <<'PY'` heredoc instead of fighting it.
-- HTML forms do not nest: a panel with its own submit button on a screen that is already a form has
-  to be a SIBLING, with the state they share lifted into a parent client component.
-- A `key` change is the cheapest way to reset a form that mixes controlled and uncontrolled fields —
-  remounting resets both kinds, and `useActionState`'s message with them.
-- Convert a `Date` to `YYYY-MM-DD` on the SERVER before it reaches an `<input type="date">`; read in
-  the browser's zone a midnight-UTC day lands on the day before. `germanDate` is for display only.
-- A `key` remount is invisible to Playwright: after clicking something that applies a pre-fill, WAIT
-  for the new form (a banner, a pre-filled value) before typing. A `fill` on the node about to be
-  replaced is thrown away with it, and the submit then fails on a field the spec believes it filled.
-- An e2e spec that has to prove "not this row" is strongest when the excluded row is *hard* to
-  exclude: give the archived household and the active one the same surname, so only the status
-  filter keeps them apart.
-- Killing the e2e server: the process is called **`next-server`**, not `next start`, so
-  `pkill -f "next[ ]start"` finds NOTHING and leaves it running. Always write it as
-  `pkill -f "[n]ext-server"` — an unbracketed `pkill -f "next-server"` matches the Bash tool's OWN
-  shell and KILLS IT, so the call returns exit 144 and everything chained after it never runs. Check
-  with `ps aux | grep "[n]ext-server"`. A survivor is adopted by `reuseExistingServer`, which serves
-  the OLD build and skips the delete-migrate-seed chain, so the whole suite fails at once:
-  `PrismaClientKnownRequestError: The table main.Customer does not exist` or duplicate rows in
-  `beforeAll`. Whole-suite failure = stale server, not your spec.
-- A `<details>` keeps its `open` state through any re-render — only a REMOUNT closes it. Before
-  assuming a disclosure survives an action, check whether the panel itself sits under a `key`:
-  on `/kunden/neu` the `key` is on the registration form, so a search and a pre-fill both leave the
-  archive panel open, and the e2e helper may click the summary once per page load rather than guard
-  against re-closing it.
-- A UI decision has to reach THREE documents, not two: the screen's `docs/ui_redesign_*.md` (§12,
-  "what was decided and built", plus its numbers table), `docs/ui_conversion_guide.md` (the finding,
-  if the decision changes one), and `docs/technical_documentation.md`'s per-file bullet, where a
-  default state (open/closed, persisted or not) belongs. And when a document says "this could not be
-  done because X", closing it out means re-checking X — §12 named three blocking specs and only one
-  was. Answer a superseded argument in place rather than deleting it: it is the only record of what
-  the change risks.
-- A height budget stated in a PRD is worth re-deriving before trusting it. Measure the whole stack
-  (page header / banner / the folded card / the form's own header), not just the target element:
-  US-19's `<= 470px` subtracted the archive card's WHOLE 160px for a fold that leaves a 78px header
-  on screen, so it contradicted the same story's `closed card <= 90px`. The breakdown is what shows
-  which of two criteria was miscomputed.
-- A new e2e spec has to claim a customer number nobody else holds: the shared `data/e2e.db` is
-  seeded once per run and every spec inserts into it. Taken so far: counter 201-206/239, portions
-  211, serve 221-222, reminders 231, block 241, reissue 251, age-13 271, customer-list 281-285,
-  record 291 - and the registration/card/archive/re-registration specs allocate the LOW sequence
-  through the form. A collision surfaces as `Unique constraint failed on the fields:
-  (customerNumber)` inside `beforeAll`, i.e. one spec failing while the other 70 pass; a whole-suite
-  failure is the stale-server trap instead. `grep -rn "CUSTOMER_NUMBER = \|NUMBERS = " tests/e2e`.
-- "No settings configured yet" is reachable in e2e by pinning `now` BEFORE the seed's
-  `SEED_RECORDED_AT` (2026-01-01): `resolveSettingsAt` then throws `NoSettingsInForce` on the
-  shared register, no table emptied and nothing to restore but the pin file.
-- `getByTestId` on a panel returns the whole `<section>`, heading included, so an EXACT `toHaveText`
-  has to address the `<p>` inside it. Reach for the exact form whenever the claim is a negative
-  ("says today, not a date") — `toContainText` cannot tell two wordings apart.
-- Verifying a server-rendered screen without Playwright: start `next dev` on a spare port with
-  `FD_FIXED_NOW_FILE` pointed at a scratch file, rewrite that file between `curl`s and strip the
-  `<main>` out of the HTML. Three pinned days take a minute and prove more than a screenshot.
-  Two gotchas: `next dev` REWRITES `next-env.d.ts` to `./.next/dev/types/routes.d.ts` — revert it
-  before committing — and the dev server is `next dev`, not `next-server`, when you go to kill it.
-- Moving a signal off a screen breaks the e2e specs that assert it there, even when the story that
-  moves it lists no test work. `grep -rn 'goto("/")' tests/e2e` before removing anything from a page.
-- Deleting JSX from a page: the leftover `next/link` (or any) import is a LINT error, not a typecheck
-  error, so `npm run typecheck` alone will wave it through. And a page's `NotFound()` branch usually
-  carries the same links as its happy path — grep the whole file, and curl an id nobody holds.
-- The cards-due list answers with ONE reason and the counts answer first (`staleCardReason`), so a
-  spec that wants to see `GROUP_CHANGE` must first bring the card's printed counts up to date - a
-  reissue between the two edits. The same ordering applies to the counter: a lapsed certificate
-  changes the verdict, so record the renewal before asserting anything about a group or a card.
-- A figure that aggregates the WHOLE register - the two group sizes, the cards-due badge - is only
-  ever compared with itself in an e2e spec: read it before the edit, assert it as a delta after.
-  Neighbouring specs register households of their own.
-- A pure rule that has to hand the CALLER's row back is generic over it — `recordForDay<T extends
-  AttendanceRecord>`, `nextInLine<T extends WaitingApplicant>`. Declare the minimal interface the
-  rule reads, constrain `T` to it, return `T`: the application layer keeps its richer entry and the
-  domain never grows a field it does not use.
-- A "nothing to report" outcome is a variant of the result union (`WAITING_LIST_EMPTY`,
-  `NOT_FOUND`), never `null`/`undefined` — the UI switch stays exhaustive and a caller cannot
-  mistake "no one" for "not asked".
-- Every expiry question in the system goes through `isExpired(certificate, today)` in
-  domain/customer/certificate.ts. Do not re-compare `validUntil` inline anywhere — the "valid
-  through its last day" boundary would drift.
-- A use case that must do TWO things in an order (register, then remove from the list) is a use case,
-  not a server action calling two of them: app/ is thin by rule, and "remember to do B after A" is
-  exactly what a screen forgets. Delegate to the existing use case (`registerCustomer`) rather than
-  re-implementing it, like `reissueCard` → `issueCard`.
-- Validation of a typed-in record belongs in a domain factory (`createCustomerDetails`,
-  `createWaitingListDetails`), not in the use case: the use case then reads as clock → factory →
-  write, and the 100% gate is paid once in a domain test rather than per use case.
-- A new port method costs every implementer a compile, so a WHOLE new port (WaitingListRepository) is
-  cheaper than widening CustomerRepository — and the fakes stay small. Check `grep -rln "implements
-  <Port>" src/` before widening an existing one.
-- The audit `why` is a human sentence except where no human judged: those carry a machine key=value
-  (`reminderCount=2`, `customerNumber=7`). Never put a German sentence in application code — the
-  dictionary is `src/i18n/de.ts` and the layer below it has no access to it.
-- Use the caller's own instant instead of a second `clock.now()` when two writes belong to one event
-  (`customer.registeredOn` stamps the waiting-list removal that registration caused).
-- Prettier reorders nothing but reflows long import lists and tables; run
-  `npx prettier --write <files>` after hand-editing docs/technical_documentation.md tables, or the
-  lint-staged hook rewrites them under you.
-- An adapter for a table with NO relations is exempt from `clearRegister`: a spec that owns such a
-  table clears it with its own `deleteMany()` in `beforeEach`. Only the register needs children-first.
-- Regenerating the init migration also leaves the DEV database without the re-appended partial unique
-  index — `migrate dev` applied the file before the index was pasted back on. Always finish the
-  sequence with `npm run db:reset`, which re-runs the completed migration.
-- A nullable column whose domain counterpart is a non-nullable `""` (contactNote) is translated in
-  the ADAPTER, both ways, in one `toEntry`/`create` pair. The layers above never see the null, and the
-  column keeps a single representation of "not answered".
-- A "remove" that must be idempotent scopes its `where` to the rows still eligible
-  (`{ id, removedOn: null }`) and uses `updateMany`: a second call updates nothing instead of
-  overwriting the first reason, and an unknown id is not an error the adapter has to invent.
-- A `"use server"` module may export **nothing but async functions**, so a Zod schema, a helper or a
-  state interface has to live beside it — `registration-input.ts`, `*-state.ts`. That is also how a
-  second screen reuses a form's parsing: put the schema in the plain module and both actions import
-  it, rather than copying it and letting the two drift.
-- Reusing a whole form on a second screen is a `submit` prop plus a hidden field, not a second copy
-  of the form. `RegistrationForm` takes `submit` (default `submitRegistration`) and `entryId`; the
-  prefill type carries the extra fields as OPTIONAL, and which screen fills them is documented on the
-  type, because the difference is a decision rather than an omission.
-- `setState` inside `useEffect` is an ESLint ERROR (`react-hooks/set-state-in-effect`). To reset a
-  form after a successful action, put a **counter in the action's state** and use it as the `key` —
-  derived, no effect. A counter beats keying on the saved values: two applicants with the same name
-  produce an identical state, and a form that resets on a value that did not change keeps the
-  previous entry's address.
-- A signal that moves from one screen to another moves its DICTIONARY KEY with it rather than being
-  copied: `cardsDueBadge` now lives under `de.customerList.actions`, and the screen it left behind
-  points at the new key until it is deleted. Two identical German strings in two places is how the
-  wording drifts.
-- Moving a signal onto a page also moves the REVALIDATION: every action that changes it has to name
-  the new path (`revalidatePath("/kunden")` beside `revalidatePath("/")`). Nothing fails a test when
-  this is forgotten — the page is `force-dynamic`, so only the client router cache goes stale.
-- A page that needs "is a slot free" asks `proposeRegistration` and reads `customerNumber !== null`.
-  It throws `NoSettingsInForce` on an unseeded database — catch that one code and render without the
-  banner rather than taking the screen down (`/kunden/neu` does the same for its form).
-- Playwright's `webServer` has `reuseExistingServer: !CI`, and `npm run start` serves the BUILT app.
-  After changing a string or a component, `npm run build` and `pkill -f "next[ ]start"` before
-  re-running specs, or the assertions run against the previous build.
-- To put an expired certificate at the head of a list in an e2e spec, add the applicant with a valid
-  one and then move the app's today past it by writing `data/e2e-now.txt` (the `FD_FIXED_NOW_FILE`
-  seam). Delete the file in a `finally` — it freezes today for every spec that follows.
-- `getByRole("heading", { name: X })` is a substring match: a section heading containing the page
-  heading ("Auf die Warteliste setzen" vs "Warteliste") is a strict-mode violation. Pass `exact:
-  true` for the `h1`.
-- The e2e suite has TWO Playwright projects: `chromium` on port 3000 over the shared `data/e2e.db`,
-  and `isolated` on port 3001 over its own empty `data/e2e-isolated.db` (`ISOLATED_SPECS` in
-  playwright.config.ts). A spec belongs in `isolated` only when it must OWN the register — set the
-  quota, or fill every slot. On the shared database that is unreachable: other specs seed customers
-  on numbers 201–271, so the quota (which may not fall below the active count) always leaves a dozen
-  low numbers free. Everything that merely writes stays on the shared server.
-- Each server has its OWN `FD_FIXED_NOW_FILE`, so pinning the clock in one project cannot move the
-  other's calendar. A new server needs its now-file added to `.gitignore` beside `data/e2e-now.txt`.
-- An assertion about "somebody is waiting and NOTHING is free" belongs in the isolated spec and
-  nowhere else: the shared register is never full, so its badge reads free-slot=true whenever anyone
-  waits. Split a two-state UI signal across the two projects — the shared spec proves the count and
-  the servable state, the isolated one proves the neutral state — rather than trying to fill the
-  shared register.
-- A `node -e "…"` command inside playwright.config.ts is double-quoted by the shell, so any array
-  literal in it must use SINGLE quotes — `JSON.stringify` emits double quotes and the shell eats
-  them (`ReferenceError: data is not defined`).
-
-- Two functions that state the SAME rule in two shapes (a per-row comparison and a SQL range) must
-  be built from ONE private window/helper, or they drift on the boundary day. `certificateState` and
-  `validUntilRangeFor` both read `certificateWindow`; `isExpired` stays the single expiry comparison.
-- A strict parser the counter needs (`parseCounterQuery` throws) gets an `…OrNull` sibling for the
-  screen where "not a number" is an ordinary answer; the throwing one delegates to it, so the rules
-  cannot relax on one path.
-- A `Record<Union, T>` lookup beats a switch or an if-chain when every case is a value: exhaustive by
-  type and it adds NO branches for the 100% coverage gate to demand tests for.
-- Default parameters and `?? fallback` inside application code each create a branch the gate wants
-  covered. Prefer a REQUIRED parameter where the caller always has the value (`describeAllowances`
-  takes a required `date`; `describeAllowance` keeps the optional one).
-- A per-row use case that needs settings must not call `describeAllowance` in a loop — that is one
-  `listVersions()` per row. Use `describeAllowances(deps, households, date)`, which reads the history
-  once and shares the private arithmetic. A test asserting `settings.reads === 1` pins it.
-- Prisma cannot express "the LATEST related row satisfies X" — `certificates: { some: … }` matches a
-  notice the household has long since renewed. Use `$queryRaw` with a correlated subquery for the ids
-  and feed them back as `id: { in: … }`. Build the bounds with `Prisma.sql` fragments joined by
-  `Prisma.join`, and never alias a table `inner` (a SQLite keyword) — `latest` works.
-- `$queryRaw` binds a JS `Date` correctly against Prisma's SQLite DateTime columns; verified against a
-  throwaway migrated database.
-- Faker's default (English) name lists contain German-looking surnames — `Mueller` is in there. A
-  fixture that seeds dozens of faker households and then asserts an EXACT result set for a name search
-  is a flake: one of the other draws will eventually fold onto the prefix. Give the searched household
-  an INVENTED name (`Müllerhoff`) and search a prefix long enough to reach the invented part. The test
-  passed alone and failed in the full file, which is what this looks like when it bites.
-- Prisma's SQLite provider quotes identifiers with BACKTICKS — ``SELECT … FROM `main`.`Customer` WHERE
-  `main`.`Customer`.`group` = ?``. A test that reads the generated SQL off a `log: [{ emit: "event" }]`
-  client must match backticks, not double quotes, and must scope the assertion to the text after
-  `WHERE` — every column name also appears in the select list.
-- Filter state that must be bookmarkable belongs in a plain **GET form**, not in a client component:
-  submitting navigates, which writes the filters into the URL for free and keeps the screen a pure
-  server component. Parse the parameters with a Zod object whose every field carries
-  `.catch(undefined)` — a hand-typed `status=foo` is then a filter nobody set rather than a crash,
-  and `searchParams` arriving as `string[]` is handled by the same fallback.
-- A German query parameter per filter (`suche`, `status`, `gruppe`, `nachweis`, `archiv`), matching
-  `datum` / `nummer` on /ausgabe. A checkbox is `value="1"` and absent when unticked, so the default
-  view is the bare URL.
-- A fixture that stacks a certificate RENEWAL must record it after the one `repository.create` wrote:
-  `create` stamps `recordedAt` from `card.issuedAt` (= the fixture's TODAY), and "the certificate on
-  file" is the latest `recordedAt`. A renewal dated earlier is silently not the current one.
-- A seeded `Card.reason` must be a real `CardIssueReason` — `FIRST_ISSUE | LOST | STALE_COUNTS |
-  OTHER`. An invented one ("REPLACEMENT") passes Prisma (the column is a string) and then throws in
-  `parseCardIssueReason` on EVERY page that reads cards, including `/` (the cards-due badge). A fixture
-  that breaks unrelated specs is usually a string the domain parses, not a relation.
-- An aggregate the whole shared register feeds (the group balance, the cards-due badge) is asserted as
-  a DELTA: read it off the screen in `beforeAll` BEFORE seeding, then assert baseline + what this spec
-  inserted. An absolute figure is an assertion about whichever specs ran first.
-- Regenerating the init migration RENAMES its directory (`git status` shows a rename). `schema.test.ts`
-  reads the migrations directory rather than a fixed path, so it survives — anything that pins the
-  folder name would not.
-
-- A snapshot column on a card is the ONLY honest way to answer "has X changed since the card was
-  printed". `Card.groupAtIssue` joins `grownUpsAtIssue`/`childrenAtIssue` under the same argument;
-  the alternative — inferring a move from `issuedAt` — has nothing to compare against. Adding one is
-  a ~40-file ripple (schema, migration regen, every `IssuedCard` literal in 9 application tests, 3
-  infra tests and 8 e2e specs); budget for it rather than reaching for a nullable column with a
-  default, which would let a fixture skip the field the feature is about.
-- When a required field is added to a fixture builder, set it FROM the builder's own related field
-  (`groupAtIssue: overrides.group ?? "RED"`), never a bare literal — a hard-coded `"RED"` beside a
-  configurable `group` silently makes every non-RED fixture card-stale and breaks unrelated specs.
-- A module whose rule widens gets RENAMED with it: `staleCounts.ts` → `staleCard.ts` once the group
-  joined the comparison. `git mv` first, then patch — two non-test importers and one i18n key is the
-  whole cost, and a name that lies is read as one for five years.
-- Both sides of a "what changed since" comparison take the SAME shape (`CardFacts = { counts,
-  group }`), so neither can grow a field the other does not have.
-- A use case that returns a derived aggregate reads it AFTER its write (`changeGroup` →
-  `groupCounts()`), and the fake must actually count the holders — a stubbed `{ red: 0, blue: 0 }`
-  proves only that a constant travels.
-- "The change is in force immediately" is proved by driving the real downstream read at one instant:
-  `lookupCustomer` gives `WRONG_GROUP` before `changeGroup` and `CLEAR_TO_SERVE` after, on the same
-  fake clock. Same move as `updateHousehold`'s cards-due test.
-- Week colours under `weekAnchor 2026-W02/RED`: 2026-07-29 (the suites' TODAY) is a **BLUE** week;
-  2026-08-05 and 2026-07-22 are RED. A spec needing the other colour moves the clock, not the anchor.
-- A no-op state change is an ERROR, not a quiet success, wherever the change writes an audit entry or
-  makes something else stale (`GroupUnchanged`). Silently accepting it fills the log with moves that
-  never happened.
-- A new `DomainError` subclass also needs its `code` added to the `DomainErrorCode` union in
-  errors.ts — typecheck catches it, lint does not. Its 100% coverage comes from the use-case test
-  that raises it; there is no per-error test file.
-
-- A React form with an `action` is **reset by React once the action resolves**, and a reset restores
-  each field from its *attribute*, not from the property React set. Controlled text inputs and
-  textareas survive it (React re-applies `value` on the next render); a controlled RADIO does not —
-  it comes back on whatever was `checked` at SSR, silently disagreeing with the data beside it.
-  Render radios in an action form as `defaultChecked={x === current}`: the reset then restores what
-  the revalidated render wrote. Symptom: the control shows the old value while everything derived
-  from the new one is correct.
-- Turning a read-only list into an editable one BREAKS every e2e assertion that read a name off the
-  page: `toContainText` cannot see an `<input value=…>`. Grep the specs for the values the section
-  showed and move them to `toHaveValue` before running the suite.
-- A screen with several independent forms gets ONE state union (`RecordFormState`) and one
-  feedback/button/field module, not one per form — and its `saved` carries a COUNTER, so a `key` can
-  remount a form after a save that changed nothing visible.
-- An error translator shared by two screens must NOT own the fallback: `customerErrorMessage`
-  returns `string | null` and each screen supplies its own last word ("Die Aufnahme konnte nicht
-  gespeichert werden" vs "Die Änderung konnte nicht …"). The shared branches then cannot drift while
-  the wording stays each screen's own.
-- A page may call a SECOND read use case when the first cannot honestly supply the value
-  (`readCurrentSettings` beside `readCustomer`, for the four per-head numbers a browser-side
-  derivation needs). Check first that it adds no new failure mode — here `readCustomer` already
-  throws `NoSettingsInForce`, so there is no extra branch to cover.
-- Widening a domain function's parameter from `Settings` to a `Pick` (`priceFor` → `PriceValues`,
-  mirroring `portionsFor`) is source-compatible with every existing caller and is what lets a client
-  component hold only the values that bear on the answer.
-
+- **Measuring a screen's height**: `next build` then `npm run start -- --port 3100` (pkill -f
+  next-server first), then playwright-cli. `document.body.scrollHeight` is useless on a short page —
+  the shell fills the viewport, so it reads 900 either way. Measure the **last `main > *` child's
+  `getBoundingClientRect().bottom`**, and measure a *populated* screen too (`/ausgabe?nummer=1`).
+- **playwright-cli in this sandbox**: `playwright-cli open` only — `--browser=chrome` fails, there is
+  no Google Chrome at /opt/google/chrome. The skill-version warning banner is noise; ignore it. Use
+  `--raw` and `tail -1` to get just the value out of `eval`.
+- **A grep across `tests/` is part of removing a UI element**, not only `src/`. A spec in a
+  *different* file can drive the screen being removed (see US-001 below).
+- **The dev server on 3100 reads `data/fd.db`**; the e2e servers read `data/e2e.db` (3000) and
+  `data/e2e-isolated.db` (3001). Playwright's config reuses an existing server outside CI, so kill
+  any `next-server` before `npm run test:e2e` or the suite tests the previous build.
+- **Never `pkill -f next-server` from the Bash tool** — the pattern matches the tool's own wrapper
+  command line and kills the shell (exit 144, no output). `pgrep -f "port 3100" | xargs kill` does
+  the same. Use `ps -eo pid,args | grep -E "next-serve[r]"` and `kill` the pid.
+- **`getByRole("alert")` is never 0 in this app.** Next injects a client-side route announcer with
+  `role="alert"` into every page — invisible in the SSR HTML, so `curl | grep` disagrees with
+  Playwright. Assert the absence of an error with `page.locator('[data-slot="alert"]')`; every
+  shadcn `ui/` primitive carries a `data-slot`.
+- **`tsconfig.json` includes `tests/`**, so `npm run typecheck` type-checks the specs. Deleting a key
+  from `src/i18n/de.ts` fails typecheck while any spec still reads it — the spec has to go first.
+- **`docs/technical_documentation.md` documents the e2e suite test by test**, so changing a spec
+  makes it stale and no gate can tell. Grep that file for the *spec file name* after touching a
+  spec, and for the feature's vocabulary after removing a feature — it is 2,500 lines and describes
+  the same thing from the layer's side, the screen's side and the suite's side.
+- **A retracted requirement is struck through, marked and kept**, never deleted: `~~criterion~~`
+  plus `[withdrawn]` and the reason, in both `docs/user_stories_mvp.md` and the story's PRD. Say
+  what is *not* withdrawn too, or the next reader removes a parameter that still has callers.
 
 ---
 
-## 2026-08-01 - US-001 (batch 20)
-- The `Gruppe` fieldset on /kunden/neu now sits inside a `<details>` whose `<summary>` names the
-  proposed group inline — "Gruppe: [Blau] — andere Gruppe wählen", the word in a `Badge` wearing
-  `GROUP_STYLES[proposal.suggestedGroup]`. The disclosure still renders `open` in this story; the
-  suggestion sentence and the two group sizes moved OUT of the fieldset so they stay on screen once
-  it closes.
-- Files: src/app/kunden/neu/registration-form.tsx, src/i18n/de.ts (assignment.groupChoiceLabel /
-  groupChoiceOverride).
-- Verified against a production build on the demo register at 1440x900: the summary is announced as
-  "Gruppe: Blau — andere Gruppe wählen", both radios are named `radio` elements with `Blau`
-  `[checked]`, console 0 errors, and a real click on the summary toggles `open` to false.
+## 2026-08-01 - US-001 (batch 21 / US-22): Remove the lookup card from /ausgabe
+
+- Deleted from `src/app/ausgabe/page.tsx`: the lookup `Card` (form, date `Input`, submit,
+  Zurücksetzen link), the `LookupResult` component, the `Lookup` type, the `lookUp` function and the
+  `lookupDate` Zod schema. `searchParams` is now `{ nummer?: string | string[] }`.
+- `ErrorNote` and `messageFor` stay, both branches of the latter included — the settings-missing card
+  and the counter's number error still use them, and the banner can still provoke `InvalidAnchor`.
+- Dropped the now-unused `z` and `Badge` imports. `germanDate` and `Input` stay (banner, counter).
+- Added a module docblock paragraph recording *why* there is no lookup, so the next reader finds the
+  withdrawal at the screen rather than only in `docs/`.
+- Fixed a dangling comment in `src/app/ausgabe/actions.ts`: it explained its own date schema by
+  reference to "the page's lookup date", which no longer exists.
+- Files changed: `src/app/ausgabe/page.tsx`, `src/app/ausgabe/actions.ts`.
+- Verified in a **production** build at 1440x900 with playwright-cli:
+  - Headings: `["Ausgabe", "Kundin oder Kunde nachschlagen"]` — the lookup heading is gone.
+  - `input[type=date]` count 0; the accessibility snapshot's only textbox is "Nummer".
+  - `/ausgabe?datum=2026-13-45` renders the ordinary screen: banner stands, no error, no throw.
+  - Content bottom 812px -> 626px; `/ausgabe?nummer=1` 1571px -> 1385px. **186px** returned.
+- lint, typecheck, test:coverage (912 tests), build and format:check all pass.
+
 - **Learnings for future iterations:**
-  - The measured "before" is 220px for the `Zuordnung` card and y=1461 for `Aufnehmen` (production
-    build, demo register, 1440x900, free-slot banner on screen) — NOT the ~310px the PRD's success
-    metrics assume. US-002's "rises by at least 100px" was derived from that 310, so the arithmetic
-    has to be re-stated rather than the number quietly met: the radios plus their legend are only
-    ~70px of content, which is the whole saving available.
-  - Measuring a "before" honestly costs a `git stash push -- src/`, a rebuild and a server restart.
-    Do it BEFORE the story that has to quote the delta, while the tree is still clean-ish.
-  - The project's summary-as-control recipe is `cn(buttonVariants({ variant: "outline" }), "w-fit
-    cursor-pointer list-none [&::-webkit-details-marker]:hidden")` — see reissue-controls.tsx. It
-    costs ~39px of card height that a plain text summary would not.
-  - Chromium exposes such a `<summary>` as `generic` with its full text as the accessible name, not
-    as a `button` or `disclosure` — the same as the archive search's, which shipped in US-19.
+  - **`tests/e2e/home.spec.ts` also drives the lookup** — its "names next week's group on a day after
+    this week's distribution" test ends by visiting `/ausgabe?datum=2026-01-10` and asserting
+    `lookup-colour`, as a cross-check that the hub shows `nextDistribution.colour` while the week
+    itself is a different colour. US-003's "no other spec file is modified" criterion cannot hold:
+    that assertion must go (or be re-pointed) or `npm run test:e2e` stays red. The *reason* for the
+    cross-check is worth keeping in a comment even though its assertion cannot survive.
+  - The lookup card sat **last** on the page, below the counter's results — so removing it shortens
+    the document but does not move the verdict banner up. The PRD's success metric wording ("the
+    verdict banner sits higher") is off; the space is real, it is just below the results rather than
+    above them.
+  - This story leaves the e2e suite red on purpose (two lookup specs still drive a deleted card).
+    That is what US-003 is for — the batch is green as a branch, not commit by commit.
 ---
 
-## 2026-08-01 - US-002 (batch 20)
-- The group `<details>` on /kunden/neu now renders WITHOUT `open`: closed on every load, nothing
-  persisted. `tests/e2e/archive.spec.ts`, `card.spec.ts` and `reregistration.spec.ts` each click
-  `getByTestId("group-choice-open")` before checking `#group-RED` / `#group-BLUE` — a real click,
-  not `evaluate(d => (d.open = true))`. `customer-record.spec.ts` untouched, as its `group-RED` is
-  the record's own control.
-- Files: src/app/kunden/neu/registration-form.tsx, tests/e2e/{archive,card,reregistration}.spec.ts.
-- Full e2e suite green: 90 passed, 1 skipped (the pre-existing quota skip). Lint, typecheck and
-  `test:coverage` (912 tests) green.
-- Verified by hand against a production build on the demo register: registering WITHOUT opening the
-  disclosure saved the proposed group (Vorschlag Blau -> /kunden/21 Blau); opening it and choosing
-  the other group overrode it (Vorschlag Rot, chose Blau -> /kunden/22 Blau). Accessibility snapshot
-  closed: the summary is a `generic` named "Gruppe: Blau — andere Gruppe wählen" and the radios are
-  absent; opened: `radio "Rot" [checked]` and `radio "Blau"`. Overflow 0 at 1920/1280/1024/800/390,
-  console 0 errors.
-- **TWO ACCEPTANCE CRITERIA ARE NOT MET, and cannot be met by this fold.** Measured at 1440x900,
-  production build, demo register:
-      Zuordnung card  pre-batch 220px | US-001 (open) 259px | now 220px   (criterion: <= 210px)
-      Aufnehmen top   pre-batch y=1461 | US-001 y=1500      | now y=1461  (criterion: -100px)
-  The card's height is set by the `Vorgeschlagene Nummer` Stat tile — 81px, `py-3` plus a two-line
-  label/value — sitting in the same flex row as the group column, which is 56px closed and 120px
-  open. Neither state reaches the tile, so folding the radios cannot move the button. The PRD's
-  "~310px today" was never measured.
+## 2026-08-01 - US-003 (batch 21 / US-22): Retire the two e2e tests that drove the lookup
+
+- **Taken out of priority order, before US-002, on purpose.** `tsconfig.json` includes `tests/`, so
+  `npm run typecheck` type-checks the specs. The two lookup specs referenced
+  `de.distribution.lookup.*` and `de.distribution.errors.notADate`, which US-002 deletes — so US-002
+  could not have passed its own "typecheck passes" criterion without deleting these tests inside it.
+  This order gives two green commits instead of one mixed one.
+- `tests/e2e/distribution.spec.ts`: deleted "refuses a day the calendar does not have and leaves the
+  banner standing" and "looks up the colour of a week two years out". Added "ignores a ?datum= left
+  over from the retired lookup" — banner stands on 2026-13-45, no error. Header comment now records
+  that the banner is the whole of what the screen says about the calendar, and why the last spec is
+  what is left of the two.
+- The three banner tests, the pinned-clock setup and the `afterAll` are untouched.
+- `tests/e2e/home.spec.ts`: the cross-check at the end of "names next week's group on a day after
+  this week's distribution" is **deleted**, not re-pointed. It read the current week's RED off the
+  lookup card to show the hub announces the *next* distribution's BLUE.
+- lint, typecheck, format:check, test:coverage (912) and build pass. `npm run test:e2e`: **89 passed,
+  1 pre-existing skip** — the suite is green again for the first time since US-001.
+
 - **Learnings for future iterations:**
-  - Before believing a height budget, measure WHICH element sets the height. A card in a
-    `flex flex-wrap` row is as tall as its TALLEST child: folding a shorter sibling changes nothing.
-    `card.getBoundingClientRect().height` alone cannot tell you that — walk header / content / row /
-    each child in one `eval` and compare. Here the whole 39px the fold recovers is the cost of the
-    button-styled summary US-001 added, not a saving against the screen as it shipped in PR #62.
-  - So a fold on this screen is worth doing for the two lines of visual noise it removes, not for
-    page height — and the next "make X shorter" PRD for /kunden/neu should target the `Zuordnung`
-    footer (69px) or the Stat tile, which is where the 220px actually is.
-  - `playwright-cli` in this sandbox: `--browser=chrome` fails (no Google Chrome installed) — plain
-    `playwright-cli open` uses bundled Chromium and works. The version banner about
-    `install --skills` is noise on stderr; pipe through `tail` and it is harmless.
-  - Measuring a "before" that is already committed does NOT need a stash:
-    `git checkout HEAD~1 -- <files>`, build, measure, `git checkout HEAD -- <files>`. Two production
-    builds is the whole cost, and the numbers then belong in the commit message rather than to
-    whoever remembers them.
-  - A `<details>` closed by default is invisible in an accessibility snapshot except as a `group`
-    wrapping the summary — the radios simply are not there. That is the cheapest proof that a spec
-    which fills a control inside one MUST click the summary; a screenshot shows the same collapse
-    but cannot show that the nodes are gone.
-  - US-003 must reach THREE documents, not the two its criteria name:
-    `docs/ui_redesign_kunden_neu.md` §12 (+ numbers table), `docs/ui_conversion_guide.md`'s
-    disclosure finding, AND `docs/technical_documentation.md`'s `neu/registration-form.tsx` bullet,
-    which currently says nothing about the group disclosure while the `archive-search-panel.tsx`
-    bullet beside it documents its own closed default and the testid specs use. The numbers to put
-    in the table are the six above; §12 must record that the height goal was NOT met and why, or the
-    next reader will re-derive the same wrong 310px.
+  - **`getByRole("alert")` can never be 0 on a page.** Next injects a client-side route announcer
+    (`<next-route-announcer>`, `role="alert"`) into every page, and it is absent from the SSR HTML —
+    so `curl | grep 'role="alert"'` says 0 while Playwright says 1. Assert the *absence* of a shadcn
+    `Alert` with `page.locator('[data-slot="alert"]')`. Every `ui/` primitive carries a `data-slot`.
+  - **After US-22 nothing renders `WeekColourView.colour`.** Both the `/ausgabe` banner and the hub
+    panel paint `nextDistribution.colour`. Any e2e assertion that wants the colour of the week the
+    reader is standing in has nowhere to read it — that distinction is now only assertable in
+    `src/application/distribution/distribution.test.ts`. Worth knowing before writing a spec that
+    assumes the screen still shows it.
+  - **`pkill -f next-server` from the Bash tool kills the tool's own shell** (exit 144, no output):
+    the pattern matches the wrapper's command line, which contains the string. Same for
+    `pgrep -f "port 3100" | xargs kill`. Use `ps -eo pid,args | grep -E "next-serve[r]"` and `kill`
+    the pid — the bracket keeps the *grep* from self-matching but not `pkill`, because pkill scans
+    the whole process table including the caller.
+  - A story's "no other file is modified" criterion is worth checking against the previous story's
+    notes before starting: US-001 had already found the home.spec.ts coupling and written it down.
+
+## 2026-08-01 - US-002 (batch 21 / US-22): Remove the German strings the lookup owned
+
+- Deleted `de.distribution.lookup` in full from `src/i18n/de.ts` (heading, hint, label, submit,
+  reset, result, isDistributionDay, nextDistribution) and `de.distribution.errors.notADate`.
+- `de.distribution.errors.noSettings` and `.invalidAnchor` stay, and now carry a comment saying *why*
+  — both are reachable from the banner alone, so the next reader does not take them for more lookup
+  leftovers and delete them too.
+- Narrowed the docblock over `distribution:`; it still promised "which group collects, today and in
+  any other week".
+- `banner.*`, `colours`, `group` and `counter.*` untouched. Files changed: `src/i18n/de.ts` only.
+- lint, typecheck, format:check, test:coverage (44 files, 912 tests) and build all pass. No browser
+  pass: after US-001 nothing rendered these keys, so the screen is byte-identical.
+
+- **Learnings for future iterations:**
+  - **`notADate` is three different strings in `de.ts`**, one per namespace: `customers.errors`,
+    `distribution.certificate.renewal.errors` and (until now) `distribution.errors`. The PRD's
+    criterion "a grep for `notADate` returns nothing" cannot be taken literally — the other two are
+    live, read by `src/app/kunden/neu/registration-input.ts`, `src/app/kunden/[id]/actions.ts` and
+    `src/app/ausgabe/actions.ts`. Read a bare-key grep criterion as scoped to its namespace.
+  - **Deleting a dictionary key is safe to do last but not first.** The compiler finds every reader
+    (`de.ts` is a plain object literal, so the key types are inferred and `tsc` fails on a dead
+    reference), which is what made US-003-before-US-002 necessary and what makes this story's own
+    verification cheap: a green `npm run typecheck` *is* the proof that nothing read the key.
+  - When a key survives a deletion sweep for a non-obvious reason, say so in a comment beside it. The
+    next sweep is done by someone who does not have this PRD open.
 ---
 
-## 2026-08-01 - US-003 (batch 20)
-- Documentation only; no source and no spec file in the diff.
-- docs/ui_redesign_kunden_neu.md §12: the §11.3 answer row reads "built in US-20"; the paragraph
-  "The group radios were not folded away" is replaced by what actually shipped — closed <details>,
-  summary naming the proposal in GROUP_STYLES with the word, the suggestion and both sizes outside
-  it, the three spec files opened by a real click on `group-choice-open`, nothing persisted, a
-  submit that never opened it saving the proposal. A new paragraph states that the RECORD's control
-  (/kunden/[id]/group-control.tsx) is deliberately NOT folded, by US-16.4 FR-4, so the two are not
-  made to match. The older sentence "archive.spec.ts and card.spec.ts needed no edit after all" is
-  corrected IN PLACE ("not folded at that point — US-20 folded them and did have to edit both"),
-  not deleted.
-- The numbers table gained a third block with the six measured figures and, below it, why neither
-  height target was met: the Zuordnung card's content is a `flex flex-wrap` row whose height is set
-  by the 81px `Vorgeschlagene Nummer` Stat tile, and the group column is 56px closed / 120px open —
-  under the tile either way. The 39px recovered is the cost of US-020.1's button-styled summary.
-- docs/ui_conversion_guide.md: the finding "A disclosure a spec fills or checks cannot be closed by
-  default" now records that BOTH /kunden/neu disclosures are closed, how the three specs reach the
-  group one, and why customer-record.spec.ts was left alone. Added a second finding: a fold only
-  shortens a card if the folded control is what sets its height, with the walk-the-children
-  measuring recipe and the `git checkout HEAD~1 -- <files>` way to measure a committed "before".
-- docs/technical_documentation.md: the `neu/registration-form.tsx` bullet now documents the group
-  disclosure's closed default, its testid, that it sits inside the <form>, that the radios stay
-  native/uncontrolled, and the three specs that must click the summary — matching the shape the
-  `neu/archive-search-panel.tsx` bullet beside it already had.
-- Files: docs/ui_redesign_kunden_neu.md, docs/ui_conversion_guide.md, docs/technical_documentation.md.
-- format:check, lint, typecheck, test:coverage (44 files / 912 tests) and build all green.
+## 2026-08-01 - US-004 (batch 21 / US-22): Record the withdrawal in the documents
+
+- `docs/user_stories_mvp.md`: §US-03 criterion 3 is struck through and marked `[withdrawn]` with
+  FD's reason, the note that `getWeekColour(deps, date?)` keeps its date parameter, and where the
+  feature would belong if it is ever proposed again (the settings screen, beside the anchor). The
+  "How to read this document" header now defines `[withdrawn]` beside `[added]` — struck through and
+  left in place, never deleted.
+- `tasks/prd-us-03-week-colour.md`: a withdrawal note under the introduction, §US-03.4's date-picker
+  criterion and §US-03.5's two-years-out criterion struck with `[withdrawn by US-22]`, and **FR-4**
+  struck with the reason. FR-6 now says out loud why the `date` parameter survives the screen.
+- `docs/technical_documentation.md`: six places named the lookup — the file tree, the `getWeekColour`
+  seam (which also cited the withdrawn FR-4), `isoWeekOf`'s "what the lookup control shows", the
+  `/ausgabe` screen bullets, `counter-lookup.tsx`'s "the same reason the week lookup uses one", and
+  both e2e spec descriptions. All updated; the screen section now records the withdrawal and the
+  186px it returned, and the `datum` parameter is described as inert rather than validated.
+- Files changed: those three. No source file, no spec file.
+- format:check, lint, typecheck, test:coverage (44 files, 912 tests) and build all pass.
+
 - **Learnings for future iterations:**
-  - A documentation story is where a NOT-MET acceptance criterion becomes durable. US-002's failure
-    lived only in prd.json notes and this log, both of which the archive rotation wipes; §12 now
-    carries the six numbers and the flex-row reason, so the next PRD cannot re-derive the same
-    unmeasured 310px. Write the reason, not just the number.
-  - Prettier reflows markdown TABLES on commit (lint-staged runs `prettier --write` on *.md), so do
-    not hand-align a new table's pipes — write it roughly and let the hook settle the widths. It
-    also means a docs commit's staged diff can differ from what was written; check `git show`.
-  - `npm run format:check` is part of this batch's criteria and is NOT in the ralph step-7 chain
-    (lint / typecheck / test:coverage / build). For a docs story it is the only check that can fail.
+  - **`docs/technical_documentation.md` describes the e2e specs test by test**, near the end. A story
+    that deletes or adds a test leaves that section wrong, and neither `tsc` nor the suite can tell.
+    US-003 changed `distribution.spec.ts` *and* `home.spec.ts`; both descriptions were stale by the
+    time this story opened. **Grep the technical documentation for the spec file name whenever a spec
+    changes**, not only when a screen does.
+  - A PRD criterion of the form "check document X and update it if it names one" is worth taking as
+    "grep the whole document for the feature's vocabulary". Here the terms were `lookup`, `datum`,
+    `date picker` and `past or future week`, and the hits were spread over 2,200 lines in sections
+    that have nothing to do with each other.
+  - **Withdrawal is an edit, not a delete.** Struck-through text (`~~…~~`) plus a marker and the
+    reason keeps the argument findable; deleting the criterion leaves the next person to re-derive
+    FD's answer from nothing. Both documents also state what is *not* withdrawn — the capability
+    stays, only its control is gone — because that is the distinction a reader will otherwise get
+    wrong and rip the date parameter out of `getWeekColour`.
 ---

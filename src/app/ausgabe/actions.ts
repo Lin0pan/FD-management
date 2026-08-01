@@ -43,9 +43,10 @@ const surrogateId = z
   .transform((value): number => Number(value));
 
 /**
- * A calendar day as `<input type="date">` submits it, read as the UTC day it names — the same
- * reading the page gives its lookup date, and for the same reason: the shape check alone lets
- * `2026-13-45` through as an Invalid Date.
+ * A calendar day as `<input type="date">` submits it, read as the UTC day it names.
+ *
+ * The shape check alone is not enough: `2026-13-45` matches it and parses to an Invalid Date, whose
+ * NaN would flow on into the certificate's validity arithmetic. The day itself has to be a day.
  */
 const dayInput = z
   .string()

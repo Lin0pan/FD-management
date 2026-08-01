@@ -24,8 +24,8 @@
         "Measure the page at 1440x900 before and after and put both numbers in the commit message — the point of the change is the vertical space the counter gets back"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Measured in a production build at 1440x900: main content bottom 812px -> 626px on a fresh load, and /ausgabe?nummer=1 1571px -> 1385px. 186px returned to the counter. Accessibility snapshot of /ausgabe?datum=2026-13-45 shows the banner, one textbox (Nummer) and no error. Also fixed a comment in src/app/ausgabe/actions.ts that pointed at the deleted lookupDate schema. NOTE for US-003: tests/e2e/home.spec.ts also drives the lookup (/ausgabe?datum=2026-01-10, lookup-colour) — it must be fixed there despite the 'no other spec file' criterion, or the suite cannot go green."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -41,8 +41,8 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Done after US-003, which had to delete the specs that read these keys first (tsconfig includes tests/). The 'grep for notADate returns nothing' criterion is read as scoped to de.distribution.errors.notADate: customers.errors.notADate and distribution.certificate.renewal.errors.notADate are live strings, used by the registration and renewal actions, and both stay. Also narrowed the docblock over `distribution:` — it promised 'today and in any other week' — and gave the two surviving errors a comment saying they are banner-reachable, so the pair is not read as more lookup leftovers. No render change, so no browser pass: the deleted keys had no reader after US-001."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -59,8 +59,8 @@
         "Full e2e suite passes: npm run test:e2e. Rebuild AND pkill -f next-server first — playwright.config.ts reuses an existing server outside CI and would otherwise test the old build"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Done BEFORE US-002, out of priority order and deliberately: tsconfig includes tests/, so the two lookup specs' references to de.distribution.lookup.* and de.distribution.errors.notADate meant US-002 could not pass typecheck until they were gone. Doing this story first keeps both commits green; doing US-002 first would have required deleting these very tests inside it. The 'no other spec file is modified' criterion could NOT hold, as US-001 flagged: tests/e2e/home.spec.ts ended its third test by visiting /ausgabe?datum=2026-01-10 and asserting lookup-colour. That cross-check is deleted, not re-pointed — after US-22 NO screen renders view.colour (both /ausgabe's banner and the hub paint nextDistribution.colour), so there is nowhere to re-point it. Its reason survives as a comment naming distribution.test.ts's 'names the next distribution and its colour on a day that is not one', which asserts the two fields differ. The new inert-URL test locates errors by [data-slot=\"alert\"], NOT getByRole('alert') — Next injects a route announcer with role=alert into every page client-side, so the role locator always finds one. Full suite: 89 passed, 1 pre-existing skip."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -78,8 +78,8 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "docs/user_stories_mvp.md: criterion 3 struck through and marked `[withdrawn]` with FD's reason, and the 'How to read' header now defines the marker beside `[added]` (the file defined only `[added]`, though `[changed]` was already in use at US-06). tasks/prd-us-03-week-colour.md: the intro carries a withdrawal note, §US-03.4's date-picker and §US-03.5's two-years-out criteria are struck with `[withdrawn by US-22]`, and FR-4 is struck; FR-6 now states out loud why the date parameter survives. docs/technical_documentation.md named the lookup in SIX places, more than the criterion implies: the file tree (l.76), the getWeekColour seam (l.324-331, which also cited the now-withdrawn FR-4), isoWeekOf's 'what the lookup control shows' (l.733), the /ausgabe screen bullets (l.1880-1892), counter-lookup's 'the same reason the week lookup uses one' (l.1896), and BOTH e2e spec descriptions — distribution.spec.ts still claimed to look up a week two years out, and home.spec.ts still described the /ausgabe cross-check US-003 deleted. All six updated. format:check, lint, typecheck, test:coverage (912) and build pass; no source or spec file touched."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

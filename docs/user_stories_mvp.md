@@ -9,7 +9,10 @@ supporting functionality that FD can live without for the first few weeks. Secti
 deliberately _out_ of the MVP.
 
 Anything not traceable to the domain analysis is marked **`[added]`** with a one-line justification.
-Those marks are the places to challenge me — they are my inference, not FD's statement.
+Those marks are the places to challenge me — they are my inference, not FD's statement. A criterion
+FD later retracted is struck through and marked **`[withdrawn]`** with the reason, and stays where it
+was: a withdrawn requirement is recorded as withdrawn, never deleted, so the next person to propose
+it finds the answer instead of the gap.
 
 Roles used: **Staff member** (the only human user; there is no login and no user administration, so
 staff are indistinguishable to the system), **Applicant** and **Customer** (never touch the system
@@ -109,7 +112,16 @@ shared spreadsheet.
 1. The application shows today's week colour prominently on the distribution screen.
 2. The colour is **derived from the calendar** by strict alternation from a configured anchor week —
    it is not typed in per week, and two consecutive weeks can never share a colour.
-3. A staff member can look up the colour of a past or future week.
+3. ~~A staff member can look up the colour of a past or future week.~~ `[withdrawn]` — US-22, after
+   FD used the screen: they do not need it at all, anywhere, so the criterion is struck rather than
+   re-homed. What is asked at the counter is which group collects **now**, which criteria 1 and 4
+   already answer; the date card on `/ausgabe` was a second, quieter answer to a question nobody
+   has, on the busiest screen in the product. Note what is _not_ withdrawn: the colour of any day
+   stays computable — `getWeekColour(deps, date?)` keeps its optional date parameter, because
+   `lookupCustomer` and `recordAttendance` both pass an explicit instant, and it still resolves the
+   anchor in force _at that date_. Only the control that let a human ask is gone. If this is ever
+   proposed again, the argument to beat is FD's, and the right home would be the settings screen
+   beside the anchor that decides the alternation — never the counter.
 4. On a non-distribution day, the screen states which colour is next and when. `[added]` — the
    analysis does not say what the app shows off-day; without this the screen would be blank or
    misleading four days out of five.

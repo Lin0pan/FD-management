@@ -10,8 +10,16 @@ Red week, Blue customers in a Blue week, and the two strictly alternate. Two con
 same colour would be considered unfair and must be impossible by construction.
 
 The colour is therefore **derived from the calendar** by alternation from a configured anchor week,
-never typed in per week. This feature makes today's colour unmissable on the distribution screen and
-lets staff look up any past or future week.
+never typed in per week. This feature makes today's colour unmissable on the distribution screen.
+
+> **Withdrawn by US-22:** this PRD also shipped a date control on `/ausgabe` that answered for any
+> past or future week. FD say they never needed it — the counter asks about **now** — so it was
+> removed, along with its strings and its specs
+> (`tasks/prd-us-22-drop-week-colour-lookup.md`). The three places it was asked for below are marked
+> `[withdrawn by US-22]` rather than deleted. **The capability itself is not withdrawn:**
+> `getWeekColour(deps, date?)` keeps its optional date parameter and its
+> settings-in-force-at-that-date behaviour, because `lookupCustomer` and `recordAttendance` both pass
+> an explicit instant — §US-03.3 and FR-6 stand unchanged. Only the way a human reached it is gone.
 
 ## 2. Goals
 
@@ -65,10 +73,10 @@ if not, when the next one is and what colour it will be.
       force **then** — tested explicitly
 - [ ] No persistence port needed beyond `SettingsRepository`; no week rows are ever stored
 
-### US-03.4: Week colour banner and lookup (presentation)
+### US-03.4: Week colour banner (presentation)
 
 **Description:** As a staff member, I want the distribution screen to state today's colour
-prominently and let me check any other week.
+prominently.
 
 **Acceptance Criteria:**
 
@@ -76,8 +84,11 @@ prominently and let me check any other week.
       day "Heute ist keine Ausgabe — nächste Ausgabe: <date>, <colour>"
 - [ ] The colour is conveyed by **text plus** colour, never colour alone (accessibility; several
       staff, one shared screen, variable lighting)
-- [ ] A date picker lets staff look up the colour of any past or future week, showing the ISO week
-      number alongside
+- [ ] ~~A date picker lets staff look up the colour of any past or future week, showing the ISO week
+      number alongside~~ `[withdrawn by US-22]` — built, then removed: FD do not need any week but
+      this one, and the card sat on the busiest screen in the product pushing the counter's own
+      results down. The ISO week number stays on the banner, which is where staff check it against a
+      wall calendar.
 - [ ] The banner is the visually dominant element on the screen
 - [ ] Verify in browser using dev-browser skill
 
@@ -88,7 +99,12 @@ prominently and let me check any other week.
 - [ ] Playwright spec drives the app with a fixed clock (injected via env or a test-only clock
       override) and asserts the banner text for: a Red distribution day, the following week (Blue),
       and a non-distribution weekday
-- [ ] Spec asserts the look-up control returns the expected colour for a date two years out
+- [ ] ~~Spec asserts the look-up control returns the expected colour for a date two years out~~
+      `[withdrawn by US-22]` — the control is gone, so the test was deleted rather than skipped. In
+      its place `distribution.spec.ts` proves the opposite property: a URL still carrying the old
+      `?datum=` is **inert**, rendering the ordinary banner and no error. A week two years out is
+      still proved to alternate correctly, in the domain where the rule lives
+      (`weekColour.test.ts`, §US-03.1).
 
 ## 4. Functional Requirements
 
@@ -96,9 +112,17 @@ prominently and let me check any other week.
 - FR-2: The colour must be derived from the calendar by strict alternation from a configured anchor
   week; it must never be entered per week.
 - FR-3: Two consecutive weeks must never share a colour.
-- FR-4: A staff member must be able to look up the colour of any past or future week.
+- ~~FR-4: A staff member must be able to look up the colour of any past or future week.~~
+  **Withdrawn by US-22** (`tasks/prd-us-22-drop-week-colour-lookup.md`). FD's answer, asked
+  explicitly, is that nobody at FD needs a past or future week's colour anywhere — so this is a
+  retraction, not a relocation. `/ausgabe` must now offer **no** control for any day but the one it
+  is showing, and the `datum` search parameter must be ignored entirely rather than refused. FR-6
+  is unaffected: the colour of any date is still computed, only never asked for by a human.
 - FR-5: On a non-distribution day, the screen must state which colour is next and on which date.
-- FR-6: A past-date lookup must use the anchor configuration that was in force on that date.
+- FR-6: An answer for a past date must use the anchor configuration that was in force on that date.
+  `getWeekColour(deps, date?)` therefore keeps its optional date parameter after US-22 —
+  `lookupCustomer` and `recordAttendance` pass an explicit instant, so it is load-bearing on the
+  counter's own path and must stay tested (§US-03.3).
 - FR-7: Colour information must never be conveyed by colour alone.
 
 ## 5. Non-Goals
