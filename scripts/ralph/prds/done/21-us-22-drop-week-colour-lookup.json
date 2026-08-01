@@ -1,0 +1,85 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-22-drop-week-colour-lookup",
+  "description": "US-22 Drop the week-colour date lookup from /ausgabe — FD have withdrawn the requirement that a staff member can look up the colour of any past or future week (docs/user_stories_mvp.md §US-03 criterion 3). The counter answers about NOW, and the banner already does that. The date card, its strings, its error path and its two specs go, and the two documents that asked for it record the withdrawal. Presentation, e2e and docs only: NO domain, application, port, infrastructure or schema change. A diff touching src/domain, src/application, src/infrastructure or prisma/ means the change was misread. getWeekColour KEEPS its optional date parameter — lookupCustomer and recordAttendance both pass an explicit instant. This batch must land BEFORE the other two /ausgabe batches, because all three edit src/app/ausgabe/page.tsx. Source: tasks/prd-us-22-drop-week-colour-lookup.md",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Remove the lookup card from the distribution screen",
+      "description": "As a staff member, I want the distribution screen to answer one question — who collects now — without a second control offering to answer a different one. Source: tasks/prd-us-22-drop-week-colour-lookup.md §US-022.1",
+      "acceptanceCriteria": [
+        "The lookup Card at the foot of src/app/ausgabe/page.tsx is gone, with its <form>, its date Input, its submit button and its Zurücksetzen link",
+        "The LookupResult component, the Lookup type, the lookUp function and the lookupDate Zod schema are DELETED",
+        "ErrorNote STAYS — the settings-missing card and the counter's number error both use it",
+        "messageFor STAYS, with both branches: NoSettingsInForce and InvalidAnchor are still reachable from the banner",
+        "searchParams is typed { nummer?: string | string[] } — datum is gone from the signature",
+        "GET /ausgabe?datum=2026-13-45 renders the ordinary screen: the banner stands, no error is shown, the parameter is simply not read. It must NOT throw and must NOT render lookup-error",
+        "The testids lookup-result, lookup-colour, lookup-error and the id lookup-date no longer appear anywhere in src/",
+        "week-colour-banner, week-colour-group, next-distribution, counter-input, counter-error, settings-missing and every counter testid are UNCHANGED",
+        "No unused import is left behind: z from zod is used only by lookupDate and Badge only by LookupResult, while germanDate and Input are used by the banner and the counter — check each, do not assume",
+        "No file under src/domain, src/application, src/infrastructure or prisma/ is touched",
+        "Typecheck passes",
+        "Lint passes",
+        "Verify in browser using the playwright-cli skill against a PRODUCTION build (npm run build && npm run start -- --port 3100, killing any next-server first): querySelectorAll('h1,h2,h3') lists the counter heading and no longer the lookup heading, and the ACCESSIBILITY SNAPSHOT has no date textbox on the page",
+        "Measure the page at 1440x900 before and after and put both numbers in the commit message — the point of the change is the vertical space the counter gets back"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Measured in a production build at 1440x900: main content bottom 812px -> 626px on a fresh load, and /ausgabe?nummer=1 1571px -> 1385px. 186px returned to the counter. Accessibility snapshot of /ausgabe?datum=2026-13-45 shows the banner, one textbox (Nummer) and no error. Also fixed a comment in src/app/ausgabe/actions.ts that pointed at the deleted lookupDate schema. NOTE for US-003: tests/e2e/home.spec.ts also drives the lookup (/ausgabe?datum=2026-01-10, lookup-colour) — it must be fixed there despite the 'no other spec file' criterion, or the suite cannot go green."
+    },
+    {
+      "id": "US-002",
+      "title": "Remove the German strings the lookup owned",
+      "description": "As the next developer, I want the German dictionary to hold only strings the app renders, so a search for a phrase on screen leads somewhere. Source: tasks/prd-us-22-drop-week-colour-lookup.md §US-022.2",
+      "acceptanceCriteria": [
+        "de.distribution.lookup is removed in full from src/i18n/de.ts — heading, hint, label, submit, reset, result, isDistributionDay, nextDistribution",
+        "de.distribution.errors.notADate is removed",
+        "de.distribution.errors.noSettings and .invalidAnchor STAY: both are still reachable from the banner",
+        "de.distribution.banner.*, de.distribution.colours, de.distribution.group and de.distribution.counter.* are untouched",
+        "A grep for 'distribution.lookup' and for 'notADate' across src/ and tests/ returns nothing",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Done after US-003, which had to delete the specs that read these keys first (tsconfig includes tests/). The 'grep for notADate returns nothing' criterion is read as scoped to de.distribution.errors.notADate: customers.errors.notADate and distribution.certificate.renewal.errors.notADate are live strings, used by the registration and renewal actions, and both stay. Also narrowed the docblock over `distribution:` — it promised 'today and in any other week' — and gave the two surviving errors a comment saying they are banner-reachable, so the pair is not read as more lookup leftovers. No render change, so no browser pass: the deleted keys had no reader after US-001."
+    },
+    {
+      "id": "US-003",
+      "title": "Retire the two e2e tests that drove the lookup",
+      "description": "As a developer, I want the suite to describe the screen that exists. Source: tasks/prd-us-22-drop-week-colour-lookup.md §US-022.3",
+      "acceptanceCriteria": [
+        "In tests/e2e/distribution.spec.ts the tests 'refuses a day the calendar does not have and leaves the banner standing' and 'looks up the colour of a week two years out' are DELETED, not skipped",
+        "The three banner tests — a red distribution day, the following blue one, and a weekday without a distribution — stay exactly as they are, including the pinned-clock setup and the afterAll that removes the clock file",
+        "The file's header comment is updated: it currently names the lookup among the things the spec proves",
+        "One NEW test replaces the removed error case: /ausgabe?datum=2026-13-45 renders the banner and shows NO error — the old URL is inert rather than fatal",
+        "No other spec file is modified",
+        "Typecheck passes",
+        "Lint passes",
+        "Full e2e suite passes: npm run test:e2e. Rebuild AND pkill -f next-server first — playwright.config.ts reuses an existing server outside CI and would otherwise test the old build"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Done BEFORE US-002, out of priority order and deliberately: tsconfig includes tests/, so the two lookup specs' references to de.distribution.lookup.* and de.distribution.errors.notADate meant US-002 could not pass typecheck until they were gone. Doing this story first keeps both commits green; doing US-002 first would have required deleting these very tests inside it. The 'no other spec file is modified' criterion could NOT hold, as US-001 flagged: tests/e2e/home.spec.ts ended its third test by visiting /ausgabe?datum=2026-01-10 and asserting lookup-colour. That cross-check is deleted, not re-pointed — after US-22 NO screen renders view.colour (both /ausgabe's banner and the hub paint nextDistribution.colour), so there is nowhere to re-point it. Its reason survives as a comment naming distribution.test.ts's 'names the next distribution and its colour on a day that is not one', which asserts the two fields differ. The new inert-URL test locates errors by [data-slot=\"alert\"], NOT getByRole('alert') — Next injects a route announcer with role=alert into every page client-side, so the role locator always finds one. Full suite: 89 passed, 1 pre-existing skip."
+    },
+    {
+      "id": "US-004",
+      "title": "Record the withdrawal in the documents that asked for the lookup",
+      "description": "As the next developer, I want to find out that the date lookup was deliberately removed, at the place where I would otherwise read that it is required. Source: tasks/prd-us-22-drop-week-colour-lookup.md §US-022.4",
+      "acceptanceCriteria": [
+        "docs/user_stories_mvp.md §US-03 acceptance criterion 3 ('A staff member can look up the colour of a past or future week') is marked WITHDRAWN, with the reason (FD do not need it; the counter answers about now) and the inline marker style that file already uses for edits, e.g. `[withdrawn]` alongside the existing `[added]`",
+        "tasks/prd-us-03-week-colour.md is updated in three places: §US-03.4 loses the date-picker criterion, §US-03.5 loses the two-years-out criterion, and FR-4 is struck with a note that US-22 withdrew it",
+        "Neither document LOSES the reason the lookup once existed — a withdrawn requirement is recorded as withdrawn, never deleted, so the next person to propose it finds the answer",
+        "Both documents state that getWeekColour(deps, date?) KEEPS its optional date parameter, because lookupCustomer and recordAttendance pass an explicit instant — only the screen is gone, and §US-03.3's criteria about resolving settings at that date stay",
+        "docs/technical_documentation.md is checked for a description of the /ausgabe lookup and updated if it names one",
+        "No source file and no spec file is changed in this story",
+        "Prettier formatting passes: npm run format:check",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "docs/user_stories_mvp.md: criterion 3 struck through and marked `[withdrawn]` with FD's reason, and the 'How to read' header now defines the marker beside `[added]` (the file defined only `[added]`, though `[changed]` was already in use at US-06). tasks/prd-us-03-week-colour.md: the intro carries a withdrawal note, §US-03.4's date-picker and §US-03.5's two-years-out criteria are struck with `[withdrawn by US-22]`, and FR-4 is struck; FR-6 now states out loud why the date parameter survives. docs/technical_documentation.md named the lookup in SIX places, more than the criterion implies: the file tree (l.76), the getWeekColour seam (l.324-331, which also cited the now-withdrawn FR-4), isoWeekOf's 'what the lookup control shows' (l.733), the /ausgabe screen bullets (l.1880-1892), counter-lookup's 'the same reason the week lookup uses one' (l.1896), and BOTH e2e spec descriptions — distribution.spec.ts still claimed to look up a week two years out, and home.spec.ts still described the /ausgabe cross-check US-003 deleted. All six updated. format:check, lint, typecheck, test:coverage (912) and build pass; no source or spec file touched."
+    }
+  ]
+}
