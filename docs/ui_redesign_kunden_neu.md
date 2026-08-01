@@ -285,7 +285,9 @@ The cards span the shell; the **field grid does not**. A 1152px-wide text input 
 400px one, so the fields sit in a 12-column grid and take 2, 4 or 6 of it (§4.2d). Cards get the
 width; fields get meaning.
 
-**(b) The archive search is compressed to one row — and stays open.**
+**(b) The archive search is compressed to one row — and stays open.** _(It no longer does; US-19
+folded it away. The argument is kept because the risk it names did not go away — see the note at the
+end of this section and §12.)_
 
 The tempting fix is a closed `<details>`, and it is wrong. Job B's cost of failure is a duplicate
 record for a household FD already has, and a control that must be opened is a control that will be
@@ -294,6 +296,16 @@ forgotten on the day it matters. US-11 exists precisely to stop that.
 So: keep it visible, and take the 270px down to about 150 by doing less with them. The `<h2>` stays,
 the three-line `intro` becomes a one-line `CardDescription`, and the three fields and `Suchen` share
 one row (`lg:grid-cols-4`, the button aligned to the field baseline, not on a line of its own).
+
+> **Answered by US-19: it is closed now, and the argument above is mitigated rather than withdrawn.**
+> FD were asked §11.1 and chose the fold. The cost of failure has not changed — a missed search is a
+> duplicate record for a household FD already has, which is the whole of US-11 — so the mitigation is
+> that the closed `<summary>` **asks the question** instead of naming a feature: "War dieser Haushalt
+> schon einmal aufgenommen?" is on screen whether or not the panel is open. The control that could be
+> forgotten says at every load what it is for. That is the entire mitigation, it is one line of
+> prompt, and if a returning household is ever missed after this the next step is auto-opening the
+> panel when the register holds archived households — cheap, and the runner-up when FD were asked.
+> §12 records what was built and what it measures.
 
 **(c) A match row becomes a shortlist entry, not a dossier.** Name, birthdate and address on one
 line; household size, archive reason and the former number with its disclaimer **behind a
@@ -649,14 +661,20 @@ FD were asked the questions in §11 before any code was written. Their answers:
 | §11.4 The certificate at intake              | Move it beside the personal data, in the merged card                |
 | §8 ⚠️ The full-register alert under the `h1` | Yes, with a plain link to `/warteliste` — no fragment, no spec edit |
 
-**The archive search is `<details open>`, not closed.** Three specs reach `#archiveLastName` and
-`#group-RED` by CSS id, and an element inside a closed `<details>` is invisible to `fill()` and
-`check()`, which then retry and time out. Closing it by default therefore needs
-`reregistration.spec.ts`, `archive.spec.ts` and `card.spec.ts` edited — the third-commit-with-its-own-
-argument this document reserves for exactly that. The fold exists and staff may use it; the default
-state is the one the contract requires. §4.2b's argument against closing it (a control that must be
-opened is one that will be forgotten on the day it matters, which is the whole of US-11) still stands
-and should be put to FD again with the screen in front of them.
+**The archive search is a closed `<details>`.** PR #62 shipped it as `<details open>`, because an
+element inside a closed `<details>` is invisible to `fill()` and `check()`, which then retry and time
+out — and `#archiveLastName` is reached by CSS id. US-19 is the third-commit-with-its-own-argument
+this document reserved for exactly that: `tests/e2e/reregistration.spec.ts` is the only spec that
+fills the panel, and its `searchArchive` helper now clicks `getByTestId("archive-search-open")` — a
+real click on the summary, not `evaluate(d => d.open = true)`, so a fold that silently stopped opening
+turns the suite red — and waits for `#archiveLastName` before typing. One spec file touched, the
+suite green. `archive.spec.ts` and `card.spec.ts` needed no edit after all: they reach `#group-RED`,
+and the group radios were never folded.
+
+§4.2b's argument against closing it (a control that must be opened is one that will be forgotten on
+the day it matters, which is the whole of US-11) is not withdrawn. It is mitigated: the closed
+summary asks "War dieser Haushalt schon einmal aufgenommen?", so the prompt survives the fold. That
+mitigation is one line of prompt and should still be reviewed with FD on the live screen.
 
 **The group radios were not folded away** for the same reason and with less to gain: a disclosure
 around two radios that has to be open by default is noise. They wear `GROUP_STYLES` instead, which
@@ -674,7 +692,23 @@ was the other half of §3.11.
 | Content box left edge vs. the nav's           | +128px  | 0      | 0     |
 | Headings on the screen                        | 8       | —      | 6     |
 
-Two targets were not reached, and the arithmetic rather than a quiet drop: §10's budget for
+And after US-19 closed the panel, measured the same way — a production build at 1440×900 on a freshly
+seeded demo register (`npm run db:reset && npm run db:demo`) with the free-slot banner on screen:
+
+| Claim                                 | Before PR #62 | After PR #62 | US-19 target | After US-19 |
+| ------------------------------------- | ------------- | ------------ | ------------ | ----------- |
+| Top of `#firstName`, banner on screen | 752px         | 630px        | ≤ 470        | 548         |
+| Archive card height, idle             | 270px         | 160px        | ≤ 90         | 78          |
+
+The closed card met its target; `#firstName` did not, and the two criteria could not both hold. 470
+is 630 − 160, which assumes the archive card takes **zero** height once closed — but the same story
+asks for a closed card of up to 90px, and 78px is what a `CardHeader` of title plus question
+measures. What is left above `#firstName` is the page header (92px), the free-slot banner (146px, an
+explicit non-goal to touch) and the form's own `Person und Anschrift` header (80px); the form itself
+starts at 468px. Only deleting the panel would reach 470, which is a non-goal. At 390px the closed
+card is 98px because the question wraps to two lines — the viewport is part of the number.
+
+Two targets from the restyle were not reached, and the arithmetic rather than a quiet drop: §10's budget for
 `#firstName` left out the page's own intro paragraph (~48px plus its gap), which §5 says to keep, and
 the card's content padding above the first field (~24px). 549 + 80 = 629 against a measured 630. The
 page-height target fails for the same reason at scale — four card headers and four card paddings are

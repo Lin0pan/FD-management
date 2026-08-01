@@ -21,8 +21,8 @@
         "Verify in browser using the playwright-cli skill against a PRODUCTION build (npm run build && npm run start -- --port 3100, killing any next-server first), reading the ACCESSIBILITY SNAPSHOT and not only a screenshot: the summary must announce, and 'Im Archiv suchen' must still be a heading in the outline"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "de.customers.archiveSearch.intro was already the question and already inside the <summary> (PR #62), so this story was the testid and the comment that explains what it is for. Verified on a production build at 1440x900 on the demo register: h1/h2/h3 outline still lists 'Im Archiv suchen' as an H2, summary announces 'Im Archiv suchen War dieser Haushalt schon einmal aufgenommen?', 0 console messages. Before-numbers recorded for US-002: top of #firstName 630px, archive card 160px."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -47,8 +47,8 @@
         "Verify in browser using the playwright-cli skill against a PRODUCTION build: open the panel by clicking the summary, run a search, and confirm the criteria survive the submit and a match row renders"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Shipped: <details> renders closed, and reregistration.spec.ts clicks archive-search-open (a real click, once per page load — every caller does page.goto first) then waits for #archiveLastName. Full suite green, 90 passed / 1 pre-existing skip, exactly one spec file touched. Measured on a production build at 1440x900 on the freshly seeded demo register with the free-slot banner on screen: closed archive card 160px -> 78px (<= 90, MET); top of #firstName 630px -> 548px, which MISSES the <= 470px criterion. The two numbers cannot both hold: 470 = 630 - 160 assumes the archive card takes ZERO height when closed, but the same story requires a closed card of up to 90px, and 78px is what a CardHeader of title + question actually measures. The remaining space above #firstName is the page header (92px), the free-slot banner (146px, an explicit non-goal to touch) and the form's own 'Person und Anschrift' header (80px) — the form itself now starts at 468px. Reaching 470 would mean deleting the panel, which is a non-goal. Overflow 0 at 1920/1280/1024/800/390; 0 console messages; the panel stays open across a submit, keeps its criteria, and renders the match row (archive-match-name/-household-size/-reason/-former-number, reason still white-space: pre-line) and the empty state."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -65,8 +65,8 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Docs only — no source and no spec file touched. ui_redesign_kunden_neu.md §12 now reads 'The archive search is a closed <details>', names reregistration.spec.ts and its click on archive-search-open as the spec edit that made it possible, and records that archive.spec.ts and card.spec.ts needed no edit after all (they reach #group-RED, and the group radios were never folded). §12 gained a second numbers table with the US-19 measurements — top of #firstName 752 -> 630 -> 548 against a <= 470 target, archive card 270 -> 160 -> 78 against <= 90 — plus the breakdown showing why the two targets could not both hold. §4.2b is kept and answered rather than deleted: its heading carries a superseded marker pointing forward, and a blockquote states that the risk stands and the mitigation is the question in the summary. ui_conversion_guide.md's finding is now 'cannot be closed by default until the spec opens it' and carries the two rules that make the edit honest (a real click, never evaluate(d => d.open = true); check for a key before assuming one click per load suffices). Also added the panel's closed default to technical_documentation.md, which described everything about the panel except that. format:check, typecheck and lint pass."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

@@ -184,22 +184,28 @@ export function ArchiveSearchPanel({
   return (
     <Card>
       {/*
-       * A disclosure, and open by default.
+       * Closed on every load (US-19.1) — a household coming back from the archive is twice in
+       * twenty, and the three fields cost the form 160px above the first thing staff came to type.
+       * Nothing remembers the state: it is a `<details>` and no more, so every load starts closed.
        *
-       * FD asked for this panel to fold away — it is 150px spent on a job done a few times a year,
-       * standing above the one the screen is actually for. What it must not become is *closed* by
-       * default: the cost of missing this search is a second record for a household FD already has,
-       * which is the whole of US-11, and three specs reach `#archiveLastName` and `#group-RED` by id
-       * — a control inside a closed `<details>` is invisible, and `fill()` and `check()` time out
-       * against it. So the fold exists and staff may use it; the default state is the one the
-       * contract requires.
+       * What makes the fold safe is that the `<summary>` asks the *question* rather than naming the
+       * feature. The cost of missing this search is a second record for a household FD already has,
+       * which is the whole of US-11, and a control that must be opened is one that can be forgotten
+       * on the day it matters (`docs/ui_redesign_kunden_neu.md` §4.2b). The prompt therefore has to
+       * survive the fold that hides the fields, and it is the only thing standing in for them.
+       *
+       * `reregistration.spec.ts` clicks `archive-search-open` before it fills — a real click, so a
+       * fold that stopped opening turns that spec red instead of passing.
        */}
-      <details open>
+      <details>
         {/* No `w-fit` here, unlike the danger-zone summaries: this one wraps a `CardHeader`, and
             shrinking a header to its minimum content width wraps the description into a column —
             measured at 348px tall for two lines of text. A summary that *is* the card's header
             spans the card. */}
-        <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+        <summary
+          data-testid="archive-search-open"
+          className="cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+        >
           <CardHeader>
             <CardTitle>
               <h2>{words.heading}</h2>

@@ -1,13 +1,13 @@
 # Ralph Progress Log
-Started: Fri Jul 31 21:06:37 CEST 2026
+Started: Fri Jul 31 09:24:00 CEST 2026
 ---
 
 ## Codebase Patterns
-(Carried forward by hand from the US-18 log — the archive rotation wipes this file, so the
+(Carried forward by hand from the US-17 log — the archive rotation wipes this file, so the
 patterns block has to be pasted into the fresh one. The other durable channel is the CLAUDE.md
-files. Batch 19 folds one disclosure on /kunden/neu: presentation and e2e only, so the domain,
-application, port, migration and schema entries below are background rather than instruction.
-The Next.js, i18n, e2e and playwright entries are the ones that apply.)
+files. Batch 18 is presentation and e2e only, so most of what follows is background rather than
+instruction: the ports, fakes and migration notes below describe layers this batch must not
+touch. The Next.js, i18n and e2e entries are the ones that apply.)
 - Adding a method to a port interface (e.g. CustomerRepository) forces EVERY implementer to compile:
   the real Prisma adapter AND the hand-written fakes, which live in several test files —
   customers.test.ts, certificate-reminder.test.ts, lookup-customer.test.ts,
@@ -61,30 +61,12 @@ The Next.js, i18n, e2e and playwright entries are the ones that apply.)
   exclude: give the archived household and the active one the same surname, so only the status
   filter keeps them apart.
 - Killing the e2e server: the process is called **`next-server`**, not `next start`, so
-  `pkill -f "next[ ]start"` finds NOTHING and leaves it running. Always write it as
-  `pkill -f "[n]ext-server"` — an unbracketed `pkill -f "next-server"` matches the Bash tool's OWN
-  shell and KILLS IT, so the call returns exit 144 and everything chained after it never runs. Check
-  with `ps aux | grep "[n]ext-server"`. A survivor is adopted by `reuseExistingServer`, which serves
-  the OLD build and skips the delete-migrate-seed chain, so the whole suite fails at once:
-  `PrismaClientKnownRequestError: The table main.Customer does not exist` or duplicate rows in
-  `beforeAll`. Whole-suite failure = stale server, not your spec.
-- A `<details>` keeps its `open` state through any re-render — only a REMOUNT closes it. Before
-  assuming a disclosure survives an action, check whether the panel itself sits under a `key`:
-  on `/kunden/neu` the `key` is on the registration form, so a search and a pre-fill both leave the
-  archive panel open, and the e2e helper may click the summary once per page load rather than guard
-  against re-closing it.
-- A UI decision has to reach THREE documents, not two: the screen's `docs/ui_redesign_*.md` (§12,
-  "what was decided and built", plus its numbers table), `docs/ui_conversion_guide.md` (the finding,
-  if the decision changes one), and `docs/technical_documentation.md`'s per-file bullet, where a
-  default state (open/closed, persisted or not) belongs. And when a document says "this could not be
-  done because X", closing it out means re-checking X — §12 named three blocking specs and only one
-  was. Answer a superseded argument in place rather than deleting it: it is the only record of what
-  the change risks.
-- A height budget stated in a PRD is worth re-deriving before trusting it. Measure the whole stack
-  (page header / banner / the folded card / the form's own header), not just the target element:
-  US-19's `<= 470px` subtracted the archive card's WHOLE 160px for a fold that leaves a 78px header
-  on screen, so it contradicted the same story's `closed card <= 90px`. The breakdown is what shows
-  which of two criteria was miscomputed.
+  `pkill -f "next[ ]start"` finds NOTHING and leaves it running. Use `pkill -f "next-server"` (and
+  check with `ps aux | grep "[n]ext-server"` — it exits 1/144 when it killed something). A survivor
+  is adopted by `reuseExistingServer`, which serves the OLD build and skips the delete-migrate-seed
+  chain, so the whole suite fails at once: `PrismaClientKnownRequestError: The table main.Customer
+  does not exist` or duplicate rows in `beforeAll`. Whole-suite failure = stale server, not your spec.
+  (The `[ ]` trick is still needed for whatever pattern you do use, or pkill matches its own shell.)
 - A new e2e spec has to claim a customer number nobody else holds: the shared `data/e2e.db` is
   seeded once per run and every spec inserts into it. Taken so far: counter 201-206/239, portions
   211, serve 221-222, reminders 231, block 241, reissue 251, age-13 271, customer-list 281-285,
@@ -308,116 +290,256 @@ The Next.js, i18n, e2e and playwright entries are the ones that apply.)
   mirroring `portionsFor`) is source-compatible with every existing caller and is what lets a client
   component hold only the values that bear on the answer.
 
+---
+- Adding a method to `CustomerRepository` now costs EIGHT implementers: the Prisma adapter plus the
+  fakes in customers.test.ts, cards-due-for-reissue.test.ts, certificate-reminder.test.ts,
+  lookup-customer.test.ts, list-customers.test.ts, maintain-customer.test.ts,
+  waiting-list.test.ts and distribution/record-attendance.test.ts. Each fake stubs it in ITS OWN
+  idiom — a `writes += 1` counter where the file counts writes, a rejecting stub where the file
+  proves the use case never calls it — so copy the neighbouring method rather than one shape into
+  all eight.
+- A rule that registration and a later EDIT must both obey belongs in its own exported domain
+  function that registration then calls (`createHouseholdMembers` ← `createCustomerDetails`). The
+  edit reusing it is the only thing that keeps the two from drifting; a second implementation is
+  free to accept what registration refuses.
+- "The consequence follows automatically" is provable in the application layer by driving the REAL
+  downstream read over the same fake register — updateHousehold's test calls `listCardsDueForReissue`
+  after the edit rather than asserting a flag. It proves the derivation, not the intent.
+- An archived customer's record is read-only (US-16, FR-8): every new mutating use case must refuse
+  with `CustomerArchived` and every one of them must still allow a BLOCKED customer, which pauses the
+  counter and not the record.
+- A duplicated fact that CANNOT be de-duplicated (the customer is their own household member) is
+  kept in step by a **pure domain rule plus one transaction**, never by two writes or by the adapter
+  comparing rows: `replaceHouseholdMember(members, was, becomes)` decides which row was them, and
+  `updateDetails(id, details, household)` writes both halves at once. Match on the row's *old*
+  values, take only the first match, and leave the set alone when nothing matches — guessing is how
+  an edit rewrites somebody else. Write the reasoning down: the reader's first instinct is that the
+  duplication is a bug.
+- Two use cases that touch the same record still get **one file and one audit event each**. A merged
+  `updateCustomer` would produce an entry naming every field on every save, which is a log nobody
+  reads. `maintain-customer.test.ts` is the shared suite; its `household()` fixture now takes
+  `firstName` / `lastName` / `notes`, and its default household's FIRST row is the customer, which is
+  what a registration leaves behind.
+- A criterion phrased as "X is visible at the counter" is proved by driving the real `lookupCustomer`
+  over the same fake register, not by asserting the stored column — the same move as
+  `updateHousehold`'s cards-due test. The price is three more fakes in the file (settings,
+  distribution records, reminder log); they can all be stubs, since the point is the read path.
+- An input type is the guarantee: `UpdateCustomerDetailsInput` has no `customerNumber` field, and the
+  port method takes none either, so "the customer number is not editable" (US-16, FR-7) is enforced
+  by the compiler rather than by a check somebody could delete.
 
+
+- A route table that is BOTH what the nav renders and what the active-section rule matches against
+  (`NAV_ITEMS` in src/app/active-section.ts) cannot drift: an item in the bar necessarily marks
+  itself. Keep the matcher in a plain module, not in the client component — `usePathname` makes
+  nav.tsx a client component, and a rule inside one can only be checked by rendering it.
+- Prefix matching for a section appends the separator (`pathname === route || pathname.startsWith(
+  route + "/")`). That single line is what stops `/` marking every path in the app and what stops
+  `/kundenkarten` being swallowed by `/kunden`.
+- `src/app/layout.tsx` must read NO data. A fetch in the root layout makes every route in the
+  application dynamic; counts belong on the pages that are `force-dynamic` already. Check
+  `npm run build`'s route table afterwards — the layout staying static is what keeps it honest.
+- A vitest unit test may live beside a presentation module (`src/app/active-section.test.ts`): the
+  include glob is `src/**/*.{test,spec}.ts` while coverage is scoped to domain/application, so an
+  app-layer test runs in the gate without pulling `src/app` into the 100% threshold.
+- Adding a global nav bar is a strict-mode risk for every e2e spec that selects a link by its text:
+  "Einstellungen" and "Ausgabe" now appear in the bar on every page. Nothing broke here (the specs
+  select by testid), but grep the labels before adding an item, and give each link its own
+  `data-testid="nav-<section>"` so a spec never has to name it by German text.
+- A LEFTOVER `next-server` from an earlier run holds the verification port and silently serves the
+  OLD build: `next dev -p 3100` then dies with `EADDRINUSE` in its log while the browser keeps
+  showing the previous markup, which reads exactly like "my edit did nothing". When a change does not
+  appear, `ps aux | grep "[n]ext"` BEFORE doubting the code — a `next dev` that is really running
+  recompiles on save, so a stale screen is almost always a stale process.
+- Driving a screen's zero/one/many states against the DEV database is done by flipping the rows, not
+  by reseeding: set `removedOn` on the waiting-list entries, read the badge, then null it back in the
+  same session. Record the ids first — `db:reset` would take the demo register with it.
+- A count badge belongs INSIDE its link, as a sibling `<span>` of the label. The accessibility
+  snapshot then reads `link "Warteliste 3 Wartende"` rather than a link and a loose number: that one
+  line is the whole check the criterion asks for, and a screenshot cannot make it.
+
+- Two badges that stand side by side are ONE component (CountBadge in src/app/kunden/page.tsx), and
+  the one that can be tinted carries `border` in every state — transparent when neutral. A border
+  added only in the accent state makes that pill 2px taller than its neighbour, which is the kind of
+  thing a screenshot shows and no assertion catches.
+- A state a badge carries by colour also goes on the element as data (`data-free-slot`), so an e2e
+  spec asserts what it means rather than what shade it is painted — and the German word carries the
+  state anyway, because a tint alone is a distinction only some of the staff can make (US-03.4).
+- Driving the "register is full" state against the DEV database is a two-line flip of
+  `SettingsVersion.quotaN` below the lowest free customer number (`select customerNumber from
+  Customer where status != 'ARCHIVED'`), then back to 240. No reseed, no settings edit through the UI,
+  and no audit row in the demo register.
+- A signal belongs on the screen where the thing it is about actually happens. A banner naming one
+  applicant and one number is a decision about somebody else; on a hub it stands in front of what
+  staff came to read, on the screen that hands out the number it is the fact they need before typing.
+  Moving one is a two-file diff — and the reads stay where they were if a quieter signal still needs
+  them (/kunden keeps `listWaiting` and `proposeRegistration` for its badge).
+- Two independent reads in a server component go in ONE `Promise.all` inside the existing `try`, not
+  in sequence and not in a second try: the `NoSettingsInForce` branch then covers both, and the
+  screen the staff member is waiting for is not gated behind two round trips.
+- Removing a render can leave a binding that lies. `const [head] = places` was "who the banner names";
+  once the banner is gone it is only "is anybody waiting", and `places.length > 0` says that. A name
+  that describes a use which no longer exists is the next reader's wrong turn.
+- The docs describe screens by what they carry, so MOVING an element edits the prose in three places
+  at once: the file tree comment, the source screen's paragraph and the target screen's. `grep -n`
+  the component name across `docs/` before committing — `docs/technical_documentation.md` names
+  `free-slot-banner.tsx` in four separate sentences.
+- `docs/technical_documentation.md` contains NON-BREAKING SPACES (U+00A0) mid-sentence. A python
+  heredoc patch fails its `assert old in s` on a line that looks identical in the terminal; `sed -n
+  '<line>p' file | cat -A` shows them as `M-BM- `, and the literal has to carry `\u00a0`.
+
+## 2026-07-31 09:35 - US-001 (US-18.1) — waiting-list count badge on the Kunden hub
+- `HubActions` in src/app/kunden/page.tsx now takes `waiting` beside `cardsDue` and renders a badge
+  inside the `/warteliste` link, in the cards-due badge's exact pill (`rounded-full bg-foreground/10
+  px-3 py-1 text-sm tabular-nums`). The count is `places.length` off the `listWaiting` call the page
+  already made in its `Promise.all` — no use case, port method or count query was added.
+- `de.customerList.actions.waitingListBadge(count)` inflects at one and states the zero case in
+  words: "niemand wartet" / "1 Wartende:r" / "3 Wartende".
+- The free-slot banner is untouched; US-003 moves it, and removing it first would leave /kunden with
+  no waiting-list signal at all.
+- Files changed: src/app/kunden/page.tsx, src/i18n/de.ts, docs/technical_documentation.md,
+  scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: lint, typecheck, `test:coverage` (44 files, 912 tests) and `build` all green. The e2e suite
+  was not run for this story — US-004 rewrites those specs.
+- Browser verification (playwright-cli, accessibility snapshot rather than a screenshot):
+  - 3 waiting → `link "Warteliste 3 Wartende"`, directly above `link "Karten neu ausstellen 2
+    Karten"`. The badge reads as part of the link, which is what the criterion asks.
+  - 1 waiting → `link "Warteliste 1 Wartende:r"`.
+  - 0 waiting → `link "Warteliste niemand wartet"`, and the free-slot banner correctly disappeared
+    with the last applicant.
+  - Clicking the badge navigated to /warteliste.
+- **Learnings for future iterations:**
+  - The verification port was held by a `next-server` left over from an earlier iteration. It served
+    the previous build for three rounds of "why is my badge not there" while `next dev` was dying on
+    EADDRINUSE in a log nobody read. `ps aux | grep "[n]ext"` is the first check, not the last.
+  - The dev database (data/fd.db) carries 3 waiting applicants (ids 10, 11, 12) and 20 customers, so
+    a badge's plural, singular and zero states are all reachable by flipping `removedOn` and putting
+    it back — no reseed, and the demo register survives.
+  - `docs/technical_documentation.md` describes the hub's signals in one paragraph (§`src/app/kunden/`).
+    A signal added to or removed from that row belongs in it, and US-003 will have to revise the same
+    sentences again when the banner leaves.
 ---
 
-## 2026-07-31 21:15 - US-001 (US-19.1) — the archive-search summary gets a handle
-
-- `src/app/kunden/neu/archive-search-panel.tsx`: `data-testid="archive-search-open"` on the
-  `<summary>`, and the comment above `<details open>` rewritten — it argued the panel must *never*
-  close, which is no longer the decision; it now says the fold is US-19.2's and cannot land before
-  the spec that fills the panel learns to open it.
-- No dictionary change was needed: `de.customers.archiveSearch.intro` is already the question
-  ("War dieser Haushalt schon einmal aufgenommen?") and already sits inside the `<summary>` as the
-  `CardDescription`. Read the dictionary before planning an i18n edit from a PRD — PR #62 had
-  already done half of this story.
-- `<details>` deliberately KEEPS `open`; no spec touched.
-
+## 2026-07-31 09:40 - US-002 (US-18.2) — "Platz frei" on the waiting-list badge
+- `de.customerList.actions.waitingListBadge(count, freeSlot)` gained a **required** second argument
+  and appends „ · Platz frei“ when it is true. Required rather than optional on purpose: the tint and
+  the word have to travel together, so every call site has to say which state it is in.
+- The pill both hub badges are made of is now a local `CountBadge` in src/app/kunden/page.tsx (PRD §6
+  explicitly allows the extraction, and asks that it stay in that file). It always renders a border —
+  `border-transparent` when neutral — so the free-slot tint changes the badge's colour and not its
+  size, and the two pills stay the same height side by side.
+- The accent is `border-emerald-600/40 bg-emerald-600/15`, the same subtle green the register already
+  uses for an ACTIVE household. Not red, not amber: those are a blocked status and a lapsing
+  certificate, and a free slot is good news rather than an alarm.
+- `HubActions` takes `freeSlot={head !== undefined && freeNumber !== null}` — both halves off the
+  `listWaiting` and `proposeRegistration` calls already in the page's `Promise.all`. No use case, port
+  method or query was added, and the `NoSettingsInForce` catch around `proposeRegistration` is
+  untouched. The banner is still on the hub; US-003 moves it.
+- Files changed: src/app/kunden/page.tsx, src/i18n/de.ts, docs/technical_documentation.md,
+  scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: lint, typecheck, format:check, `test:coverage` (44 files, 912 tests) and `build` all green.
+  The e2e suite was not run — US-004 is the story that rewrites those specs.
+- Browser verification (playwright-cli, accessibility snapshot first, screenshot only to compare the
+  two pills):
+  - free number + 3 waiting → `link "Warteliste 3 Wartende · Platz frei"`, `data-free-slot="true"`,
+    tinted; the count and the word are one node inside the link.
+  - quota lowered to 2 (register full) → `link "Warteliste 3 Wartende"`, `data-free-slot="false"`,
+    and the pill is pixel-identical to `2 Karten` beside it.
+  - waiting list emptied while a number was free → `"niemand wartet"`, `data-free-slot="false"`. The
+    word never appears without both halves, and the accent never without the word.
+  - The dev database was put back afterwards: quotaN 240, `removedOn` NULL on entries 10, 11, 12.
 - **Learnings for future iterations:**
-  - The `<summary>` announces as a `generic` inside a `group`, not as a `button`, in Playwright's
-    accessibility snapshot — its accessible name is the whole header ("Im Archiv suchen War dieser
-    Haushalt schon einmal aufgenommen?"). The shipped disclosures on `/kunden/[id]` announce exactly
-    the same way, so that is this repo's baseline rather than a regression to chase.
-  - Measuring on a production build: `pkill` alone is not enough — a server started as
-    `(npm run start &)` from a Bash tool call dies with its parent shell and leaves `curl` returning
-    000 with the log still saying "Ready". Start it with the Bash tool's own background mode.
-  - `curl` inside this sandbox goes through the proxy and cannot reach 127.0.0.1; use
-    `curl --noproxy '*'` for a readiness check against a local port.
-  - `playwright-cli open --browser=chrome` fails here (no Chrome distribution); plain
-    `playwright-cli open` gets Chromium.
-  - The demo register is `npm run db:reset && npm run db:demo` — reset alone seeds settings only,
-    and the free-slot banner the measurements depend on needs the demo households.
-  - Baseline for US-002, measured at 1440x900 with the free-slot banner on screen: top of
-    `#firstName` **630px**, archive card (still open) **160px**. Targets: <= 470px and <= 90px.
-
+  - Making the dictionary function's `freeSlot` argument required is what enforces "the accent never
+    appears without the word" — with a default it would be one forgotten argument away from a
+    colour-only marking, which is the thing US-03.4 forbids.
+  - `next dev` rewrites `next-env.d.ts` (`./.next/types` → `./.next/dev/types`) and `next build`
+    writes it back. It shows up in `git status` as an unrelated modification — `git checkout
+    next-env.d.ts` after the browser round, and check `git status` again after `build`.
+  - The dev register's active numbers are 1, 2, 6–18, so the lowest free number is 3 and `quotaN = 2`
+    is the smallest change that makes the register full.
 ---
 
-## 2026-07-31 22:20 - US-002 (US-19.2 + US-19.3) — the archive search folds away
-
-- `src/app/kunden/neu/archive-search-panel.tsx`: `<details open>` -> `<details>`. The comment above
-  it now carries the argument for the fold and names the mitigation (the summary asks the question)
-  instead of explaining why the panel could not yet close.
-- `tests/e2e/reregistration.spec.ts`: `searchArchive` clicks `getByTestId("archive-search-open")`
-  and waits for `#archiveLastName` to be visible before filling. A real click, not
-  `evaluate(d => d.open = true)`. The only spec file touched; the whole suite stayed green
-  (90 passed, 1 pre-existing skip).
-- No dictionary, domain, application, infrastructure or schema change.
-
-- **Measured** on a production build at 1440x900, demo register, free-slot banner on screen:
-  - closed archive card **160px -> 78px** (target <= 90) — met.
-  - top of `#firstName` **630px -> 548px** (target <= 470) — **missed, and the target is
-    unreachable as written.** 470 is 630 - 160, i.e. it assumes the card takes zero height once
-    closed; the same story's other criterion requires a closed card of up to 90px. 78px is what a
-    `CardHeader` of title + question measures. What is left above `#firstName`: page header 92px,
-    free-slot banner 146px (explicit non-goal to touch), form's own section header 80px. The form
-    now starts at 468px. Only deleting the panel would reach 470, which is a non-goal.
-  - `scrollWidth - clientWidth` = 0 at 1920, 1280, 1024, 800 and 390. 0 console messages.
-  - Opened by clicking the summary: the three criteria and `Suchen` appear, a search for an
-    archived surname keeps the criteria, keeps the panel open and renders the match row
-    (`archive-match-name` / `-household-size` / `-reason` / `-former-number`, reason still
-    `white-space: pre-line`); a miss renders `archive-search-empty`.
-
+## 2026-07-31 09:50 - US-003 (US-18.3) — the free-slot banner moves to /kunden/neu
+- `FreeSlotBanner` is gone from src/app/kunden/page.tsx: import and render both. /kunden renders no
+  `waiting-list-free-slot` element in any state. The `listWaiting` and `proposeRegistration` calls
+  stay exactly where they were — the badge from US-001/US-002 needs both — and the
+  `NoSettingsInForce` catch around the proposal is untouched.
+- With the banner gone the hub no longer needs the *head* of the queue, only whether there is one, so
+  `const [head] = places` became `const anybodyWaiting = places.length > 0`. /kunden now names nobody,
+  which is the whole point of the story; the binding said otherwise.
+- src/app/kunden/neu/page.tsx awaits `proposeRegistration` and `listWaiting` **concurrently** in one
+  `Promise.all`, inside the existing `try` so the `NoSettingsInForce` branch still covers the screen,
+  and renders the banner between the header and `RegistrationScreen` when somebody is waiting AND
+  `proposal.customerNumber !== null`, with `showListLink` (the list is not on view here).
+  `waitingListDeps` and `FreeSlotBanner` are imported across route folders, the move /kunden already
+  made. `FreeSlotBanner` itself is unmodified, and it gates nothing — the form renders in full below.
+- Files changed: src/app/kunden/page.tsx, src/app/kunden/neu/page.tsx,
+  docs/technical_documentation.md, scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- Checks: lint, typecheck, format:check, `test:coverage` (44 files, 912 tests) and `build` all green.
+  The e2e suite is deliberately NOT green yet: the assertion that reads the banner on /kunden is
+  US-004's to re-point, and the PRD prescribes this order so /kunden is never left without any
+  waiting-list signal.
+- Browser verification (playwright-cli, accessibility snapshot):
+  - 3 waiting + number 3 free → on /kunden/neu the banner stands below the intro and above „Im Archiv
+    suchen“: heading „Ein Platz ist frei“, „Kundennummer 3 ist frei. Am längsten wartet Mayra
+    Koszewski.“, `link "Jetzt registrieren" → /warteliste/10/registrieren`, `link "Warteliste öffnen"`.
+  - waiting list emptied → no banner, and both forms (archive search + registration) still render.
+  - quota lowered to 2 so the register was full → no banner, and the form says it itself: „Alle 2
+    Kundennummern sind vergeben.“
+  - /kunden in every state: `waiting-list-free-slot` count 0, badge still
+    `link "Warteliste 3 Wartende · Platz frei"`.
+  - /warteliste untouched: banner present, same detail sentence, still no list link (`showListLink`
+    is false there, because the list *is* on view).
+  - The dev database was restored: quotaN 240, `removedOn` NULL on entries 10, 11, 12.
 - **Learnings for future iterations:**
-  - **`pkill -f "next-server"` from the Bash tool kills the tool's own shell** — the pattern matches
-    the shell's own command line, and the call comes back as exit 144 with everything after it
-    unrun. The `[n]ext-server` bracket trick is not optional here, it is the difference between
-    killing the server and killing yourself.
-  - A `<details>` that a client component re-renders (a `useActionState` submit, a result list
-    appearing) stays open: the DOM keeps `open` as long as the element is not REMOUNTED. On
-    `/kunden/neu` the `key` remount is on the registration form, not on the panel, so a search and a
-    pre-fill both leave the panel open. Check for a `key` on the panel's own element before assuming
-    a disclosure survives an action.
-  - A height budget in a PRD is worth re-deriving before trusting it: this one subtracted the
-    element's WHOLE height for a fold that leaves its header on screen, so two criteria in one story
-    contradicted each other. Measure the stack (header / banner / card / form header) rather than
-    only the target element — the breakdown is what shows which criterion was miscomputed.
-  - Mobile widths measure differently and are not what these criteria are about: at 390px the closed
-    card is 98px because the question wraps to two lines. The stated viewport is part of the number.
-
+  - The banner's conditions are stated twice in the codebase now (here and on /warteliste) but read
+    the head the same way — `listWaiting`'s first place, never re-sorted. That is what stops two
+    screens naming two different applicants, and it is worth re-checking in review rather than
+    trusting the comment.
+  - Docs edits on a move are three-place edits, and `docs/technical_documentation.md` hides U+00A0
+    characters mid-sentence that break a heredoc patch. Both are in Codebase Patterns above.
 ---
 
-## 2026-07-31 22:55 - US-003 (US-19 documentation) — the fold is written down
-
-- `docs/ui_redesign_kunden_neu.md` §12: "The archive search is `<details open>`, not closed" becomes
-  "The archive search is a closed `<details>`", naming `tests/e2e/reregistration.spec.ts` and its
-  click on `archive-search-open` as the spec edit that made it possible, and correcting the old
-  claim that three specs stood in the way — only that one fills the panel; `archive.spec.ts` and
-  `card.spec.ts` reach `#group-RED`, and the group radios were never folded.
-- §12 gained a second numbers table for US-19 (top of `#firstName` 752 -> 630 -> 548 against a
-  <= 470 target; archive card 270 -> 160 -> 78 against <= 90) with the stack breakdown that shows
-  why the two targets contradict each other, and the 390px caveat.
-- §4.2b is answered, not deleted: the heading keeps "and stays open" with a superseded marker, and a
-  blockquote below states that the risk it names (a control that must be opened is one that will be
-  forgotten, which is the whole of US-11) still stands and that the mitigation is the question in
-  the summary — one line of prompt, with auto-opening as the next step if a household is missed.
-- `docs/ui_conversion_guide.md`: the finding is now "cannot be closed by default **until the spec
-  opens it**", with the two rules that make such an edit honest — a real click on a `<summary>` that
-  has its own testid, never `evaluate(d => d.open = true)`; and check for a `key` on the panel
-  before assuming one click per page load is enough.
-- `docs/technical_documentation.md`: the `archive-search-panel.tsx` bullet said everything about the
-  panel except that it is now closed by default and how a spec reaches it. Added.
-- No source file and no spec file changed. `format:check`, `typecheck` and `lint` pass.
-
+## 2026-07-31 - US-004 (US-18.4: e2e follows the signals to their new screens)
+- Re-pointed and extended the Playwright suite so the move US-001..US-003 made is a contract:
+  - tests/e2e/waiting-list.spec.ts (isolated project):
+    - "archiving a household frees a number ..." - the `waiting-list-free-slot-detail` assertion that
+      stood on /kunden now stands on /kunden/neu, same expected text (`de.waitingList.banner.names`),
+      with `proposed-number` = the freed number asserted beside it: the banner is on screen *and* the
+      form is proposing the number, which is what "it states a fact and gates nothing" means.
+    - Same test: /kunden asserted to hold ZERO `waiting-list-free-slot` elements, and to carry the
+      badge instead - `waitingListBadge(2, true)`, `data-free-slot="true"`.
+    - "two applicants join the list ..." - the register is still full there, so it is the only place
+      where somebody waits and nothing is free: `waitingListBadge(2, false)`, `data-free-slot="false"`.
+  - tests/e2e/customer-list.spec.ts (shared project):
+    - New test "das Warteliste-Badge zaehlt die Wartenden und meldet einen freien Platz in Worten":
+      the empty list first ("niemand wartet", rendered rather than hidden, `data-free-slot="false"`),
+      then two applicants seeded straight through Prisma under an invented surname (Wartenbrink) ->
+      `waitingListBadge(2, true)`, `data-free-slot="true"`, the badge naming neither applicant, no
+      banner anywhere on the hub, and a click on the BADGE landing on /warteliste with both rows on
+      it (which is how "the number is part of the link" is asserted rather than assumed).
+    - `afterAll` deletes those applicants beside the existing pinned-clock cleanup.
+  - tests/e2e/home.spec.ts untouched, as the PRD requires; the three-actions test untouched and green.
+- Files changed: tests/e2e/waiting-list.spec.ts, tests/e2e/customer-list.spec.ts,
+  docs/technical_documentation.md (both spec descriptions), scripts/ralph/prd.json, this log.
+- Checks: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (44 files, 912 tests, domain
+  and application still 100%), `npm run build`, and the full Playwright suite - 87 passed, 1 skipped
+  (the pre-existing settings skip).
 - **Learnings for future iterations:**
-  - A superseded argument in a design document is worth more answered than deleted: §4.2b is the
-    only record of what the fold risks, and US-19's mitigation is only legible next to it. Mark the
-    stale headline claim in place and put the answer underneath — deleting it would make the next
-    reader re-derive the decision from nothing.
-  - A doc that records "why this could not be done" ages into a false claim the moment it is done.
-    §12 asserted that THREE specs blocked the fold; only one did. When closing out such a note,
-    re-grep the ids it names rather than inverting the sentence.
-  - `docs/technical_documentation.md` is the third document a UI decision has to reach — the two
-    redesign/guide documents are the ones a PRD names, but the per-file bullets in §"app" are what a
-    developer reads first, and a default state (open/closed, persisted or not) belongs there.
-
+  - The two-project split is a *test-design* constraint, not only an infrastructure detail: a state
+    that needs a full register can only be proved in `waiting-list.spec.ts`, and a state that needs a
+    register with room only on the shared one. Splitting the states across the two specs is far
+    cheaper than moving a spec into the isolated project (a second Next server for the whole run).
+  - A leftover next-server adopted by `reuseExistingServer` serves the OLD build - `pkill -f
+    "next-server"` (exit 144 means it killed something) before running the suite after a build. The
+    previous iteration's browser verification leaves one behind.
+  - Seeding a waiting-list entry through Prisma needs `contactNote` stated explicitly as `null` (the
+    column is nullable and the adapter translates it to `""`), and `addedOn` before the spec's pinned
+    today, or the applicant is "waiting" from the future.
+  - A spec that seeds a relation-free table cleans up with its own `deleteMany` keyed on an invented
+    surname - `clearRegister` is for the register alone. Do it in `afterAll` rather than at the end of
+    the test: in serial mode a mid-test failure would otherwise leak rows into the next run's
+    zero-state assertion.
+  - `de.customerList.actions.waitingListBadge(count, freeSlot)` takes BOTH arguments, so a spec
+    calling it with one does not compile - the word and the tint cannot drift apart in a test either.
 ---
