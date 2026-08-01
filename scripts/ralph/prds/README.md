@@ -5,8 +5,8 @@ number). Each file is a complete, self-contained Ralph run: its own `branchName`
 starting at `US-001`, its own priorities `1..n`.
 
 [`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
-it. It currently holds **batch 19**. `done/` holds the finished copy of each batch that has run —
-the same file with every story's `passes` flipped to `true`.
+it. It currently holds **batch 20**, the last one. `done/` holds the finished copy of each batch that
+has run — the same file with every story's `passes` flipped to `true`.
 
 ## Workflow
 
@@ -33,8 +33,8 @@ copies in is whatever the file holds at that moment, which by then is the batch 
 and it has to be written by hand, before the `cp`:
 
 ```bash
-cp scripts/ralph/prd.json scripts/ralph/prds/done/18-us-18-waiting-list-signals.json
-cp scripts/ralph/prds/19-us-19-fold-archive-search.json scripts/ralph/prd.json
+cp scripts/ralph/prd.json scripts/ralph/prds/done/19-us-19-fold-archive-search.json
+cp scripts/ralph/prds/20-us-20-fold-group-choice.json scripts/ralph/prd.json
 ```
 
 Leave `.last-branch` alone while you do it: it still names the finished batch, which is exactly what
