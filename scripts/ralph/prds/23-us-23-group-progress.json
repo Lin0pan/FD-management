@@ -1,0 +1,120 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-23-group-progress",
+  "description": "US-23 How far through the group we are, and who is still missing — /ausgabe states 'Gruppe Rot: 34 von 61 Haushalten abgeholt' as one line and folds the group's list behind it. Opening the list shows every household of today's group in customer-number order with the served ones marked; clicking a name looks that household up, which is the same act as typing their number. Everything is DERIVED from today's distribution records on every read — no stored counter, no schema change and no migration. The ONE new port method is DistributionRecordRepository.listForDay. Requires batch 22 (US-21) to be MERGED first: this batch EXTENDS src/application/distribution/read-group-roster.ts and edits the same screen. Source: tasks/prd-us-23-group-progress.md",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "groupProgress — how many of a roster collected today (domain)",
+      "description": "As a developer, I want one pure rule for the tally, so the number in the summary and the marks in the list can never tell different stories. Source: tasks/prd-us-23-group-progress.md §US-023.1",
+      "acceptanceCriteria": [
+        "New module src/domain/distribution/groupProgress.ts exporting groupProgress(entries: ReadonlyArray<ProgressEntry>): Progress, with ProgressEntry = { readonly blocked: boolean; readonly servedToday: boolean } and Progress = { readonly served: number; readonly expected: number }",
+        "served counts every entry with servedToday",
+        "expected counts every entry that is NOT blocked, PLUS every blocked entry that has servedToday. A blocked household cannot collect (US-08), so counting it in the denominator would put the tally permanently out of reach; but a household blocked AFTER they collected this morning did collect, and dropping them from the denominator alone would make served exceed expected",
+        "The invariant served <= expected holds for every combination of the two flags, with a NAMED test that says so",
+        "An empty roster gives { served: 0, expected: 0 }",
+        "STRICT TDD: the invariant-breaking test is written FIRST, red before green. Named tests: nobody served; everybody served; a blocked household is not expected; a blocked household who was served counts in both; the invariant across all four flag combinations",
+        "The module is pure: no I/O, no Date, no import from Next.js, React or Prisma",
+        "Domain coverage stays at 100%: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "listForDay — every hand-out written on one Berlin day (ports + infrastructure)",
+      "description": "As a developer, I want the day's records in one query, because the roster is ~120 households and one query per household would make the counter's main screen the slowest in the app. Source: tasks/prd-us-23-group-progress.md §US-023.2",
+      "acceptanceCriteria": [
+        "DistributionRecordRepository in src/application/ports.ts gains listForDay(dayKey: string): Promise<ReadonlyArray<DistributionRecord>>, documented in the file's voice",
+        "The parameter is a BERLIN day key as berlinDayKey writes it (YYYY-MM-DD) — the same notion of 'the same day' the once-per-day rule and the unique constraint already use. The adapter must NOT re-derive a day from an instant",
+        "The adapter in src/infrastructure/prisma/distribution-record-repository.ts implements it as a SINGLE findMany({ where: { dayKey } }), mapped through the existing toRecord, so the dayKey column still never leaves the adapter",
+        "Thin integration test against a throwaway SQLite file, following the patterns already in distribution-record-repository.test.ts: records on the asked-for day are returned; records on the day before and the day after are not; an empty day returns []",
+        "NO schema change and NO migration. The table has no index on dayKey alone and does not need one at roughly 240 rows a week — adding one is a decision for the day a measurement asks for it",
+        "The existing listForCustomer, findById, create, setPaid and remove are untouched",
+        "Test data is synthetic (Faker); no real names",
+        "Typecheck passes",
+        "Lint passes",
+        "npm run test:coverage passes (domain and application stay at 100%)"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "The roster carries who they are and whether they collected (application)",
+      "description": "As a staff member, I want one read to answer who is in today's group and which of them have been served, so the screen shows one consistent picture of the afternoon. Source: tasks/prd-us-23-group-progress.md §US-023.3",
+      "acceptanceCriteria": [
+        "readGroupRoster in src/application/distribution/read-group-roster.ts is EXTENDED — not replaced, not renamed, not copied into a second use case. GroupRosterView gains members and progress",
+        "members is ReadonlyArray<GroupRosterMember> with { customerId, customerNumber, firstName, lastName, blocked, servedToday }, in the order the repository answered — lowest customer number first. Nothing here re-sorts it",
+        "servedToday is true when the day's records hold one for that customer, read through ONE call to listForDay(berlinDayKey(deps.clock.now())) and joined by customerId in memory. NEVER one query per member",
+        "The join is by customerId, the surrogate id — never by the customer number, which is a reusable slot attribute",
+        "progress is groupProgress(members) from US-001 — the tally is not counted a second time here",
+        "previous, next, group and isEmpty keep the meanings US-21 gave them, and US-21's existing tests keep passing UNCHANGED",
+        "The use case still WRITES NOTHING: no audit entry, no status change, no record",
+        "TDD against HAND-WRITTEN FAKES. Named tests: a member with a record today is served; a member with a record from yesterday is not; a member with no record is not; the day compared is the BERLIN day, tested at 23:30 Berlin on a day whose UTC date is already the next one; a blocked member appears in members and not in expected; records belonging to customers of the OTHER group are ignored",
+        "Time comes from the Clock port — no zero-argument new Date()",
+        "Application coverage stays at 100%: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "The tally, and the group list behind it (presentation)",
+      "description": "As a staff member, I want to see how far through the group we are, and to open the list to find who is still missing and call them up. Source: tasks/prd-us-23-group-progress.md §US-023.4",
+      "acceptanceCriteria": [
+        "/ausgabe renders a Card BETWEEN the banner and the counter card, holding a <details>/<summary> disclosure that renders CLOSED",
+        "The summary is ONE line naming the group in words, the number served and the total, with data-testid=\"group-progress\" on the element holding exactly that sentence — the two figures stay in ONE node so a screen reader does not announce them as unrelated fragments",
+        "Closed, the card is <= 80px tall measured at 1440x900. It sits above the counter, so every pixel it takes is a pixel the verdict loses — put the measured number in the commit message",
+        "Opening it reveals the group's households in customer-number order, each row carrying the customer number, the household's name, and — when served — the word 'abgeholt' in a <span data-testid=\"served-<customerNumber>\">",
+        "The served mark is a WORD. Any icon beside it (lucide Check) is aria-hidden. A tick alone is chrome, and chrome never travels without the word (US-03.4, ui_conversion_guide rule 9)",
+        "ONLY the served rows are marked. The unserved are the default state and get the name and nothing else — 'chrome marks the exception', docs/ui_conversion_guide.md",
+        "A blocked household's row says 'gesperrt', rendered the way /kunden already says it (the StateWord pattern in src/app/kunden/page.tsx) rather than with a new treatment. Do NOT paint the rows with the group tint — the banner directly above already carries it",
+        "Each row's name is a <Link href=\"/ausgabe?nummer=<customerNumber>\">, so clicking it looks that household up on this screen exactly as typing the number would, and the disclosure comes back CLOSED on the new page load",
+        "The list scrolls inside its own container (max-h-* plus overflow-y-auto) rather than pushing the counter down the page",
+        "The list is laid out in columns at wide widths (e.g. sm:grid-cols-2 lg:grid-cols-3) so a group of ~120 is scannable, and stacks below sm",
+        "An empty group states so in words instead of rendering an empty disclosure",
+        "Every German string is a new key under de.distribution.progress in src/i18n/de.ts — no German literal in the component",
+        "The page stays a SERVER component and the disclosure stays <details>: NOT Dialog and NOT client state. At the counter the queue is waiting, so nothing may have to be dismissed before the next customer is served (ui_conversion_guide rule 4)",
+        "document.documentElement.scrollWidth - clientWidth is 0 at 1920, 1280, 1024, 800 and 390",
+        "Customer numbers use tabular-nums so the column of numbers reads as a column",
+        "Typecheck passes",
+        "Lint passes",
+        "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first)",
+        "Verify in browser using the playwright-cli skill against a PRODUCTION build, reading the ACCESSIBILITY SNAPSHOT: the summary is announced as one full sentence, each row's link is named with the number and the name, and each served row announces the word"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "E2E — the tally moves when a household is served",
+      "description": "As a developer, I want the tally and the marks proved against the built app, because their value is that they agree with what just happened at the counter. Source: tasks/prd-us-23-group-progress.md §US-023.5",
+      "acceptanceCriteria": [
+        "New spec tests/e2e/group-progress.spec.ts, serial, pinning the clock to the RED distribution day 2026-01-08 through the FD_FIXED_NOW_FILE seam and deleting the file in afterAll, as distribution.spec.ts does",
+        "Seeds its OWN RED households through Prisma with synthetic data (Faker, fixed seed), in a high otherwise unused customer-number band, including one BLOCKED household",
+        "Reads the expected served/expected figures FROM THE DATABASE rather than hard-coding them — the shared register is written by other specs, so a literal would be a flake waiting to happen",
+        "Asserts group-progress states the group in words and both figures",
+        "Asserts serving one of the seeded households THROUGH THE UI raises served by exactly one on the next load, and that household's row then carries served-<number> while an unserved one has no such element",
+        "Asserts the blocked household appears in the list, is marked 'gesperrt', and is NOT counted in expected",
+        "Asserts clicking a name in the list produces that household's verdict banner on /ausgabe",
+        "Asserts opening and closing the disclosure records nothing: a database snapshot before and after is identical",
+        "No other spec file is modified",
+        "Typecheck passes",
+        "Lint passes",
+        "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first)"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
