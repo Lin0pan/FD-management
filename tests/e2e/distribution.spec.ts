@@ -22,6 +22,11 @@ import { de } from "@/i18n/de";
  * were deleted with it (tasks/prd-us-22-drop-week-colour-lookup.md). What is left of them is the
  * last spec below, which pins down that the parameter they used is ignored rather than refused.
  *
+ * The banner **names the group only on a distribution day**: `week-colour-group` is present and
+ * painted on the Thursdays below and absent on the Tuesday, where the group appears solely inside
+ * the "nächste Ausgabe" sentence that also carries its date. That absence is the assertion worth
+ * having — a group named on a day nobody can collect is what this change removed.
+ *
  * These specs only read, so they leave the shared database exactly as they found it. They do
  * restore the clock in `afterAll` — a pinned today would otherwise make the settings specs, which
  * save a version stamped *now*, assert against January.
@@ -52,7 +57,7 @@ test.describe("Ausgabe", () => {
       de.distribution.group(de.distribution.colours.RED),
     );
     await expect(banner).toContainText("08.01.2026");
-    await expect(banner).toContainText(de.distribution.banner.week("2026-W02"));
+    await expect(banner).toContainText(de.distribution.banner.week("02"));
     // A distribution day states no "next" — today is it.
     await expect(page.getByTestId("next-distribution")).toHaveCount(0);
   });
@@ -66,7 +71,7 @@ test.describe("Ausgabe", () => {
     await expect(page.getByTestId("week-colour-group")).toHaveText(
       de.distribution.group(de.distribution.colours.BLUE),
     );
-    await expect(banner).toContainText(de.distribution.banner.week("2026-W03"));
+    await expect(banner).toContainText(de.distribution.banner.week("03"));
   });
 
   test("states the next distribution on a weekday without one", async ({ page }) => {
@@ -79,11 +84,11 @@ test.describe("Ausgabe", () => {
     await expect(page.getByTestId("next-distribution")).toHaveText(
       de.distribution.banner.next("15.01.2026", de.distribution.colours.BLUE),
     );
-    // The banner names the colour of the distribution it announces, not of the day it is read on —
-    // here they agree, because the next distribution falls in the same week.
-    await expect(page.getByTestId("week-colour-group")).toHaveText(
-      de.distribution.group(de.distribution.colours.BLUE),
-    );
+    await expect(banner).toContainText("13.01.2026");
+    await expect(banner).toContainText(de.distribution.banner.week("03"));
+    // No group headline on a day nobody collects: the sentence above is the only place the group is
+    // named, and it names the date it belongs to in the same breath.
+    await expect(page.getByTestId("week-colour-group")).toHaveCount(0);
   });
 
   test("ignores a ?datum= left over from the retired lookup", async ({ page }) => {

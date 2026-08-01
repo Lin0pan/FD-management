@@ -803,7 +803,12 @@ export const de = {
       isDistributionDay: "Heute ist Ausgabe",
       noDistributionDay: "Heute ist keine Ausgabe",
       next: (date: string, colour: string): string => `Nächste Ausgabe: ${date}, Gruppe ${colour}`,
-      week: (isoWeek: string): string => `Kalenderwoche ${isoWeek}`,
+      /**
+       * The week number alone — `KW 02`, not `Kalenderwoche 2026-W02`. The banner prints this beside
+       * the date, which already carries the year, and staff check it against a wall calendar that
+       * prints two digits. The argument is the number (`isoWeekNumber`), not the ISO string.
+       */
+      week: (week: string): string => `KW ${week}`,
     },
     /**
      * The counter lookup — the most-read text in the product. Every verdict is stated as a full

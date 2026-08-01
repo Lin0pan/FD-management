@@ -1,10 +1,12 @@
 /**
  * The distribution screen — the counter.
  *
- * Two questions are answered here, both unmissably. Which group collects today: stated in words
- * *and* painted, never painted alone, because staff read it across a shared screen in variable
- * lighting (tasks/prd-us-03-week-colour.md §US-03.4). And: may *this* person collect, for the number
- * a staff member just typed (tasks/prd-us-04-lookup-customer.md §US-04.4).
+ * Two questions are answered here. Which group collects today — stated in words *and* painted, never
+ * painted alone, because staff read it across a shared screen in variable lighting
+ * (tasks/prd-us-03-week-colour.md §US-03.4), and only on a distribution day, because on the four
+ * days out of five that are not one there is no group to collect. And: may *this* person collect,
+ * for the number a staff member just typed (tasks/prd-us-04-lookup-customer.md §US-04.4) — the one
+ * question that is unmissable every day.
  *
  * Nothing is computed here. `getWeekColour` and `lookupCustomer` answer; this page lays the answers
  * out. Both are reads — turning someone away records nothing (FR-4) — so a plain GET form carries
@@ -34,7 +36,7 @@ import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { DomainError } from "@/domain/errors";
 import type { WeekColour } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
-import { germanDate, germanTime } from "@/i18n/format";
+import { germanDate, germanTime, isoWeekNumber } from "@/i18n/format";
 import { ArchiveControls } from "../kunden/archive-controls";
 import { BlockControls } from "../kunden/block-controls";
 import { CertificateControls } from "./certificate-controls";
@@ -80,42 +82,55 @@ function colourName(colour: WeekColour): string {
 }
 
 /**
- * The dominant element: what today means for the counter.
+ * What today means for the counter — compact, and loud only on the day it can be acted on.
  *
- * The banner is painted in the colour it *names* — on a day without a distribution that is the next
- * distribution's colour, which need not be the current week's.
+ * The group is named and painted on a distribution day and on no other. It used to be the loudest
+ * thing on the screen every day of the week, which said "Gruppe Rot" to staff who cannot serve
+ * anybody today and pushed the number field — the reason this screen exists — down the page. Off-day
+ * the group still appears, but only inside the sentence that also names the *date* it belongs to, so
+ * neither a word nor a paint can be read as "the group collecting now".
+ *
+ * Both arms take their colour and date from `view.nextDistribution`, never `view.colour`: after a
+ * Thursday distribution the current week is still Rot while the next distribution is already Blau,
+ * and only the second answers the question this screen is read for. FR-7 holds on both — the group
+ * is written out in words either way, and the paint only repeats what the words already say.
  */
 function Banner({ view }: { view: WeekColourView }): React.ReactElement {
-  const colour = view.nextDistribution.colour;
+  const { date, colour } = view.nextDistribution;
+  const meta = `${germanDate(view.date)} · ${de.distribution.banner.week(isoWeekNumber(view.isoWeek))}`;
 
-  return (
-    <section
-      data-testid="week-colour-banner"
-      className={`flex flex-col gap-2 rounded-2xl p-8 ring-1 ring-black/10 md:p-10 ${COLOUR_STYLES[colour]}`}
-    >
-      <p className="text-xl font-medium text-white/90 md:text-2xl">
-        {view.isDistributionDay
-          ? de.distribution.banner.isDistributionDay
-          : de.distribution.banner.noDistributionDay}
-      </p>
-      <p data-testid="week-colour-group" className="text-6xl font-bold tracking-tight sm:text-7xl">
-        {colourName(colour)}
-      </p>
-      {view.isDistributionDay ? null : (
-        <p
-          data-testid="next-distribution"
-          className="text-xl font-medium text-white/90 md:text-2xl"
-        >
-          {de.distribution.banner.next(
-            germanDate(view.nextDistribution.date),
-            de.distribution.colours[colour],
-          )}
+  if (view.isDistributionDay) {
+    return (
+      <section
+        data-testid="week-colour-banner"
+        className={`flex flex-col gap-1 rounded-2xl p-5 ring-1 ring-black/10 md:p-6 ${COLOUR_STYLES[colour]}`}
+      >
+        <p className="text-base font-medium text-white/90">
+          {de.distribution.banner.isDistributionDay}
         </p>
-      )}
-      <p className="text-base text-white/80 md:text-lg">
-        {germanDate(view.date)} · {de.distribution.banner.week(view.isoWeek)}
-      </p>
-    </section>
+        <p data-testid="week-colour-group" className="text-3xl font-bold tracking-tight">
+          {colourName(colour)}
+        </p>
+        <p className="text-sm text-white/80">{meta}</p>
+      </section>
+    );
+  }
+
+  // No paint at all on a day without a distribution: there is no group to act on, so a red or blue
+  // card would be the one misleading thing this screen could show. `Card`'s own neutral ring is the
+  // border, as it is for the unconfigured panel on the Start screen.
+  return (
+    <Card data-testid="week-colour-banner">
+      {/* `text-base` against the `Card`'s own 14px: this is read at a glance from standing, not from
+          a chair like the admin tables the default is tuned for. */}
+      <CardContent className="flex flex-col gap-1">
+        <p className="text-base font-medium">{de.distribution.banner.noDistributionDay}</p>
+        <p data-testid="next-distribution" className="text-base">
+          {de.distribution.banner.next(germanDate(date), de.distribution.colours[colour])}
+        </p>
+        <p className="text-sm text-muted-foreground">{meta}</p>
+      </CardContent>
+    </Card>
   );
 }
 
