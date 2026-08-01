@@ -378,7 +378,22 @@ focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:b
   fold that silently stopped opening has to turn the suite red — and check whether the panel sits
   under a `key`, because a `<details>` keeps `open` through any re-render and only a remount closes
   it, so one click per page load is enough (on `/kunden/neu` the `key` is on the registration form,
-  not the panel). The hand-out history, which no spec reaches, was closed from the start.
+  not the panel). The group choice beside it followed in **US-20**, and it cost three spec files
+  rather than one — `archive.spec.ts`, `card.spec.ts` and `reregistration.spec.ts` all `check()` a
+  radio by CSS id, and each now clicks `getByTestId("group-choice-open")` first. **Both disclosures
+  on `/kunden/neu` are now closed by default**, neither state is persisted, and both are opened in
+  the specs by a real click on a summary that carries its own testid. `customer-record.spec.ts` was
+  deliberately left alone: its `group-RED` is a different control on `/kunden/[id]`, which stays
+  unfolded because there the choice is why the card was opened. The hand-out history, which no spec
+  reaches, was closed from the start.
+- **A fold only shortens a card if the folded control is what sets its height.** A card whose content
+  is a `flex flex-wrap` row is as tall as its tallest child, so collapsing a shorter sibling changes
+  nothing: US-20 folded the group column on `/kunden/neu` from 120px to 56px and the `Zuordnung` card
+  stayed at 220px, because a `Stat` tile in the same row is 81px and the card's own padding and
+  footer are the rest. `card.getBoundingClientRect().height` cannot tell you that — walk the header,
+  the content, the row and each of its children in one `eval` and compare, _before_ writing a height
+  budget into a PRD. Measuring the "before" of something already committed is cheap:
+  `git checkout HEAD~1 -- <files>`, build, measure, `git checkout HEAD -- <files>`.
 - **A restyle that tidies `Feld: Wert` into `Feld Wert` breaks the sweeps.** Four specs assert
   `getByRole("main")` `toContainText("Kundennummer: 1")`. The record's new identity line dropped the
   colon for a cleaner line and turned all four red — a failure that names no testid and points at
