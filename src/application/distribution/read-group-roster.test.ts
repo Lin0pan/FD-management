@@ -1,0 +1,404 @@
+import { faker } from "@faker-js/faker";
+import { beforeEach, describe, expect, it } from "vitest";
+import type {
+  CustomerDetails,
+  CustomerStatus,
+  HouseholdMemberDetails,
+  NewCustomer,
+  RegisteredCustomer,
+} from "@/domain/customer/customer";
+import type { Group, GroupCounts } from "@/domain/customer/group";
+import { composition } from "@/domain/customer/householdComposition";
+import { NoSettingsInForce } from "@/domain/errors";
+import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
+import type {
+  ArchivedCustomer,
+  Clock,
+  CustomerListQuery,
+  CustomerRepository,
+  SettingsRepository,
+} from "../ports";
+import { readGroupRoster } from "./read-group-roster";
+
+/**
+ * Hand-written fakes and synthetic data only, per the testing standard.
+ *
+ * The dates are the reason the clock is pinned: under the seeded anchor `2026-W02` = RED and a
+ * Thursday distribution weekday, Thursday 8 January 2026 is a RED distribution day, and Friday
+ * 9 January stands in a RED week whose *next* distribution is the BLUE one of the week after.
+ */
+
+faker.seed(20260801);
+
+const RED_DISTRIBUTION_DAY = "2026-01-08T09:00:00.000Z";
+const DAY_AFTER_A_RED_DISTRIBUTION = "2026-01-09T09:00:00.000Z";
+
+const GROWN_UP = "1985-03-11T00:00:00.000Z";
+
+function fakeClock(iso: string): Clock {
+  return { now: () => new Date(iso) };
+}
+
+class FakeSettingsRepository implements SettingsRepository {
+  readonly versions: SettingsVersion[] = [];
+  appended = 0;
+
+  constructor(...versions: SettingsVersion[]) {
+    this.versions.push(...versions);
+  }
+
+  listVersions(): Promise<SettingsVersion[]> {
+    return Promise.resolve([...this.versions]);
+  }
+
+  append(version: SettingsVersion): Promise<void> {
+    this.appended += 1;
+    this.versions.push(version);
+    return Promise.resolve();
+  }
+}
+
+/**
+ * A register that answers `list` the way the adapter is documented to: the status and group applied
+ * as filters, and the result ordered by ascending customer number.
+ *
+ * `writes` counts every mutating call, so a test can prove the walk changed nothing.
+ */
+class FakeCustomerRepository implements CustomerRepository {
+  readonly holders: RegisteredCustomer[] = [];
+  writes = 0;
+  /** The last query the use case built — what the roster's translation of the day is asserted against. */
+  lastQuery: CustomerListQuery | null = null;
+
+  list(query: CustomerListQuery): Promise<ReadonlyArray<RegisteredCustomer>> {
+    this.lastQuery = query;
+    const matches = this.holders.filter(
+      (customer) =>
+        query.statuses.includes(customer.status) &&
+        (query.group === undefined || customer.group === query.group),
+    );
+    return Promise.resolve([...matches].sort((a, b) => a.customerNumber - b.customerNumber));
+  }
+
+  groupCounts(): Promise<GroupCounts> {
+    const active = this.holders.filter((customer) => customer.status !== "ARCHIVED");
+    return Promise.resolve({
+      red: active.filter((customer) => customer.group === "RED").length,
+      blue: active.filter((customer) => customer.group === "BLUE").length,
+    });
+  }
+
+  listWithStatus(status: CustomerStatus): Promise<ReadonlyArray<RegisteredCustomer>> {
+    return Promise.resolve(this.holders.filter((customer) => customer.status === status));
+  }
+
+  findById(id: number): Promise<RegisteredCustomer | null> {
+    return Promise.resolve(this.holders.find((customer) => customer.id === id) ?? null);
+  }
+
+  findByCustomerNumber(customerNumber: number): Promise<RegisteredCustomer | null> {
+    return Promise.resolve(
+      this.holders.find((customer) => customer.customerNumber === customerNumber) ?? null,
+    );
+  }
+
+  takenActiveNumbers(): Promise<ReadonlyArray<number>> {
+    return Promise.resolve(
+      this.holders
+        .filter((customer) => customer.status !== "ARCHIVED")
+        .map((customer) => customer.customerNumber),
+    );
+  }
+
+  /** The walk never searches the archive (US-11.1); the method is here because the port has it. */
+  searchArchived(): Promise<ReadonlyArray<ArchivedCustomer>> {
+    return Promise.resolve([]);
+  }
+
+  create(customer: NewCustomer): Promise<RegisteredCustomer> {
+    this.writes += 1;
+    const registered = {
+      ...customer,
+      id: this.holders.length + 1,
+      blockReason: null,
+      archiveReason: null,
+      archivedAt: null,
+      registeredOn: customer.card.issuedAt,
+    };
+    this.holders.push(registered);
+    return Promise.resolve(registered);
+  }
+
+  /**
+   * The walk edits nothing; the mutating methods are here because the port has them, and each counts
+   * as a write so that a test can state that none of them was reached.
+   */
+  updateHousehold(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
+  updateDetails(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
+  updateNotes(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
+  setGroup(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
+  setStatus(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+
+  archive(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+}
+
+function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
+  return {
+    quotaN: 240,
+    portionsPerGrownUp: 2,
+    portionsPerChild: 1,
+    // 2026-W02 is 5–11 January 2026; Thursday of that week is 8 January 2026.
+    weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
+    distributionWeekday: 4,
+    pricePerGrownUp: 200,
+    pricePerChild: 100,
+    ...overrides,
+  };
+}
+
+function version(): SettingsVersion {
+  return {
+    recordedAt: new Date("2026-01-01T00:00:00.000Z"),
+    settings: createSettings(settingsInput()),
+  };
+}
+
+function member(birthDate: string): HouseholdMemberDetails {
+  return {
+    firstName: faker.person.firstName(),
+    lastName: faker.person.lastName(),
+    birthDate: new Date(birthDate),
+  };
+}
+
+interface CustomerOverrides {
+  readonly customerNumber: number;
+  readonly group?: Group;
+  readonly status?: CustomerStatus;
+}
+
+/** A customer as the register already holds them — built directly, so the status is the test's to set. */
+function customerRecord(overrides: CustomerOverrides): RegisteredCustomer {
+  const details: CustomerDetails = {
+    firstName: faker.person.firstName(),
+    lastName: faker.person.lastName(),
+    birthDate: new Date(GROWN_UP),
+    address: { street: "Hauptstraße", houseNumber: "1", zip: "33129", city: "Delbrück" },
+    certificate: { type: "Jobcenter", validUntil: new Date("2027-01-31T00:00:00.000Z") },
+    householdMembers: [member(GROWN_UP)],
+    notes: "",
+  };
+  const status = overrides.status ?? "ACTIVE";
+  const group = overrides.group ?? "RED";
+  return {
+    id: overrides.customerNumber,
+    customerNumber: overrides.customerNumber,
+    group,
+    status,
+    blockReason: status === "BLOCKED" ? "gesperrt" : null,
+    archiveReason: status === "ARCHIVED" ? "archiviert" : null,
+    archivedAt: status === "ARCHIVED" ? new Date(RED_DISTRIBUTION_DAY) : null,
+    reminderCount: 0,
+    card: {
+      index: 1,
+      issuedAt: new Date(RED_DISTRIBUTION_DAY),
+      reason: "FIRST_ISSUE",
+      countsAtIssue: composition(details.householdMembers, new Date(RED_DISTRIBUTION_DAY)),
+      groupAtIssue: group,
+    },
+    registeredOn: new Date(RED_DISTRIBUTION_DAY),
+    previousCustomerId: null,
+    details,
+  };
+}
+
+describe("readGroupRoster", () => {
+  let customers: FakeCustomerRepository;
+  let settings: FakeSettingsRepository;
+
+  function deps(today = RED_DISTRIBUTION_DAY) {
+    return { customers, settings, clock: fakeClock(today) };
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository();
+    settings = new FakeSettingsRepository(version());
+  });
+
+  it("walks today's group on a distribution day", async () => {
+    customers.holders.push(
+      customerRecord({ customerNumber: 10, group: "RED" }),
+      customerRecord({ customerNumber: 20, group: "BLUE" }),
+    );
+
+    const roster = await readGroupRoster(deps(), "");
+
+    expect(roster.group).toBe("RED");
+    expect(roster.next).toBe(10);
+  });
+
+  it("walks the current week's group, not the next distribution's, on a non-distribution day", async () => {
+    customers.holders.push(
+      customerRecord({ customerNumber: 10, group: "RED" }),
+      customerRecord({ customerNumber: 20, group: "BLUE" }),
+    );
+
+    // Friday 9 January 2026 stands in the RED week 2026-W02, and its next distribution is the
+    // Thursday of 2026-W03 — a BLUE one. The walk follows the week it is being read in, which is the
+    // colour the banner badges beside the calendar week.
+    const roster = await readGroupRoster(deps(DAY_AFTER_A_RED_DISTRIBUTION));
+
+    expect(roster.group).toBe("RED");
+    expect(roster.next).toBe(10);
+  });
+
+  it("does not walk archived households", async () => {
+    customers.holders.push(
+      customerRecord({ customerNumber: 10 }),
+      customerRecord({ customerNumber: 20, status: "ARCHIVED" }),
+      customerRecord({ customerNumber: 30 }),
+    );
+
+    const roster = await readGroupRoster(deps(), "10");
+
+    expect(roster.next).toBe(30);
+  });
+
+  it("walks blocked households", async () => {
+    customers.holders.push(
+      customerRecord({ customerNumber: 10 }),
+      customerRecord({ customerNumber: 20, status: "BLOCKED" }),
+      customerRecord({ customerNumber: 30 }),
+    );
+
+    const roster = await readGroupRoster(deps(), "10");
+
+    expect(roster.next).toBe(20);
+  });
+
+  it("asks the register only for the walked group's active and blocked households", async () => {
+    await readGroupRoster(deps(), "10");
+
+    expect(customers.lastQuery).toEqual({ statuses: ["ACTIVE", "BLOCKED"], group: "RED" });
+  });
+
+  it("positions the walk at the customer number a card number names", async () => {
+    customers.holders.push(
+      customerRecord({ customerNumber: 10 }),
+      customerRecord({ customerNumber: 20 }),
+      customerRecord({ customerNumber: 30 }),
+    );
+
+    const roster = await readGroupRoster(deps(), "20k3");
+
+    expect(roster.previous).toBe(10);
+    expect(roster.next).toBe(30);
+  });
+
+  it("positions the walk around a number belonging to the other group", async () => {
+    customers.holders.push(
+      customerRecord({ customerNumber: 10 }),
+      customerRecord({ customerNumber: 30 }),
+      customerRecord({ customerNumber: 20, group: "BLUE" }),
+    );
+
+    const roster = await readGroupRoster(deps(), "20");
+
+    expect(roster.previous).toBe(10);
+    expect(roster.next).toBe(30);
+  });
+
+  it("walks from the start when the query cannot be read as a number", async () => {
+    customers.holders.push(
+      customerRecord({ customerNumber: 10 }),
+      customerRecord({ customerNumber: 20 }),
+    );
+
+    const roster = await readGroupRoster(deps(), "Meier");
+
+    expect(roster.previous).toBeNull();
+    expect(roster.next).toBe(10);
+  });
+
+  it("walks from the start when nothing has been looked up", async () => {
+    customers.holders.push(
+      customerRecord({ customerNumber: 10 }),
+      customerRecord({ customerNumber: 20 }),
+    );
+
+    const roster = await readGroupRoster(deps());
+
+    expect(roster.previous).toBeNull();
+    expect(roster.next).toBe(10);
+  });
+
+  it("reports both ends as walked out at the last number of the group", async () => {
+    customers.holders.push(
+      customerRecord({ customerNumber: 10 }),
+      customerRecord({ customerNumber: 20 }),
+    );
+
+    const roster = await readGroupRoster(deps(), "20");
+
+    expect(roster.previous).toBe(10);
+    expect(roster.next).toBeNull();
+  });
+
+  it("reports a group holding no active or blocked household as empty", async () => {
+    customers.holders.push(
+      customerRecord({ customerNumber: 10, status: "ARCHIVED" }),
+      customerRecord({ customerNumber: 20, group: "BLUE" }),
+    );
+
+    const roster = await readGroupRoster(deps(), "10");
+
+    expect(roster.isEmpty).toBe(true);
+    expect(roster.previous).toBeNull();
+    expect(roster.next).toBeNull();
+  });
+
+  it("reports a group holding one household as not empty", async () => {
+    customers.holders.push(customerRecord({ customerNumber: 10 }));
+
+    const roster = await readGroupRoster(deps());
+
+    expect(roster.isEmpty).toBe(false);
+  });
+
+  it("writes nothing while walking", async () => {
+    customers.holders.push(customerRecord({ customerNumber: 10 }));
+
+    await readGroupRoster(deps(), "10");
+
+    expect(customers.writes).toBe(0);
+    expect(settings.appended).toBe(0);
+  });
+
+  it("refuses to walk before FD has settings in force", async () => {
+    settings = new FakeSettingsRepository();
+
+    await expect(readGroupRoster(deps(), "10")).rejects.toThrow(NoSettingsInForce);
+  });
+});

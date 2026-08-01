@@ -163,6 +163,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── distribution/attendance.test.ts  # its Vitest spec
 │   │   ├── distribution/noShows.ts    # consecutiveNoShows — own distributions missed in a row
 │   │   ├── distribution/noShows.test.ts  # its Vitest spec
+│   │   ├── distribution/groupWalk.ts  # neighbours — the number before and after one (US-21)
+│   │   ├── distribution/groupWalk.test.ts  # its Vitest spec
 │   │   ├── distribution/distributionRecord.ts  # the hand-out record type (id, paid, priceCents)
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, CustomerRepository,
@@ -184,7 +186,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   updateCustomerDetails / updateNotes (US-16, record edits),
 │   │   │                             #   changeGroup (US-16, moves between RED and BLUE)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
-│   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
+│   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05);
+│   │   │                             #   readGroupRoster (US-21, the counter's group walk)
 │   │   ├── waiting-list/             # addToWaitingList, listWaiting, removeFromWaitingList,
 │   │   │                             #   promoteFromWaitingList, registerFromWaitingList (US-12)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
@@ -215,6 +218,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── customer-list.spec.ts         # search, filters and the group balance on /kunden
 │   ├── customer-record.spec.ts       # four edits on the record, each read back off another screen
 │   ├── distribution.spec.ts          # the week-colour banner against a fixed clock
+│   ├── group-walk.spec.ts            # Zurück/Weiter walk today's group and write nothing
 │   ├── home.spec.ts                  # the Start dashboard against three pinned days
 │   ├── navigation.spec.ts            # the nav bar: every section reachable, the right one marked
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
@@ -353,6 +357,33 @@ with `RecordNoLongerCorrectable` (FR-7); a missing record is `DistributionRecord
 the one deletion the append-only history permits. Each correction writes its own audit entry with no
 reason, because the event name and changed field already say what happened. Both use cases are tested
 against hand-written fakes and a fake clock (`record-attendance.test.ts`, `correct-attendance.test.ts`).
+
+**`readGroupRoster(deps, rawQuery?)`** is what the counter's two walk controls read (US-21): the group
+collecting and the customer numbers either side of the one on screen, as
+`{ group, previous, next, isEmpty }`. It is a **read** — no record, no reminder, no status change and
+no audit entry — because navigating is a read, like the lookup it drives (US-04, FR-4).
+
+Three decisions carry it:
+
+- The group walked is the **week's own**, `getWeekColour`'s `colour` — the colour the banner badges
+  beside the calendar week, and on a distribution day necessarily the group being served (FR-1,
+  amended). It was `nextDistribution.colour` until FD walked the counter on a day between two
+  distributions and met red households on a screen saying "blaue Woche": the two fields part company
+  from the day after a distribution until the next Monday, and the walk belongs to the week it is
+  read in. It does not follow the group of the household on screen either, so the screen never names
+  two groups at once.
+- Membership is `CustomerRepository.list({ statuses: ["ACTIVE", "BLOCKED"], group })`. **No port
+  method was added**: the adapter already filters by group and status and already answers lowest
+  customer number first. Blocked households are walked because stating the block is the point of
+  stopping at them; archived ones are not, because they no longer hold the slot.
+- `rawQuery` is read with the domain's `counterQueryOrNull`, so `50` and `50k3` both position the walk
+  at household 50 (FR-6) and anything unreadable — or an absent query — means "nothing looked up yet"
+  rather than an error. The comparison `neighbours` makes is numeric, so a number belonging to the
+  other group or to nobody still positions the walk between the members around it (FR-5).
+
+It throws `NoSettingsInForce` when no version had taken effect today — the same failure the banner
+already has on that screen. Tested against hand-written fakes and a fake clock in
+`read-group-roster.test.ts`.
 
 ### `src/application/allowance/`
 
@@ -790,6 +821,26 @@ anywhere (PRD §5). Three consecutive misses are emphasis on a screen; the archi
 `registeredOn` is a parameter because the domain has no notion of storage — there is no registration-date
 column, and the application layer supplies the day from the household's first card (`index` 1), which is
 issued with the registration.
+
+### `src/domain/distribution/groupWalk.ts`
+
+The order the counter's **Zurück** and **Weiter** controls move in (US-21). `neighbours(numbers, from)`
+answers `{ previous, next }`: the largest number strictly below `from` and the smallest strictly above
+it, or `null` on a side that has been walked out.
+
+Two choices decide what those answers mean, and both are about what the screen must survive:
+
+| Choice                                    | Consequence                                                                                                                                                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The comparison is numeric, not positional | `from` need not be a member of `numbers`. A number the staff member typed that belongs to the other group — or to nobody — still sits between two members, so a mistyped lookup does not strand the controls. |
+| `numbers` is not assumed sorted           | `CustomerRepository.list` happens to order by customer number, but a function that silently required that would state the list's order in a second place. The extremes are scanned for.                       |
+
+`from === null` is "nothing looked up yet" rather than an error: every number is above it, so `next` is
+the smallest member — the entry point for a freshly opened `/ausgabe`. An empty `numbers` gives `null`
+on both sides at every `from`, which is how a group holding no active or blocked household reaches the
+screen as two disabled controls.
+
+`from` is never itself an answer: a walk moves.
 
 ### `src/application/customers/registerCustomer`
 
@@ -1881,12 +1932,40 @@ primitives in `src/components/ui/`, and the reference the other screens follow. 
   deliberately **no audit log**: everything the page renders is a read (US-04, FR-4).
   `counterActionDeps` — the server actions' — adds the audit log, the certificate history and the
   writable stores, and is the one object here that writes.
-- **`page.tsx`** calls `getWeekColour` once, for today. The page arranges the answer and decides
-  nothing.
-- The **banner** is the dominant element and is painted in the colour it _names_ — on a day without a
-  distribution that is the **next** distribution's colour, which need not be the current week's. The
-  colour is always written out in words ("Gruppe Rot") as well as painted: several staff share one
-  screen in variable lighting, so colour alone is never the message.
+- **`page.tsx`** calls `getWeekColour` for today, then awaits `lookupCustomer` and `readGroupRoster`
+  **in one `Promise.all`** — the walk asks who is in the week's group, not who this number is, so it must
+  not be sequenced behind the lookup. The page arranges the answers and decides nothing.
+- The **banner is compact, and names the group only on a distribution day.** On an Ausgabetag it is a
+  band painted in the group's colour with the group written out beside it ("Gruppe Rot", `text-3xl`);
+  on every other day it is a plain neutral `Card` stating that there is no distribution, when the
+  next one is and which group it is for, and today's date and week. It was once the dominant element
+  on the screen every day of the week, shouting a group at staff who cannot serve anybody four days
+  out of five and pushing the number field — the reason the screen exists — down the page. Off-day
+  the group survives only inside the sentence that names its date, so neither a word nor a paint can
+  be read as "the group collecting now". The paint and the sentence take their colour from
+  `nextDistribution`: after a Thursday distribution the current week is still Rot while the next
+  distribution is already Blau, and only the second answers "who collects at the next Ausgabe".
+  The colour is written out in words wherever it is painted (FR-7): several staff share one screen in
+  variable lighting, so colour alone is never the message.
+- The banner's meta line reads `01.08.2026 · KW 31` with a small group-coloured badge after it. The
+  ISO year is dropped from `isoWeekOf`'s `2026-W31` by `isoWeekNumber` (`src/i18n/format.ts`) — the
+  date beside it already carries the year, and staff check the week against a wall calendar, which
+  prints two digits.
+- The **badge states `view.colour`**, and it is a badge because the two colours can disagree: on the
+  Saturday after a red Thursday the week is still Rot while the next distribution is already Blau,
+  and both are true at once. It sits beside the week number because it is a property of the calendar,
+  like the number itself, and not of the hand-out the sentence above it announces. On a distribution
+  day the two are necessarily equal, so it is left off rather than repeat the headline in miniature
+  on the paint it is already wearing. `distribution.spec.ts` pins that Saturday down
+  (`week-colour-week`).
+- **So one screen renders both fields, and which is which is the thing to keep straight.**
+  `view.colour` — the week — drives the badge _and_ the group the walk steps through, and it is what
+  `lookupCustomer` judges a household against. `nextDistribution.colour` drives only the paint and the
+  "nächste Ausgabe" sentence, which are about a hand-out on a named date. The walk read the second of
+  those until FD met red households under a badge saying the week was blue; worse, the counter then
+  answered `WRONG_GROUP` for the very number the walk had handed over, because the verdict was
+  already reading `view.colour`. Anything about _who is served_ takes the week; only a statement
+  about the coming Ausgabe takes the next distribution.
 - **There is no second card asking about another week**, and that is deliberate. A date lookup lived
   under the counter until **US-22** (`tasks/prd-us-22-drop-week-colour-lookup.md`): FD said they need
   no week but this one, so the card, its strings, its error path and its two specs went, and
@@ -1897,6 +1976,35 @@ primitives in `src/components/ui/`, and the reference the other screens follow. 
   would otherwise have been painted as a week `NaN-WNaN` in a confidently-named colour — renders the
   ordinary screen. A bookmark from before the removal still works; it simply shows today.
   `distribution.spec.ts` pins that down.
+
+#### Walking today's group (`page.tsx`, US-21)
+
+- Two controls sit **in the counter card, on the row with the number field and after `Nachschlagen`**:
+  `walk-previous` ("Zurück") and `walk-next` ("Weiter"). They are the same act as typing a number —
+  they decide who the screen is about — which is why they are there and not beside the verdict, where
+  they would read as acting on the household shown. `variant="outline"` keeps `Nachschlagen` the
+  primary path, and `h-12 px-6` matches the row's deliberately taller baseline (`radix-nova` defaults
+  to `h-8`).
+- Their order in the DOM **is** the tab order: number field → `Nachschlagen` → `Zurück` → `Weiter`, so
+  a staff member on the keyboard never tabs through navigation to reach the field they type in.
+- Each is a `<Button asChild>` around a `<Link href="/ausgabe?nummer=N">` — a plain GET, so the
+  browser's Back button retraces the queue — and a **disabled `<Button>` carrying the same testid**
+  when there is no neighbour. Never hidden: the end of a group must be visible, and a control that
+  vanished would shuffle the row under the hand reaching for it. Being inside the lookup form, the
+  disabled one says `type="button"` or it would submit.
+- `walk-hint` under the row names the group **in words** and is tinted from `GROUP_STYLES`. It has
+  four sentences, not one that hedges: nothing looked up yet (where `Weiter` lands), walking, the end
+  of the group, and a group with no walkable household — "nothing looked up" and "standing on the
+  first number" both leave `Zurück` disabled but mean different things. All four live under
+  `de.distribution.walk.hints`.
+- Which of the four the page shows for "nothing looked up" is read off `lookUpNumber` returning
+  `null`, not parsed a second time: that is `null` for an absent, blank or unreadable `nummer`, which
+  is exactly when `readGroupRoster` walks from the start.
+- The group walked is the **banner's** — today's on a distribution day, the next distribution's
+  otherwise — so the screen never names two groups. `readGroupRoster` and `neighbours` hold the rules;
+  see the application and domain sections. Nothing about the walk is written: it is a read, like the
+  lookup it drives — proved as an absence by `tests/e2e/group-walk.spec.ts`, which also drives the
+  order the controls produce against a seeded block of the register.
 
 #### The counter lookup (`counter-lookup.tsx`)
 
@@ -2090,7 +2198,11 @@ The shapes values are written in for German-speaking staff, beside the dictionar
 words. `germanDate(date)` writes `TT.MM.JJJJ` and reads the date **in UTC**, because dates here are
 calendar days stored at midnight UTC — formatting in the server's zone would show the day before for
 anyone west of Greenwich. It lives here rather than in a page because it was copied into two of
-them, and two copies is how two screens start rendering the same date two ways. `germanTime(instant)`
+them, and two copies is how two screens start rendering the same date two ways.
+`isoWeekNumber(isoWeek)` takes `isoWeekOf`'s `2026-W31` down to `31` for the counter's banner, which
+prints it as `KW 31`: the date beside it already carries the year, and a string it does not recognise
+is handed back whole rather than refused, because a formatter on the counter's critical path must not
+be able to fail a render. `germanTime(instant)`
 writes `HH:MM` and reads the instant **in Europe/Berlin**: a hand-out is a moment, not a day, so its
 time must read as the wall clock staff saw — the same zone `berlinDayKey` counts the day in, so
 "served at 23:59" and "already served today" cannot disagree about the day.
@@ -2541,11 +2653,13 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   Saturday after it. ⚠️ **The Saturday is the point.** On it the current week is still RED while the
   next Ausgabe is the BLUE one on 15.01.2026, so a panel reading `view.colour` instead of
   `nextDistribution.colour` announces the wrong group. The spec used to prove that the two fields
-  disagree by looking 10.01.2026 up on `/ausgabe` — until US-22 removed that lookup, after which **no
-  screen renders `view.colour` at all** (the Ausgabe banner paints `nextDistribution.colour` too),
-  so there was nowhere to re-point it. The disagreement is now proved a layer down, in
-  `src/application/distribution/distribution.test.ts` — "names the next distribution and its colour on
-  a day that is not one" — and the e2e spec asserts the dashboard's BLUE alone. On the distribution
+  disagree by looking 10.01.2026 up on `/ausgabe` — until US-22 removed that lookup, leaving nowhere
+  to re-point it; the disagreement moved a layer down, to
+  `src/application/distribution/distribution.test.ts` ("names the next distribution and its colour on
+  a day that is not one"), and the e2e spec asserts the dashboard's BLUE alone. `/ausgabe` reads
+  **both** fields again today — `view.colour` in the week badge and in the group the walk steps
+  through, `nextDistribution.colour` in the sentence and the paint — and `distribution.spec.ts` pins
+  that same Saturday to prove they are told apart. On the distribution
   day the line is
   asserted as an **exact** text, because what must be shown is that it says _today_ rather than
   naming a coming date, which a containment check cannot tell apart. A fourth test pins 31.12.2025 —
@@ -2553,6 +2667,25 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   table the other specs read — and requires the heading, the date and the not-configured panel with
   its link to `/einstellungen`: an unseeded database is not an error page (FR-10). The spec writes
   nothing and deletes the pinned-now file in `afterAll`, like its neighbours.
+- `group-walk.spec.ts` covers US-21 end to end (§US-021.4): the walk itself, which is the one claim
+  about it no unit gate can reach — `neighbours` and `readGroupRoster` are proved on their own, but
+  what a staff member follows is two `href`s on a screen where the group being walked is named only
+  by a banner. Five households are **seeded through Prisma** in one contiguous band nothing else uses
+  (311–315), so no other spec's registration can land between them: RED active, RED **blocked**, RED
+  **archived**, a **BLUE** one, RED active. Pinned to the RED Thursday 08.01.2026, the spec walks up
+  from 311 and back down from 315, asserting each step's `href` _and_ the customer number the screen
+  then shows — the two have to agree. The middle three numbers are the membership rules: the blocked
+  household is visited (it still holds its slot), and 313 and 314 are stepped over in a single move
+  from 312 to 315, one because archiving released the slot and one because it belongs to the other
+  group. The **ends** are the one thing the spec cannot seed its way to — whether a number is the
+  last RED one is a fact about the whole shared register — so the walkable RED numbers are read out
+  of Prisma at the moment they are asserted: with nothing looked up, `walk-next` points at the lowest
+  of them and `walk-previous` is disabled with the _fromStart_ hint; on the highest, `walk-next` is
+  disabled and the hint says the group ends there. The last test is FR-4, that a walk **records
+  nothing**: statuses, reminder counts and the card, distribution, reminder-log and audit-entry counts
+  are snapshotted, the block is walked in both directions, and the snapshot must be unchanged — the
+  same shape as `counter.spec.ts`'s, widened to the tables the schema has gained since. Pinned-now
+  file deleted in `afterAll`, like its neighbours.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

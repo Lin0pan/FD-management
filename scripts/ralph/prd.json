@@ -23,8 +23,8 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "src/domain/distribution/groupWalk.ts + 12 named tests, written red first. Single scan for both extremes; from===null stands before every number so next is the smallest member. Domain coverage 100%."
     },
     {
       "id": "US-002",
@@ -48,8 +48,8 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "src/application/distribution/read-group-roster.ts + 14 named tests against hand-written fakes, written red first. Reuses getWeekColour for the banner's group and CustomerRepository.list({ statuses: [ACTIVE, BLOCKED], group }) for membership — no new port method. Application coverage 100%."
     },
     {
       "id": "US-003",
@@ -75,8 +75,8 @@
         "Verify in browser using the playwright-cli skill against a PRODUCTION build, reading the ACCESSIBILITY SNAPSHOT: both controls are announced as links with distinct names (or as disabled buttons at the ends), and the hint is readable text rather than a tooltip"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Two WalkControl buttons in the counter card after Nachschlagen (h-12 px-6, outline), link when the neighbour exists and a disabled type=\"button\" with the same testid when it does not, plus a GROUP_STYLES-tinted walk-hint with four sentences under de.distribution.walk.hints. readGroupRoster joins lookupCustomer in a new Promise.all; the page stays a server component. Verified against a production build with playwright-cli: the a11y snapshot announces link \"Weiter\" / disabled button \"Zurück\", tab order is field → Nachschlagen → Zurück → Weiter, hint is one line, and scrollWidth - clientWidth is 0 at 1920/1280/1024/800/390. Full e2e suite green (89 passed, 1 pre-existing skip)."
     },
     {
       "id": "US-004",
@@ -97,8 +97,8 @@
         "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first)"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "tests/e2e/group-walk.spec.ts, serial, 6 tests, pinned to 2026-01-08 through FD_FIXED_NOW_FILE. Seeds 311-315 through Prisma (RED active, RED blocked, RED archived, BLUE, RED active) with Faker at a fixed seed, so the blocked household is walked and the archived one and the other group are stepped over in one move. Both ends and the entry point read the walkable RED numbers out of Prisma rather than hard-coding them. The records-nothing snapshot widens counter.spec.ts's to distribution records and reminder logs. No other spec touched; full e2e suite 95 passed, 1 pre-existing skip."
     }
   ]
 }

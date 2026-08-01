@@ -80,8 +80,15 @@ prominently.
 
 **Acceptance Criteria:**
 
-- [ ] The distribution screen shows a large German banner: today's colour, or on a non-distribution
-      day "Heute ist keine Ausgabe — nächste Ausgabe: <date>, <colour>"
+- [ ] The distribution screen shows a German banner: on a distribution day today's colour, and on a
+      non-distribution day "Heute ist keine Ausgabe — nächste Ausgabe: <date>, <colour>"
+- [ ] ~~The banner is large~~ `[superseded]` — FD, after US-21 put the group walk in the counter row:
+      the group headline said "Gruppe Rot" at 72px on the four days out of five when nobody can
+      collect, and repeated on the fifth what the walk hint under the number field already carries.
+      The banner is now compact, and the group is named and painted **only on a distribution day**;
+      on any other day it appears solely inside the "nächste Ausgabe" sentence, which names the date
+      it belongs to in the same breath (FR-5, unchanged). FR-7 is untouched — the group is written
+      out in words wherever it is painted.
 - [ ] The colour is conveyed by **text plus** colour, never colour alone (accessibility; several
       staff, one shared screen, variable lighting)
 - [ ] ~~A date picker lets staff look up the colour of any past or future week, showing the ISO week
@@ -89,7 +96,9 @@ prominently.
       this one, and the card sat on the busiest screen in the product pushing the counter's own
       results down. The ISO week number stays on the banner, which is where staff check it against a
       wall calendar.
-- [ ] The banner is the visually dominant element on the screen
+- [ ] ~~The banner is the visually dominant element on the screen~~ `[superseded]` — with the same
+      argument as above. The dominant element on the counter is the counter: the number field and the
+      verdict it produces. The banner states the calendar and gets out of the way.
 - [ ] Verify in browser using dev-browser skill
 
 ### US-03.5: E2E — colour banner with a fixed clock
@@ -108,7 +117,10 @@ prominently.
 
 ## 4. Functional Requirements
 
-- FR-1: The application must show today's week colour prominently on the distribution screen.
+- FR-1: The application must show today's week colour prominently on the distribution screen **on a
+  distribution day**. On any other day the screen must not name a group as today's — FR-5's sentence,
+  which names the next distribution's colour together with its date, is the whole of what it says
+  about groups.
 - FR-2: The colour must be derived from the calendar by strict alternation from a configured anchor
   week; it must never be entered per week.
 - FR-3: Two consecutive weeks must never share a colour.

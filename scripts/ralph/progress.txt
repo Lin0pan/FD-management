@@ -29,8 +29,143 @@ Started: Sat Aug  1 20:30:00 CEST 2026
   makes it stale and no gate can tell. Grep that file for the *spec file name* after touching a
   spec, and for the feature's vocabulary after removing a feature — it is 2,500 lines and describes
   the same thing from the layer's side, the screen's side and the suite's side.
+- **`playwright-cli eval` takes one expression.** Multi-statement JS fails inside `UtilityScript`;
+  wrap it in an arrow IIFE — `"(() => { const x = …; return JSON.stringify(x); })()"` — and quote
+  attribute selectors (`[data-testid=\"walk-hint\"]`).
+- **A disabled control is skipped by Tab**, so tab traversal cannot prove DOM order at the ends of a
+  row. Read the order with one `querySelectorAll` over the row's testids, and check the traversal on
+  a state where every control is enabled.
 - **A retracted requirement is struck through, marked and kept**, never deleted: `~~criterion~~`
   plus `[withdrawn]` and the reason, in both `docs/user_stories_mvp.md` and the story's PRD. Say
   what is *not* withdrawn too, or the next reader removes a parameter that still has callers.
+- **An e2e fact about "the whole register" is read from Prisma at assertion time**, never
+  hard-coded: the specs run serially in *alphabetical file order* against one shared `data/e2e.db`,
+  so which number is the first or last of a group depends on which specs ran before yours. Seed a
+  block for what you own; query for the ends.
+- **`counter-customer-number` identifies a household at the counter, `counter-card-number` does
+  not** — a household another spec reissued a card to shows `Nk2`, so an assertion on `Nk1` fails
+  for reasons that have nothing to do with what is under test.
 
 ---
+
+## 2026-08-01 20:40 - US-001 (neighbours, domain)
+- Implemented `src/domain/distribution/groupWalk.ts`: `neighbours(numbers, from): Neighbours`,
+  the one rule the /ausgabe walk (US-21) navigates by. Strict TDD — the spec was written and run
+  red (module missing) before a line of implementation existed.
+- Files changed:
+  - `src/domain/distribution/groupWalk.test.ts` (new, 12 named tests)
+  - `src/domain/distribution/groupWalk.ts` (new)
+  - `docs/technical_documentation.md` (tree entry + a `### src/domain/distribution/groupWalk.ts`
+    section next to `noShows.ts`)
+  - `scripts/ralph/prd.json` (US-001 passes: true)
+- Gates: lint, typecheck, `test:coverage` (45 files / 924 tests, groupWalk.ts 100/100/100/100,
+  domain + application thresholds intact) and `next build` all green.
+- **Learnings for future iterations:**
+  - Both extremes come out of **one** pass: `previous` keeps the largest seen below `from`, `next`
+    the smallest seen above. No sort, so nothing here restates the register's ordering — US-002
+    can hand `CustomerRepository.list`'s output straight in without normalising it.
+  - `from === null` is modelled as *standing before every number*, not as a separate branch: the
+    `next` guard reads `(from === null || number > from)`, which is why the entry point and the
+    ordinary case need no second code path and coverage reaches 100% without a contrived test.
+  - The exported shape is `Neighbours { previous, next }` — US-002's `GroupRosterView` carries
+    those two fields by the same names, so the use case can spread rather than rename.
+  - `docs/technical_documentation.md` documents domain modules **twice**: once as a line in the
+    `src/` tree around line 156 and once as a `### <path>` section. Adding a module means both, or
+    the tree lists a file the reference section never explains.
+
+---
+
+## 2026-08-01 20:45 - US-002 (readGroupRoster, application)
+- Implemented `src/application/distribution/read-group-roster.ts`: `readGroupRoster(deps, rawQuery?)`
+  answering `{ group, previous, next, isEmpty }` — what the /ausgabe walk controls (US-21) read.
+  TDD against hand-written fakes; the spec ran red (module missing) before the use case existed.
+- Files changed:
+  - `src/application/distribution/read-group-roster.test.ts` (new, 14 named tests)
+  - `src/application/distribution/read-group-roster.ts` (new)
+  - `docs/technical_documentation.md` (tree entry + a `readGroupRoster` block in the
+    `### src/application/distribution/` section)
+  - `scripts/ralph/prd.json` (US-002 passes: true)
+- Gates: lint, typecheck, `test:coverage` (46 files / 938 tests, read-group-roster.ts 100/100/100/100,
+  domain + application thresholds intact) and `next build` all green.
+- **Learnings for future iterations:**
+  - `WeekColour` and `Group` are separate types with identical unions, so
+    `list({ group: week.nextDistribution.colour })` type-checks with **no mapping** — which is what
+    the PRD asks for. Keep `GroupRosterView.group` as `WeekColour`: it is the banner's answer, not a
+    customer's property, and US-003 prints it with `GROUP_STYLES` which is keyed by the same values.
+  - The **non-distribution-day** case needs a date *after* the distribution weekday to be visible:
+    on Friday 2026-01-09 the week is RED (2026-W02) but `nextDistribution` is the BLUE Thursday of
+    2026-W03. A Tuesday would have shown the same colour twice and proved nothing.
+  - `FakeCustomerRepository` is worth copying wholesale from
+    `src/application/customers/list-customers.test.ts` — it already answers `list` the way the
+    adapter is documented to (filters, then sorts by customer number) and counts writes, which is
+    how "the walk records nothing" is asserted at this layer.
+  - US-003 calls this in the page's existing `Promise.all`. Note `readGroupRoster` calls
+    `getWeekColour` itself, so /ausgabe resolves the colour twice per request — deliberate (PRD
+    §Technical Considerations); do not "fix" it by caching.
+
+---
+
+## 2026-08-01 20:50 - US-003 (Zurück and Weiter beside the number field)
+- Put the walk on `/ausgabe`: two controls in the counter card, on the row with the number field and
+  after `Nachschlagen`, driven by `readGroupRoster` (US-002), plus a hint line naming the group.
+- Files changed:
+  - `src/app/ausgabe/page.tsx` (`WalkControl`, `walkHint`, `readGroupRoster` in a new `Promise.all`,
+    `CardContent` becomes a column so the hint sits under the row)
+  - `src/i18n/de.ts` (`de.distribution.walk` — `previous`, `next`, four `hints`)
+  - `docs/technical_documentation.md` (`#### Walking today's group`, and the `page.tsx` bullet that
+    said `getWeekColour` is called once)
+  - `scripts/ralph/prd.json` (US-003 passes: true), `scripts/ralph/progress.txt`
+- Gates: lint, typecheck, `test:coverage` (46 files / 938 tests), `next build` and the **full e2e
+  suite** (89 passed, 1 pre-existing skip) all green. No spec was touched — US-004 adds the walk's own.
+- Browser: verified against a **production** build on 3100 with playwright-cli. Accessibility snapshot
+  announces `link "Weiter" → /ausgabe?nummer=1` and `button "Zurück" [disabled]`; the hint is a
+  paragraph, not a tooltip. Walked 1 → 7 → 9 → 11 → 13 and 17 (last RED: `Weiter` disabled, hint reads
+  "Ende von Gruppe Rot"). `11k1` gives the same neighbours as `11`; `?nummer=abc` walks from the start.
+  Typing 11 and pressing Enter still works after a walk. `scrollWidth - clientWidth` is 0 at 1920,
+  1280, 1024, 800 and 390.
+- **Learnings for future iterations:**
+  - **"Nothing looked up yet" is already on the page**: `lookUpNumber` answers `null` for an absent,
+    blank *or* unreadable `nummer`, which is exactly the condition under which `readGroupRoster`'s
+    `positionOf` returns `null` (both go through `counterQueryOrNull` / `parseCounterQuery`). Read the
+    state off the lookup — do not parse `nummer` a second time in the page.
+  - `GroupRosterView` deliberately carries no "did anything get looked up" flag, so the hint's
+    *fromStart* vs *walking* distinction has to come from the page. Standing on the first number and
+    standing nowhere both leave `previous === null`; only the page can tell them apart.
+  - The walk controls live **inside** the lookup `<form>` (that is what puts them on the row and in
+    the tab order). A `<Button>` there defaults to `type="submit"`, so the disabled variant needs
+    `type="button"` explicitly; the enabled one is `asChild` around a `<Link>` and never submits.
+  - `Button` needs both `size="lg"` and `className="h-12 px-6"` to match the counter row — `lg` is
+    `h-9` in radix-nova. The submit button already does exactly this; copy it rather than inventing.
+  - US-004 can rely on: `walk-previous` / `walk-next` always present (link or disabled button),
+    `walk-hint` always present, and the hint sentences keyed at `de.distribution.walk.hints`.
+
+---
+
+## 2026-08-01 21:05 - US-004 (E2E — walking a group of known numbers)
+- Added `tests/e2e/group-walk.spec.ts`: 6 serial tests proving the walk against the built app —
+  the order the two controls produce, the three membership rules, both ends, the entry point, and
+  that a walk writes nothing. No other spec file touched.
+- Files changed:
+  - `tests/e2e/group-walk.spec.ts` (new)
+  - `docs/technical_documentation.md` (tree entry, a `group-walk.spec.ts` bullet in the e2e
+    section, and a pointer from `#### Walking today's group`)
+  - `scripts/ralph/prd.json` (US-004 passes: true), `scripts/ralph/progress.txt`
+- Gates: lint, typecheck, `test:coverage` (46 files / 938 tests, domain + application thresholds
+  intact), `next build` and the **full e2e suite** (95 passed, 1 pre-existing skip) all green. The
+  spec also passes run on its own against a freshly seeded register.
+- **Learnings for future iterations:**
+  - The seeded block is 311–315, above every other spec's band (counter 201–206/239, portions 211,
+    serve 221–222, reminders 231, block 241, reissue 251, age-13 271, customer-list 281–285,
+    customer-record 291). A new spec that inserts rows should take the next band up, not squeeze in.
+  - **Contiguity is the fixture**: the archived 313 and the BLUE 314 sit *between* two RED numbers
+    on purpose, so "steps over" is one assertion (312 → 315) rather than an absence. A block with
+    the skipped rows at its edge would pass even if the walk read them.
+  - The ends of a group cannot be seeded — they are a fact about the shared register, which the
+    alphabetically earlier specs have written to. Query `customer.findMany({ group, status: in
+    [ACTIVE, BLOCKED] })` at assertion time; only `highest === NUMBERS.last` is asserted, and that
+    holds because the band is the highest.
+  - Assert the landing with `counter-customer-number`, not `counter-card-number`: an end of the
+    group can be another spec's household, and `reissue.spec.ts` leaves one on `k2`.
+  - The records-nothing snapshot in `counter.spec.ts` predates `DistributionRecord` and
+    `ReminderLog` — its own comment says it should widen with the schema. The one here does, and
+    the next spec that copies it should check the model list again.

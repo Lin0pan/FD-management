@@ -66,9 +66,11 @@ is in it, so that pressing them is one click and not a lookup I have to phrase.
 
 - [ ] New use case `src/application/distribution/read-group-roster.ts` exporting
       `readGroupRoster(deps, rawQuery?: string): Promise<GroupRosterView>`.
-- [ ] The group walked is the one the banner names: `getWeekColour(deps)`'s
-      `nextDistribution.colour`. On a distribution day that is today's group; on any other day it is
-      the next distribution's. The screen must never name two groups.
+- [ ] The group walked is the week's own: `getWeekColour(deps)`'s `colour`. On a distribution day
+      that is today's group; on any other day it is the group of the week being read in, which is
+      what the banner badges beside the calendar week. The screen must never name two groups.
+      `[amended]` — this read `nextDistribution.colour` until FD walked the counter between two
+      distributions and met red households under a badge saying the week was blue.
 - [ ] Membership is every customer of that group with status `ACTIVE` **or** `BLOCKED`, read through
       the existing `CustomerRepository.list({ statuses, group })`. **No new port method**: the
       adapter already answers this query and already orders it by customer number.
@@ -85,8 +87,8 @@ is in it, so that pressing them is one click and not a lookup I have to phrase.
       reading methods.
 - [ ] `@throws {NoSettingsInForce}` when no settings version had taken effect today — the same
       failure the banner already has, handled by the same error card.
-- [ ] TDD against hand-written fakes; no mocking library. Named tests for: the group is the banner's
-      and not the current week's on a non-distribution day; archived households are not walked;
+- [ ] TDD against hand-written fakes; no mocking library. Named tests for: the group is the current
+      week's and not the next distribution's on a non-distribution day; archived households are not walked;
       blocked households **are** walked; a card number resolves to its customer number; an
       unreadable query walks from the start; an empty group.
 - [ ] Application coverage stays at 100%.
@@ -155,8 +157,12 @@ value is the order it produces and no unit test can see the links.
 
 ## Functional Requirements
 
-- **FR-1:** The group walked is always the group the banner names — today's on a distribution day,
-  the next distribution's otherwise. It does **not** follow the group of the household on screen.
+- **FR-1:** The group walked is always the **current week's** group — today's on a distribution day,
+  and on any other day the group of the week it is read in, the one badged beside the calendar week.
+  It does **not** follow the group of the household on screen, and it does **not** run ahead to the
+  next distribution's group. `[amended]` — the original said "the group the banner names", which was
+  `nextDistribution.colour`; on the days after a distribution that walked next week's households
+  under a badge naming this week's colour.
 - **FR-2:** The walk covers customers of that group with status `ACTIVE` or `BLOCKED`, ordered by
   customer number ascending. `ARCHIVED` customers are never walked.
 - **FR-3:** **Weiter** navigates to the smallest walked number strictly greater than the number
@@ -186,8 +192,8 @@ value is the order it produces and no unit test can see the links.
 - **Not** skipping the already-served. That was considered and rejected: see FR-7.
 - **Not** wrapping around at the ends. A silent loop gives a staff member no way to tell they have
   walked the whole group.
-- **Not** following the shown household's group. It follows the banner's, so the screen never names
-  two groups at once.
+- **Not** following the shown household's group. It follows the week's, so the screen never names two
+  groups at once.
 - **Not** a keyboard shortcut. The field is autofocused and Enter is spoken for; a hidden accelerator
   is a second, undocumented way to do this.
 - **Not** a new port or a schema change. `CustomerRepository.list` already answers the query.

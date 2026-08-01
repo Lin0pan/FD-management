@@ -21,6 +21,22 @@ export function germanDate(date: Date): string {
 }
 
 /**
+ * The week number out of an ISO week string — `2026-W02` becomes `02`.
+ *
+ * `isoWeekOf` produces the full `JJJJ-Www` form because that is what the anchor setting is typed and
+ * stored in; on the counter's banner the ISO year is noise, since the date beside it already carries
+ * the year. The leading zero stays: staff read this against a wall calendar, which prints two digits.
+ *
+ * A string without a `W` is handed back whole rather than refused. This is a formatter on the
+ * counter's critical path, and a banner showing an odd-looking week is a smaller failure than a
+ * screen that will not render.
+ */
+export function isoWeekNumber(isoWeek: string): string {
+  const at = isoWeek.lastIndexOf("W");
+  return at === -1 ? isoWeek : isoWeek.slice(at + 1);
+}
+
+/**
  * A date written out, as `Donnerstag, 30. Juli 2026`.
  *
  * The long form exists for the one place a date is *read as a sentence* rather than looked up in a

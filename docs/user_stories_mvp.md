@@ -109,7 +109,11 @@ shared spreadsheet.
 
 **Acceptance Criteria**
 
-1. The application shows today's week colour prominently on the distribution screen.
+1. The application shows today's week colour prominently on the distribution screen **on a
+   distribution day**. `[amended]` — FD, after using the counter: on the four days out of five when
+   nobody collects, a group named in 72-point type is an answer to a question nobody asked, and it
+   pushed the number field down the screen. Criterion 4 is what those days get instead, and it names
+   the group inside the same sentence as the date it belongs to.
 2. The colour is **derived from the calendar** by strict alternation from a configured anchor week —
    it is not typed in per week, and two consecutive weeks can never share a colour.
 3. ~~A staff member can look up the colour of a past or future week.~~ `[withdrawn]` — US-22, after
