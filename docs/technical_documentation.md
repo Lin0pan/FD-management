@@ -1680,6 +1680,15 @@ beyond it:
   first of them, so overwriting row one would drop a member and duplicate another. The optional
   `previousCustomerId` travels as a hidden input — absent, not blank, for a walk-in — and reaches
   `registerCustomer` as the display metadata it is.
+  The `Gruppe` radios sit in a **closed** `<details>` inside the `<form>` (US-20): the state is not
+  persisted, so every load starts closed, and the `<summary>` — `data-testid="group-choice-open"` —
+  names the proposed group in its own `GROUP_STYLES` colour, always with the word. The suggestion and
+  the two group sizes stay outside the disclosure, because the sizes are what an override is decided
+  from. The radios stay native and uncontrolled so the action can read `group` off the `FormData`,
+  and a submit that never opened the disclosure saves the proposal. Three specs — `archive.spec.ts`,
+  `card.spec.ts`, `reregistration.spec.ts` — click the summary before checking `#group-RED` /
+  `#group-BLUE`; anything else reaching a radio by id must do the same. The record's group control
+  (`[id]/group-control.tsx`) is **not** folded, on purpose: see `docs/ui_redesign_kunden_neu.md` §12.
 - **`neu/registration-screen.tsx`** is the client half of the screen and holds the one piece of
   state the archive search and the form share: which archived household, if any, the form was filled
   from (US-11.4). The pre-fill is applied by **remounting the form under a new `key`** rather than by

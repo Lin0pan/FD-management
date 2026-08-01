@@ -657,7 +657,7 @@ FD were asked the questions in §11 before any code was written. Their answers:
 | -------------------------------------------- | ------------------------------------------------------------------- |
 | §11.1 Is the archive search used?            | Fold it away — but see the caveat below                             |
 | §11.2 `Bemerkung` at intake                  | Keep it, at the end of the merged card, full width                  |
-| §11.3 Does the group ever get overridden?    | Fold the radios away — **not built**, see below                     |
+| §11.3 Does the group ever get overridden?    | Fold the radios away — built in US-20, see below                    |
 | §11.4 The certificate at intake              | Move it beside the personal data, in the merged card                |
 | §8 ⚠️ The full-register alert under the `h1` | Yes, with a plain link to `/warteliste` — no fragment, no spec edit |
 
@@ -669,16 +669,35 @@ fills the panel, and its `searchArchive` helper now clicks `getByTestId("archive
 real click on the summary, not `evaluate(d => d.open = true)`, so a fold that silently stopped opening
 turns the suite red — and waits for `#archiveLastName` before typing. One spec file touched, the
 suite green. `archive.spec.ts` and `card.spec.ts` needed no edit after all: they reach `#group-RED`,
-and the group radios were never folded.
+and the group radios were not folded **at that point** — US-20 folded them and did have to edit both,
+plus `reregistration.spec.ts` a second time; see below.
 
 §4.2b's argument against closing it (a control that must be opened is one that will be forgotten on
 the day it matters, which is the whole of US-11) is not withdrawn. It is mitigated: the closed
 summary asks "War dieser Haushalt schon einmal aufgenommen?", so the prompt survives the fold. That
 mitigation is one line of prompt and should still be reviewed with FD on the live screen.
 
-**The group radios were not folded away** for the same reason and with less to gain: a disclosure
-around two radios that has to be open by default is noise. They wear `GROUP_STYLES` instead, which
-was the other half of §3.11.
+**The group radios are a closed `<details>` too** (US-20). PR #62 left them visible for the same
+reason as the archive search, and with the argument that a disclosure around two radios which has to
+be open by default is only noise — which was true for exactly as long as the specs made the fold
+impossible. US-20 paid that price: `tests/e2e/archive.spec.ts`, `tests/e2e/card.spec.ts` and
+`tests/e2e/reregistration.spec.ts` each click `getByTestId("group-choice-open")` before checking
+`#group-RED` or `#group-BLUE` — a real click on the summary, never `evaluate(d => d.open = true)`, so
+a fold that silently stopped opening turns the suite red. Those three are the only spec files
+touched, and the full suite is green. The closed `<summary>` names the proposal in the group's own
+colour — "Gruppe: Rot — andere Gruppe wählen", the word always with the tint (US-03.4) — while the
+suggestion sentence and the two group sizes stay **outside** the disclosure: the sizes are what an
+override is decided from, so they must be readable without opening the control. The radios themselves
+are unchanged: native, uncontrolled, `defaultChecked` on the proposal, wearing the `GROUP_STYLES` PR
+#62 gave them, which was the other half of §3.11. Nothing about the fold is persisted — every load of
+`/kunden/neu` starts closed — and a registration submitted without ever opening it saves the proposed
+group.
+
+**The record's group control is deliberately _not_ folded.** `src/app/kunden/[id]/group-control.tsx`
+looks like the same control and is not: on `/kunden/neu` the group is a proposal being accepted,
+while on the record the choice **is** why the card was opened, and its two group sizes sit beside it
+by US-16.4 FR-4. `tests/e2e/customer-record.spec.ts` reaches that one by `getByTestId("group-RED")`
+and needed no edit. The two must not be made to match by someone tidying one against the other.
 
 ### Numbers, before and after
 
@@ -699,6 +718,25 @@ seeded demo register (`npm run db:reset && npm run db:demo`) with the free-slot 
 | ------------------------------------- | ------------- | ------------ | ------------ | ----------- |
 | Top of `#firstName`, banner on screen | 752px         | 630px        | ≤ 470        | 548         |
 | Archive card height, idle             | 270px         | 160px        | ≤ 90         | 78          |
+
+And after US-20 closed the group choice, measured the same way at 1440×900:
+
+| Claim                         | Before batch 20 | After US-020.1 (open) | US-20 target   | After US-020.2 |
+| ----------------------------- | --------------- | --------------------- | -------------- | -------------- |
+| `Zuordnung` card height       | 220px           | 259px                 | ≤ 210          | 220px          |
+| Top of the `Aufnehmen` button | y = 1 461       | y = 1 500             | ≥ 100px higher | y = 1 461      |
+
+**Neither height target was met, and neither is reachable by folding these radios.** §11.3's PRD
+derived both from "roughly 310px today", a number nobody had measured; the card was 220px before the
+batch began. The `Zuordnung` card's content is a `flex flex-wrap` row, so it is as tall as its
+_tallest_ child — the `Vorgeschlagene Nummer` `Stat` tile, 81px of `py-3` around a two-line
+label/value. The group column is 56px closed and 120px open, under the tile in both states, so
+folding it cannot move the row and cannot move the button beneath it. The 39px the fold does recover
+is the cost of the button-styled summary US-020.1 added, not a saving against the screen as PR #62
+shipped it. The fold is therefore worth having for the two lines of visual noise it removes and for
+putting the proposal on one legible line — not for page height. A future "make `/kunden/neu` shorter"
+story should target the `Zuordnung` footer (69px) or the `Stat` tile, which is where the 220px
+actually is, and should measure _which element sets the height_ before it states a budget.
 
 The closed card met its target; `#firstName` did not, and the two criteria could not both hold. 470
 is 630 − 160, which assumes the archive card takes **zero** height once closed — but the same story

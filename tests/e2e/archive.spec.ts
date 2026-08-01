@@ -105,6 +105,12 @@ async function register(page: Page): Promise<Household> {
   await page.locator("#city").fill(faker.location.city());
   await page.locator("#certificateType").fill("Jobcenter-Bescheid");
   await page.locator("#certificateValidUntil").fill(CERTIFICATE_VALID_UNTIL);
+
+  // The group choice is a `<details>` that starts closed (US-20.2), so the summary is clicked the
+  // way staff would click it: a radio inside a closed disclosure has no bounding box and `check()`
+  // would time out. A real click rather than `evaluate(d => (d.open = true))`, so that a summary
+  // which stopped opening turns this spec red instead of being stepped around.
+  await page.getByTestId("group-choice-open").click();
   await page.locator("#group-RED").check();
 
   // The applicant mirrors into the first household row; only the child is added by hand.

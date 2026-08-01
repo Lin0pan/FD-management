@@ -135,6 +135,13 @@ export const de = {
     },
     assignment: {
       proposedNumber: "Vorgeschlagene Kundennummer",
+      /**
+       * The folded group choice (US-20). Two halves rather than one sentence, because the proposed
+       * group goes between them wearing its own colour — and a colour never travels without the
+       * word it names (US-03.4).
+       */
+      groupChoiceLabel: "Gruppe:",
+      groupChoiceOverride: "andere Gruppe wählen",
       suggestedGroup: (group: string): string => `Vorschlag: ${group}`,
       groupSizes: (red: number, blue: number): string =>
         `Aktuell: Rot ${red}, Blau ${blue} Haushalte`,

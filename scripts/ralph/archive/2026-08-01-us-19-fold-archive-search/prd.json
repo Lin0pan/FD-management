@@ -25,7 +25,7 @@
         "Verify in browser using the playwright-cli skill against a PRODUCTION build (npm run build && npm run start -- --port 3100, killing any next-server first), reading the ACCESSIBILITY SNAPSHOT: the summary must announce the proposed group, and both radios must be named radio elements once opened"
       ],
       "priority": 1,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -50,8 +50,8 @@
         "Verify in browser using the playwright-cli skill against a PRODUCTION build: register a household without opening the disclosure and confirm the saved group is the proposed one, then open it and override the group on a second registration"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Shipped, with two criteria measurably NOT met and not metable by folding: the Zuordnung card is 220px (not <= 210px) and the top of Aufnehmen did not rise at all (y=1461 before and after, 1440x900, production build, demo register). The card's height is set by the `Vorgeschlagene Nummer` Stat tile beside the group column — 81px — not by the radios; the column is 56px closed and 120px open, under the tile either way. The PRD derived both numbers from a '~310px today' that was never measured; the real before is 220px. Against the state US-001 shipped (disclosure open) the fold does save 39px: 259px / y=1500 -> 220px / y=1461. Everything else holds: closed on every load, not persisted, exactly the three named specs edited (real clicks on the summary, no evaluate), full e2e suite green (90 passed / 1 pre-existing skip), overflow 0 at 1920/1280/1024/800/390, console 0 errors, and a registration that never opened the disclosure saved the proposed group by hand."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -68,8 +68,8 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Reached THREE documents, not the two the criteria name. docs/ui_redesign_kunden_neu.md: the §11.3 answer row now says 'built in US-20'; the 'were not folded away' paragraph is replaced with what shipped (closed <details>, summary naming the proposal in GROUP_STYLES, sizes outside, three named spec edits by real click); a new paragraph says the record's control at /kunden/[id] is deliberately NOT folded, by US-16.4 FR-4; a third numbers table carries the six measurements with an explanation of why neither height target was met (flex row, Stat tile 81px, group column 56/120px). The earlier §12 sentence 'archive.spec.ts and card.spec.ts needed no edit after all' is corrected in place rather than deleted. docs/ui_conversion_guide.md: the disclosure finding now says both /kunden/neu disclosures are closed and how the specs reach them, plus a new finding that a fold only shortens a card if the folded control sets its height. docs/technical_documentation.md: the neu/registration-form.tsx bullet gained the group disclosure's default state, testid, form placement and the three specs. No source or spec file touched (docs-only diff). format:check, lint, typecheck, test:coverage (912 tests) and build all green."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

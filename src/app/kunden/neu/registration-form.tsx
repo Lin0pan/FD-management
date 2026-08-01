@@ -27,7 +27,8 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import type { RegistrationProposal } from "@/application/customers/propose-registration";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -48,6 +49,7 @@ import {
 import { composition } from "@/domain/customer/householdComposition";
 import { GROUPS } from "@/domain/customer/group";
 import { de } from "@/i18n/de";
+import { cn } from "@/lib/utils";
 import { GROUP_STYLES } from "../../accents";
 import { Stat } from "../../stat";
 import { submitRegistration } from "./actions";
@@ -500,31 +502,73 @@ export function RegistrationForm({
             className="min-w-56"
           />
 
-          {/* Native radios, not Radix: the action reads `group` out of the `FormData` and a
-              `RadioGroup` submits nothing of its own. `#group-RED` is reached by CSS id in three
-              specs, so the ids are load-bearing too. What changes is that each option now wears the
-              colour it names — this is the one screen where the group is actually *chosen*, and it
-              was the one screen showing RED and BLUE in black and white. */}
-          <fieldset className="flex flex-col gap-2">
-            <legend className="text-sm font-medium">{de.customers.fields.group}</legend>
-            <div className="flex flex-wrap gap-2">
-              {GROUPS.map((group) => (
-                <label
-                  key={group}
-                  className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${GROUP_STYLES[group]}`}
-                >
-                  <input
-                    type="radio"
-                    name="group"
-                    id={`group-${group}`}
-                    value={group}
-                    defaultChecked={group === proposal.suggestedGroup}
-                    className="accent-current"
-                  />
-                  <span>{de.customers.groups[group]}</span>
-                </label>
-              ))}
-            </div>
+          {/*
+           * The group choice, behind a disclosure (US-20). FD accept the proposal, so two
+           * permanently visible radios were a control for a decision almost nobody makes, and they
+           * made a card that can be two lines into five.
+           *
+           * What is *not* folded is the proposal and the two group sizes below: the sizes are what
+           * an override is decided from, and a staff member must not have to open a control to see
+           * that the register is lopsided. The summary names the proposed group in the group's own
+           * colour and always with the word — a colour is a distinction only some of the staff can
+           * make (US-03.4), and it is the word the specs assert.
+           *
+           * The `<details>` sits inside the `<form>` on purpose: a `<details>` is not a form
+           * boundary, so the radios are submitted with everything else and a registration that
+           * never opened it saves the `defaultChecked` proposal.
+           *
+           * It renders closed on every load and the state is not persisted anywhere: which group
+           * the last registration chose says nothing about this one, and a control that remembers
+           * being open would put the decision back on screen for the staff who never make it.
+           */}
+          <div className="flex flex-col gap-2">
+            <details>
+              {/* `w-fit` is right here, unlike the archive search's summary: this one is a control,
+                  not a card header (`docs/ui_conversion_guide.md`). */}
+              <summary
+                data-testid="group-choice-open"
+                className={cn(
+                  buttonVariants({ variant: "outline" }),
+                  "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden",
+                )}
+              >
+                {de.customers.assignment.groupChoiceLabel}
+                <Badge variant="outline" className={GROUP_STYLES[proposal.suggestedGroup]}>
+                  {de.customers.groups[proposal.suggestedGroup]}
+                </Badge>
+                <span className="font-normal text-muted-foreground">
+                  — {de.customers.assignment.groupChoiceOverride}
+                </span>
+              </summary>
+
+              {/* Native radios, not Radix: the action reads `group` out of the `FormData` and a
+                  `RadioGroup` submits nothing of its own. `#group-RED` is reached by CSS id in three
+                  specs, so the ids are load-bearing too. Each option wears the colour it names —
+                  this is the one screen where the group is actually *chosen*, and it was the one
+                  screen showing RED and BLUE in black and white. */}
+              <fieldset className="mt-3 flex flex-col gap-2">
+                <legend className="text-sm font-medium">{de.customers.fields.group}</legend>
+                <div className="flex flex-wrap gap-2">
+                  {GROUPS.map((group) => (
+                    <label
+                      key={group}
+                      className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${GROUP_STYLES[group]}`}
+                    >
+                      <input
+                        type="radio"
+                        name="group"
+                        id={`group-${group}`}
+                        value={group}
+                        defaultChecked={group === proposal.suggestedGroup}
+                        className="accent-current"
+                      />
+                      <span>{de.customers.groups[group]}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            </details>
+
             <p className="text-xs text-muted-foreground">
               {de.customers.assignment.suggestedGroup(de.customers.groups[proposal.suggestedGroup])}{" "}
               ·{" "}
@@ -533,7 +577,7 @@ export function RegistrationForm({
                 proposal.groupCounts.blue,
               )}
             </p>
-          </fieldset>
+          </div>
         </div>
       </Section>
     </form>
