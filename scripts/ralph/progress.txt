@@ -388,3 +388,41 @@ The Next.js, i18n, e2e and playwright entries are the ones that apply.)
     in the table are the six above; §12 must record that the height goal was NOT met and why, or the
     next reader will re-derive the same wrong 310px.
 ---
+
+## 2026-08-01 - US-003 (batch 20)
+- Documentation only; no source and no spec file in the diff.
+- docs/ui_redesign_kunden_neu.md §12: the §11.3 answer row reads "built in US-20"; the paragraph
+  "The group radios were not folded away" is replaced by what actually shipped — closed <details>,
+  summary naming the proposal in GROUP_STYLES with the word, the suggestion and both sizes outside
+  it, the three spec files opened by a real click on `group-choice-open`, nothing persisted, a
+  submit that never opened it saving the proposal. A new paragraph states that the RECORD's control
+  (/kunden/[id]/group-control.tsx) is deliberately NOT folded, by US-16.4 FR-4, so the two are not
+  made to match. The older sentence "archive.spec.ts and card.spec.ts needed no edit after all" is
+  corrected IN PLACE ("not folded at that point — US-20 folded them and did have to edit both"),
+  not deleted.
+- The numbers table gained a third block with the six measured figures and, below it, why neither
+  height target was met: the Zuordnung card's content is a `flex flex-wrap` row whose height is set
+  by the 81px `Vorgeschlagene Nummer` Stat tile, and the group column is 56px closed / 120px open —
+  under the tile either way. The 39px recovered is the cost of US-020.1's button-styled summary.
+- docs/ui_conversion_guide.md: the finding "A disclosure a spec fills or checks cannot be closed by
+  default" now records that BOTH /kunden/neu disclosures are closed, how the three specs reach the
+  group one, and why customer-record.spec.ts was left alone. Added a second finding: a fold only
+  shortens a card if the folded control is what sets its height, with the walk-the-children
+  measuring recipe and the `git checkout HEAD~1 -- <files>` way to measure a committed "before".
+- docs/technical_documentation.md: the `neu/registration-form.tsx` bullet now documents the group
+  disclosure's closed default, its testid, that it sits inside the <form>, that the radios stay
+  native/uncontrolled, and the three specs that must click the summary — matching the shape the
+  `neu/archive-search-panel.tsx` bullet beside it already had.
+- Files: docs/ui_redesign_kunden_neu.md, docs/ui_conversion_guide.md, docs/technical_documentation.md.
+- format:check, lint, typecheck, test:coverage (44 files / 912 tests) and build all green.
+- **Learnings for future iterations:**
+  - A documentation story is where a NOT-MET acceptance criterion becomes durable. US-002's failure
+    lived only in prd.json notes and this log, both of which the archive rotation wipes; §12 now
+    carries the six numbers and the flex-row reason, so the next PRD cannot re-derive the same
+    unmeasured 310px. Write the reason, not just the number.
+  - Prettier reflows markdown TABLES on commit (lint-staged runs `prettier --write` on *.md), so do
+    not hand-align a new table's pipes — write it roughly and let the hook settle the widths. It
+    also means a docs commit's staged diff can differ from what was written; check `git show`.
+  - `npm run format:check` is part of this batch's criteria and is NOT in the ralph step-7 chain
+    (lint / typecheck / test:coverage / build). For a docs story it is the only check that can fail.
+---

@@ -68,8 +68,8 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Reached THREE documents, not the two the criteria name. docs/ui_redesign_kunden_neu.md: the §11.3 answer row now says 'built in US-20'; the 'were not folded away' paragraph is replaced with what shipped (closed <details>, summary naming the proposal in GROUP_STYLES, sizes outside, three named spec edits by real click); a new paragraph says the record's control at /kunden/[id] is deliberately NOT folded, by US-16.4 FR-4; a third numbers table carries the six measurements with an explanation of why neither height target was met (flex row, Stat tile 81px, group column 56/120px). The earlier §12 sentence 'archive.spec.ts and card.spec.ts needed no edit after all' is corrected in place rather than deleted. docs/ui_conversion_guide.md: the disclosure finding now says both /kunden/neu disclosures are closed and how the specs reach them, plus a new finding that a fold only shortens a card if the folded control sets its height. docs/technical_documentation.md: the neu/registration-form.tsx bullet gained the group disclosure's default state, testid, form placement and the three specs. No source or spec file touched (docs-only diff). format:check, lint, typecheck, test:coverage (912 tests) and build all green."
     }
   ]
 }
