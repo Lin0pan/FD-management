@@ -4,7 +4,8 @@ A UX analysis of the Start dashboard as it stands today, and a concept for rebui
 shadcn/ui primitives — the last of the three screens still on the pre-shadcn idiom in
 `docs/ui_conversion_guide.md`.
 
-**Status:** **not built.** The measurements in §3 are the "before".
+**Status:** **§8 step 1 built.** The measurements in §3 are the "before"; the "after" is in §12.
+Step 2 — cutting the welcome line — is still open.
 
 This is the smallest screen in the application and the only one that is **glanced at rather than
 operated**. US-17.3 removed seven link rows from it and left four elements. Everything below is
@@ -232,6 +233,13 @@ stops being the loudest voice in a room where it has nothing to say. The panel k
 `max-w-6xl` width once the shell changes (§4.2d), which at 1440 gives the sentence 1 088px against
 the 781px it needs: **the wrap in §3.2 disappears at every width down to ~830px**, and below that it
 breaks after the dash, which is the right place.
+
+> **Measured on the built screen, and it does not.** The 781px is the 24px measurement, and §9's own
+> warning against assuming it scales was the right one: at 40px the sentence needs ~1 300px against
+> a panel of 1 088, so it wraps at **every** width the shell allows. What the size bought is the
+> break _place_, not its absence — the line now divides after the dash (931px / 371px), each of the
+> two facts whole, where at 24px it divided between `Rot` and `holt ab.` That is the §9 fallback,
+> and it is what shipped. See §12.
 
 **(b) The group word is emphasised inside the sentence, not extracted from it.** This is the one
 place the redesign is constrained rather than free, and it is worth stating plainly (§7.1):
@@ -484,3 +492,40 @@ This screen only reads, so driving it writes nothing to `data/fd.db`.
    deliberately declined it once already by moving the free-slot banner and the cards-due badge to
    the hub. The empty space is the design, and the next person to read this file should have to
    argue past this sentence to fill it.
+
+---
+
+## 12. What step 1 measured
+
+Driven the way §1 was — a production build on port 3100, `FD_FIXED_NOW_FILE` pinned, both states,
+1440 / 800 / 390. `home.spec.ts` passes with no test edited; console 0 errors; horizontal overflow 0
+at all three widths in both states.
+
+| Measure                              | Before                       | After                |
+| ------------------------------------ | ---------------------------- | -------------------- |
+| `<main>` (§3.8)                      | `x=336, w=768`               | `x=144, w=1152`      |
+| Distribution sentence                | 24px                         | **40px**             |
+| `h1`                                 | 30px, `foreground`           | 24px, muted          |
+| The group's word, `Rot` (§3.1)       | 37.9×29 = 1 099px²           | 65×49 = **3 184px²** |
+| …as a share of the panel             | 1.1%                         | 1.72%                |
+| The sentence's two line boxes (§3.2) | 651 / 130px                  | 931 / 371px          |
+| …and where they divide               | between `Rot` and `holt ab.` | after the dash       |
+| The empty state's control (§3.7)     | 101×24px text link           | 112×36px `Button`    |
+
+Three things the numbers say that the concept did not:
+
+1. **One line is out of reach at 40px** — §4.2a, corrected in place above. The wrap stays; the
+   division moves to the right place.
+2. **The break place has a width floor.** After the dash needs 931px of panel for a short date and
+   **1 030px for the longest realistic one** (`Donnerstag, 24. September 2026`), against 1 056px
+   available. So it holds at 1440 and 1920 and gives out at about 1 030px of panel — roughly a
+   1 130px window. Below that the date itself splits: at 800px it reads `Donnerstag, 6.` /
+   `August 2026 – Gruppe Rot holt ab.`, where the old 24px kept the date and the colour together on
+   line 1. §9 names ≥1280 as the target and that is where the screen is good; **if FD's machine
+   turns out to be narrower, the cheap remedy is a fluid size** (`clamp(1.5rem, 3.2vw, 2.5rem)`
+   restores the after-the-dash break down to 768px), and the size is §11.1's open question anyway.
+3. **The empty state's prose is `text-base`, against the `Card`'s own 14px.** In that state the
+   paragraph is the screen, and the card default is tuned for dense tables read from a chair.
+
+`/einstellungen` in the `NoSettingsInForce` state still renders 0 forms, 0 inputs, 0 buttons and 0
+links — §3.7's dead end is unchanged, and remains that screen's §4.2f to fix.

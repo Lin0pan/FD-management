@@ -433,6 +433,30 @@ focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:b
   rendered first. Where a spec reaches a field by CSS id — `/kunden/neu` does, sixteen times — the
   id is load-bearing and stays; where it reaches by testid, generate it.
 
+## Findings from `/`
+
+- **A word can be emphasised inside a sentence a spec asserts exactly.** `home.spec.ts` reads the
+  panel as `locator("p")` with `toHaveText(de.home.distribution.next(date, colour))`, so the
+  dictionary sentence may be neither split across elements nor joined by a second `<p>`. `toHaveText`
+  compares text content and is blind to inline markup, so the answer is to find the word in the
+  rendered string and wrap it where it stands — `sentence.slice(0, at)`, `<strong>{word}</strong>`,
+  `sentence.slice(at + word.length)`. The word is looked up rather than passed in twice, and a
+  sentence that somehow does not contain it renders whole: an unemphasised line is a smaller failure
+  than a line missing its colour.
+- **`text-balance` optimises for even lines, not for meaning, and German dates are what it eats.**
+  At 40px the distribution sentence needs ~1 300px against the shell's 1 056, so it wraps at every
+  width. Balanced, it came out `Nächste Ausgabe: Donnerstag, 6.` / `August 2026 – Gruppe Rot holt
+ab.` — two lines of 643 and 660px with the date cut in half. Left alone it breaks at the last
+  word that fits, which here is after the dash (931px / 371px): each of the two facts whole on a
+  line of its own, which is what the concept asked for. **Measure the line boxes before reaching for
+  `text-balance`**; on a line built out of one long unbreakable phrase and one short one it makes
+  things worse, not better.
+- **Enlarging type moves every line break, at every width.** A size increase is never only a size
+  increase: the same sentence that broke after the dash at 1 088px splits its date at 928px, so
+  a font size has a width below which its break point is wrong. Take the line boxes at the target
+  width **and** one step below it, with the longest string the screen can produce — here
+  `Donnerstag, 24. September 2026` at 1 030px against 1 056px of panel, 26px of headroom.
+
 ## Always drive the screen with `playwright-cli`
 
 **Use the `playwright-cli` skill for every piece of UI work on this project** — building it and
@@ -516,9 +540,12 @@ second time.
 - [x] `/ausgabe` — the counter (pilot)
 - [x] Global chrome — the navigation bar in `src/app/nav.tsx`, worn by every screen from
       `src/app/layout.tsx`.
-- [ ] `/` home — concept written, `docs/ui_redesign_start.md`. Read §7.1 first: `home.spec.ts` reads
-      the distribution panel as `locator("p")` with an exact `toHaveText`, so a second `<p>` inside
-      it — a `Stat`, a hint — is a strict-mode violation on three assertions.
+- [ ] `/` home — **converted** (§8 step 1), per `docs/ui_redesign_start.md`. The sentence is 40px
+      and breaks after the dash instead of through the date, the group's word is 3 184px² instead of
+      1 099, and the page lines up with the bar. Read §7.1 before touching it again: `home.spec.ts`
+      reads the distribution panel as `locator("p")` with an exact `toHaveText`, so a second `<p>`
+      inside it — a `Stat`, a hint — is a strict-mode violation on three assertions. Step 2, cutting
+      the welcome line, is still open.
 - [x] `/kunden` — the hub itself, per `docs/ui_redesign_kunden_verwalten.md`. Read §7 before touching
       it: it lists the constraints `tests/e2e/customer-list.spec.ts` puts on the screen (the three
       filters cannot become Radix `Select`s, and every `customer-row-*` testid is asserted exactly).
