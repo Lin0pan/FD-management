@@ -73,7 +73,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── active-section.ts         # pure: which section a path belongs to (+ .test.ts)
 │   │   ├── page.tsx                  # Start dashboard: date + next distribution (US-17.3)
 │   │   ├── ausgabe/                  # distribution screen (US-03), counter (US-04), hand-out (US-05), reminder (US-06)
-│   │   │   ├── page.tsx              # server component: colour banner, counter lookup, week lookup
+│   │   │   ├── page.tsx              # server component: colour banner + the counter lookup
 │   │   │   ├── counter-lookup.tsx    # the verdict banner + the customer details below it (US-04.4)
 │   │   │   ├── serve-controls.tsx    # client: record a hand-out, correct/remove today's record (US-05.4)
 │   │   │   ├── certificate-controls.tsx  # client: log today's reminder, record a renewal (US-06.4)
@@ -322,14 +322,18 @@ All three are tested against hand-written fakes and a fake clock in `settings.te
 ### `src/application/distribution/`
 
 **`getWeekColour(deps, date?)`** is the single seam the distribution screen reads. It answers for the
-clock's today by default and for a looked-up date on request, returning everything the banner states:
-the day, its ISO week (`2026-W30`), the colour, whether FD distributes that day and the next
-distribution at or after it (US-03, FR-1/4/5).
+clock's today by default and for an explicit instant on request, returning everything the banner
+states: the day, its ISO week (`2026-W30`), the colour, whether FD distributes that day and the next
+distribution at or after it (US-03, FR-1/5).
+
+The `date` parameter has **no screen** behind it: US-22 withdrew the date card that let staff ask
+about another week. It stays because `lookupCustomer` and `recordAttendance` pass the instant they
+are judging at, so it is load-bearing on the counter's own path.
 
 Two decisions are worth knowing:
 
-- It resolves the settings **at the date asked about**, not at today, so a lookup for a past week
-  answers with the anchor that was in force _then_ (FR-6). That is why it reads the version history
+- It resolves the settings **at the date asked about**, not at today, so an answer for a past week
+  uses the anchor that was in force _then_ (FR-6). That is why it reads the version history
   directly rather than going through `readCurrentSettings`.
 - It resolves at the asked-about _instant_ and normalises only the calendar arithmetic to a UTC day,
   so a settings change saved this morning is in force this morning.
@@ -730,8 +734,8 @@ boundary enters the calculation. `colourOf` is total in both directions: the wee
 negative before the anchor and the parity is taken with a non-negative modulo, so a lookup for a week
 that predates the configuration answers instead of failing.
 
-`isoWeekOf(date)` writes the ISO week as `2026-W30` — what the lookup control shows beside a colour
-so staff can check it against a wall calendar.
+`isoWeekOf(date)` writes the ISO week as `2026-W30` — what the banner shows beside the colour so
+staff can check it against a wall calendar.
 
 The anchor is validated here as well as in `createSettings`, and for a reason the shape check cannot
 cover: `2025-W53` is well-formed but 2025 has only 52 ISO weeks. Both raise `InvalidSettings` against
@@ -1877,26 +1881,29 @@ primitives in `src/components/ui/`, and the reference the other screens follow. 
   deliberately **no audit log**: everything the page renders is a read (US-04, FR-4).
   `counterActionDeps` — the server actions' — adds the audit log, the certificate history and the
   writable stores, and is the one object here that writes.
-- **`page.tsx`** calls `getWeekColour` once for today and, when a date was submitted, once more for
-  that day. Both questions are the same use case; the page arranges the answers and decides nothing.
+- **`page.tsx`** calls `getWeekColour` once, for today. The page arranges the answer and decides
+  nothing.
 - The **banner** is the dominant element and is painted in the colour it _names_ — on a day without a
   distribution that is the **next** distribution's colour, which need not be the current week's. The
   colour is always written out in words ("Gruppe Rot") as well as painted: several staff share one
   screen in variable lighting, so colour alone is never the message.
-- The **lookup** is a plain `method="get"` form, so the looked-up day lands in `?datum=` and a colour
-  someone has checked can be reloaded or passed on as a URL. It needs no client component.
-- A lookup fails **on its own**: an unreadable date, or a day before FD had any settings, renders a
-  German sentence beside the form and leaves today's banner standing. "Unreadable" includes a day
-  the calendar does not have (`?datum=2026-13-45`): the Zod schema checks the shape _and_ that the
-  parsed date is a date, because an Invalid Date's NaN survives the calendar arithmetic silently and
-  would be rendered as a week `NaN-WNaN` in a confidently-named colour.
+- **There is no second card asking about another week**, and that is deliberate. A date lookup lived
+  under the counter until **US-22** (`tasks/prd-us-22-drop-week-colour-lookup.md`): FD said they need
+  no week but this one, so the card, its strings, its error path and its two specs went, and
+  `docs/user_stories_mvp.md` §US-03 records the criterion as withdrawn. The screen returned 186px of
+  vertical space to the counter, which is the scarcest thing on it.
+- The **`datum` search parameter is therefore inert, not refused**: nothing reads it, so any value —
+  including `?datum=2026-13-45`, which the old Zod schema rejected because an Invalid Date's NaN
+  would otherwise have been painted as a week `NaN-WNaN` in a confidently-named colour — renders the
+  ordinary screen. A bookmark from before the removal still works; it simply shows today.
+  `distribution.spec.ts` pins that down.
 
 #### The counter lookup (`counter-lookup.tsx`)
 
-- The typed number lands in `?nummer=` through a second `method="get"` form, for the same reason the
-  week lookup uses one — and for one more: a form navigation brings the input back **empty and
-  autofocused**, which is the whole keyboard loop the counter needs (type, Enter, read, type again).
-  No client component, no state to reset.
+- The typed number lands in `?nummer=` through a plain `method="get"` form, so a customer someone has
+  looked up can be reloaded or passed on as a URL — and for one more reason: a form navigation brings
+  the input back **empty and autofocused**, which is the whole keyboard loop the counter needs (type,
+  Enter, read, type again). No client component, no state to reset.
 - **`statementFor(verdict)`** is the only place a verdict becomes words. Its `switch` ends in a
   `const unhandled: never = verdict`, so adding a case to the union is a _compile error_ until the
   counter renders it — a new verdict can never appear as a blank banner.
@@ -2324,8 +2331,13 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   `src/infrastructure/clock.ts`). Against the seeded anchor `2026-W02` = RED and Thursday
   distributions it asserts the banner on a RED distribution day (08.01.2026), on the BLUE one a week
   later, and on the Tuesday between them — where the banner must state the _next_ distribution and
-  its colour — then looks up a week two years out (20.07.2028, `2028-W29`, RED) through the date
-  control. It is **serial**, writes nothing to the database, and deletes the pinned-now file in
+  its colour. A fourth test loads `/ausgabe?datum=2026-13-45` and requires the ordinary banner and
+  **no** error: the parameter the withdrawn lookup used (US-22) is inert rather than fatal. It finds
+  the error by `[data-slot="alert"]`, not by `getByRole("alert")` — Next injects a client-side route
+  announcer carrying that role into every page, so the role locator is never 0. Two tests that drove
+  the lookup itself, including one that asked for a week two years out, were **deleted** with it; the
+  alternation that far out is proved in `weekColour.test.ts`, where the rule lives. The spec is
+  **serial**, writes nothing to the database, and deletes the pinned-now file in
   `afterAll`: a frozen today would otherwise reach the settings specs, which stamp a version with
   the clock. The `webServer` command deletes that file too, so an aborted run cannot poison the next
   one.
@@ -2528,9 +2540,13 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   Thursday distributions: the RED distribution day 08.01.2026, the Tuesday before it, and the
   Saturday after it. ⚠️ **The Saturday is the point.** On it the current week is still RED while the
   next Ausgabe is the BLUE one on 15.01.2026, so a panel reading `view.colour` instead of
-  `nextDistribution.colour` announces the wrong group — and the spec proves the disagreement rather
-  than assuming it, by looking 10.01.2026 up on `/ausgabe`, the one screen that shows the week's own
-  colour, and finding RED there while the dashboard says BLUE. On the distribution day the line is
+  `nextDistribution.colour` announces the wrong group. The spec used to prove that the two fields
+  disagree by looking 10.01.2026 up on `/ausgabe` — until US-22 removed that lookup, after which **no
+  screen renders `view.colour` at all** (the Ausgabe banner paints `nextDistribution.colour` too),
+  so there was nowhere to re-point it. The disagreement is now proved a layer down, in
+  `src/application/distribution/distribution.test.ts` — "names the next distribution and its colour on
+  a day that is not one" — and the e2e spec asserts the dashboard's BLUE alone. On the distribution
+  day the line is
   asserted as an **exact** text, because what must be shown is that it says _today_ rather than
   naming a coming date, which a containment check cannot tell apart. A fourth test pins 31.12.2025 —
   a day before the seeded settings version was recorded, hence `NoSettingsInForce` without emptying a

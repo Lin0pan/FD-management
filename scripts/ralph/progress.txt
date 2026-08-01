@@ -24,6 +24,13 @@ Started: Sat Aug  1 18:54:45 CEST 2026
   shadcn `ui/` primitive carries a `data-slot`.
 - **`tsconfig.json` includes `tests/`**, so `npm run typecheck` type-checks the specs. Deleting a key
   from `src/i18n/de.ts` fails typecheck while any spec still reads it — the spec has to go first.
+- **`docs/technical_documentation.md` documents the e2e suite test by test**, so changing a spec
+  makes it stale and no gate can tell. Grep that file for the *spec file name* after touching a
+  spec, and for the feature's vocabulary after removing a feature — it is 2,500 lines and describes
+  the same thing from the layer's side, the screen's side and the suite's side.
+- **A retracted requirement is struck through, marked and kept**, never deleted: `~~criterion~~`
+  plus `[withdrawn]` and the reason, in both `docs/user_stories_mvp.md` and the story's PRD. Say
+  what is *not* withdrawn too, or the next reader removes a parameter that still has callers.
 
 ---
 
@@ -124,4 +131,39 @@ Started: Sat Aug  1 18:54:45 CEST 2026
     verification cheap: a green `npm run typecheck` *is* the proof that nothing read the key.
   - When a key survives a deletion sweep for a non-obvious reason, say so in a comment beside it. The
     next sweep is done by someone who does not have this PRD open.
+---
+
+## 2026-08-01 - US-004 (batch 21 / US-22): Record the withdrawal in the documents
+
+- `docs/user_stories_mvp.md`: §US-03 criterion 3 is struck through and marked `[withdrawn]` with
+  FD's reason, the note that `getWeekColour(deps, date?)` keeps its date parameter, and where the
+  feature would belong if it is ever proposed again (the settings screen, beside the anchor). The
+  "How to read this document" header now defines `[withdrawn]` beside `[added]` — struck through and
+  left in place, never deleted.
+- `tasks/prd-us-03-week-colour.md`: a withdrawal note under the introduction, §US-03.4's date-picker
+  criterion and §US-03.5's two-years-out criterion struck with `[withdrawn by US-22]`, and **FR-4**
+  struck with the reason. FR-6 now says out loud why the `date` parameter survives the screen.
+- `docs/technical_documentation.md`: six places named the lookup — the file tree, the `getWeekColour`
+  seam (which also cited the withdrawn FR-4), `isoWeekOf`'s "what the lookup control shows", the
+  `/ausgabe` screen bullets, `counter-lookup.tsx`'s "the same reason the week lookup uses one", and
+  both e2e spec descriptions. All updated; the screen section now records the withdrawal and the
+  186px it returned, and the `datum` parameter is described as inert rather than validated.
+- Files changed: those three. No source file, no spec file.
+- format:check, lint, typecheck, test:coverage (44 files, 912 tests) and build all pass.
+
+- **Learnings for future iterations:**
+  - **`docs/technical_documentation.md` describes the e2e specs test by test**, near the end. A story
+    that deletes or adds a test leaves that section wrong, and neither `tsc` nor the suite can tell.
+    US-003 changed `distribution.spec.ts` *and* `home.spec.ts`; both descriptions were stale by the
+    time this story opened. **Grep the technical documentation for the spec file name whenever a spec
+    changes**, not only when a screen does.
+  - A PRD criterion of the form "check document X and update it if it names one" is worth taking as
+    "grep the whole document for the feature's vocabulary". Here the terms were `lookup`, `datum`,
+    `date picker` and `past or future week`, and the hits were spread over 2,200 lines in sections
+    that have nothing to do with each other.
+  - **Withdrawal is an edit, not a delete.** Struck-through text (`~~…~~`) plus a marker and the
+    reason keeps the argument findable; deleting the criterion leaves the next person to re-derive
+    FD's answer from nothing. Both documents also state what is *not* withdrawn — the capability
+    stays, only its control is gone — because that is the distinction a reader will otherwise get
+    wrong and rip the date parameter out of `getWeekColour`.
 ---

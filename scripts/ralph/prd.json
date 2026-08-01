@@ -78,8 +78,8 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "docs/user_stories_mvp.md: criterion 3 struck through and marked `[withdrawn]` with FD's reason, and the 'How to read' header now defines the marker beside `[added]` (the file defined only `[added]`, though `[changed]` was already in use at US-06). tasks/prd-us-03-week-colour.md: the intro carries a withdrawal note, §US-03.4's date-picker and §US-03.5's two-years-out criteria are struck with `[withdrawn by US-22]`, and FR-4 is struck; FR-6 now states out loud why the date parameter survives. docs/technical_documentation.md named the lookup in SIX places, more than the criterion implies: the file tree (l.76), the getWeekColour seam (l.324-331, which also cited the now-withdrawn FR-4), isoWeekOf's 'what the lookup control shows' (l.733), the /ausgabe screen bullets (l.1880-1892), counter-lookup's 'the same reason the week lookup uses one' (l.1896), and BOTH e2e spec descriptions — distribution.spec.ts still claimed to look up a week two years out, and home.spec.ts still described the /ausgabe cross-check US-003 deleted. All six updated. format:check, lint, typecheck, test:coverage (912) and build pass; no source or spec file touched."
     }
   ]
 }
