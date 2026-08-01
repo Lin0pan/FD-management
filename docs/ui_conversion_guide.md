@@ -487,7 +487,9 @@ second time.
 - [x] `/ausgabe` — the counter (pilot)
 - [x] Global chrome — the navigation bar in `src/app/nav.tsx`, worn by every screen from
       `src/app/layout.tsx`.
-- [ ] `/` home
+- [ ] `/` home — concept written, `docs/ui_redesign_start.md`. Read §7.1 first: `home.spec.ts` reads
+      the distribution panel as `locator("p")` with an exact `toHaveText`, so a second `<p>` inside
+      it — a `Stat`, a hint — is a strict-mode violation on three assertions.
 - [x] `/kunden` — the hub itself, per `docs/ui_redesign_kunden_verwalten.md`. Read §7 before touching
       it: it lists the constraints `tests/e2e/customer-list.spec.ts` puts on the screen (the three
       filters cannot become Radix `Select`s, and every `customer-row-*` testid is asserted exactly).
