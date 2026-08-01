@@ -506,7 +506,8 @@ second time.
       the `/kunden/neu` pass, so that screen still shows a seam.
 - [x] `/karten-neuausstellung`, per `docs/ui_redesign_karten_neuausstellung.md`. The two count sets
       now line up on one baseline, and a `GROUP_CHANGE` row prints the colour that changed.
-- [ ] `/einstellungen`
+- [ ] `/einstellungen` — concept written, `docs/ui_redesign_einstellungen.md`. Read §3.1 first: a
+      rejected save silently discards every edit, valid ones included, and no screenshot shows it.
 - [x] `kunden/archive-controls.tsx` + `kunden/block-controls.tsx` — shared by the record **and** the
       counter. Done first, in a commit of their own; the summaries are now 209×32px at `10px`
       against the `Card`'s 14, on both screens.
