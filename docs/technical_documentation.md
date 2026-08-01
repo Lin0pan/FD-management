@@ -163,6 +163,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── distribution/attendance.test.ts  # its Vitest spec
 │   │   ├── distribution/noShows.ts    # consecutiveNoShows — own distributions missed in a row
 │   │   ├── distribution/noShows.test.ts  # its Vitest spec
+│   │   ├── distribution/groupWalk.ts  # neighbours — the number before and after one (US-21)
+│   │   ├── distribution/groupWalk.test.ts  # its Vitest spec
 │   │   ├── distribution/distributionRecord.ts  # the hand-out record type (id, paid, priceCents)
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, CustomerRepository,
@@ -790,6 +792,26 @@ anywhere (PRD §5). Three consecutive misses are emphasis on a screen; the archi
 `registeredOn` is a parameter because the domain has no notion of storage — there is no registration-date
 column, and the application layer supplies the day from the household's first card (`index` 1), which is
 issued with the registration.
+
+### `src/domain/distribution/groupWalk.ts`
+
+The order the counter's **Zurück** and **Weiter** controls move in (US-21). `neighbours(numbers, from)`
+answers `{ previous, next }`: the largest number strictly below `from` and the smallest strictly above
+it, or `null` on a side that has been walked out.
+
+Two choices decide what those answers mean, and both are about what the screen must survive:
+
+| Choice                                    | Consequence                                                                                                                                                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The comparison is numeric, not positional | `from` need not be a member of `numbers`. A number the staff member typed that belongs to the other group — or to nobody — still sits between two members, so a mistyped lookup does not strand the controls. |
+| `numbers` is not assumed sorted           | `CustomerRepository.list` happens to order by customer number, but a function that silently required that would state the list's order in a second place. The extremes are scanned for.                       |
+
+`from === null` is "nothing looked up yet" rather than an error: every number is above it, so `next` is
+the smallest member — the entry point for a freshly opened `/ausgabe`. An empty `numbers` gives `null`
+on both sides at every `from`, which is how a group holding no active or blocked household reaches the
+screen as two disabled controls.
+
+`from` is never itself an answer: a walk moves.
 
 ### `src/application/customers/registerCustomer`
 

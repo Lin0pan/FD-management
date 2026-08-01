@@ -34,3 +34,28 @@ Started: Sat Aug  1 20:30:00 CEST 2026
   what is *not* withdrawn too, or the next reader removes a parameter that still has callers.
 
 ---
+
+## 2026-08-01 20:40 - US-001 (neighbours, domain)
+- Implemented `src/domain/distribution/groupWalk.ts`: `neighbours(numbers, from): Neighbours`,
+  the one rule the /ausgabe walk (US-21) navigates by. Strict TDD — the spec was written and run
+  red (module missing) before a line of implementation existed.
+- Files changed:
+  - `src/domain/distribution/groupWalk.test.ts` (new, 12 named tests)
+  - `src/domain/distribution/groupWalk.ts` (new)
+  - `docs/technical_documentation.md` (tree entry + a `### src/domain/distribution/groupWalk.ts`
+    section next to `noShows.ts`)
+  - `scripts/ralph/prd.json` (US-001 passes: true)
+- Gates: lint, typecheck, `test:coverage` (45 files / 924 tests, groupWalk.ts 100/100/100/100,
+  domain + application thresholds intact) and `next build` all green.
+- **Learnings for future iterations:**
+  - Both extremes come out of **one** pass: `previous` keeps the largest seen below `from`, `next`
+    the smallest seen above. No sort, so nothing here restates the register's ordering — US-002
+    can hand `CustomerRepository.list`'s output straight in without normalising it.
+  - `from === null` is modelled as *standing before every number*, not as a separate branch: the
+    `next` guard reads `(from === null || number > from)`, which is why the entry point and the
+    ordinary case need no second code path and coverage reaches 100% without a contrived test.
+  - The exported shape is `Neighbours { previous, next }` — US-002's `GroupRosterView` carries
+    those two fields by the same names, so the use case can spread rather than rename.
+  - `docs/technical_documentation.md` documents domain modules **twice**: once as a line in the
+    `src/` tree around line 156 and once as a `### <path>` section. Adding a module means both, or
+    the tree lists a file the reference section never explains.

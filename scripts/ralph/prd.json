@@ -23,8 +23,8 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "src/domain/distribution/groupWalk.ts + 12 named tests, written red first. Single scan for both extremes; from===null stands before every number so next is the smallest member. Domain coverage 100%."
     },
     {
       "id": "US-002",
