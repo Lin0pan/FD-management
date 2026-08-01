@@ -17,6 +17,11 @@ import { de } from "@/i18n/de";
  * RED distribution day, the Thursday after it is BLUE, and the Tuesday between them is no
  * distribution day at all.
  *
+ * The banner is now the whole of what this screen says about the calendar. A second card used to
+ * look up any day's colour, and two specs here drove it; US-22 withdrew the requirement and both
+ * were deleted with it (tasks/prd-us-22-drop-week-colour-lookup.md). What is left of them is the
+ * last spec below, which pins down that the parameter they used is ignored rather than refused.
+ *
  * These specs only read, so they leave the shared database exactly as they found it. They do
  * restore the clock in `afterAll` — a pinned today would otherwise make the settings specs, which
  * save a version stamped *now*, assert against January.
@@ -81,40 +86,20 @@ test.describe("Ausgabe", () => {
     );
   });
 
-  test("refuses a day the calendar does not have and leaves the banner standing", async ({
-    page,
-  }) => {
+  test("ignores a ?datum= left over from the retired lookup", async ({ page }) => {
     pinNow("2026-01-08T09:00:00.000Z");
-    // Only a hand-edited URL can carry this — the date control cannot submit it.
+    // The screen once read this parameter and answered about the day it named; US-22 withdrew that
+    // (tasks/prd-us-22-drop-week-colour-lookup.md). A URL still carrying it — a bookmark, a link in
+    // someone's history — must be inert rather than fatal, and that holds even for a value no
+    // calendar has: nothing reads it, so nothing can reject it.
     await page.goto("/ausgabe?datum=2026-13-45");
 
-    await expect(page.getByTestId("lookup-error")).toHaveText(de.distribution.errors.notADate);
-    await expect(page.getByTestId("lookup-result")).toHaveCount(0);
     await expect(page.getByTestId("week-colour-group")).toHaveText(
       de.distribution.group(de.distribution.colours.RED),
     );
-  });
-
-  test("looks up the colour of a week two years out", async ({ page }) => {
-    pinNow("2026-01-08T09:00:00.000Z");
-    await page.goto("/ausgabe");
-
-    await page.getByLabel(de.distribution.lookup.label).fill("2028-07-20");
-    await page.getByRole("button", { name: de.distribution.lookup.submit, exact: true }).click();
-
-    await expect(page.getByTestId("lookup-colour")).toHaveText(
-      de.distribution.group(de.distribution.colours.RED),
-    );
-    await expect(page.getByTestId("lookup-result")).toContainText(
-      de.distribution.lookup.result("20.07.2028", "2028-W29", de.distribution.colours.RED),
-    );
-    // The looked-up day is itself a Thursday, so the screen says so rather than naming a next one.
-    await expect(page.getByTestId("lookup-result")).toContainText(
-      de.distribution.lookup.isDistributionDay,
-    );
-    // Today's banner is untouched by the lookup.
-    await expect(page.getByTestId("week-colour-group")).toHaveText(
-      de.distribution.group(de.distribution.colours.RED),
-    );
+    // No error anywhere on the page: every one this screen can show is an `Alert`, and none of them
+    // is rendered. Located by `data-slot` rather than by `role="alert"`, because Next injects a
+    // route announcer carrying that role into every page client-side and it would count as one.
+    await expect(page.locator('[data-slot="alert"]')).toHaveCount(0);
   });
 });
