@@ -4,8 +4,11 @@ A UX analysis of the Start dashboard as it stands today, and a concept for rebui
 shadcn/ui primitives — the last of the three screens still on the pre-shadcn idiom in
 `docs/ui_conversion_guide.md`.
 
-**Status:** **§8 step 1 built.** The measurements in §3 are the "before"; the "after" is in §12.
-Step 2 — cutting the welcome line — is still open.
+**Status:** **§8 step 1 built; then largely undone by FD — read §13 first.** The measurements in §3
+are the "before" and §12 is the "after", but FD, having seen it built, asked for the opposite of what
+§4 concluded: no tint, no banner, and the distribution line at the size of the date. §13 records what
+the screen says today. Everything above it is the record of how it got there, and its typography
+recommendations are superseded.
 
 This is the smallest screen in the application and the only one that is **glanced at rather than
 operated**. US-17.3 removed seven link rows from it and left four elements. Everything below is
@@ -529,3 +532,57 @@ Three things the numbers say that the concept did not:
 
 `/einstellungen` in the `NoSettingsInForce` state still renders 0 forms, 0 inputs, 0 buttons and 0
 links — §3.7's dead end is unchanged, and remains that screen's §4.2f to fix.
+
+---
+
+## 13. What FD decided (August 2026)
+
+§8 left two content changes open — the welcome line (step 2) and the panel's `AUSGABE` heading
+(§3.5, "probably not worth doing at all") — because both were dictionary edits and neither was ours
+to make. FD asked for the screen in one sentence: a greeting as the header, **no** further welcoming
+text, the date, and then either "Heute ist Ausgabetag" or "Die nächste Ausgabe findet … statt" in the
+colour of the group. That answers both open questions at once, and one more the concept never asked.
+
+Shown the result, FD then asked for the distribution line to be **smaller, out of the banner and
+untinted**, with the group as "just a small note `(Rot)`" rather than the clause
+`– Gruppe Rot holt ab.` That is the second column below, and it undoes most of step 1's typography.
+
+| Element               | After step 1                                 | Now                                                     |
+| --------------------- | -------------------------------------------- | ------------------------------------------------------- |
+| `h1`                  | 24px muted, "Füllhorn Delbrück – Verwaltung" | 30px full strength, "Willkommen im Delbrücker Füllhorn" |
+| Welcome paragraph     | one sentence explaining the screen           | **gone** — `de.home.welcome` deleted                    |
+| Panel heading         | `AUSGABE` eyebrow + `<h2>`                   | **gone** — `de.home.distribution.heading` deleted       |
+| Distribution sentence | `Nächste Ausgabe: … – Gruppe Rot holt ab.`   | `Die nächste Ausgabe findet am … statt (Rot).`          |
+| …and on the day       | `Heute ist Ausgabe – …`                      | `Heute ist Ausgabetag (Blau).`                          |
+| Its size              | 40px (§12)                                   | 20px, matching the date line                            |
+| Its container         | tinted `Card`, red or blue                   | **none** — a paragraph on the page                      |
+| The group's word      | `<strong>` inside the tinted panel           | a plain `(Rot)` at the end of the sentence              |
+
+Four notes on the reasoning, since the concept argued the other way on three of them:
+
+1. **The `h1` carries the welcome, so the paragraph had nothing left to say.** §4.2c proposed
+   shortening it to "Willkommen."; with the heading itself now saying that, even one word would be
+   the same greeting twice. FR-7 is met by the two lines below it, which are the facts the deleted
+   sentence merely announced.
+2. **The panel heading went with it.** §3.5 called `AUSGABE` a label above a sentence that already
+   names the Ausgabe, and kept it only because guide trap 1 wants a section title to stay a real
+   heading. The trap is about _demoting_ a heading to a `div`; deleting the section title of the one
+   card on a screen the `h1` already announces is a different act. The accessibility snapshot now
+   reads `heading` → `paragraph` → `paragraph`, which is the whole screen.
+3. **§3 is answered, not accepted.** The whole concept argued from §3.1 — the answer occupying 1.1%
+   of a panel painted to deliver it — towards _more_ emphasis: 40px type, a tinted card, the colour
+   word set apart. FD, who reads this screen in the actual hall, wanted less of all three. That is
+   the finding §3 could not produce, because the reading distance in §2 was inferred and this was
+   not. The screen is now four short lines with no chrome at all, and §3.4's 494 empty pixels are a
+   deliberate feature rather than a symptom.
+4. **US-03.4 is still satisfied, and more plainly than before.** The rule is that the group may
+   never be carried by colour alone. With the tint gone, `(Rot)` is the _only_ thing naming the
+   group — the requirement's preferred direction. §6's colour budget for this screen is now zero;
+   `accents.ts`'s `GROUP_STYLES` is unchanged and still worn by the seven screens that name a
+   household's group. §11.1 (how big the group's word wants to be) is **closed**: as small as the
+   sentence.
+
+The e2e contract in §7 held: `home.spec.ts` and `navigation.spec.ts` pass unedited, because every
+assertion in them reads its expected text from `de.home.*` rather than repeating it. The one thing
+that would have broken — §7.6, "the `h1`'s text may not change" — was a constraint on us, not on FD,
+and it changed by their instruction.

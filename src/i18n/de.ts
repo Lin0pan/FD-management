@@ -29,20 +29,27 @@ export const de = {
    * links now, so what is left is the date and the answer to "wann ist die nächste Ausgabe".
    */
   home: {
-    heading: "Füllhorn Delbrück – Verwaltung",
-    welcome:
-      "Willkommen. Diese Seite sagt, welcher Tag heute ist und wann die nächste Ausgabe ist.",
+    /**
+     * The greeting *is* the heading. There is no second welcoming sentence: it said in a paragraph
+     * what the two lines below it then state as facts, which is the sort of text staff stop reading
+     * after the first week.
+     */
+    heading: "Willkommen im Delbrücker Füllhorn",
     /** The day, written out — and no clock time: the page has nothing that ticks (FR-7). */
     today: (date: string): string => `Heute ist ${date}.`,
     distribution: {
-      heading: "Ausgabe",
       /**
        * Today and a coming day are two sentences rather than one sentence styled two ways: on the
        * day itself the line reads differently, not louder (PRD §6).
+       *
+       * The group is a note in brackets rather than a clause of its own — FD's wording, once they
+       * had seen it as `– Gruppe Rot holt ab.` Nothing is lost by it: the screen is no longer
+       * tinted, so the word in brackets is now the *only* thing saying which group collects, which
+       * is the way round US-03.4 asks for anyway (never colour alone).
        */
-      isToday: (colour: string): string => `Heute ist Ausgabe – Gruppe ${colour} holt ab.`,
+      isToday: (colour: string): string => `Heute ist Ausgabetag (${colour}).`,
       next: (date: string, colour: string): string =>
-        `Nächste Ausgabe: ${date} – Gruppe ${colour} holt ab.`,
+        `Die nächste Ausgabe findet am ${date} statt (${colour}).`,
       /**
        * An unseeded database is not an error screen (FR-10). The date above still stands; only the
        * distribution rhythm is missing, and the way to supply it is named.

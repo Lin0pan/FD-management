@@ -7,6 +7,10 @@
  * except in the one state where FD has configured no rhythm yet, and there the way to the settings
  * is the only thing on the screen worth doing.
  *
+ * Three lines and nothing else: the greeting, the date, the Ausgabe. The explanatory paragraph under
+ * the heading and the panel's `AUSGABE` eyebrow both went, because each one described the line below
+ * it rather than saying anything the line did not.
+ *
  * The date only — no clock time. That is what keeps this a plain server component: no client
  * boundary, no ticking state, no timer, and a page that renders the same under the fixed clock the
  * end-to-end suite pins. `now` comes from the injected `Clock` through `getWeekColour`, never from a
@@ -20,111 +24,63 @@
 import Link from "next/link";
 import { getWeekColour, type WeekColourView } from "@/application/distribution/get-week-colour";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { germanLongDate } from "@/i18n/format";
-import { GROUP_STYLES } from "./accents";
 import { distributionDeps } from "./ausgabe/deps";
 import { SHELL } from "./shell";
 
 /** The date and the next distribution both turn over at midnight without anything being written. */
 export const dynamic = "force-dynamic";
 
-/** What the panel's small heading reads as, on both of its states. */
-const PANEL_HEADING = "text-sm font-semibold uppercase tracking-wide text-muted-foreground";
-
 /**
- * The sentence with the group's word set apart, still as one string in one paragraph.
+ * The distribution line: one sentence, set like the date above it, in no container at all.
  *
- * `home.spec.ts` asserts `getByTestId("next-distribution").locator("p")` with an exact
- * `toHaveText`, so the dictionary sentence may neither be split across elements nor joined by a
- * second `<p>` (concept §7.1). `toHaveText` reads text content and is blind to inline markup, so
- * wrapping the colour word where it already stands costs the assertion nothing — and it is what
- * stops the answer being the seventh of eleven identically set words (§3.1). The word is looked up
- * rather than passed in twice, and a sentence that somehow does not contain it is rendered whole:
- * an unemphasised line is a smaller failure than a line missing its colour.
- */
-function withColourEmphasised(sentence: string, colour: string): React.ReactNode {
-  const at = sentence.indexOf(colour);
-  if (at === -1) {
-    return sentence;
-  }
-  return (
-    <>
-      {sentence.slice(0, at)}
-      <strong className="font-bold">{colour}</strong>
-      {sentence.slice(at + colour.length)}
-    </>
-  );
-}
-
-/**
- * The distribution panel, painted in the colour of the distribution it *names*.
+ * It was a tinted card at 40px and then at 30px, which is what §3 of the concept asked for — and
+ * seeing it built, FD asked for the opposite: no banner, no tint, and the group as a small note
+ * rather than a clause. So the colour is now carried by the word `(Rot)` / `(Blau)` alone. That
+ * loses nothing a reader depends on, because the word was always the part that had to be there
+ * (US-03.4: never colour alone); it is the paint that has gone, not the fact. `GROUP_STYLES` is
+ * therefore no longer imported here — every other screen that names a group still wears it.
  *
  * `nextDistribution.colour`, never `view.colour`: the two are the same field only until the week's
  * distribution has been and gone. With a Thursday distribution, on a Saturday "diese Woche ist Rot"
  * and "die nächste Ausgabe ist Blau" are both true, and only the second answers the question this
  * screen exists for (PRD §6). The date beside it comes from the same pair, so the colour cannot be
  * read against a day it does not belong to.
+ *
+ * The testid stays on a wrapper with exactly one `<p>` inside it: `home.spec.ts` asserts
+ * `getByTestId("next-distribution").locator("p")` with an exact `toHaveText`, so the sentence may
+ * neither be split across elements nor joined by a second paragraph (concept §7.1).
  */
-function DistributionPanel({ view }: { view: WeekColourView }): React.ReactElement {
+function DistributionLine({ view }: { view: WeekColourView }): React.ReactElement {
   const { date, colour } = view.nextDistribution;
   const word = de.distribution.colours[colour];
 
   return (
-    // `ring-0` before the border: `Card` brings a ring rather than a border, and a card given a
-    // coloured edge without turning the ring off wears two outlines a pixel apart.
-    <Card data-testid="next-distribution" className={`ring-0 border ${GROUP_STYLES[colour]}`}>
-      <CardHeader>
-        {/* `CardTitle` is a `div`, so the real `<h2>` stays inside it — without it the screen's
-            heading outline loses its only section (`docs/ui_conversion_guide.md`, trap 1). */}
-        <CardTitle className={PANEL_HEADING}>
-          <h2>{de.home.distribution.heading}</h2>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {/* The group is in the sentence, not only in the paint: FD read this across a shared screen
-            in whatever light the hall has (US-03.4). Exactly one `<p>`, and nothing else in this
-            card may be one — a `Stat` here is a strict-mode violation on three assertions (§7.1).
-
-            40px because this is the one screen in the application that is read from across a hall
-            rather than by somebody at the keyboard; how much bigger the word itself wants to be is
-            a question for FD in front of the live screen (concept §11.1).
-
-            No `text-balance`, though the concept offers it: at 40px the sentence needs ~1 300px and
-            the panel is 1 088, so it wraps at every width — and balancing measures out two even
-            lines by breaking the date, `Donnerstag, 6.` over `August 2026`. Left alone it breaks
-            after the dash instead (931px / 371px), which is the one place §9 asks for: each of the
-            two facts whole on a line of its own. */}
-        <p className="text-[2.5rem] leading-tight font-medium">
-          {withColourEmphasised(
-            view.isDistributionDay
-              ? de.home.distribution.isToday(word)
-              : de.home.distribution.next(germanLongDate(date), word),
-            word,
-          )}
-        </p>
-      </CardContent>
-    </Card>
+    <div data-testid="next-distribution">
+      <p className="text-xl">
+        {view.isDistributionDay
+          ? de.home.distribution.isToday(word)
+          : de.home.distribution.next(germanLongDate(date), word)}
+      </p>
+    </div>
   );
 }
 
 /**
- * What stands in the panel's place before FD has configured anything at all (FR-10).
+ * What stands in the line's place before FD has configured anything at all (FR-10).
  *
- * No colour, and deliberately: there is no group to name here, so painting this state red or blue
- * would be the only false statement the screen could make. `Card`'s own neutral ring is the border.
+ * The one state in which this screen has something to do, so it keeps a `Card`: the sentence
+ * explains a setup step rather than answering the daily question, and the button under it is the
+ * only control on the screen. Neutral, and deliberately — there is no group to name here, so
+ * painting it red or blue would be the only false statement the screen could make.
  */
 function NotConfigured(): React.ReactElement {
   return (
     <Card data-testid="distribution-not-configured">
-      <CardHeader>
-        <CardTitle className={PANEL_HEADING}>
-          <h2>{de.home.distribution.heading}</h2>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col items-start gap-4">
+      <CardContent className="flex flex-col items-start gap-4 py-2">
         {/* `text-base` against the `Card`'s own 14px: in this state the paragraph *is* the screen,
             and the card default is tuned for dense admin tables read from a chair. */}
         <p className="max-w-prose text-base">{de.home.distribution.notConfigured}</p>
@@ -165,17 +121,19 @@ export default async function Home(): Promise<React.ReactElement> {
 
   return (
     <main className={SHELL}>
-      {/* The application's name, on the screen of the application, under a bar that already says
-          `Start`: it stays, because it is the `h1` and the heading outline needs it — it just stops
-          being the loudest voice in a room where it has nothing to say. */}
-      <h1 className="text-2xl font-semibold tracking-tight text-muted-foreground">
-        {de.home.heading}
-      </h1>
-      <p className="max-w-prose text-muted-foreground">{de.home.welcome}</p>
-      <p data-testid="today-date" className="text-xl">
-        {de.home.today(germanLongDate(date))}
-      </p>
-      {view === null ? <NotConfigured /> : <DistributionPanel view={view} />}
+      {/* The greeting is the `h1` — one line, and the whole of the welcome. It is set full strength
+          rather than muted now that it is the only thing at the top of the screen. */}
+      <h1 className="text-3xl font-semibold tracking-tight">{de.home.heading}</h1>
+      {/* The two facts stand together, a line apart rather than a `gap-6` apart: the date is read as
+          the qualifier of the Ausgabe below it, not as a section of its own. The empty state keeps
+          the shell's full gap, because there the card is a separate thing to act on. */}
+      <div className="flex flex-col gap-1">
+        <p data-testid="today-date" className="text-xl text-muted-foreground">
+          {de.home.today(germanLongDate(date))}
+        </p>
+        {view !== null && <DistributionLine view={view} />}
+      </div>
+      {view === null && <NotConfigured />}
     </main>
   );
 }

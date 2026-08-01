@@ -298,7 +298,12 @@ function CustomerRecord({
             <h1 className="text-3xl font-semibold tracking-tight">
               {details.firstName} {details.lastName}
             </h1>
-            <Badge className={GROUP_STYLES[customer.group]}>
+            {/* `variant="outline"`, as on /kunden and /karten-neuausstellung. Without it the badge
+                takes the `default` variant — `bg-primary text-primary-foreground` — and
+                `GROUP_STYLES` then overrides only the *background*, leaving white text on a 10%
+                tint. The colour word is the datum here (guide rule 9), so it has to be legible;
+                `outline` sets `text-foreground` and lets the tint be the tint. */}
+            <Badge variant="outline" className={GROUP_STYLES[customer.group]}>
               {de.customers.groups[customer.group]}
             </Badge>
             <StateWord

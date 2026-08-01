@@ -136,11 +136,19 @@ function Banner({ view }: { view: WeekColourView }): React.ReactElement {
         <p data-testid="next-distribution" className="text-base">
           {de.distribution.banner.next(germanDate(date), de.distribution.colours[colour])}
         </p>
-        {/* The week's own colour, beside the week it belongs to — the same solid paint as the
-            printed card and the customer's group badge, so the three read as one thing. */}
+        {/* The week's own colour, beside the week it belongs to, wearing exactly the badge the
+            Kundenliste and a customer's record wear: `variant="outline"` over `GROUP_STYLES`. It
+            was the solid paint `COLOUR_STYLES` still gives the distribution-day banner below, and
+            that made the smallest mark on the screen the most saturated one — a group named in
+            passing, shouting louder than the group named in the sentence above it. A group badge
+            now looks the same wherever the application prints one. */}
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           {meta}
-          <Badge data-testid="week-colour-week" className={COLOUR_STYLES[view.colour]}>
+          <Badge
+            data-testid="week-colour-week"
+            variant="outline"
+            className={GROUP_STYLES[view.colour]}
+          >
             {de.distribution.colours[view.colour]}
           </Badge>
         </p>
