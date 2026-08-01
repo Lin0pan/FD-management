@@ -1931,10 +1931,21 @@ primitives in `src/components/ui/`, and the reference the other screens follow. 
 - **`page.tsx`** calls `getWeekColour` for today, then awaits `lookupCustomer` and `readGroupRoster`
   **in one `Promise.all`** — the walk asks who is in today's group, not who this number is, so it must
   not be sequenced behind the lookup. The page arranges the answers and decides nothing.
-- The **banner** is the dominant element and is painted in the colour it _names_ — on a day without a
-  distribution that is the **next** distribution's colour, which need not be the current week's. The
-  colour is always written out in words ("Gruppe Rot") as well as painted: several staff share one
-  screen in variable lighting, so colour alone is never the message.
+- The **banner is compact, and names the group only on a distribution day.** On an Ausgabetag it is a
+  band painted in the group's colour with the group written out beside it ("Gruppe Rot", `text-3xl`);
+  on every other day it is a plain neutral `Card` stating that there is no distribution, when the
+  next one is and which group it is for, and today's date and week. It was once the dominant element
+  on the screen every day of the week, shouting a group at staff who cannot serve anybody four days
+  out of five and pushing the number field — the reason the screen exists — down the page. Off-day
+  the group survives only inside the sentence that names its date, so neither a word nor a paint can
+  be read as "the group collecting now". Both arms take their colour from `nextDistribution`, never
+  `view.colour`: after a Thursday distribution the current week is still Rot while the next
+  distribution is already Blau, and only the second answers the question this screen is read for.
+  The colour is written out in words wherever it is painted (FR-7): several staff share one screen in
+  variable lighting, so colour alone is never the message.
+- The banner's meta line reads `01.08.2026 · KW 31`. The ISO year is dropped from `isoWeekOf`'s
+  `2026-W31` by `isoWeekNumber` (`src/i18n/format.ts`) — the date beside it already carries the year,
+  and staff check the week against a wall calendar, which prints two digits.
 - **There is no second card asking about another week**, and that is deliberate. A date lookup lived
   under the counter until **US-22** (`tasks/prd-us-22-drop-week-colour-lookup.md`): FD said they need
   no week but this one, so the card, its strings, its error path and its two specs went, and
