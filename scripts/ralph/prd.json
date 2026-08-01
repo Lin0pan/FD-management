@@ -50,8 +50,8 @@
         "Verify in browser using the playwright-cli skill against a PRODUCTION build: register a household without opening the disclosure and confirm the saved group is the proposed one, then open it and override the group on a second registration"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Shipped, with two criteria measurably NOT met and not metable by folding: the Zuordnung card is 220px (not <= 210px) and the top of Aufnehmen did not rise at all (y=1461 before and after, 1440x900, production build, demo register). The card's height is set by the `Vorgeschlagene Nummer` Stat tile beside the group column — 81px — not by the radios; the column is 56px closed and 120px open, under the tile either way. The PRD derived both numbers from a '~310px today' that was never measured; the real before is 220px. Against the state US-001 shipped (disclosure open) the fold does save 39px: 259px / y=1500 -> 220px / y=1461. Everything else holds: closed on every load, not persisted, exactly the three named specs edited (real clicks on the summary, no evaluate), full e2e suite green (90 passed / 1 pre-existing skip), overflow 0 at 1920/1280/1024/800/390, console 0 errors, and a registration that never opened the disclosure saved the proposed group by hand."
     },
     {
       "id": "US-003",

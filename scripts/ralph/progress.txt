@@ -336,3 +336,55 @@ The Next.js, i18n, e2e and playwright entries are the ones that apply.)
   - Chromium exposes such a `<summary>` as `generic` with its full text as the accessible name, not
     as a `button` or `disclosure` — the same as the archive search's, which shipped in US-19.
 ---
+
+## 2026-08-01 - US-002 (batch 20)
+- The group `<details>` on /kunden/neu now renders WITHOUT `open`: closed on every load, nothing
+  persisted. `tests/e2e/archive.spec.ts`, `card.spec.ts` and `reregistration.spec.ts` each click
+  `getByTestId("group-choice-open")` before checking `#group-RED` / `#group-BLUE` — a real click,
+  not `evaluate(d => (d.open = true))`. `customer-record.spec.ts` untouched, as its `group-RED` is
+  the record's own control.
+- Files: src/app/kunden/neu/registration-form.tsx, tests/e2e/{archive,card,reregistration}.spec.ts.
+- Full e2e suite green: 90 passed, 1 skipped (the pre-existing quota skip). Lint, typecheck and
+  `test:coverage` (912 tests) green.
+- Verified by hand against a production build on the demo register: registering WITHOUT opening the
+  disclosure saved the proposed group (Vorschlag Blau -> /kunden/21 Blau); opening it and choosing
+  the other group overrode it (Vorschlag Rot, chose Blau -> /kunden/22 Blau). Accessibility snapshot
+  closed: the summary is a `generic` named "Gruppe: Blau — andere Gruppe wählen" and the radios are
+  absent; opened: `radio "Rot" [checked]` and `radio "Blau"`. Overflow 0 at 1920/1280/1024/800/390,
+  console 0 errors.
+- **TWO ACCEPTANCE CRITERIA ARE NOT MET, and cannot be met by this fold.** Measured at 1440x900,
+  production build, demo register:
+      Zuordnung card  pre-batch 220px | US-001 (open) 259px | now 220px   (criterion: <= 210px)
+      Aufnehmen top   pre-batch y=1461 | US-001 y=1500      | now y=1461  (criterion: -100px)
+  The card's height is set by the `Vorgeschlagene Nummer` Stat tile — 81px, `py-3` plus a two-line
+  label/value — sitting in the same flex row as the group column, which is 56px closed and 120px
+  open. Neither state reaches the tile, so folding the radios cannot move the button. The PRD's
+  "~310px today" was never measured.
+- **Learnings for future iterations:**
+  - Before believing a height budget, measure WHICH element sets the height. A card in a
+    `flex flex-wrap` row is as tall as its TALLEST child: folding a shorter sibling changes nothing.
+    `card.getBoundingClientRect().height` alone cannot tell you that — walk header / content / row /
+    each child in one `eval` and compare. Here the whole 39px the fold recovers is the cost of the
+    button-styled summary US-001 added, not a saving against the screen as it shipped in PR #62.
+  - So a fold on this screen is worth doing for the two lines of visual noise it removes, not for
+    page height — and the next "make X shorter" PRD for /kunden/neu should target the `Zuordnung`
+    footer (69px) or the Stat tile, which is where the 220px actually is.
+  - `playwright-cli` in this sandbox: `--browser=chrome` fails (no Google Chrome installed) — plain
+    `playwright-cli open` uses bundled Chromium and works. The version banner about
+    `install --skills` is noise on stderr; pipe through `tail` and it is harmless.
+  - Measuring a "before" that is already committed does NOT need a stash:
+    `git checkout HEAD~1 -- <files>`, build, measure, `git checkout HEAD -- <files>`. Two production
+    builds is the whole cost, and the numbers then belong in the commit message rather than to
+    whoever remembers them.
+  - A `<details>` closed by default is invisible in an accessibility snapshot except as a `group`
+    wrapping the summary — the radios simply are not there. That is the cheapest proof that a spec
+    which fills a control inside one MUST click the summary; a screenshot shows the same collapse
+    but cannot show that the nodes are gone.
+  - US-003 must reach THREE documents, not the two its criteria name:
+    `docs/ui_redesign_kunden_neu.md` §12 (+ numbers table), `docs/ui_conversion_guide.md`'s
+    disclosure finding, AND `docs/technical_documentation.md`'s `neu/registration-form.tsx` bullet,
+    which currently says nothing about the group disclosure while the `archive-search-panel.tsx`
+    bullet beside it documents its own closed default and the testid specs use. The numbers to put
+    in the table are the six above; §12 must record that the height goal was NOT met and why, or the
+    next reader will re-derive the same wrong 310px.
+---
