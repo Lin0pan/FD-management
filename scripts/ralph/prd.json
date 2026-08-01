@@ -97,8 +97,8 @@
         "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first)"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "tests/e2e/group-walk.spec.ts, serial, 6 tests, pinned to 2026-01-08 through FD_FIXED_NOW_FILE. Seeds 311-315 through Prisma (RED active, RED blocked, RED archived, BLUE, RED active) with Faker at a fixed seed, so the blocked household is walked and the archived one and the other group are stepped over in one move. Both ends and the entry point read the walkable RED numbers out of Prisma rather than hard-coding them. The records-nothing snapshot widens counter.spec.ts's to distribution records and reminder logs. No other spec touched; full e2e suite 95 passed, 1 pre-existing skip."
     }
   ]
 }

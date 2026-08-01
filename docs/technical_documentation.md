@@ -218,6 +218,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── customer-list.spec.ts         # search, filters and the group balance on /kunden
 │   ├── customer-record.spec.ts       # four edits on the record, each read back off another screen
 │   ├── distribution.spec.ts          # the week-colour banner against a fixed clock
+│   ├── group-walk.spec.ts            # Zurück/Weiter walk today's group and write nothing
 │   ├── home.spec.ts                  # the Start dashboard against three pinned days
 │   ├── navigation.spec.ts            # the nav bar: every section reachable, the right one marked
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
@@ -1971,7 +1972,8 @@ primitives in `src/components/ui/`, and the reference the other screens follow. 
 - The group walked is the **banner's** — today's on a distribution day, the next distribution's
   otherwise — so the screen never names two groups. `readGroupRoster` and `neighbours` hold the rules;
   see the application and domain sections. Nothing about the walk is written: it is a read, like the
-  lookup it drives.
+  lookup it drives — proved as an absence by `tests/e2e/group-walk.spec.ts`, which also drives the
+  order the controls produce against a seeded block of the register.
 
 #### The counter lookup (`counter-lookup.tsx`)
 
@@ -2628,6 +2630,25 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   table the other specs read — and requires the heading, the date and the not-configured panel with
   its link to `/einstellungen`: an unseeded database is not an error page (FR-10). The spec writes
   nothing and deletes the pinned-now file in `afterAll`, like its neighbours.
+- `group-walk.spec.ts` covers US-21 end to end (§US-021.4): the walk itself, which is the one claim
+  about it no unit gate can reach — `neighbours` and `readGroupRoster` are proved on their own, but
+  what a staff member follows is two `href`s on a screen where the group being walked is named only
+  by a banner. Five households are **seeded through Prisma** in one contiguous band nothing else uses
+  (311–315), so no other spec's registration can land between them: RED active, RED **blocked**, RED
+  **archived**, a **BLUE** one, RED active. Pinned to the RED Thursday 08.01.2026, the spec walks up
+  from 311 and back down from 315, asserting each step's `href` _and_ the customer number the screen
+  then shows — the two have to agree. The middle three numbers are the membership rules: the blocked
+  household is visited (it still holds its slot), and 313 and 314 are stepped over in a single move
+  from 312 to 315, one because archiving released the slot and one because it belongs to the other
+  group. The **ends** are the one thing the spec cannot seed its way to — whether a number is the
+  last RED one is a fact about the whole shared register — so the walkable RED numbers are read out
+  of Prisma at the moment they are asserted: with nothing looked up, `walk-next` points at the lowest
+  of them and `walk-previous` is disabled with the _fromStart_ hint; on the highest, `walk-next` is
+  disabled and the hint says the group ends there. The last test is FR-4, that a walk **records
+  nothing**: statuses, reminder counts and the card, distribution, reminder-log and audit-entry counts
+  are snapshotted, the block is walked in both directions, and the snapshot must be unchanged — the
+  same shape as `counter.spec.ts`'s, widened to the tables the schema has gained since. Pinned-now
+  file deleted in `afterAll`, like its neighbours.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

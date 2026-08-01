@@ -38,6 +38,13 @@ Started: Sat Aug  1 20:30:00 CEST 2026
 - **A retracted requirement is struck through, marked and kept**, never deleted: `~~criterion~~`
   plus `[withdrawn]` and the reason, in both `docs/user_stories_mvp.md` and the story's PRD. Say
   what is *not* withdrawn too, or the next reader removes a parameter that still has callers.
+- **An e2e fact about "the whole register" is read from Prisma at assertion time**, never
+  hard-coded: the specs run serially in *alphabetical file order* against one shared `data/e2e.db`,
+  so which number is the first or last of a group depends on which specs ran before yours. Seed a
+  block for what you own; query for the ends.
+- **`counter-customer-number` identifies a household at the counter, `counter-card-number` does
+  not** — a household another spec reissued a card to shows `Nk2`, so an assertion on `Nk1` fails
+  for reasons that have nothing to do with what is under test.
 
 ---
 
@@ -131,3 +138,34 @@ Started: Sat Aug  1 20:30:00 CEST 2026
     `h-9` in radix-nova. The submit button already does exactly this; copy it rather than inventing.
   - US-004 can rely on: `walk-previous` / `walk-next` always present (link or disabled button),
     `walk-hint` always present, and the hint sentences keyed at `de.distribution.walk.hints`.
+
+---
+
+## 2026-08-01 21:05 - US-004 (E2E — walking a group of known numbers)
+- Added `tests/e2e/group-walk.spec.ts`: 6 serial tests proving the walk against the built app —
+  the order the two controls produce, the three membership rules, both ends, the entry point, and
+  that a walk writes nothing. No other spec file touched.
+- Files changed:
+  - `tests/e2e/group-walk.spec.ts` (new)
+  - `docs/technical_documentation.md` (tree entry, a `group-walk.spec.ts` bullet in the e2e
+    section, and a pointer from `#### Walking today's group`)
+  - `scripts/ralph/prd.json` (US-004 passes: true), `scripts/ralph/progress.txt`
+- Gates: lint, typecheck, `test:coverage` (46 files / 938 tests, domain + application thresholds
+  intact), `next build` and the **full e2e suite** (95 passed, 1 pre-existing skip) all green. The
+  spec also passes run on its own against a freshly seeded register.
+- **Learnings for future iterations:**
+  - The seeded block is 311–315, above every other spec's band (counter 201–206/239, portions 211,
+    serve 221–222, reminders 231, block 241, reissue 251, age-13 271, customer-list 281–285,
+    customer-record 291). A new spec that inserts rows should take the next band up, not squeeze in.
+  - **Contiguity is the fixture**: the archived 313 and the BLUE 314 sit *between* two RED numbers
+    on purpose, so "steps over" is one assertion (312 → 315) rather than an absence. A block with
+    the skipped rows at its edge would pass even if the walk read them.
+  - The ends of a group cannot be seeded — they are a fact about the shared register, which the
+    alphabetically earlier specs have written to. Query `customer.findMany({ group, status: in
+    [ACTIVE, BLOCKED] })` at assertion time; only `highest === NUMBERS.last` is asserted, and that
+    holds because the band is the highest.
+  - Assert the landing with `counter-customer-number`, not `counter-card-number`: an end of the
+    group can be another spec's household, and `reissue.spec.ts` leaves one on `k2`.
+  - The records-nothing snapshot in `counter.spec.ts` predates `DistributionRecord` and
+    `ReminderLog` — its own comment says it should widen with the schema. The one here does, and
+    the next spec that copies it should check the model list again.
