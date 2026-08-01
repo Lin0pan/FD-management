@@ -24,8 +24,8 @@
         "Measure the page at 1440x900 before and after and put both numbers in the commit message — the point of the change is the vertical space the counter gets back"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Measured in a production build at 1440x900: main content bottom 812px -> 626px on a fresh load, and /ausgabe?nummer=1 1571px -> 1385px. 186px returned to the counter. Accessibility snapshot of /ausgabe?datum=2026-13-45 shows the banner, one textbox (Nummer) and no error. Also fixed a comment in src/app/ausgabe/actions.ts that pointed at the deleted lookupDate schema. NOTE for US-003: tests/e2e/home.spec.ts also drives the lookup (/ausgabe?datum=2026-01-10, lookup-colour) — it must be fixed there despite the 'no other spec file' criterion, or the suite cannot go green."
     },
     {
       "id": "US-002",

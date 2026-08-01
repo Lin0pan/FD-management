@@ -1,3 +1,54 @@
 # Ralph Progress Log
 Started: Sat Aug  1 18:54:45 CEST 2026
 ---
+
+## Codebase Patterns
+- **Measuring a screen's height**: `next build` then `npm run start -- --port 3100` (pkill -f
+  next-server first), then playwright-cli. `document.body.scrollHeight` is useless on a short page —
+  the shell fills the viewport, so it reads 900 either way. Measure the **last `main > *` child's
+  `getBoundingClientRect().bottom`**, and measure a *populated* screen too (`/ausgabe?nummer=1`).
+- **playwright-cli in this sandbox**: `playwright-cli open` only — `--browser=chrome` fails, there is
+  no Google Chrome at /opt/google/chrome. The skill-version warning banner is noise; ignore it. Use
+  `--raw` and `tail -1` to get just the value out of `eval`.
+- **A grep across `tests/` is part of removing a UI element**, not only `src/`. A spec in a
+  *different* file can drive the screen being removed (see US-001 below).
+- **The dev server on 3100 reads `data/fd.db`**; the e2e servers read `data/e2e.db` (3000) and
+  `data/e2e-isolated.db` (3001). Playwright's config reuses an existing server outside CI, so
+  `pkill -f next-server` before `npm run test:e2e` or the suite tests the previous build.
+
+---
+
+## 2026-08-01 - US-001 (batch 21 / US-22): Remove the lookup card from /ausgabe
+
+- Deleted from `src/app/ausgabe/page.tsx`: the lookup `Card` (form, date `Input`, submit,
+  Zurücksetzen link), the `LookupResult` component, the `Lookup` type, the `lookUp` function and the
+  `lookupDate` Zod schema. `searchParams` is now `{ nummer?: string | string[] }`.
+- `ErrorNote` and `messageFor` stay, both branches of the latter included — the settings-missing card
+  and the counter's number error still use them, and the banner can still provoke `InvalidAnchor`.
+- Dropped the now-unused `z` and `Badge` imports. `germanDate` and `Input` stay (banner, counter).
+- Added a module docblock paragraph recording *why* there is no lookup, so the next reader finds the
+  withdrawal at the screen rather than only in `docs/`.
+- Fixed a dangling comment in `src/app/ausgabe/actions.ts`: it explained its own date schema by
+  reference to "the page's lookup date", which no longer exists.
+- Files changed: `src/app/ausgabe/page.tsx`, `src/app/ausgabe/actions.ts`.
+- Verified in a **production** build at 1440x900 with playwright-cli:
+  - Headings: `["Ausgabe", "Kundin oder Kunde nachschlagen"]` — the lookup heading is gone.
+  - `input[type=date]` count 0; the accessibility snapshot's only textbox is "Nummer".
+  - `/ausgabe?datum=2026-13-45` renders the ordinary screen: banner stands, no error, no throw.
+  - Content bottom 812px -> 626px; `/ausgabe?nummer=1` 1571px -> 1385px. **186px** returned.
+- lint, typecheck, test:coverage (912 tests), build and format:check all pass.
+
+- **Learnings for future iterations:**
+  - **`tests/e2e/home.spec.ts` also drives the lookup** — its "names next week's group on a day after
+    this week's distribution" test ends by visiting `/ausgabe?datum=2026-01-10` and asserting
+    `lookup-colour`, as a cross-check that the hub shows `nextDistribution.colour` while the week
+    itself is a different colour. US-003's "no other spec file is modified" criterion cannot hold:
+    that assertion must go (or be re-pointed) or `npm run test:e2e` stays red. The *reason* for the
+    cross-check is worth keeping in a comment even though its assertion cannot survive.
+  - The lookup card sat **last** on the page, below the counter's results — so removing it shortens
+    the document but does not move the verdict banner up. The PRD's success metric wording ("the
+    verdict banner sits higher") is off; the space is real, it is just below the results rather than
+    above them.
+  - This story leaves the e2e suite red on purpose (two lookup specs still drive a deleted card).
+    That is what US-003 is for — the batch is green as a branch, not commit by commit.
+---
