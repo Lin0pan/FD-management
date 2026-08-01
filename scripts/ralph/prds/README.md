@@ -5,8 +5,8 @@ number). Each file is a complete, self-contained Ralph run: its own `branchName`
 starting at `US-001`, its own priorities `1..n`.
 
 [`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
-it. It currently holds **batch 20**, the last one. `done/` holds the finished copy of each batch that
-has run — the same file with every story's `passes` flipped to `true`.
+it. It currently holds **batch 22**, the next one to run. `done/` holds the finished copy of each
+batch that has run — the same file with every story's `passes` flipped to `true`.
 
 ## Workflow
 
@@ -22,23 +22,29 @@ cp scripts/ralph/prds/02-us-01-register-customer.json scripts/ralph/prd.json
 ./scripts/ralph/ralph.sh --tool claude 10
 ```
 
-`ralph.sh` archives the finished run to `archive/YYYY-MM-DD-<feature>/` by itself, because the
-`branchName` changed since `.last-branch` was written.
-
-**Copy the finished `prd.json` into `done/` before you overwrite it.** The archive `ralph.sh` writes
-is named after the branch in `.last-branch` — the batch that just _finished_ — but the `prd.json` it
-copies in is whatever the file holds at that moment, which by then is the batch about to _start_
-(`ralph.sh` lines 47–57). So the archive folder ends up with the right `progress.txt` and the wrong
-`prd.json`. `done/<n>-<feature>.json` is therefore the only record of which stories actually passed,
-and it has to be written by hand, before the `cp`:
+**Archive the finished batch by hand, before you overwrite `prd.json`.** `ralph.sh` will do it for
+you when it notices `branchName` differs from `.last-branch` — but it writes the archive folder under
+the name of the batch that just _finished_ while copying in whatever `prd.json` holds at that moment,
+which by then is the batch about to _start_ (`ralph.sh` lines 47–57). Left to itself it produces a
+folder with the right `progress.txt` and the wrong `prd.json`. So do all five steps yourself, and
+point `.last-branch` at the new batch so `ralph.sh` finds nothing to archive:
 
 ```bash
-cp scripts/ralph/prd.json scripts/ralph/prds/done/19-us-19-fold-archive-search.json
-cp scripts/ralph/prds/20-us-20-fold-group-choice.json scripts/ralph/prd.json
+# 1. the only record of which stories actually passed
+cp scripts/ralph/prd.json scripts/ralph/prds/done/21-us-22-drop-week-colour-lookup.json
+# 2. the run's notes, under the finished batch's name, with its own prd.json
+mkdir -p scripts/ralph/archive/2026-08-01-us-22-drop-week-colour-lookup
+cp scripts/ralph/prd.json scripts/ralph/progress.txt \
+   scripts/ralph/archive/2026-08-01-us-22-drop-week-colour-lookup/
+# 3. reset progress.txt — see point 2 below about carrying the patterns block over
+# 4. load the next batch
+cp scripts/ralph/prds/22-us-21-step-through-group.json scripts/ralph/prd.json
+# 5. so ralph.sh does not re-archive under the wrong name
+echo "ralph/us-21-step-through-group" > scripts/ralph/.last-branch
 ```
 
-Leave `.last-branch` alone while you do it: it still names the finished batch, which is exactly what
-makes the next run archive that run's `progress.txt` under the right name.
+`prd.json` has to be on `main` before the run starts — `scripts/ralph/CLAUDE.md` step 4 cuts the
+branch from `main` — so this preparation lands through its own small PR, not on the run's branch.
 
 ## Four things to get right
 
@@ -48,10 +54,13 @@ work — US-01 would build against a schema that does not exist. This is the rul
 bite; the rest are cheaper to recover from.
 
 **2. `progress.txt` is reset on every archive**, including the `## Codebase Patterns` section that
-Ralph accumulates. Across 16 batches that memory is wiped 16 times. The durable channel is CLAUDE.md
-files (step 8 of the agent instructions) — make sure patterns land in `src/domain/CLAUDE.md`,
-`src/application/CLAUDE.md` and friends, not only in `progress.txt`. Alternatively, paste the
-patterns block into the fresh `progress.txt` before each run.
+Ralph accumulates. Across 16 batches that memory was wiped 16 times. **Carry the patterns block over
+into the fresh `progress.txt`** when you reset it in step 3 above — it is the cheapest way to keep
+the tooling gotchas (which server reads which database, why `pkill -f next-server` kills the shell)
+from being rediscovered every batch. Drop or reword a bullet that only made sense inside the batch
+that wrote it. The durable channel is still the CLAUDE.md files (step 8 of the agent instructions):
+patterns about a layer belong in `src/domain/CLAUDE.md`, `src/application/CLAUDE.md` and friends, not
+only in `progress.txt`.
 
 **3. Two stories were rehomed** because they cross PRD boundaries and only worked while everything
 was in one file:

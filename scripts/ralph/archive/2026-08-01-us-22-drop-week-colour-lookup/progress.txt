@@ -1,0 +1,169 @@
+# Ralph Progress Log
+Started: Sat Aug  1 18:54:45 CEST 2026
+---
+
+## Codebase Patterns
+- **Measuring a screen's height**: `next build` then `npm run start -- --port 3100` (pkill -f
+  next-server first), then playwright-cli. `document.body.scrollHeight` is useless on a short page —
+  the shell fills the viewport, so it reads 900 either way. Measure the **last `main > *` child's
+  `getBoundingClientRect().bottom`**, and measure a *populated* screen too (`/ausgabe?nummer=1`).
+- **playwright-cli in this sandbox**: `playwright-cli open` only — `--browser=chrome` fails, there is
+  no Google Chrome at /opt/google/chrome. The skill-version warning banner is noise; ignore it. Use
+  `--raw` and `tail -1` to get just the value out of `eval`.
+- **A grep across `tests/` is part of removing a UI element**, not only `src/`. A spec in a
+  *different* file can drive the screen being removed (see US-001 below).
+- **The dev server on 3100 reads `data/fd.db`**; the e2e servers read `data/e2e.db` (3000) and
+  `data/e2e-isolated.db` (3001). Playwright's config reuses an existing server outside CI, so kill
+  any `next-server` before `npm run test:e2e` or the suite tests the previous build.
+- **Never `pkill -f next-server` from the Bash tool** — the pattern matches the tool's own wrapper
+  command line and kills the shell (exit 144, no output). `pgrep -f "port 3100" | xargs kill` does
+  the same. Use `ps -eo pid,args | grep -E "next-serve[r]"` and `kill` the pid.
+- **`getByRole("alert")` is never 0 in this app.** Next injects a client-side route announcer with
+  `role="alert"` into every page — invisible in the SSR HTML, so `curl | grep` disagrees with
+  Playwright. Assert the absence of an error with `page.locator('[data-slot="alert"]')`; every
+  shadcn `ui/` primitive carries a `data-slot`.
+- **`tsconfig.json` includes `tests/`**, so `npm run typecheck` type-checks the specs. Deleting a key
+  from `src/i18n/de.ts` fails typecheck while any spec still reads it — the spec has to go first.
+- **`docs/technical_documentation.md` documents the e2e suite test by test**, so changing a spec
+  makes it stale and no gate can tell. Grep that file for the *spec file name* after touching a
+  spec, and for the feature's vocabulary after removing a feature — it is 2,500 lines and describes
+  the same thing from the layer's side, the screen's side and the suite's side.
+- **A retracted requirement is struck through, marked and kept**, never deleted: `~~criterion~~`
+  plus `[withdrawn]` and the reason, in both `docs/user_stories_mvp.md` and the story's PRD. Say
+  what is *not* withdrawn too, or the next reader removes a parameter that still has callers.
+
+---
+
+## 2026-08-01 - US-001 (batch 21 / US-22): Remove the lookup card from /ausgabe
+
+- Deleted from `src/app/ausgabe/page.tsx`: the lookup `Card` (form, date `Input`, submit,
+  Zurücksetzen link), the `LookupResult` component, the `Lookup` type, the `lookUp` function and the
+  `lookupDate` Zod schema. `searchParams` is now `{ nummer?: string | string[] }`.
+- `ErrorNote` and `messageFor` stay, both branches of the latter included — the settings-missing card
+  and the counter's number error still use them, and the banner can still provoke `InvalidAnchor`.
+- Dropped the now-unused `z` and `Badge` imports. `germanDate` and `Input` stay (banner, counter).
+- Added a module docblock paragraph recording *why* there is no lookup, so the next reader finds the
+  withdrawal at the screen rather than only in `docs/`.
+- Fixed a dangling comment in `src/app/ausgabe/actions.ts`: it explained its own date schema by
+  reference to "the page's lookup date", which no longer exists.
+- Files changed: `src/app/ausgabe/page.tsx`, `src/app/ausgabe/actions.ts`.
+- Verified in a **production** build at 1440x900 with playwright-cli:
+  - Headings: `["Ausgabe", "Kundin oder Kunde nachschlagen"]` — the lookup heading is gone.
+  - `input[type=date]` count 0; the accessibility snapshot's only textbox is "Nummer".
+  - `/ausgabe?datum=2026-13-45` renders the ordinary screen: banner stands, no error, no throw.
+  - Content bottom 812px -> 626px; `/ausgabe?nummer=1` 1571px -> 1385px. **186px** returned.
+- lint, typecheck, test:coverage (912 tests), build and format:check all pass.
+
+- **Learnings for future iterations:**
+  - **`tests/e2e/home.spec.ts` also drives the lookup** — its "names next week's group on a day after
+    this week's distribution" test ends by visiting `/ausgabe?datum=2026-01-10` and asserting
+    `lookup-colour`, as a cross-check that the hub shows `nextDistribution.colour` while the week
+    itself is a different colour. US-003's "no other spec file is modified" criterion cannot hold:
+    that assertion must go (or be re-pointed) or `npm run test:e2e` stays red. The *reason* for the
+    cross-check is worth keeping in a comment even though its assertion cannot survive.
+  - The lookup card sat **last** on the page, below the counter's results — so removing it shortens
+    the document but does not move the verdict banner up. The PRD's success metric wording ("the
+    verdict banner sits higher") is off; the space is real, it is just below the results rather than
+    above them.
+  - This story leaves the e2e suite red on purpose (two lookup specs still drive a deleted card).
+    That is what US-003 is for — the batch is green as a branch, not commit by commit.
+---
+
+## 2026-08-01 - US-003 (batch 21 / US-22): Retire the two e2e tests that drove the lookup
+
+- **Taken out of priority order, before US-002, on purpose.** `tsconfig.json` includes `tests/`, so
+  `npm run typecheck` type-checks the specs. The two lookup specs referenced
+  `de.distribution.lookup.*` and `de.distribution.errors.notADate`, which US-002 deletes — so US-002
+  could not have passed its own "typecheck passes" criterion without deleting these tests inside it.
+  This order gives two green commits instead of one mixed one.
+- `tests/e2e/distribution.spec.ts`: deleted "refuses a day the calendar does not have and leaves the
+  banner standing" and "looks up the colour of a week two years out". Added "ignores a ?datum= left
+  over from the retired lookup" — banner stands on 2026-13-45, no error. Header comment now records
+  that the banner is the whole of what the screen says about the calendar, and why the last spec is
+  what is left of the two.
+- The three banner tests, the pinned-clock setup and the `afterAll` are untouched.
+- `tests/e2e/home.spec.ts`: the cross-check at the end of "names next week's group on a day after
+  this week's distribution" is **deleted**, not re-pointed. It read the current week's RED off the
+  lookup card to show the hub announces the *next* distribution's BLUE.
+- lint, typecheck, format:check, test:coverage (912) and build pass. `npm run test:e2e`: **89 passed,
+  1 pre-existing skip** — the suite is green again for the first time since US-001.
+
+- **Learnings for future iterations:**
+  - **`getByRole("alert")` can never be 0 on a page.** Next injects a client-side route announcer
+    (`<next-route-announcer>`, `role="alert"`) into every page, and it is absent from the SSR HTML —
+    so `curl | grep 'role="alert"'` says 0 while Playwright says 1. Assert the *absence* of a shadcn
+    `Alert` with `page.locator('[data-slot="alert"]')`. Every `ui/` primitive carries a `data-slot`.
+  - **After US-22 nothing renders `WeekColourView.colour`.** Both the `/ausgabe` banner and the hub
+    panel paint `nextDistribution.colour`. Any e2e assertion that wants the colour of the week the
+    reader is standing in has nowhere to read it — that distinction is now only assertable in
+    `src/application/distribution/distribution.test.ts`. Worth knowing before writing a spec that
+    assumes the screen still shows it.
+  - **`pkill -f next-server` from the Bash tool kills the tool's own shell** (exit 144, no output):
+    the pattern matches the wrapper's command line, which contains the string. Same for
+    `pgrep -f "port 3100" | xargs kill`. Use `ps -eo pid,args | grep -E "next-serve[r]"` and `kill`
+    the pid — the bracket keeps the *grep* from self-matching but not `pkill`, because pkill scans
+    the whole process table including the caller.
+  - A story's "no other file is modified" criterion is worth checking against the previous story's
+    notes before starting: US-001 had already found the home.spec.ts coupling and written it down.
+
+## 2026-08-01 - US-002 (batch 21 / US-22): Remove the German strings the lookup owned
+
+- Deleted `de.distribution.lookup` in full from `src/i18n/de.ts` (heading, hint, label, submit,
+  reset, result, isDistributionDay, nextDistribution) and `de.distribution.errors.notADate`.
+- `de.distribution.errors.noSettings` and `.invalidAnchor` stay, and now carry a comment saying *why*
+  — both are reachable from the banner alone, so the next reader does not take them for more lookup
+  leftovers and delete them too.
+- Narrowed the docblock over `distribution:`; it still promised "which group collects, today and in
+  any other week".
+- `banner.*`, `colours`, `group` and `counter.*` untouched. Files changed: `src/i18n/de.ts` only.
+- lint, typecheck, format:check, test:coverage (44 files, 912 tests) and build all pass. No browser
+  pass: after US-001 nothing rendered these keys, so the screen is byte-identical.
+
+- **Learnings for future iterations:**
+  - **`notADate` is three different strings in `de.ts`**, one per namespace: `customers.errors`,
+    `distribution.certificate.renewal.errors` and (until now) `distribution.errors`. The PRD's
+    criterion "a grep for `notADate` returns nothing" cannot be taken literally — the other two are
+    live, read by `src/app/kunden/neu/registration-input.ts`, `src/app/kunden/[id]/actions.ts` and
+    `src/app/ausgabe/actions.ts`. Read a bare-key grep criterion as scoped to its namespace.
+  - **Deleting a dictionary key is safe to do last but not first.** The compiler finds every reader
+    (`de.ts` is a plain object literal, so the key types are inferred and `tsc` fails on a dead
+    reference), which is what made US-003-before-US-002 necessary and what makes this story's own
+    verification cheap: a green `npm run typecheck` *is* the proof that nothing read the key.
+  - When a key survives a deletion sweep for a non-obvious reason, say so in a comment beside it. The
+    next sweep is done by someone who does not have this PRD open.
+---
+
+## 2026-08-01 - US-004 (batch 21 / US-22): Record the withdrawal in the documents
+
+- `docs/user_stories_mvp.md`: §US-03 criterion 3 is struck through and marked `[withdrawn]` with
+  FD's reason, the note that `getWeekColour(deps, date?)` keeps its date parameter, and where the
+  feature would belong if it is ever proposed again (the settings screen, beside the anchor). The
+  "How to read this document" header now defines `[withdrawn]` beside `[added]` — struck through and
+  left in place, never deleted.
+- `tasks/prd-us-03-week-colour.md`: a withdrawal note under the introduction, §US-03.4's date-picker
+  criterion and §US-03.5's two-years-out criterion struck with `[withdrawn by US-22]`, and **FR-4**
+  struck with the reason. FR-6 now says out loud why the `date` parameter survives the screen.
+- `docs/technical_documentation.md`: six places named the lookup — the file tree, the `getWeekColour`
+  seam (which also cited the withdrawn FR-4), `isoWeekOf`'s "what the lookup control shows", the
+  `/ausgabe` screen bullets, `counter-lookup.tsx`'s "the same reason the week lookup uses one", and
+  both e2e spec descriptions. All updated; the screen section now records the withdrawal and the
+  186px it returned, and the `datum` parameter is described as inert rather than validated.
+- Files changed: those three. No source file, no spec file.
+- format:check, lint, typecheck, test:coverage (44 files, 912 tests) and build all pass.
+
+- **Learnings for future iterations:**
+  - **`docs/technical_documentation.md` describes the e2e specs test by test**, near the end. A story
+    that deletes or adds a test leaves that section wrong, and neither `tsc` nor the suite can tell.
+    US-003 changed `distribution.spec.ts` *and* `home.spec.ts`; both descriptions were stale by the
+    time this story opened. **Grep the technical documentation for the spec file name whenever a spec
+    changes**, not only when a screen does.
+  - A PRD criterion of the form "check document X and update it if it names one" is worth taking as
+    "grep the whole document for the feature's vocabulary". Here the terms were `lookup`, `datum`,
+    `date picker` and `past or future week`, and the hits were spread over 2,200 lines in sections
+    that have nothing to do with each other.
+  - **Withdrawal is an edit, not a delete.** Struck-through text (`~~…~~`) plus a marker and the
+    reason keeps the argument findable; deleting the criterion leaves the next person to re-derive
+    FD's answer from nothing. Both documents also state what is *not* withdrawn — the capability
+    stays, only its control is gone — because that is the distinction a reader will otherwise get
+    wrong and rip the date parameter out of `getWeekColour`.
+---
