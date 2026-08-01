@@ -1943,9 +1943,17 @@ primitives in `src/components/ui/`, and the reference the other screens follow. 
   distribution is already Blau, and only the second answers the question this screen is read for.
   The colour is written out in words wherever it is painted (FR-7): several staff share one screen in
   variable lighting, so colour alone is never the message.
-- The banner's meta line reads `01.08.2026 · KW 31`. The ISO year is dropped from `isoWeekOf`'s
-  `2026-W31` by `isoWeekNumber` (`src/i18n/format.ts`) — the date beside it already carries the year,
-  and staff check the week against a wall calendar, which prints two digits.
+- The banner's meta line reads `01.08.2026 · KW 31` with a small group-coloured badge after it. The
+  ISO year is dropped from `isoWeekOf`'s `2026-W31` by `isoWeekNumber` (`src/i18n/format.ts`) — the
+  date beside it already carries the year, and staff check the week against a wall calendar, which
+  prints two digits.
+- The **badge is the one thing on this screen reading `view.colour`**, and it is a badge because the
+  two colours can disagree: on the Saturday after a red Thursday the week is still Rot while the next
+  distribution is already Blau, and both are true at once. It sits beside the week number because it
+  is a property of the calendar, like the number itself, and not of the hand-out the sentence above
+  it announces. On a distribution day the two are necessarily equal, so it is left off rather than
+  repeat the headline in miniature on the paint it is already wearing.
+  `distribution.spec.ts` pins that Saturday down (`week-colour-week`).
 - **There is no second card asking about another week**, and that is deliberate. A date lookup lived
   under the counter until **US-22** (`tasks/prd-us-22-drop-week-colour-lookup.md`): FD said they need
   no week but this one, so the card, its strings, its error path and its two specs went, and

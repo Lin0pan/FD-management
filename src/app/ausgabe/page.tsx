@@ -29,6 +29,7 @@ import {
   type GroupRosterView,
 } from "@/application/distribution/read-group-roster";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -90,10 +91,17 @@ function colourName(colour: WeekColour): string {
  * the group still appears, but only inside the sentence that also names the *date* it belongs to, so
  * neither a word nor a paint can be read as "the group collecting now".
  *
- * Both arms take their colour and date from `view.nextDistribution`, never `view.colour`: after a
- * Thursday distribution the current week is still Rot while the next distribution is already Blau,
- * and only the second answers the question this screen is read for. FR-7 holds on both — the group
- * is written out in words either way, and the paint only repeats what the words already say.
+ * Everything named in prose takes its colour and date from `view.nextDistribution`, never
+ * `view.colour`: after a Thursday distribution the current week is still Rot while the next
+ * distribution is already Blau, and only the second answers the question this screen is read for.
+ * FR-7 holds throughout — the group is written out in words wherever it is painted, and the paint
+ * only repeats what the words already say.
+ *
+ * The one place `view.colour` does appear is the badge beside the calendar week, and it is the badge
+ * *because* the two can disagree: the week is a property of the calendar, like the week number it
+ * sits next to, while the sentence above it is about a hand-out on a named date. On a distribution
+ * day they are necessarily the same colour, so the badge is left off rather than repeat the headline
+ * in miniature on the paint it is already wearing.
  */
 function Banner({ view }: { view: WeekColourView }): React.ReactElement {
   const { date, colour } = view.nextDistribution;
@@ -128,7 +136,14 @@ function Banner({ view }: { view: WeekColourView }): React.ReactElement {
         <p data-testid="next-distribution" className="text-base">
           {de.distribution.banner.next(germanDate(date), de.distribution.colours[colour])}
         </p>
-        <p className="text-sm text-muted-foreground">{meta}</p>
+        {/* The week's own colour, beside the week it belongs to — the same solid paint as the
+            printed card and the customer's group badge, so the three read as one thing. */}
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          {meta}
+          <Badge data-testid="week-colour-week" className={COLOUR_STYLES[view.colour]}>
+            {de.distribution.colours[view.colour]}
+          </Badge>
+        </p>
       </CardContent>
     </Card>
   );

@@ -27,6 +27,10 @@ import { de } from "@/i18n/de";
  * the "nächste Ausgabe" sentence that also carries its date. That absence is the assertion worth
  * having — a group named on a day nobody can collect is what this change removed.
  *
+ * `week-colour-week` is the badge beside the calendar week, and it is the one thing on the screen
+ * reading `view.colour` rather than `nextDistribution.colour`. The Saturday spec is where those two
+ * disagree, which is the whole reason the badge is there.
+ *
  * These specs only read, so they leave the shared database exactly as they found it. They do
  * restore the clock in `afterAll` — a pinned today would otherwise make the settings specs, which
  * save a version stamped *now*, assert against January.
@@ -58,8 +62,10 @@ test.describe("Ausgabe", () => {
     );
     await expect(banner).toContainText("08.01.2026");
     await expect(banner).toContainText(de.distribution.banner.week("02"));
-    // A distribution day states no "next" — today is it.
+    // A distribution day states no "next" — today is it — and carries no week badge either: the
+    // week's colour is the group in the headline above, and a badge could only repeat it.
     await expect(page.getByTestId("next-distribution")).toHaveCount(0);
+    await expect(page.getByTestId("week-colour-week")).toHaveCount(0);
   });
 
   test("names the blue group on the following distribution day", async ({ page }) => {
@@ -89,6 +95,27 @@ test.describe("Ausgabe", () => {
     // No group headline on a day nobody collects: the sentence above is the only place the group is
     // named, and it names the date it belongs to in the same breath.
     await expect(page.getByTestId("week-colour-group")).toHaveCount(0);
+    // The badge states the *week's* colour. Here it agrees with the sentence, because the next
+    // distribution is this week's; the spec below is the one where the two part company.
+    await expect(page.getByTestId("week-colour-week")).toHaveText(de.distribution.colours.BLUE);
+  });
+
+  test("badges the week's own colour, not the colour of the next distribution", async ({
+    page,
+  }) => {
+    // The Saturday after the red Thursday: the week is still red, the next distribution is already
+    // blue, and both are true at once. This is the day the badge exists for — without it the screen
+    // says only "Gruppe Blau" and a staff member asking which week they are in has to count.
+    pinNow("2026-01-10T09:00:00.000Z");
+    await page.goto("/ausgabe");
+
+    await expect(page.getByTestId("next-distribution")).toHaveText(
+      de.distribution.banner.next("15.01.2026", de.distribution.colours.BLUE),
+    );
+    await expect(page.getByTestId("week-colour-banner")).toContainText(
+      de.distribution.banner.week("02"),
+    );
+    await expect(page.getByTestId("week-colour-week")).toHaveText(de.distribution.colours.RED);
   });
 
   test("ignores a ?datum= left over from the retired lookup", async ({ page }) => {
