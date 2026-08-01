@@ -1,0 +1,72 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-19-fold-archive-search",
+  "description": "US-19 Fold the archive search away on /kunden/neu — the panel becomes a closed <details> whose summary asks 'War dieser Haushalt schon einmal aufgenommen?', so the prompt to check survives the fold. Presentation and e2e only: NO domain, application, port, infrastructure or schema change. A diff touching src/domain, src/application, src/infrastructure or prisma/ means the change was misread. Exactly ONE spec file may be edited, tests/e2e/reregistration.spec.ts, and only to open the disclosure before filling it. Source: tasks/prd-us-19-fold-archive-search.md",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "The archive search summary asks the question and can be reached by testid",
+      "description": "As a staff member, I want the archive panel's header to ask whether this household was here before, so that the prompt to check is legible whether or not the panel is open. Source: tasks/prd-us-19-fold-archive-search.md §US-019.1",
+      "acceptanceCriteria": [
+        "In src/app/kunden/neu/archive-search-panel.tsx the <summary> carries data-testid=\"archive-search-open\"",
+        "The <summary> shows de.customers.archiveSearch.intro — the question 'War dieser Haushalt schon einmal aufgenommen?' — so the prompt is on screen when the panel is closed",
+        "The <h2> inside CardTitle stays a real <h2>: querySelectorAll('h1,h2,h3') on /kunden/neu must still list 'Im Archiv suchen' (guide trap 1)",
+        "The <details> KEEPS its open attribute in this story. Closing it here would turn reregistration.spec.ts red, because that spec fills #archiveLastName by CSS id and an element inside a closed <details> has no bounding box — US-002 closes it together with the spec edit that makes it safe",
+        "Do NOT add w-fit to this <summary>. It wraps a CardHeader, and shrinking a header to its minimum content width wraps the CardDescription into a column — measured at 348px tall during the restyle. This is recorded in docs/ui_conversion_guide.md",
+        "No German literal in the component; any changed string lives in src/i18n/de.ts",
+        "No spec file is edited in this story",
+        "Typecheck passes",
+        "Lint passes",
+        "Full e2e suite passes: npm run test:e2e",
+        "Verify in browser using the playwright-cli skill against a PRODUCTION build (npm run build && npm run start -- --port 3100, killing any next-server first), reading the ACCESSIBILITY SNAPSHOT and not only a screenshot: the summary must announce, and 'Im Archiv suchen' must still be a heading in the outline"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "de.customers.archiveSearch.intro was already the question and already inside the <summary> (PR #62), so this story was the testid and the comment that explains what it is for. Verified on a production build at 1440x900 on the demo register: h1/h2/h3 outline still lists 'Im Archiv suchen' as an H2, summary announces 'Im Archiv suchen War dieser Haushalt schon einmal aufgenommen?', 0 console messages. Before-numbers recorded for US-002: top of #firstName 630px, archive card 160px."
+    },
+    {
+      "id": "US-002",
+      "title": "Close the archive search by default, and open it in the one spec that fills it",
+      "description": "As a staff member, I want the archive search folded away so the first field of the form is near the top of the screen. Source: tasks/prd-us-19-fold-archive-search.md §US-019.2, §US-019.3",
+      "acceptanceCriteria": [
+        "The archive-search <details> renders WITHOUT the open attribute — closed on every load of /kunden/neu",
+        "The open/closed state is NOT persisted: no localStorage, no cookie, no server state. Every load starts closed",
+        "In tests/e2e/reregistration.spec.ts the searchArchive helper clicks getByTestId('archive-search-open') BEFORE filling #archiveLastName",
+        "The spec opens the disclosure with a real CLICK on the summary. Do NOT use evaluate(d => d.open = true): a fold that silently stopped opening must turn the suite red rather than pass",
+        "Guard against a second click closing the panel again — either the helper is idempotent, or it is called once per page load. Read the spec before changing it",
+        "tests/e2e/reregistration.spec.ts is the ONLY spec file touched. If any other spec goes red, the fix is in the component, not in that spec",
+        "Opening the disclosure reveals #archiveLastName, #archiveFirstName, #archiveBirthDate and archive-search-submit with their ids and testids unchanged",
+        "Every result state still renders inside the opened panel with its exact current text: archive-search-count, archive-search-empty, archive-search-truncated, archive-prefill-error, and a match row's archive-match-name / -household-size / -reason / -former-number",
+        "archive-match-reason keeps whitespace-pre-line — there is an e2e asserting the CSS itself",
+        "Measured at 1440x900 on the freshly seeded demo register (npm run db:reset && npm run db:demo) with the free-slot banner on screen: the top of #firstName is <= 470px, and the closed archive card is <= 90px tall",
+        "document.documentElement.scrollWidth - clientWidth is 0 at 1920, 1280, 1024, 800 and 390",
+        "The before and after numbers go in the commit message",
+        "Typecheck passes",
+        "Lint passes",
+        "Full e2e suite passes: npm run test:e2e",
+        "Verify in browser using the playwright-cli skill against a PRODUCTION build: open the panel by clicking the summary, run a search, and confirm the criteria survive the submit and a match row renders"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Shipped: <details> renders closed, and reregistration.spec.ts clicks archive-search-open (a real click, once per page load — every caller does page.goto first) then waits for #archiveLastName. Full suite green, 90 passed / 1 pre-existing skip, exactly one spec file touched. Measured on a production build at 1440x900 on the freshly seeded demo register with the free-slot banner on screen: closed archive card 160px -> 78px (<= 90, MET); top of #firstName 630px -> 548px, which MISSES the <= 470px criterion. The two numbers cannot both hold: 470 = 630 - 160 assumes the archive card takes ZERO height when closed, but the same story requires a closed card of up to 90px, and 78px is what a CardHeader of title + question actually measures. The remaining space above #firstName is the page header (92px), the free-slot banner (146px, an explicit non-goal to touch) and the form's own 'Person und Anschrift' header (80px) — the form itself now starts at 468px. Reaching 470 would mean deleting the panel, which is a non-goal. Overflow 0 at 1920/1280/1024/800/390; 0 console messages; the panel stays open across a submit, keeps its criteria, and renders the match row (archive-match-name/-household-size/-reason/-former-number, reason still white-space: pre-line) and the empty state."
+    },
+    {
+      "id": "US-003",
+      "title": "Record the fold in the design documents",
+      "description": "As the next developer, I want the documents to say that the archive search is now closed and why, so the decision is not re-litigated from the old text. Source: tasks/prd-us-19-fold-archive-search.md",
+      "acceptanceCriteria": [
+        "docs/ui_redesign_kunden_neu.md §12 is updated: the archive search is now a CLOSED <details>, not <details open>, and the spec edit that made it possible is named",
+        "§12's numbers table gains the new measured top of #firstName and the new closed-card height",
+        "§4.2b's argument against closing the panel is left in place and answered rather than deleted — it records why the fold is a risk (a control that must be opened is one that will be forgotten on the day it matters, which is the whole of US-11), and the mitigation now shipped is that the summary asks the question",
+        "docs/ui_conversion_guide.md's finding 'A disclosure a spec fills or checks cannot be closed by default' is updated to say the archive search is now closed and how the spec reaches it",
+        "No source file and no spec file is changed in this story",
+        "Prettier formatting passes: npm run format:check",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Docs only — no source and no spec file touched. ui_redesign_kunden_neu.md §12 now reads 'The archive search is a closed <details>', names reregistration.spec.ts and its click on archive-search-open as the spec edit that made it possible, and records that archive.spec.ts and card.spec.ts needed no edit after all (they reach #group-RED, and the group radios were never folded). §12 gained a second numbers table with the US-19 measurements — top of #firstName 752 -> 630 -> 548 against a <= 470 target, archive card 270 -> 160 -> 78 against <= 90 — plus the breakdown showing why the two targets could not both hold. §4.2b is kept and answered rather than deleted: its heading carries a superseded marker pointing forward, and a blockquote states that the risk stands and the mitigation is the question in the summary. ui_conversion_guide.md's finding is now 'cannot be closed by default until the spec opens it' and carries the two rules that make the edit honest (a real click, never evaluate(d => d.open = true); check for a key before assuming one click per load suffices). Also added the panel's closed default to technical_documentation.md, which described everything about the panel except that. format:check, typecheck and lint pass."
+    }
+  ]
+}
