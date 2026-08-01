@@ -1,11 +1,11 @@
 # Ralph Progress Log
-Started: Sat Aug  1 10:10:46 CEST 2026
+Started: Fri Jul 31 21:06:37 CEST 2026
 ---
 
 ## Codebase Patterns
-(Carried forward by hand from the US-19 log — the archive rotation wipes this file, so the
+(Carried forward by hand from the US-18 log — the archive rotation wipes this file, so the
 patterns block has to be pasted into the fresh one. The other durable channel is the CLAUDE.md
-files. Batch 20 folds the group choice on /kunden/neu: presentation and e2e only, so the domain,
+files. Batch 19 folds one disclosure on /kunden/neu: presentation and e2e only, so the domain,
 application, port, migration and schema entries below are background rather than instruction.
 The Next.js, i18n, e2e and playwright entries are the ones that apply.)
 - Adding a method to a port interface (e.g. CustomerRepository) forces EVERY implementer to compile:
@@ -311,28 +311,113 @@ The Next.js, i18n, e2e and playwright entries are the ones that apply.)
 
 ---
 
-## 2026-08-01 - US-001 (batch 20)
-- The `Gruppe` fieldset on /kunden/neu now sits inside a `<details>` whose `<summary>` names the
-  proposed group inline — "Gruppe: [Blau] — andere Gruppe wählen", the word in a `Badge` wearing
-  `GROUP_STYLES[proposal.suggestedGroup]`. The disclosure still renders `open` in this story; the
-  suggestion sentence and the two group sizes moved OUT of the fieldset so they stay on screen once
-  it closes.
-- Files: src/app/kunden/neu/registration-form.tsx, src/i18n/de.ts (assignment.groupChoiceLabel /
-  groupChoiceOverride).
-- Verified against a production build on the demo register at 1440x900: the summary is announced as
-  "Gruppe: Blau — andere Gruppe wählen", both radios are named `radio` elements with `Blau`
-  `[checked]`, console 0 errors, and a real click on the summary toggles `open` to false.
+## 2026-07-31 21:15 - US-001 (US-19.1) — the archive-search summary gets a handle
+
+- `src/app/kunden/neu/archive-search-panel.tsx`: `data-testid="archive-search-open"` on the
+  `<summary>`, and the comment above `<details open>` rewritten — it argued the panel must *never*
+  close, which is no longer the decision; it now says the fold is US-19.2's and cannot land before
+  the spec that fills the panel learns to open it.
+- No dictionary change was needed: `de.customers.archiveSearch.intro` is already the question
+  ("War dieser Haushalt schon einmal aufgenommen?") and already sits inside the `<summary>` as the
+  `CardDescription`. Read the dictionary before planning an i18n edit from a PRD — PR #62 had
+  already done half of this story.
+- `<details>` deliberately KEEPS `open`; no spec touched.
+
 - **Learnings for future iterations:**
-  - The measured "before" is 220px for the `Zuordnung` card and y=1461 for `Aufnehmen` (production
-    build, demo register, 1440x900, free-slot banner on screen) — NOT the ~310px the PRD's success
-    metrics assume. US-002's "rises by at least 100px" was derived from that 310, so the arithmetic
-    has to be re-stated rather than the number quietly met: the radios plus their legend are only
-    ~70px of content, which is the whole saving available.
-  - Measuring a "before" honestly costs a `git stash push -- src/`, a rebuild and a server restart.
-    Do it BEFORE the story that has to quote the delta, while the tree is still clean-ish.
-  - The project's summary-as-control recipe is `cn(buttonVariants({ variant: "outline" }), "w-fit
-    cursor-pointer list-none [&::-webkit-details-marker]:hidden")` — see reissue-controls.tsx. It
-    costs ~39px of card height that a plain text summary would not.
-  - Chromium exposes such a `<summary>` as `generic` with its full text as the accessible name, not
-    as a `button` or `disclosure` — the same as the archive search's, which shipped in US-19.
+  - The `<summary>` announces as a `generic` inside a `group`, not as a `button`, in Playwright's
+    accessibility snapshot — its accessible name is the whole header ("Im Archiv suchen War dieser
+    Haushalt schon einmal aufgenommen?"). The shipped disclosures on `/kunden/[id]` announce exactly
+    the same way, so that is this repo's baseline rather than a regression to chase.
+  - Measuring on a production build: `pkill` alone is not enough — a server started as
+    `(npm run start &)` from a Bash tool call dies with its parent shell and leaves `curl` returning
+    000 with the log still saying "Ready". Start it with the Bash tool's own background mode.
+  - `curl` inside this sandbox goes through the proxy and cannot reach 127.0.0.1; use
+    `curl --noproxy '*'` for a readiness check against a local port.
+  - `playwright-cli open --browser=chrome` fails here (no Chrome distribution); plain
+    `playwright-cli open` gets Chromium.
+  - The demo register is `npm run db:reset && npm run db:demo` — reset alone seeds settings only,
+    and the free-slot banner the measurements depend on needs the demo households.
+  - Baseline for US-002, measured at 1440x900 with the free-slot banner on screen: top of
+    `#firstName` **630px**, archive card (still open) **160px**. Targets: <= 470px and <= 90px.
+
+---
+
+## 2026-07-31 22:20 - US-002 (US-19.2 + US-19.3) — the archive search folds away
+
+- `src/app/kunden/neu/archive-search-panel.tsx`: `<details open>` -> `<details>`. The comment above
+  it now carries the argument for the fold and names the mitigation (the summary asks the question)
+  instead of explaining why the panel could not yet close.
+- `tests/e2e/reregistration.spec.ts`: `searchArchive` clicks `getByTestId("archive-search-open")`
+  and waits for `#archiveLastName` to be visible before filling. A real click, not
+  `evaluate(d => d.open = true)`. The only spec file touched; the whole suite stayed green
+  (90 passed, 1 pre-existing skip).
+- No dictionary, domain, application, infrastructure or schema change.
+
+- **Measured** on a production build at 1440x900, demo register, free-slot banner on screen:
+  - closed archive card **160px -> 78px** (target <= 90) — met.
+  - top of `#firstName` **630px -> 548px** (target <= 470) — **missed, and the target is
+    unreachable as written.** 470 is 630 - 160, i.e. it assumes the card takes zero height once
+    closed; the same story's other criterion requires a closed card of up to 90px. 78px is what a
+    `CardHeader` of title + question measures. What is left above `#firstName`: page header 92px,
+    free-slot banner 146px (explicit non-goal to touch), form's own section header 80px. The form
+    now starts at 468px. Only deleting the panel would reach 470, which is a non-goal.
+  - `scrollWidth - clientWidth` = 0 at 1920, 1280, 1024, 800 and 390. 0 console messages.
+  - Opened by clicking the summary: the three criteria and `Suchen` appear, a search for an
+    archived surname keeps the criteria, keeps the panel open and renders the match row
+    (`archive-match-name` / `-household-size` / `-reason` / `-former-number`, reason still
+    `white-space: pre-line`); a miss renders `archive-search-empty`.
+
+- **Learnings for future iterations:**
+  - **`pkill -f "next-server"` from the Bash tool kills the tool's own shell** — the pattern matches
+    the shell's own command line, and the call comes back as exit 144 with everything after it
+    unrun. The `[n]ext-server` bracket trick is not optional here, it is the difference between
+    killing the server and killing yourself.
+  - A `<details>` that a client component re-renders (a `useActionState` submit, a result list
+    appearing) stays open: the DOM keeps `open` as long as the element is not REMOUNTED. On
+    `/kunden/neu` the `key` remount is on the registration form, not on the panel, so a search and a
+    pre-fill both leave the panel open. Check for a `key` on the panel's own element before assuming
+    a disclosure survives an action.
+  - A height budget in a PRD is worth re-deriving before trusting it: this one subtracted the
+    element's WHOLE height for a fold that leaves its header on screen, so two criteria in one story
+    contradicted each other. Measure the stack (header / banner / card / form header) rather than
+    only the target element — the breakdown is what shows which criterion was miscomputed.
+  - Mobile widths measure differently and are not what these criteria are about: at 390px the closed
+    card is 98px because the question wraps to two lines. The stated viewport is part of the number.
+
+---
+
+## 2026-07-31 22:55 - US-003 (US-19 documentation) — the fold is written down
+
+- `docs/ui_redesign_kunden_neu.md` §12: "The archive search is `<details open>`, not closed" becomes
+  "The archive search is a closed `<details>`", naming `tests/e2e/reregistration.spec.ts` and its
+  click on `archive-search-open` as the spec edit that made it possible, and correcting the old
+  claim that three specs stood in the way — only that one fills the panel; `archive.spec.ts` and
+  `card.spec.ts` reach `#group-RED`, and the group radios were never folded.
+- §12 gained a second numbers table for US-19 (top of `#firstName` 752 -> 630 -> 548 against a
+  <= 470 target; archive card 270 -> 160 -> 78 against <= 90) with the stack breakdown that shows
+  why the two targets contradict each other, and the 390px caveat.
+- §4.2b is answered, not deleted: the heading keeps "and stays open" with a superseded marker, and a
+  blockquote below states that the risk it names (a control that must be opened is one that will be
+  forgotten, which is the whole of US-11) still stands and that the mitigation is the question in
+  the summary — one line of prompt, with auto-opening as the next step if a household is missed.
+- `docs/ui_conversion_guide.md`: the finding is now "cannot be closed by default **until the spec
+  opens it**", with the two rules that make such an edit honest — a real click on a `<summary>` that
+  has its own testid, never `evaluate(d => d.open = true)`; and check for a `key` on the panel
+  before assuming one click per page load is enough.
+- `docs/technical_documentation.md`: the `archive-search-panel.tsx` bullet said everything about the
+  panel except that it is now closed by default and how a spec reaches it. Added.
+- No source file and no spec file changed. `format:check`, `typecheck` and `lint` pass.
+
+- **Learnings for future iterations:**
+  - A superseded argument in a design document is worth more answered than deleted: §4.2b is the
+    only record of what the fold risks, and US-19's mitigation is only legible next to it. Mark the
+    stale headline claim in place and put the answer underneath — deleting it would make the next
+    reader re-derive the decision from nothing.
+  - A doc that records "why this could not be done" ages into a false claim the moment it is done.
+    §12 asserted that THREE specs blocked the fold; only one did. When closing out such a note,
+    re-grep the ids it names rather than inverting the sentence.
+  - `docs/technical_documentation.md` is the third document a UI decision has to reach — the two
+    redesign/guide documents are the ones a PRD names, but the per-file bullets in §"app" are what a
+    developer reads first, and a default state (open/closed, persisted or not) belongs there.
+
 ---
