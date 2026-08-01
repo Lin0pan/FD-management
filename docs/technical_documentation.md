@@ -186,7 +186,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │                             #   updateCustomerDetails / updateNotes (US-16, record edits),
 │   │   │                             #   changeGroup (US-16, moves between RED and BLUE)
 │   │   ├── settings/                 # readCurrentSettings, updateSettings, listSettingsVersions
-│   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05)
+│   │   ├── distribution/             # getWeekColour; recordAttendance / correctAttendance (US-05);
+│   │   │                             #   readGroupRoster (US-21, the counter's group walk)
 │   │   ├── waiting-list/             # addToWaitingList, listWaiting, removeFromWaitingList,
 │   │   │                             #   promoteFromWaitingList, registerFromWaitingList (US-12)
 │   │   └── allowance/                # describeAllowance — counts, portions and price at a date
@@ -355,6 +356,29 @@ with `RecordNoLongerCorrectable` (FR-7); a missing record is `DistributionRecord
 the one deletion the append-only history permits. Each correction writes its own audit entry with no
 reason, because the event name and changed field already say what happened. Both use cases are tested
 against hand-written fakes and a fake clock (`record-attendance.test.ts`, `correct-attendance.test.ts`).
+
+**`readGroupRoster(deps, rawQuery?)`** is what the counter's two walk controls read (US-21): the group
+collecting and the customer numbers either side of the one on screen, as
+`{ group, previous, next, isEmpty }`. It is a **read** — no record, no reminder, no status change and
+no audit entry — because navigating is a read, like the lookup it drives (US-04, FR-4).
+
+Three decisions carry it:
+
+- The group walked is the **banner's**, `getWeekColour`'s `nextDistribution.colour` — today's on a
+  distribution day and the next distribution's otherwise (FR-1). It does not follow the group of the
+  household on screen, so the screen never names two groups at once.
+- Membership is `CustomerRepository.list({ statuses: ["ACTIVE", "BLOCKED"], group })`. **No port
+  method was added**: the adapter already filters by group and status and already answers lowest
+  customer number first. Blocked households are walked because stating the block is the point of
+  stopping at them; archived ones are not, because they no longer hold the slot.
+- `rawQuery` is read with the domain's `counterQueryOrNull`, so `50` and `50k3` both position the walk
+  at household 50 (FR-6) and anything unreadable — or an absent query — means "nothing looked up yet"
+  rather than an error. The comparison `neighbours` makes is numeric, so a number belonging to the
+  other group or to nobody still positions the walk between the members around it (FR-5).
+
+It throws `NoSettingsInForce` when no version had taken effect today — the same failure the banner
+already has on that screen. Tested against hand-written fakes and a fake clock in
+`read-group-roster.test.ts`.
 
 ### `src/application/allowance/`
 

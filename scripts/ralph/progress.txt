@@ -59,3 +59,33 @@ Started: Sat Aug  1 20:30:00 CEST 2026
   - `docs/technical_documentation.md` documents domain modules **twice**: once as a line in the
     `src/` tree around line 156 and once as a `### <path>` section. Adding a module means both, or
     the tree lists a file the reference section never explains.
+
+---
+
+## 2026-08-01 20:45 - US-002 (readGroupRoster, application)
+- Implemented `src/application/distribution/read-group-roster.ts`: `readGroupRoster(deps, rawQuery?)`
+  answering `{ group, previous, next, isEmpty }` — what the /ausgabe walk controls (US-21) read.
+  TDD against hand-written fakes; the spec ran red (module missing) before the use case existed.
+- Files changed:
+  - `src/application/distribution/read-group-roster.test.ts` (new, 14 named tests)
+  - `src/application/distribution/read-group-roster.ts` (new)
+  - `docs/technical_documentation.md` (tree entry + a `readGroupRoster` block in the
+    `### src/application/distribution/` section)
+  - `scripts/ralph/prd.json` (US-002 passes: true)
+- Gates: lint, typecheck, `test:coverage` (46 files / 938 tests, read-group-roster.ts 100/100/100/100,
+  domain + application thresholds intact) and `next build` all green.
+- **Learnings for future iterations:**
+  - `WeekColour` and `Group` are separate types with identical unions, so
+    `list({ group: week.nextDistribution.colour })` type-checks with **no mapping** — which is what
+    the PRD asks for. Keep `GroupRosterView.group` as `WeekColour`: it is the banner's answer, not a
+    customer's property, and US-003 prints it with `GROUP_STYLES` which is keyed by the same values.
+  - The **non-distribution-day** case needs a date *after* the distribution weekday to be visible:
+    on Friday 2026-01-09 the week is RED (2026-W02) but `nextDistribution` is the BLUE Thursday of
+    2026-W03. A Tuesday would have shown the same colour twice and proved nothing.
+  - `FakeCustomerRepository` is worth copying wholesale from
+    `src/application/customers/list-customers.test.ts` — it already answers `list` the way the
+    adapter is documented to (filters, then sorts by customer number) and counts writes, which is
+    how "the walk records nothing" is asserted at this layer.
+  - US-003 calls this in the page's existing `Promise.all`. Note `readGroupRoster` calls
+    `getWeekColour` itself, so /ausgabe resolves the colour twice per request — deliberate (PRD
+    §Technical Considerations); do not "fix" it by caching.

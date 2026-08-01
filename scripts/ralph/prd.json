@@ -48,8 +48,8 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "src/application/distribution/read-group-roster.ts + 14 named tests against hand-written fakes, written red first. Reuses getWeekColour for the banner's group and CustomerRepository.list({ statuses: [ACTIVE, BLOCKED], group }) for membership — no new port method. Application coverage 100%."
     },
     {
       "id": "US-003",
