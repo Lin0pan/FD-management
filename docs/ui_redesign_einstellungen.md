@@ -4,7 +4,9 @@ A UX analysis of the settings screen as it stands today, and a concept for rebui
 shadcn/ui primitives — one of the last three screens in the conversion
 `docs/ui_conversion_guide.md` describes.
 
-**Status:** **not built.** The measurements in §3 are the "before".
+**Status:** **§8 step 1 is built** — the conversion. The measurements in §3 are the "before", and
+§8 carries the "after" against each of them. Steps 2–4 are open; §3.1 is untouched and is the one
+worth the most.
 
 The screen has one property none of the others has: **it is the only place in the application where
 FD can change what the software believes.** CLAUDE.md's "policy values are data, not constants" is
@@ -535,6 +537,44 @@ Suggested sequence: **(1)** conversion — cards, grid, widths, labels, heights 
 state and the rhythm sentence, if still wanted.
 
 Step 2 is worth doing even if nothing else is.
+
+### Step 1, as built
+
+All 90 e2e specs green with **no test edited**, which is what the commit's boundary was for.
+Measured at 1440×900 on the demo register, against the "before" numbers in §3:
+
+| Claim                         | Before                             | After                                   |
+| ----------------------------- | ---------------------------------- | --------------------------------------- |
+| Shell inside the bar §3.11    | `main` x=272 w=896, nav x=144      | x=144 w=1152 — **identical to the nav** |
+| Field widths §3.3             | all nine 408px                     | 163 / 252 / 1056 by content             |
+| Control heights §3.4          | 34 input, 32 select, 40 button     | **36, all three**                       |
+| Headings §3.8                 | `h1` + 3 `h2`, one section unnamed | `h1` + 4 `h2`                           |
+| Reason's accessible name §3.7 | 91 characters                      | `Grund der Änderung (optional)`         |
+| The rejected field §3.2       | no mark, border identical          | `aria-invalid` + `border-destructive`   |
+| Horizontal overflow           | 0 at 1440/800/390                  | 0 at 1440/**1024**/800/390              |
+| Console                       | 0 errors                           | 0 errors, 0 warnings                    |
+
+Three numbers went the other way, and each is a card header rather than a mistake — the guide's
+"a card header costs about 65px, and it is usually worth more than the target it breaks":
+
+- **Page height 1068 → 1100px.** Three headers added, two `h2`s and three grid rows removed.
+- **The confirmation moved down, 534 → 758px, and the new history row 930 → 942.** §3.10 wanted the
+  record of a save above the fold and it is further below it. Not addressed here; the notice moves
+  to the field in step 2, which is also where this is worth revisiting.
+- **The field-to-error distance is 442px, against 454.** Effectively unchanged, and expected: the
+  message is still the summary by the button. `aria-invalid` is what makes the field findable in
+  step 1; §4.2c's per-field message is step 2.
+
+Two things this pass turned up that the concept did not predict:
+
+- **Spending the grid made the labels ragged.** Five inputs in one row landed on three baselines
+  (y=276/296/316), because `Höchstzahl der Kundinnen und Kunden (N)` wraps to three lines in the
+  163px slot §4.3 gives it and `Portionen je Erwachsenem` to two. Fixed with `grid-rows-subgrid`;
+  the rule is now in `docs/ui_conversion_guide.md`. It is also **evidence for §11.5**: that label
+  costs its row 40px of label height, which is a concrete price for the 39 characters.
+- **`reason` at `lg:col-span-12` is a 1056px box** for what is usually two words — against 408px
+  before. §4.3 asks for 12 and it was built as asked, but it is the "field width is a promise"
+  rule pointing the other way, and 6 columns would say what the field is for more honestly.
 
 ---
 

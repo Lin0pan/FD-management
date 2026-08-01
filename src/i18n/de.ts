@@ -1004,7 +1004,17 @@ export const de = {
     intro:
       "Änderungen gelten sofort. Beim Speichern wird eine neue Fassung angelegt; frühere " +
       "Fassungen bleiben erhalten, damit vergangene Ausgaben nachvollziehbar bleiben.",
-    currentHeading: "Aktuell gültige Werte",
+    /**
+     * The three card headings, and they are the grouping: the five settings that decide *what* a
+     * household gets, the three that decide *when*, and the write itself. What stood here before
+     * was `Aktuell gültige Werte` over quota, portions and all three calendar settings — a heading
+     * that described everything on the screen and therefore distinguished nothing, with the two
+     * price fields under `Preise` next door (docs/ui_redesign_einstellungen.md §3.5, §4.2a).
+     */
+    amountsHeading: "Mengen und Preise",
+    rhythmHeading: "Ausgaberhythmus",
+    /** The section that held the reason and the save button unnamed until now (§3.8). */
+    changeHeading: "Änderung speichern",
     fields: {
       quotaN: "Höchstzahl der Kundinnen und Kunden (N)",
       portionsPerGrownUp: "Portionen je Erwachsenem",
@@ -1029,7 +1039,6 @@ export const de = {
       7: "Sonntag",
     },
     prices: {
-      heading: "Preise",
       hint:
         "Der Preis wird je Kopf berechnet: je Erwachsenem und je Kind. Was ein Haushalt zahlt, " +
         "ergibt sich daraus automatisch.",

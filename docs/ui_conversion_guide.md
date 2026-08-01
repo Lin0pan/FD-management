@@ -305,6 +305,35 @@ Give a form a 12-column grid and spend it: 2 columns for a postcode or a house n
 legibility there is. Cards take the shell's full width; the field grid inside them does not — a
 1152px text input is worse than a 400px one.
 
+## Spending the grid makes the labels ragged; `grid-rows-subgrid` is the fix
+
+Narrowing a field narrows its **label** too, and a German label is as long as it is. Measured on
+`/einstellungen` the first time its five fields were given the widths their contents ask for:
+`Höchstzahl der Kundinnen und Kunden (N)` takes **three** lines in a 163px slot and
+`Portionen je Erwachsenem` two, so five inputs in one grid row started at **y=276, 296 and 316** —
+40px of rag across a row that had been perfectly level when every field was 408px. The conversion
+had fixed three control heights (§3.4 of that concept) and bought a three-baseline row with the
+change. It is the `/kunden/[id]` finding above arriving from the opposite direction, and it will
+happen on every form where the grid is actually spent.
+
+The fix is two utilities, not a `min-h-` guess:
+
+```tsx
+const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
+const FIELD_ROWS = "grid grid-rows-subgrid row-span-2 gap-1.5"; // on each field
+```
+
+Each field spans two of the parent's rows and inherits them, so the label track is as tall as the
+tallest label **in that row** and every control lands on one baseline — at any label length, in any
+language, and it re-solves itself when the grid collapses to two columns or one. The field then has
+exactly two children; a hint under the control wraps both in one element. `mt-auto` on the control
+is the tempting alternative and it is worse: it bottom-aligns correctly and leaves a one-line label
+floating 46px above its own box.
+
+What it does not fix is the cause. A 39-character label over a box holding three digits still costs
+its row 40px of label height, and no alignment hides that — the honest answer is a shorter label,
+which is a dictionary change and therefore a different commit.
+
 ## Findings from `/warteliste`
 
 - **A plain string exported from a `"use client"` module and read by a server component is not a
@@ -508,8 +537,11 @@ second time.
       the `/kunden/neu` pass, so that screen still shows a seam.
 - [x] `/karten-neuausstellung`, per `docs/ui_redesign_karten_neuausstellung.md`. The two count sets
       now line up on one baseline, and a `GROUP_CHANGE` row prints the colour that changed.
-- [ ] `/einstellungen` — concept written, `docs/ui_redesign_einstellungen.md`. Read §3.1 first: a
-      rejected save silently discards every edit, valid ones included, and no screenshot shows it.
+- [ ] `/einstellungen` — **converted** (§8 step 1), per `docs/ui_redesign_einstellungen.md`. Three
+      cards where two of the four sections had no heading between them, nine fields at three widths
+      instead of one, every control 36px, and the shell lined up with the bar. Steps 2–4 are still
+      open, and **step 2 is the one that matters**: a rejected save still discards every edit, valid
+      ones included (§3.1), and no screenshot shows it.
 - [x] `kunden/archive-controls.tsx` + `kunden/block-controls.tsx` — shared by the record **and** the
       counter. Done first, in a commit of their own; the summaries are now 209×32px at `10px`
       against the `Card`'s 14, on both screens.
