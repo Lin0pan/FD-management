@@ -297,6 +297,36 @@ markup: **a tile is a figure that drives a decision; everything else is a line.*
 The same page had three hand-rolled copies of `<p><span muted>Label: </span><span>value</span></p>`.
 When you find the third, that is the component.
 
+### A heading needs no boundary; a run of facts does
+
+`--background` and `--card` are the same white, so **a `Card` is only its ring** — there is no fill
+to tell you where one begins. Everything that follows comes from that.
+
+A `<h1>` is its own boundary: it is the largest thing on the screen and nothing else looks like it,
+which is why the page skeleton leaves the heading row outside a card on all seven screens. Three
+label/value pairs are not. Left bare under the heading on `/kunden/[id]`, the record's identity block
+had nothing at all saying where it started or stopped, on a page where every other block was ringed —
+and it read, in FD's word, as **lost**.
+
+So when a header carries _content_ and not just a title, split it: the heading row stays bare, and
+the facts get a `Card` of their own beneath it. That fixes the orphan without making the screen the
+only one whose `h1` sits in a box.
+
+Two corollaries worth having:
+
+- **A filled tile is a claim about its container.** `Stat`'s `bg-muted/50` says "I am inside
+  something"; wearing it outside a card is the mismatch that starts this whole problem. The fix is to
+  supply the container, not to strip the fill — stripping it was tried on this screen and left the
+  block with neither body nor boundary, which was worse than either.
+- **A boundary is not a section.** The record's identity card carries no `CardTitle` on purpose: the
+  redesign had deliberately dissolved `Stammdaten` as a heading, and a ring is not that heading
+  coming back. Reach for `CardTitle` when the block is a _part_ of the page; leave it off when the
+  block is what the page is _about_.
+
+And give the promoted block the grid the card below it already uses — the record's two identity tiles
+take `grid-cols-2 sm:grid-cols-4` so they land in the same two columns as `Erwachsene` and `Kinder`
+(measured `208..431` and `475..698` in both). One column rhythm down the page costs one class.
+
 ### A shared table is only shared if nobody keeps a copy
 
 `src/app/accents.ts` says it in its own docstring — "two copies of a tint are how two screens come to
