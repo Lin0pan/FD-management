@@ -818,13 +818,19 @@ export const de = {
       week: (week: string): string => `KW ${week}`,
     },
     /**
-     * The counter lookup — the most-read text in the product. Every verdict is stated as a full
-     * German sentence, because the banner's colour is only ever a repetition of what the words
-     * already say (tasks/prd-us-04-lookup-customer.md §US-04.4).
+     * The counter lookup — the most-read text in the product, and therefore the text held to the
+     * strictest account: every string here is paid for on every lookup of every afternoon, so one
+     * that only restates what the screen already shows costs more than it gives
+     * (tasks/prd-us-04-lookup-customer.md §US-04.4). The verdict's colour never travels without the
+     * word it names, and the word is always a full German phrase.
+     *
+     * There is no `hint` beneath the heading any more. It named the two number formats and said to
+     * press Enter, for a field labelled `Nummer` that is autofocused and alone on the screen. The
+     * formats do need stating where they are genuinely unclear — after something unreadable was
+     * typed — and `errors.notANumber` states them there, to the one person who needs them.
      */
     counter: {
       heading: "Kundin oder Kunde nachschlagen",
-      hint: "Kundennummer (50) oder Kartennummer (50k3) eingeben und mit der Eingabetaste bestätigen.",
       label: "Nummer",
       submit: "Nachschlagen",
       /**

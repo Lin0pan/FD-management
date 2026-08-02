@@ -281,7 +281,10 @@ export function CustomerDetails({
             )}
           </TableBody>
         </Table>
-        <p className="text-xs text-muted-foreground">{de.customers.derived.standardValues}</p>
+        {/* No "Standard-Portionen und -Preis; am Ausgabetisch nicht anpassbar." here, though the
+            three screens that *can* edit a household still carry it. At the counter it described an
+            absence: there is no control to adjust, so the sentence answered a question the screen
+            had already answered by having no field to type in. */}
         {/* The stale-card note (US-13.4). Deliberately the smallest, quietest thing on the screen —
             the same grey as the hint above it, no border, no icon, no colour — because it is neither a
             verdict nor a warning: the verdict is the banner, and the serve action below is untouched
