@@ -943,6 +943,31 @@ export const de = {
       },
     },
     /**
+     * How far through today's group the afternoon is, and who is still missing
+     * (tasks/prd-us-23-group-progress.md §US-023.4).
+     *
+     * The summary *is* the tally, not a label that hides one: a staff member must never have to open
+     * the list to learn the number. Both figures stand in that one sentence, because `34` and `61`
+     * are read together and a screen reader must not announce them as unrelated fragments.
+     *
+     * `open` and `close` are the affordance beside it — the disclosure is a fold, and a triangle
+     * alone would be chrome saying nothing (US-03.4). They are deliberately not part of the tally
+     * sentence: which of the two is shown depends on the fold's state, and the tally does not.
+     */
+    progress: {
+      summary: (group: string, served: number, expected: number): string =>
+        `${group}: ${served} von ${expected} Haushalten abgeholt`,
+      open: "Liste anzeigen",
+      close: "Liste ausblenden",
+      /** The mark on a household that has collected today. Only these rows are marked. */
+      served: "abgeholt",
+      /**
+       * An empty group, said in words rather than shown as a disclosure that opens onto nothing.
+       * Its own sentence rather than the walk's: this one is about the tally having no denominator.
+       */
+      empty: (group: string): string => `${group}: zurzeit ist kein Haushalt zugeordnet.`,
+    },
+    /**
      * Recording the hand-out — the one write the counter makes (tasks/prd-us-05-record-attendance.md
      * §US-05.4). The serve action appears only for a verdict that permits it; once a record exists
      * for today, the same place shows it and the controls to correct or remove it.

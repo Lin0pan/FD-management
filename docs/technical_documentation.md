@@ -75,6 +75,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── ausgabe/                  # distribution screen (US-03), counter (US-04), hand-out (US-05), reminder (US-06)
 │   │   │   ├── page.tsx              # server component: colour banner + the counter lookup
 │   │   │   ├── counter-lookup.tsx    # the verdict banner + the customer details below it (US-04.4)
+│   │   │   ├── group-progress-card.tsx  # the tally, and today's group folded behind it (US-23.4)
 │   │   │   ├── serve-controls.tsx    # client: record a hand-out, correct/remove today's record (US-05.4)
 │   │   │   ├── certificate-controls.tsx  # client: log today's reminder, record a renewal (US-06.4)
 │   │   │   ├── actions.ts            # "use server": Zod → the serve/correct/reminder/renewal use cases
@@ -2049,6 +2050,43 @@ primitives in `src/components/ui/`, and the reference the other screens follow. 
   see the application and domain sections. Nothing about the walk is written: it is a read, like the
   lookup it drives — proved as an absence by `tests/e2e/group-walk.spec.ts`, which also drives the
   order the controls produce against a seeded block of the register.
+
+#### The tally and the group list (`group-progress-card.tsx`, US-23)
+
+- A `Card` **between the banner and the counter**, holding a `<details>` that renders **closed**. It
+  is a fact about today, like the banner, so it must be readable without scrolling past the field
+  staff type into — and it costs the counter every pixel it takes, which is why the closed height is
+  a measured requirement. Measured at 1440×900: **54px closed**, 358px open (76px / 380px at 390px
+  wide, where the sentence wraps).
+- The **summary is the tally**, not a label hiding one: `data-testid="group-progress"` sits on the
+  `CardTitle` holding exactly `Gruppe Rot: 40 von 122 Haushalten abgeholt`. Both figures stand in
+  that one node, because `40` and `122` are read together and a screen reader must not announce them
+  as unrelated fragments. Beside it, in its own node, is the fold's affordance — `Liste anzeigen`,
+  swapped for `Liste ausblenden` by `group-open:` on the `<details>`, which is the only thing on this
+  server-rendered page that knows whether the list is open.
+- The `<summary>` wraps a `CardHeader` and is therefore **not `w-fit`** — that recipe is for a
+  summary that reads as a button, and here it would wrap the header into a column.
+- Open, the list is a `<ul>` in `sm:grid-cols-2 lg:grid-cols-3`, capped at `max-h-72` and scrolling
+  **inside its own box**, so ~120 households do not push the number field down the page. Each row is
+  a `<Link href="/ausgabe?nummer=N">` whose accessible name is the number _and_ the name ("400 Tatyana
+  O'Reilly"): clicking it looks that household up exactly as typing the number would (FR-7). The
+  numbers are `tabular-nums` so the column reads as a column.
+- The card is **keyed by the looked-up number** in `page.tsx`. A `<details>` keeps `open` through any
+  re-render, and following a row is a soft navigation, so without the key the household's verdict
+  would arrive underneath a hundred rows the staff member has to scroll past.
+- **Only the exceptions are marked**: a served household gets the word `abgeholt` in
+  `served-<customerNumber>`, a blocked one the word `gesperrt` in `blocked-<customerNumber>`, both
+  through the `StateWord` component `/kunden` uses — one meaning, one treatment, application-wide.
+  The unserved rows are the default state and carry the name and nothing else. Neither mark is an
+  icon or a colour alone (US-03.4).
+- **No group tint on the card or the rows.** The banner immediately above already carries the group's
+  colour, and 120 tinted rows would be texture rather than emphasis; the group is named in words in
+  the summary.
+- An **empty group** states so in a sentence (`Gruppe Rot: zurzeit ist kein Haushalt zugeordnet.`)
+  instead of rendering a disclosure that opens onto nothing.
+- Everything the card shows comes from `readGroupRoster`'s `members` and `progress` — the same array
+  the tally was counted from, so the summary and the marks beneath it cannot tell different stories.
+  Opening and closing writes nothing; the fold is the browser's.
 
 #### The counter lookup (`counter-lookup.tsx`)
 

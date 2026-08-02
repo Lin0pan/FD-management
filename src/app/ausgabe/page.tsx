@@ -43,6 +43,7 @@ import { BlockControls } from "../kunden/block-controls";
 import { CertificateControls } from "./certificate-controls";
 import { CustomerDetails, VerdictBanner } from "./counter-lookup";
 import { distributionDeps } from "./deps";
+import { GroupProgressCard } from "./group-progress-card";
 import { ServeControls } from "./serve-controls";
 import { GROUP_STYLES } from "../accents";
 import { SHELL } from "../shell";
@@ -326,6 +327,21 @@ export default async function DistributionPage({
       <PageHeader />
 
       <Banner view={today} />
+
+      {/* How far through the group the afternoon is (US-23), between the banner and the counter:
+          it is a fact about today, like the banner, and it must be readable without scrolling past
+          the field staff type into. The group it names is the roster's — the week's own — which on a
+          distribution day is the group the banner paints.
+
+          Keyed by the number looked up, because a `<details>` keeps `open` through any re-render and
+          only a remount closes it (docs/ui_conversion_guide.md): clicking a name in the list is a
+          soft navigation, so without the key the household's verdict would arrive underneath a
+          hundred rows the staff member has to scroll past. */}
+      <GroupProgressCard
+        key={typeof nummer === "string" ? nummer : ""}
+        roster={roster}
+        groupName={colourName(roster.group)}
+      />
 
       {/* The counter loop, keyboard only: type the number, press Enter, read the verdict. The form
           navigates, so the input comes back empty and — being autofocused — ready for the next
