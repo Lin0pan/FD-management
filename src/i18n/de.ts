@@ -827,53 +827,28 @@ export const de = {
       hint: "Kundennummer (50) oder Kartennummer (50k3) eingeben und mit der Eingabetaste bestätigen.",
       label: "Nummer",
       submit: "Nachschlagen",
-      /** How the colour reads of a person: the group they belong to, named in words. */
-      customerOfColour: {
-        RED: "Rote Kundin / roter Kunde",
-        BLUE: "Blaue Kundin / blauer Kunde",
-      },
-      /** How the colour reads of a week — the inflected form the send-away sentence needs. */
-      weekOfColour: {
-        RED: "rote Woche",
-        BLUE: "blaue Woche",
-      },
+      /**
+       * A verdict is its headline. The sentence that used to sit under each one restated what the
+       * record below already prints — the certificate's date and the reminder count are rows in it,
+       * the portions and the price are tiles, the group and the status are badges — so it was one
+       * more thing to read with a queue waiting, not help.
+       *
+       * `blocked.noReason` is the exception that proves the shape: the block reason is the only
+       * words at the counter a colleague typed rather than the screen derived, so it is the only
+       * detail left. If a verdict ever needs a sentence again, that is the test it has to pass.
+       */
       verdicts: {
-        notFound: {
-          headline: "Nummer nicht gefunden",
-          detail: "Zu dieser Nummer gibt es keinen Haushalt. Bitte die Nummer prüfen.",
-        },
-        archived: {
-          headline: "Archiviert",
-          detail: "Dieser Haushalt ist archiviert und nicht mehr bezugsberechtigt. Nicht ausgeben.",
-        },
+        notFound: { headline: "Nummer nicht gefunden" },
+        archived: { headline: "Archiviert" },
         blocked: {
           headline: "Gesperrt",
           noReason: "Es ist kein Grund hinterlegt. Bitte in der Kundenakte nachsehen.",
         },
-        wrongGroup: {
-          headline: "Falsche Gruppe",
-          detail: (customer: string, week: string): string =>
-            `${customer} — ${week}. Wegschicken, nächste Woche wieder.`,
-        },
-        outdatedCard: {
-          headline: "Karte ungültig",
-          detail: (presented: string, current: string): string =>
-            `Karte ${presented} ist ungültig, aktuelle Karte ist ${current}.`,
-        },
-        alreadyServedToday: {
-          headline: "Heute bereits ausgegeben",
-          detail: "Dieser Haushalt hat heute schon Lebensmittel erhalten. Keine zweite Ausgabe.",
-        },
-        clearToServe: {
-          headline: "Ausgabe frei",
-          detail: "Alles in Ordnung. Portionen und Preis stehen unten.",
-        },
-        certificateExpired: {
-          headline: "Ausgabe frei — Nachweis abgelaufen",
-          detail: (validUntil: string, reminderCount: number): string =>
-            `Der Bedarfsnachweis war gültig bis ${validUntil}. Ausgeben, an die Verlängerung ` +
-            `erinnern und die Erinnerung eintragen. Bisherige Erinnerungen: ${reminderCount}.`,
-        },
+        wrongGroup: { headline: "Falsche Gruppe" },
+        outdatedCard: { headline: "Karte ungültig" },
+        alreadyServedToday: { headline: "Heute bereits ausgegeben" },
+        clearToServe: { headline: "Ausgabe frei" },
+        certificateExpired: { headline: "Ausgabe frei — Nachweis abgelaufen" },
       },
       details: {
         heading: "Angaben zum Haushalt",

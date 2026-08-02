@@ -308,7 +308,9 @@ test.describe("Kunde archivieren", () => {
     await expect(page.getByTestId("counter-verdict-headline")).toHaveText(
       verdicts.archived.headline,
     );
-    await expect(page.getByTestId("counter-verdict-detail")).toHaveText(verdicts.archived.detail);
+    // The headline carries the refusal alone; the status badge below says the same thing in the
+    // record, which is why the banner no longer repeats it.
+    await expect(page.getByTestId("counter-verdict-detail")).toHaveCount(0);
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.ARCHIVED);
     // No hand-out can be recorded, and there is nothing left to archive either.
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
