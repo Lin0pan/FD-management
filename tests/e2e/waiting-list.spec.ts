@@ -263,9 +263,7 @@ test.describe("Warteliste", () => {
     await page.waitForURL(/\/kunden\/\d+$/);
 
     // They were given the number the archived household released, and the card that goes with it.
-    await expect(page.getByRole("main")).toContainText(
-      `${de.customers.fields.customerNumber}: ${filler.customerNumber}`,
-    );
+    await expect(page.getByTestId("customer-number")).toHaveText(String(filler.customerNumber));
     await expect(page.getByTestId("card-number")).toHaveText(`${filler.customerNumber}k1`);
     await expect(page.getByRole("main")).toContainText(fullName(first));
 

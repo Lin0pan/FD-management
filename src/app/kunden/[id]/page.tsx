@@ -56,14 +56,34 @@ import { RenewalForm } from "./renewal-form";
 export const dynamic = "force-dynamic";
 
 /**
- * A label and its value as one fact. A `<p>`, not two stacked `<div>`s: split, a screen reader
- * reads "Kundennummer" and then "13" with nothing joining them (guide trap 2).
+ * A label and its value as one fact, read in passing. A `<p>`, not two stacked `<div>`s: split, a
+ * screen reader reads "Kundennummer" and then "13" with nothing joining them (guide trap 2).
+ *
+ * This is the record's *one* inline idiom, and the screen used to have three of them: this one, and
+ * two hand-rolled copies of the same two spans for the reminder tally and the no-show run. It also
+ * used to wear `rounded-lg bg-muted/50 px-4 py-3` — the exact chrome of a `Stat` tile — while
+ * saying its value inline at 14px. Two components that look identical and read differently is worse
+ * than two that look different, so the fill goes where it means something: a **tile is a figure that
+ * drives a decision**, and everything else is a line.
+ *
+ * The colon stays, and is not an inconsistency with the tiles above: a stacked label needs no
+ * separator because the line break is one, and an inline label does.
  */
-function Field({ label, value }: { label: string; value: string }): React.ReactElement {
+function Field({
+  label,
+  value,
+  testId,
+}: {
+  label: string;
+  value: string;
+  testId?: string;
+}): React.ReactElement {
   return (
-    <p className="rounded-lg bg-muted/50 px-4 py-3">
-      <span className="text-sm text-muted-foreground">{label}: </span>
-      <span className="font-medium">{value}</span>
+    <p className="text-sm">
+      <span className="text-muted-foreground">{label}: </span>
+      <span data-testid={testId} className="font-medium tabular-nums">
+        {value}
+      </span>
     </p>
   );
 }
@@ -286,11 +306,11 @@ function CustomerRecord({
        * "Kundenübersicht" with the name as a `<p>` below it — but the navigation bar already says
        * which section you are in, and the one thing this page has that no other page has is *which
        * household*. `Stammdaten` disappears as a section and nothing in it is lost: the two numbers
-       * and the registration date become the muted line under the name, and the status and the
+       * and the registration date become the three tiles under the name, and the status and the
        * group become badges beside it, using the same chrome table as /kunden.
        *
        * `card-number` and `customer-status` keep their exact text in spans of their own; the labels
-       * and the separators sit outside them, and the badge wraps the span rather than replacing it.
+       * sit outside them, and the badge wraps the span rather than replacing it.
        */}
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-2">
@@ -312,34 +332,53 @@ function CustomerRecord({
               chrome={STATUS_CHROME[customer.status]}
             />
           </div>
-          {/* Each fact keeps the `Feld: Wert` shape the boxes under "Stammdaten" had. It is not
-              only a house style: four specs sweep `getByRole("main")` for "Kundennummer: 1", and
-              dropping the colon for a tidier line turned all four red. The separators and the
-              labels stay *outside* the `card-number` span, which holds exactly its value. */}
-          <p className="text-sm text-muted-foreground">
-            {de.customers.fields.customerNumber}:{" "}
-            <span className="font-medium text-foreground tabular-nums">
-              {customer.customerNumber}
-            </span>
-            {words.identitySeparator}
-            {de.customers.fields.cardNumber}:{" "}
-            <span data-testid="card-number" className="font-medium text-foreground tabular-nums">
-              {cardNumber}
-            </span>
-            {words.identitySeparator}
-            {/* The household's start is their first card, not the one they hold: a card replaced
-                after a loss must not read as a later registration date (US-10.1). */}
-            {de.customers.card.registered}: {germanDate(customer.registeredOn)}
-          </p>
+          {/* The identity, in the shape the rest of the application states it in: a small muted
+              label over a `tabular-nums` value, which is the counter's tiles and the printed card's
+              header. It was one 14px muted line — `Kundennummer: 7 · Kartennummer: 7k1 ·
+              Aufgenommen: …` — modelled on the counter's own subtitle at the time
+              (docs/ui_redesign_kunden_record.md §3.8). The counter has since moved: it states both
+              numbers at 36px, because there they are called across a room and checked against a
+              card. Here they are neither — a reader of this screen already knows which household
+              they navigated to — so the record takes the same shape one step down, at 24px against
+              the counter's 36 and below the 30px of its own `h1`. Same system, different rank.
+
+              Two tiles and not three: the registration date was tried as a peer here and, being the
+              longest string of the three, it came out the widest and boldest thing in the row —
+              the least-read fact drawing the eye first. It is a line below instead, which also
+              makes this pair exactly the pair the counter states. The household's start is their
+              *first* card, not the one they hold: a card replaced after a loss must not read as a
+              later registration date (US-10.1). */}
+          <div className="flex flex-wrap gap-3">
+            <Stat
+              label={de.customers.fields.customerNumber}
+              value={String(customer.customerNumber)}
+              testId="customer-number"
+              className="min-w-36"
+              valueClassName="text-2xl"
+            />
+            <Stat
+              label={de.customers.fields.cardNumber}
+              value={cardNumber}
+              testId="card-number"
+              className="min-w-36"
+              valueClassName="text-2xl"
+            />
+          </div>
+          <Field
+            label={de.customers.card.registered}
+            value={germanDate(customer.registeredOn)}
+            testId="registered-on"
+          />
           {/* Shown only when there is something to see. A zero would be one more number to read
-              past on every record, and it says nothing an archiving decision could rest on. */}
+              past on every record, and it says nothing an archiving decision could rest on — which
+              is also why it stays a line while the three facts above it are tiles: it is the
+              exception, and it should not look like one more thing every household has. */}
           {view.consecutiveNoShows === 0 ? null : (
-            <p className="text-sm">
-              <span className="text-muted-foreground">{de.customers.derived.noShows}: </span>
-              <span data-testid="no-shows" className="font-semibold tabular-nums">
-                {de.customers.derived.noShowsValue(view.consecutiveNoShows)}
-              </span>
-            </p>
+            <Field
+              label={de.customers.derived.noShows}
+              value={de.customers.derived.noShowsValue(view.consecutiveNoShows)}
+              testId="no-shows"
+            />
           )}
         </div>
         {/* The guide's stated exception to "no back-links": this one names a *record* — this
@@ -402,12 +441,11 @@ function CustomerRecord({
           {details.certificate.type} — {de.customers.card.validUntil}{" "}
           {germanDate(details.certificate.validUntil)}
         </p>
-        <p>
-          <span className="text-sm text-muted-foreground">{de.customers.card.reminderCount}: </span>
-          <span data-testid="reminder-count" className="font-medium tabular-nums">
-            {customer.reminderCount}
-          </span>
-        </p>
+        <Field
+          label={de.customers.card.reminderCount}
+          value={String(customer.reminderCount)}
+          testId="reminder-count"
+        />
         {archived ? null : <RenewalForm customerId={customer.id} />}
       </Section>
 

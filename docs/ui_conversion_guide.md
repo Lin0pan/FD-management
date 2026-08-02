@@ -264,6 +264,53 @@ Two mechanics worth copying:
   label and value stay inside one `<p>`, so a screen reader still hears "Kundennummer 6" as one fact
   (trap 2). A hand-rolled `div` with two stacked spans would have lost that silently.
 
+### Moving a screen moves everything modelled on it
+
+`docs/ui_redesign_kunden_record.md` §3.8 built the customer record's header by pointing at the
+counter — "the counter gets this right … `Kundennummer 7 · Kartennummer 7k1` beneath it". When the
+counter changed, the record was left imitating a screen that no longer existed: the same two facts
+were 36px tiles on one screen and a 14px muted line with colons on the other, and the record is the
+screen you arrive at _from_ the counter.
+
+**When a concept doc cites another screen as the model, it has taken a dependency.** Before changing
+a screen, grep the `docs/ui_redesign_*.md` set for its name; whatever cites it is now wrong, and the
+fix is either to move it too or to write down why it stays.
+
+Alignment is **shape and chrome, not size.** Each of the three household screens sizes its identity
+by its own job — the counter 36px because the number is called across a room, `/kunden/[id]/karte`
+48px because the number _is_ the card, the record 24px because a reader already knows which household
+they opened. What may not differ is the shape: label above value, `tabular-nums`, no colon. Sizing by
+task is a design; two spellings of one label is an accident.
+
+That gives the record a rule worth stating on its own: **stacked pairs take no colon, inline pairs
+do.** A line break is a separator; a space is not. Both idioms are legitimate — what the record had
+was `Kundennummer: 7` in one place and `Kundennummer` over `7` in another, for the same fact.
+
+### Two components with identical chrome must not read differently
+
+The record carried a `Field` whose class list was `rounded-lg bg-muted/50 px-4 py-3` — **exactly** a
+`Stat` tile — while setting its value inline at 14px. Two things that look identical and behave
+differently are worse than two that look different: the reader learns a rule from the first one and
+it fails on the second. The fill went where it earns its keep, and the rule is now legible from the
+markup: **a tile is a figure that drives a decision; everything else is a line.**
+
+The same page had three hand-rolled copies of `<p><span muted>Label: </span><span>value</span></p>`.
+When you find the third, that is the component.
+
+### A shared table is only shared if nobody keeps a copy
+
+`src/app/accents.ts` says it in its own docstring — "two copies of a tint are how two screens come to
+paint the same fact two different shades" — and there were three local copies of the group palette
+anyway. The counter's was `bg-red-600 text-white` against the record's tint, so **one household's
+group was painted two ways depending on which screen you were on**. Its status table was a second
+copy of the same mistake, badging `aktiv` on nine records in ten, which is the texture the colour
+budget section exists to prevent.
+
+`grep -rn "bg-red-600\|bg-blue-700" src/app` costs nothing and finds all of them. A local
+`const GROUP_STYLES` in a screen file is the smell; if a screen genuinely needs a different weight of
+the same meaning, that belongs in `accents.ts` as a second named export, where the next reader will
+see both.
+
 ## Findings from `/karten-neuausstellung`
 
 - **A `<summary>` can be made to read as a button without ceasing to be one.** Rule 4 keeps the

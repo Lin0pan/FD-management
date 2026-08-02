@@ -16,12 +16,12 @@ import type { CounterCustomerView } from "@/application/customers/lookup-custome
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
-import type { CustomerStatus } from "@/domain/customer/customer";
-import type { Group } from "@/domain/customer/group";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
+import { GROUP_STYLES } from "../accents";
+import { STATUS_CHROME, StateWord } from "../kunden/state-word";
 import { Stat } from "../stat";
 
 /**
@@ -146,19 +146,6 @@ export function VerdictBanner({ verdict }: { verdict: Verdict }): React.ReactEle
   );
 }
 
-/** The badge variant per status. The group has its own paint; a status is a state, so it uses tokens. */
-const STATUS_VARIANTS = {
-  ACTIVE: "secondary",
-  BLOCKED: "destructive",
-  ARCHIVED: "outline",
-} as const satisfies Record<CustomerStatus, "secondary" | "destructive" | "outline">;
-
-/** The same paint as the week banner and the printed card, so the three are one colour to staff. */
-const GROUP_STYLES = {
-  RED: "bg-red-600 text-white",
-  BLUE: "bg-blue-700 text-white",
-} as const satisfies Record<Group, string>;
-
 /** A field that is read only when it matters: the certificate, the reminder tally, a no-show run. */
 function Field({
   label,
@@ -211,14 +198,28 @@ export function CustomerDetails({
             {customer.firstName} {customer.lastName}
           </h2>
         </CardTitle>
-        {/* The group and the status, the two facts that decide whether the rest matters at all. */}
+        {/* The group and the status, the two facts that decide whether the rest matters at all —
+            wearing what they wear everywhere else in the application.
+
+            Both used to be local tables here. The group was solid `bg-red-600 text-white`, a second
+            copy of a tint that `accents.ts` exists to keep single, so one household's group was
+            painted one way on their record and another at the counter. And the status badged every
+            state including `aktiv`, which is nine records in ten: a pill that says "this one is
+            normal" is texture, not emphasis, and `STATUS_CHROME` is where that judgement is already
+            made. What is left is a mark per exception, the same mark the list and the record make. */}
         <CardAction className="flex flex-wrap items-center gap-2">
-          <Badge data-testid="counter-group" className={GROUP_STYLES[customer.group]}>
+          <Badge
+            data-testid="counter-group"
+            variant="outline"
+            className={GROUP_STYLES[customer.group]}
+          >
             {de.customers.groups[customer.group]}
           </Badge>
-          <Badge data-testid="counter-status" variant={STATUS_VARIANTS[customer.status]}>
-            {de.customers.status[customer.status]}
-          </Badge>
+          <StateWord
+            word={de.customers.status[customer.status]}
+            testId="counter-status"
+            chrome={STATUS_CHROME[customer.status]}
+          />
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">

@@ -661,6 +661,44 @@ what makes each of the eight forms' extent legible — §3.1's actual complaint.
 `Bisherige Ausgaben` bought 297px. Getting under 2 600 needs a second section folded, and which one
 is a question for FD rather than a number to chase.
 
+### Follow-up: the header realigned after the counter moved
+
+§3.8 and §4.2b built this header by pointing at the counter, and the counter has since changed: it
+states both numbers as 36px tiles, because there the customer number is called across the room to
+fetch the next household and the card number is compared against the card being held out. This
+record was left imitating a screen that no longer existed — the same two facts at 14px in a muted
+line with colons, on the screen you arrive at _from_ the counter.
+
+What changed, and what did not:
+
+- `Kundennummer` and `Kartennummer` are now `Stat` tiles, **at 24px** — one step below the counter's
+  36 and below this screen's own 30px `h1`. Deliberately not the counter's size: a reader here
+  already knows which household they opened, so the identity is confirmation rather than the task.
+  Same shape, different rank.
+- **The registration date was tried as a third tile and rejected.** Being the longest string, it came
+  out the widest and boldest thing in the row — the least-read fact drawing the eye first. It is a
+  `Field` line beneath, which also makes the tile pair exactly the pair the counter states.
+- `Field` **lost its tile chrome.** It had been `rounded-lg bg-muted/50 px-4 py-3` — a `Stat` tile's
+  class list exactly — while reading inline at 14px. It is now the record's one inline idiom, and the
+  two hand-rolled copies of it (the reminder tally, the no-show run) call it instead.
+- The colon stays on the inline lines and is absent from the tiles, which is the rule rather than an
+  inconsistency: a line break separates a stacked pair, a space does not separate an inline one.
+- **`/ausgabe` was pulled onto this screen's tables**, not the other way round. Its local group
+  palette was a solid `bg-red-600 text-white` copy of `accents.ts`'s tint, and its local status table
+  badged `aktiv`. Both now use `GROUP_STYLES` and `STATUS_CHROME`, so a household's group and status
+  look the same on the list, the record and the counter. §6 of this document was already right; the
+  counter had simply never been brought to it.
+
+Cost, measured at 1440×900: the tiles are 84px taller than the line they replace, so `grown-ups` on a
+plain active record moves **255px → 339px** — still inside §10's ≤ 400 budget, which is why the
+number is stated here rather than the budget quietly dropped.
+
+Five e2e assertions swept `getByRole("main")` for `Kundennummer: 7` and now read the
+`customer-number` testid instead (`archive`, `reregistration` ×2, `registration`, `waiting-list`).
+They assert that the right number reached the record after a redirect; that intent is intact and the
+assertion is now stronger than a page-wide text sweep. This is the one place the pass's "with no test
+edited" rule could not hold — the specs were the only thing holding an idiom no other screen used.
+
 ### Still open after this pass
 
 - **§11.3, the previous record for a re-registered household.** `previousCustomerId` is carried

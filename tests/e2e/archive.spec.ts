@@ -334,9 +334,7 @@ test.describe("Kunde archivieren", () => {
     const successor = await register(page);
     expect(successor.customerNumber).toBe(household.customerNumber);
     expect(successor.id).not.toBe(household.id);
-    await expect(page.getByRole("main")).toContainText(
-      `${de.customers.fields.customerNumber}: ${household.customerNumber}`,
-    );
+    await expect(page.getByTestId("customer-number")).toHaveText(String(household.customerNumber));
 
     // The number now names its new holder — an active holder always wins over an archived one, so
     // the counter cannot serve or refuse the wrong household.
