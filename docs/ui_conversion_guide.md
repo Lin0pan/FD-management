@@ -457,6 +457,25 @@ ab.` — two lines of 643 and 660px with the date cut in half. Left alone it bre
   width **and** one step below it, with the longest string the screen can produce — here
   `Donnerstag, 24. September 2026` at 1 030px against 1 056px of panel, 26px of headroom.
 
+## Findings from the group tally on `/ausgabe`
+
+- **A `<details>` survives a soft navigation, not just a re-render.** The `key` rule above was
+  written for revalidation; following a `<Link>` is the same trap wearing a different hat. The group
+  list on `/ausgabe` opens, the staff member clicks a household in it, Next re-renders the route
+  client-side — same element, same position, so `open` is still `true` and the verdict they navigated
+  for arrives underneath a hundred rows. `key={the number looked up}` on the card remounts it and the
+  fold comes back closed. **If a fold sits on a screen that navigates to itself, assert `details.open`
+  after the navigation**; nothing else will tell you.
+- **A summary can carry the fold's own label without leaving the server.** `group-open:hidden` on one
+  word and `hidden group-open:inline` on the other (with `group` on the `<details>`) says "Liste
+  anzeigen" closed and "Liste ausblenden" open with no client component — and because the hidden one
+  is out of the accessibility tree, the summary is still announced with exactly one of them.
+- **A capped, scrolling list is measured twice: closed and open.** The cap is what keeps the page from
+  growing (`max-h-72` + `overflow-y-auto`), but the container's own height is added to the page either
+  way — 54px closed became 358px open here, which still leaves the number field above the fold at
+  1440×900. Measure `document.getElementById("counter-input").getBoundingClientRect().bottom` in both
+  states, not only the card.
+
 ## Always drive the screen with `playwright-cli`
 
 **Use the `playwright-cli` skill for every piece of UI work on this project** — building it and

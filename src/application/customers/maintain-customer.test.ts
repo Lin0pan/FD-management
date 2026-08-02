@@ -108,6 +108,10 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve([]);
   }
 
+  listForDay(): Promise<ReadonlyArray<DistributionRecord>> {
+    return Promise.resolve([]);
+  }
+
   findById(): Promise<DistributionRecord | null> {
     return Promise.resolve(null);
   }

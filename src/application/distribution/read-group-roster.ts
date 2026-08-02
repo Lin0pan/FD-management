@@ -22,20 +22,33 @@
  *   and status and already answers lowest customer number first. No port method was added: at FD's
  *   ~240 customers this is the same read `/kunden` performs on every visit.
  *
+ * US-23 gave the same read a second job: how far through the group the afternoon is, and who is still
+ * missing. It is the same question — *which households belong to today's group* — with one fact added
+ * per household, so it is one use case rather than two reads that could disagree about the roster.
+ * The tally is **derived on every read** from today's records; nothing about it is stored (§FR-8).
+ *
  * Nothing is written — no record, no reminder, no status change and no audit entry. Navigation is a
  * read, like the lookup it drives (US-04, FR-4).
  */
 
 import { counterQueryOrNull } from "@/domain/card/cardNumber";
 import type { CustomerStatus } from "@/domain/customer/customer";
+import { berlinDayKey } from "@/domain/distribution/attendance";
+import { groupProgress, type Progress } from "@/domain/distribution/groupProgress";
 import { neighbours } from "@/domain/distribution/groupWalk";
 import type { WeekColour } from "@/domain/policy/settings";
-import type { Clock, CustomerRepository, SettingsRepository } from "../ports";
+import type {
+  Clock,
+  CustomerRepository,
+  DistributionRecordRepository,
+  SettingsRepository,
+} from "../ports";
 import { getWeekColour } from "./get-week-colour";
 
 export interface ReadGroupRosterDeps {
   readonly customers: CustomerRepository;
   readonly settings: SettingsRepository;
+  readonly records: DistributionRecordRepository;
   readonly clock: Clock;
 }
 
@@ -47,6 +60,27 @@ export interface ReadGroupRosterDeps {
  * the slot. What a freed number looks up to is the counter's own question (US-04.2), not the walk's.
  */
 const WALKED_STATUSES: ReadonlyArray<CustomerStatus> = ["ACTIVE", "BLOCKED"];
+
+/**
+ * One household of the group, as the list behind the tally names it (US-23).
+ *
+ * `customerId` is the surrogate id, and it is what the day's records are joined by — never the
+ * customer number, which is a slot attribute an archived household releases and a new one takes over
+ * (US-10). `blocked` and `servedToday` are the two flags {@link groupProgress} counts, which is why
+ * this shape is the tally's input as it stands.
+ */
+export interface GroupRosterMember {
+  /** The surrogate id — what a record belongs to, and what the screen links by nothing else. */
+  readonly customerId: number;
+  /** The number staff type at the counter, and the order the list is read in. */
+  readonly customerNumber: number;
+  readonly firstName: string;
+  readonly lastName: string;
+  /** Blocked households are listed — the counter has to *state* the block — but cannot collect (US-08). */
+  readonly blocked: boolean;
+  /** Whether a hand-out was recorded for this household on today's **Berlin** day (US-05). */
+  readonly servedToday: boolean;
+}
 
 /** What the walk controls beside the number field know. */
 export interface GroupRosterView {
@@ -61,6 +95,13 @@ export interface GroupRosterView {
    * than showing as two dead controls that look like the end of a walk.
    */
   readonly isEmpty: boolean;
+  /**
+   * Every household of the group in the order the register answered — lowest customer number first.
+   * Nothing here re-sorts it (US-23, §FR-3).
+   */
+  readonly members: ReadonlyArray<GroupRosterMember>;
+  /** How far through the group the afternoon is, counted from {@link members} and nothing else. */
+  readonly progress: Progress;
 }
 
 /**
@@ -81,15 +122,34 @@ export async function readGroupRoster(
 ): Promise<GroupRosterView> {
   const week = await getWeekColour(deps);
   const group = week.colour;
-  const members = await deps.customers.list({ statuses: WALKED_STATUSES, group });
+  const households = await deps.customers.list({ statuses: WALKED_STATUSES, group });
+  // The whole afternoon in one query, then joined in memory: a group is ~120 households, and a query
+  // apiece would make the counter's own screen the slowest in the app (US-23, §FR-4).
+  const servedIds = new Set(
+    (await deps.records.listForDay(berlinDayKey(deps.clock.now()))).map(
+      (record) => record.customerId,
+    ),
+  );
+  const members: ReadonlyArray<GroupRosterMember> = households.map((customer) => ({
+    customerId: customer.id,
+    customerNumber: customer.customerNumber,
+    firstName: customer.details.firstName,
+    lastName: customer.details.lastName,
+    blocked: customer.status === "BLOCKED",
+    servedToday: servedIds.has(customer.id),
+  }));
   // The register's order is the walk's raw material, not its rule: `neighbours` scans, so nothing
   // here restates that the list came back lowest number first.
-  const numbers = members.map((customer) => customer.customerNumber);
+  const numbers = members.map((member) => member.customerNumber);
 
   return {
     group,
     ...neighbours(numbers, positionOf(rawQuery)),
     isEmpty: numbers.length === 0,
+    members,
+    // Counted once, from the very rows the screen renders — so the summary and the marks beneath it
+    // cannot tell different stories.
+    progress: groupProgress(members),
   };
 }
 

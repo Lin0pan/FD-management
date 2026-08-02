@@ -1,0 +1,104 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-21-step-through-group",
+  "description": "US-21 Step through today's group at the counter — two controls beside the number field, Zurück and Weiter, that walk the group the banner names in customer-number order. Staff do not know which numbers belong to Rot and which to Blau, so working through a group today means guessing numbers. The walk is a READ: it navigates by GET to /ausgabe?nummer=N and writes nothing — no record, no reminder, no status change, no audit entry. Layered vertical slice: pure domain function, then a use case against fakes, then the screen, then e2e. NO schema change, NO migration and NO new port method — CustomerRepository.list already answers the query and already orders it. Requires batch 21 (US-22) to be merged first: both edit src/app/ausgabe/page.tsx. Source: tasks/prd-us-21-step-through-group.md",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "neighbours — the number before and after one, in a set of numbers (domain)",
+      "description": "As a developer, I want a pure function that answers 'which number comes before this one, and which after' for a set of customer numbers, so the walk has one rule rather than one per screen. Source: tasks/prd-us-21-step-through-group.md §US-021.1",
+      "acceptanceCriteria": [
+        "New module src/domain/distribution/groupWalk.ts exporting neighbours(numbers: ReadonlyArray<number>, from: number | null): Neighbours, with Neighbours = { readonly previous: number | null; readonly next: number | null }",
+        "next is the SMALLEST number in numbers strictly greater than from, or null when there is none",
+        "previous is the LARGEST number in numbers strictly less than from, or null when there is none",
+        "from === null gives { previous: null, next: <smallest number> } — the entry point for a screen where nothing has been looked up yet",
+        "from need NOT be a member of numbers: neighbours([10, 20, 30], 15) is { previous: 10, next: 20 }. The comparison is numeric, not positional, so a number belonging to the other group or to nobody still has a place in the walk",
+        "The function does NOT assume numbers is sorted — it scans for the two extremes. A pure function that silently required sorted input would state the list's order in a second place",
+        "An empty numbers gives { previous: null, next: null } at every from",
+        "STRICT TDD: the invariant-breaking test is written FIRST, red before green. One named test per rule, named after the rule rather than the function",
+        "Named boundary tests exist for: empty set; from null; from below every number; from above every number; from between two; from equal to the first, a middle and the last member; and an unsorted input answering the same as its sorted form",
+        "The module is pure: no I/O, no Date, no import from Next.js, React or Prisma",
+        "Domain coverage stays at 100%: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "src/domain/distribution/groupWalk.ts + 12 named tests, written red first. Single scan for both extremes; from===null stands before every number so next is the smallest member. Domain coverage 100%."
+    },
+    {
+      "id": "US-002",
+      "title": "readGroupRoster — today's group, and where the shown number sits in it (application)",
+      "description": "As a staff member, I want the two controls to know which group is collecting and who is in it, so that pressing them is one click and not a lookup I have to phrase. Source: tasks/prd-us-21-step-through-group.md §US-021.2",
+      "acceptanceCriteria": [
+        "New use case src/application/distribution/read-group-roster.ts exporting readGroupRoster(deps, rawQuery?: string): Promise<GroupRosterView>",
+        "NAME IT read-group-roster.ts / readGroupRoster / GroupRosterView exactly — batch 23 (US-23) EXTENDS this same file with the members list and the tally, and a rename later would be churn",
+        "The group walked is the one the banner names: getWeekColour(deps)'s nextDistribution.colour. On a distribution day that is today's group; on any other day it is the next distribution's. The screen must never name two groups",
+        "Membership is every customer of that group with status ACTIVE or BLOCKED, read through the EXISTING CustomerRepository.list({ statuses, group }). Do NOT add a port method: the adapter already answers this query and already orders it by customer number",
+        "ARCHIVED households are excluded — they no longer hold the slot",
+        "rawQuery is read with the domain's counterQueryOrNull from src/domain/card/cardNumber.ts: '50' and '50k3' both mean the number 50, and anything unreadable — or an absent query — means null, which is 'nothing looked up yet' and never an error. Do NOT write a second parser",
+        "GroupRosterView carries { group, previous, next, isEmpty }, where previous and next are customer NUMBERS or null, computed by neighbours from US-001",
+        "isEmpty is true exactly when the group holds no active or blocked household",
+        "The use case WRITES NOTHING: no audit entry, no status change, no record. It calls only reading methods of its ports",
+        "It throws NoSettingsInForce when no settings version had taken effect today — the same failure the banner already has, handled by the same error card",
+        "TDD against HAND-WRITTEN FAKES, never a mocking library. Named tests for: the group is the banner's and not the current week's on a non-distribution day; archived households are not walked; blocked households ARE walked; a card number resolves to its customer number; an unreadable query walks from the start; an empty group",
+        "Time comes from the Clock port — no zero-argument new Date() anywhere in the use case",
+        "Application coverage stays at 100%: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "src/application/distribution/read-group-roster.ts + 14 named tests against hand-written fakes, written red first. Reuses getWeekColour for the banner's group and CustomerRepository.list({ statuses: [ACTIVE, BLOCKED], group }) for membership — no new port method. Application coverage 100%."
+    },
+    {
+      "id": "US-003",
+      "title": "Zurück and Weiter beside the number field (presentation)",
+      "description": "As a staff member, I want to click through the group at the counter without knowing any of its numbers. Source: tasks/prd-us-21-step-through-group.md §US-021.3",
+      "acceptanceCriteria": [
+        "/ausgabe renders two controls IN THE COUNTER CARD, on the same row as Nachschlagen and AFTER it, with data-testid=\"walk-previous\" and data-testid=\"walk-next\"",
+        "Tab order is number field → Nachschlagen → Zurück → Weiter, so a staff member working the keyboard never tabs through navigation to reach the field they type in",
+        "Each control is <Button variant=\"outline\" asChild> wrapping <Link href=\"/ausgabe?nummer=N\"> when the neighbour exists — a GET navigation, so the browser's Back button still retraces the queue",
+        "When the neighbour is null the control renders as a plain DISABLED <Button> carrying the SAME testid, so a spec can assert toBeDisabled() and the row does not change width as staff walk",
+        "A hint line data-testid=\"walk-hint\" under the row names the group being walked and, when nothing has been looked up, says that Weiter starts at the first number of that group",
+        "At the end of the group the hint says so; when the group is empty both controls are disabled and the hint says the group holds no household",
+        "The group is named in WORDS in that hint. If it is tinted at all, use GROUP_STYLES from src/app/accents.ts — a colour never travels without the word (US-03.4), and the tints are never re-declared locally",
+        "Match the counter row's height: the field and the submit are deliberately h-12, and radix-nova defaults to h-8, so the two new controls need the same override or the row loses its baseline",
+        "The number field, its autoFocus, its id=\"counter-input\" and the Nachschlagen button are UNCHANGED, and typing a number still works after a walk",
+        "Every German string is a new key under de.distribution.walk in src/i18n/de.ts — no German literal in the component",
+        "The page stays a SERVER component: no 'use client', no client state. The controls are links",
+        "readGroupRoster is awaited in the page's existing Promise.all, not sequenced behind the lookup",
+        "document.documentElement.scrollWidth - clientWidth is 0 at 1920, 1280, 1024, 800 and 390 — the counter row now holds four controls",
+        "Typecheck passes",
+        "Lint passes",
+        "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first)",
+        "Verify in browser using the playwright-cli skill against a PRODUCTION build, reading the ACCESSIBILITY SNAPSHOT: both controls are announced as links with distinct names (or as disabled buttons at the ends), and the hint is readable text rather than a tooltip"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Two WalkControl buttons in the counter card after Nachschlagen (h-12 px-6, outline), link when the neighbour exists and a disabled type=\"button\" with the same testid when it does not, plus a GROUP_STYLES-tinted walk-hint with four sentences under de.distribution.walk.hints. readGroupRoster joins lookupCustomer in a new Promise.all; the page stays a server component. Verified against a production build with playwright-cli: the a11y snapshot announces link \"Weiter\" / disabled button \"Zurück\", tab order is field → Nachschlagen → Zurück → Weiter, hint is one line, and scrollWidth - clientWidth is 0 at 1920/1280/1024/800/390. Full e2e suite green (89 passed, 1 pre-existing skip)."
+    },
+    {
+      "id": "US-004",
+      "title": "E2E — walking a group of known numbers",
+      "description": "As a developer, I want the walk proved against the built app, because its whole value is the order it produces and no unit test can see the links. Source: tasks/prd-us-21-step-through-group.md §US-021.4",
+      "acceptanceCriteria": [
+        "New spec tests/e2e/group-walk.spec.ts, serial (test.describe.configure({ mode: 'serial' })), pinning the clock through the FD_FIXED_NOW_FILE seam the way tests/e2e/distribution.spec.ts does, and deleting the file in afterAll",
+        "The clock is pinned to a RED distribution day, 2026-01-08, from the seeded anchor 2026-W02 = RED and distribution weekday Thursday, so the group under walk is fixed",
+        "The spec seeds its OWN contiguous block of RED households through Prisma in a high, otherwise unused customer-number band, so no other spec's registrations can land between them. SYNTHETIC data only (Faker with a fixed seed), as tests/e2e/counter.spec.ts does",
+        "Asserts: from the lowest of the block, walk-next leads to the next one up; from the highest, walk-previous leads back down",
+        "Asserts a BLOCKED household in the block IS walked and an ARCHIVED one is SKIPPED",
+        "Asserts the entry point: with /ausgabe opened and nothing looked up, walk-next points at the lowest active-or-blocked RED number, READ FROM THE DATABASE in the spec rather than hard-coded — the shared register is written by other specs",
+        "Asserts the ends: on the highest RED number in the register walk-next is disabled, on the lowest walk-previous is disabled",
+        "Asserts a walk RECORDS NOTHING: a database snapshot taken before and after walking the block is identical, the way counter.spec.ts proves it for the lookup (US-04 FR-4)",
+        "No other spec file is modified",
+        "Typecheck passes",
+        "Lint passes",
+        "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first)"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "tests/e2e/group-walk.spec.ts, serial, 6 tests, pinned to 2026-01-08 through FD_FIXED_NOW_FILE. Seeds 311-315 through Prisma (RED active, RED blocked, RED archived, BLUE, RED active) with Faker at a fixed seed, so the blocked household is walked and the archived one and the other group are stepped over in one move. Both ends and the entry point read the walkable RED numbers out of Prisma rather than hard-coding them. The records-nothing snapshot widens counter.spec.ts's to distribution records and reminder logs. No other spec touched; full e2e suite 95 passed, 1 pre-existing skip."
+    }
+  ]
+}

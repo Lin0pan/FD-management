@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { berlinDayKey } from "@/domain/distribution/attendance";
 import type {
   DistributionRecord,
   NewDistributionRecord,
@@ -22,6 +23,10 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
 
   listForCustomer(customerId: number): Promise<ReadonlyArray<DistributionRecord>> {
     return Promise.resolve(this.records.filter((record) => record.customerId === customerId));
+  }
+
+  listForDay(dayKey: string): Promise<ReadonlyArray<DistributionRecord>> {
+    return Promise.resolve(this.records.filter((record) => berlinDayKey(record.date) === dayKey));
   }
 
   findById(recordId: number): Promise<DistributionRecord | null> {

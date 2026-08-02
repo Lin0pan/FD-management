@@ -9,6 +9,11 @@ import type {
 } from "@/domain/customer/customer";
 import type { Group, GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
+import { berlinDayKey } from "@/domain/distribution/attendance";
+import type {
+  DistributionRecord,
+  NewDistributionRecord,
+} from "@/domain/distribution/distributionRecord";
 import { NoSettingsInForce } from "@/domain/errors";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
 import type {
@@ -16,6 +21,7 @@ import type {
   Clock,
   CustomerListQuery,
   CustomerRepository,
+  DistributionRecordRepository,
   SettingsRepository,
 } from "../ports";
 import { readGroupRoster } from "./read-group-roster";
@@ -31,7 +37,18 @@ import { readGroupRoster } from "./read-group-roster";
 faker.seed(20260801);
 
 const RED_DISTRIBUTION_DAY = "2026-01-08T09:00:00.000Z";
+const EARLIER_ON_THE_RED_DAY = "2026-01-08T07:30:00.000Z";
+const THE_RED_DAY_BEFORE = "2026-01-01T09:00:00.000Z";
 const DAY_AFTER_A_RED_DISTRIBUTION = "2026-01-09T09:00:00.000Z";
+
+/**
+ * The two instants that tell the Berlin day apart from the UTC one. Berlin is an hour ahead in
+ * January, so between 23:00Z and midnight the two calendars disagree: `JUST_AFTER_BERLIN_MIDNIGHT`
+ * is still 8 January in UTC and already the 9th in Berlin.
+ */
+const JUST_AFTER_BERLIN_MIDNIGHT = "2026-01-08T23:10:00.000Z";
+const HALF_PAST_ELEVEN_UTC = "2026-01-08T23:30:00.000Z";
+const AFTERNOON_OF_THE_RED_DAY = "2026-01-08T15:00:00.000Z";
 
 const GROWN_UP = "1985-03-11T00:00:00.000Z";
 
@@ -164,6 +181,73 @@ class FakeCustomerRepository implements CustomerRepository {
   }
 }
 
+/**
+ * The day's hand-outs, filtered the way the adapter is documented to: by the **Berlin** day key, so
+ * a test can state which instants count as "today" rather than trusting the use case's own answer.
+ *
+ * `dayKeysAsked` records every key the use case queried — one per read is what keeps the roster from
+ * becoming a query per household.
+ */
+class FakeDistributionRecordRepository implements DistributionRecordRepository {
+  readonly records: DistributionRecord[] = [];
+  readonly dayKeysAsked: string[] = [];
+  writes = 0;
+
+  constructor(...records: DistributionRecord[]) {
+    this.records.push(...records);
+  }
+
+  listForCustomer(customerId: number): Promise<ReadonlyArray<DistributionRecord>> {
+    return Promise.resolve(this.records.filter((record) => record.customerId === customerId));
+  }
+
+  listForDay(dayKey: string): Promise<ReadonlyArray<DistributionRecord>> {
+    this.dayKeysAsked.push(dayKey);
+    return Promise.resolve(this.records.filter((record) => berlinDayKey(record.date) === dayKey));
+  }
+
+  findById(recordId: number): Promise<DistributionRecord | null> {
+    return Promise.resolve(this.records.find((record) => record.id === recordId) ?? null);
+  }
+
+  /**
+   * The mutating methods are here because the port has them, and each counts as a write so that a
+   * test can state that the roster reached none of them.
+   */
+  create(record: NewDistributionRecord): Promise<DistributionRecord> {
+    this.writes += 1;
+    const stored = { ...record, id: this.records.length + 1 };
+    this.records.push(stored);
+    return Promise.resolve(stored);
+  }
+
+  setPaid(recordId: number, paid: boolean): Promise<DistributionRecord> {
+    this.writes += 1;
+    const record = this.records.find((candidate) => candidate.id === recordId);
+    if (record === undefined) throw new Error("test fake: no such record");
+    const updated = { ...record, paid };
+    this.records[this.records.indexOf(record)] = updated;
+    return Promise.resolve(updated);
+  }
+
+  remove(): Promise<void> {
+    this.writes += 1;
+    return Promise.resolve();
+  }
+}
+
+/** A hand-out as the store holds it: whose it is, and the instant that decides its Berlin day. */
+function recordFor(customerId: number, instant: string, id = customerId): DistributionRecord {
+  return {
+    id,
+    customerId,
+    date: new Date(instant),
+    showedUp: true,
+    paid: true,
+    priceCents: 400,
+  };
+}
+
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
     quotaN: 240,
@@ -197,6 +281,8 @@ interface CustomerOverrides {
   readonly customerNumber: number;
   readonly group?: Group;
   readonly status?: CustomerStatus;
+  /** The surrogate id, set apart from the number where a test is about which of the two joins. */
+  readonly id?: number;
 }
 
 /** A customer as the register already holds them — built directly, so the status is the test's to set. */
@@ -213,7 +299,7 @@ function customerRecord(overrides: CustomerOverrides): RegisteredCustomer {
   const status = overrides.status ?? "ACTIVE";
   const group = overrides.group ?? "RED";
   return {
-    id: overrides.customerNumber,
+    id: overrides.id ?? overrides.customerNumber,
     customerNumber: overrides.customerNumber,
     group,
     status,
@@ -237,14 +323,16 @@ function customerRecord(overrides: CustomerOverrides): RegisteredCustomer {
 describe("readGroupRoster", () => {
   let customers: FakeCustomerRepository;
   let settings: FakeSettingsRepository;
+  let records: FakeDistributionRecordRepository;
 
   function deps(today = RED_DISTRIBUTION_DAY) {
-    return { customers, settings, clock: fakeClock(today) };
+    return { customers, settings, records, clock: fakeClock(today) };
   }
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
     settings = new FakeSettingsRepository(version());
+    records = new FakeDistributionRecordRepository();
   });
 
   it("walks today's group on a distribution day", async () => {
@@ -400,5 +488,135 @@ describe("readGroupRoster", () => {
     settings = new FakeSettingsRepository();
 
     await expect(readGroupRoster(deps(), "10")).rejects.toThrow(NoSettingsInForce);
+  });
+
+  it("names every household of the group, lowest customer number first", async () => {
+    customers.holders.push(
+      customerRecord({ customerNumber: 30 }),
+      customerRecord({ customerNumber: 10 }),
+      customerRecord({ customerNumber: 20, group: "BLUE" }),
+    );
+
+    const roster = await readGroupRoster(deps());
+
+    expect(roster.members.map((member) => member.customerNumber)).toEqual([10, 30]);
+    expect(roster.members[0]).toMatchObject({
+      customerId: 10,
+      firstName: customers.holders[1].details.firstName,
+      lastName: customers.holders[1].details.lastName,
+      blocked: false,
+    });
+  });
+
+  it("counts a member with a record from today as served", async () => {
+    customers.holders.push(customerRecord({ customerNumber: 10 }));
+    records.records.push(recordFor(10, EARLIER_ON_THE_RED_DAY));
+
+    const roster = await readGroupRoster(deps());
+
+    expect(roster.members[0].servedToday).toBe(true);
+    expect(roster.progress).toEqual({ served: 1, expected: 1 });
+  });
+
+  it("does not count a member whose only record is from an earlier distribution", async () => {
+    customers.holders.push(customerRecord({ customerNumber: 10 }));
+    records.records.push(recordFor(10, THE_RED_DAY_BEFORE));
+
+    const roster = await readGroupRoster(deps());
+
+    expect(roster.members[0].servedToday).toBe(false);
+    expect(roster.progress).toEqual({ served: 0, expected: 1 });
+  });
+
+  it("does not count a member with no record at all", async () => {
+    customers.holders.push(customerRecord({ customerNumber: 10 }));
+
+    const roster = await readGroupRoster(deps());
+
+    expect(roster.members[0].servedToday).toBe(false);
+    expect(roster.progress).toEqual({ served: 0, expected: 1 });
+  });
+
+  it("counts a hand-out from just after midnight in Berlin, though UTC still calls it yesterday", async () => {
+    customers.holders.push(customerRecord({ customerNumber: 10 }));
+    records.records.push(recordFor(10, JUST_AFTER_BERLIN_MIDNIGHT));
+
+    const roster = await readGroupRoster(deps(DAY_AFTER_A_RED_DISTRIBUTION));
+
+    expect(roster.members[0].servedToday).toBe(true);
+  });
+
+  it("does not count yesterday's hand-out at half past eleven, when only Berlin has turned the day", async () => {
+    customers.holders.push(customerRecord({ customerNumber: 10 }));
+    records.records.push(recordFor(10, AFTERNOON_OF_THE_RED_DAY));
+
+    const roster = await readGroupRoster(deps(HALF_PAST_ELEVEN_UTC));
+
+    expect(roster.members[0].servedToday).toBe(false);
+  });
+
+  it("joins the day's records by the surrogate id, never by the customer number", async () => {
+    customers.holders.push(
+      customerRecord({ customerNumber: 10, id: 501 }),
+      customerRecord({ customerNumber: 501, id: 10 }),
+    );
+    records.records.push(recordFor(501, EARLIER_ON_THE_RED_DAY));
+
+    const roster = await readGroupRoster(deps());
+
+    expect(roster.members.map((member) => member.servedToday)).toEqual([true, false]);
+  });
+
+  it("keeps a blocked household in the list and out of what was expected", async () => {
+    customers.holders.push(
+      customerRecord({ customerNumber: 10 }),
+      customerRecord({ customerNumber: 20, status: "BLOCKED" }),
+    );
+
+    const roster = await readGroupRoster(deps());
+
+    expect(roster.members.map((member) => member.blocked)).toEqual([false, true]);
+    expect(roster.progress).toEqual({ served: 0, expected: 1 });
+  });
+
+  it("ignores the records of customers in the other group", async () => {
+    customers.holders.push(
+      customerRecord({ customerNumber: 10 }),
+      customerRecord({ customerNumber: 20, group: "BLUE" }),
+    );
+    records.records.push(recordFor(20, EARLIER_ON_THE_RED_DAY));
+
+    const roster = await readGroupRoster(deps());
+
+    expect(roster.members.map((member) => member.customerNumber)).toEqual([10]);
+    expect(roster.progress).toEqual({ served: 0, expected: 1 });
+  });
+
+  it("reads the day's hand-outs in one query, whatever the group holds", async () => {
+    customers.holders.push(
+      customerRecord({ customerNumber: 10 }),
+      customerRecord({ customerNumber: 20 }),
+      customerRecord({ customerNumber: 30 }),
+    );
+
+    await readGroupRoster(deps());
+
+    expect(records.dayKeysAsked).toEqual(["2026-01-08"]);
+  });
+
+  it("reports a group holding no household as an empty roster with an empty tally", async () => {
+    const roster = await readGroupRoster(deps());
+
+    expect(roster.members).toEqual([]);
+    expect(roster.progress).toEqual({ served: 0, expected: 0 });
+  });
+
+  it("writes no distribution record while reading the roster", async () => {
+    customers.holders.push(customerRecord({ customerNumber: 10 }));
+    records.records.push(recordFor(10, EARLIER_ON_THE_RED_DAY));
+
+    await readGroupRoster(deps(), "10");
+
+    expect(records.writes).toBe(0);
   });
 });

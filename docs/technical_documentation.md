@@ -75,6 +75,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── ausgabe/                  # distribution screen (US-03), counter (US-04), hand-out (US-05), reminder (US-06)
 │   │   │   ├── page.tsx              # server component: colour banner + the counter lookup
 │   │   │   ├── counter-lookup.tsx    # the verdict banner + the customer details below it (US-04.4)
+│   │   │   ├── group-progress-card.tsx  # the tally, and today's group folded behind it (US-23.4)
 │   │   │   ├── serve-controls.tsx    # client: record a hand-out, correct/remove today's record (US-05.4)
 │   │   │   ├── certificate-controls.tsx  # client: log today's reminder, record a renewal (US-06.4)
 │   │   │   ├── actions.ts            # "use server": Zod → the serve/correct/reminder/renewal use cases
@@ -165,6 +166,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── distribution/noShows.test.ts  # its Vitest spec
 │   │   ├── distribution/groupWalk.ts  # neighbours — the number before and after one (US-21)
 │   │   ├── distribution/groupWalk.test.ts  # its Vitest spec
+│   │   ├── distribution/groupProgress.ts  # groupProgress — how many of a group collected (US-23)
+│   │   ├── distribution/groupProgress.test.ts  # its Vitest spec
 │   │   ├── distribution/distributionRecord.ts  # the hand-out record type (id, paid, priceCents)
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, CustomerRepository,
@@ -218,6 +221,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── customer-list.spec.ts         # search, filters and the group balance on /kunden
 │   ├── customer-record.spec.ts       # four edits on the record, each read back off another screen
 │   ├── distribution.spec.ts          # the week-colour banner against a fixed clock
+│   ├── group-progress.spec.ts        # the tally moves when a household is served, and reads are free
 │   ├── group-walk.spec.ts            # Zurück/Weiter walk today's group and write nothing
 │   ├── home.spec.ts                  # the Start dashboard against three pinned days
 │   ├── navigation.spec.ts            # the nav bar: every section reachable, the right one marked
@@ -297,7 +301,7 @@ coverage-measured layers.
 | `CustomerCounter`              | `countActive()`                                                                                                                                                                                                                                                                                                                         | The reality the quota `N` may not fall below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `findById(id)`, `findByCustomerNumber(n)`, `listWithStatus(status)`, `list(query)`, `searchArchived(query, limit)`, `create(customer)`, `updateHousehold(id, members)`, `updateDetails(id, details, household)`, `updateNotes(id, notes)`, `setGroup(id, group)`, `setStatus(…)`, `archive(…)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`. `setGroup` is a single column write (US-16.4) that deliberately leaves the cards printing the group they were issued with. `listWithStatus` is the one whole-register read — lowest number first, households and cards attached, for the cards-due list (US-13.2). `list` is the customer list's filtered read (US-15.2): every criterion of `CustomerListQuery` is a `WHERE` clause, ordered by ascending customer number. |
 | `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issueCounts(customerId)`, `issue(customerId, card)`                                                                                                                                                                                                                                | `currentCard` is the highest index — there is no `valid` flag to read; `issueCounts` counts the run and its losses in one aggregate (US-09.2); `issue` reports a lost race as `CardIndexTaken`.                                                                                                                                                                                                                                                                                                                        |
-| `DistributionRecordRepository` | `listForCustomer(id)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`                                                                                                                                                                                                                                              | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade).                                                                                                                                                                                                                                                                                                                                         |
+| `DistributionRecordRepository` | `listForCustomer(id)`, `listForDay(dayKey)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`                                                                                                                                                                                                                        | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade). `listForDay` takes the **Berlin** day key the caller derived from the clock — one query for the whole afternoon (US-23), never one per household — and the adapter matches it rather than re-deriving a day from an instant.                                                                                                            |
 | `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                                                                                                                                                                                                                                                                          | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3).                                                                                                                                                                                                                                                                                               |
 | `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                                                                                                                                                                                                                                                                            | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                                                                                                                                                                                                                                                                                                                     |
 | `WaitingListRepository`        | `listWaiting()`, `findWaiting(entryId)`, `add(entry)`, `remove(entryId, reason, removedOn)`                                                                                                                                                                                                                                             | The applicants waiting for a slot (US-12). There is no `delete`: `remove` stamps the row, so the order of past promotions stays reconstructable (FR-7). It promises no ordering — that is `inArrivalOrder`'s.                                                                                                                                                                                                                                                                                                          |
@@ -358,10 +362,12 @@ the one deletion the append-only history permits. Each correction writes its own
 reason, because the event name and changed field already say what happened. Both use cases are tested
 against hand-written fakes and a fake clock (`record-attendance.test.ts`, `correct-attendance.test.ts`).
 
-**`readGroupRoster(deps, rawQuery?)`** is what the counter's two walk controls read (US-21): the group
-collecting and the customer numbers either side of the one on screen, as
-`{ group, previous, next, isEmpty }`. It is a **read** — no record, no reminder, no status change and
-no audit entry — because navigating is a read, like the lookup it drives (US-04, FR-4).
+**`readGroupRoster(deps, rawQuery?)`** is what the counter's two walk controls read (US-21) and what
+the tally above them states (US-23): the group collecting, the customer numbers either side of the one
+on screen, and the group's households with what has become of each, as
+`{ group, previous, next, isEmpty, members, progress }`. It is a **read** — no record, no reminder, no
+status change and no audit entry — because navigating is a read, like the lookup it drives (US-04,
+FR-4).
 
 Three decisions carry it:
 
@@ -380,6 +386,23 @@ Three decisions carry it:
   at household 50 (FR-6) and anything unreadable — or an absent query — means "nothing looked up yet"
   rather than an error. The comparison `neighbours` makes is numeric, so a number belonging to the
   other group or to nobody still positions the walk between the members around it (FR-5).
+
+`members` is one `GroupRosterMember` per household —
+`{ customerId, customerNumber, firstName, lastName, blocked, servedToday }` — in the order the register
+answered, and `progress` is `groupProgress(members)`: the tally is counted from the very rows the
+screen renders, so the summary and the marks beneath it cannot tell different stories. Two decisions
+of US-23 sit here:
+
+- **The whole day is read in one query**, `DistributionRecordRepository.listForDay(berlinDayKey(now))`,
+  and joined to the roster in memory. A group is ~120 households, and a query apiece would make the
+  counter's own screen the slowest in the app (US-23, FR-4).
+- **The join is by `customerId`**, the surrogate id — never by the customer number, which an archived
+  household releases and a new one takes over (US-10), so joining by it would credit a hand-out to a
+  stranger. The day compared is the **Berlin** day, the same notion of "the same day" the once-per-day
+  rule rests on.
+
+Nothing about the tally is stored (US-23, FR-8): it is derived afresh on every read, so it can never
+drift from the records.
 
 It throws `NoSettingsInForce` when no version had taken effect today — the same failure the banner
 already has on that screen. Tested against hand-written fakes and a fake clock in
@@ -841,6 +864,29 @@ on both sides at every `from`, which is how a group holding no active or blocked
 screen as two disabled controls.
 
 `from` is never itself an answer: a walk moves.
+
+### `src/domain/distribution/groupProgress.ts`
+
+The tally `/ausgabe` states above the counter (US-23). `groupProgress(entries)` answers
+`{ served, expected }` over a roster of `{ blocked, servedToday }` rows — one rule, so the figure in
+the summary and the marks in the list beneath it cannot tell different stories.
+
+`served` is simply the rows that collected today. What `expected` counts is the decision:
+
+| Row                             | Expected? | Why                                                                                                                                                |
+| ------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Not blocked                     | yes       | It may collect, whether or not it has.                                                                                                             |
+| Blocked, has not collected      | no        | A block means it may not collect (US-08); counting it would put the tally permanently out of reach — `59 von 61` on a day nobody missed.           |
+| Blocked, collected this morning | yes       | It did collect. Dropping it from the denominator alone would let `served` exceed `expected` — `34 von 33`, the one thing a fraction may never say. |
+
+That last row is why the invariant `served <= expected` is a named test rather than an observation:
+it holds for every combination of the two flags, over every sub-roster of them.
+
+An empty roster gives `{ served: 0, expected: 0 }`. The screen says that in words instead of painting
+`0 von 0`, because a group holding no household is neither behind nor finished.
+
+Nothing about the tally is stored (PRD §FR-8): it is counted from the day's records on every read, like
+every other figure on that screen.
 
 ### `src/application/customers/registerCustomer`
 
@@ -2006,6 +2052,44 @@ primitives in `src/components/ui/`, and the reference the other screens follow. 
   lookup it drives — proved as an absence by `tests/e2e/group-walk.spec.ts`, which also drives the
   order the controls produce against a seeded block of the register.
 
+#### The tally and the group list (`group-progress-card.tsx`, US-23)
+
+- A `Card` **between the banner and the counter**, holding a `<details>` that renders **closed**. It
+  is a fact about today, like the banner, so it must be readable without scrolling past the field
+  staff type into — and it costs the counter every pixel it takes, which is why the closed height is
+  a measured requirement. Measured at 1440×900: **54px closed**, 358px open (76px / 380px at 390px
+  wide, where the sentence wraps).
+- The **summary is the tally**, not a label hiding one: `data-testid="group-progress"` sits on the
+  `CardTitle` holding exactly `Gruppe Rot: 40 von 122 Haushalten abgeholt`. Both figures stand in
+  that one node, because `40` and `122` are read together and a screen reader must not announce them
+  as unrelated fragments. Beside it, in its own node, is the fold's affordance — `Liste anzeigen`,
+  swapped for `Liste ausblenden` by `group-open:` on the `<details>`, which is the only thing on this
+  server-rendered page that knows whether the list is open.
+- The `<summary>` wraps a `CardHeader` and is therefore **not `w-fit`** — that recipe is for a
+  summary that reads as a button, and here it would wrap the header into a column.
+- Open, the list is a `<ul>` in `sm:grid-cols-2 lg:grid-cols-3`, capped at `max-h-72` and scrolling
+  **inside its own box**, so ~120 households do not push the number field down the page. Each row is
+  a `<Link href="/ausgabe?nummer=N">` whose accessible name is the number _and_ the name ("400 Tatyana
+  O'Reilly"): clicking it looks that household up exactly as typing the number would (FR-7). The
+  numbers are `tabular-nums` so the column reads as a column.
+- The card is **keyed by the looked-up number** in `page.tsx`. A `<details>` keeps `open` through any
+  re-render, and following a row is a soft navigation, so without the key the household's verdict
+  would arrive underneath a hundred rows the staff member has to scroll past.
+- **Only the exceptions are marked**: a served household gets the word `abgeholt` in
+  `served-<customerNumber>`, a blocked one the word `gesperrt` in `blocked-<customerNumber>`, both
+  through the `StateWord` component `/kunden` uses — one meaning, one treatment, application-wide.
+  The unserved rows are the default state and carry the name and nothing else. Neither mark is an
+  icon or a colour alone (US-03.4).
+- **No group tint on the card or the rows.** The banner immediately above already carries the group's
+  colour, and 120 tinted rows would be texture rather than emphasis; the group is named in words in
+  the summary.
+- An **empty group** states so in a sentence (`Gruppe Rot: zurzeit ist kein Haushalt zugeordnet.`)
+  instead of rendering a disclosure that opens onto nothing.
+- Everything the card shows comes from `readGroupRoster`'s `members` and `progress` — the same array
+  the tally was counted from, so the summary and the marks beneath it cannot tell different stories.
+  Opening and closing writes nothing; the fold is the browser's — proved as an absence by
+  `tests/e2e/group-progress.spec.ts`, which also drives the serve the tally has to move for.
+
 #### The counter lookup (`counter-lookup.tsx`)
 
 - The typed number lands in `?nummer=` through a plain `method="get"` form, so a customer someone has
@@ -2686,6 +2770,28 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   are snapshotted, the block is walked in both directions, and the snapshot must be unchanged — the
   same shape as `counter.spec.ts`'s, widened to the tables the schema has gained since. Pinned-now
   file deleted in `afterAll`, like its neighbours.
+- `group-progress.spec.ts` covers US-23 end to end (§US-023.5). `groupProgress` is proved rule by
+  rule in the domain gate and `readGroupRoster` against fakes; what neither can see is the claim the
+  tally exists for — that the figure on the counter's own screen agrees with what just happened at
+  it. So the spec serves one of its households **through the UI** (type the number, read the verdict,
+  press the button) and asserts that `served` rose by exactly one on the next load while `expected`
+  did not move, that the household's row then carries `served-<number>` and that an untouched one
+  carries no such element. Three RED households are seeded through Prisma at **301–303** — served,
+  untouched, and **blocked**. The band sits _below_ `group-walk.spec.ts`'s 311–315 rather than above
+  it: the suite runs serially in alphabetical file order, so this spec runs first, and a RED
+  household seeded above 315 would break that spec's assertion that 315 is the register's last RED
+  number — a spec §US-023.5 forbids modifying. **Both figures are read out of Prisma at the moment
+  they are asserted**, never written down: the specs before this one register RED households and
+  record hand-outs on the same pinned day, so `34 von 61` is a fact about the shared register rather
+  than a property of this block, and a literal would be a flake waiting to happen. `expected` is
+  spelled out in the spec as FR-5 words it — the households that _may_ collect — rather than by
+  calling the domain rule, so the assertion states the rule independently instead of comparing a
+  function with itself; the blocked household is asserted to be **in the list and out of the
+  denominator** by subtracting the listed-but-unable ones from the walkable count. Two further
+  claims: clicking a name in the list produces that household's verdict banner and the disclosure
+  comes back **closed** (FR-7, and the remount `page.tsx` keys for), and opening and closing the fold
+  **records nothing** (FR-9) — the same register snapshot `group-walk.spec.ts` takes, either side of
+  a fold. Pinned to the RED Thursday 08.01.2026 through `FD_FIXED_NOW_FILE`, deleted in `afterAll`.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.
