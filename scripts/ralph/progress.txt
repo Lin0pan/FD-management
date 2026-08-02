@@ -52,6 +52,9 @@ Started: Sun Aug  2 10:27:14 CEST 2026
   faked in `customers.test.ts`, `lookup-customer.test.ts`, `maintain-customer.test.ts`,
   `correct-attendance.test.ts` and `record-attendance.test.ts` — `grep -rln "<PortName>" src/ tests/`
   before touching `ports.ts`, because typecheck is where you find out otherwise.
+- **Berlin and UTC only disagree between 23:00Z and midnight** (in winter; 22:00Z in summer). A test
+  that means to prove "the Berlin day, not the UTC one" must put an instant *in that hour* — a
+  23:30 **Berlin** time is 22:30Z and proves nothing, because both calendars still say the same day.
 - **E2E customer-number bands are taken, not squeezed into**: 201–206/239 (counter), 211 (portions),
   221–222 (serve), 231 (reminders), 241 (block), 251 (reissue), 271 (age 13), 281–285 (customer
   list), 291 (customer record), 311–315 (group walk). A new spec takes the next band up.
@@ -120,5 +123,39 @@ Started: Sun Aug  2 10:27:14 CEST 2026
     at ~203 and the ports table at ~302. Adding a port method means the table row; running
     `npx prettier --write` on that file afterwards is required, because the table's column padding
     is Prettier's.
+
+---
+
+## 2026-08-02 11:45 - US-003 (the roster carries who they are and whether they collected)
+
+- `readGroupRoster` was **extended**, not replaced: `GroupRosterView` gained `members`
+  (`GroupRosterMember` = `{ customerId, customerNumber, firstName, lastName, blocked, servedToday }`,
+  in the register's own order) and `progress` (`groupProgress(members)` from US-001). The day's
+  hand-outs are read through **one** `listForDay(berlinDayKey(deps.clock.now()))` and joined to the
+  roster in memory by `customerId`. Still a pure read — no record, no reminder, no status change, no
+  audit entry.
+- Files changed:
+  - `src/application/distribution/read-group-roster.ts` (the `records` dep, the member shape, the join)
+  - `src/application/distribution/read-group-roster.test.ts` (a `FakeDistributionRecordRepository`
+    and 11 new named tests; the 15 US-21 tests are untouched and still pass)
+  - `docs/technical_documentation.md` (the `readGroupRoster` section: the new fields and the two
+    US-23 decisions)
+  - `scripts/ralph/prd.json` (US-003 passes: true)
+- Gates: lint, typecheck, `test:coverage` (47 files / 962 tests, domain + application at 100%) and
+  `next build` all green. Strict TDD — 11 red, 15 green, then the implementation.
+- **Learnings for future iterations:**
+  - **No composition root needed changing.** `src/app/ausgabe/deps.ts` already put `records` in
+    `distributionDeps` (the counter shows a hand-out already recorded today), so adding the dep to
+    `ReadGroupRosterDeps` type-checked at the call site untouched. Check `deps.ts` before wiring.
+  - The PRD's "23:30 Berlin on a day whose UTC date is already the next one" **cannot happen** —
+    Berlin is *ahead* of UTC, so the disagreement runs the other way. The two tests written instead
+    pin both directions of the real boundary (see Codebase Patterns), which is what the criterion was
+    reaching for.
+  - `customerRecord` in the roster spec defaulted `id` to `customerNumber`, which made the join
+    unprovable. It now takes an optional `id`, and one test gives two households swapped ids and
+    numbers — joining by the wrong key marks the wrong household, and only that shape catches it.
+  - `groupProgress(members)` type-checks against `GroupRosterMember` **as it stands**, because US-001
+    chose `ProgressEntry` to be the two flags and nothing else. US-004 renders `progress` and the same
+    `members` array, so no third count exists anywhere.
 
 ---
