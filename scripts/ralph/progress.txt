@@ -64,7 +64,11 @@ Started: Sun Aug  2 10:27:14 CEST 2026
   `DATABASE_URL` **and** `FD_FIXED_NOW_FILE` at the copy for `npm run start -- --port 3100`.
 - **E2E customer-number bands are taken, not squeezed into**: 201–206/239 (counter), 211 (portions),
   221–222 (serve), 231 (reminders), 241 (block), 251 (reissue), 271 (age 13), 281–285 (customer
-  list), 291 (customer record), 311–315 (group walk). A new spec takes the next band up.
+  list), 291 (customer record), 301–303 (group progress), 311–315 (group walk). A new spec takes the
+  next band up — **unless a later-running spec asserts an end of the register**. `group-walk.spec.ts`
+  asserts 315 is the last RED number, and the suite runs in *alphabetical file order*, so a spec
+  sorting before it must seed *below* 311. Check what the specs after yours assert about the whole
+  register before choosing a band, not only which numbers are free.
 
 ---
 
@@ -206,3 +210,43 @@ Started: Sun Aug  2 10:27:14 CEST 2026
     app — it puts the testid on the word, not the badge. `gesperrt` therefore comes from
     `de.customers.status.BLOCKED` rather than a second key under `distribution.progress`: one word,
     one meaning, one source.
+
+---
+
+## 2026-08-02 13:15 - US-005 (E2E — the tally moves when a household is served)
+
+- New `tests/e2e/group-progress.spec.ts` (6 serial tests), pinned to the RED Thursday 08.01.2026
+  through `FD_FIXED_NOW_FILE` and dropping the file in `afterAll`. Three RED households seeded
+  through Prisma at **301–303** (served / untouched / blocked). It asserts: the summary states the
+  group in words and both figures with nothing opened; the list renders in the register's own order
+  with the blocked household marked `gesperrt` and no served marks yet; the blocked household is
+  listed but out of `expected`; serving 301 **through the UI** raises `served` by exactly one on the
+  next load, marks `served-301` and leaves 302 unmarked; clicking a name in the list produces that
+  household's verdict banner and the fold comes back closed; opening and closing the fold leaves a
+  register snapshot identical.
+- Files changed:
+  - `tests/e2e/group-progress.spec.ts` (new)
+  - `docs/technical_documentation.md` (tree line + a spec-by-spec bullet beside `group-walk.spec.ts`,
+    and the "opening writes nothing" bullet in the card's section now names its proof)
+  - `scripts/ralph/prd.json` (US-005 passes: true)
+- Gates: lint, typecheck, `test:coverage` (47 files / 962 tests, domain + application at 100%),
+  `next build` and the **full e2e suite** (103 passed, 1 pre-existing skip — 6 new) all green. No
+  other spec file was modified. No browser review: this story adds no UI, and the screen it drives
+  was reviewed with `playwright-cli` under US-004.
+- **Learnings for future iterations:**
+  - **The band must clear what *later* specs assert, not just what earlier ones took.** The obvious
+    move was "next band up" — 321+ — and it would have failed `group-walk.spec.ts`, which asserts
+    315 is the register's last RED number and runs *after* this spec in alphabetical file order. The
+    numbers went to 301–303 instead. See Codebase Patterns.
+  - **`expected` is restated in the spec rather than imported.** Calling `groupProgress` from an e2e
+    spec would compare the rule with itself; the spec spells FR-5 out (`!blocked || servedToday`)
+    over rows read straight from Prisma, so the assertion is an independent statement of the rule.
+  - **A `<details>`'s state is read with `toHaveJSProperty("open", true|false)`**, not
+    `toHaveAttribute("open", "")` — the property is the live state, the attribute only the initial
+    one, and toggling by click does not write the attribute back.
+  - Locate the fold by what it holds — `page.locator("details").filter({ has: … })` — because
+    `/ausgabe` renders the block and archive disclosures too, and `page.locator("details").first()`
+    is a bet on DOM order.
+  - `getByTestId(/^group-member-/).evaluateAll(…)` reads the rendered order in one round trip;
+    comparing it with Prisma's `orderBy: customerNumber` is what proves the list does not re-sort,
+    where asserting `301 → 302 → 303` would pass on a page sorted by anything at all.

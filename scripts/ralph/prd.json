@@ -113,7 +113,7 @@
         "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first)"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": ""
     }
   ]
