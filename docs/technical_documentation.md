@@ -360,10 +360,12 @@ the one deletion the append-only history permits. Each correction writes its own
 reason, because the event name and changed field already say what happened. Both use cases are tested
 against hand-written fakes and a fake clock (`record-attendance.test.ts`, `correct-attendance.test.ts`).
 
-**`readGroupRoster(deps, rawQuery?)`** is what the counter's two walk controls read (US-21): the group
-collecting and the customer numbers either side of the one on screen, as
-`{ group, previous, next, isEmpty }`. It is a **read** — no record, no reminder, no status change and
-no audit entry — because navigating is a read, like the lookup it drives (US-04, FR-4).
+**`readGroupRoster(deps, rawQuery?)`** is what the counter's two walk controls read (US-21) and what
+the tally above them states (US-23): the group collecting, the customer numbers either side of the one
+on screen, and the group's households with what has become of each, as
+`{ group, previous, next, isEmpty, members, progress }`. It is a **read** — no record, no reminder, no
+status change and no audit entry — because navigating is a read, like the lookup it drives (US-04,
+FR-4).
 
 Three decisions carry it:
 
@@ -382,6 +384,23 @@ Three decisions carry it:
   at household 50 (FR-6) and anything unreadable — or an absent query — means "nothing looked up yet"
   rather than an error. The comparison `neighbours` makes is numeric, so a number belonging to the
   other group or to nobody still positions the walk between the members around it (FR-5).
+
+`members` is one `GroupRosterMember` per household —
+`{ customerId, customerNumber, firstName, lastName, blocked, servedToday }` — in the order the register
+answered, and `progress` is `groupProgress(members)`: the tally is counted from the very rows the
+screen renders, so the summary and the marks beneath it cannot tell different stories. Two decisions
+of US-23 sit here:
+
+- **The whole day is read in one query**, `DistributionRecordRepository.listForDay(berlinDayKey(now))`,
+  and joined to the roster in memory. A group is ~120 households, and a query apiece would make the
+  counter's own screen the slowest in the app (US-23, FR-4).
+- **The join is by `customerId`**, the surrogate id — never by the customer number, which an archived
+  household releases and a new one takes over (US-10), so joining by it would credit a hand-out to a
+  stranger. The day compared is the **Berlin** day, the same notion of "the same day" the once-per-day
+  rule rests on.
+
+Nothing about the tally is stored (US-23, FR-8): it is derived afresh on every read, so it can never
+drift from the records.
 
 It throws `NoSettingsInForce` when no version had taken effect today — the same failure the banner
 already has on that screen. Tested against hand-written fakes and a fake clock in
