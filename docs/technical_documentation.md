@@ -221,6 +221,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── customer-list.spec.ts         # search, filters and the group balance on /kunden
 │   ├── customer-record.spec.ts       # four edits on the record, each read back off another screen
 │   ├── distribution.spec.ts          # the week-colour banner against a fixed clock
+│   ├── group-progress.spec.ts        # the tally moves when a household is served, and reads are free
 │   ├── group-walk.spec.ts            # Zurück/Weiter walk today's group and write nothing
 │   ├── home.spec.ts                  # the Start dashboard against three pinned days
 │   ├── navigation.spec.ts            # the nav bar: every section reachable, the right one marked
@@ -2086,7 +2087,8 @@ primitives in `src/components/ui/`, and the reference the other screens follow. 
   instead of rendering a disclosure that opens onto nothing.
 - Everything the card shows comes from `readGroupRoster`'s `members` and `progress` — the same array
   the tally was counted from, so the summary and the marks beneath it cannot tell different stories.
-  Opening and closing writes nothing; the fold is the browser's.
+  Opening and closing writes nothing; the fold is the browser's — proved as an absence by
+  `tests/e2e/group-progress.spec.ts`, which also drives the serve the tally has to move for.
 
 #### The counter lookup (`counter-lookup.tsx`)
 
@@ -2768,6 +2770,28 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   are snapshotted, the block is walked in both directions, and the snapshot must be unchanged — the
   same shape as `counter.spec.ts`'s, widened to the tables the schema has gained since. Pinned-now
   file deleted in `afterAll`, like its neighbours.
+- `group-progress.spec.ts` covers US-23 end to end (§US-023.5). `groupProgress` is proved rule by
+  rule in the domain gate and `readGroupRoster` against fakes; what neither can see is the claim the
+  tally exists for — that the figure on the counter's own screen agrees with what just happened at
+  it. So the spec serves one of its households **through the UI** (type the number, read the verdict,
+  press the button) and asserts that `served` rose by exactly one on the next load while `expected`
+  did not move, that the household's row then carries `served-<number>` and that an untouched one
+  carries no such element. Three RED households are seeded through Prisma at **301–303** — served,
+  untouched, and **blocked**. The band sits _below_ `group-walk.spec.ts`'s 311–315 rather than above
+  it: the suite runs serially in alphabetical file order, so this spec runs first, and a RED
+  household seeded above 315 would break that spec's assertion that 315 is the register's last RED
+  number — a spec §US-023.5 forbids modifying. **Both figures are read out of Prisma at the moment
+  they are asserted**, never written down: the specs before this one register RED households and
+  record hand-outs on the same pinned day, so `34 von 61` is a fact about the shared register rather
+  than a property of this block, and a literal would be a flake waiting to happen. `expected` is
+  spelled out in the spec as FR-5 words it — the households that _may_ collect — rather than by
+  calling the domain rule, so the assertion states the rule independently instead of comparing a
+  function with itself; the blocked household is asserted to be **in the list and out of the
+  denominator** by subtracting the listed-but-unable ones from the walkable count. Two further
+  claims: clicking a name in the list produces that household's verdict banner and the disclosure
+  comes back **closed** (FR-7, and the remount `page.tsx` keys for), and opening and closing the fold
+  **records nothing** (FR-9) — the same register snapshot `group-walk.spec.ts` takes, either side of
+  a fold. Pinned to the RED Thursday 08.01.2026 through `FD_FIXED_NOW_FILE`, deleted in `afterAll`.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.
