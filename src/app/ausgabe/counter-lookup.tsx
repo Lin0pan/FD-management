@@ -119,7 +119,16 @@ function statementFor(verdict: Verdict): Statement {
   }
 }
 
-/** The verdict, full width and stated in words — the one thing on this screen that cannot be missed. */
+/**
+ * The verdict, full width and stated in words — the one thing on this screen that cannot be missed.
+ *
+ * Only the headline is painted. Colour is the counter's traffic light, so it marks the verdict and
+ * nothing else; the sentence that says what to *do* reads better as prose than as white-on-red, and
+ * keeping it out of the field means the bar is one height whatever the sentence turns out to be — a
+ * block reason typed by hand runs to paragraphs, and used to push the strip past 400px on a narrow
+ * screen. The `<section>` still wraps both, so a screen reader reads verdict and instruction as one
+ * answer rather than two loose paragraphs.
+ */
 export function VerdictBanner({ verdict }: { verdict: Verdict }): React.ReactElement {
   const { tone, headline, detail } = statementFor(verdict);
   const { className, Icon } = TONES[tone];
@@ -128,21 +137,25 @@ export function VerdictBanner({ verdict }: { verdict: Verdict }): React.ReactEle
     <section
       data-testid="counter-verdict"
       data-verdict={verdict.kind}
-      className={`flex w-full items-start gap-5 rounded-2xl p-8 ring-1 md:p-10 ${className}`}
+      className="flex w-full flex-col gap-2"
     >
-      <Icon aria-hidden="true" className="size-12 shrink-0 md:size-14" strokeWidth={2.5} />
-      <div className="flex flex-col gap-2">
-        <p data-testid="counter-verdict-headline" className="text-4xl font-bold sm:text-5xl">
+      {/* `text-3xl` is a floor, not a preference: this is read standing up with a queue waiting. */}
+      <p className={`flex items-center gap-3 rounded-xl px-5 py-2.5 ring-1 ${className}`}>
+        <Icon aria-hidden="true" className="size-6 shrink-0 md:size-7" strokeWidth={2.5} />
+        <span data-testid="counter-verdict-headline" className="text-2xl font-bold sm:text-3xl">
           {headline}
-        </p>
-        {/* `whitespace-pre-line` because a block reason is typed by hand into a multi-line field and
-            is shown verbatim (US-08, FR-4): the paragraphs a colleague wrote have to survive to the
-            counter, not collapse into one run-on line. Every other detail here is a single sentence
-            from the dictionary, so it renders identically either way. */}
-        <p data-testid="counter-verdict-detail" className="max-w-prose text-xl whitespace-pre-line">
-          {detail}
-        </p>
-      </div>
+        </span>
+      </p>
+      {/* `whitespace-pre-line` because a block reason is typed by hand into a multi-line field and
+          is shown verbatim (US-08, FR-4): the paragraphs a colleague wrote have to survive to the
+          counter, not collapse into one run-on line. Every other detail here is a single sentence
+          from the dictionary, so it renders identically either way. */}
+      <p
+        data-testid="counter-verdict-detail"
+        className="max-w-prose px-5 text-base whitespace-pre-line"
+      >
+        {detail}
+      </p>
     </section>
   );
 }
