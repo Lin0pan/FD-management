@@ -55,6 +55,13 @@ Started: Sun Aug  2 10:27:14 CEST 2026
 - **Berlin and UTC only disagree between 23:00Z and midnight** (in winter; 22:00Z in summer). A test
   that means to prove "the Berlin day, not the UTC one" must put an instant *in that hour* — a
   23:30 **Berlin** time is 22:30Z and proves nothing, because both calendars still say the same day.
+- **A `<details>` keeps `open` through a soft navigation, not only a re-render.** Following a
+  `<Link>` on the same route re-renders in place, so a fold the user opened is still open on the new
+  screen. `key={<what the page is about>}` on the component holding it remounts it closed. Only a
+  browser check finds this.
+- **A UI review needs a *populated* screen.** `data/fd.db` has ~20 households; a scroll cap or a
+  column layout proves nothing against 8 rows. Copy the db to `/tmp`, seed through Prisma, and point
+  `DATABASE_URL` **and** `FD_FIXED_NOW_FILE` at the copy for `npm run start -- --port 3100`.
 - **E2E customer-number bands are taken, not squeezed into**: 201–206/239 (counter), 211 (portions),
   221–222 (serve), 231 (reminders), 241 (block), 251 (reissue), 271 (age 13), 281–285 (customer
   list), 291 (customer record), 311–315 (group walk). A new spec takes the next band up.
@@ -159,3 +166,43 @@ Started: Sun Aug  2 10:27:14 CEST 2026
     `members` array, so no third count exists anywhere.
 
 ---
+
+## 2026-08-02 12:30 - US-004 (the tally, and the group list behind it)
+
+- New `src/app/ausgabe/group-progress-card.tsx`: a `Card` between the banner and the counter holding
+  a closed `<details>`. The summary **is** the tally (`Gruppe Rot: 40 von 122 Haushalten abgeholt`,
+  both figures in the one `group-progress` node); opening it lists the group in customer-number order
+  in `sm:grid-cols-2 lg:grid-cols-3`, capped at `max-h-72` and scrolling inside its own box. Each row
+  is a `<Link href="/ausgabe?nummer=N">` named "400 Tatyana O'Reilly". Served rows carry `abgeholt`
+  (`served-<number>`), blocked ones `gesperrt` (`blocked-<number>`), both through `/kunden`'s
+  `StateWord`; the unserved carry the name and nothing else. An empty group is a sentence, not an
+  empty disclosure. Server component throughout — the fold is the browser's.
+- Files changed:
+  - `src/app/ausgabe/group-progress-card.tsx` (new)
+  - `src/app/ausgabe/page.tsx` (the card between banner and counter, keyed by the looked-up number)
+  - `src/i18n/de.ts` (`de.distribution.progress`: `summary`, `open`, `close`, `served`, `empty`)
+  - `docs/technical_documentation.md` (tree line + a `#### The tally and the group list` section)
+  - `docs/ui_conversion_guide.md` (three findings, see below)
+  - `scripts/ralph/prd.json` (US-004 passes: true)
+- Gates: lint, typecheck, `test:coverage` (47 files / 962 tests, domain + application at 100%),
+  `next build` and the **full e2e suite** (97 passed, 1 pre-existing skip) all green.
+- Measured at 1440x900 against a production build with 126 seeded RED households: **54px closed**,
+  358px open, counter input bottom 556px closed / 860px open — above the fold either way. No
+  horizontal overflow (`scrollWidth - clientWidth === 0`) at 1920, 1280, 1024, 800 or 390; at 390 the
+  card is 76px closed because the sentence wraps, and the list stacks to one column.
+- **Learnings for future iterations:**
+  - **A `<details>` survives a soft navigation.** Clicking a row re-renders the route client-side, so
+    `open` stayed `true` and the verdict arrived under a hundred rows. `key={the looked-up number}`
+    on the card remounts it. The browser check caught this; nothing in the suite would have.
+  - **`group` + `group-open:` swaps the fold's own label without a client component** — "Liste
+    anzeigen" / "Liste ausblenden", and the hidden word stays out of the accessibility tree, so the
+    summary is still announced with exactly one of them.
+  - Reviewing this screen needs a **populated** group. `data/fd.db` holds 8 walkable RED households,
+    which proves nothing about a scroll cap: copy it to `/tmp`, seed ~120 through Prisma and point
+    `DATABASE_URL` + `FD_FIXED_NOW_FILE` at the copy for `npm run start -- --port 3100`. The seed
+    shape is in `tests/e2e/group-walk.spec.ts` (`householdMembers`/`certificates`/`cards` are
+    relations; `DistributionRecord` needs `showedUp` and has no `portions` column).
+  - `StateWord` from `src/app/kunden/state-word.tsx` is **the** way to mark a state anywhere in the
+    app — it puts the testid on the word, not the badge. `gesperrt` therefore comes from
+    `de.customers.status.BLOCKED` rather than a second key under `distribution.progress`: one word,
+    one meaning, one source.

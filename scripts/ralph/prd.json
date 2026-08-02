@@ -91,7 +91,7 @@
         "Verify in browser using the playwright-cli skill against a PRODUCTION build, reading the ACCESSIBILITY SNAPSHOT: the summary is announced as one full sentence, each row's link is named with the number and the name, and each served row announces the word"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
