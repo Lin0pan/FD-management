@@ -14,14 +14,7 @@
 import { Check, CircleHelp, TriangleAlert, X, type LucideIcon } from "lucide-react";
 import type { CounterCustomerView } from "@/application/customers/lookup-customer";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
@@ -198,6 +191,12 @@ function TableHeadCell({ children }: { children: string }): React.ReactElement {
 /**
  * Everything the counter decision rests on, all of it on screen at once: FR-2 is that no field here
  * costs a further click, because the queue does not wait while somebody opens a second screen.
+ *
+ * Ordered by how it is used rather than by how a record is normally written. The two numbers lead,
+ * because the loop at the table is *call the number, check the card* and both of those are done at
+ * arm's length; then the counts, portions and price; then the fields that are read only when
+ * something is off. The name stays the heading — it is what the section is *about*, and the record
+ * to fall back on when there is no card — but it is no longer the largest thing on the card.
  */
 export function CustomerDetails({
   customer,
@@ -212,17 +211,6 @@ export function CustomerDetails({
             {customer.firstName} {customer.lastName}
           </h2>
         </CardTitle>
-        <CardDescription>
-          {de.customers.fields.customerNumber}{" "}
-          <span data-testid="counter-customer-number" className="font-medium text-foreground">
-            {String(customer.customerNumber)}
-          </span>
-          {" · "}
-          {de.customers.fields.cardNumber}{" "}
-          <span data-testid="counter-card-number" className="font-medium text-foreground">
-            {customer.cardNumber}
-          </span>
-        </CardDescription>
         {/* The group and the status, the two facts that decide whether the rest matters at all. */}
         <CardAction className="flex flex-wrap items-center gap-2">
           <Badge data-testid="counter-group" className={GROUP_STYLES[customer.group]}>
@@ -234,6 +222,40 @@ export function CustomerDetails({
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
+        {/* The two numbers the counter actually runs on, and the reason they lead the card rather
+            than sitting under the name in 14px grey, which is where they were.
+
+            Neither is read silently. The Kundennummer is *called out* to fetch the next household —
+            staff use it in preference to the name, which comes from any of a dozen languages and is
+            not theirs to mispronounce in front of a room. The Kartennummer is compared, glyph by
+            glyph, against the card being held out across the table. Both are read at arm's length
+            and at a glance, which is a size argument, not a layout one: the screen had the name at
+            24px and these two at 14px, and the name is the one thing here nobody says out loud.
+
+            Bigger than the derived figures below them, so six tiles do not read as one undivided
+            grid — the counts answer "how much", these answer "who", and the gap plus the step in
+            size is what separates the questions. No colour: that budget is the verdict's.
+
+            `Stat` because it already holds the label and the value in one `<p>` (a screen reader
+            gets "Kundennummer 6", not two loose facts) and sets `tabular-nums`, which is what makes
+            6k1 and 6k2 differ at a glance. The grid is the counts row's own, verbatim, so the pair
+            takes the first two of the same four columns: identical widths on one baseline is what a
+            comparison needs (docs/ui_conversion_guide.md), and sharing the track keeps the card to
+            one column rhythm instead of two that miss each other by a pixel. */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat
+            label={de.customers.fields.customerNumber}
+            value={String(customer.customerNumber)}
+            testId="counter-customer-number"
+            valueClassName="text-4xl"
+          />
+          <Stat
+            label={de.customers.fields.cardNumber}
+            value={customer.cardNumber}
+            testId="counter-card-number"
+            valueClassName="text-4xl"
+          />
+        </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat
             label={de.customers.derived.grownUps}
