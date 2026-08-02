@@ -165,6 +165,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── distribution/noShows.test.ts  # its Vitest spec
 │   │   ├── distribution/groupWalk.ts  # neighbours — the number before and after one (US-21)
 │   │   ├── distribution/groupWalk.test.ts  # its Vitest spec
+│   │   ├── distribution/groupProgress.ts  # groupProgress — how many of a group collected (US-23)
+│   │   ├── distribution/groupProgress.test.ts  # its Vitest spec
 │   │   ├── distribution/distributionRecord.ts  # the hand-out record type (id, paid, priceCents)
 │   ├── application/
 │   │   ├── ports.ts                  # Clock, SettingsRepository, CustomerCounter, CustomerRepository,
@@ -841,6 +843,29 @@ on both sides at every `from`, which is how a group holding no active or blocked
 screen as two disabled controls.
 
 `from` is never itself an answer: a walk moves.
+
+### `src/domain/distribution/groupProgress.ts`
+
+The tally `/ausgabe` states above the counter (US-23). `groupProgress(entries)` answers
+`{ served, expected }` over a roster of `{ blocked, servedToday }` rows — one rule, so the figure in
+the summary and the marks in the list beneath it cannot tell different stories.
+
+`served` is simply the rows that collected today. What `expected` counts is the decision:
+
+| Row                             | Expected? | Why                                                                                                                                                |
+| ------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Not blocked                     | yes       | It may collect, whether or not it has.                                                                                                             |
+| Blocked, has not collected      | no        | A block means it may not collect (US-08); counting it would put the tally permanently out of reach — `59 von 61` on a day nobody missed.           |
+| Blocked, collected this morning | yes       | It did collect. Dropping it from the denominator alone would let `served` exceed `expected` — `34 von 33`, the one thing a fraction may never say. |
+
+That last row is why the invariant `served <= expected` is a named test rather than an observation:
+it holds for every combination of the two flags, over every sub-roster of them.
+
+An empty roster gives `{ served: 0, expected: 0 }`. The screen says that in words instead of painting
+`0 von 0`, because a group holding no household is neither behind nor finished.
+
+Nothing about the tally is stored (PRD §FR-8): it is counted from the day's records on every read, like
+every other figure on that screen.
 
 ### `src/application/customers/registerCustomer`
 
