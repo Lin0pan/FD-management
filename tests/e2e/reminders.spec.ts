@@ -190,9 +190,14 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
       "data-verdict",
       "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED",
     );
-    await expect(page.getByTestId("counter-verdict-detail")).toHaveText(
-      verdicts.certificateExpired.detail("31.12.2025", 0),
+    await expect(page.getByTestId("counter-verdict-headline")).toHaveText(
+      verdicts.certificateExpired.headline,
     );
+    // The banner is the headline alone; the date it used to recite and the count that starts at
+    // zero are rows in the record below, which is where staff act on them.
+    await expect(page.getByTestId("counter-verdict-detail")).toHaveCount(0);
+    await expect(page.getByTestId("counter-certificate-valid-until")).toHaveText("31.12.2025");
+    await expect(page.getByTestId("counter-reminder-count")).toHaveText("0");
     await serve(page);
 
     await expect(page.getByTestId("reminder-button")).toBeEnabled();
@@ -258,9 +263,10 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     await lookUp(page);
     await expect(page.getByTestId("counter-reminder-count")).toHaveText("3");
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.ACTIVE);
-    await expect(page.getByTestId("counter-verdict-detail")).toHaveText(
-      verdicts.certificateExpired.detail("31.12.2025", 3),
+    await expect(page.getByTestId("counter-verdict-headline")).toHaveText(
+      verdicts.certificateExpired.headline,
     );
+    await expect(page.getByTestId("counter-verdict-detail")).toHaveCount(0);
 
     const household = await householdRow();
     expect(household.status).toBe("ACTIVE");

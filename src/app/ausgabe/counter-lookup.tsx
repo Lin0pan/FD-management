@@ -23,7 +23,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
-import { formatCardNumber } from "@/domain/card/cardNumber";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
@@ -34,12 +33,18 @@ import { Stat } from "../stat";
 
 /**
  * What the banner has to say, over and above its colour: an icon, a headline readable from a metre
- * away, and the sentence that names the action.
+ * away, and — only where somebody typed one — a sentence.
+ *
+ * `detail` is `null` for every verdict the screen already answers by itself. "Ausgabe frei" needed
+ * no "Portionen und Preis stehen unten" when the portions and the price are two tiles below it, and
+ * the expired certificate's date and reminder count are rows in the same record. A sentence that
+ * restates what is already on screen is not reassurance; it is one more thing to read with a queue
+ * waiting. What survives is the block reason, because that is the one line no other element holds.
  */
 interface Statement {
   readonly tone: Tone;
   readonly headline: string;
-  readonly detail: string;
+  readonly detail: string | null;
 }
 
 /** The three answers a staff member acts on: hand out, hand out and say something, or turn away. */
@@ -70,48 +75,35 @@ function statementFor(verdict: Verdict): Statement {
   const words = de.distribution.counter.verdicts;
   switch (verdict.kind) {
     case "NOT_FOUND":
-      return { tone: "unknown", ...words.notFound };
+      return { tone: "unknown", headline: words.notFound.headline, detail: null };
     case "ARCHIVED":
-      return { tone: "refuse", ...words.archived };
+      // The status badge on the record below says "archiviert" and no serve action is offered, so
+      // "nicht ausgeben" was the screen telling the reader what it had already done.
+      return { tone: "refuse", headline: words.archived.headline, detail: null };
     case "BLOCKED":
       return {
         tone: "refuse",
         headline: words.blocked.headline,
-        // The reason is the record of why this household was blocked (US-08); it is shown verbatim
-        // because paraphrasing it at the counter would be paraphrasing the decision itself.
+        // The one verdict that keeps its sentence. The reason is the record of why this household
+        // was blocked (US-08); it is shown verbatim because paraphrasing it at the counter would be
+        // paraphrasing the decision itself, and nothing else on the screen holds it.
         detail: verdict.reason ?? words.blocked.noReason,
       };
     case "WRONG_GROUP":
-      return {
-        tone: "refuse",
-        headline: words.wrongGroup.headline,
-        detail: words.wrongGroup.detail(
-          de.distribution.counter.customerOfColour[verdict.group],
-          de.distribution.counter.weekOfColour[verdict.weekColour],
-        ),
-      };
+      // Both colours are on screen in words — the household's on its badge, the week's in the
+      // banner above — which US-03.4 requires of them anyway.
+      return { tone: "refuse", headline: words.wrongGroup.headline, detail: null };
     case "OUTDATED_CARD":
-      return {
-        tone: "refuse",
-        headline: words.outdatedCard.headline,
-        detail: words.outdatedCard.detail(
-          formatCardNumber(verdict.presented.customerNumber, verdict.presented.index),
-          formatCardNumber(verdict.current.customerNumber, verdict.current.index),
-        ),
-      };
+      // The card that counts is the current one, and the record below prints it.
+      return { tone: "refuse", headline: words.outdatedCard.headline, detail: null };
     case "ALREADY_SERVED_TODAY":
-      return { tone: "refuse", ...words.alreadyServedToday };
+      return { tone: "refuse", headline: words.alreadyServedToday.headline, detail: null };
     case "CLEAR_TO_SERVE":
-      return { tone: "serve", ...words.clearToServe };
+      return { tone: "serve", headline: words.clearToServe.headline, detail: null };
     case "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED":
-      return {
-        tone: "warn",
-        headline: words.certificateExpired.headline,
-        detail: words.certificateExpired.detail(
-          germanDate(verdict.validUntil),
-          verdict.reminderCount,
-        ),
-      };
+      // The date is a row in the record, the count is the row under it, and the reminder button is
+      // the amber control below — the headline only has to say that both are true at once.
+      return { tone: "warn", headline: words.certificateExpired.headline, detail: null };
     default: {
       const unhandled: never = verdict;
       throw new TypeError(`unhandled verdict: ${JSON.stringify(unhandled)}`);
@@ -148,14 +140,15 @@ export function VerdictBanner({ verdict }: { verdict: Verdict }): React.ReactEle
       </p>
       {/* `whitespace-pre-line` because a block reason is typed by hand into a multi-line field and
           is shown verbatim (US-08, FR-4): the paragraphs a colleague wrote have to survive to the
-          counter, not collapse into one run-on line. Every other detail here is a single sentence
-          from the dictionary, so it renders identically either way. */}
-      <p
-        data-testid="counter-verdict-detail"
-        className="max-w-prose px-5 text-base whitespace-pre-line"
-      >
-        {detail}
-      </p>
+          counter, not collapse into one run-on line. */}
+      {detail === null ? null : (
+        <p
+          data-testid="counter-verdict-detail"
+          className="max-w-prose px-5 text-base whitespace-pre-line"
+        >
+          {detail}
+        </p>
+      )}
     </section>
   );
 }

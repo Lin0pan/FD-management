@@ -244,8 +244,8 @@ test.describe("Karte nach Verlust neu ausstellen", () => {
 
     await lookUp(page, card(1));
 
-    // The verdict names both numbers: the one presented, so staff can see they read it right, and
-    // the one that is now valid, so the conversation can move straight to the replacement.
+    // The verdict refuses the card, and the record beneath it names the one that is now valid, so
+    // the conversation can move straight to the replacement.
     await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
       "data-verdict",
       "OUTDATED_CARD",
@@ -253,9 +253,8 @@ test.describe("Karte nach Verlust neu ausstellen", () => {
     await expect(page.getByTestId("counter-verdict-headline")).toHaveText(
       verdicts.outdatedCard.headline,
     );
-    await expect(page.getByTestId("counter-verdict-detail")).toHaveText(
-      verdicts.outdatedCard.detail(card(1), card(2)),
-    );
+    await expect(page.getByTestId("counter-verdict-detail")).toHaveCount(0);
+    await expect(page.getByTestId("counter-card-number")).toHaveText(card(2));
     // Turned away means turned away: no hand-out can be recorded from this screen.
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
 

@@ -189,17 +189,28 @@ async function lookUp(page: Page, query: string): Promise<void> {
   await expect(page).toHaveURL(new RegExp(`nummer=${query}`));
 }
 
-/** The banner, asserted as a staff member reads it: the verdict, its headline and its sentence. */
+/**
+ * The banner, asserted as a staff member reads it: the verdict and its headline — and its sentence
+ * only where one is expected.
+ *
+ * Passing no `detail` asserts that there is *no* sentence, rather than skipping the check. Every
+ * verdict but a block is answered by the record below the banner, and a headline with a paragraph
+ * under it repeating the record is the state this screen was pulled out of; an omitted assertion
+ * would let it come back unnoticed.
+ */
 async function expectVerdict(
   page: Page,
   kind: string,
   headline: string,
-  detail: string,
+  detail?: string,
 ): Promise<void> {
   const banner = page.getByTestId("counter-verdict");
   await expect(banner).toHaveAttribute("data-verdict", kind);
   await expect(page.getByTestId("counter-verdict-headline")).toHaveText(headline);
-  await expect(page.getByTestId("counter-verdict-detail")).toHaveText(detail);
+  const sentence = page.getByTestId("counter-verdict-detail");
+  await (detail === undefined
+    ? expect(sentence).toHaveCount(0)
+    : expect(sentence).toHaveText(detail));
 }
 
 const verdicts = de.distribution.counter.verdicts;
@@ -272,12 +283,7 @@ test.describe("Verdikt am Tresen", () => {
   test("clears a red household on a red distribution day", async ({ page }) => {
     await lookUp(page, String(NUMBERS.clear));
 
-    await expectVerdict(
-      page,
-      "CLEAR_TO_SERVE",
-      verdicts.clearToServe.headline,
-      verdicts.clearToServe.detail,
-    );
+    await expectVerdict(page, "CLEAR_TO_SERVE", verdicts.clearToServe.headline);
     await expect(page.getByTestId("counter-name")).toHaveText(names[NUMBERS.clear]);
     await expect(page.getByTestId("counter-card-number")).toHaveText(`${NUMBERS.clear}k1`);
     await expect(page.getByTestId("counter-group")).toHaveText(de.customers.groups.RED);
@@ -299,46 +305,35 @@ test.describe("Verdikt am Tresen", () => {
       page,
       "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED",
       verdicts.certificateExpired.headline,
-      verdicts.certificateExpired.detail("31.12.2025", REMINDERS_SENT),
     );
     // An expired certificate never withholds food — the household is served and reminded.
     await expect(page.getByTestId("counter-portions")).toHaveText("3");
+    // The date and the count the headline no longer spells out, in the record it sends staff to.
+    // This is what makes dropping the banner's sentence safe rather than a loss of information.
+    await expect(page.getByTestId("counter-certificate-valid-until")).toHaveText("31.12.2025");
     await expect(page.getByTestId("counter-reminder-count")).toHaveText(String(REMINDERS_SENT));
   });
 
   test("sends a blue household away in a red week, naming both colours", async ({ page }) => {
     await lookUp(page, String(NUMBERS.wrongGroup));
 
-    await expectVerdict(
-      page,
-      "WRONG_GROUP",
-      verdicts.wrongGroup.headline,
-      verdicts.wrongGroup.detail(
-        de.distribution.counter.customerOfColour.BLUE,
-        de.distribution.counter.weekOfColour.RED,
-      ),
-    );
+    await expectVerdict(page, "WRONG_GROUP", verdicts.wrongGroup.headline);
+    // US-03.4 wants the colour in words, not only painted, and the badge is where it is said now
+    // that the banner is a headline alone. The week's own colour is named in the banner above.
+    await expect(page.getByTestId("counter-group")).toHaveText(de.customers.groups.BLUE);
   });
 
   test("refuses a superseded card and names the current one", async ({ page }) => {
     await lookUp(page, `${NUMBERS.outdatedCard}k1`);
 
-    await expectVerdict(
-      page,
-      "OUTDATED_CARD",
-      verdicts.outdatedCard.headline,
-      verdicts.outdatedCard.detail(`${NUMBERS.outdatedCard}k1`, `${NUMBERS.outdatedCard}k2`),
-    );
+    await expectVerdict(page, "OUTDATED_CARD", verdicts.outdatedCard.headline);
+    // Which card to hand them next is the one fact the refusal needs, and the record prints it.
+    await expect(page.getByTestId("counter-card-number")).toHaveText(`${NUMBERS.outdatedCard}k2`);
 
     // The same household typed as a bare customer number is the current card, and clear to serve —
     // the refusal is about the card presented, never about the household.
     await lookUp(page, String(NUMBERS.outdatedCard));
-    await expectVerdict(
-      page,
-      "CLEAR_TO_SERVE",
-      verdicts.clearToServe.headline,
-      verdicts.clearToServe.detail,
-    );
+    await expectVerdict(page, "CLEAR_TO_SERVE", verdicts.clearToServe.headline);
     await expect(page.getByTestId("counter-card-number")).toHaveText(`${NUMBERS.outdatedCard}k2`);
   });
 
@@ -354,7 +349,7 @@ test.describe("Verdikt am Tresen", () => {
   test("states that an archived household is no longer entitled", async ({ page }) => {
     await lookUp(page, String(NUMBERS.archived));
 
-    await expectVerdict(page, "ARCHIVED", verdicts.archived.headline, verdicts.archived.detail);
+    await expectVerdict(page, "ARCHIVED", verdicts.archived.headline);
     // Archived data stays queryable: the household is still named, it is just not served.
     await expect(page.getByTestId("counter-name")).toHaveText(names[NUMBERS.archived]);
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.ARCHIVED);
@@ -365,7 +360,7 @@ test.describe("Verdikt am Tresen", () => {
   }) => {
     await lookUp(page, String(NUMBERS.unassigned));
 
-    await expectVerdict(page, "NOT_FOUND", verdicts.notFound.headline, verdicts.notFound.detail);
+    await expectVerdict(page, "NOT_FOUND", verdicts.notFound.headline);
     // No household, so nothing to show below the banner — but the screen itself is still there,
     // with the input ready for the number staff meant to type.
     await expect(page.getByTestId("counter-customer")).toHaveCount(0);
