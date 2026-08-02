@@ -225,6 +225,34 @@ describe("PrismaDistributionRecordRepository reads and corrections", () => {
     expect(await repository.listForCustomer(one)).toHaveLength(1);
   });
 
+  it("lists every hand-out written on the Berlin day asked about, whoever collected", async () => {
+    const one = await insertCustomer(50);
+    const other = await insertCustomer(51);
+    await repository.create(handOut(one, { date: MORNING }));
+    await repository.create(handOut(other, { date: AFTERNOON })); // same Berlin day, later hour
+
+    const records = await repository.listForDay("2026-07-23");
+
+    expect(records.map((record) => record.customerId).sort()).toEqual([one, other].sort());
+  });
+
+  it("leaves out the day before and the day after — the day asked for is the whole filter", async () => {
+    const customerId = await insertCustomer(50);
+    await repository.create(handOut(customerId, { date: JUST_BEFORE_MIDNIGHT })); // Berlin 07-23
+    await repository.create(handOut(customerId, { date: JUST_AFTER_MIDNIGHT })); // Berlin 07-24
+
+    expect(await repository.listForDay("2026-07-22")).toEqual([]);
+    expect(await repository.listForDay("2026-07-23")).toHaveLength(1);
+    expect(await repository.listForDay("2026-07-24")).toHaveLength(1);
+  });
+
+  it("answers an empty list for a day nobody collected on", async () => {
+    const customerId = await insertCustomer(50);
+    await repository.create(handOut(customerId, { date: MORNING }));
+
+    expect(await repository.listForDay("2026-07-30")).toEqual([]);
+  });
+
   it("finds a record by id, and answers null for an id nobody holds", async () => {
     const customerId = await insertCustomer(50);
     const created = await repository.create(handOut(customerId));

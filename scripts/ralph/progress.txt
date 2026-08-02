@@ -48,6 +48,10 @@ Started: Sun Aug  2 10:27:14 CEST 2026
 - **`counter-customer-number` identifies a household at the counter, `counter-card-number` does
   not** — a household another spec reissued a card to shows `Nk2`, so an assertion on `Nk1` fails
   for reasons that have nothing to do with what is under test.
+- **Adding a method to a port breaks five hand-written fakes.** `DistributionRecordRepository` is
+  faked in `customers.test.ts`, `lookup-customer.test.ts`, `maintain-customer.test.ts`,
+  `correct-attendance.test.ts` and `record-attendance.test.ts` — `grep -rln "<PortName>" src/ tests/`
+  before touching `ports.ts`, because typecheck is where you find out otherwise.
 - **E2E customer-number bands are taken, not squeezed into**: 201–206/239 (counter), 211 (portions),
   221–222 (serve), 231 (reminders), 241 (block), 251 (reissue), 271 (age 13), 281–285 (customer
   list), 291 (customer record), 311–315 (group walk). A new spec takes the next band up.
@@ -86,5 +90,35 @@ Started: Sun Aug  2 10:27:14 CEST 2026
     and it is the criterion the PRD spells out.
   - Both counters come out of **one** pass, so the served count and the marks in the list cannot
     drift: the screen renders `progress` and the same `members` array US-003 counted.
+
+---
+
+## 2026-08-02 11:05 - US-002 (listForDay, ports + infrastructure)
+
+- `DistributionRecordRepository` gained `listForDay(dayKey)` — every hand-out written on one Berlin
+  day, in one query, so US-003 can answer "who of this group has collected?" without a query per
+  household. The adapter is a single `findMany({ where: { dayKey } })` mapped through the existing
+  `toRecord`, so `dayKey` still never leaves the adapter. No schema change, no migration.
+- Files changed:
+  - `src/application/ports.ts` (the method + its doc comment)
+  - `src/infrastructure/prisma/distribution-record-repository.ts` (the adapter)
+  - `src/infrastructure/prisma/distribution-record-repository.test.ts` (3 integration tests: the day
+    asked for whoever collected; the day before and after excluded; an empty day is `[]`)
+  - the five test files holding a `FakeDistributionRecordRepository` (see Codebase Patterns)
+  - `docs/technical_documentation.md` (the ports table row)
+  - `scripts/ralph/prd.json` (US-002 passes: true)
+- Gates: lint, typecheck, `test:coverage` (47 files / 950 tests, domain + application at 100%) and
+  `next build` all green.
+- **Learnings for future iterations:**
+  - The **key, not the instant** is the parameter. Passing a `Date` would have put a second
+    `berlinDayKey` call in the adapter, and the boundary between two days would then be decided in
+    two places; the caller already holds the Berlin day from the `Clock`.
+  - The four fakes that actually hold records now filter by `berlinDayKey(record.date) === dayKey`,
+    which is what makes US-003's "23:30 Berlin, already tomorrow in UTC" test provable against a
+    fake at all. `maintain-customer.test.ts`'s stub fake answers `[]`, matching its `listForCustomer`.
+  - `docs/technical_documentation.md` has **no `###` section for this adapter** — only the tree line
+    at ~203 and the ports table at ~302. Adding a port method means the table row; running
+    `npx prettier --write` on that file afterwards is required, because the table's column padding
+    is Prettier's.
 
 ---

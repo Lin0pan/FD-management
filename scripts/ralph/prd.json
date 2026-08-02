@@ -40,7 +40,7 @@
         "npm run test:coverage passes (domain and application stay at 100%)"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

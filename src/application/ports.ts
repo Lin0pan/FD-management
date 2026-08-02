@@ -382,6 +382,17 @@ export interface CardRepository {
 export interface DistributionRecordRepository {
   /** Every record ever written for the customer — the raw material the duplicate check reads. */
   listForCustomer(customerId: number): Promise<ReadonlyArray<DistributionRecord>>;
+  /**
+   * Every hand-out written on one day, in **one** query — the whole afternoon at once, so a screen
+   * asking "which of this group have collected?" (US-23) reads the day once instead of once per
+   * household.
+   *
+   * `dayKey` is the **Berlin** calendar day as `berlinDayKey` writes it (`YYYY-MM-DD`), the same
+   * notion of "the same day" the once-per-day rule and the unique constraint already rest on. The
+   * caller derives it from the {@link Clock}; the adapter matches it and does not re-derive a day
+   * from an instant, so the two can never drift to different answers about when today ended.
+   */
+  listForDay(dayKey: string): Promise<ReadonlyArray<DistributionRecord>>;
   /** The record with this surrogate id, or `null` if the id belongs to none. */
   findById(recordId: number): Promise<DistributionRecord | null>;
   /**

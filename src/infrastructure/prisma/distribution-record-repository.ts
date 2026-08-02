@@ -74,6 +74,19 @@ export class PrismaDistributionRecordRepository implements DistributionRecordRep
     return rows.map(toRecord);
   }
 
+  /**
+   * Every hand-out written on one Berlin day, in one query (US-23).
+   *
+   * The day arrives as the key itself, not as an instant to be re-derived here: the caller already
+   * holds the Berlin day from the clock, and a second derivation is a second place the boundary
+   * between two days could be decided. The `dayKey` column is matched and dropped again by
+   * {@link toRecord}, so it still never leaves the adapter.
+   */
+  async listForDay(dayKey: string): Promise<ReadonlyArray<DistributionRecord>> {
+    const rows = await this.prisma.distributionRecord.findMany({ where: { dayKey } });
+    return rows.map(toRecord);
+  }
+
   /** The record with this surrogate id, or `null` if the id belongs to none. */
   async findById(recordId: number): Promise<DistributionRecord | null> {
     const row = await this.prisma.distributionRecord.findUnique({ where: { id: recordId } });
