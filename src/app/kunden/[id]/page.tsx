@@ -347,20 +347,32 @@ function CustomerRecord({
               the least-read fact drawing the eye first. It is a line below instead, which also
               makes this pair exactly the pair the counter states. The household's start is their
               *first* card, not the one they hold: a card replaced after a loss must not read as a
-              later registration date (US-10.1). */}
-          <div className="flex flex-wrap gap-3">
+              later registration date (US-10.1).
+
+              **Unfilled, unlike every other `Stat` in the application**, and that is the point
+              rather than an oversight. `--background` and `--card` are the same white, so a `Card`
+              is *only* its ring: a filled tile therefore says "I am inside a container", and this
+              header is the one block on the page that is not. Wearing the fill without the ring is
+              what made the header read as card contents that had lost their card. The fill also
+              has no work to do here — `Stat`'s is there to set a figure apart from the fields
+              beside it, and in this header there is nothing to be set apart *from*; everything in
+              it is the identity. The shape is what aligns with the counter (label over value,
+              `tabular-nums`, no colon, a rank below); the fill belongs to the container, not to the
+              meaning. `p-0` over the tile's `px-4 py-3`, and `gap-8` because the padding was doing
+              the separating. */}
+          <div className="flex flex-wrap gap-8">
             <Stat
               label={de.customers.fields.customerNumber}
               value={String(customer.customerNumber)}
               testId="customer-number"
-              className="min-w-36"
+              className="min-w-36 bg-transparent p-0"
               valueClassName="text-2xl"
             />
             <Stat
               label={de.customers.fields.cardNumber}
               value={cardNumber}
               testId="card-number"
-              className="min-w-36"
+              className="min-w-36 bg-transparent p-0"
               valueClassName="text-2xl"
             />
           </div>
