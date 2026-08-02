@@ -398,13 +398,6 @@ export const de = {
      * the card the household is carrying out of date.
      */
     record: {
-      /**
-       * What separates the facts on the record's identity line — customer number, card number and
-       * the day they joined. They were four boxes under a "Stammdaten" heading; the heading is gone
-       * with the section, because the line under the household's name says the same three things in
-       * a quarter of the space.
-       */
-      identitySeparator: " · ",
       /** What the hand-out history says about itself while it is folded away. */
       historyDisclosure: "Aufklappen, wenn eine Ausgabe strittig ist.",
       detailsHeading: "Person und Anschrift",
@@ -818,13 +811,19 @@ export const de = {
       week: (week: string): string => `KW ${week}`,
     },
     /**
-     * The counter lookup — the most-read text in the product. Every verdict is stated as a full
-     * German sentence, because the banner's colour is only ever a repetition of what the words
-     * already say (tasks/prd-us-04-lookup-customer.md §US-04.4).
+     * The counter lookup — the most-read text in the product, and therefore the text held to the
+     * strictest account: every string here is paid for on every lookup of every afternoon, so one
+     * that only restates what the screen already shows costs more than it gives
+     * (tasks/prd-us-04-lookup-customer.md §US-04.4). The verdict's colour never travels without the
+     * word it names, and the word is always a full German phrase.
+     *
+     * There is no `hint` beneath the heading any more. It named the two number formats and said to
+     * press Enter, for a field labelled `Nummer` that is autofocused and alone on the screen. The
+     * formats do need stating where they are genuinely unclear — after something unreadable was
+     * typed — and `errors.notANumber` states them there, to the one person who needs them.
      */
     counter: {
       heading: "Kundin oder Kunde nachschlagen",
-      hint: "Kundennummer (50) oder Kartennummer (50k3) eingeben und mit der Eingabetaste bestätigen.",
       label: "Nummer",
       submit: "Nachschlagen",
       /**

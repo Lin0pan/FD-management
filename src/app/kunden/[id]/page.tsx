@@ -56,14 +56,34 @@ import { RenewalForm } from "./renewal-form";
 export const dynamic = "force-dynamic";
 
 /**
- * A label and its value as one fact. A `<p>`, not two stacked `<div>`s: split, a screen reader
- * reads "Kundennummer" and then "13" with nothing joining them (guide trap 2).
+ * A label and its value as one fact, read in passing. A `<p>`, not two stacked `<div>`s: split, a
+ * screen reader reads "Kundennummer" and then "13" with nothing joining them (guide trap 2).
+ *
+ * This is the record's *one* inline idiom, and the screen used to have three of them: this one, and
+ * two hand-rolled copies of the same two spans for the reminder tally and the no-show run. It also
+ * used to wear `rounded-lg bg-muted/50 px-4 py-3` — the exact chrome of a `Stat` tile — while
+ * saying its value inline at 14px. Two components that look identical and read differently is worse
+ * than two that look different, so the fill goes where it means something: a **tile is a figure that
+ * drives a decision**, and everything else is a line.
+ *
+ * The colon stays, and is not an inconsistency with the tiles above: a stacked label needs no
+ * separator because the line break is one, and an inline label does.
  */
-function Field({ label, value }: { label: string; value: string }): React.ReactElement {
+function Field({
+  label,
+  value,
+  testId,
+}: {
+  label: string;
+  value: string;
+  testId?: string;
+}): React.ReactElement {
   return (
-    <p className="rounded-lg bg-muted/50 px-4 py-3">
-      <span className="text-sm text-muted-foreground">{label}: </span>
-      <span className="font-medium">{value}</span>
+    <p className="text-sm">
+      <span className="text-muted-foreground">{label}: </span>
+      <span data-testid={testId} className="font-medium tabular-nums">
+        {value}
+      </span>
     </p>
   );
 }
@@ -285,62 +305,34 @@ function CustomerRecord({
        * The `h1` is the household, not the screen. Every record used to be headed
        * "Kundenübersicht" with the name as a `<p>` below it — but the navigation bar already says
        * which section you are in, and the one thing this page has that no other page has is *which
-       * household*. `Stammdaten` disappears as a section and nothing in it is lost: the two numbers
-       * and the registration date become the muted line under the name, and the status and the
-       * group become badges beside it, using the same chrome table as /kunden.
+       * household*. The status and the group are badges beside it, using the same chrome table
+       * as /kunden.
        *
-       * `card-number` and `customer-status` keep their exact text in spans of their own; the labels
-       * and the separators sit outside them, and the badge wraps the span rather than replacing it.
+       * The heading row carries the name and nothing else, and stays *outside* a card, as the
+       * heading row does on all seven screens (`docs/ui_conversion_guide.md`, "Page skeleton"). A
+       * heading needs no boundary; the facts under it do — which is why they have their own, below.
+       *
+       * `customer-status` keeps its exact text in a span of its own, and the badge wraps that span
+       * rather than replacing it.
        */}
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight">
-              {details.firstName} {details.lastName}
-            </h1>
-            {/* `variant="outline"`, as on /kunden and /karten-neuausstellung. Without it the badge
-                takes the `default` variant — `bg-primary text-primary-foreground` — and
-                `GROUP_STYLES` then overrides only the *background*, leaving white text on a 10%
-                tint. The colour word is the datum here (guide rule 9), so it has to be legible;
-                `outline` sets `text-foreground` and lets the tint be the tint. */}
-            <Badge variant="outline" className={GROUP_STYLES[customer.group]}>
-              {de.customers.groups[customer.group]}
-            </Badge>
-            <StateWord
-              word={de.customers.status[customer.status]}
-              testId="customer-status"
-              chrome={STATUS_CHROME[customer.status]}
-            />
-          </div>
-          {/* Each fact keeps the `Feld: Wert` shape the boxes under "Stammdaten" had. It is not
-              only a house style: four specs sweep `getByRole("main")` for "Kundennummer: 1", and
-              dropping the colon for a tidier line turned all four red. The separators and the
-              labels stay *outside* the `card-number` span, which holds exactly its value. */}
-          <p className="text-sm text-muted-foreground">
-            {de.customers.fields.customerNumber}:{" "}
-            <span className="font-medium text-foreground tabular-nums">
-              {customer.customerNumber}
-            </span>
-            {words.identitySeparator}
-            {de.customers.fields.cardNumber}:{" "}
-            <span data-testid="card-number" className="font-medium text-foreground tabular-nums">
-              {cardNumber}
-            </span>
-            {words.identitySeparator}
-            {/* The household's start is their first card, not the one they hold: a card replaced
-                after a loss must not read as a later registration date (US-10.1). */}
-            {de.customers.card.registered}: {germanDate(customer.registeredOn)}
-          </p>
-          {/* Shown only when there is something to see. A zero would be one more number to read
-              past on every record, and it says nothing an archiving decision could rest on. */}
-          {view.consecutiveNoShows === 0 ? null : (
-            <p className="text-sm">
-              <span className="text-muted-foreground">{de.customers.derived.noShows}: </span>
-              <span data-testid="no-shows" className="font-semibold tabular-nums">
-                {de.customers.derived.noShowsValue(view.consecutiveNoShows)}
-              </span>
-            </p>
-          )}
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-3xl font-semibold tracking-tight">
+            {details.firstName} {details.lastName}
+          </h1>
+          {/* `variant="outline"`, as on /kunden and /karten-neuausstellung. Without it the badge
+              takes the `default` variant — `bg-primary text-primary-foreground` — and
+              `GROUP_STYLES` then overrides only the *background*, leaving white text on a 10%
+              tint. The colour word is the datum here (guide rule 9), so it has to be legible;
+              `outline` sets `text-foreground` and lets the tint be the tint. */}
+          <Badge variant="outline" className={GROUP_STYLES[customer.group]}>
+            {de.customers.groups[customer.group]}
+          </Badge>
+          <StateWord
+            word={de.customers.status[customer.status]}
+            testId="customer-status"
+            chrome={STATUS_CHROME[customer.status]}
+          />
         </div>
         {/* The guide's stated exception to "no back-links": this one names a *record* — this
             household's printed card — which the four-item bar cannot say. It belongs in the header
@@ -351,6 +343,64 @@ function CustomerRecord({
           </Link>
         </Button>
       </header>
+
+      {/* Who this household is, in a card of its own — the counter's customer card and the printed
+          card's header, one rank down at 24px against their 36 and 48.
+          `docs/ui_redesign_kunden_record.md` §3.8 built this as a 14px muted line under the name,
+          modelled on the counter's subtitle of the day; the counter has since moved and the line
+          did not, so the same two facts were 36px on one screen and body text on the other.
+
+          It gets a ring for the reason every other block on this page has one: `--background` and
+          `--card` are the same white, so a `Card` is *only* its ring, and a run of label/value
+          pairs with no ring has nothing at all saying where it begins and ends. Bare, it read as
+          lost between the heading and the first section. The `h1` above needs no such boundary —
+          a heading is its own — which is why the card starts here rather than wrapping both: this
+          screen must not become the only one whose heading sits inside a card.
+
+          No `CardTitle`, deliberately. §4.2b dissolved "Stammdaten" as a section on the argument
+          that these facts read better without a heading over them, and that still holds; what came
+          back is a boundary, not the section — and one container, not the four grey boxes that
+          decision actually removed.
+
+          Two tiles and not three: the registration date was tried as a peer and, being the longest
+          string, came out the widest and boldest thing in the row — the least-read fact drawing the
+          eye first. It is a line below instead, which also makes this pair exactly the pair the
+          counter states. The household's start is their *first* card, not the one they hold: a card
+          replaced after a loss must not read as a later registration date (US-10.1). */}
+      <Card>
+        <CardContent className="flex flex-col gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Stat
+              label={de.customers.fields.customerNumber}
+              value={String(customer.customerNumber)}
+              testId="customer-number"
+              valueClassName="text-2xl"
+            />
+            <Stat
+              label={de.customers.fields.cardNumber}
+              value={cardNumber}
+              testId="card-number"
+              valueClassName="text-2xl"
+            />
+          </div>
+          <Field
+            label={de.customers.card.registered}
+            value={germanDate(customer.registeredOn)}
+            testId="registered-on"
+          />
+          {/* Shown only when there is something to see. A zero would be one more number to read
+              past on every record, and it says nothing an archiving decision could rest on — which
+              is also why it stays a line while the two facts above it are tiles: it is the
+              exception, and it should not look like one more thing every household has. */}
+          {view.consecutiveNoShows === 0 ? null : (
+            <Field
+              label={de.customers.derived.noShows}
+              value={de.customers.derived.noShowsValue(view.consecutiveNoShows)}
+              testId="no-shows"
+            />
+          )}
+        </CardContent>
+      </Card>
 
       {archived ? (
         <ArchivedBanner archivedAt={customer.archivedAt} reason={customer.archiveReason} />
@@ -402,12 +452,11 @@ function CustomerRecord({
           {details.certificate.type} — {de.customers.card.validUntil}{" "}
           {germanDate(details.certificate.validUntil)}
         </p>
-        <p>
-          <span className="text-sm text-muted-foreground">{de.customers.card.reminderCount}: </span>
-          <span data-testid="reminder-count" className="font-medium tabular-nums">
-            {customer.reminderCount}
-          </span>
-        </p>
+        <Field
+          label={de.customers.card.reminderCount}
+          value={String(customer.reminderCount)}
+          testId="reminder-count"
+        />
         {archived ? null : <RenewalForm customerId={customer.id} />}
       </Section>
 

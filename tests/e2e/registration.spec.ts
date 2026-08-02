@@ -90,9 +90,7 @@ test.describe("Kundenaufnahme", () => {
     // Success is a redirect to the card that was just issued.
     await page.waitForURL(/\/kunden\/\d+$/);
 
-    await expect(page.getByRole("main")).toContainText(
-      `${de.customers.fields.customerNumber}: ${proposedNumber}`,
-    );
+    await expect(page.getByTestId("customer-number")).toHaveText(String(proposedNumber));
     await expect(page.getByTestId("card-number")).toHaveText(`${proposedNumber}k1`);
     await expect(page.getByTestId("customer-status")).toHaveText(de.customers.status.ACTIVE);
 

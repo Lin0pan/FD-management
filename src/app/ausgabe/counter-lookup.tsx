@@ -14,21 +14,14 @@
 import { Check, CircleHelp, TriangleAlert, X, type LucideIcon } from "lucide-react";
 import type { CounterCustomerView } from "@/application/customers/lookup-customer";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
-import type { CustomerStatus } from "@/domain/customer/customer";
-import type { Group } from "@/domain/customer/group";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
+import { GROUP_STYLES } from "../accents";
+import { STATUS_CHROME, StateWord } from "../kunden/state-word";
 import { Stat } from "../stat";
 
 /**
@@ -153,19 +146,6 @@ export function VerdictBanner({ verdict }: { verdict: Verdict }): React.ReactEle
   );
 }
 
-/** The badge variant per status. The group has its own paint; a status is a state, so it uses tokens. */
-const STATUS_VARIANTS = {
-  ACTIVE: "secondary",
-  BLOCKED: "destructive",
-  ARCHIVED: "outline",
-} as const satisfies Record<CustomerStatus, "secondary" | "destructive" | "outline">;
-
-/** The same paint as the week banner and the printed card, so the three are one colour to staff. */
-const GROUP_STYLES = {
-  RED: "bg-red-600 text-white",
-  BLUE: "bg-blue-700 text-white",
-} as const satisfies Record<Group, string>;
-
 /** A field that is read only when it matters: the certificate, the reminder tally, a no-show run. */
 function Field({
   label,
@@ -198,6 +178,12 @@ function TableHeadCell({ children }: { children: string }): React.ReactElement {
 /**
  * Everything the counter decision rests on, all of it on screen at once: FR-2 is that no field here
  * costs a further click, because the queue does not wait while somebody opens a second screen.
+ *
+ * Ordered by how it is used rather than by how a record is normally written. The two numbers lead,
+ * because the loop at the table is *call the number, check the card* and both of those are done at
+ * arm's length; then the counts, portions and price; then the fields that are read only when
+ * something is off. The name stays the heading — it is what the section is *about*, and the record
+ * to fall back on when there is no card — but it is no longer the largest thing on the card.
  */
 export function CustomerDetails({
   customer,
@@ -212,28 +198,65 @@ export function CustomerDetails({
             {customer.firstName} {customer.lastName}
           </h2>
         </CardTitle>
-        <CardDescription>
-          {de.customers.fields.customerNumber}{" "}
-          <span data-testid="counter-customer-number" className="font-medium text-foreground">
-            {String(customer.customerNumber)}
-          </span>
-          {" · "}
-          {de.customers.fields.cardNumber}{" "}
-          <span data-testid="counter-card-number" className="font-medium text-foreground">
-            {customer.cardNumber}
-          </span>
-        </CardDescription>
-        {/* The group and the status, the two facts that decide whether the rest matters at all. */}
+        {/* The group and the status, the two facts that decide whether the rest matters at all —
+            wearing what they wear everywhere else in the application.
+
+            Both used to be local tables here. The group was solid `bg-red-600 text-white`, a second
+            copy of a tint that `accents.ts` exists to keep single, so one household's group was
+            painted one way on their record and another at the counter. And the status badged every
+            state including `aktiv`, which is nine records in ten: a pill that says "this one is
+            normal" is texture, not emphasis, and `STATUS_CHROME` is where that judgement is already
+            made. What is left is a mark per exception, the same mark the list and the record make. */}
         <CardAction className="flex flex-wrap items-center gap-2">
-          <Badge data-testid="counter-group" className={GROUP_STYLES[customer.group]}>
+          <Badge
+            data-testid="counter-group"
+            variant="outline"
+            className={GROUP_STYLES[customer.group]}
+          >
             {de.customers.groups[customer.group]}
           </Badge>
-          <Badge data-testid="counter-status" variant={STATUS_VARIANTS[customer.status]}>
-            {de.customers.status[customer.status]}
-          </Badge>
+          <StateWord
+            word={de.customers.status[customer.status]}
+            testId="counter-status"
+            chrome={STATUS_CHROME[customer.status]}
+          />
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
+        {/* The two numbers the counter actually runs on, and the reason they lead the card rather
+            than sitting under the name in 14px grey, which is where they were.
+
+            Neither is read silently. The Kundennummer is *called out* to fetch the next household —
+            staff use it in preference to the name, which comes from any of a dozen languages and is
+            not theirs to mispronounce in front of a room. The Kartennummer is compared, glyph by
+            glyph, against the card being held out across the table. Both are read at arm's length
+            and at a glance, which is a size argument, not a layout one: the screen had the name at
+            24px and these two at 14px, and the name is the one thing here nobody says out loud.
+
+            Bigger than the derived figures below them, so six tiles do not read as one undivided
+            grid — the counts answer "how much", these answer "who", and the gap plus the step in
+            size is what separates the questions. No colour: that budget is the verdict's.
+
+            `Stat` because it already holds the label and the value in one `<p>` (a screen reader
+            gets "Kundennummer 6", not two loose facts) and sets `tabular-nums`, which is what makes
+            6k1 and 6k2 differ at a glance. The grid is the counts row's own, verbatim, so the pair
+            takes the first two of the same four columns: identical widths on one baseline is what a
+            comparison needs (docs/ui_conversion_guide.md), and sharing the track keeps the card to
+            one column rhythm instead of two that miss each other by a pixel. */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Stat
+            label={de.customers.fields.customerNumber}
+            value={String(customer.customerNumber)}
+            testId="counter-customer-number"
+            valueClassName="text-4xl"
+          />
+          <Stat
+            label={de.customers.fields.cardNumber}
+            value={customer.cardNumber}
+            testId="counter-card-number"
+            valueClassName="text-4xl"
+          />
+        </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat
             label={de.customers.derived.grownUps}
@@ -281,7 +304,10 @@ export function CustomerDetails({
             )}
           </TableBody>
         </Table>
-        <p className="text-xs text-muted-foreground">{de.customers.derived.standardValues}</p>
+        {/* No "Standard-Portionen und -Preis; am Ausgabetisch nicht anpassbar." here, though the
+            three screens that *can* edit a household still carry it. At the counter it described an
+            absence: there is no control to adjust, so the sentence answered a question the screen
+            had already answered by having no field to type in. */}
         {/* The stale-card note (US-13.4). Deliberately the smallest, quietest thing on the screen —
             the same grey as the hint above it, no border, no icon, no colour — because it is neither a
             verdict nor a warning: the verdict is the banner, and the serve action below is untouched

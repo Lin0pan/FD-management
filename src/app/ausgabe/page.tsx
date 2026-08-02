@@ -31,7 +31,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { DomainError } from "@/domain/errors";
@@ -347,13 +347,17 @@ export default async function DistributionPage({
           navigates, so the input comes back empty and — being autofocused — ready for the next
           customer without touching the mouse. A native `<label>` rather than the shadcn one: this
           form is deliberately server-rendered with no client component, and Radix's label would drag
-          a client boundary onto the counter's critical path for nothing. */}
+          a client boundary onto the counter's critical path for nothing.
+
+          No hint under the heading. It used to spell out the two formats and say to press Enter, on
+          every lookup of every afternoon, for a field that is labelled, autofocused and the only one
+          on the screen. The formats are worth stating at the one moment they are not obvious — a
+          mistyped entry — and `errors.notANumber` states them there. */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">
             <h2>{de.distribution.counter.heading}</h2>
           </CardTitle>
-          <CardDescription className="max-w-prose">{de.distribution.counter.hint}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <form method="get" className="flex flex-wrap items-end gap-3">

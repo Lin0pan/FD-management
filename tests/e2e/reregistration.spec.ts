@@ -409,9 +409,7 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     reregisteredId = Number(new URL(page.url()).pathname.split("/").at(-1));
     expect(reregisteredId).not.toBe(returning.id);
 
-    await expect(page.getByRole("main")).toContainText(
-      `${de.customers.fields.customerNumber}: ${reregisteredNumber}`,
-    );
+    await expect(page.getByTestId("customer-number")).toHaveText(String(reregisteredNumber));
     await expect(page.getByTestId("card-number")).toHaveText(`${reregisteredNumber}k1`);
     await expect(page.getByTestId("customer-status")).toHaveText(de.customers.status.ACTIVE);
     await expect(page.getByTestId("reminder-count")).toHaveText("0");
@@ -458,8 +456,6 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     // still holds the paper it was registered with, the new one the paper presented today.
     await page.goto(`/kunden/${reregisteredId}`);
     await expect(page.getByRole("main")).toContainText(RETURNING_CERTIFICATE_TYPE);
-    await expect(page.getByRole("main")).toContainText(
-      `${de.customers.fields.customerNumber}: ${reregisteredNumber}`,
-    );
+    await expect(page.getByTestId("customer-number")).toHaveText(String(reregisteredNumber));
   });
 });

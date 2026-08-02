@@ -96,6 +96,19 @@ queue quickly.
   - Otherwise → clear to serve
 - [ ] Below the verdict: name, customer number, group, counts, portion allowance, price, certificate
       expiry, status, reminder count and staff notes — all visible **without further clicks**
+- [ ] ~~The name is the heading of the record and the numbers sit beneath it as a subtitle~~
+      `[superseded]` — FD, watching the counter in use: the two numbers now lead the card at 36px and
+      the name follows at 24px. Staff **call the customer number out** to fetch the next household —
+      they use it in preference to a name they may not be able to pronounce — and they **compare the
+      card number** against the card handed across the table, on every hand-out. Both are read at
+      arm's length; both were set at 14px grey while the name, the one thing nobody says aloud, had
+      24px. The name remains the section's `<h2>` and the fallback when there is no card. FR-2 is
+      untouched — every field it lists is still on screen without a click.
+- [ ] ~~A hint under the number field states the two formats and says to press Enter~~ `[superseded]`
+      — the field is labelled, autofocused and alone on the screen, so the hint was instruction
+      charged to every lookup to serve the rare mistyped one. `counter.errors.notANumber` names both
+      formats at the moment they are actually unclear. The same argument retired the standard-values
+      note from this screen; the screens that can _edit_ a household keep it.
 - [ ] An unknown number renders "Nummer nicht gefunden" and keeps the input focused
 - [ ] The serve action (US-05) is present only when the verdict permits it
 - [ ] All strings from `src/i18n/de.ts`

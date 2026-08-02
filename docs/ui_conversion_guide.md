@@ -234,6 +234,113 @@ scroll to the bottom of the list and confirm the header is still there and still
 - `Confirmation`/`Rejection` notice components are duplicated across five client components. Extract
   them into `src/components/` when the second screen needs them, not before.
 
+## The biggest type belongs to the value that leaves the screen
+
+A record's own idea of importance is not the reader's. `/ausgabe` set the household **name** at 24px
+as the card's heading and the customer and card numbers at **14px** grey beneath it, which is how
+every admin screen in the world lays out a record — and it was backwards, because of what staff
+physically do with each one. The number is **called out across the room** to fetch the next household
+(names at FD come from a dozen languages and are not the counter's to mispronounce in front of a
+queue), and the card number is **compared, glyph by glyph, against a card held out across the table**.
+Both are read standing, at arm's length. The name is the one value there that is never spoken and
+never compared. Measured before the fix: `Portionen 4` was on screen at 30px while the number staff
+say out loud was at 14px.
+
+Ask of every value on a screen: **does it leave the screen?** Is it read aloud, typed into something
+else, or checked against a piece of paper? Those are the ones that need size, `tabular-nums` and a
+short line — not the ones a database would call the record's title. Here the two numbers went to
+36px, above the 30px of the derived figures and below only the verdict, and the name kept the `<h2>`
+and the 24px: still the section's heading, still the fallback when there is no card, no longer the
+loudest thing on it.
+
+Two mechanics worth copying:
+
+- **Put the promoted pair in the grid that is already there.** The counter's identity tiles reuse the
+  counts row's `grid grid-cols-2 gap-3 sm:grid-cols-4` verbatim and take the first two of its four
+  columns. A `flex` row with a `min-w`/`max-w` pair gets within a pixel of the same result and reads
+  as a second, nearly-aligned rhythm — measured 256px tiles against the grid's 255px, columns
+  starting at 460 and 459. Sharing the track makes it exact at both 1440 and 390.
+- **`Stat` is the promotion.** `valueClassName` sizes the figure without a new component, and the
+  label and value stay inside one `<p>`, so a screen reader still hears "Kundennummer 6" as one fact
+  (trap 2). A hand-rolled `div` with two stacked spans would have lost that silently.
+
+### Moving a screen moves everything modelled on it
+
+`docs/ui_redesign_kunden_record.md` §3.8 built the customer record's header by pointing at the
+counter — "the counter gets this right … `Kundennummer 7 · Kartennummer 7k1` beneath it". When the
+counter changed, the record was left imitating a screen that no longer existed: the same two facts
+were 36px tiles on one screen and a 14px muted line with colons on the other, and the record is the
+screen you arrive at _from_ the counter.
+
+**When a concept doc cites another screen as the model, it has taken a dependency.** Before changing
+a screen, grep the `docs/ui_redesign_*.md` set for its name; whatever cites it is now wrong, and the
+fix is either to move it too or to write down why it stays.
+
+Alignment is **shape and chrome, not size.** Each of the three household screens sizes its identity
+by its own job — the counter 36px because the number is called across a room, `/kunden/[id]/karte`
+48px because the number _is_ the card, the record 24px because a reader already knows which household
+they opened. What may not differ is the shape: label above value, `tabular-nums`, no colon. Sizing by
+task is a design; two spellings of one label is an accident.
+
+That gives the record a rule worth stating on its own: **stacked pairs take no colon, inline pairs
+do.** A line break is a separator; a space is not. Both idioms are legitimate — what the record had
+was `Kundennummer: 7` in one place and `Kundennummer` over `7` in another, for the same fact.
+
+### Two components with identical chrome must not read differently
+
+The record carried a `Field` whose class list was `rounded-lg bg-muted/50 px-4 py-3` — **exactly** a
+`Stat` tile — while setting its value inline at 14px. Two things that look identical and behave
+differently are worse than two that look different: the reader learns a rule from the first one and
+it fails on the second. The fill went where it earns its keep, and the rule is now legible from the
+markup: **a tile is a figure that drives a decision; everything else is a line.**
+
+The same page had three hand-rolled copies of `<p><span muted>Label: </span><span>value</span></p>`.
+When you find the third, that is the component.
+
+### A heading needs no boundary; a run of facts does
+
+`--background` and `--card` are the same white, so **a `Card` is only its ring** — there is no fill
+to tell you where one begins. Everything that follows comes from that.
+
+A `<h1>` is its own boundary: it is the largest thing on the screen and nothing else looks like it,
+which is why the page skeleton leaves the heading row outside a card on all seven screens. Three
+label/value pairs are not. Left bare under the heading on `/kunden/[id]`, the record's identity block
+had nothing at all saying where it started or stopped, on a page where every other block was ringed —
+and it read, in FD's word, as **lost**.
+
+So when a header carries _content_ and not just a title, split it: the heading row stays bare, and
+the facts get a `Card` of their own beneath it. That fixes the orphan without making the screen the
+only one whose `h1` sits in a box.
+
+Two corollaries worth having:
+
+- **A filled tile is a claim about its container.** `Stat`'s `bg-muted/50` says "I am inside
+  something"; wearing it outside a card is the mismatch that starts this whole problem. The fix is to
+  supply the container, not to strip the fill — stripping it was tried on this screen and left the
+  block with neither body nor boundary, which was worse than either.
+- **A boundary is not a section.** The record's identity card carries no `CardTitle` on purpose: the
+  redesign had deliberately dissolved `Stammdaten` as a heading, and a ring is not that heading
+  coming back. Reach for `CardTitle` when the block is a _part_ of the page; leave it off when the
+  block is what the page is _about_.
+
+And give the promoted block the grid the card below it already uses — the record's two identity tiles
+take `grid-cols-2 sm:grid-cols-4` so they land in the same two columns as `Erwachsene` and `Kinder`
+(measured `208..431` and `475..698` in both). One column rhythm down the page costs one class.
+
+### A shared table is only shared if nobody keeps a copy
+
+`src/app/accents.ts` says it in its own docstring — "two copies of a tint are how two screens come to
+paint the same fact two different shades" — and there were three local copies of the group palette
+anyway. The counter's was `bg-red-600 text-white` against the record's tint, so **one household's
+group was painted two ways depending on which screen you were on**. Its status table was a second
+copy of the same mistake, badging `aktiv` on nine records in ten, which is the texture the colour
+budget section exists to prevent.
+
+`grep -rn "bg-red-600\|bg-blue-700" src/app` costs nothing and finds all of them. A local
+`const GROUP_STYLES` in a screen file is the smell; if a screen genuinely needs a different weight of
+the same meaning, that belongs in `accents.ts` as a second named export, where the next reader will
+see both.
+
 ## Findings from `/karten-neuausstellung`
 
 - **A `<summary>` can be made to read as a button without ceasing to be one.** Rule 4 keeps the
