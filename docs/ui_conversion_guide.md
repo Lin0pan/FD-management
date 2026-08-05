@@ -419,13 +419,14 @@ legibility there is. Cards take the shell's full width; the field grid inside th
 ## Spending the grid makes the labels ragged; `grid-rows-subgrid` is the fix
 
 Narrowing a field narrows its **label** too, and a German label is as long as it is. Measured on
-`/einstellungen` the first time its five fields were given the widths their contents ask for:
-`Höchstzahl der Kundinnen und Kunden (N)` takes **three** lines in a 163px slot and
-`Portionen je Erwachsenem` two, so five inputs in one grid row started at **y=276, 296 and 316** —
-40px of rag across a row that had been perfectly level when every field was 408px. The conversion
-had fixed three control heights (§3.4 of that concept) and bought a three-baseline row with the
-change. It is the `/kunden/[id]` finding above arriving from the opposite direction, and it will
-happen on every form where the grid is actually spent.
+`/einstellungen`, whose five fields have the widths their contents ask for:
+`Höchstzahl der Kunden (N)` takes **two** lines in a 163px slot and `Portionen je Kind` one, so
+without the fix below the five inputs in that row start at **y=286 and y=296** — 10px of rag across
+a row that had been perfectly level when every field was 408px. The conversion had fixed three
+control heights (§3.4 of that concept) and bought a ragged row with the change. It is the
+`/kunden/[id]` finding above arriving from the opposite direction, and it will happen on every form
+where the grid is actually spent. The rag is one line-height per line of label difference, so it
+grows with the longest label in the row — rename a field and it changes underneath you.
 
 The fix is two utilities, not a `min-h-` guess:
 

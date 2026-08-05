@@ -2099,14 +2099,17 @@ primitives in `src/components/ui/`, and the reference the other screens follow. 
 - **`statementFor(verdict)`** is the only place a verdict becomes words. Its `switch` ends in a
   `const unhandled: never = verdict`, so adding a case to the union is a _compile error_ until the
   counter renders it — a new verdict can never appear as a blank banner.
-- Each verdict carries an icon, a headline and a full German sentence naming the action; the banner's
-  colour only repeats what the words already say. Wrong group names **both** colours, and the
-  inflected forms ("blaue Kundin / blauer Kunde", "rote Woche") are dictionary data keyed by the
-  colour, not sentences assembled in the component.
+- Each verdict is an icon and a **headline**, and only the headline is painted; the colour repeats
+  what the word already says. There is no sentence under it — US-22 cut them, because each restated
+  what the record below already prints. `BLOCKED` is the one exception: its `detail` is the block
+  reason verbatim (US-08), the only words at the counter a colleague typed rather than the screen
+  derived. `WRONG_GROUP` names neither colour, because both are already on screen in words — the
+  household's on its badge, the week's in the banner above (US-03.4).
 - An **expired certificate is amber, not red**: the verdict is still serve — the reminder is a
-  conversation, never grounds to refuse food. The reminder count stands beside it in the household
-  details and inside the verdict sentence itself (US-06, US-10.4), because it is what makes the
-  archiving question askable at the counter at all.
+  conversation, never grounds to refuse food. The headline says both at once
+  (`Ausgabe frei — Nachweis abgelaufen`) and the reminder count stands beside it in the household
+  details (US-06, US-10.4), because it is what makes the archiving question askable at the counter
+  at all.
 - The **consecutive-no-show count** appears in the household details when it is greater than zero
   (US-10.4), and the **archive control** last on the screen, below the serve action — an ordinary
   collapsed disclosure, never a prompt. Neither reacts to any threshold: the two archiving triggers

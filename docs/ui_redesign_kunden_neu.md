@@ -1,4 +1,4 @@
-# Redesigning "Neue Kundin oder neuen Kunden aufnehmen" (`/kunden/neu`)
+# Redesigning "Neuen Kunden aufnehmen" (`/kunden/neu`)
 
 A UX analysis of the registration screen as it stands today, and a concept for rebuilding it on the
 shadcn/ui primitives — the fifth screen in the conversion `docs/ui_conversion_guide.md` describes,
@@ -170,7 +170,7 @@ the codebase (`Stat` at the counter, `Counts` on `/karten-neuausstellung`).
 From the accessibility snapshot:
 
 ```
-h1  Neue Kundin oder neuen Kunden aufnehmen
+h1  Neuen Kunden aufnehmen
   h2  Ein Platz ist frei
   h2  Im Archiv suchen
   h2  Person
@@ -249,7 +249,7 @@ reach at all. They must be exercised by hand (§10).
 ```
 ┌─ Nav (existing, sticky, h-12, max-w-6xl) ─────────────────────────────────────┐
 
-  h1  Neue Kundin oder neuen Kunden aufnehmen
+  h1  Neuen Kunden aufnehmen
   ┌─ Card: Ein Platz ist frei ─────────────────── emerald ────────────────────┐  ← only when free
   │  h2 Ein Platz ist frei · Kundennummer 3 …  [ Jetzt registrieren ] [Liste] │
   └───────────────────────────────────────────────────────────────────────────┘
@@ -528,7 +528,7 @@ Beyond the ten in `docs/ui_conversion_guide.md`. All of these come from `registr
    **absent** (`toHaveCount(0)`), not hidden, after `archive-prefill-clear`.
 9. **`add-member` and `remove-member-0`** keep their testids and their positional numbering.
 10. **The submit's accessible name stays `de.customers.new.submit`**, matched with `exact: true` by
-    `customer-record.spec.ts:116`. `Aufnehmen` must not become `Kundin aufnehmen`.
+    `customer-record.spec.ts:116`. `Aufnehmen` must not become `Kunden aufnehmen`.
 11. **Every new German string goes in `src/i18n/de.ts`** — the merged card title and the search's
     one-line description are new keys.
 12. **Give every `CardTitle` a real `<h2>`** (guide trap 1), and keep the prefill notice's `<h2>`.

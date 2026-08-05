@@ -38,10 +38,10 @@ const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
  * A field's two rows — the label and the control — laid on the grid's own tracks.
  *
  * Without this the row is ragged, because a German label is as long as it is and a narrow column
- * wraps it: measured at 1440, `Höchstzahl der Kundinnen und Kunden (N)` takes three lines in its
- * 163px slot and `Portionen je Erwachsenem` two, so the five inputs of the first card started at
- * y=276, 296 and 316. That is the defect `docs/ui_conversion_guide.md` records from `/kunden/[id]`,
- * where one two-line label put every row's first input 20px below its neighbours.
+ * wraps it: measured at 1440, `Höchstzahl der Kunden (N)` takes two lines in its 163px slot and
+ * `Portionen je Kind` one, so the five inputs of the first card would start at y=286 and y=296.
+ * That is the defect `docs/ui_conversion_guide.md` records from `/kunden/[id]`, where one two-line
+ * label put every row's first input 20px below its neighbours.
  *
  * `grid-rows-subgrid` is the fix rather than a `min-h-` guess: each field spans two of the parent's
  * rows and inherits them, so the label row is as tall as the tallest label in that row and every

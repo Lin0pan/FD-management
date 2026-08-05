@@ -73,7 +73,7 @@ export const de = {
     },
     /** The registration screen. */
     new: {
-      heading: "Neue Kundin oder neuen Kunden aufnehmen",
+      heading: "Neuen Kunden aufnehmen",
       intro:
         "Kundennummer und Gruppe schlägt die Anwendung vor. Erwachsene und Kinder werden aus den " +
         "Geburtsdaten berechnet und können nicht eingetragen werden.",
@@ -195,7 +195,7 @@ export const de = {
       groupUnchanged: (group: string): string =>
         `Der Haushalt gehört bereits zur Gruppe ${group}. Es wurde nichts geändert.`,
       unknown: "Die Aufnahme konnte nicht gespeichert werden.",
-      notFound: "Diese Kundin oder dieser Kunde wurde nicht gefunden.",
+      notFound: "Dieser Kunde wurde nicht gefunden.",
     },
     /** The customer overview a registration lands on, and the record every later edit is made on. */
     card: {
@@ -227,15 +227,13 @@ export const de = {
       submitting: "Wird gesperrt …",
       unblock: "Sperre aufheben",
       unblockConfirm: (reason: string): string =>
-        `Diese Sperre wird aufgehoben: „${reason}“. Die Kundin oder der Kunde ist danach wieder ` +
-        `bezugsberechtigt.`,
+        `Diese Sperre wird aufgehoben: „${reason}“. Der Kunde ist danach wieder bezugsberechtigt.`,
       unblockSubmit: "Sperre jetzt aufheben",
       unblocking: "Wird aufgehoben …",
       errors: {
         missingReason: "Bitte einen Grund für die Sperre angeben.",
-        notBlockable:
-          "Diese Kundin oder dieser Kunde kann nicht gesperrt werden. Bitte die Seite neu laden.",
-        notBlocked: "Diese Kundin oder dieser Kunde ist nicht gesperrt. Bitte die Seite neu laden.",
+        notBlockable: "Dieser Kunde kann nicht gesperrt werden. Bitte die Seite neu laden.",
+        notBlocked: "Dieser Kunde ist nicht gesperrt. Bitte die Seite neu laden.",
         unknown: "Die Änderung konnte nicht gespeichert werden.",
       },
     },
@@ -488,8 +486,7 @@ export const de = {
       submitting: "Wird ausgestellt …",
       errors: {
         archived:
-          "Diese Kundin oder dieser Kunde ist archiviert und erhält keine neue Karte. Bitte die " +
-          "Seite neu laden.",
+          "Dieser Kunde ist archiviert und erhält keine neue Karte. Bitte die Seite neu laden.",
         unknown: "Die neue Karte konnte nicht ausgestellt werden.",
       },
     },
@@ -522,7 +519,7 @@ export const de = {
      * heading of the screen it opens.
      */
     actions: {
-      newCustomer: "Neue Kundin oder neuen Kunden aufnehmen",
+      newCustomer: "Neuen Kunden aufnehmen",
       waitingList: "Warteliste",
       cardsDue: "Karten neu ausstellen",
       /**
@@ -832,7 +829,7 @@ export const de = {
      * typed — and `errors.notANumber` states them there, to the one person who needs them.
      */
     counter: {
-      heading: "Kundin oder Kunde nachschlagen",
+      heading: "Kunden nachschlagen",
       label: "Nummer",
       submit: "Nachschlagen",
       /**
@@ -1059,7 +1056,7 @@ export const de = {
     /** The section that held the reason and the save button unnamed until now (§3.8). */
     changeHeading: "Änderung speichern",
     fields: {
-      quotaN: "Höchstzahl der Kundinnen und Kunden (N)",
+      quotaN: "Höchstzahl der Kunden (N)",
       portionsPerGrownUp: "Portionen je Erwachsenem",
       portionsPerChild: "Portionen je Kind",
       weekAnchorIsoWeek: "Ankerwoche (ISO, z. B. 2026-W02)",
@@ -1091,7 +1088,7 @@ export const de = {
      * `InvalidSettings` carries, so a rejected value never quotes an English identifier at staff.
      */
     errorFields: {
-      quotaN: "Höchstzahl der Kundinnen und Kunden (N)",
+      quotaN: "Höchstzahl der Kunden (N)",
       portionsPerGrownUp: "Portionen je Erwachsenem",
       portionsPerChild: "Portionen je Kind",
       distributionWeekday: "Ausgabetag",
@@ -1118,8 +1115,8 @@ export const de = {
         "Es sind noch keine Einstellungen hinterlegt. Bitte die Grundeinstellungen einspielen.",
       unknown: "Die Änderung konnte nicht gespeichert werden.",
       quotaBelowActiveCustomers: (quotaN: number, activeCustomers: number): string =>
-        `Die Höchstzahl ${quotaN} liegt unter den derzeit ${activeCustomers} aktiven Kundinnen ` +
-        `und Kunden. Es wurde nichts gespeichert.`,
+        `Die Höchstzahl ${quotaN} liegt unter den derzeit ${activeCustomers} aktiven Kunden. ` +
+        `Es wurde nichts gespeichert.`,
       invalidSettings: (field: string): string => `Ungültiger Wert im Feld „${field}“.`,
       invalidAmount: (text: string): string => `„${text}“ ist kein Betrag wie 2,50.`,
     },
