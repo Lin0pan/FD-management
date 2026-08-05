@@ -83,7 +83,10 @@ the counter screen.
       verdict permits serving
 - [ ] A "paid" checkbox is **pre-checked** and can be cleared before confirming
 - [ ] The button is keyboard-reachable and confirms with Enter; on success the screen shows a short
-      confirmation and re-focuses the lookup input for the next customer
+      confirmation in place of the button — where the eye that pressed it already is — and clears the
+      lookup input for the next customer without moving the viewport. It originally re-focused that
+      input too; `focus()` scrolls its element into view, and the input sits two screens above the
+      confirmation, so the jump took the answer off the screen the moment it was given.
 - [ ] Attempting to record a second time shows "Heute bereits versorgt" with the existing record's time
 - [ ] A "correct today's entry" control appears for a record made today, allowing the paid flag to be
       changed or the record to be removed, with a confirmation step before removal

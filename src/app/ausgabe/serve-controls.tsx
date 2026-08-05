@@ -5,10 +5,10 @@
  * (tasks/prd-us-05-record-attendance.md §US-05.4).
  *
  * A client component only because two things need to happen in the browser: `useActionState` reports
- * a rejection back beside the button, and after a successful hand-out the number field is cleared and
- * re-focused so the queue keeps moving without the mouse. It holds no rules — whether this customer
- * may be served, and whether a record may still be changed, are decided behind `recordServe` and
- * `correctServe`; this file only lays out the buttons and repeats the server's answer.
+ * a rejection back beside the button, and after a successful hand-out the number field is cleared for
+ * the next customer. It holds no rules — whether this customer may be served, and whether a record
+ * may still be changed, are decided behind `recordServe` and `correctServe`; this file only lays out
+ * the buttons and repeats the server's answer.
  *
  * Which of the two it shows is a property of the day, not a click: a customer with no record today
  * gets the serve action, and one already served gets that record with the controls to amend or remove
@@ -94,15 +94,20 @@ export function ServeControls({
   const [serveState, serve, serving] = useActionState(recordServe, initialServeState);
   const [correctState, correct, correcting] = useActionState(correctServe, initialCorrectState);
 
-  // Back to the counter loop: once the hand-out is stored, empty the number field and put the cursor
-  // back in it so the next customer's number is typed straight away (US-05.4). The input lives in the
-  // page's lookup form; reaching it by id is the one seam between the two.
+  // Once the hand-out is stored, empty the number field so no stale number is waiting when staff
+  // scroll back up to it (US-05.4). The input lives in the page's lookup form; reaching it by id is
+  // the one seam between the two.
+  //
+  // Deliberately *not* focused as well. `focus()` scrolls its element into view, and the field sits
+  // two screens above the confirmation this component just rendered — so re-focusing it threw the
+  // viewport off the very answer the click had asked for, and left the cursor in a field the staff
+  // member could no longer see. The confirmation is read where the button was pressed; the next
+  // number is typed after scrolling back to the field, in sight of it.
   useEffect(() => {
     if (serveState.status === "recorded") {
       const input = document.getElementById("counter-input");
       if (input instanceof HTMLInputElement) {
         input.value = "";
-        input.focus();
       }
     }
   }, [serveState]);

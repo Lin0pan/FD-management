@@ -949,9 +949,13 @@ export const de = {
     serve: {
       submit: "Ausgabe erfassen",
       paid: "Bezahlt",
-      /** Shown after a successful hand-out, while the number field is focused for the next customer. */
-      confirmed: (time: string): string =>
-        `Ausgabe um ${time} Uhr erfasst. Nächste Nummer eingeben.`,
+      /**
+       * Shown after a successful hand-out, in place of the serve button and nowhere else. It once
+       * ended "Nächste Nummer eingeben.", which was an instruction about a cursor the screen used to
+       * place; it no longer does (see `serve-controls.tsx`), so the sentence would be telling staff
+       * to do something the screen had not prepared for them.
+       */
+      confirmed: (time: string): string => `Ausgabe um ${time} Uhr erfasst.`,
       /** Shown on a customer who already has a record today, in place of the serve action. */
       alreadyServed: (time: string): string => `Heute bereits versorgt um ${time} Uhr.`,
       paidState: {
