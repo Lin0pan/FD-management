@@ -4,6 +4,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { berlinDayKey } from "@/domain/distribution/attendance";
 import { foldName } from "@/domain/customer/nameSearch";
 
 /**
@@ -35,6 +36,11 @@ import { foldName } from "@/domain/customer/nameSearch";
  * the low sequence the registration, card, archive and re-registration specs allocate against, and
  * of the counter (201–206/239), portions (211), serve (221–222), reminders (231), block (241),
  * reissue (251), age-13 (271) and customer-list (281–285) specs in the shared `data/e2e.db`.
+ *
+ * The hand-out history at the foot of the record is a second subject with a second pair of
+ * households behind it — 292 with a long history, 293 with none — so this spec owns **291–293**.
+ * They are separate because 291 is edited all the way through the run above and is served at the
+ * counter, which writes a hand-out: neither a fixed row count nor an empty history survives that.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -90,6 +96,24 @@ const NOTE = "Bringt den verlängerten Nachweis nächste Woche mit.";
  */
 const BEFORE = { grownUps: "1", children: "1", portions: "3", price: "3,00 €" };
 const AFTER = { grownUps: "1", children: "2", portions: "4", price: "4,00 €" };
+
+/** The two numbers the hand-out history is proved on: one long history, one household with none. */
+const WITH_HISTORY_NUMBER = 292;
+const WITHOUT_HISTORY_NUMBER = 293;
+
+/**
+ * How many hand-outs the long history holds.
+ *
+ * Enough that the box has something to scroll — thirty rows are around 1 100px against a 60vh
+ * scrollport on the default 720px viewport — and no more, because every row is one more insert on
+ * every run. It is *not* enough to show the header sticking the way five years of records would;
+ * that is measured by hand against an inflated register, per `docs/ui_conversion_guide.md`.
+ */
+const HAND_OUTS = 30;
+
+/** The most recent hand-out, the Thursday before the pinned day, and the step back from it. */
+const FIRST_HAND_OUT = new Date("2026-01-01T09:00:00.000Z");
+const FORTNIGHT_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
  * The database the built app is running against — the same file, opened a second time.
@@ -167,6 +191,83 @@ async function seedHousehold(): Promise<number> {
     },
     select: { id: true },
   });
+
+  return customer.id;
+}
+
+/**
+ * A plain BLUE household with a valid certificate and one printed card, for the history tests.
+ *
+ * Deliberately not {@link seedHousehold}: nothing here is about reminders or a lapsed certificate,
+ * and a second copy of that fixture with the fields inverted would read as if it were.
+ *
+ * @param customerNumber the number this household takes — 292 or 293, both owned by this spec.
+ * @param handOuts how many hand-outs to write behind it.
+ * @returns the surrogate id the record page is addressed by.
+ */
+async function seedHouseholdWithHistory(customerNumber: number, handOuts: number): Promise<number> {
+  const firstName = faker.person.firstName();
+  const lastName = faker.person.lastName();
+
+  const customer = await prisma.customer.create({
+    data: {
+      customerNumber,
+      firstName,
+      lastName,
+      firstNameFolded: foldName(firstName),
+      lastNameFolded: foldName(lastName),
+      birthDate: utcMidnight(GROWN_UP_BIRTH_DATE),
+      street: faker.location.street(),
+      houseNumber: faker.location.buildingNumber(),
+      zip: faker.location.zipCode("#####"),
+      city: faker.location.city(),
+      group: "BLUE",
+      status: "ACTIVE",
+      reminderCount: 0,
+      notes: "",
+      householdMembers: {
+        create: [{ firstName, lastName, birthDate: utcMidnight(GROWN_UP_BIRTH_DATE) }],
+      },
+      certificates: {
+        create: {
+          type: "Jobcenter-Bescheid",
+          validUntil: utcMidnight(RENEWED_CERTIFICATE),
+          recordedAt: utcMidnight("2025-01-02"),
+        },
+      },
+      cards: {
+        create: {
+          index: 1,
+          issuedAt: utcMidnight("2026-01-02"),
+          reason: "FIRST_ISSUE",
+          grownUpsAtIssue: 1,
+          childrenAtIssue: 0,
+          groupAtIssue: "BLUE",
+        },
+      },
+    },
+    select: { id: true },
+  });
+
+  if (handOuts > 0) {
+    await prisma.distributionRecord.createMany({
+      // Fortnightly, walking back from the distribution before the pinned day — which is what a
+      // long history is: one household coming every other Thursday for years. The day key is
+      // derived from each instant by `berlinDayKey`, the same rule the write path uses, because the
+      // unique `(customerId, dayKey)` index is what would reject two rows sharing a day.
+      data: Array.from({ length: handOuts }, (_unused, index) => {
+        const date = new Date(FIRST_HAND_OUT.getTime() - index * FORTNIGHT_MS);
+        return {
+          customerId: customer.id,
+          date,
+          dayKey: berlinDayKey(date),
+          showedUp: true,
+          paid: true,
+          priceCents: 200,
+        };
+      }),
+    });
+  }
 
   return customer.id;
 }
@@ -495,5 +596,85 @@ test.describe("Kundenakte pflegen", () => {
     const failure = page.getByTestId("notes-error");
     await expect(failure).toHaveText(de.customers.record.errors.unknown);
     await expect(failure).toHaveAttribute("data-tier", "error");
+  });
+});
+
+/**
+ * The hand-out history at the foot of the record: a bounded box, and a summary that says how much is
+ * inside it before anyone opens it.
+ *
+ * What a spec can prove here and what it cannot are different things, and the split is deliberate.
+ * It **can** prove the count — that is the whole point of putting it in the summary, and it is read
+ * with the fold shut, which is exactly how staff meet it. It **can** prove the box is a region with
+ * a name and that the keyboard reaches it and scrolls it, which is a requirement rather than a
+ * polish item: a scrollable box that cannot take focus cannot be scrolled by keyboard at all
+ * (WCAG 2.1.1). It **cannot** meaningfully prove the header sticks — that only shows itself above
+ * the row count any fixture wants to insert on every run, so it is measured by hand against an
+ * inflated copy of the register (`docs/ui_conversion_guide.md`).
+ */
+test.describe("Bisherige Ausgaben", () => {
+  let withHistory: number;
+  let withoutHistory: number;
+
+  test.beforeAll(async () => {
+    pinToday();
+    withHistory = await seedHouseholdWithHistory(WITH_HISTORY_NUMBER, HAND_OUTS);
+    withoutHistory = await seedHouseholdWithHistory(WITHOUT_HISTORY_NUMBER, 0);
+  });
+
+  test.afterAll(async () => {
+    rmSync(NOW_FILE, { force: true });
+    await prisma.$disconnect();
+  });
+
+  test("the fold says how many hand-outs it holds without being opened", async ({ page }) => {
+    await page.goto(`/kunden/${withHistory}`);
+
+    // Nothing is clicked before the assertion, and that is the assertion: the summary answers the
+    // question the disclosure used to leave unanswered — whether opening it is worth the click.
+    await expect(page.getByTestId("history-count")).toHaveText(
+      de.customers.record.historyCount(HAND_OUTS),
+    );
+    await expect(page.getByTestId("history-row").first()).toBeHidden();
+  });
+
+  test("a household with no hand-outs says so rather than showing a zero", async ({ page }) => {
+    await page.goto(`/kunden/${withoutHistory}`);
+
+    await expect(page.getByTestId("history-count")).toHaveText(de.customers.record.historyCount(0));
+
+    // And the fold, once opened, says the same thing at length rather than showing an empty table.
+    await page.getByTestId("history-open").click();
+    await expect(page.getByTestId("history-empty")).toBeVisible();
+    await expect(page.getByTestId("history-row")).toHaveCount(0);
+  });
+
+  test("the history is a named region the keyboard can reach and scroll", async ({ page }) => {
+    await page.goto(`/kunden/${withHistory}`);
+    await page.getByTestId("history-open").click();
+
+    const history = page.getByRole("region", {
+      name: de.customers.record.historyRegionLabel,
+    });
+    await expect(history).toBeVisible();
+    await expect(page.getByTestId("history-row")).toHaveCount(HAND_OUTS);
+
+    // Tab from the summary that opened it: the box is the next thing focus lands on, which is what
+    // makes it reachable at all without a pointer.
+    await page.getByTestId("history-open").focus();
+    await page.keyboard.press("Tab");
+    await expect(history).toBeFocused();
+
+    const scrollTop = async (): Promise<number> =>
+      history.evaluate((box: HTMLElement): number => box.scrollTop);
+    expect(await scrollTop()).toBe(0);
+
+    await page.keyboard.press("ArrowDown");
+    await expect.poll(scrollTop).toBeGreaterThan(0);
+
+    // The rows are all in the DOM whether they are in view or not — no pagination and no
+    // virtualisation — so browser find still crosses the whole history, which is why neither was
+    // reached for.
+    await expect(page.getByTestId("history-row")).toHaveCount(HAND_OUTS);
   });
 });

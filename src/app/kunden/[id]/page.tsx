@@ -588,7 +588,13 @@ function CustomerRecord({
           archive search it can genuinely be closed. */}
         <Card>
           <details>
-            <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            {/* `history-open`, the same name the three disclosures in the danger zone carry — the
+              record holds four `<summary>`s and this is the only one that had nothing to be
+              addressed by. */}
+            <summary
+              data-testid="history-open"
+              className="cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+            >
               <CardHeader>
                 <CardTitle>
                   <h2>{words.historyHeading}</h2>
