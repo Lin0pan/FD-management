@@ -23,7 +23,7 @@ import { parseWeekColour } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { tierOf } from "../notice-tier";
 import { settingsDeps } from "./deps";
-import type { SaveSettingsState } from "./save-settings-state";
+import type { SaveSettingsState, SubmittedSettings } from "./save-settings-state";
 
 /** A whole number as typed into a form field. Range rules belong to the domain, not here. */
 const wholeNumber = z.string().transform((value, ctx): number => {
@@ -68,7 +68,14 @@ const settingsForm = z.object({
   pricePerChild: euroAmount,
 });
 
-function formValues(formData: FormData): Record<string, unknown> {
+/**
+ * The submitted strings, read once and used twice: parsed into the values that go to the use case,
+ * and handed back untouched on a refusal so the form keeps what was typed.
+ *
+ * The keys are the inputs' `name`s, which is what makes the second use possible — the form reads
+ * them straight back by the same names.
+ */
+function formValues(formData: FormData): SubmittedSettings {
   const text = (name: string): string => String(formData.get(name) ?? "");
   return {
     quotaN: text("quotaN"),
@@ -149,13 +156,15 @@ function refusal(error: unknown): Pick<SaveSettingsState, "message" | "tier" | "
  * the audit log.
  *
  * On any failure nothing is written — the use case checks every rule before it appends — and the
- * form comes back with a German explanation.
+ * form comes back with a German explanation, the field to mark, and **the submission itself**, so
+ * the eight valid edits made alongside the one that was refused are not thrown away with it.
  */
 export async function saveSettings(
   _previous: SaveSettingsState,
   formData: FormData,
 ): Promise<SaveSettingsState> {
-  const parsed = settingsForm.safeParse(formValues(formData));
+  const values = formValues(formData);
+  const parsed = settingsForm.safeParse(values);
   if (!parsed.success) {
     // A refusal, not an error: every issue this schema raises is a value somebody typed into a field
     // that is still on screen — a quota that is not a whole number, a price that is not an amount.
@@ -166,6 +175,7 @@ export async function saveSettings(
       message: issue.message,
       tier: "refusal",
       field: typeof issue.path[0] === "string" ? issue.path[0] : undefined,
+      values,
     };
   }
   const form = parsed.data;
@@ -184,7 +194,7 @@ export async function saveSettings(
       },
     });
   } catch (error: unknown) {
-    return { status: "error", ...refusal(error) };
+    return { status: "error", ...refusal(error), values };
   }
 
   revalidatePath("/einstellungen");

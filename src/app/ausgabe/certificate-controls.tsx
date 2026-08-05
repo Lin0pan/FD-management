@@ -14,9 +14,16 @@
  * is saved, when the component (still mounted, because the page always renders it for a resolved
  * customer) shows the confirmation naming the reset count of 0 while the revalidated page around it
  * already shows the certificate as valid again.
+ *
+ * The renewal's two fields are **controlled**, so a refusal leaves what was typed where it is: a
+ * `gültig bis` in the past is refused because it is a typo — most likely a wrong year — and the whole
+ * point is to correct four characters rather than retype the certificate's type beside it. Nothing
+ * clears them, and nothing needs to: the form is inside `expired`, and a successful renewal makes the
+ * certificate valid, so it unmounts with the state it held (`docs/ui_redesign_einstellungen.md`
+ * §4.2d, the same finding on a different screen).
  */
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,6 +33,67 @@ import { logReminder, recordRenewal } from "./actions";
 import { initialReminderState, initialRenewalState } from "./serve-state";
 import { Confirmation, Notice } from "../notice";
 import { useNoticeSlot } from "../notice-board";
+
+/**
+ * The renewal's two fields, and the button that submits them.
+ *
+ * Their own component so the state's lifetime is the form's: this is rendered inside `expired`, and a
+ * successful renewal makes the certificate valid, so it unmounts with what it held. Keeping the two
+ * `useState`s in `CertificateControls` would outlive the form they belong to — harmless today, since
+ * the parent is keyed by customer, but it is the same shape that made a saved renewal stay in the
+ * record's fields until the state moved below the key there (`renewal-form.tsx`). One meaning, one
+ * placement.
+ */
+function RenewalFields({
+  submit,
+  pending,
+}: {
+  submit: string;
+  pending: boolean;
+}): React.ReactElement {
+  const [type, setType] = useState("");
+  const [validUntil, setValidUntil] = useState("");
+
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="renewal-type">{de.customers.fields.certificateType}</Label>
+        <Input
+          type="text"
+          id="renewal-type"
+          name="type"
+          required
+          value={type}
+          onChange={(event) => setType(event.target.value)}
+          data-testid="renewal-type"
+          className="h-9 w-64"
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="renewal-valid-until">{de.customers.fields.certificateValidUntil}</Label>
+        <Input
+          type="date"
+          id="renewal-valid-until"
+          name="validUntil"
+          required
+          value={validUntil}
+          onChange={(event) => setValidUntil(event.target.value)}
+          data-testid="renewal-valid-until"
+          className="h-9 w-44"
+        />
+      </div>
+      <Button
+        type="submit"
+        variant="outline"
+        disabled={pending}
+        data-testid="renewal-save"
+        className="h-9"
+      >
+        {submit}
+      </Button>
+    </div>
+  );
+}
 
 export function CertificateControls({
   customerId,
@@ -111,41 +179,7 @@ export function CertificateControls({
               <input type="hidden" name="customerId" value={customerId} />
               <h3 className="font-heading text-base font-medium">{words.renewal.heading}</h3>
               <p className="max-w-prose text-sm text-muted-foreground">{words.renewal.hint}</p>
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="renewal-type">{de.customers.fields.certificateType}</Label>
-                  <Input
-                    type="text"
-                    id="renewal-type"
-                    name="type"
-                    required
-                    data-testid="renewal-type"
-                    className="h-9 w-64"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="renewal-valid-until">
-                    {de.customers.fields.certificateValidUntil}
-                  </Label>
-                  <Input
-                    type="date"
-                    id="renewal-valid-until"
-                    name="validUntil"
-                    required
-                    data-testid="renewal-valid-until"
-                    className="h-9 w-44"
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  variant="outline"
-                  disabled={renewing}
-                  data-testid="renewal-save"
-                  className="h-9"
-                >
-                  {words.renewal.submit}
-                </Button>
-              </div>
+              <RenewalFields submit={words.renewal.submit} pending={renewing} />
               {showingRenewal && renewalState.status === "error" ? (
                 <Notice
                   tone={renewalState.tier}

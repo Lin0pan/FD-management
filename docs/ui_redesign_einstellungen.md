@@ -4,12 +4,11 @@ A UX analysis of the settings screen as it stands today, and a concept for rebui
 shadcn/ui primitives — one of the last three screens in the conversion
 `docs/ui_conversion_guide.md` describes.
 
-**Status:** **§8 step 1 is built** — the conversion — **and half of step 2**: §4.2c, the error at the
-field, landed with `docs/ui_action_feedback_review.md`'s step 4, which had to put the field on
-`SaveSettingsState` anyway to be rid of the string comparison that stood in for it. **§4.2d — a
-rejected save keeping what was typed — is still open, and is now the single most valuable item
-here**: the field is marked and the words are beside it, so the only thing still missing is the
-value they are about. Steps 3–4 are open; §3.1 is untouched.
+**Status:** **§8 steps 1 and 2 are built.** The conversion, then the rejected-save fix in its two
+halves — §4.2c, the error at the field, and §4.2d, the form keeping what was typed. **§3.1, the worst
+defect on the screen, is fixed**: a rejected save no longer discards the valid edits made alongside
+the invalid one, and the marked field no longer holds a value nobody typed. Steps 3 and 4 — the
+history table and the empty state — are open.
 
 The measurements in §3 are the "before", and §8 carries the "after" against each of them.
 
@@ -62,6 +61,8 @@ save is both an edit and an append, and the screen has to make both legible.
 
 ### 3.1 A rejected save discards every edit, including the valid ones
 
+**✅ Fixed** — see §4.2d for what was built. The measurement below is the "before".
+
 The worst defect on the screen, and it is invisible in a screenshot.
 
 Measured: four fields were changed — `quotaN` → `0` (invalid), `pricePerGrownUp` → `3,33`,
@@ -91,6 +92,13 @@ Here it is wanted for exactly one field out of nine. **`reason` should clear** �
 change and must not be carried into the next; a successful save clears it correctly today, and that
 is right. The other eight should keep what was typed when the save is rejected, and take the newly
 stored values when it succeeds. Today all nine behave the same way in both cases.
+
+> **As built, `reason` behaves like the other eight after a _refusal_.** The rule above is right about
+> the case it was written for and is kept for it: a _save_ clears `reason`, always. A refusal turned
+> out to be the other case — it is not the end of a change but the middle of one, the sentence still
+> describes the edit being made, and the next thing that happens is a field being corrected and the
+> same button pressed. So the split is by outcome, not by field: **a save clears everything, a refusal
+> keeps everything.** That is also the simpler rule to hold in your head, and it needs no list.
 
 A second probe made the same point on a different field: typing `2026-W2` into `Ankerwoche`
 (a plausible mistake — the real format is `2026-W02`) produces
@@ -361,13 +369,28 @@ That is one element per screen holding `settings-error`, which is what §7.5 ask
 _moving_ nothing rather than by printing the same sentence twice, which is what §7.5 assumed the
 resolution would have to be.
 
-**(d) A rejected save keeps what was typed.** `SaveSettingsState` grows the submitted values, and
-each field's `defaultValue` becomes `state.values?.x ?? settings.x`. On success the state carries no
-values, the server component has already revalidated, and the reset lands on the newly stored
-figures — which is what happens today and is correct. `reason` keeps clearing in both cases.
+**(d) A rejected save keeps what was typed. ✅ Built.** `SaveSettingsState` carries `values` — the
+nine fields as raw strings, exactly as submitted — and each field's `defaultValue` becomes
+`state.values?.x ?? <stored>`. **Present on a refusal, absent on a save**, and that asymmetry is the
+whole mechanism: after a save there is nothing to override with, so React's reset lands on the freshly
+revalidated figures, which is what it should do and what it already did.
 
-> ⚠️ This changes `save-settings-state.ts` and the action's return shape. It is the highest-value
-> item in this document and it is **not** a restyle — §8 gives it its own commit.
+Raw strings, never parsed, and that matters: the point is to hand back `0`, `2,5o`, `2026-W2` and all,
+because a value the domain could not read is precisely the one the staff member has to see in order to
+fix it. Parsing on the way back would delete the very thing the field exists to show.
+
+`reason` reaches this too, with `""` as its stored value — so it clears after a save and survives a
+refusal. That is the one place the built screen departs from this section as written; the argument is
+in the note under §3.1.
+
+The same finding, and the same fix, applied to the **certificate renewal** on the customer record and
+at the counter. Those two needed no state at all: their fields became controlled, and each form
+already had something that ends an attempt — the record's remounts on its `saves` key, the counter's
+unmounts once the certificate is valid again. So a refusal keeps both fields and a save starts the
+next renewal empty, with no new plumbing.
+
+> This changed `save-settings-state.ts` and the action's return shape, so it was **not** a restyle —
+> §8 gave it its own commit, as asked.
 
 **(e) The history becomes a table, one column per setting.** Eight columns and a date. A change is
 then a column whose value differs from the row below it, found by eye in one pass instead of by
@@ -561,13 +584,20 @@ state and the rhythm sentence, if still wanted.
 
 Step 2 is worth doing even if nothing else is.
 
-**Step 2 came in two halves and only one has landed.** §4.2c — the field on the state and the mark
+**Step 2 came in two halves, landing one commit apart.** §4.2c — the field on the state and the mark
 beside it — went with `docs/ui_action_feedback_review.md`'s step 4, because carrying the refusal tier
 across the same boundary meant the state had to grow anyway, and the string comparison standing in
-for the field would have broken with it either way. §4.2d — keeping what was typed — did not: it
-touches every `defaultValue` on the form, the review asks the same question application-wide, and it
-is a different argument from what colour a refusal is. What is left of step 2 is that half, and it
-is still the finding worth the most.
+for the field would have broken with it either way. §4.2d — keeping what was typed — followed on its
+own, because it touches every `defaultValue` on the form and is a different argument from what colour
+a refusal is.
+
+Splitting them turned out to matter more than expected, and in the direction that is easy to miss:
+§4.2c on its own made §3.1 **worse to look at**. Before it, the summary said „Ungültiger Wert im Feld
+„Höchstzahl der Kunden (N)"" from 442px away — vague enough that a staff member finding a plausible
+`240` in the box might reasonably think the screen was confused. After it, the field was outlined in
+red with „Ungültiger Wert." directly beneath, pointing precisely and confidently at a box holding a
+value nobody had typed. Sharpening the pointing is what made the wrong target obvious. That is an
+argument for doing the two together where they can be, not against doing either.
 
 ### Step 1, as built
 
