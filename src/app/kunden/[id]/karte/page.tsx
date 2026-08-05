@@ -12,6 +12,7 @@
 
 import Link from "next/link";
 import { readCard, type CardView } from "@/application/customers/read-card";
+import { Button } from "@/components/ui/button";
 import { DomainError } from "@/domain/errors";
 import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
@@ -223,9 +224,15 @@ export default async function CardPage({
         </section>
       )}
 
-      <Link href={`/kunden/${view.customerId}`} className="underline underline-offset-4">
-        {de.customers.cardView.backToCustomer}
-      </Link>
+      {/* The same control as the other two ways to a record, and for the same reason: it navigates
+          and writes nothing, so it carries no border. It was the last hand-styled link in the app —
+          an underline of its own, agreeing with nothing.
+
+          `self-start` is not decoration. `main` is a flex column, whose `align-items: stretch` would
+          otherwise pull an `inline-flex` Button across the full width of the page. */}
+      <Button variant="ghost" asChild className="self-start">
+        <Link href={`/kunden/${view.customerId}`}>{de.customers.cardView.backToCustomer}</Link>
+      </Button>
     </main>
   );
 }

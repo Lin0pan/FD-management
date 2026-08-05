@@ -59,6 +59,40 @@ input label radio-group select table textarea`. Anything else needs `npx shadcn@
 | `bg-foreground/5,/10`                          | `bg-muted` / `bg-muted/50`                                       |
 | `bg-foreground text-background`                | `Button` `default`                                               |
 
+### What a border means
+
+> **A border means the control does something to the data. Borderless means it only takes you
+> somewhere.**
+
+So every link that merely navigates is `ghost` — the hub links on `/kunden`, the three ways to a
+customer's record, "zurück zum Anfang". `outline` and `default` are spent on controls that write, and
+the reader can tell the two apart without reading a word. On a screen where the next click may hand
+out a card that cannot be taken back, that is worth more than uniformity.
+
+**The corollary is about placement, not weight.** A `ghost` link 8px from a bordered button stops
+reading as a second thing you can do and starts reading as a caption on the button — the shapes group
+before the words are read. Give it room: `justify-between` across the row
+(`/karten-neuausstellung`), or the far side of a header row — the `CardAction` slot, as `/kunden/[id]`
+and `/ausgabe` both do with their link to a record. Ghost works on the `/kunden` hub for exactly this
+reason: a card-header toolbar already says "these are controls", so the border has no work left to do.
+
+A link that names a record belongs in that header row and not at the foot of the screen, which is the
+same rule "Page skeleton" states above — and the reason it is a rule is that a control standing alone
+under the last card reads as something left over rather than as part of the screen.
+
+Equalising the two is the trap. `/karten-neuausstellung` briefly gave its reissue control and its
+record link the same `outline`, which made an irreversible write and a harmless navigation look
+identical — worse than the mismatch it was meant to fix.
+
+**The one exception is recovery.** The "Zur Warteliste" link inside the full-register refusal
+(`kunden/neu/registration-form.tsx`) keeps `outline` although it only navigates: it is the sole way
+out of a dead end, and a staff member who cannot register anyone has to see it as the offered next
+step. Emphasis there is a usability decision. Nothing else navigates with a border.
+
+**And one name per destination.** All three links to a customer's record say what that screen calls
+itself — **"Zur Kundenübersicht"** (`customers.record.heading`). One destination, one word for it,
+one control.
+
 ## Non-negotiables
 
 Break one of these and the Playwright suite is the only thing that will tell you — the unit suite

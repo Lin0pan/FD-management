@@ -186,7 +186,7 @@ distinguishes the answer from the explanation.
   │     ┌ Auf der Karte gedruckt ┐      ┌ Haushalt heute ────┐               │
   │     │ Erwachsene: 2, Kinder: 2│  →  │ Erwachsene: 3, Kinder: 1│          │
   │     └────────────────────────┘      └────────────────────┘               │
-  │     [ Karte neu ausstellen ▸ ]                    Kundenakte öffnen      │
+  │     [ Karte neu ausstellen ▸ ]                  Zur Kundenübersicht      │
   │  ──────────────────────────────────────────────────────────────────────  │
   │  h3 Liana Walton       Nr. 16 · Karte 16k1        [Gruppe gewechselt]    │
   │     ┌ Auf der Karte gedruckt ┐      ┌ Haushalt heute ────┐               │
@@ -230,9 +230,29 @@ needs is "these are the same, that is different", and a hidden row cannot say th
 
 **(e) The row's action becomes an action.** The `<details>` stays — it is guide rule 4 and it guards
 an irreversible write — but the closed `<summary>` is styled as a button-shaped control
-(`Button`-like, `variant="outline"`, self-start) rather than a full-width bar, with "Kundenakte
-öffnen" beside it as a `Button variant="ghost" asChild`. Both then sit on one line at the foot of the
+(`Button`-like, `variant="outline"`, self-start) rather than a full-width bar, with the link to the
+record beside it as a `Button variant="ghost" asChild`. Both then sit on one line at the foot of the
 row, in the order write-then-navigate, and the row stops ending on a stranded underline.
+
+> **Amended after the redesign shipped.** The two controls were correct in weight and wrong in
+> position, and the first attempt at a fix got that backwards.
+>
+> The complaint was that the `ghost` link looked unlike everything else on the screen. It was
+> restyled to `outline` to match the disclosure beside it — which made an irreversible write and a
+> harmless navigation look identical, a worse fault than the one being fixed. The border is the only
+> thing on the row that says which control does something to the data; spending it on both says
+> nothing.
+>
+> `ghost` is restored, and what actually fixes the row is **separation**: `justify-between` puts the
+> two at opposite edges instead of 8px apart. At that distance the borderless one had stopped reading
+> as a second thing you can do and started reading as a caption on the button — the shapes group
+> before the words are read. The same link on `/ausgabe` needs no such treatment: it has a line of
+> its own in a column, and the vertical gap does the work. The rule this settled into is now in
+> `docs/ui_conversion_guide.md`, "What a border means".
+>
+> Its label was likewise "Kundenakte öffnen" and is now **"Zur Kundenübersicht"**. A household's
+> record was going by three names — one per screen linking to it — and none of them was
+> "Kundenübersicht", the name on the page itself.
 
 Opened, the confirmation keeps its exact wording — `stale-reissue-confirm` is asserted — and the
 submit becomes a `Button` `default`. The wording already distinguishes the two ("Karte neu

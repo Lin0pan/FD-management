@@ -349,8 +349,12 @@ function CustomerRecord({
           </div>
           {/* The guide's stated exception to "no back-links": this one names a *record* — this
             household's printed card — which the four-item bar cannot say. It belongs in the header
-            row rather than stranded under the danger zone. */}
-          <Button variant="outline" asChild>
+            row rather than stranded under the danger zone.
+
+            `ghost`, because it only navigates; the record's borders are spent on the eight controls
+            below that write. The header's `justify-between` has already pushed it clear of the name
+            and the badges, which is the separation a borderless control needs to read as one. */}
+          <Button variant="ghost" asChild>
             <Link href={`/kunden/${customer.id}/karte`} data-testid="card-view-link">
               {de.customers.card.cardViewLink}
             </Link>

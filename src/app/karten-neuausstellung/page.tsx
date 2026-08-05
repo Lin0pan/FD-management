@@ -147,9 +147,17 @@ function Row({ due }: { due: CardDueForReissue }): React.ReactElement {
         />
       </div>
 
-      {/* Write first, then the way to the record — and both on one line, so the row stops ending on
-          a stranded underline below a full-width bar. */}
-      <div className="flex flex-wrap items-start gap-2">
+      {/* Write on the left, the way to the record on the right, and deliberately not alike: one
+          hands out a new card and cannot be taken back, the other only moves you. The border is
+          what says which is which — a bordered control writes, a borderless one navigates — so the
+          reissue keeps its outline and the link stays `ghost`, as the links on /kunden are.
+
+          What they must not be is adjacent. Eight pixels apart, the borderless one stopped reading
+          as a second thing you can do and started reading as a caption on the button beside it;
+          `justify-between` puts them at opposite edges of the row, which is what actually fixes
+          that. `items-start` keeps the link level with the closed summary rather than with the
+          confirmation that unfolds beneath it. */}
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <StaleCardControls
           customerId={due.customerId}
           cardNumber={due.cardNumber}
