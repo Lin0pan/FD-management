@@ -86,7 +86,11 @@ covers `src/domain` and `src/application` only, so `src/app/` changes are invisi
 9. **Literal palette colours stay literal where the colour _is_ the domain** — the RED/BLUE groups are
    the printed cards FD hands out, and the counter's green/amber/red is its traffic light. Neither is a
    semantic role a theme may re-map, and US-03 FR-7 requires the colour to be named in words as well as
-   painted. Everything else uses tokens.
+   painted. Everything else uses tokens. The literals are enumerated in `src/app/accents.ts` with the
+   meaning each one is reserved for, and **that file is the list** — a green confirmation is
+   `CONFIRMATION_ACCENT` via `src/app/confirmation.tsx`, never a second hand-written tint. Before
+   painting a state, look for it there; if it is not there, the question is what it means, not which
+   green.
 10. **The navigation bar holds exactly four links, and nothing else.** `navigation.spec.ts` asserts the
     four labels of `main-nav` as an exact list, so a wordmark, a search box or a settings icon _inside_
     the `<nav>` breaks it — put such a thing beside `<Nav />` in `layout.tsx`. The `nav-<section>`

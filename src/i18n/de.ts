@@ -95,6 +95,15 @@ export const de = {
       submit: "Aufnehmen",
       submitting: "Wird gespeichert …",
       /**
+       * Shown on the record the registration lands on, not on the form — a successful registration
+       * redirects, so the form itself never has good news to report.
+       *
+       * One sentence, and only the fact. It once went on to say the card could now be printed; FD
+       * asked for that dropped, and they are right that the screen does not need it — the button
+       * that prints the card is in the header, a hand's width above this line.
+       */
+      saved: "Kunde erfolgreich hinzugefügt.",
+      /**
        * The way out of a full register (US-12.4). It stands beside the "alle Nummern sind vergeben"
        * message because that message is otherwise a dead end, and turning an applicant away is
        * exactly what the waiting list exists to prevent.

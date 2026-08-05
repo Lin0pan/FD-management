@@ -120,9 +120,12 @@ export function SaveFeedback({
   savedText?: string;
 }): React.ReactElement | null {
   if (state.status === "saved") {
-    // No green. Green means "a slot is free" across the application (`FREE_SLOT_ACCENT`), and a
-    // save confirmation is not a fact about the household — it is transient feedback that is gone
-    // on the next render. It loses nothing: it is a `role="status"` region whose text says
+    // No green, and the boundary is worth stating because green is not unspoken for: the
+    // application paints a *completed act* with `CONFIRMATION_ACCENT` — a hand-out recorded, a
+    // household taken on — and a free customer number with `FREE_SLOT_ACCENT`. A save is neither.
+    // Correcting a spelling or rewording a note is feedback that the edit took, gone on the next
+    // render, and it would be the one green on this screen that marks nothing having happened.
+    // It loses nothing by staying neutral: it is a `role="status"` region whose text says
     // "gespeichert", and it is asserted by that text rather than by its colour.
     return (
       <Alert role="status">

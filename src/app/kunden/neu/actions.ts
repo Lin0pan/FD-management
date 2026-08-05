@@ -59,5 +59,9 @@ export async function submitRegistration(
 
   // Outside the try: `redirect` works by throwing, and catching it here would turn a successful
   // registration into "could not be saved".
-  redirect(`/kunden/${id}`);
+  //
+  // `?aufgenommen=1` is how the good news survives the redirect: this action never returns on
+  // success, so the confirmation cannot be state the form holds — the record page reads the flag and
+  // says it instead.
+  redirect(`/kunden/${id}?aufgenommen=1`);
 }

@@ -16,7 +16,7 @@
  * already shows the certificate as valid again.
  */
 
-import { Check, CircleAlert } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { useActionState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -26,17 +26,7 @@ import { Label } from "@/components/ui/label";
 import { de } from "@/i18n/de";
 import { logReminder, recordRenewal } from "./actions";
 import { initialReminderState, initialRenewalState } from "./serve-state";
-
-function Confirmation({ text, testId }: { text: string; testId: string }): React.ReactElement {
-  return (
-    <Alert role="status" className="border-green-600/40 bg-green-600/10">
-      <Check className="text-green-700" />
-      <AlertDescription data-testid={testId} className="max-w-prose text-foreground">
-        {text}
-      </AlertDescription>
-    </Alert>
-  );
-}
+import { Confirmation } from "../confirmation";
 
 function Rejection({ message, testId }: { message: string; testId: string }): React.ReactElement {
   return (

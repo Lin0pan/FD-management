@@ -453,6 +453,15 @@ Dropping the save confirmation's green settles §3.10: **green means "a slot is 
 application.** The confirmation loses nothing — it is a `role="status"` region whose text says
 `gespeichert`, and it is asserted by text, not by colour.
 
+> **Superseded in part.** FD asked for the registration confirmation on this screen — the sentence
+> shown when a record is arrived at straight from `/kunden/neu` — to be green, and that is their call
+> to make. Green therefore now carries two meanings, both named in `src/app/accents.ts`:
+> `CONFIRMATION_ACCENT` for **a completed act** (a hand-out recorded, a certificate renewed, a
+> household taken on) and `FREE_SLOT_ACCENT` for a free customer number. What this section decided
+> still holds where it was aimed: **a save is not a completed act**, so the six `SaveFeedback`
+> confirmations on this screen stay neutral. The boundary, and the argument for it, is written at
+> `SaveFeedback` in `kunden/[id]/record-forms.tsx`.
+
 Both literal tints come from `src/app/accents.ts`. Neither is invented here, and neither travels
 without its word (US-03.4).
 

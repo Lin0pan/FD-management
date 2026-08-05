@@ -16,7 +16,7 @@
  * this switches to the correction view on its own.
  */
 
-import { Check, CircleAlert } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { useActionState, useEffect } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -25,23 +25,13 @@ import { Label } from "@/components/ui/label";
 import { de } from "@/i18n/de";
 import { correctServe, recordServe } from "./actions";
 import { initialCorrectState, initialServeState } from "./serve-state";
+import { Confirmation } from "../confirmation";
 
 /** Today's record as the controls need it — serialisable, with the time already in German. */
 export interface TodaysRecordProps {
   readonly recordId: number;
   readonly time: string;
   readonly paid: boolean;
-}
-
-function Confirmation({ text }: { text: string }): React.ReactElement {
-  return (
-    <Alert role="status" className="border-green-600/40 bg-green-600/10">
-      <Check className="text-green-700" />
-      <AlertDescription data-testid="serve-confirmation" className="max-w-prose text-foreground">
-        {text}
-      </AlertDescription>
-    </Alert>
-  );
 }
 
 function Rejection({ message }: { message: string }): React.ReactElement {
@@ -131,7 +121,10 @@ export function ServeControls({
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           {serveState.status === "recorded" ? (
-            <Confirmation text={de.distribution.serve.confirmed(serveState.at)} />
+            <Confirmation
+              text={de.distribution.serve.confirmed(serveState.at)}
+              testId="serve-confirmation"
+            />
           ) : null}
 
           <form action={correct} className="flex flex-col gap-3">
@@ -178,8 +171,14 @@ export function ServeControls({
                 </div>
               </details>
             </div>
+            {/* The same test id as the hand-out's confirmation above: only one of the two can be on
+                screen at a time, and a spec that asserts "the counter confirmed" should not have to
+                know which of the two acts it was. */}
             {correctState.status === "saved" ? (
-              <Confirmation text={de.distribution.serve.correct.saved} />
+              <Confirmation
+                text={de.distribution.serve.correct.saved}
+                testId="serve-confirmation"
+              />
             ) : null}
             {correctState.status === "error" ? <Rejection message={correctState.message} /> : null}
           </form>

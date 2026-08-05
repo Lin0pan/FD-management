@@ -35,3 +35,21 @@ export const GROUP_STYLES: Record<Group, string> = {
  * the registration actually happens.
  */
 export const FREE_SLOT_ACCENT = "border-emerald-600/40 bg-emerald-600/15";
+
+/**
+ * An act the staff member asked for has completed: a hand-out recorded, a reminder logged, a
+ * certificate renewed, a household taken on.
+ *
+ * Green, next to `FREE_SLOT_ACCENT`'s emerald, and the two are deliberately not the same green:
+ * a free slot is a standing fact about the register that is true until somebody takes it, while this
+ * is a receipt for something that just happened. Both are good news, which is why neither is red or
+ * amber; the shades differ because only one of them is still there on the next screen.
+ *
+ * It is *not* worn by a save. Editing a note or a spelling on an existing record is feedback that
+ * something took, not the completion of an act — those stay the neutral `<Alert role="status">` in
+ * `kunden/[id]/record-forms.tsx`, and the boundary is drawn there.
+ *
+ * The word goes with it as always: every user of this accent states what happened in German, and the
+ * tint only repeats it.
+ */
+export const CONFIRMATION_ACCENT = "border-green-600/40 bg-green-600/10";

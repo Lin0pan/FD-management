@@ -108,7 +108,7 @@ async function register(page: Page): Promise<Household> {
   await expect(page.getByTestId("household-row")).toHaveCount(1);
 
   await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
-  await page.waitForURL(/\/kunden\/\d+$/);
+  await page.waitForURL(/\/kunden\/\d+(\?|$)/);
 
   const id = Number(new URL(page.url()).pathname.split("/").at(-1));
   expect(Number.isInteger(id)).toBe(true);
@@ -260,12 +260,16 @@ test.describe("Warteliste", () => {
     await expect(page.getByTestId("children")).toHaveText("0");
 
     await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
-    await page.waitForURL(/\/kunden\/\d+$/);
+    await page.waitForURL(/\/kunden\/\d+(\?|$)/);
 
     // They were given the number the archived household released, and the card that goes with it.
     await expect(page.getByTestId("customer-number")).toHaveText(String(filler.customerNumber));
     await expect(page.getByTestId("card-number")).toHaveText(`${filler.customerNumber}k1`);
     await expect(page.getByRole("main")).toContainText(fullName(first));
+
+    // A promotion is a registration, so it confirms like one: the same sentence the registration
+    // screen's own path leaves on the record, from the same flag on the same redirect.
+    await expect(page.getByTestId("registration-confirmation")).toHaveText(de.customers.new.saved);
 
     // Off the list, but not gone from it (FR-7): the row is stamped with the slot it went to, so the
     // order in which the queue was served stays reconstructable years later.
