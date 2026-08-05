@@ -126,13 +126,16 @@ test.describe("Einstellungen", () => {
     await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("9,99");
     await expect(page.locator("#quotaN")).toHaveValue("240");
 
-    // The reason went with it, into the version this appended.
+    // One version appended, carrying the price that rode along with the correction. The history
+    // lists the settings themselves, not the audit reason — that lives in the log.
     const versions = page.getByTestId("settings-version");
     await expect(versions).toHaveCount(4);
-    await expect(versions.first()).toContainText("Preis erhöhen");
+    await expect(versions.first()).toContainText(`${de.settings.fields.pricePerGrownUp}: 9,99 €`);
+    await expect(versions.first()).toContainText(de.settings.history.current);
 
-    // And `reason` is the one field that clears on a save — it describes this change and must not be
-    // carried into the next one.
+    // And the form clears on a save — including `reason`, which describes this change and must not
+    // be carried into the next one. That is the other half of the rule: a save clears everything, a
+    // refusal keeps everything.
     await expect(page.locator("#reason")).toHaveValue("");
   });
 
