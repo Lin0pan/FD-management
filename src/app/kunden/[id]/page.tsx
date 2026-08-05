@@ -22,7 +22,14 @@ import { readCurrentSettings } from "@/application/settings/read-current-setting
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -587,6 +594,13 @@ function CustomerRecord({
                   <h2>{words.historyHeading}</h2>
                 </CardTitle>
                 <CardDescription>{words.historyDisclosure}</CardDescription>
+                {/* One fact in the house pattern for one fact: the same slot, class and position as
+                  `customer-list-count` on /kunden. It is stated at zero too — "Noch keine Ausgabe
+                  erfasst" rather than a bare 0 — so a household with no history says so with the
+                  fold left shut, and a count that failed to load cannot pass for an empty one. */}
+                <CardAction data-testid="history-count" className="text-sm text-muted-foreground">
+                  {words.historyCount(view.history.length)}
+                </CardAction>
               </CardHeader>
             </summary>
             <CardContent className="mt-6 flex flex-col gap-4">

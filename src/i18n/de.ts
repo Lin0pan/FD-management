@@ -463,6 +463,21 @@ export const de = {
        */
       historyRegionLabel: "Bisherige Ausgaben, scrollbare Liste",
       /**
+       * How many hand-outs the fold holds, stated while it is still shut — otherwise the summary
+       * answers nothing until it is opened, including whether opening it is worth the click.
+       *
+       * Zero gets wording of its own rather than `0 Ausgaben`, for the two reasons already written
+       * down elsewhere in this file and in `group-progress-card.tsx`: a count that disappears cannot
+       * be told apart from one that failed to load ({@link waitingListBadge}), and a disclosure that
+       * opens onto nothing invites a click to discover there is nothing to discover.
+       */
+      historyCount: (count: number): string => {
+        if (count === 0) {
+          return "Noch keine Ausgabe erfasst";
+        }
+        return count === 1 ? "1 Ausgabe" : `${count} Ausgaben`;
+      },
+      /**
        * The household table's age column. It used to live inside the birthdate label — where it
        * made that label differ on every row — and a column is what stops it doing that.
        */
