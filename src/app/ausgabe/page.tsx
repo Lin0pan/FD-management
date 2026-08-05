@@ -486,8 +486,14 @@ export default async function DistributionPage({
                 {/* The way off this screen and onto the whole record (US-16.5). Everything the
                     counter shows is a slice of it, and the question staff most often have next —
                     who else lives there, what was noted, when did they last collect — is answered
-                    there and nowhere here. */}
-                <Button variant="outline" asChild className="self-start">
+                    there and nowhere here.
+
+                    `ghost`, like every other link that only navigates: on this screen a border
+                    means the control writes something — a hand-out, a renewal, a block — and this
+                    one writes nothing. It needs no separating, unlike the same link on
+                    /karten-neuausstellung: it stands on its own line in a column, and the vertical
+                    gap already keeps it off the controls above and below it. */}
+                <Button variant="ghost" asChild className="self-start">
                   <Link
                     href={`/kunden/${counter.lookup.customerId}`}
                     data-testid="counter-record-link"

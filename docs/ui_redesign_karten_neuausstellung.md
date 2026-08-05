@@ -186,7 +186,7 @@ distinguishes the answer from the explanation.
   │     ┌ Auf der Karte gedruckt ┐      ┌ Haushalt heute ────┐               │
   │     │ Erwachsene: 2, Kinder: 2│  →  │ Erwachsene: 3, Kinder: 1│          │
   │     └────────────────────────┘      └────────────────────┘               │
-  │     [ Karte neu ausstellen ▸ ]  [ Zur Kundenübersicht ]                  │
+  │     [ Karte neu ausstellen ▸ ]                  Zur Kundenübersicht      │
   │  ──────────────────────────────────────────────────────────────────────  │
   │  h3 Liana Walton       Nr. 16 · Karte 16k1        [Gruppe gewechselt]    │
   │     ┌ Auf der Karte gedruckt ┐      ┌ Haushalt heute ────┐               │
@@ -231,17 +231,24 @@ needs is "these are the same, that is different", and a hidden row cannot say th
 **(e) The row's action becomes an action.** The `<details>` stays — it is guide rule 4 and it guards
 an irreversible write — but the closed `<summary>` is styled as a button-shaped control
 (`Button`-like, `variant="outline"`, self-start) rather than a full-width bar, with the link to the
-record beside it as a `Button variant="outline" asChild`. Both then sit on one line at the foot of
-the row, in the order write-then-navigate, and the row stops ending on a stranded underline.
+record beside it as a `Button variant="ghost" asChild`. Both then sit on one line at the foot of the
+row, in the order write-then-navigate, and the row stops ending on a stranded underline.
 
-> **Amended after the redesign shipped.** That link was specified here as `variant="ghost"`, on the
-> reasoning that navigation should sit quieter than the write. On the screen it did not read as
-> quieter, it read as unfinished: a borderless control immediately beside a bordered one looks like
-> a caption that drifted onto the same line, not like the second of two things you can do. Equal
-> weight is what the row wants — it has only two controls, their order already says which comes
-> first, and a screen whose whole premise is "keine Eile" has no business painting one of them as
-> the thing to do. `outline` also makes it the same control as the counter's way to the record
-> (`/ausgabe`, `page.tsx:490`), which is the same journey started from a different screen.
+> **Amended after the redesign shipped.** The two controls were correct in weight and wrong in
+> position, and the first attempt at a fix got that backwards.
+>
+> The complaint was that the `ghost` link looked unlike everything else on the screen. It was
+> restyled to `outline` to match the disclosure beside it — which made an irreversible write and a
+> harmless navigation look identical, a worse fault than the one being fixed. The border is the only
+> thing on the row that says which control does something to the data; spending it on both says
+> nothing.
+>
+> `ghost` is restored, and what actually fixes the row is **separation**: `justify-between` puts the
+> two at opposite edges instead of 8px apart. At that distance the borderless one had stopped reading
+> as a second thing you can do and started reading as a caption on the button — the shapes group
+> before the words are read. The same link on `/ausgabe` needs no such treatment: it has a line of
+> its own in a column, and the vertical gap does the work. The rule this settled into is now in
+> `docs/ui_conversion_guide.md`, "What a border means".
 >
 > Its label was likewise "Kundenakte öffnen" and is now **"Zur Kundenübersicht"**. A household's
 > record was going by three names — one per screen linking to it — and none of them was
