@@ -24,6 +24,7 @@ import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { reissueCardAction } from "./actions";
 import { initialReissueState } from "./reissue-state";
+import { Notice } from "../../notice";
 
 export function ReissueControls({
   customerId,
@@ -68,11 +69,7 @@ export function ReissueControls({
         </div>
       </details>
       {state.status === "error" ? (
-        <Alert variant="destructive" role="status">
-          <AlertDescription data-testid="reissue-error" className="max-w-prose">
-            {state.message}
-          </AlertDescription>
-        </Alert>
+        <Notice tone="error" text={state.message} testId="reissue-error" />
       ) : null}
     </form>
   );

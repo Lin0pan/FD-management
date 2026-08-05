@@ -13,11 +13,11 @@
  */
 
 import { useId } from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { RecordFormState } from "./record-state";
 import { de } from "@/i18n/de";
+import { Notice } from "../../notice";
 
 /**
  * The field grid the record's forms are laid out on: twelve columns at `lg`, two at `sm`, one
@@ -120,29 +120,15 @@ export function SaveFeedback({
   savedText?: string;
 }): React.ReactElement | null {
   if (state.status === "saved") {
-    // No green, and the boundary is worth stating because green is not unspoken for: the
-    // application paints a *completed act* with `CONFIRMATION_ACCENT` — a hand-out recorded, a
-    // household taken on — and a free customer number with `FREE_SLOT_ACCENT`. A save is neither.
-    // Correcting a spelling or rewording a note is feedback that the edit took, gone on the next
-    // render, and it would be the one green on this screen that marks nothing having happened.
-    // It loses nothing by staying neutral: it is a `role="status"` region whose text says
-    // "gespeichert", and it is asserted by that text rather than by its colour.
-    return (
-      <Alert role="status">
-        <AlertDescription data-testid={`${testId}-saved`} className="max-w-prose">
-          {savedText}
-        </AlertDescription>
-      </Alert>
-    );
+    // Green, like every other write that went through. This was neutral on the argument that a save
+    // is not the completion of an *act* the way a hand-out is — a distinction that is real and that
+    // nobody at a counter needs to make. What it cost was measurable: five forms on this screen
+    // answering in a white box on the same surface as the card behind it, which is a poor answer to
+    // the question they exist for (`docs/ui_action_feedback_review.md` §2.1).
+    return <Notice tone="success" text={savedText} testId={`${testId}-saved`} />;
   }
   if (state.status === "error") {
-    return (
-      <Alert variant="destructive" role="status">
-        <AlertDescription data-testid={`${testId}-error`} className="max-w-prose">
-          {state.message}
-        </AlertDescription>
-      </Alert>
-    );
+    return <Notice tone="error" text={state.message} testId={`${testId}-error`} />;
   }
   return null;
 }

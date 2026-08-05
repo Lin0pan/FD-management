@@ -26,6 +26,7 @@ import { de } from "@/i18n/de";
 import { addApplicantAction } from "./actions";
 import { ADD_FORM_ANCHOR } from "./add-form-anchor";
 import { initialAddApplicantState } from "./waiting-list-state";
+import { Notice } from "../notice";
 
 /**
  * `<Label htmlFor>` + `<Input id>` rather than the control nested inside its label. The `id`s are
@@ -98,12 +99,8 @@ export function AddApplicantForm(): React.ReactElement {
               saved, not on the message, so a second applicant of the same name still resets it. */}
           <Fields key={state.savedCount} />
 
-          {state.status === "error" ? (
-            <Alert variant="destructive" role="status">
-              <AlertDescription data-testid="waiting-list-add-error" className="max-w-prose">
-                {state.message}
-              </AlertDescription>
-            </Alert>
+          {state.status === "error" && state.message !== undefined ? (
+            <Notice tone="error" text={state.message} testId="waiting-list-add-error" />
           ) : null}
           {state.status === "saved" ? (
             <Alert role="status">

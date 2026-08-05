@@ -16,12 +16,12 @@
  */
 
 import { useActionState } from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { reissueStaleCardAction } from "./actions";
 import { initialStaleReissueState } from "./reissue-state";
+import { Notice } from "../notice";
 
 export function StaleCardControls({
   customerId,
@@ -63,11 +63,7 @@ export function StaleCardControls({
         </div>
       </details>
       {state.status === "error" ? (
-        <Alert variant="destructive" role="status">
-          <AlertDescription data-testid="stale-reissue-error" className="max-w-prose">
-            {state.message}
-          </AlertDescription>
-        </Alert>
+        <Notice tone="error" text={state.message} testId="stale-reissue-error" />
       ) : null}
     </form>
   );

@@ -38,7 +38,7 @@ import type { Settings } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { GROUP_STYLES } from "../../accents";
-import { Confirmation } from "../../confirmation";
+import { Confirmation } from "../../notice";
 import { SHELL } from "../../shell";
 import { Stat } from "../../stat";
 import { ArchiveControls } from "../archive-controls";

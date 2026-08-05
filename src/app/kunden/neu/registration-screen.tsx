@@ -73,9 +73,10 @@ export function RegistrationScreen({
         // riskiest mistake this feature can produce is a staff member believing the archived record
         // was reactivated (PRD §6), and the correction has to be read before the form is.
         //
-        // Neutral, not amber. Amber means one thing across the application — a certificate has
-        // lapsed — and this is not a warning at all: it is a statement of provenance with an undo
-        // attached. The `<h2>` stays, because `Alert` supplies no heading of its own.
+        // Neutral, not amber. Amber says a certificate has lapsed, or that an act was refused
+        // (`REFUSAL_ACCENT`), and this is neither — not a warning at all, but a statement of
+        // provenance with an undo attached. The `<h2>` stays, because `Alert` supplies no heading
+        // of its own.
         <Alert role="status" data-testid="archive-prefill-notice">
           <AlertDescription className="flex max-w-prose flex-col items-start gap-3">
             <h2 className="font-semibold text-foreground">{words.heading}</h2>

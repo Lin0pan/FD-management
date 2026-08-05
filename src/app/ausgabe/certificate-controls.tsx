@@ -16,9 +16,7 @@
  * already shows the certificate as valid again.
  */
 
-import { CircleAlert } from "lucide-react";
 import { useActionState } from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,18 +24,7 @@ import { Label } from "@/components/ui/label";
 import { de } from "@/i18n/de";
 import { logReminder, recordRenewal } from "./actions";
 import { initialReminderState, initialRenewalState } from "./serve-state";
-import { Confirmation } from "../confirmation";
-
-function Rejection({ message, testId }: { message: string; testId: string }): React.ReactElement {
-  return (
-    <Alert role="status" variant="destructive" className="border-destructive/40 bg-destructive/5">
-      <CircleAlert />
-      <AlertDescription data-testid={testId} className="max-w-prose">
-        {message}
-      </AlertDescription>
-    </Alert>
-  );
-}
+import { Confirmation, Notice } from "../notice";
 
 export function CertificateControls({
   customerId,
@@ -102,7 +89,7 @@ export function CertificateControls({
                 />
               ) : null}
               {reminderState.status === "error" ? (
-                <Rejection message={reminderState.message} testId="reminder-error" />
+                <Notice tone="error" text={reminderState.message} testId="reminder-error" />
               ) : null}
             </form>
 
@@ -146,7 +133,7 @@ export function CertificateControls({
                 </Button>
               </div>
               {renewalState.status === "error" ? (
-                <Rejection message={renewalState.message} testId="renewal-error" />
+                <Notice tone="error" text={renewalState.message} testId="renewal-error" />
               ) : null}
             </form>
           </>

@@ -30,22 +30,13 @@ import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { blockCustomerAction, unblockCustomerAction } from "./block-actions";
 import { initialBlockState } from "./block-state";
+import { Notice } from "../notice";
 
 /**
  * The `<summary>` recipe shared by the two disclosures here and by `ArchiveControls`: closed, a
  * control must not read as a collapsed section spanning the row (`/karten-neuausstellung`).
  */
 const SUMMARY = "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden";
-
-function Rejection({ message }: { message: string }): React.ReactElement {
-  return (
-    <Alert variant="destructive" role="status">
-      <AlertDescription data-testid="block-error" className="max-w-prose">
-        {message}
-      </AlertDescription>
-    </Alert>
-  );
-}
 
 /** "Sperren": a disclosure holding the required reason field; the save button waits for a reason. */
 function BlockForm({ customerId }: { customerId: number }): React.ReactElement {
@@ -89,7 +80,9 @@ function BlockForm({ customerId }: { customerId: number }): React.ReactElement {
         >
           {pending ? de.customers.block.submitting : de.customers.block.submit}
         </Button>
-        {state.status === "error" ? <Rejection message={state.message} /> : null}
+        {state.status === "error" ? (
+          <Notice tone="error" text={state.message} testId="block-error" />
+        ) : null}
       </form>
     </details>
   );
@@ -127,7 +120,9 @@ function UnblockForm({
           </Button>
         </div>
       </details>
-      {state.status === "error" ? <Rejection message={state.message} /> : null}
+      {state.status === "error" ? (
+        <Notice tone="error" text={state.message} testId="block-error" />
+      ) : null}
     </form>
   );
 }
