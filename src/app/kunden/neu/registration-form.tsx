@@ -52,6 +52,7 @@ import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { GROUP_STYLES } from "../../accents";
 import { Stat } from "../../stat";
+import { Notice } from "../../notice";
 import { submitRegistration } from "./actions";
 import type { PrefillDraft } from "./archive-search-state";
 import {
@@ -481,11 +482,7 @@ export function RegistrationForm({
         footer={
           <>
             {state.status === "error" && state.message !== undefined ? (
-              <Alert variant="destructive" role="status">
-                <AlertDescription data-testid="registration-error" className="max-w-prose">
-                  {state.message}
-                </AlertDescription>
-              </Alert>
+              <Notice tone="error" text={state.message} testId="registration-error" />
             ) : null}
 
             <Button type="submit" size="lg" disabled={pending || full}>

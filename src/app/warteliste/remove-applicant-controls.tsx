@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { de } from "@/i18n/de";
 import { removeApplicantAction } from "./actions";
 import { initialRemoveApplicantState } from "./waiting-list-state";
+import { Notice } from "../notice";
 
 export function RemoveApplicantControls({
   entryId,
@@ -50,9 +51,10 @@ export function RemoveApplicantControls({
       </summary>
       <form action={action} className="mt-3 flex flex-col gap-3">
         <input type="hidden" name="entryId" value={entryId} />
-        {/* Red, not amber. Amber on this screen states that a certificate lapsed — explicitly not a
-            verdict — and this is a caution before an act that takes somebody off a queue they have
-            stood in for months. The two cannot go on sharing a paint tin. */}
+        {/* Red, not amber. Amber says one of two things here — a certificate has lapsed, or an act
+            was refused and nothing is broken (`REFUSAL_ACCENT`) — and this is neither: it is a
+            caution before an act that takes somebody off a queue they have stood in for months, and
+            it is about to happen rather than having been declined. */}
         <Alert variant="destructive">
           <AlertDescription data-testid="waiting-list-remove-confirm" className="max-w-prose">
             {de.waitingList.remove.confirm(applicant)}
@@ -80,12 +82,8 @@ export function RemoveApplicantControls({
         >
           {pending ? de.waitingList.remove.submitting : de.waitingList.remove.submit}
         </Button>
-        {state.status === "error" ? (
-          <Alert variant="destructive" role="status">
-            <AlertDescription data-testid="waiting-list-remove-error" className="max-w-prose">
-              {state.message}
-            </AlertDescription>
-          </Alert>
+        {state.status === "error" && state.message !== undefined ? (
+          <Notice tone="error" text={state.message} testId="waiting-list-remove-error" />
         ) : null}
       </form>
     </details>

@@ -25,6 +25,7 @@ import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { loadArchivedDraft, searchArchive } from "./archive-search-actions";
 import { initialArchiveSearchState, type PrefillDraft } from "./archive-search-state";
+import { Notice } from "../../notice";
 
 /** One archived household, and the draft read from its record — what a selection consists of. */
 export interface ArchiveSelection {
@@ -244,12 +245,8 @@ export function ArchiveSearchPanel({
             </Button>
           </form>
 
-          {state.status === "error" ? (
-            <Alert variant="destructive" role="status">
-              <AlertDescription data-testid="archive-search-error" className="max-w-prose">
-                {state.message}
-              </AlertDescription>
-            </Alert>
+          {state.status === "error" && state.message !== undefined ? (
+            <Notice tone="error" text={state.message} testId="archive-search-error" />
           ) : null}
 
           {state.status === "results" && state.matches.length === 0 ? (
@@ -267,8 +264,9 @@ export function ArchiveSearchPanel({
               </p>
               {/* Not a count of what was left out and not a "next page": the answer to a list this
                   long is a narrower search, and a number would only invite paging towards it.
-                  Neutral rather than amber — amber is the lapsed certificate, and this is a remark
-                  about the search rather than about any household. */}
+                  Neutral rather than amber: amber states a lapsed certificate or refuses an act
+                  somebody asked for, and this is neither — a remark about the search rather than
+                  about any household, and nobody asked for it. */}
               {state.truncated ? (
                 <Alert role="status">
                   <AlertDescription data-testid="archive-search-truncated" className="max-w-prose">
@@ -291,11 +289,7 @@ export function ArchiveSearchPanel({
           ) : null}
 
           {selectError === null ? null : (
-            <Alert variant="destructive" role="status">
-              <AlertDescription data-testid="archive-prefill-error" className="max-w-prose">
-                {selectError}
-              </AlertDescription>
-            </Alert>
+            <Notice tone="error" text={selectError} testId="archive-prefill-error" />
           )}
         </CardContent>
       </details>

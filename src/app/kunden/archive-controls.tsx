@@ -25,6 +25,7 @@ import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { archiveCustomerAction } from "./archive-actions";
 import { initialArchiveState } from "./archive-state";
+import { Notice } from "../notice";
 
 export function ArchiveControls({
   customerId,
@@ -62,8 +63,9 @@ export function ArchiveControls({
       </summary>
       <form action={action} className="mt-3 flex flex-col items-start gap-3">
         <input type="hidden" name="customerId" value={customerId} />
-        {/* Destructive rather than amber: amber is the lapsed certificate, application-wide, and
-            this is the one step on the card that cannot be typed over afterwards. */}
+        {/* Destructive rather than amber: amber states a lapsed certificate or reports a refused
+            act (`REFUSAL_ACCENT`), and this is a step about to be taken — the one on the card that
+            cannot be typed over afterwards. */}
         <Alert variant="destructive">
           <AlertDescription data-testid="archive-confirm" className="max-w-prose">
             {de.customers.archive.confirm(customerNumber)}
@@ -93,11 +95,7 @@ export function ArchiveControls({
           {pending ? de.customers.archive.submitting : de.customers.archive.submit}
         </Button>
         {state.status === "error" ? (
-          <Alert variant="destructive" role="status">
-            <AlertDescription data-testid="archive-error" className="max-w-prose">
-              {state.message}
-            </AlertDescription>
-          </Alert>
+          <Notice tone="error" text={state.message} testId="archive-error" />
         ) : null}
       </form>
     </details>

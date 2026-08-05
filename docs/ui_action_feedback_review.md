@@ -82,21 +82,28 @@ tint.
 
 ### 2.3 One component
 
-Replace four shapes with one. Today the same job is done by `Confirmation`
-(`src/app/confirmation.tsx`), `SaveFeedback` (`record-forms.tsx:111`), two near-identical private
-`Rejection` copies (`serve-controls.tsx:37`, `certificate-controls.tsx:31`) and roughly ten
-hand-written `<Alert variant="destructive" role="status">` blocks — which is why red currently has
-three different treatments: red-on-white with no icon, red-on-white with a `CircleAlert`, and
-red-on-white with a `bg-destructive/5` tint.
+**Built.** `src/app/notice.tsx` replaced the four shapes that were doing this job: `Confirmation`
+(then `src/app/confirmation.tsx`), `SaveFeedback` (`record-forms.tsx:111`), **three** near-identical
+private `Rejection` copies (`serve-controls.tsx:37`, `certificate-controls.tsx:31` and
+`block-controls.tsx:40` — the audit below missed the third) and eight hand-written
+`<Alert variant="destructive" role="status">` blocks. That is why red had three treatments:
+red-on-white with no icon, red-on-white with a `CircleAlert`, and red-on-white with a
+`bg-destructive/5` tint.
 
 ```tsx
 <Notice tone="success" | "refusal" | "error" text={…} testId={…} />
 ```
 
 No `"use client"` and no hooks, so server and client components can both render it — the property
-`Confirmation` already has and depends on (`kunden/[id]/page.tsx:361` is a server component). Keep
-`Confirmation` as the success alias so the five existing call sites and their `data-testid`s survive
-untouched. `docs/ui_conversion_guide.md:239` already asks for exactly this extraction.
+`Confirmation` already had and depends on (`kunden/[id]/page.tsx:361` is a server component).
+`Confirmation` stayed as the success alias, so the five existing call sites and their `data-testid`s
+were untouched. `docs/ui_conversion_guide.md` asked for exactly this extraction, and now records it.
+
+Two things were deliberately left hand-written, because neither is an answer to a button: the
+confirmation _steps_ inside the archive and removal disclosures (a warning before an act, not after
+one) and `/ausgabe`'s `ErrorNote`, which is a `role="alert"` about the installation rather than about
+a click. `settings-form.tsx` renders success and refusal through one `Alert` whose variant flips, so
+it converts with the recolour in step 2 rather than here.
 
 ---
 

@@ -235,8 +235,12 @@ scroll to the bottom of the list and confirm the header is still there and still
   of key/value pairs, lift the two or three figures that drive the decision into large tiles and put
   the rest in a two-column table with no header row — that is what turned the counter's eleven
   identical boxes into something readable.
-- `Confirmation`/`Rejection` notice components are duplicated across five client components. Extract
-  them into `src/components/` when the second screen needs them, not before.
+- **Every answer to a button goes through `src/app/notice.tsx`.** `Notice` has three tones —
+  `success`, `refusal`, `error` — and `Confirmation` is the success one under the name the call sites
+  are actually saying. It lives beside `accents.ts` rather than in `src/components/`, because it is
+  where the application's meanings are painted rather than a shadcn primitive. Nothing hand-writes an
+  `<Alert role="status">` for a server action's answer any more; before this it was written thirteen
+  ways and red alone had three treatments.
 
 ## The biggest type belongs to the value that leaves the screen
 

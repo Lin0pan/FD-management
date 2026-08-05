@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { RecordFormState } from "./record-state";
 import { de } from "@/i18n/de";
+import { Notice } from "../../notice";
 
 /**
  * The field grid the record's forms are laid out on: twelve columns at `lg`, two at `sm`, one
@@ -136,13 +137,7 @@ export function SaveFeedback({
     );
   }
   if (state.status === "error") {
-    return (
-      <Alert variant="destructive" role="status">
-        <AlertDescription data-testid={`${testId}-error`} className="max-w-prose">
-          {state.message}
-        </AlertDescription>
-      </Alert>
-    );
+    return <Notice tone="error" text={state.message} testId={`${testId}-error`} />;
   }
   return null;
 }

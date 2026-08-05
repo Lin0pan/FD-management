@@ -16,33 +16,20 @@
  * this switches to the correction view on its own.
  */
 
-import { CircleAlert } from "lucide-react";
 import { useActionState, useEffect } from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { de } from "@/i18n/de";
 import { correctServe, recordServe } from "./actions";
 import { initialCorrectState, initialServeState } from "./serve-state";
-import { Confirmation } from "../confirmation";
+import { Confirmation, Notice } from "../notice";
 
 /** Today's record as the controls need it — serialisable, with the time already in German. */
 export interface TodaysRecordProps {
   readonly recordId: number;
   readonly time: string;
   readonly paid: boolean;
-}
-
-function Rejection({ message }: { message: string }): React.ReactElement {
-  return (
-    <Alert role="status" variant="destructive" className="border-destructive/40 bg-destructive/5">
-      <CircleAlert />
-      <AlertDescription data-testid="serve-error" className="max-w-prose">
-        {message}
-      </AlertDescription>
-    </Alert>
-  );
 }
 
 /**
@@ -180,7 +167,9 @@ export function ServeControls({
                 testId="serve-confirmation"
               />
             ) : null}
-            {correctState.status === "error" ? <Rejection message={correctState.message} /> : null}
+            {correctState.status === "error" ? (
+              <Notice tone="error" text={correctState.message} testId="serve-error" />
+            ) : null}
           </form>
         </CardContent>
       </Card>
@@ -205,7 +194,9 @@ export function ServeControls({
             >
               {de.distribution.serve.submit}
             </Button>
-            {serveState.status === "error" ? <Rejection message={serveState.message} /> : null}
+            {serveState.status === "error" ? (
+              <Notice tone="error" text={serveState.message} testId="serve-error" />
+            ) : null}
           </form>
         </CardContent>
       </Card>

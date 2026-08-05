@@ -53,3 +53,22 @@ export const FREE_SLOT_ACCENT = "border-emerald-600/40 bg-emerald-600/15";
  * tint only repeats it.
  */
 export const CONFIRMATION_ACCENT = "border-green-600/40 bg-green-600/10";
+
+/**
+ * A write did not go through, and nothing is broken: a rule refused it, or the input needs fixing.
+ *
+ * Amber rather than red because the two say different things to somebody with a queue in front of
+ * them — "this household already collected today" is the counter's ordinary business and the staff
+ * member can settle it on the spot, while red should mean the screen is describing something that is
+ * no longer there. Red for both is what the application said before, and it made every refusal look
+ * like a fault (`docs/ui_action_feedback_review.md` §4).
+ *
+ * This is the second thing amber says here, and it does not collide with the first. A lapsed
+ * certificate is **standing state** — attached to a row or a verdict, true until somebody changes
+ * it. A refusal is an **answer to a button**, gone on the next render. They are never the same
+ * element and never the same grammar, and the counter's amber `warn` verdict is already the reading
+ * "the rules say be careful", so this extends a precedent rather than inventing one.
+ *
+ * Worn through `Notice`'s `refusal` tone; nothing hand-tints it.
+ */
+export const REFUSAL_ACCENT = "border-amber-500/40 bg-amber-500/10";
