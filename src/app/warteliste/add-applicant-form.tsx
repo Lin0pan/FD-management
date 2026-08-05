@@ -16,7 +16,7 @@
  * behind `addToWaitingList`; the form only collects what an entry records.
  */
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -79,6 +79,29 @@ function Fields(): React.ReactElement {
 
 export function AddApplicantForm(): React.ReactElement {
   const [state, action, pending] = useActionState(addApplicantAction, initialAddApplicantState);
+  const answer = useRef<HTMLDivElement>(null);
+
+  // The one place on this screen where the viewport rule needs help. Nothing scrolls — measured,
+  // `window.scrollY` is identical either side of the click — but the applicant who was just added
+  // arrives as a *new row in the list above this form*, which pushes the form, its button and its
+  // confirmation down by the height of that row. With the button near the bottom of the screen when
+  // it was pressed, the answer lands just past it: 905px of a 900px viewport, measured on the demo
+  // data (`docs/ui_action_feedback_review.md` §3.3).
+  //
+  // Asked rather than assumed, and only then: on any screen tall enough to hold the form the
+  // confirmation is already in view, and scrolling a page that did not need it is its own way of
+  // losing the reader. `block: "center"` rather than `"nearest"` because the row is inserted in the
+  // same commit — `"nearest"` scrolls by the minimum the layout claims at that moment and left the
+  // banner eight pixels clipped.
+  useEffect((): void => {
+    if (state.status !== "saved") {
+      return;
+    }
+    const box = answer.current?.getBoundingClientRect();
+    if (box !== undefined && (box.bottom > window.innerHeight || box.top < 0)) {
+      answer.current?.scrollIntoView({ block: "center" });
+    }
+  }, [state]);
 
   return (
     // Named, so the button beside the heading can jump here. Staff arrive on this screen from
@@ -102,7 +125,9 @@ export function AddApplicantForm(): React.ReactElement {
             <Notice tone="error" text={state.message} testId="waiting-list-add-error" />
           ) : null}
           {state.status === "saved" && state.message !== undefined ? (
-            <Notice tone="success" text={state.message} testId="waiting-list-add-saved" />
+            <div ref={answer}>
+              <Notice tone="success" text={state.message} testId="waiting-list-add-saved" />
+            </div>
           ) : null}
 
           <Button
