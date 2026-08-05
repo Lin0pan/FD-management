@@ -230,6 +230,14 @@ export const de = {
         `Diese Sperre wird aufgehoben: „${reason}“. Der Kunde ist danach wieder bezugsberechtigt.`,
       unblockSubmit: "Sperre jetzt aufheben",
       unblocking: "Wird aufgehoben …",
+      /**
+       * The two confirmations. Each names the state the household is now in rather than the button
+       * that was pressed: the controls swap places after the write — "Sperren" becomes "Sperre
+       * aufheben" — and a sentence saying what was clicked would be read next to a control that
+       * says the opposite.
+       */
+      blocked: "Der Kunde ist jetzt gesperrt und erhält an der Ausgabe nichts.",
+      unblocked: "Die Sperre ist aufgehoben. Der Kunde ist wieder bezugsberechtigt.",
       errors: {
         missingReason: "Bitte einen Grund für die Sperre angeben.",
         notBlockable: "Dieser Kunde kann nicht gesperrt werden. Bitte die Seite neu laden.",
@@ -256,6 +264,16 @@ export const de = {
         `machen lässt sich die Archivierung nicht: Wer zurückkommt, wird neu aufgenommen.`,
       submit: "Jetzt archivieren",
       submitting: "Wird archiviert …",
+      /**
+       * The confirmation, read at the top of the screen the archive navigated back to.
+       *
+       * It says what the standing banner beneath it does not: that *this click* did it. The banner
+       * is a fact about the household and will be there next year; this is the receipt, and it names
+       * the freed number because that is the consequence staff act on — somebody on the waiting list
+       * can have it.
+       */
+      saved: (customerNumber: number): string =>
+        `Der Haushalt ist archiviert. Die Kundennummer ${customerNumber} ist wieder frei.`,
       /** The banner an archived record carries — the reason and the day, on every screen it shows on. */
       bannerHeading: "Archiviert",
       bannerDetail: (date: string, reason: string): string =>
@@ -484,6 +502,17 @@ export const de = {
         "kostet den Haushalt nichts.",
       submit: "Neue Karte jetzt ausstellen",
       submitting: "Wird ausgestellt …",
+      /**
+       * The confirmation, naming the number again after the write.
+       *
+       * It was named before the write too, in `confirm` — deliberately, because the number is what
+       * staff copy onto the physical card and the reissue is not something they can take back. This
+       * repeats it because the sentence is now a receipt rather than a warning, and because on
+       * `/karten-neuausstellung` the row it was read from is gone by the time this is read.
+       */
+      saved: (next: string): string =>
+        `Die neue Karte ${next} ist ausgestellt. Die alte Karte ist ungültig und darf an der ` +
+        `Ausgabe nicht mehr angenommen werden.`,
       errors: {
         archived:
           "Dieser Kunde ist archiviert und erhält keine neue Karte. Bitte die Seite neu laden.",
@@ -764,6 +793,17 @@ export const de = {
       reasonHint: "Zum Beispiel: zurückgezogen, umgezogen, nicht mehr erreichbar.",
       submit: "Von der Warteliste nehmen",
       submitting: "Wird entfernt …",
+      /**
+       * Read on the list itself, after the row and the control that produced it are gone.
+       *
+       * It names nobody. The applicant was named in `confirm`, one click earlier, and a name in a
+       * banner would have to come from the URL the removal redirects through — which is where the
+       * one place FD's data must not end up is a browser history. What is left to say is that the
+       * entry was kept, which is the thing the shortened list does not say.
+       */
+      saved:
+        "Der Eintrag ist von der Warteliste genommen. Er bleibt mit dem Grund erhalten, damit die " +
+        "Reihenfolge nachvollziehbar bleibt.",
     },
     /** Registering the applicant a freed slot belongs to. */
     promote: {

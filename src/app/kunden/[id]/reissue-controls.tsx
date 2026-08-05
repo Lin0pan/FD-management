@@ -24,7 +24,8 @@ import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { reissueCardAction } from "./actions";
 import { initialReissueState } from "./reissue-state";
-import { Notice } from "../../notice";
+import { Confirmation, Notice } from "../../notice";
+import { useNoticeSlot } from "../../notice-board";
 
 export function ReissueControls({
   customerId,
@@ -38,6 +39,7 @@ export function ReissueControls({
   nextCardNumber: string;
 }): React.ReactElement {
   const [state, action, pending] = useActionState(reissueCardAction, initialReissueState);
+  const showing = useNoticeSlot("reissue", state.status === "idle" ? null : state);
 
   return (
     <form action={action} className="flex flex-col gap-3">
@@ -68,7 +70,14 @@ export function ReissueControls({
           </span>
         </div>
       </details>
-      {state.status === "error" ? (
+      {/* The number again, after the write. The record and the card view both re-render it from the
+          store, which is why this control had no confirmation at all — but a field further down the
+          page changing from 1k1 to 1k2 is something staff would have to go and check, and this is
+          the one they read where they clicked. */}
+      {showing && state.status === "saved" ? (
+        <Confirmation text={de.customers.reissue.saved(state.cardNumber)} testId="reissue-saved" />
+      ) : null}
+      {showing && state.status === "error" ? (
         <Notice tone="error" text={state.message} testId="reissue-error" />
       ) : null}
     </form>

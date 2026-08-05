@@ -40,6 +40,9 @@ const CERTIFICATE_TYPE = "Jobcenter-Bescheid";
 /** Why the household that frees the slot is archived — an archive's only record. */
 const ARCHIVE_REASON = "Umgezogen, telefonisch abgemeldet.";
 
+/** Why the second applicant comes off the list at the end — kept on the row, never deleted. */
+const REMOVAL_REASON = "Zurückgezogen, hat andere Unterstützung gefunden.";
+
 /**
  * The database the isolated server is running against — the same file, opened a second time.
  *
@@ -295,5 +298,34 @@ test.describe("Warteliste", () => {
     // promising a slot that does not exist.
     expect(await countOnRegister()).toBe(QUOTA);
     await expect(page.getByTestId("waiting-list-free-slot")).toHaveCount(0);
+  });
+
+  test("taking an applicant off the list says so, on the list they have left", async ({ page }) => {
+    await page.goto("/warteliste");
+    await expect(page.getByTestId("waiting-list-row")).toHaveCount(1);
+
+    await page.getByTestId("waiting-list-remove-open").click();
+    await expect(page.getByTestId("waiting-list-remove-confirm")).toHaveText(
+      de.waitingList.remove.confirm(fullName(second)),
+    );
+    await page.getByTestId("waiting-list-remove-reason").fill(REMOVAL_REASON);
+    await page.getByTestId("waiting-list-remove-submit").click();
+
+    // The row and the control that removed it both go, so the answer cannot stand beside the button:
+    // the removal redirects and the list itself states it. Until it did, the only evidence a removal
+    // had happened was a row missing from a list nobody was looking at.
+    await expect(page).toHaveURL(/\/warteliste\?entfernt=1$/);
+    await expect(page.getByTestId("waiting-list-remove-saved")).toHaveText(
+      de.waitingList.remove.saved,
+    );
+    await expect(page.getByTestId("waiting-list-row")).toHaveCount(0);
+
+    // Kept, not deleted (FR-7): the row carries the reason it went, which is what keeps the order the
+    // queue was served in reconstructable.
+    const removed = await prisma.waitingListEntry.findFirstOrThrow({
+      where: { firstName: second.firstName, lastName: second.lastName },
+    });
+    expect(removed.removedOn).not.toBeNull();
+    expect(removed.removalReason).toBe(REMOVAL_REASON);
   });
 });

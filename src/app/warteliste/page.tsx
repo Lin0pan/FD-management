@@ -32,7 +32,9 @@ import { AddApplicantForm } from "./add-applicant-form";
 import { ADD_FORM_ANCHOR } from "./add-form-anchor";
 import { waitingListDeps } from "./deps";
 import { FreeSlotBanner } from "./free-slot-banner";
+import { Confirmation } from "../notice";
 import { RemoveApplicantControls } from "./remove-applicant-controls";
+import { REMOVED } from "./removed-flag";
 import { SHELL } from "../shell";
 
 /**
@@ -132,8 +134,12 @@ function Row({
   );
 }
 
-export default async function WaitingListPage(): Promise<React.ReactElement> {
-  const [places, proposal] = await Promise.all([
+export default async function WaitingListPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [REMOVED]?: string | string[] }>;
+}): Promise<React.ReactElement> {
+  const [places, proposal, params] = await Promise.all([
     listWaiting(waitingListDeps),
     // A full register is `customerNumber: null`, which is exactly the question the banner asks. The
     // proposal is a read and reserves nothing — the number is allocated again when the promoted
@@ -147,7 +153,9 @@ export default async function WaitingListPage(): Promise<React.ReactElement> {
       }
       throw error;
     }),
+    searchParams,
   ]);
+  const removed = params[REMOVED] === "1";
 
   // Position 1 and nobody else: the head of the list the domain ordered. Reading it off the list is
   // deliberate — asking who is next a second time is how the banner and the list come to disagree.
@@ -173,6 +181,14 @@ export default async function WaitingListPage(): Promise<React.ReactElement> {
         </Button>
       </div>
       {slotIsFree ? <FreeSlotBanner head={head} customerNumber={freeNumber} /> : null}
+
+      {/* The row the removal was started from is gone by the time this renders, which is the whole
+          problem it answers: a list one shorter is not an answer to a button. Above the list, where
+          the redirect lands, and stating the thing the shortened list cannot — that the entry was
+          kept. */}
+      {removed ? (
+        <Confirmation text={de.waitingList.remove.saved} testId="waiting-list-remove-saved" />
+      ) : null}
 
       {/* One card with divided rows rather than a card per applicant: fifteen nested rounded boxes
           read as a pile of panels, and this is a list. */}

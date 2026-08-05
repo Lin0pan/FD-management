@@ -30,6 +30,7 @@ import { renewCertificate } from "@/application/customers/renew-certificate";
 import { updateCustomerDetails } from "@/application/customers/update-customer-details";
 import { updateHousehold } from "@/application/customers/update-household";
 import { updateNotes } from "@/application/customers/update-notes";
+import { formatCardNumber } from "@/domain/card/cardNumber";
 import { parseGroup } from "@/domain/customer/group";
 import {
   CertificateValidUntilInPast,
@@ -40,7 +41,7 @@ import {
 import { customerFieldLabel, de } from "@/i18n/de";
 import { customerDeps } from "../deps";
 import { calendarDay, customerErrorMessage, householdRows } from "../neu/registration-input";
-import { initialReissueState, type ReissueState } from "./reissue-state";
+import { type ReissueState } from "./reissue-state";
 import { savedAfter, type RecordFormState } from "./record-state";
 
 /** A surrogate id as a hidden form field carries it — a positive whole number, or the form is stale. */
@@ -107,6 +108,12 @@ function revalidateRecord(customerId: number): void {
  * one refusal, and it comes back as a German sentence beside the button. On success both the record
  * and the card view are revalidated, so whichever screen the reissue was started from shows the new
  * number, and the other one does too when it is next opened.
+ *
+ * The number goes back with the confirmation, which is what the second read is for. It is the thing
+ * staff copy onto the physical card, so it is stated from what was actually written — the index the
+ * card came back with and the slot the customer holds — rather than echoed back from the form, which
+ * would let the receipt say something the register does not. `formatCardNumber` is the domain's own,
+ * so the sentence and the card view spell the number the same way.
  */
 export async function reissueCardAction(
   _previous: ReissueState,
@@ -117,8 +124,14 @@ export async function reissueCardAction(
     return { status: "error", message: de.customers.reissue.errors.unknown };
   }
 
+  let cardNumber: string;
   try {
-    await reissueCard(customerDeps, { customerId: customerId.data, reason: "LOST" });
+    const card = await reissueCard(customerDeps, { customerId: customerId.data, reason: "LOST" });
+    const customer = await customerDeps.customers.findById(customerId.data);
+    if (customer === null) {
+      return { status: "error", message: de.customers.reissue.errors.unknown };
+    }
+    cardNumber = formatCardNumber(customer.customerNumber, card.index);
   } catch (error: unknown) {
     if (error instanceof CustomerArchived) {
       return { status: "error", message: de.customers.reissue.errors.archived };
@@ -128,7 +141,7 @@ export async function reissueCardAction(
 
   revalidatePath(`/kunden/${customerId.data}`);
   revalidatePath(`/kunden/${customerId.data}/karte`);
-  return initialReissueState;
+  return { status: "saved", cardNumber };
 }
 
 /**

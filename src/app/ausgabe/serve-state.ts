@@ -16,11 +16,17 @@ export type ServeState =
 
 export const initialServeState: ServeState = { status: "idle" };
 
-/** What the correction control shows after amending or removing today's record. */
+/**
+ * What the correction control shows after amending today's record.
+ *
+ * There is no `removed`. There used to be, and no component could render it: a removal makes
+ * `todaysRecord` null, so the card holding this state unmounts in the same render that would have
+ * shown the answer. The removal's confirmation is handed to the page through a redirect instead
+ * (`removed-flag.ts`), and what is left here is the pair the card survives to show.
+ */
 export type CorrectState =
   | { readonly status: "idle" }
   | { readonly status: "saved" }
-  | { readonly status: "removed" }
   | { readonly status: "error"; readonly message: string };
 
 export const initialCorrectState: CorrectState = { status: "idle" };

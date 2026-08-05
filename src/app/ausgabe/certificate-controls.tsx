@@ -25,6 +25,7 @@ import { de } from "@/i18n/de";
 import { logReminder, recordRenewal } from "./actions";
 import { initialReminderState, initialRenewalState } from "./serve-state";
 import { Confirmation, Notice } from "../notice";
+import { useNoticeSlot } from "../notice-board";
 
 export function CertificateControls({
   customerId,
@@ -39,6 +40,15 @@ export function CertificateControls({
 }): React.ReactElement | null {
   const [reminderState, remind, reminding] = useActionState(logReminder, initialReminderState);
   const [renewalState, renew, renewing] = useActionState(recordRenewal, initialRenewalState);
+
+  const showingReminder = useNoticeSlot(
+    "reminder",
+    reminderState.status === "idle" ? null : reminderState,
+  );
+  const showingRenewal = useNoticeSlot(
+    "renewal",
+    renewalState.status === "idle" ? null : renewalState,
+  );
 
   const words = de.distribution.certificate;
   const renewalSaved = renewalState.status === "saved";
@@ -61,7 +71,7 @@ export function CertificateControls({
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
-        {renewalSaved ? (
+        {showingRenewal && renewalSaved ? (
           <Confirmation text={words.renewal.saved} testId="renewal-confirmation" />
         ) : null}
 
@@ -82,13 +92,13 @@ export function CertificateControls({
                   {alreadyLogged ? words.reminder.loggedToday : words.reminder.submit}
                 </Button>
               </div>
-              {reminderState.status === "logged" ? (
+              {showingReminder && reminderState.status === "logged" ? (
                 <Confirmation
                   text={words.reminder.confirmed(reminderState.count)}
                   testId="reminder-confirmation"
                 />
               ) : null}
-              {reminderState.status === "error" ? (
+              {showingReminder && reminderState.status === "error" ? (
                 <Notice tone="error" text={reminderState.message} testId="reminder-error" />
               ) : null}
             </form>
@@ -132,7 +142,7 @@ export function CertificateControls({
                   {words.renewal.submit}
                 </Button>
               </div>
-              {renewalState.status === "error" ? (
+              {showingRenewal && renewalState.status === "error" ? (
                 <Notice tone="error" text={renewalState.message} testId="renewal-error" />
               ) : null}
             </form>

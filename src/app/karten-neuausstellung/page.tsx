@@ -21,10 +21,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCardNumber, parseCardNumber } from "@/domain/card/cardNumber";
 import type { Group } from "@/domain/customer/group";
 import { de } from "@/i18n/de";
 import { GROUP_STYLES } from "../accents";
+import { ISSUED_CARD } from "./issued-card";
 import { customerDeps } from "../kunden/deps";
+import { Confirmation } from "../notice";
 import { StaleCardControls } from "./stale-card-controls";
 import { SHELL } from "../shell";
 import { Stat } from "../stat";
@@ -162,14 +165,47 @@ function Row({ due }: { due: CardDueForReissue }): React.ReactElement {
   );
 }
 
-export default async function CardsDuePage(): Promise<React.ReactElement> {
-  const due = await listCardsDueForReissue(customerDeps);
+/**
+ * The number a just-finished reissue handed over, or `null`.
+ *
+ * Parsed rather than printed as it arrived: what comes back is a string somebody could have typed
+ * into the address bar, and a banner announcing a card that was never issued would be worse than no
+ * banner at all. `parseCardNumber` is the same reader the counter uses, so what this screen accepts
+ * as a card number and what that one does cannot drift apart.
+ */
+function issuedCard(value: string | string[] | undefined): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  try {
+    const { customerNumber, index } = parseCardNumber(value);
+    return formatCardNumber(customerNumber, index);
+  } catch {
+    return null;
+  }
+}
+
+export default async function CardsDuePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [ISSUED_CARD]?: string | string[] }>;
+}): Promise<React.ReactElement> {
+  const [due, params] = await Promise.all([listCardsDueForReissue(customerDeps), searchParams]);
+  const issued = issuedCard(params[ISSUED_CARD]);
 
   return (
     <main className={SHELL}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-semibold tracking-tight">{de.cardsDue.heading}</h1>
       </div>
+
+      {/* The row the reissue was started from is gone by the time this renders — it is the row's
+          disappearance that a confirmation has to answer for. Above the list rather than where the
+          row used to be: there is nothing to stand beside any more, and the redirect that brings it
+          here lands at the top of the screen. */}
+      {issued === null ? null : (
+        <Confirmation text={de.customers.reissue.saved(issued)} testId="stale-reissue-saved" />
+      )}
 
       {/* Above the list, not beneath it: whoever opens this screen has to read that nothing here is
           urgent before they read the first row, not after they have worked through it. A `status`

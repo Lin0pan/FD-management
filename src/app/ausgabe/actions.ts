@@ -16,6 +16,7 @@
  */
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { recordReminder } from "@/application/customers/record-reminder";
 import { renewCertificate } from "@/application/customers/renew-certificate";
@@ -34,6 +35,7 @@ import {
 import { customerFieldLabel, de } from "@/i18n/de";
 import { germanTime } from "@/i18n/format";
 import { counterActionDeps } from "./deps";
+import { RECORD_REMOVED } from "./removed-flag";
 import type { CorrectState, ReminderState, RenewalState, ServeState } from "./serve-state";
 
 /** A surrogate id as a hidden form field carries it — a positive whole number, or the form is stale. */
@@ -102,6 +104,14 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
 /**
  * Amend or remove today's record. The clicked button names the intent through `action`: `SET_PAID`
  * writes the checkbox's new value, `REMOVE` deletes the record after the form's confirmation step.
+ *
+ * The two answers leave by different routes, because a removal destroys the card that would show it.
+ * `SET_PAID` comes back as `saved` and is read beside the button. `REMOVE` makes `todaysRecord` null,
+ * so the whole correction card unmounts and takes the state holding the answer with it — which is
+ * why this action's `removed` result was, for its whole life, a branch no component could render
+ * (`docs/ui_action_feedback_review.md` §3.2). It redirects instead, keeping the number that was
+ * looked up so the household stays on screen, and the counter states it above the verdict.
+ * `redirect` throws its own control-flow error and so is called outside the `try`.
  */
 export async function correctServe(
   _previous: CorrectState,
@@ -121,10 +131,15 @@ export async function correctServe(
         : { recordId: recordId.data, action: "SET_PAID", paid: formData.get("paid") !== null },
     );
     revalidatePath("/ausgabe");
-    return { status: remove ? "removed" : "saved" };
   } catch (error: unknown) {
     return { status: "error", message: correctMessage(error) };
   }
+
+  if (remove) {
+    const nummer = String(formData.get("nummer") ?? "");
+    redirect(`/ausgabe?nummer=${encodeURIComponent(nummer)}&${RECORD_REMOVED}=1`);
+  }
+  return { status: "saved" };
 }
 
 /** Turn a typed domain error from the reminder path into the German sentence the counter shows. */

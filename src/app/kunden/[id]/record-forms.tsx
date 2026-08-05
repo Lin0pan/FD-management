@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { RecordFormState } from "./record-state";
 import { de } from "@/i18n/de";
+import { useNoticeSlot } from "../../notice-board";
 import { Notice } from "../../notice";
 
 /**
@@ -119,6 +120,12 @@ export function SaveFeedback({
   /** The confirmation's words, where a form has something more to say than "gespeichert". */
   savedText?: string;
 }): React.ReactElement | null {
+  // The record carries five of these plus the reissue, the block and the archive; the board is what
+  // stops the fourth one's „Gespeichert." from still being on screen under the eighth one's button.
+  const showing = useNoticeSlot(testId, state.status === "idle" ? null : state);
+  if (!showing) {
+    return null;
+  }
   if (state.status === "saved") {
     // Green, like every other write that went through. This was neutral on the argument that a save
     // is not the completion of an *act* the way a hand-out is — a distinction that is real and that

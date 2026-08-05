@@ -188,6 +188,11 @@ test.describe("Kunde sperren und entsperren", () => {
     await page.getByTestId("block-reason").fill(BLOCK_REASON);
     await page.getByTestId("block-submit").click();
 
+    // The block says so where the button was. It has to be stated by the control rather than left
+    // to the status pill: the pill is 2 000px up the record, and "Sperren" turning into "Sperre
+    // aufheben" is a change to the thing you just pressed, not an answer from it.
+    await expect(page.getByTestId("block-saved")).toHaveText(de.customers.block.blocked);
+
     // The action revalidates the record: the status flips to blocked and the reason is on file,
     // shown verbatim on the record before it is ever read at the counter.
     await expect(page.getByTestId("customer-status")).toHaveText(de.customers.status.BLOCKED);
@@ -219,6 +224,10 @@ test.describe("Kunde sperren und entsperren", () => {
     await page.getByTestId("unblock-open").click();
     await expect(page.getByText(de.customers.block.unblockConfirm(BLOCK_REASON))).toBeVisible();
     await page.getByTestId("unblock-submit").click();
+
+    // And the lift says so in its own words — the confirmation belongs to the write that happened,
+    // not to the control now on screen, which is "Sperren" again.
+    await expect(page.getByTestId("block-saved")).toHaveText(de.customers.block.unblocked);
 
     // Back to active, and the block controls give way to "Sperren" again — the reason is gone.
     await expect(page.getByTestId("customer-status")).toHaveText(de.customers.status.ACTIVE);

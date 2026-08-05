@@ -23,7 +23,7 @@ import { blockCustomer } from "@/application/customers/block-customer";
 import { unblockCustomer } from "@/application/customers/unblock-customer";
 import { IllegalStatusTransition, MissingAuditReason } from "@/domain/errors";
 import { de } from "@/i18n/de";
-import { initialBlockState, type BlockState } from "./block-state";
+import { blockSaved, type BlockState } from "./block-state";
 import { customerDeps } from "./deps";
 
 /** A surrogate id as a hidden form field carries it — a positive whole number, or the form is stale. */
@@ -65,7 +65,7 @@ export async function blockCustomerAction(
 
   revalidatePath(`/kunden/${customerId.data}`);
   revalidatePath("/ausgabe");
-  return initialBlockState;
+  return blockSaved;
 }
 
 /**
@@ -92,5 +92,5 @@ export async function unblockCustomerAction(
 
   revalidatePath(`/kunden/${customerId.data}`);
   revalidatePath("/ausgabe");
-  return initialBlockState;
+  return blockSaved;
 }

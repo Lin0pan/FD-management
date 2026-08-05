@@ -14,6 +14,7 @@
  */
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { addToWaitingList } from "@/application/waiting-list/add-to-waiting-list";
 import { removeFromWaitingList } from "@/application/waiting-list/remove-from-waiting-list";
@@ -28,11 +29,8 @@ import { customerFieldLabel, de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { calendarDay } from "../kunden/neu/registration-input";
 import { waitingListDeps } from "./deps";
-import {
-  initialRemoveApplicantState,
-  type AddApplicantState,
-  type RemoveApplicantState,
-} from "./waiting-list-state";
+import { REMOVED } from "./removed-flag";
+import { type AddApplicantState, type RemoveApplicantState } from "./waiting-list-state";
 
 /** A surrogate id as a hidden form field carries it — a positive whole number, or the form is stale. */
 const surrogateId = z
@@ -142,6 +140,13 @@ export async function addApplicantAction(
  *
  * The hub and the home screen are revalidated with the list: their banner names whoever is at the
  * head, and a removal is one of the two ways that can change.
+ *
+ * Then it **redirects**, rather than returning a `saved` state, because the row this was submitted
+ * from is what the revalidate takes away — the control and any state it held go with it, which is
+ * why this was the worst of the six writes that said nothing: the only evidence was a row missing
+ * from a list nobody was looking at (`docs/ui_action_feedback_review.md` §3.1, §5). `redirect`
+ * throws its own control-flow error, so it is called outside the `try`, where the catch cannot file
+ * the navigation as a failed removal.
  */
 export async function removeApplicantAction(
   _previous: RemoveApplicantState,
@@ -171,5 +176,5 @@ export async function removeApplicantAction(
   // Both screens the free-slot banner stands on: the hub (US-17.2) and the home screen.
   revalidatePath("/kunden");
   revalidatePath("/");
-  return initialRemoveApplicantState;
+  redirect(`/warteliste?${REMOVED}=1`);
 }

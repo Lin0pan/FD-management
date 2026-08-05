@@ -24,6 +24,7 @@ import { de } from "@/i18n/de";
 import { correctServe, recordServe } from "./actions";
 import { initialCorrectState, initialServeState } from "./serve-state";
 import { Confirmation, Notice } from "../notice";
+import { useNoticeSlot } from "../notice-board";
 
 /** Today's record as the controls need it — serialisable, with the time already in German. */
 export interface TodaysRecordProps {
@@ -63,13 +64,27 @@ export function ServeControls({
   customerId,
   canServe,
   todaysRecord,
+  lookedUpNumber,
 }: {
   customerId: number;
   canServe: boolean;
   todaysRecord: TodaysRecordProps | null;
+  /**
+   * What was typed into the counter's field to reach this household, submitted with a removal so the
+   * redirect that carries its confirmation comes back to the same lookup rather than an empty field.
+   */
+  lookedUpNumber: string;
 }): React.ReactElement | null {
   const [serveState, serve, serving] = useActionState(recordServe, initialServeState);
   const [correctState, correct, correcting] = useActionState(correctServe, initialCorrectState);
+  // Two slots, not one: a hand-out and a correction to it are two answers that can both be sitting
+  // in this component's state at once, and they share a test id because only one of them is ever the
+  // current one. The board is what makes that true rather than merely intended.
+  const showingServe = useNoticeSlot("serve", serveState.status === "idle" ? null : serveState);
+  const showingCorrect = useNoticeSlot(
+    "correct",
+    correctState.status === "idle" ? null : correctState,
+  );
 
   // Once the hand-out is stored, empty the number field so no stale number is waiting when staff
   // scroll back up to it (US-05.4). The input lives in the page's lookup form; reaching it by id is
@@ -107,7 +122,7 @@ export function ServeControls({
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {serveState.status === "recorded" ? (
+          {showingServe && serveState.status === "recorded" ? (
             <Confirmation
               text={de.distribution.serve.confirmed(serveState.at)}
               testId="serve-confirmation"
@@ -116,6 +131,7 @@ export function ServeControls({
 
           <form action={correct} className="flex flex-col gap-3">
             <input type="hidden" name="recordId" value={todaysRecord.recordId} />
+            <input type="hidden" name="nummer" value={lookedUpNumber} />
             <h3 className="font-heading text-base font-medium">
               {de.distribution.serve.correct.heading}
             </h3>
@@ -161,13 +177,13 @@ export function ServeControls({
             {/* The same test id as the hand-out's confirmation above: only one of the two can be on
                 screen at a time, and a spec that asserts "the counter confirmed" should not have to
                 know which of the two acts it was. */}
-            {correctState.status === "saved" ? (
+            {showingCorrect && correctState.status === "saved" ? (
               <Confirmation
                 text={de.distribution.serve.correct.saved}
                 testId="serve-confirmation"
               />
             ) : null}
-            {correctState.status === "error" ? (
+            {showingCorrect && correctState.status === "error" ? (
               <Notice tone="error" text={correctState.message} testId="serve-error" />
             ) : null}
           </form>
@@ -194,7 +210,7 @@ export function ServeControls({
             >
               {de.distribution.serve.submit}
             </Button>
-            {serveState.status === "error" ? (
+            {showingServe && serveState.status === "error" ? (
               <Notice tone="error" text={serveState.message} testId="serve-error" />
             ) : null}
           </form>
