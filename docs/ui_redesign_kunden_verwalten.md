@@ -206,7 +206,7 @@ data row at 1440×900, down from 628px. That is ~14 rows visible instead of 5.
 ```
 ┌─ Nav (existing, sticky, h-12) ────────────────────────────────────────────────┐
 
-  h1  Kunden verwalten                            [ + Neue Kundin aufnehmen ]   ← header row
+  h1  Kunden verwalten                              [ + Neuen Kunden aufnehmen ] ← header row
                                                                                   (CardAction-style)
   ┌─ Card: Übersicht & Aktionen ─────────────────────────────────────────────┐
   │  ┌──────────┐ ┌──────────┐   Warteliste  ▸  niemand wartet               │
@@ -230,9 +230,9 @@ data row at 1440×900, down from 628px. That is ~14 rows visible instead of 5.
 
 Four decisions carry this:
 
-**(a) The `h1` row takes the primary action.** `Neue Kundin oder neuen Kunden aufnehmen` is the only
-_write_ on the screen; it belongs beside the heading, following the page skeleton in the conversion
-guide. Frees a full band.
+**(a) The `h1` row takes the primary action.** `Neuen Kunden aufnehmen` is the only _write_ on the
+screen; it belongs beside the heading, following the page skeleton in the conversion guide. Frees a
+full band.
 
 **(b) The intro paragraph goes.** It explains the implementation. If anything survives, it is one
 short line as `CardDescription` on the list card. This is a **content change**, not a restyle — see

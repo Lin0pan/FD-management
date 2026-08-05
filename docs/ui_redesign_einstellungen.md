@@ -70,9 +70,9 @@ Measured: four fields were changed — `quotaN` → `0` (invalid), `pricePerGrow
 | `reason`           | `Testlauf` | **`""`**                      |
 
 **Four edits made, one invalid, four lost.** The screen then displays
-`Ungültiger Wert im Feld „Höchstzahl der Kundinnen und Kunden (N)"` — an error about a value that is
-no longer anywhere on screen. There is nothing to correct, because there is nothing left; the whole
-change has to be retyped from memory.
+`Ungültiger Wert im Feld „Höchstzahl der Kunden (N)"` — an error about a value that is no longer
+anywhere on screen. There is nothing to correct, because there is nothing left; the whole change has
+to be retyped from memory.
 
 The mechanism is the one the conversion guide records from `/kunden/neu`: React resets an
 uncontrolled form once its action resolves, and every field here is
@@ -101,9 +101,9 @@ The field carries no `aria-invalid`, no changed border, no marker of any kind �
 `border-color` is identical to every other field's.
 
 So the message has to name the field in words, and it does:
-`Ungültiger Wert im Feld „Höchstzahl der Kundinnen und Kunden (N)"`. That is 39 characters of German
-label used as a pointer, on a screen where the label is also printed 454px higher. The dictionary
-even carries a whole parallel table for it — `de.settings.errorFields`, keyed by the `field` values
+`Ungültiger Wert im Feld „Höchstzahl der Kunden (N)"`. That is 25 characters of German label used
+as a pointer, on a screen where the label is also printed 454px higher. The dictionary even
+carries a whole parallel table for it — `de.settings.errorFields`, keyed by the `field` values
 `InvalidSettings` throws — which exists solely because the error is too far from the field to point
 at it.
 
@@ -154,11 +154,11 @@ The screen groups them as `Aktuell gültige Werte` (quota + portions + **all thr
 settings**) and `Preise`. Because the first section is one `sm:grid-cols-2` flowing in source order,
 the two subjects do not merely share a section — **the grid pairs them row by row**:
 
-| Row | Column 1                                | Column 2                             |
-| --- | --------------------------------------- | ------------------------------------ |
-| 1   | Höchstzahl der Kundinnen und Kunden (N) | Portionen je Erwachsenem             |
-| 2   | **Portionen je Kind**                   | **Ankerwoche (ISO, z. B. 2026-W02)** |
-| 3   | **Gruppe der Ankerwoche**               | **Ausgabetag**                       |
+| Row | Column 1                  | Column 2                             |
+| --- | ------------------------- | ------------------------------------ |
+| 1   | Höchstzahl der Kunden (N) | Portionen je Erwachsenem             |
+| 2   | **Portionen je Kind**     | **Ankerwoche (ISO, z. B. 2026-W02)** |
+| 3   | **Gruppe der Ankerwoche** | **Ausgabetag**                       |
 
 Row 2 is a portions rule beside a calendar rule. A reader scanning for "when is the Ausgabe" has to
 read past two portions fields to find it, and a reader scanning for the prices finds three of the
@@ -167,22 +167,22 @@ five money-and-portions settings in one section and two in another.
 The heading over it does not help: **`Aktuell gültige Werte` describes everything on the screen**,
 including the two fields under `Preise`, so it distinguishes nothing.
 
-### 3.6 The history repeats 150 characters per version so that one of them can change
+### 3.6 The history repeats 136 characters per version so that one of them can change
 
 Two consecutive versions, after saving a price change of 10 cents, read verbatim:
 
 ```
 Geändert am 01.08.2026 — aktuell gültig
-Höchstzahl der Kundinnen und Kunden (N): 240 · Portionen je Erwachsenem: 2 · Portionen je Kind: 1
+Höchstzahl der Kunden (N): 240 · Portionen je Erwachsenem: 2 · Portionen je Kind: 1
 Preis je Erwachsenem: 2,10 € · Preis je Kind: 1,00 €
 
 Geändert am 01.01.2026
-Höchstzahl der Kundinnen und Kunden (N): 240 · Portionen je Erwachsenem: 2 · Portionen je Kind: 1
+Höchstzahl der Kunden (N): 240 · Portionen je Erwachsenem: 2 · Portionen je Kind: 1
 Preis je Erwachsenem: 2,00 € · Preis je Kind: 1,00 €
 ```
 
-Measured: the payload is **150 characters** and the two rows differ at **exactly one character
-index, 122**. The rows are 86px apart, and the reader has to compare **five `Feld: Wert` pairs**
+Measured: the payload is **136 characters** and the two rows differ at **exactly one character
+index, 108**. The rows are 86px apart, and the reader has to compare **five `Feld: Wert` pairs**
 across a wrapped run-on string to find which one moved. That is job C, and the format is the worst
 possible one for it — a table of five columns would put the change in a column, at a glance.
 
@@ -354,7 +354,7 @@ figures — which is what happens today and is correct. `reason` keeps clearing 
 
 **(e) The history becomes a table, one column per setting.** Eight columns and a date. A change is
 then a column whose value differs from the row below it, found by eye in one pass instead of by
-diffing 150 characters (§3.6). All eight settings appear, so an Ausgabetag change stops being
+diffing 136 characters (§3.6). All eight settings appear, so an Ausgabetag change stops being
 invisible. `aktuell gültig` becomes a `Badge` on the in-force row rather than a muted suffix.
 
 At two versions this is over-engineering; at twenty — which is where FD will be in a decade, since
@@ -567,11 +567,11 @@ Three numbers went the other way, and each is a card header rather than a mistak
 
 Two things this pass turned up that the concept did not predict:
 
-- **Spending the grid made the labels ragged.** Five inputs in one row landed on three baselines
-  (y=276/296/316), because `Höchstzahl der Kundinnen und Kunden (N)` wraps to three lines in the
-  163px slot §4.3 gives it and `Portionen je Erwachsenem` to two. Fixed with `grid-rows-subgrid`;
-  the rule is now in `docs/ui_conversion_guide.md`. It is also **evidence for §11.5**: that label
-  costs its row 40px of label height, which is a concrete price for the 39 characters.
+- **Spending the grid made the labels ragged.** Five inputs in one row landed on two baselines
+  (y=286/296), because `Höchstzahl der Kunden (N)` wraps to two lines in the 163px slot §4.3 gives
+  it and `Portionen je Kind` to one. Fixed with `grid-rows-subgrid`; the rule is now in
+  `docs/ui_conversion_guide.md`. It is also **evidence for §11.5**: the longest label in a row sets
+  that row's label height, so its length is paid for in vertical space by every field beside it.
 - **`reason` at `lg:col-span-12` is a 1056px box** for what is usually two words — against 408px
   before. §4.3 asks for 12 and it was built as asked, but it is the "field width is a promise"
   rule pointing the other way, and 6 columns would say what the field is for more honestly.
@@ -646,8 +646,8 @@ history back.
 4. **A live preview of a pending rhythm change?** §4.4 shows today's rhythm from the server. Showing
    what the _edited_ values would produce needs the week arithmetic on the client, which
    `getWeekColour` deliberately owns in the application layer. Probably not worth the boundary.
-5. **Is `Höchstzahl der Kundinnen und Kunden (N)` the right label?** It is 39 characters, it is the
-   longest string on the screen, it sets the width of a field holding three digits, and the `(N)` is
-   an internal name. "Höchstzahl der Haushalte" is shorter and truer — the quota counts households,
-   not people — but it appears in `fields`, in `errorFields` and in every history row, so changing it
-   is a dictionary change with three call sites.
+5. **Is `Höchstzahl der Kunden (N)` the right label?** It is 25 characters, it still wraps to two
+   lines above a field holding three digits, and the `(N)` is an internal name.
+   "Höchstzahl der Haushalte" is barely shorter but truer — the quota counts households, not people
+   — and it appears in `fields`, in `errorFields` and in every history row, so changing it is a
+   dictionary change with three call sites.
