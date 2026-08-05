@@ -99,7 +99,11 @@ export function CertificateControls({
                 />
               ) : null}
               {showingReminder && reminderState.status === "error" ? (
-                <Notice tone="error" text={reminderState.message} testId="reminder-error" />
+                <Notice
+                  tone={reminderState.tier}
+                  text={reminderState.message}
+                  testId="reminder-error"
+                />
               ) : null}
             </form>
 
@@ -143,7 +147,11 @@ export function CertificateControls({
                 </Button>
               </div>
               {showingRenewal && renewalState.status === "error" ? (
-                <Notice tone="error" text={renewalState.message} testId="renewal-error" />
+                <Notice
+                  tone={renewalState.tier}
+                  text={renewalState.message}
+                  testId="renewal-error"
+                />
               ) : null}
             </form>
           </>

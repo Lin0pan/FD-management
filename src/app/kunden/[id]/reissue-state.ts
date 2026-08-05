@@ -13,9 +13,11 @@
  * on the physical card.
  */
 
+import type { NoticeTier } from "../../notice-tier";
+
 export type ReissueState =
   | { readonly status: "idle" }
   | { readonly status: "saved"; readonly cardNumber: string }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
 
 export const initialReissueState: ReissueState = { status: "idle" };

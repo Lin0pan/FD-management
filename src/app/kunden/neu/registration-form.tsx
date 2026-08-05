@@ -482,7 +482,11 @@ export function RegistrationForm({
         footer={
           <>
             {state.status === "error" && state.message !== undefined ? (
-              <Notice tone="error" text={state.message} testId="registration-error" />
+              <Notice
+                tone={state.tier ?? "error"}
+                text={state.message}
+                testId="registration-error"
+              />
             ) : null}
 
             <Button type="submit" size="lg" disabled={pending || full}>

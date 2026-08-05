@@ -12,10 +12,12 @@
  * `BlockControls` knows which of the two writes produced the one it is now rendering.
  */
 
+import type { NoticeTier } from "../notice-tier";
+
 export type BlockState =
   | { readonly status: "idle" }
   | { readonly status: "saved" }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
 
 export const initialBlockState: BlockState = { status: "idle" };
 

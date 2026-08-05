@@ -83,7 +83,11 @@ export function RemoveApplicantControls({
           {pending ? de.waitingList.remove.submitting : de.waitingList.remove.submit}
         </Button>
         {state.status === "error" && state.message !== undefined ? (
-          <Notice tone="error" text={state.message} testId="waiting-list-remove-error" />
+          <Notice
+            tone={state.tier ?? "error"}
+            text={state.message}
+            testId="waiting-list-remove-error"
+          />
         ) : null}
       </form>
     </details>

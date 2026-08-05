@@ -78,7 +78,7 @@ export function ReissueControls({
         <Confirmation text={de.customers.reissue.saved(state.cardNumber)} testId="reissue-saved" />
       ) : null}
       {showing && state.status === "error" ? (
-        <Notice tone="error" text={state.message} testId="reissue-error" />
+        <Notice tone={state.tier} text={state.message} testId="reissue-error" />
       ) : null}
     </form>
   );

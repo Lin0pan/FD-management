@@ -184,7 +184,7 @@ export function BlockControls({
         />
       ) : null}
       {showing && answer.status === "error" ? (
-        <Notice tone="error" text={answer.message} testId="block-error" />
+        <Notice tone={answer.tier} text={answer.message} testId="block-error" />
       ) : null}
     </div>
   );

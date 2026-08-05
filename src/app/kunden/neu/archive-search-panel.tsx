@@ -24,7 +24,11 @@ import { Input } from "@/components/ui/input";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { loadArchivedDraft, searchArchive } from "./archive-search-actions";
-import { initialArchiveSearchState, type PrefillDraft } from "./archive-search-state";
+import {
+  type ArchiveDraftRefusal,
+  initialArchiveSearchState,
+  type PrefillDraft,
+} from "./archive-search-state";
 import { Notice } from "../../notice";
 
 /** One archived household, and the draft read from its record — what a selection consists of. */
@@ -166,7 +170,11 @@ export function ArchiveSearchPanel({
   // Which row is being read, so only that row's button says "Wird übernommen …" — with twenty rows
   // on screen, disabling all of them would hide which one was clicked.
   const [loadingId, setLoadingId] = useState<number | null>(null);
-  const [selectError, setSelectError] = useState<string | null>(null);
+  // The whole refusal, not just its sentence: the tier is decided from the typed error on the server
+  // and cannot be re-read from the German, so it has to travel with the message it belongs to
+  // (`notice-tier.ts`). An archived record that has since been reactivated is a refusal; one that is
+  // gone is an error.
+  const [selectError, setSelectError] = useState<ArchiveDraftRefusal | null>(null);
 
   async function select(match: ArchivedCustomerMatch): Promise<void> {
     setLoadingId(match.customerId);
@@ -174,7 +182,7 @@ export function ArchiveSearchPanel({
     const result = await loadArchivedDraft(match.customerId);
     setLoadingId(null);
     if (result.status === "error") {
-      setSelectError(result.message);
+      setSelectError(result);
       return;
     }
     onSelect({ match, draft: result.draft });
@@ -246,7 +254,11 @@ export function ArchiveSearchPanel({
           </form>
 
           {state.status === "error" && state.message !== undefined ? (
-            <Notice tone="error" text={state.message} testId="archive-search-error" />
+            <Notice
+              tone={state.tier ?? "error"}
+              text={state.message}
+              testId="archive-search-error"
+            />
           ) : null}
 
           {state.status === "results" && state.matches.length === 0 ? (
@@ -289,7 +301,11 @@ export function ArchiveSearchPanel({
           ) : null}
 
           {selectError === null ? null : (
-            <Notice tone="error" text={selectError} testId="archive-prefill-error" />
+            <Notice
+              tone={selectError.tier}
+              text={selectError.message}
+              testId="archive-prefill-error"
+            />
           )}
         </CardContent>
       </details>

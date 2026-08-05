@@ -135,7 +135,7 @@ export function SaveFeedback({
     return <Notice tone="success" text={savedText} testId={`${testId}-saved`} />;
   }
   if (state.status === "error") {
-    return <Notice tone="error" text={state.message} testId={`${testId}-error`} />;
+    return <Notice tone={state.tier} text={state.message} testId={`${testId}-error`} />;
   }
   return null;
 }

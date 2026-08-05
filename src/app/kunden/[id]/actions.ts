@@ -39,6 +39,7 @@ import {
   MissingRequiredField,
 } from "@/domain/errors";
 import { customerFieldLabel, de } from "@/i18n/de";
+import { tierOf } from "../../notice-tier";
 import { customerDeps } from "../deps";
 import { calendarDay, customerErrorMessage, householdRows } from "../neu/registration-input";
 import { type ReissueState } from "./reissue-state";
@@ -121,7 +122,7 @@ export async function reissueCardAction(
 ): Promise<ReissueState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
   if (!customerId.success) {
-    return { status: "error", message: de.customers.reissue.errors.unknown };
+    return { status: "error", message: de.customers.reissue.errors.unknown, tier: "error" };
   }
 
   let cardNumber: string;
@@ -129,14 +130,18 @@ export async function reissueCardAction(
     const card = await reissueCard(customerDeps, { customerId: customerId.data, reason: "LOST" });
     const customer = await customerDeps.customers.findById(customerId.data);
     if (customer === null) {
-      return { status: "error", message: de.customers.reissue.errors.unknown };
+      return { status: "error", message: de.customers.reissue.errors.unknown, tier: "error" };
     }
     cardNumber = formatCardNumber(customer.customerNumber, card.index);
   } catch (error: unknown) {
     if (error instanceof CustomerArchived) {
-      return { status: "error", message: de.customers.reissue.errors.archived };
+      return {
+        status: "error",
+        message: de.customers.reissue.errors.archived,
+        tier: tierOf(error),
+      };
     }
-    return { status: "error", message: de.customers.reissue.errors.unknown };
+    return { status: "error", message: de.customers.reissue.errors.unknown, tier: tierOf(error) };
   }
 
   revalidatePath(`/kunden/${customerId.data}`);
@@ -158,10 +163,10 @@ export async function updateHouseholdAction(
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
   const members = householdForm.safeParse({ householdMembers: householdRows(formData) });
   if (!customerId.success) {
-    return { status: "error", message: de.customers.record.errors.unknown };
+    return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
   }
   if (!members.success) {
-    return { status: "error", message: de.customers.errors.notADate };
+    return { status: "error", message: de.customers.errors.notADate, tier: "refusal" };
   }
 
   try {
@@ -170,7 +175,7 @@ export async function updateHouseholdAction(
       members: members.data.householdMembers,
     });
   } catch (error: unknown) {
-    return { status: "error", message: recordMessage(error) };
+    return { status: "error", message: recordMessage(error), tier: tierOf(error) };
   }
 
   revalidateRecord(customerId.data);
@@ -198,10 +203,10 @@ export async function updateDetailsAction(
     city: String(formData.get("city") ?? ""),
   });
   if (!customerId.success) {
-    return { status: "error", message: de.customers.record.errors.unknown };
+    return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
   }
   if (!fields.success) {
-    return { status: "error", message: de.customers.errors.notADate };
+    return { status: "error", message: de.customers.errors.notADate, tier: "refusal" };
   }
 
   const { firstName, lastName, birthDate, street, houseNumber, zip, city } = fields.data;
@@ -214,7 +219,7 @@ export async function updateDetailsAction(
       address: { street, houseNumber, zip, city },
     });
   } catch (error: unknown) {
-    return { status: "error", message: recordMessage(error) };
+    return { status: "error", message: recordMessage(error), tier: tierOf(error) };
   }
 
   revalidateRecord(customerId.data);
@@ -231,7 +236,7 @@ export async function updateNotesAction(
 ): Promise<RecordFormState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
   if (!customerId.success) {
-    return { status: "error", message: de.customers.record.errors.unknown };
+    return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
   }
 
   try {
@@ -240,7 +245,7 @@ export async function updateNotesAction(
       notes: String(formData.get("notes") ?? ""),
     });
   } catch (error: unknown) {
-    return { status: "error", message: recordMessage(error) };
+    return { status: "error", message: recordMessage(error), tier: tierOf(error) };
   }
 
   revalidateRecord(customerId.data);
@@ -261,7 +266,7 @@ export async function changeGroupAction(
 ): Promise<RecordFormState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
   if (!customerId.success) {
-    return { status: "error", message: de.customers.record.errors.unknown };
+    return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
   }
 
   let group;
@@ -271,6 +276,7 @@ export async function changeGroupAction(
     return {
       status: "error",
       message: de.customers.errors.missingField(de.customers.fields.group),
+      tier: "refusal",
     };
   }
 
@@ -281,9 +287,10 @@ export async function changeGroupAction(
       return {
         status: "error",
         message: de.customers.errors.groupUnchanged(de.customers.groups[group]),
+        tier: tierOf(error),
       };
     }
-    return { status: "error", message: recordMessage(error) };
+    return { status: "error", message: recordMessage(error), tier: tierOf(error) };
   }
 
   revalidateRecord(customerId.data);
@@ -307,10 +314,14 @@ export async function renewCertificateAction(
     validUntil: String(formData.get("validUntil") ?? ""),
   });
   if (!customerId.success) {
-    return { status: "error", message: de.customers.record.errors.unknown };
+    return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
   }
   if (!fields.success) {
-    return { status: "error", message: de.distribution.certificate.renewal.errors.notADate };
+    return {
+      status: "error",
+      message: de.distribution.certificate.renewal.errors.notADate,
+      tier: "refusal",
+    };
   }
 
   try {
@@ -324,15 +335,21 @@ export async function renewCertificateAction(
       return {
         status: "error",
         message: de.distribution.certificate.renewal.errors.validUntilInPast,
+        tier: tierOf(error),
       };
     }
     if (error instanceof MissingRequiredField) {
       return {
         status: "error",
         message: de.customers.errors.missingField(customerFieldLabel(error.field)),
+        tier: tierOf(error),
       };
     }
-    return { status: "error", message: de.distribution.certificate.renewal.errors.unknown };
+    return {
+      status: "error",
+      message: de.distribution.certificate.renewal.errors.unknown,
+      tier: tierOf(error),
+    };
   }
 
   revalidateRecord(customerId.data);

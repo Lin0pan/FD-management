@@ -122,7 +122,11 @@ export function AddApplicantForm(): React.ReactElement {
           <Fields key={state.savedCount} />
 
           {state.status === "error" && state.message !== undefined ? (
-            <Notice tone="error" text={state.message} testId="waiting-list-add-error" />
+            <Notice
+              tone={state.tier ?? "error"}
+              text={state.message}
+              testId="waiting-list-add-error"
+            />
           ) : null}
           {state.status === "saved" && state.message !== undefined ? (
             <div ref={answer}>

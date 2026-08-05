@@ -22,6 +22,7 @@ import { IllegalStatusTransition, MissingAuditReason } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { type ArchiveState } from "./archive-state";
 import { ARCHIVED } from "./archived-flag";
+import { tierOf } from "../notice-tier";
 import { customerDeps } from "./deps";
 
 /**
@@ -57,7 +58,7 @@ export async function archiveCustomerAction(
 ): Promise<ArchiveState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
   if (!customerId.success) {
-    return { status: "error", message: de.customers.archive.errors.unknown };
+    return { status: "error", message: de.customers.archive.errors.unknown, tier: "error" };
   }
   // Where the control was pressed. Constrained to the two screens that offer it rather than trusted
   // as typed: a `returnTo` a form can put anything in is an open redirect, and this one comes back
@@ -71,12 +72,20 @@ export async function archiveCustomerAction(
     });
   } catch (error: unknown) {
     if (error instanceof MissingAuditReason) {
-      return { status: "error", message: de.customers.archive.errors.missingReason };
+      return {
+        status: "error",
+        message: de.customers.archive.errors.missingReason,
+        tier: tierOf(error),
+      };
     }
     if (error instanceof IllegalStatusTransition) {
-      return { status: "error", message: de.customers.archive.errors.notArchivable };
+      return {
+        status: "error",
+        message: de.customers.archive.errors.notArchivable,
+        tier: tierOf(error),
+      };
     }
-    return { status: "error", message: de.customers.archive.errors.unknown };
+    return { status: "error", message: de.customers.archive.errors.unknown, tier: tierOf(error) };
   }
 
   revalidatePath(`/kunden/${customerId.data}`);
