@@ -430,6 +430,24 @@ submits through an action, decide deliberately for each field whether the post-a
 wanted** — and check it in `playwright-cli` by reading `input.value` after the submit, not by
 looking at the page.
 
+**The decision is almost always by outcome, not by field.** The reset cannot tell a save from a
+refusal, but every form can: a save is finished and should start the next one clean, a refusal is the
+middle of the same change and should leave it exactly as the staff member left it. `/einstellungen`
+got this wrong in the most expensive way — a rejected save rewound all nine fields to what the
+database said, so four edits were lost because one of them was wrong, and the screen then marked a
+field holding a value nobody had typed (`docs/ui_redesign_einstellungen.md` §3.1).
+
+Three ways to get it right, cheapest first — reach for the state only when the form genuinely needs
+the server's values back:
+
+| The form already…                                                                    | Then                                                                                                                       |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| **remounts on a save** (a `key` on a counter, as `renewal-form.tsx` does on `saves`) | Make the fields controlled. The remount clears them; a refusal, which does not remount, keeps them.                        |
+| **unmounts on a save** (the counter's renewal lives inside `expired`)                | The same, and nothing has to clear them at all.                                                                            |
+| **must show stored values back** (`/einstellungen` falls back to what is saved)      | Carry the submission on the action state, present on a refusal and absent on a save, and read `state.values?.x ?? stored`. |
+
+The third is the only one that changes a type. Two `useState`s solved the other two.
+
 ## Field width is a promise
 
 Every field on `/kunden/neu` is 408px, because all four sections use one `sm:grid-cols-2`. `PLZ` is

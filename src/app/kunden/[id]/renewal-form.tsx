@@ -12,11 +12,16 @@
  * Unlike at the counter it is always offered, not only while the certificate is expired: a household
  * that brings the renewal early should not have to be turned away first for the form to appear.
  *
- * The fields are uncontrolled and remounted by their key after a save, so the next renewal starts on
- * an empty form rather than on the values that were just filed.
+ * The fields are **controlled**, and remounted by their key after a save. The two together are what
+ * makes the form behave differently in the two cases it has to tell apart: a save remounts, so the
+ * next renewal starts empty rather than on the values just filed; a refusal does not, so what was
+ * typed is still there to be corrected. Uncontrolled, React's own post-action reset emptied them
+ * either way — a past `gültig bis` was refused *and* deleted, along with the certificate type beside
+ * it, and the staff member retyped both to change one digit
+ * (`docs/ui_redesign_einstellungen.md` §4.2d, which is the same finding on the settings screen).
  */
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { de } from "@/i18n/de";
 import { Input } from "@/components/ui/input";
 import { renewCertificateAction } from "./actions";
@@ -29,6 +34,10 @@ export function RenewalForm({ customerId }: { customerId: number }): React.React
     initialRecordFormState,
   );
   const words = de.distribution.certificate.renewal;
+  // Initialised empty and re-initialised by the remount on `saves`, so these hold the current
+  // attempt and nothing else.
+  const [type, setType] = useState("");
+  const [validUntil, setValidUntil] = useState("");
 
   return (
     <form
@@ -49,6 +58,8 @@ export function RenewalForm({ customerId }: { customerId: number }): React.React
             type="text"
             name="type"
             required
+            value={type}
+            onChange={(event) => setType(event.target.value)}
             data-testid="renewal-type"
           />
         </div>
@@ -61,6 +72,8 @@ export function RenewalForm({ customerId }: { customerId: number }): React.React
             type="date"
             name="validUntil"
             required
+            value={validUntil}
+            onChange={(event) => setValidUntil(event.target.value)}
             data-testid="renewal-valid-until"
           />
         </div>

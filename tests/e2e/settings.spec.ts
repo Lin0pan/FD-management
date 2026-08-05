@@ -10,7 +10,9 @@ import { de } from "@/i18n/de";
  * bug that a single page load caught. They therefore drive the real screen rather than the ports.
  *
  * They run **serially against one shared database**: each spec builds on the price the previous one
- * saved, and the last asserts that a rejected save left that value untouched.
+ * saved. The last two are a pair — one proves a rejected save writes nothing and yet leaves every
+ * typed value on screen, the other that correcting only the refused field then saves the edits that
+ * rode along with it.
  */
 
 /** The price every spec here edits: the per-grown-up price, seeded at 2,00 €. */
@@ -88,8 +90,50 @@ test.describe("Einstellungen", () => {
     );
     await expect(page.locator("#pricePerGrownUp")).not.toHaveAttribute("aria-invalid", "true");
 
+    // And the form still holds what was typed — all three fields, not only the one that was refused.
+    // It used to hold none of them: React resets an uncontrolled form once its action resolves, so
+    // the reset rewound every field to the stored settings and three edits were thrown away because
+    // one of them was wrong. The marked field showing `240` and being called invalid was the same
+    // bug seen from the other side (`docs/ui_redesign_einstellungen.md` §3.1, §4.2d).
+    await expect(page.locator("#quotaN")).toHaveValue("0");
+    await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("9,99");
+    await expect(page.locator("#reason")).toHaveValue("Höchstzahl senken");
+
+    // Kept on screen, written nowhere.
     await page.reload();
     await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("2,75");
+  });
+
+  test("correcting the refused field saves the edits that rode with it", async ({ page }) => {
+    await page.goto("/einstellungen");
+
+    await page.getByLabel(PRICE_LABEL, { exact: true }).fill("9,99");
+    await page.locator("#quotaN").fill("0");
+    await page.locator("#reason").fill("Preis erhöhen");
+    await page.getByRole("button", { name: de.settings.save, exact: true }).click();
+    await expect(page.getByTestId("settings-error")).toHaveCount(1);
+
+    // The whole point of keeping them: **only the refused field is touched** on the second attempt.
+    // Nothing re-types the price or the reason, and the save that follows has to carry both — if the
+    // form had reset, this would quietly store 2,75 and the test would say so.
+    await page.locator("#quotaN").fill("240");
+    await page.getByRole("button", { name: de.settings.save, exact: true }).click();
+
+    await expect(page.getByTestId("settings-saved")).toHaveText(de.settings.saved);
+    await expect(page.getByTestId("settings-error")).toHaveCount(0);
+
+    await page.reload();
+    await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("9,99");
+    await expect(page.locator("#quotaN")).toHaveValue("240");
+
+    // The reason went with it, into the version this appended.
+    const versions = page.getByTestId("settings-version");
+    await expect(versions).toHaveCount(4);
+    await expect(versions.first()).toContainText("Preis erhöhen");
+
+    // And `reason` is the one field that clears on a save — it describes this change and must not be
+    // carried into the next one.
+    await expect(page.locator("#reason")).toHaveValue("");
   });
 
   // The quota-below-*active-customers* rule (FR-4) is reachable from the browser as of US-01.6 —

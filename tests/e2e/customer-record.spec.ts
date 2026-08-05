@@ -71,6 +71,9 @@ const NEW_CHILD_BIRTH_DATE = "2024-03-05";
 const EXPIRED_CERTIFICATE = "2025-12-31";
 /** Comfortably after the pinned day — a renewal the past-date rule has no quarrel with. */
 const RENEWED_CERTIFICATE = "2027-06-30";
+
+/** The date the refused-renewal spec corrects its typo to — later still, so nothing downstream moves. */
+const LATER_CERTIFICATE = "2027-12-31";
 /** Where the household stood before the reminders stopped: two sent, none answered. */
 const REMINDERS_SENT = 2;
 
@@ -295,6 +298,41 @@ test.describe("Kundenakte pflegen", () => {
 
     await page.goto(`/kunden/${id}`);
     await expect(page.getByTestId("reminder-count")).toHaveText("0");
+  });
+
+  test("a refused renewal keeps both fields, so only the wrong one is retyped", async ({
+    page,
+  }) => {
+    await page.goto(`/kunden/${id}`);
+
+    // A wrong year is the mistake this refusal exists for: the type is right, four characters of the
+    // date are not. Uncontrolled, React's post-action reset emptied *both* fields on the way back, so
+    // correcting a typo meant retyping the certificate as well
+    // (`docs/ui_redesign_einstellungen.md` §4.2d — the same finding as on the settings screen).
+    await page.getByTestId("renewal-type").fill("Rentenbescheid");
+    await page.getByTestId("renewal-valid-until").fill("2025-06-30");
+    await page.getByTestId("renewal-save").click();
+
+    const refusal = page.getByTestId("renewal-error");
+    await expect(refusal).toHaveText(de.distribution.certificate.renewal.errors.validUntilInPast);
+    await expect(refusal).toHaveAttribute("data-tier", "refusal");
+
+    await expect(page.getByTestId("renewal-type")).toHaveValue("Rentenbescheid");
+    await expect(page.getByTestId("renewal-valid-until")).toHaveValue("2025-06-30");
+
+    // Correct only the date. If the type had been cleared the form would not submit at all — it is
+    // `required` — so this save landing is itself the proof that it survived.
+    await page.getByTestId("renewal-valid-until").fill(LATER_CERTIFICATE);
+    await page.getByTestId("renewal-save").click();
+    await expect(page.getByTestId("renewal-saved")).toHaveText(
+      de.distribution.certificate.renewal.saved,
+    );
+
+    // A save remounts the form on its `saves` key, so the next renewal starts empty rather than on
+    // the values just filed — the other half of the pair, and the reason a refusal is not enough to
+    // decide this on its own.
+    await expect(page.getByTestId("renewal-type")).toHaveValue("");
+    await expect(page.getByTestId("renewal-valid-until")).toHaveValue("");
   });
 
   test("the reissued card catches up with the household", async ({ page }) => {

@@ -13,12 +13,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { formatEuroAmount } from "@/domain/money";
-import type { Cents } from "@/domain/money";
 import type { Settings } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { saveSettings } from "./actions";
 import { initialSaveSettingsState } from "./save-settings-state";
-import type { SaveSettingsState } from "./save-settings-state";
+import type { SaveSettingsState, SubmittedSettings } from "./save-settings-state";
 import { Notice } from "../notice";
 
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
@@ -177,7 +176,8 @@ function NumberField({
   name: string;
   label: string;
   span: string;
-  value: number;
+  /** Already a string, because a refused save shows back what was typed — see {@link shownValue}. */
+  value: string;
   invalid: boolean;
 }): React.ReactElement {
   return (
@@ -202,13 +202,14 @@ function EuroField({
   name,
   label,
   span,
-  cents,
+  value,
   invalid,
 }: {
   name: string;
   label: string;
   span: string;
-  cents: Cents;
+  /** Already formatted, or the text that was refused — see {@link shownValue}. */
+  value: string;
   invalid: boolean;
 }): React.ReactElement {
   return (
@@ -221,7 +222,7 @@ function EuroField({
         inputMode="decimal"
         name={name}
         id={name}
-        defaultValue={formatEuroAmount(cents)}
+        defaultValue={value}
         aria-invalid={invalid ? true : undefined}
         aria-describedby={invalid ? `${name}-error` : undefined}
       />
@@ -229,9 +230,41 @@ function EuroField({
   );
 }
 
+/**
+ * What a field shows: what was typed if the last save was refused, otherwise what is stored.
+ *
+ * This is the whole of `docs/ui_redesign_einstellungen.md` §4.2d. React resets an uncontrolled form
+ * once its action resolves — refusal as well as success — and the reset restores each input from its
+ * `defaultValue`. With the stored settings as the only `defaultValue`, a refusal rewound every field
+ * to what the database said: four edits typed, one of them invalid, **four lost**, and the screen
+ * then marking a field that held `240` and calling it an invalid value. Neither half of that is
+ * survivable on its own; together they are why a rejected save meant retyping the whole change from
+ * memory.
+ *
+ * `state.values` is present only on a refusal, so the fallback does the right thing without a
+ * condition: after a save there is nothing to override with, and the reset lands on the freshly
+ * revalidated figures — which is what it should do, and what it already did.
+ *
+ * `reason` reaches this too, with `""` as its stored value, so it clears after a save and survives a
+ * refusal. §4.2d has it clearing in both cases; that is the one place this departs from the document,
+ * and the argument is that a refusal is not the end of a change but the middle of one — the sentence
+ * still describes the edit being made, and the next thing the staff member does is fix a field and
+ * press the same button. Clearing after a *save* is not in question: a reason describes one change
+ * and must never be carried into the next.
+ */
+function shownValue(
+  state: SaveSettingsState,
+  name: keyof SubmittedSettings,
+  stored: string,
+): string {
+  return state.values?.[name] ?? stored;
+}
+
 export function SettingsForm({ settings }: { settings: Settings }): React.ReactElement {
   const [state, formAction, pending] = useActionState(saveSettings, initialSaveSettingsState);
   const invalid = (name: string): boolean => rejects(state, name);
+  const shown = (name: keyof SubmittedSettings, stored: string): string =>
+    shownValue(state, name, stored);
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
@@ -241,35 +274,35 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
             name="quotaN"
             label={de.settings.fields.quotaN}
             span="lg:col-span-2"
-            value={settings.quotaN}
+            value={shown("quotaN", String(settings.quotaN))}
             invalid={invalid("quotaN")}
           />
           <NumberField
             name="portionsPerGrownUp"
             label={de.settings.fields.portionsPerGrownUp}
             span="lg:col-span-2"
-            value={settings.portionsPerGrownUp}
+            value={shown("portionsPerGrownUp", String(settings.portionsPerGrownUp))}
             invalid={invalid("portionsPerGrownUp")}
           />
           <NumberField
             name="portionsPerChild"
             label={de.settings.fields.portionsPerChild}
             span="lg:col-span-2"
-            value={settings.portionsPerChild}
+            value={shown("portionsPerChild", String(settings.portionsPerChild))}
             invalid={invalid("portionsPerChild")}
           />
           <EuroField
             name="pricePerGrownUp"
             label={de.settings.fields.pricePerGrownUp}
             span="lg:col-span-3"
-            cents={settings.pricePerGrownUp}
+            value={shown("pricePerGrownUp", formatEuroAmount(settings.pricePerGrownUp))}
             invalid={invalid("pricePerGrownUp")}
           />
           <EuroField
             name="pricePerChild"
             label={de.settings.fields.pricePerChild}
             span="lg:col-span-3"
-            cents={settings.pricePerChild}
+            value={shown("pricePerChild", formatEuroAmount(settings.pricePerChild))}
             invalid={invalid("pricePerChild")}
           />
         </div>
@@ -289,7 +322,7 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
               type="text"
               name="weekAnchorIsoWeek"
               id="weekAnchorIsoWeek"
-              defaultValue={settings.weekAnchor.isoWeek}
+              defaultValue={shown("weekAnchorIsoWeek", settings.weekAnchor.isoWeek)}
               aria-invalid={invalid("weekAnchorIsoWeek") ? true : undefined}
               aria-describedby={
                 invalid("weekAnchorIsoWeek") ? "weekAnchorIsoWeek-error" : undefined
@@ -311,7 +344,7 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
               className={SELECT}
               name="weekAnchorColour"
               id="weekAnchorColour"
-              defaultValue={settings.weekAnchor.colour}
+              defaultValue={shown("weekAnchorColour", settings.weekAnchor.colour)}
               aria-invalid={invalid("weekAnchorColour") ? true : undefined}
               aria-describedby={invalid("weekAnchorColour") ? "weekAnchorColour-error" : undefined}
             >
@@ -332,7 +365,7 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
               className={SELECT}
               name="distributionWeekday"
               id="distributionWeekday"
-              defaultValue={settings.distributionWeekday}
+              defaultValue={shown("distributionWeekday", String(settings.distributionWeekday))}
               aria-invalid={invalid("distributionWeekday") ? true : undefined}
               aria-describedby={
                 invalid("distributionWeekday") ? "distributionWeekday-error" : undefined
@@ -357,7 +390,9 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
                 type="text"
                 name="reason"
                 id="reason"
-                defaultValue=""
+                // `""` as the stored value, so this clears after a save and survives a refusal —
+                // see {@link shownValue} for why the two differ.
+                defaultValue={shown("reason", "")}
                 // The hint is a sibling, not a `<span>` inside the label: nested, it was
                 // concatenated into the field's accessible name and a screen reader announced a
                 // 91-character sentence where four words belong (§3.7).

@@ -410,15 +410,28 @@ to take for the same thing.
 
 ## 7. Open questions
 
-- **Should a refusal keep what was typed?** ⬜ **Still open, and now the only thing in this document
-  that is.** Every refusal observed cleared its form: the past-date renewal lost both fields, and the
+- **Should a refusal keep what was typed?** ✅ **Answered: yes, and the rule is by outcome rather than
+  by field.** Every refusal observed cleared its form: the past-date renewal lost both fields, and the
   rejected settings save reverted `quotaN` from 3 back to 239 — discarding valid edits along with the
-  invalid one. Re-measured after step 4 on `/einstellungen`: a rejected `weekAnchorIsoWeek` still
-  comes back as the stored `2026-W02`, with the field marked and the words beside it explaining a
-  value that is no longer on screen. Step 4 deliberately did not take it on — it is
-  `docs/ui_redesign_einstellungen.md` §4.2d, it touches every `defaultValue` on every form, and it is
-  a different argument from what colour a refusal is. It is now the higher-value of the two halves it
-  was paired with: the field is marked, so the only thing still missing is the value it names.
+  invalid one. The mechanism is one React reset that does not distinguish the two outcomes, so **a
+  save clears everything and a refusal keeps everything**, which is both the correct rule and the one
+  that needs no list of exceptions. `docs/ui_redesign_einstellungen.md` §4.2d had `reason` clearing in
+  both cases; it does not, and the note under §3.1 there carries the argument — a refusal is the
+  middle of a change, not the end of one.
+
+  **Two screens, two mechanisms, and only one of them needed state.** `/einstellungen` hands the
+  submission back on `SaveSettingsState` — present on a refusal, absent on a save — because its fields
+  must fall back to the _stored_ values, which only the server knows. The certificate renewal, on the
+  record and at the counter, only needed its two fields made **controlled**: each form already had
+  something that ends an attempt, the record's remount on `saves` and the counter's unmount once the
+  certificate is valid again. Reaching for the state there would have been plumbing for a problem two
+  `useState`s already solved.
+
+  Doing this second, after §4.2c, showed something worth recording: **marking the field made the lost
+  value worse, not better.** A vague summary 442px away could be mistaken for the screen being
+  confused; a red outline and „Ungültiger Wert." directly under a box holding `240` cannot. Precision
+  in the pointing is what exposed the wrong target.
+
 - **Should the archive keep its own banner?** ✅ **Answered: yes, and the reason turned out not to be
   the one the question assumed.** The record does state the outcome plainly — but it states it at the
   _top_ of the record, and the control is at the foot of it. Measured after archiving from the danger
