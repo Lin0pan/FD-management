@@ -147,15 +147,19 @@ function Row({ due }: { due: CardDueForReissue }): React.ReactElement {
         />
       </div>
 
-      {/* Write first, then the way to the record — and both on one line, so the row stops ending on
-          a stranded underline below a full-width bar. */}
+      {/* Write first, then the way to the record, both on one line. The link is bordered like the
+          disclosure beside it rather than `ghost`: the two are the row's pair of controls, and a
+          borderless one next to a bordered one reads as text that happens to sit there. Equal
+          weight is right — the order says which comes first, and nothing on this screen is urgent
+          enough to be painted as the thing to do. Same control as the counter's way to the record
+          (`/ausgabe`), which is the same journey from a different screen. */}
       <div className="flex flex-wrap items-start gap-2">
         <StaleCardControls
           customerId={due.customerId}
           cardNumber={due.cardNumber}
           nextCardNumber={due.nextCardNumber}
         />
-        <Button variant="ghost" asChild>
+        <Button variant="outline" asChild>
           <Link href={`/kunden/${due.customerId}`} data-testid="cards-due-customer-link">
             {de.cardsDue.customerLink}
           </Link>

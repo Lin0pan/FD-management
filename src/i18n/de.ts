@@ -669,7 +669,6 @@ export const de = {
       archivedIncluded: "einschließlich archivierter Haushalte",
       archivedHidden: "ohne archivierte Haushalte",
     },
-    openRecord: "Kundenakte öffnen",
   },
   /**
    * The cards-due-for-reissue screen at /karten-neuausstellung (US-13.4).
@@ -706,7 +705,14 @@ export const de = {
      * (US-09) and staff should not have to notice that they started it from a different screen.
      */
     action: "Karte neu ausstellen",
-    customerLink: "Kundenakte öffnen",
+    /**
+     * The way from a row to the whole record. Worded exactly as `distribution.counter.recordLink`,
+     * and for the same reason it is worded that way there: the screen it opens calls itself
+     * "Kundenübersicht" (`customers.record.heading`), so that is what the links to it say. It read
+     * "Kundenakte öffnen" until a household's record turned out to be going by three names — one
+     * per screen linking to it — none of which was the name on the page itself.
+     */
+    customerLink: "Zur Kundenübersicht",
   },
   /**
    * The waiting list at /warteliste (US-12.4).

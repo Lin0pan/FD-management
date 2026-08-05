@@ -186,7 +186,7 @@ distinguishes the answer from the explanation.
   │     ┌ Auf der Karte gedruckt ┐      ┌ Haushalt heute ────┐               │
   │     │ Erwachsene: 2, Kinder: 2│  →  │ Erwachsene: 3, Kinder: 1│          │
   │     └────────────────────────┘      └────────────────────┘               │
-  │     [ Karte neu ausstellen ▸ ]                    Kundenakte öffnen      │
+  │     [ Karte neu ausstellen ▸ ]  [ Zur Kundenübersicht ]                  │
   │  ──────────────────────────────────────────────────────────────────────  │
   │  h3 Liana Walton       Nr. 16 · Karte 16k1        [Gruppe gewechselt]    │
   │     ┌ Auf der Karte gedruckt ┐      ┌ Haushalt heute ────┐               │
@@ -230,9 +230,22 @@ needs is "these are the same, that is different", and a hidden row cannot say th
 
 **(e) The row's action becomes an action.** The `<details>` stays — it is guide rule 4 and it guards
 an irreversible write — but the closed `<summary>` is styled as a button-shaped control
-(`Button`-like, `variant="outline"`, self-start) rather than a full-width bar, with "Kundenakte
-öffnen" beside it as a `Button variant="ghost" asChild`. Both then sit on one line at the foot of the
-row, in the order write-then-navigate, and the row stops ending on a stranded underline.
+(`Button`-like, `variant="outline"`, self-start) rather than a full-width bar, with the link to the
+record beside it as a `Button variant="outline" asChild`. Both then sit on one line at the foot of
+the row, in the order write-then-navigate, and the row stops ending on a stranded underline.
+
+> **Amended after the redesign shipped.** That link was specified here as `variant="ghost"`, on the
+> reasoning that navigation should sit quieter than the write. On the screen it did not read as
+> quieter, it read as unfinished: a borderless control immediately beside a bordered one looks like
+> a caption that drifted onto the same line, not like the second of two things you can do. Equal
+> weight is what the row wants — it has only two controls, their order already says which comes
+> first, and a screen whose whole premise is "keine Eile" has no business painting one of them as
+> the thing to do. `outline` also makes it the same control as the counter's way to the record
+> (`/ausgabe`, `page.tsx:490`), which is the same journey started from a different screen.
+>
+> Its label was likewise "Kundenakte öffnen" and is now **"Zur Kundenübersicht"**. A household's
+> record was going by three names — one per screen linking to it — and none of them was
+> "Kundenübersicht", the name on the page itself.
 
 Opened, the confirmation keeps its exact wording — `stale-reissue-confirm` is asserted — and the
 submit becomes a `Button` `default`. The wording already distinguishes the two ("Karte neu

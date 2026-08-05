@@ -49,6 +49,7 @@ input label radio-group select table textarea`. Anything else needs `npx shadcn@
 | `<button className="rounded bg-foreground …">` | `<Button>` (`default`)                                           |
 | secondary / cancel button                      | `<Button variant="outline">` or `"secondary"`                    |
 | a link that reads as an action                 | `<Button variant="ghost" asChild><Link>` — stays an `<a>`        |
+| a link that names a **record**                 | same, but `variant="outline"` — see below                        |
 | destructive button                             | `<Button variant="destructive">` (tinted, not solid red)         |
 | `<input>` / `<textarea>`                       | `<Input>` / `<Textarea>`                                         |
 | status or category pill                        | `<Badge>` — `secondary` / `destructive` / `outline`              |
@@ -58,6 +59,14 @@ input label radio-group select table textarea`. Anything else needs `npx shadcn@
 | `border-foreground/15,/20,/25`                 | `border-border` (or nothing — `Card` brings its own ring)        |
 | `bg-foreground/5,/10`                          | `bg-muted` / `bg-muted/50`                                       |
 | `bg-foreground text-background`                | `Button` `default`                                               |
+
+**Ghost or outline for a link.** `ghost` is for links that stand on their own and are the screen
+furniture around the content — the hub tiles and the filter reset on `/kunden`, "zurück zum Anfang".
+A link that opens a **named record** takes `outline` instead: it almost always sits beside a bordered
+control, and borderless-next-to-bordered reads as a stray caption rather than as the second of two
+things you can do. `/ausgabe` and `/karten-neuausstellung` both link to a customer this way, and both
+call it the same thing — **"Zur Kundenübersicht"**, the name that screen gives itself. One
+destination, one word for it, one control.
 
 ## Non-negotiables
 
