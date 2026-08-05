@@ -68,7 +68,7 @@ test("a registration issues card k1 and the card view shows it", async ({ page }
   await page.locator("#memberBirthDate-2").fill(CHILD_BIRTH_DATE);
 
   await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
-  await page.waitForURL(/\/kunden\/\d+$/);
+  await page.waitForURL(/\/kunden\/\d+(\?|$)/);
 
   await page.getByTestId("card-view-link").click();
   await page.waitForURL(/\/kunden\/\d+\/karte$/);

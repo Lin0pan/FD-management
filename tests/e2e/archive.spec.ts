@@ -120,7 +120,7 @@ async function register(page: Page): Promise<Household> {
   await page.locator("#memberBirthDate-1").fill(CHILD_BIRTH_DATE);
 
   await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
-  await page.waitForURL(/\/kunden\/\d+$/);
+  await page.waitForURL(/\/kunden\/\d+(\?|$)/);
 
   // The record the registration redirected to is addressed by the surrogate id, not by the number —
   // which is the whole reason an archived household stays reachable once the number has moved on.

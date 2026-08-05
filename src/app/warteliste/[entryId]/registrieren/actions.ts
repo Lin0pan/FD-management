@@ -80,5 +80,8 @@ export async function submitPromotedRegistration(
 
   // Outside the try: `redirect` works by throwing, and catching it here would turn a successful
   // registration into "could not be saved".
-  redirect(`/kunden/${id}`);
+  //
+  // The same `?aufgenommen=1` the registration screen sends: promoting an applicant *is* taking a
+  // household on, so it lands on the same record wearing the same confirmation.
+  redirect(`/kunden/${id}?aufgenommen=1`);
 }

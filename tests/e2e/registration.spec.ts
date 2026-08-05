@@ -88,7 +88,7 @@ test.describe("Kundenaufnahme", () => {
     await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
 
     // Success is a redirect to the card that was just issued.
-    await page.waitForURL(/\/kunden\/\d+$/);
+    await page.waitForURL(/\/kunden\/\d+(\?|$)/);
 
     await expect(page.getByTestId("customer-number")).toHaveText(String(proposedNumber));
     await expect(page.getByTestId("card-number")).toHaveText(`${proposedNumber}k1`);
@@ -126,5 +126,27 @@ test.describe("Kundenaufnahme", () => {
     // Nothing was written, and no customer number was consumed on the way.
     await page.goto("/kunden/neu");
     await expect(page.getByTestId("proposed-number")).toHaveText(proposedNumber);
+  });
+
+  // Last in the file on purpose: it registers a household of its own, and the rejection above
+  // asserts the next free number against the *first* registration. Anything that consumes a number
+  // between the two rewrites that arithmetic.
+  test("confirms the registration on the record it lands on, and only on the way in", async ({
+    page,
+  }) => {
+    await page.goto("/kunden/neu");
+    await fillPersonalData(page, person(faker.person.lastName()));
+    await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
+    await page.waitForURL(/\/kunden\/\d+(\?|$)/);
+
+    // The action never returns on success — it redirects — so this sentence is the only thing that
+    // tells a staff member the household was taken on rather than merely displayed.
+    await expect(page.getByTestId("registration-confirmation")).toHaveText(de.customers.new.saved);
+    await expect(page.getByTestId("registration-confirmation")).toBeInViewport();
+
+    // It belongs to the arrival, not to the record: the same record opened from the list — which is
+    // how it is reached every day after the first minute — says nothing.
+    await page.goto(new URL(page.url()).pathname);
+    await expect(page.getByTestId("registration-confirmation")).toHaveCount(0);
   });
 });

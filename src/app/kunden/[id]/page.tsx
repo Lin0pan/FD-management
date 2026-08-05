@@ -38,6 +38,7 @@ import type { Settings } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { GROUP_STYLES } from "../../accents";
+import { Confirmation } from "../../confirmation";
 import { SHELL } from "../../shell";
 import { Stat } from "../../stat";
 import { ArchiveControls } from "../archive-controls";
@@ -282,9 +283,12 @@ function History({ records }: { records: ReadonlyArray<DistributionRecord> }): R
 function CustomerRecord({
   view,
   settings,
+  justRegistered,
 }: {
   view: CustomerCardView;
   settings: Settings;
+  /** Whether this record was arrived at straight from a registration — see `CustomerRecordPage`. */
+  justRegistered: boolean;
 }): React.ReactElement {
   const { customer, household, cardNumber, nextCardNumber, groupCounts } = view;
   const { details } = customer;
@@ -343,6 +347,19 @@ function CustomerRecord({
           </Link>
         </Button>
       </header>
+
+      {/* Above the identity card rather than in the banner slot the archived and blocked notices
+          share below it. Those two are facts about the household, and they belong beside the rest of
+          what the record knows; this is feedback about the act that just happened, and it is read
+          once and never again. A staff member who has pressed "Aufnehmen" is asking "did that
+          work?", so it answers before the screen starts stating numbers.
+
+          It is deliberately not a heading, so the record still announces as `h1` → the sections'
+          `h2`s (`docs/ui_conversion_guide.md`, trap 1); the `role="status"` inside `Confirmation` is
+          what carries it to a screen reader. */}
+      {justRegistered ? (
+        <Confirmation text={de.customers.new.saved} testId="registration-confirmation" />
+      ) : null}
 
       {/* Who this household is, in a card of its own — the counter's customer card and the printed
           card's header, one rank down at 24px against their 36 and 48.
@@ -575,10 +592,21 @@ function CustomerRecord({
 
 export default async function CustomerRecordPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  /**
+   * `aufgenommen=1` is set by the two actions that register a household — the registration screen
+   * and the waiting-list promotion — because both redirect here and neither can hand the record page
+   * anything else. A param rather than a cookie: it is one boolean, it is honest about how the page
+   * was reached, and a server component cannot clear a cookie it has read.
+   *
+   * It follows that reloading that URL confirms again. That is the price of the simplest thing that
+   * works, and it is paid by an act nobody repeats.
+   */
+  searchParams: Promise<{ aufgenommen?: string | string[] }>;
 }): Promise<React.ReactElement> {
-  const { id } = await params;
+  const [{ id }, { aufgenommen }] = await Promise.all([params, searchParams]);
   // A URL is typed by hand as easily as it is clicked, so a non-numeric id is the same answer as an
   // id nobody holds: there is no such customer.
   const numericId = Number(id);
@@ -605,5 +633,5 @@ export default async function CustomerRecordPage({
     throw error;
   }
 
-  return <CustomerRecord view={view} settings={settings} />;
+  return <CustomerRecord view={view} settings={settings} justRegistered={aufgenommen === "1"} />;
 }
