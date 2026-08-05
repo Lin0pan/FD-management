@@ -30,7 +30,8 @@ import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { blockCustomerAction, unblockCustomerAction } from "./block-actions";
 import { initialBlockState } from "./block-state";
-import { Notice } from "../notice";
+import { Confirmation, Notice } from "../notice";
+import { useNoticeSlot } from "../notice-board";
 
 /**
  * The `<summary>` recipe shared by the two disclosures here and by `ArchiveControls`: closed, a
@@ -39,8 +40,15 @@ import { Notice } from "../notice";
 const SUMMARY = "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden";
 
 /** "Sperren": a disclosure holding the required reason field; the save button waits for a reason. */
-function BlockForm({ customerId }: { customerId: number }): React.ReactElement {
-  const [state, action, pending] = useActionState(blockCustomerAction, initialBlockState);
+function BlockForm({
+  customerId,
+  action,
+  pending,
+}: {
+  customerId: number;
+  action: (formData: FormData) => void;
+  pending: boolean;
+}): React.ReactElement {
   const [reason, setReason] = useState("");
   const reasonId = useId();
   const empty = reason.trim() === "";
@@ -80,9 +88,6 @@ function BlockForm({ customerId }: { customerId: number }): React.ReactElement {
         >
           {pending ? de.customers.block.submitting : de.customers.block.submit}
         </Button>
-        {state.status === "error" ? (
-          <Notice tone="error" text={state.message} testId="block-error" />
-        ) : null}
       </form>
     </details>
   );
@@ -92,12 +97,14 @@ function BlockForm({ customerId }: { customerId: number }): React.ReactElement {
 function UnblockForm({
   customerId,
   reason,
+  action,
+  pending,
 }: {
   customerId: number;
   reason: string;
+  action: (formData: FormData) => void;
+  pending: boolean;
 }): React.ReactElement {
-  const [state, action, pending] = useActionState(unblockCustomerAction, initialBlockState);
-
   return (
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="customerId" value={customerId} />
@@ -120,9 +127,6 @@ function UnblockForm({
           </Button>
         </div>
       </details>
-      {state.status === "error" ? (
-        <Notice tone="error" text={state.message} testId="block-error" />
-      ) : null}
     </form>
   );
 }
@@ -136,11 +140,52 @@ export function BlockControls({
   status: CustomerStatus;
   blockReason: string | null;
 }): React.ReactElement | null {
-  if (status === "ACTIVE") {
-    return <BlockForm customerId={customerId} />;
+  // Both `useActionState`s are held here rather than inside the form that submits them, because a
+  // block is exactly the write that takes its own form off the screen: the record revalidates with
+  // the new status and "Sperren" is replaced by "Sperre aufheben", so a confirmation living in the
+  // block form would unmount in the same render that produced it. This component survives the swap,
+  // which is what lets either answer be read where the button was.
+  const [blockState, block, blocking] = useActionState(blockCustomerAction, initialBlockState);
+  const [unblockState, unblock, unblocking] = useActionState(
+    unblockCustomerAction,
+    initialBlockState,
+  );
+
+  const active = status === "ACTIVE";
+  // Which of the two states says what. The form on screen is the only one that can be refused, and
+  // the *other* action is the one whose success put the customer in this status — an active customer
+  // in front of "Sperren" is one an unblock just released. So a `saved` is always the other one's,
+  // and the visible form's own answer, when it has one, is newer than that and wins.
+  const onScreen = active ? blockState : unblockState;
+  const whatHappened = active ? unblockState : blockState;
+  const answer = onScreen.status === "idle" ? whatHappened : onScreen;
+  const showing = useNoticeSlot("block", answer.status === "idle" ? null : answer);
+
+  if (status === "ARCHIVED") {
+    return null;
   }
-  if (status === "BLOCKED") {
-    return <UnblockForm customerId={customerId} reason={blockReason ?? ""} />;
-  }
-  return null;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {active ? (
+        <BlockForm customerId={customerId} action={block} pending={blocking} />
+      ) : (
+        <UnblockForm
+          customerId={customerId}
+          reason={blockReason ?? ""}
+          action={unblock}
+          pending={unblocking}
+        />
+      )}
+      {showing && answer.status === "saved" ? (
+        <Confirmation
+          text={active ? de.customers.block.unblocked : de.customers.block.blocked}
+          testId="block-saved"
+        />
+      ) : null}
+      {showing && answer.status === "error" ? (
+        <Notice tone="error" text={answer.message} testId="block-error" />
+      ) : null}
+    </div>
+  );
 }

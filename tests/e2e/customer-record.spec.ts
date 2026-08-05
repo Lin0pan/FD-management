@@ -308,6 +308,7 @@ test.describe("Kundenakte pflegen", () => {
     await page.getByTestId("reissue-submit").click();
 
     await expect(page.getByTestId("card-number")).toHaveText(card(2));
+    await expect(page.getByTestId("reissue-saved")).toHaveText(de.customers.reissue.saved(card(2)));
     await expect(page.getByTestId("reissue-error")).toHaveCount(0);
 
     await page.goto("/karten-neuausstellung");
@@ -389,5 +390,24 @@ test.describe("Kundenakte pflegen", () => {
     // a note nobody reads at the counter is a note written for nobody (FR-5).
     await lookUp(page, card(2));
     await expect(page.getByTestId("counter-notes")).toHaveText(NOTE);
+  });
+
+  test("shows the answer to the last thing asked, and no older one", async ({ page }) => {
+    // Eight write controls stand on this record and each keeps its own last result. Observed before
+    // the board: a „Gespeichert." from a group move was still on screen through a card reissue and a
+    // block afterwards — a green banner beside a button that had just done something else, which is
+    // exactly how somebody concludes an action succeeded when it never reported.
+    await page.goto(`/kunden/${id}`);
+    await page.getByTestId("notes-field").fill(`${NOTE} (zweite Fassung)`);
+    await page.getByTestId("notes-submit").click();
+    await expect(page.getByTestId("notes-saved")).toBeVisible();
+
+    await page.getByTestId("reissue-open").click();
+    await page.getByTestId("reissue-submit").click();
+
+    // The reissue answers, and the save's answer goes — it is not the answer to the button that was
+    // just pressed. The one that stays is beside the button that produced it.
+    await expect(page.getByTestId("reissue-saved")).toHaveText(de.customers.reissue.saved(card(3)));
+    await expect(page.getByTestId("notes-saved")).toHaveCount(0);
   });
 });

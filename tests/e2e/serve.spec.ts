@@ -244,4 +244,27 @@ test.describe("Ausgabe erfassen", () => {
     await expect(page.getByTestId("serve-confirmation")).toBeInViewport();
     expect(await page.evaluate(() => window.scrollY)).toBe(scrolledTo);
   });
+
+  test("removing today's hand-out says so, on a screen the record has left", async ({ page }) => {
+    await lookUp(page, NUMBERS.unpaid);
+    await expect(page.getByTestId("already-served")).toBeVisible();
+
+    // The two-step guard: the closed disclosure has to be opened before the button that deletes
+    // exists to be clicked.
+    await page.getByText(serve.correct.remove, { exact: true }).click();
+    await page.getByTestId("correct-remove").click();
+
+    // The removal destroys the card its answer would have stood in, which is why `correctServe`'s
+    // "removed" result was a branch no component could render. It redirects instead, keeping the
+    // number that was looked up so the household is still on screen, and the counter states it —
+    // in the viewport, because a navigation lands at the top of the page.
+    await expect(page).toHaveURL(new RegExp(`nummer=${NUMBERS.unpaid}&entfernt=1$`));
+    await expect(page.getByTestId("serve-removed-confirmation")).toHaveText(serve.correct.removed);
+    await expect(page.getByTestId("serve-removed-confirmation")).toBeInViewport();
+
+    // And the household can be served again today, which is what the sentence promises.
+    await expect(page.getByTestId("already-served")).toHaveCount(0);
+    await expect(page.getByTestId("serve-button")).toBeVisible();
+    expect(await recordsFor(NUMBERS.unpaid)).toHaveLength(0);
+  });
 });

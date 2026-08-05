@@ -177,9 +177,13 @@ async function reissue(page: Page, path: string, current: string, next: string):
   );
 
   await page.getByTestId("reissue-submit").click();
-  // Both screens show the held card number, so the write is confirmed by the number itself moving on
-  // whichever screen it was started from — not by a toast that could outlive a failed transaction.
+  // Two things, and they are not the same thing. The number moving is the *write*, read off whichever
+  // screen the reissue was started from — a fact from the store that no toast could fake. The
+  // confirmation is the *answer*, beside the button, naming the number staff are about to write on
+  // the card; the reissue used to do the first and not the second, and a number changing further
+  // down the page is something you have to go and check.
   await expect(page.getByTestId("card-number")).toHaveText(next);
+  await expect(page.getByTestId("reissue-saved")).toHaveText(de.customers.reissue.saved(next));
   await expect(page.getByTestId("reissue-error")).toHaveCount(0);
 }
 

@@ -5,10 +5,11 @@
  * module may export nothing but async functions, so a type or a constant there would be a build-time
  * error.
  *
- * There is no `saved` state, and there deliberately is no message naming the new card number: a
- * successful reissue revalidates this screen, the row is then gone from the list, and the component
- * holding the message goes with it. The number staff copy onto the card is therefore shown *before*
- * the write, in the row itself.
+ * There is still no `saved` state, and for the same reason as before: a successful reissue
+ * revalidates this screen, the row is then gone from the list, and the component holding any message
+ * would go with it. What changed is what happens instead of nothing — the action now redirects with
+ * the new number, and the page states it above the list (`issued-card.ts`). A rejection is the only
+ * thing that comes back to the row, because a rejection is the one answer that leaves it standing.
  */
 
 export type StaleReissueState =

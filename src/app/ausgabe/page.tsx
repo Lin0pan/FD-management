@@ -44,8 +44,12 @@ import { CertificateControls } from "./certificate-controls";
 import { CustomerDetails, VerdictBanner } from "./counter-lookup";
 import { distributionDeps } from "./deps";
 import { GroupProgressCard } from "./group-progress-card";
+import { RECORD_REMOVED } from "./removed-flag";
+import { ARCHIVED } from "../kunden/archived-flag";
 import { ServeControls } from "./serve-controls";
 import { GROUP_STYLES } from "../accents";
+import { Confirmation } from "../notice";
+import { NoticeBoard } from "../notice-board";
 import { SHELL } from "../shell";
 
 /**
@@ -282,9 +286,16 @@ function PageHeader(): React.ReactElement {
 export default async function DistributionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ nummer?: string | string[] }>;
+  searchParams: Promise<{
+    nummer?: string | string[];
+    [RECORD_REMOVED]?: string | string[];
+    [ARCHIVED]?: string | string[];
+  }>;
 }): Promise<React.ReactElement> {
-  const { nummer } = await searchParams;
+  const params = await searchParams;
+  const { nummer } = params;
+  const recordRemoved = params[RECORD_REMOVED] === "1";
+  const justArchived = params[ARCHIVED] === "1";
 
   let today: WeekColourView;
   try {
@@ -323,12 +334,42 @@ export default async function DistributionPage({
   const walkFromStart = counter === null || counter.lookup === null;
 
   return (
-    <main className={SHELL}>
-      <PageHeader />
+    // The counter carries the serve, the correction, the two certificate actions, the block and the
+    // archive. One answer at a time, so a confirmation from the household before this one cannot be
+    // read as this one's (`notice-board.tsx`).
+    <NoticeBoard>
+      <main className={SHELL}>
+        <PageHeader />
 
-      <Banner view={today} />
+        {/* At the top of the screen rather than beside the button that was pressed, which is the rule
+          everywhere else on this page. The removal navigates — it has to, because it destroys the
+          card the answer would have stood in — and a navigation lands at the top, so this is where
+          the eye already is. Above the week's banner: it is about what just happened, and the banner
+          is about the afternoon. */}
+        {recordRemoved ? (
+          <Confirmation
+            text={de.distribution.serve.correct.removed}
+            testId="serve-removed-confirmation"
+          />
+        ) : null}
 
-      {/* How far through the group the afternoon is (US-23), between the banner and the counter:
+        {/* The archive is offered at the foot of this screen too, and lands back here rather than on
+          the record: the queue is what the staff member has to get back to. The number comes off the
+          lookup that is still on screen — an archived household still resolves, so the counter can
+          still name whose slot came free. */}
+        {justArchived &&
+        counter !== null &&
+        counter.lookup !== null &&
+        counter.lookup.customer !== null ? (
+          <Confirmation
+            text={de.customers.archive.saved(counter.lookup.customer.customerNumber)}
+            testId="archive-saved"
+          />
+        ) : null}
+
+        <Banner view={today} />
+
+        {/* How far through the group the afternoon is (US-23), between the banner and the counter:
           it is a fact about today, like the banner, and it must be readable without scrolling past
           the field staff type into. The group it names is the roster's — the week's own — which on a
           distribution day is the group the banner paints.
@@ -337,13 +378,13 @@ export default async function DistributionPage({
           only a remount closes it (docs/ui_conversion_guide.md): clicking a name in the list is a
           soft navigation, so without the key the household's verdict would arrive underneath a
           hundred rows the staff member has to scroll past. */}
-      <GroupProgressCard
-        key={typeof nummer === "string" ? nummer : ""}
-        roster={roster}
-        groupName={colourName(roster.group)}
-      />
+        <GroupProgressCard
+          key={typeof nummer === "string" ? nummer : ""}
+          roster={roster}
+          groupName={colourName(roster.group)}
+        />
 
-      {/* The counter loop, keyboard only: type the number, press Enter, read the verdict. The form
+        {/* The counter loop, keyboard only: type the number, press Enter, read the verdict. The form
           navigates, so the input comes back empty and — being autofocused — ready for the next
           customer without touching the mouse. A native `<label>` rather than the shadcn one: this
           form is deliberately server-rendered with no client component, and Radix's label would drag
@@ -353,108 +394,109 @@ export default async function DistributionPage({
           every lookup of every afternoon, for a field that is labelled, autofocused and the only one
           on the screen. The formats are worth stating at the one moment they are not obvious — a
           mistyped entry — and `errors.notANumber` states them there. */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">
-            <h2>{de.distribution.counter.heading}</h2>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <form method="get" className="flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="counter-input" className="text-sm font-medium">
-                {de.distribution.counter.label}
-              </label>
-              <Input
-                // Not `type="number"`: a card number carries a `k`, and a spinner has no meaning here.
-                type="text"
-                name="nummer"
-                id="counter-input"
-                inputMode="numeric"
-                autoComplete="off"
-                autoFocus
-                data-testid="counter-input"
-                className="h-12 w-44 text-2xl tabular-nums md:text-2xl"
-              />
-            </div>
-            <Button type="submit" size="lg" className="h-12 px-6">
-              {de.distribution.counter.submit}
-            </Button>
-            {/* The walk (US-21) belongs on this row because it is the same act as typing a number:
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">
+              <h2>{de.distribution.counter.heading}</h2>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <form method="get" className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="counter-input" className="text-sm font-medium">
+                  {de.distribution.counter.label}
+                </label>
+                <Input
+                  // Not `type="number"`: a card number carries a `k`, and a spinner has no meaning here.
+                  type="text"
+                  name="nummer"
+                  id="counter-input"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  autoFocus
+                  data-testid="counter-input"
+                  className="h-12 w-44 text-2xl tabular-nums md:text-2xl"
+                />
+              </div>
+              <Button type="submit" size="lg" className="h-12 px-6">
+                {de.distribution.counter.submit}
+              </Button>
+              {/* The walk (US-21) belongs on this row because it is the same act as typing a number:
                 it decides who the screen is about. It comes *after* `Nachschlagen` so a staff member
                 on the keyboard never tabs through navigation to reach the field they type in, and
                 both stay `outline` so the row does not read as three equal choices. They are links,
                 not submits — nothing here posts. */}
-            <WalkControl
-              target={roster.previous}
-              label={de.distribution.walk.previous}
-              testId="walk-previous"
-            />
-            <WalkControl
-              target={roster.next}
-              label={de.distribution.walk.next}
-              testId="walk-next"
-            />
-          </form>
-          {/* Tinted from GROUP_STYLES, and naming the group in words in the same breath: the walk
+              <WalkControl
+                target={roster.previous}
+                label={de.distribution.walk.previous}
+                testId="walk-previous"
+              />
+              <WalkControl
+                target={roster.next}
+                label={de.distribution.walk.next}
+                testId="walk-next"
+              />
+            </form>
+            {/* Tinted from GROUP_STYLES, and naming the group in words in the same breath: the walk
               moves through a group the staff member cannot otherwise see, and a colour never
               travels without the word (US-03.4). */}
-          <p
-            data-testid="walk-hint"
-            className={`self-start rounded-lg border px-3 py-2 text-sm ${GROUP_STYLES[roster.group]}`}
-          >
-            {walkHint(roster, walkFromStart)}
-          </p>
-        </CardContent>
-      </Card>
+            <p
+              data-testid="walk-hint"
+              className={`self-start rounded-lg border px-3 py-2 text-sm ${GROUP_STYLES[roster.group]}`}
+            >
+              {walkHint(roster, walkFromStart)}
+            </p>
+          </CardContent>
+        </Card>
 
-      {counter === null ? null : counter.lookup === null ? (
-        <ErrorNote message={counter.error} testId="counter-error" />
-      ) : (
-        <>
-          <VerdictBanner verdict={counter.lookup.verdict} />
-          {counter.lookup.customer === null ? null : (
-            <CustomerDetails customer={counter.lookup.customer} />
-          )}
-          {counter.lookup.customerId === null ? null : (
-            <>
-              {/* Keyed by customer so a confirmation from one lookup cannot survive into the
+        {counter === null ? null : counter.lookup === null ? (
+          <ErrorNote message={counter.error} testId="counter-error" />
+        ) : (
+          <>
+            <VerdictBanner verdict={counter.lookup.verdict} />
+            {counter.lookup.customer === null ? null : (
+              <CustomerDetails customer={counter.lookup.customer} />
+            )}
+            {counter.lookup.customerId === null ? null : (
+              <>
+                {/* Keyed by customer so a confirmation from one lookup cannot survive into the
                     next customer's screen; within one customer the state rides out revalidation,
                     which is what keeps the renewal confirmation visible once the certificate
                     reads as valid again. */}
-              <CertificateControls
-                key={counter.lookup.customerId}
-                customerId={counter.lookup.customerId}
-                expired={counter.lookup.verdict.kind === "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED"}
-                reminderLoggedToday={counter.lookup.reminderLoggedToday}
-              />
-              <ServeControls
-                customerId={counter.lookup.customerId}
-                canServe={permitsServing(counter.lookup.verdict)}
-                todaysRecord={
-                  counter.lookup.todaysRecord === null
-                    ? null
-                    : {
-                        recordId: counter.lookup.todaysRecord.recordId,
-                        time: germanTime(counter.lookup.todaysRecord.at),
-                        paid: counter.lookup.todaysRecord.paid,
-                      }
-                }
-              />
-              {/* The way off this screen and onto the whole record (US-16.5). Everything the
+                <CertificateControls
+                  key={counter.lookup.customerId}
+                  customerId={counter.lookup.customerId}
+                  expired={counter.lookup.verdict.kind === "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED"}
+                  reminderLoggedToday={counter.lookup.reminderLoggedToday}
+                />
+                <ServeControls
+                  customerId={counter.lookup.customerId}
+                  canServe={permitsServing(counter.lookup.verdict)}
+                  lookedUpNumber={typeof nummer === "string" ? nummer : ""}
+                  todaysRecord={
+                    counter.lookup.todaysRecord === null
+                      ? null
+                      : {
+                          recordId: counter.lookup.todaysRecord.recordId,
+                          time: germanTime(counter.lookup.todaysRecord.at),
+                          paid: counter.lookup.todaysRecord.paid,
+                        }
+                  }
+                />
+                {/* The way off this screen and onto the whole record (US-16.5). Everything the
                     counter shows is a slice of it, and the question staff most often have next —
                     who else lives there, what was noted, when did they last collect — is answered
                     there and nowhere here. */}
-              <Button variant="outline" asChild className="self-start">
-                <Link
-                  href={`/kunden/${counter.lookup.customerId}`}
-                  data-testid="counter-record-link"
-                >
-                  {de.distribution.counter.recordLink}
-                </Link>
-              </Button>
+                <Button variant="outline" asChild className="self-start">
+                  <Link
+                    href={`/kunden/${counter.lookup.customerId}`}
+                    data-testid="counter-record-link"
+                  >
+                    {de.distribution.counter.recordLink}
+                  </Link>
+                </Button>
 
-              {/* Blocking and archiving are offered here because the reasons for both show up at
+                {/* Blocking and archiving are offered here because the reasons for both show up at
                     the counter: the certificate still expired after several reminders, the no-show
                     run above (FR-2), and whatever a household does in front of the person serving
                     them. US-08.4 shipped the block controls on the record only, which left a staff
@@ -465,26 +507,30 @@ export default async function DistributionPage({
                     nothing typed about one household survives into the next lookup. Still the
                     pre-shadcn disclosures: they are shared with the customer record, so restyling
                     them is that screen's change, not this one's. */}
-              {counter.lookup.customer === null ? null : (
-                <div className="flex flex-col gap-3">
-                  <BlockControls
-                    key={`block-${counter.lookup.customerId}`}
-                    customerId={counter.lookup.customerId}
-                    status={counter.lookup.customer.status}
-                    blockReason={counter.lookup.customer.blockReason}
-                  />
-                  <ArchiveControls
-                    key={counter.lookup.customerId}
-                    customerId={counter.lookup.customerId}
-                    customerNumber={counter.lookup.customer.customerNumber}
-                    status={counter.lookup.customer.status}
-                  />
-                </div>
-              )}
-            </>
-          )}
-        </>
-      )}
-    </main>
+                {counter.lookup.customer === null ? null : (
+                  <div className="flex flex-col gap-3">
+                    <BlockControls
+                      key={`block-${counter.lookup.customerId}`}
+                      customerId={counter.lookup.customerId}
+                      status={counter.lookup.customer.status}
+                      blockReason={counter.lookup.customer.blockReason}
+                    />
+                    <ArchiveControls
+                      key={counter.lookup.customerId}
+                      customerId={counter.lookup.customerId}
+                      customerNumber={counter.lookup.customer.customerNumber}
+                      status={counter.lookup.customer.status}
+                      returnTo={`/ausgabe?nummer=${encodeURIComponent(
+                        typeof nummer === "string" ? nummer : "",
+                      )}`}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </main>
+    </NoticeBoard>
   );
 }

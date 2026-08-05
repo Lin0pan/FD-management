@@ -276,6 +276,15 @@ test.describe("Kunde archivieren", () => {
     await page.getByTestId("archive-reason").fill(ARCHIVE_REASON);
     await page.getByTestId("archive-submit").click();
 
+    // The archive navigates back to the record it was pressed on, and says so at the top of it. The
+    // navigation is the point: the control is at the foot of a long page, and a `redirect` to the URL
+    // the browser is already on leaves the scroll where it was — measured, that left the archived
+    // banner 356px *above* the viewport, stating the outcome to nobody.
+    await expect(page).toHaveURL(new RegExp(`/kunden/${household.id}\\?archiviert=1$`));
+    await expect(page.getByTestId("archive-saved")).toHaveText(
+      de.customers.archive.saved(Number(household.customerNumber)),
+    );
+
     // The action revalidates the record in place: the status flips and the banner takes the top of
     // the page, carrying the day and the reason.
     await expect(page.getByTestId("customer-status")).toHaveText(de.customers.status.ARCHIVED);

@@ -1,7 +1,11 @@
 # Every write should say what happened
 
 A UX review of the feedback the application gives after an action that saves, changes or deletes
-something — what exists today, what is missing, and the one scheme all of it should converge on.
+something — what it did, what was missing, and the one scheme all of it has converged on.
+
+**Status.** Steps 1–3 of §6 are built and this document describes the built state; step 4 — carrying
+the refusal tier across the server-action boundary, so a refusal can be amber — is not, and until it
+is, every refusal is red.
 
 Companion to `docs/ui_conversion_guide.md`, which owns the styling rules this document works within
 (rule 9 on literal colours, the `role="status"` override, the accessibility-snapshot workflow). It
@@ -114,7 +118,7 @@ converted with the recolour rather than with the extraction.
 
 Nineteen writes. **Observed** is what the browser actually showed on 05.08.2026.
 
-### 3.1 Nothing at all (6)
+### 3.1 Nothing at all (6) — all six now answer
 
 | Write                                                  | Control                                         | Observed                                                                                                                                                              |
 | ------------------------------------------------------ | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -125,16 +129,38 @@ Nineteen writes. **Observed** is what the browser actually showed on 05.08.2026.
 | `archiveCustomerAction`                                | `kunden/archive-controls.tsx`                   | No confirmation. Mitigated: the record re-renders read-only under the archived banner naming the date and reason, which is unmistakable. The weakest case of the six. |
 | `removeApplicantAction`                                | `warteliste/remove-applicant-controls.tsx`      | „Mayra Koszewski" vanished from the list. Zero status regions. The worst case of the six — the only evidence is a row missing from a list nobody was looking at.      |
 
-`reissue-state.ts:9-10` states the omission as a decision: _"There is no `saved` state. A successful
+`reissue-state.ts:9-10` stated the omission as a decision: _"There is no `saved` state. A successful
 reissue revalidates the customer record and the card view, both of which then render the new number
-from the store."_ That is true and it is not enough. The card number changing from `1k1` to `1k2`
-two screens away is not an answer to a button; it is a fact the staff member would have to go and
-check.
+from the store."_ That is true and it was not enough. The card number changing from `1k1` to `1k2`
+further down the page is not an answer to a button; it is a fact the staff member would have to go
+and check.
+
+**Built.** Each of the six answers by the mechanism its control's fate allows (§5):
+
+| Write                    | How it answers                                                                                 |
+| ------------------------ | ---------------------------------------------------------------------------------------------- |
+| `reissueCardAction`      | `saved` on the state, carrying the new number — what staff write on the card. `reissue-saved`. |
+| `reissueStaleCardAction` | Redirects with the new number; the list states it above the rows. `stale-reissue-saved`.       |
+| `blockCustomerAction`    | `saved` on the state, read from `BlockControls` — see below. `block-saved`.                    |
+| `unblockCustomerAction`  | The same, in its own words.                                                                    |
+| `archiveCustomerAction`  | Navigates back to the screen it was pressed on, which states it. `archive-saved`. See §7.      |
+| `removeApplicantAction`  | Redirects; the list states it. `waiting-list-remove-saved`.                                    |
+
+The block was the one that needed more than a `saved`. Both `useActionState`s moved up into
+`BlockControls`, because a block replaces its own form: the record revalidates as BLOCKED and
+"Sperren" gives way to "Sperre aufheben", so a confirmation held by the block form would unmount in
+the render that produced it. The parent survives the swap, and it knows which of the two writes put
+the household in the status it is now drawing.
 
 ### 3.2 A branch that can never render (1)
 
-`correctServe` returns `{ status: "removed" }` (`ausgabe/actions.ts:126`) and `serve-controls.tsx:177`
-handles only `"saved"`. Confirmed live: removing today's hand-out produced zero status regions.
+`correctServe` returned `{ status: "removed" }` (`ausgabe/actions.ts:126`) and `serve-controls.tsx:177`
+handled only `"saved"`. Confirmed live: removing today's hand-out produced zero status regions.
+
+**Built.** The status is gone rather than handled — it never could be handled where it was. `REMOVE`
+redirects with the number that was looked up, so the household stays on screen, and the counter
+states it at the top: `serve-removed-confirmation`, measured in the viewport because a navigation
+lands there. `tests/e2e/serve.spec.ts` now drives it.
 
 Note the mechanical trap before fixing it — removing the record makes `todaysRecord` null, so the
 entire `already-served` card unmounts, taking the `useActionState` holding `"removed"` with it. The
@@ -198,10 +224,18 @@ merely untidy. Once every write confirms, it becomes a hazard: a stale green ban
 sitting next to a button that just did something else is exactly how a staff member concludes an
 action succeeded when it never reported.
 
-Whatever adds the missing banners must also decide when one goes away. The simplest rule that
-matches the existing code: a form that already remounts on save (`record-state.ts`'s `saves` counter,
-`waiting-list-state.ts`'s `savedCount`) clears its own banner; screens carrying several forms should
-render at most one banner at a time.
+**Built: `src/app/notice-board.tsx`.** The rule is _the screen shows the answer to the last thing
+that was asked, and nothing older_. A control still renders its own notice, beside its own button —
+the viewport rule is not negotiable — it just stops rendering it once another control has been
+answered. `useNoticeSlot(id, answer)` takes the action state rather than a boolean, which is
+load-bearing: `useActionState` hands back a new object per submission, so a control that answers
+twice claims the board twice; a boolean would leave a superseded control unable to speak again.
+
+The provider is on the two screens that carry several write controls, `/kunden/[id]` and `/ausgabe`.
+A screen without one behaves exactly as before, which is what a card view with a single control
+wants. One deliberate exception: the registration confirmation on a record reached with
+`?aufgenommen=1` is server-rendered and does not join the board — it is a statement about how the
+page was reached rather than an answer from a control on it.
 
 ---
 
@@ -283,18 +317,27 @@ consequences:
 
 ## 5. Where the message goes when the control disappears
 
-Three of the six silent writes destroy the thing that would display their confirmation. There is no
-new mechanism needed — the codebase already has both:
+Some of the silent writes destroy the thing that would display their confirmation. No new mechanism
+was needed — the codebase already had both, and each write uses the one its control's fate allows:
 
-- **The component survives the revalidate** — block, unblock, archive and the record's reissue all
-  re-render in place. `useActionState` returning a `saved` status is enough; this is what
-  `SaveFeedback` already does five times on the same screen.
-- **The component does not survive** — `removeApplicantAction` (the row goes), `reissueStaleCardAction`
-  (the row goes), `correctServe`'s `"removed"` (the whole card unmounts). These need the message one
-  level up, on the page. The pattern is already in the codebase: registration redirects with
-  `?aufgenommen=1` (`kunden/neu/actions.ts:66`) and the page reads the flag and renders the banner
-  (`kunden/[id]/page.tsx:607`). A page-level region above the list, fed the same way, is the smallest
-  thing that works and the one staff will actually see.
+- **The component survives the revalidate** — the record's reissue re-renders in place, so a `saved`
+  status on the state is enough, which is what `SaveFeedback` already does five times on the same
+  screen.
+- **The component does not survive** — `removeApplicantAction` (the row goes),
+  `reissueStaleCardAction` (the row goes), `correctServe`'s `"removed"` (the whole card unmounts) and
+  `archiveCustomerAction` (every write control on the record goes). These take the message one level
+  up, on the page, by the pattern registration already used: redirect with a flag
+  (`kunden/neu/actions.ts:66`), and the page reads it and renders the banner. Three new flags, each
+  in a module of its own because a `"use server"` file may export nothing but async functions:
+  `karten-neuausstellung/issued-card.ts`, `warteliste/removed-flag.ts`, `ausgabe/removed-flag.ts` and
+  `kunden/archived-flag.ts`.
+- **Between the two** — block and unblock survive as a _pair_: each replaces the other's form, so the
+  states moved up to `BlockControls`, which is the nearest thing that outlives both.
+
+A redirect is also the only reliable way to move the viewport. Measured: `redirect` to the URL the
+browser is already on leaves `window.scrollY` exactly where it was, which is why the archive carries
+a flag it could otherwise have done without — the outcome it states is at the top of a record whose
+control is 2 238px down.
 
 And the rule the counter already learned the hard way (`docs/ui_conversion_guide.md:634`,
 `tests/e2e/serve.spec.ts:244`): **the confirmation must stay where the button was pressed.** Measured
@@ -307,25 +350,30 @@ the button and its answer off the bottom instead. Measure the button's own `getB
 either side of the click as well, and scroll it into view before pressing it, or the measurement is
 of a viewport Playwright moved rather than one staff would be looking at.
 
+**Fixed.** `add-applicant-form.tsx` asks, after a save, whether its confirmation is actually in the
+viewport and scrolls only if it is not. `block: "center"`, not `"nearest"`: the row is inserted in
+the same commit, so `"nearest"` scrolls by the minimum the layout claims at that moment and left the
+banner eight pixels clipped. Measured after: top 760, bottom 800, in a 900px viewport.
+
 ---
 
-## 6. Suggested order of work
+## 6. Order of work
 
-1. **`Notice` + `REFUSAL_ACCENT`**, and rewrite the superseded comments in `accents.ts` and
-   `record-forms.tsx`. Pure refactor: `Confirmation` keeps its signature, the five green call sites
-   and every `data-testid` are untouched.
-2. **Recolour the eight white confirmations to green** through it. Still no new strings, no new
-   testids, no action changes.
-3. **Add the seven missing confirmations** — the six silent writes plus `correctServe`'s `"removed"`.
-   New dictionary keys in `src/i18n/de.ts`, new `saved` states, and the page-level region for the
-   three vanishing controls. Decide banner-clearing here (§3.5).
-4. **Carry the tier across the boundary** and retier every refusal to amber, folding in the settings
-   per-field fix from `docs/ui_redesign_einstellungen.md` §8 step 2.
+1. ✅ **`Notice` + `REFUSAL_ACCENT`**, and the superseded comments rewritten in `accents.ts` and
+   `record-forms.tsx`. The record's five saves went green with the comment that had ruled them out,
+   because a comment cannot be rewritten a step before the code it describes.
+2. ✅ **The remaining white confirmations recoloured** through it. No new strings, no new testids, no
+   action changes, no spec edited.
+3. ✅ **The seven missing confirmations** — the six silent writes plus `correctServe`'s `"removed"` —
+   with new dictionary keys, new `saved` states, four redirect flags for the controls that do not
+   survive their own write, and the banner-clearing rule (§3.5). Three e2e tests added and four
+   extended; nothing existing changed its meaning.
+4. ⬜ **Carry the tier across the boundary** and retier every refusal to amber, folding in the
+   settings per-field fix from `docs/ui_redesign_einstellungen.md` §8 step 2.
 
-Steps 1–2 are a restyle and should not need a spec edited. Step 3 is additive; new testids follow the
-existing `<feature>-saved` / `<feature>-error` convention. Step 4 is the only one that touches types
-and actions, and `settings.spec.ts` — which distinguishes success from refusal purely by which
-testid is present — is the spec to watch.
+Step 4 is the only one that touches types and actions, and `settings.spec.ts` — which distinguishes
+success from refusal purely by which testid is present — is the spec to watch. Until it is done every
+refusal stays red, which is the status quo rather than a regression.
 
 ---
 
@@ -337,8 +385,16 @@ testid is present — is the spec to watch.
   as `/einstellungen` step 2. It is a feedback problem too: a message saying "nothing was saved" next
   to a form that has silently reset is worse than either alone. Not in scope above; worth deciding
   before step 4.
-- **Should the archive keep its own banner?** It is the one silent write whose outcome the page
-  states plainly. A green confirmation on top of the archived banner may be one message too many.
+- **Should the archive keep its own banner?** ✅ **Answered: yes, and the reason turned out not to be
+  the one the question assumed.** The record does state the outcome plainly — but it states it at the
+  _top_ of the record, and the control is at the foot of it. Measured after archiving from the danger
+  zone, the archived banner sat 356px **above** the viewport: the outcome was stated to nobody. What
+  the archive needed first was the navigation, and `redirect` to the URL the browser is already on
+  moves no scroll at all, so it carries `?archiviert=1` to make the navigation real. Having a flag,
+  the screen uses it: the confirmation names the customer number that just came free, which is the
+  consequence staff act on — somebody on the waiting list can have it. The standing banner beneath is
+  not a repetition of it; it is a fact about the household that will still be true in a year, and the
+  two arrive in view together.
 - **Two refusals are unreachable through the UI** — `AlreadyServedToday` (the serve button is
   replaced by the correction card) and `ReminderAlreadyLoggedToday` (the button disables itself and
   relabels to „Erinnerung heute bereits erfasst"). Both are good design and neither needs a banner;

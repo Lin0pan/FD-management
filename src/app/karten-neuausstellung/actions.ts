@@ -17,12 +17,15 @@
  */
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { reissueCard } from "@/application/customers/reissue-card";
+import { formatCardNumber } from "@/domain/card/cardNumber";
 import { CustomerArchived } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { customerDeps } from "../kunden/deps";
-import { initialStaleReissueState, type StaleReissueState } from "./reissue-state";
+import { ISSUED_CARD } from "./issued-card";
+import { type StaleReissueState } from "./reissue-state";
 
 /** A surrogate id as a hidden form field carries it — a positive whole number, or the form is stale. */
 const surrogateId = z
@@ -36,6 +39,13 @@ const surrogateId = z
  * On success four screens are revalidated: this list (the row is gone, because the new card prints
  * today's counts), the household's record and card view (they name the new number), and the home
  * screen (its badge counts this list).
+ *
+ * Then it **redirects**, rather than returning a `saved` state, because the row this was submitted
+ * from is exactly what the revalidate removes — the control and any state it held go with it, which
+ * is why this write had no confirmation at all (`docs/ui_action_feedback_review.md` §3.1, §5). The
+ * new number rides in the URL and the page states it above the list, the same way the registration
+ * hands its confirmation to the record it lands on. `redirect` throws its own control-flow error, so
+ * it is called outside the `try` — inside, the catch would file the navigation as a failed reissue.
  */
 export async function reissueStaleCardAction(
   _previous: StaleReissueState,
@@ -46,8 +56,17 @@ export async function reissueStaleCardAction(
     return { status: "error", message: de.customers.reissue.errors.unknown };
   }
 
+  let cardNumber: string;
   try {
-    await reissueCard(customerDeps, { customerId: customerId.data, reason: "STALE_COUNTS" });
+    const card = await reissueCard(customerDeps, {
+      customerId: customerId.data,
+      reason: "STALE_COUNTS",
+    });
+    const customer = await customerDeps.customers.findById(customerId.data);
+    if (customer === null) {
+      return { status: "error", message: de.customers.reissue.errors.unknown };
+    }
+    cardNumber = formatCardNumber(customer.customerNumber, card.index);
   } catch (error: unknown) {
     if (error instanceof CustomerArchived) {
       return { status: "error", message: de.customers.reissue.errors.archived };
@@ -61,5 +80,5 @@ export async function reissueStaleCardAction(
   // Both screens that count this list: the hub (US-17.2) and the home screen.
   revalidatePath("/kunden");
   revalidatePath("/");
-  return initialStaleReissueState;
+  redirect(`/karten-neuausstellung?${ISSUED_CARD}=${encodeURIComponent(cardNumber)}`);
 }

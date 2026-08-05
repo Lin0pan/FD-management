@@ -26,18 +26,27 @@ import { cn } from "@/lib/utils";
 import { archiveCustomerAction } from "./archive-actions";
 import { initialArchiveState } from "./archive-state";
 import { Notice } from "../notice";
+import { useNoticeSlot } from "../notice-board";
 
 export function ArchiveControls({
   customerId,
   customerNumber,
   status,
+  returnTo,
 }: {
   customerId: number;
   /** Named in the confirmation, because it is the number that goes back into circulation. */
   customerNumber: number;
   status: CustomerStatus;
+  /**
+   * The screen this control is standing on. A successful archive navigates back to it, which is how
+   * the outcome gets read: this control is at the foot of a long page and the sentence stating what
+   * happened is at the head of it.
+   */
+  returnTo: string;
 }): React.ReactElement | null {
   const [state, action, pending] = useActionState(archiveCustomerAction, initialArchiveState);
+  const showing = useNoticeSlot("archive", state.status === "idle" ? null : state);
   const [reason, setReason] = useState("");
   const reasonId = useId();
 
@@ -63,6 +72,7 @@ export function ArchiveControls({
       </summary>
       <form action={action} className="mt-3 flex flex-col items-start gap-3">
         <input type="hidden" name="customerId" value={customerId} />
+        <input type="hidden" name="returnTo" value={returnTo} />
         {/* Destructive rather than amber: amber states a lapsed certificate or reports a refused
             act (`REFUSAL_ACCENT`), and this is a step about to be taken — the one on the card that
             cannot be typed over afterwards. */}
@@ -94,7 +104,7 @@ export function ArchiveControls({
         >
           {pending ? de.customers.archive.submitting : de.customers.archive.submit}
         </Button>
-        {state.status === "error" ? (
+        {showing && state.status === "error" ? (
           <Notice tone="error" text={state.message} testId="archive-error" />
         ) : null}
       </form>

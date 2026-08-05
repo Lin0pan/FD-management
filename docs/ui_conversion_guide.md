@@ -235,6 +235,14 @@ scroll to the bottom of the list and confirm the header is still there and still
   of key/value pairs, lift the two or three figures that drive the decision into large tiles and put
   the rest in a two-column table with no header row — that is what turned the counter's eleven
   identical boxes into something readable.
+- **A screen with several write controls shows one answer at a time** (`src/app/notice-board.tsx`).
+  Wrap it in `NoticeBoard` and have each control ask `useNoticeSlot`; the notice still renders beside
+  its own button, it just stops rendering once another control has been answered.
+- **A control that its own write destroys cannot hold its confirmation.** A row that disappears, a
+  card that unmounts, a form that is replaced by its opposite: hand the message one level up, either
+  to the parent that survives (`BlockControls`) or to the page, by redirecting with a flag the way
+  registration does with `?aufgenommen=1`. A `redirect` to the URL the browser is already on moves no
+  scroll, so the flag is what makes the navigation real.
 - **Every answer to a button goes through `src/app/notice.tsx`.** `Notice` has three tones —
   `success`, `refusal`, `error` — and `Confirmation` is the success one under the name the call sites
   are actually saying. It lives beside `accents.ts` rather than in `src/components/`, because it is

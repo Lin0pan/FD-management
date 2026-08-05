@@ -39,6 +39,8 @@ import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { GROUP_STYLES } from "../../accents";
 import { Confirmation } from "../../notice";
+import { NoticeBoard } from "../../notice-board";
+import { ARCHIVED } from "../archived-flag";
 import { SHELL } from "../../shell";
 import { Stat } from "../../stat";
 import { ArchiveControls } from "../archive-controls";
@@ -284,11 +286,14 @@ function CustomerRecord({
   view,
   settings,
   justRegistered,
+  justArchived,
 }: {
   view: CustomerCardView;
   settings: Settings;
   /** Whether this record was arrived at straight from a registration — see `CustomerRecordPage`. */
   justRegistered: boolean;
+  /** Whether the archive control on this record was what brought the page back — same mechanism. */
+  justArchived: boolean;
 }): React.ReactElement {
   const { customer, household, cardNumber, nextCardNumber, groupCounts } = view;
   const { details } = customer;
@@ -304,51 +309,55 @@ function CustomerRecord({
   };
 
   return (
-    <main className={SHELL}>
-      {/*
-       * The `h1` is the household, not the screen. Every record used to be headed
-       * "Kundenübersicht" with the name as a `<p>` below it — but the navigation bar already says
-       * which section you are in, and the one thing this page has that no other page has is *which
-       * household*. The status and the group are badges beside it, using the same chrome table
-       * as /kunden.
-       *
-       * The heading row carries the name and nothing else, and stays *outside* a card, as the
-       * heading row does on all seven screens (`docs/ui_conversion_guide.md`, "Page skeleton"). A
-       * heading needs no boundary; the facts under it do — which is why they have their own, below.
-       *
-       * `customer-status` keeps its exact text in a span of its own, and the badge wraps that span
-       * rather than replacing it.
-       */}
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-semibold tracking-tight">
-            {details.firstName} {details.lastName}
-          </h1>
-          {/* `variant="outline"`, as on /kunden and /karten-neuausstellung. Without it the badge
+    // Eight write controls stand on this record, and each used to keep its own last answer until the
+    // page was left. The board holds them to one at a time: the answer to the last thing asked, and
+    // nothing older (`notice-board.tsx`).
+    <NoticeBoard>
+      <main className={SHELL}>
+        {/*
+         * The `h1` is the household, not the screen. Every record used to be headed
+         * "Kundenübersicht" with the name as a `<p>` below it — but the navigation bar already says
+         * which section you are in, and the one thing this page has that no other page has is *which
+         * household*. The status and the group are badges beside it, using the same chrome table
+         * as /kunden.
+         *
+         * The heading row carries the name and nothing else, and stays *outside* a card, as the
+         * heading row does on all seven screens (`docs/ui_conversion_guide.md`, "Page skeleton"). A
+         * heading needs no boundary; the facts under it do — which is why they have their own, below.
+         *
+         * `customer-status` keeps its exact text in a span of its own, and the badge wraps that span
+         * rather than replacing it.
+         */}
+        <header className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-semibold tracking-tight">
+              {details.firstName} {details.lastName}
+            </h1>
+            {/* `variant="outline"`, as on /kunden and /karten-neuausstellung. Without it the badge
               takes the `default` variant — `bg-primary text-primary-foreground` — and
               `GROUP_STYLES` then overrides only the *background*, leaving white text on a 10%
               tint. The colour word is the datum here (guide rule 9), so it has to be legible;
               `outline` sets `text-foreground` and lets the tint be the tint. */}
-          <Badge variant="outline" className={GROUP_STYLES[customer.group]}>
-            {de.customers.groups[customer.group]}
-          </Badge>
-          <StateWord
-            word={de.customers.status[customer.status]}
-            testId="customer-status"
-            chrome={STATUS_CHROME[customer.status]}
-          />
-        </div>
-        {/* The guide's stated exception to "no back-links": this one names a *record* — this
+            <Badge variant="outline" className={GROUP_STYLES[customer.group]}>
+              {de.customers.groups[customer.group]}
+            </Badge>
+            <StateWord
+              word={de.customers.status[customer.status]}
+              testId="customer-status"
+              chrome={STATUS_CHROME[customer.status]}
+            />
+          </div>
+          {/* The guide's stated exception to "no back-links": this one names a *record* — this
             household's printed card — which the four-item bar cannot say. It belongs in the header
             row rather than stranded under the danger zone. */}
-        <Button variant="outline" asChild>
-          <Link href={`/kunden/${customer.id}/karte`} data-testid="card-view-link">
-            {de.customers.card.cardViewLink}
-          </Link>
-        </Button>
-      </header>
+          <Button variant="outline" asChild>
+            <Link href={`/kunden/${customer.id}/karte`} data-testid="card-view-link">
+              {de.customers.card.cardViewLink}
+            </Link>
+          </Button>
+        </header>
 
-      {/* Above the identity card rather than in the banner slot the archived and blocked notices
+        {/* Above the identity card rather than in the banner slot the archived and blocked notices
           share below it. Those two are facts about the household, and they belong beside the rest of
           what the record knows; this is feedback about the act that just happened, and it is read
           once and never again. A staff member who has pressed "Aufnehmen" is asking "did that
@@ -357,11 +366,24 @@ function CustomerRecord({
           It is deliberately not a heading, so the record still announces as `h1` → the sections'
           `h2`s (`docs/ui_conversion_guide.md`, trap 1); the `role="status"` inside `Confirmation` is
           what carries it to a screen reader. */}
-      {justRegistered ? (
-        <Confirmation text={de.customers.new.saved} testId="registration-confirmation" />
-      ) : null}
+        {justRegistered ? (
+          <Confirmation text={de.customers.new.saved} testId="registration-confirmation" />
+        ) : null}
 
-      {/* Who this household is, in a card of its own — the counter's customer card and the printed
+        {/* The same slot, for the write at the other end of a household's life. Two sentences say
+            the outcome here — this one and the archived banner below — and they are not a repetition:
+            this one is the answer to a click and names the number that just came free, and that one
+            is a standing fact about the household that will be there in a year. The control that
+            asked is 2 200px below both, which is why the archive navigates rather than confirming in
+            place (`archived-flag.ts`). */}
+        {justArchived ? (
+          <Confirmation
+            text={de.customers.archive.saved(customer.customerNumber)}
+            testId="archive-saved"
+          />
+        ) : null}
+
+        {/* Who this household is, in a card of its own — the counter's customer card and the printed
           card's header, one rank down at 24px against their 36 and 48.
           `docs/ui_redesign_kunden_record.md` §3.8 built this as a 14px muted line under the name,
           modelled on the counter's subtitle of the day; the counter has since moved and the line
@@ -384,209 +406,211 @@ function CustomerRecord({
           eye first. It is a line below instead, which also makes this pair exactly the pair the
           counter states. The household's start is their *first* card, not the one they hold: a card
           replaced after a loss must not read as a later registration date (US-10.1). */}
-      <Card>
-        <CardContent className="flex flex-col gap-3">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Stat
-              label={de.customers.fields.customerNumber}
-              value={String(customer.customerNumber)}
-              testId="customer-number"
-              valueClassName="text-2xl"
+        <Card>
+          <CardContent className="flex flex-col gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Stat
+                label={de.customers.fields.customerNumber}
+                value={String(customer.customerNumber)}
+                testId="customer-number"
+                valueClassName="text-2xl"
+              />
+              <Stat
+                label={de.customers.fields.cardNumber}
+                value={cardNumber}
+                testId="card-number"
+                valueClassName="text-2xl"
+              />
+            </div>
+            <Field
+              label={de.customers.card.registered}
+              value={germanDate(customer.registeredOn)}
+              testId="registered-on"
             />
-            <Stat
-              label={de.customers.fields.cardNumber}
-              value={cardNumber}
-              testId="card-number"
-              valueClassName="text-2xl"
-            />
-          </div>
-          <Field
-            label={de.customers.card.registered}
-            value={germanDate(customer.registeredOn)}
-            testId="registered-on"
-          />
-          {/* Shown only when there is something to see. A zero would be one more number to read
+            {/* Shown only when there is something to see. A zero would be one more number to read
               past on every record, and it says nothing an archiving decision could rest on — which
               is also why it stays a line while the two facts above it are tiles: it is the
               exception, and it should not look like one more thing every household has. */}
-          {view.consecutiveNoShows === 0 ? null : (
-            <Field
-              label={de.customers.derived.noShows}
-              value={de.customers.derived.noShowsValue(view.consecutiveNoShows)}
-              testId="no-shows"
-            />
-          )}
-        </CardContent>
-      </Card>
+            {view.consecutiveNoShows === 0 ? null : (
+              <Field
+                label={de.customers.derived.noShows}
+                value={de.customers.derived.noShowsValue(view.consecutiveNoShows)}
+                testId="no-shows"
+              />
+            )}
+          </CardContent>
+        </Card>
 
-      {archived ? (
-        <ArchivedBanner archivedAt={customer.archivedAt} reason={customer.archiveReason} />
-      ) : null}
+        {archived ? (
+          <ArchivedBanner archivedAt={customer.archivedAt} reason={customer.archiveReason} />
+        ) : null}
 
-      {/* The fact belongs where states are stated; the control stays behind the heading that says
+        {/* The fact belongs where states are stated; the control stays behind the heading that says
           it is irreversible. It was 2 609px below the status it explains — the same split /kunden
           and the counter already make, arriving on the screen you go to to find out what happened. */}
-      {customer.status === "BLOCKED" ? (
-        <Alert variant="destructive">
-          <AlertDescription className="max-w-prose whitespace-pre-line">
-            <span className="text-sm">{de.customers.block.currentReason}: </span>
-            <span data-testid="block-reason-current" className="font-medium">
-              {customer.blockReason}
-            </span>
-          </AlertDescription>
-        </Alert>
-      ) : null}
+        {customer.status === "BLOCKED" ? (
+          <Alert variant="destructive">
+            <AlertDescription className="max-w-prose whitespace-pre-line">
+              <span className="text-sm">{de.customers.block.currentReason}: </span>
+              <span data-testid="block-reason-current" className="font-medium">
+                {customer.blockReason}
+              </span>
+            </AlertDescription>
+          </Alert>
+        ) : null}
 
-      {/*
-       * The sections are ordered the way a record is *read*, which is not the order it is written.
-       *
-       * The previous order — who this is, where they live, who lives with them, what they may
-       * collect — was documented as deliberate, and for a paper record it is right. On screen it
-       * put the least-read section, the address, 480px above the most-read one, and it put the
-       * certificate and the note — which both exist for the counter — below 2 100px. FD were asked
-       * and chose the reading order. Nothing is removed and nothing is renamed; only the order
-       * changes, and it is trivially reversible.
-       */}
-      <Section heading={de.customers.card.householdHeading}>
-        {archived ? (
-          <HouseholdReadOnly view={view} />
-        ) : (
-          <HouseholdEditor
-            customerId={customer.id}
-            members={household.map((member) => ({
-              firstName: member.firstName,
-              lastName: member.lastName,
-              birthDate: isoDay(member.birthDate),
-            }))}
-            today={view.today}
-            policy={policy}
-          />
-        )}
-      </Section>
+        {/*
+         * The sections are ordered the way a record is *read*, which is not the order it is written.
+         *
+         * The previous order — who this is, where they live, who lives with them, what they may
+         * collect — was documented as deliberate, and for a paper record it is right. On screen it
+         * put the least-read section, the address, 480px above the most-read one, and it put the
+         * certificate and the note — which both exist for the counter — below 2 100px. FD were asked
+         * and chose the reading order. Nothing is removed and nothing is renamed; only the order
+         * changes, and it is trivially reversible.
+         */}
+        <Section heading={de.customers.card.householdHeading}>
+          {archived ? (
+            <HouseholdReadOnly view={view} />
+          ) : (
+            <HouseholdEditor
+              customerId={customer.id}
+              members={household.map((member) => ({
+                firstName: member.firstName,
+                lastName: member.lastName,
+                birthDate: isoDay(member.birthDate),
+              }))}
+              today={view.today}
+              policy={policy}
+            />
+          )}
+        </Section>
 
-      <Section heading={de.customers.card.certificateHeading}>
-        <p>
-          {details.certificate.type} — {de.customers.card.validUntil}{" "}
-          {germanDate(details.certificate.validUntil)}
-        </p>
-        <Field
-          label={de.customers.card.reminderCount}
-          value={String(customer.reminderCount)}
-          testId="reminder-count"
-        />
-        {archived ? null : <RenewalForm customerId={customer.id} />}
-      </Section>
-
-      <Section heading={words.notesHeading}>
-        {archived ? (
-          <p data-testid="notes-text" className="max-w-prose whitespace-pre-line">
-            {details.notes === "" ? words.notesEmpty : details.notes}
+        <Section heading={de.customers.card.certificateHeading}>
+          <p>
+            {details.certificate.type} — {de.customers.card.validUntil}{" "}
+            {germanDate(details.certificate.validUntil)}
           </p>
-        ) : (
-          <NotesEditor customerId={customer.id} notes={details.notes} />
-        )}
-      </Section>
-
-      <Section heading={words.detailsHeading}>
-        {archived ? (
-          <>
-            <Field label={de.customers.fields.birthDate} value={germanDate(details.birthDate)} />
-            <p>
-              {details.address.street} {details.address.houseNumber}
-            </p>
-            <p>
-              {details.address.zip} {details.address.city}
-            </p>
-          </>
-        ) : (
-          <DetailsEditor
-            customerId={customer.id}
-            details={{
-              firstName: details.firstName,
-              lastName: details.lastName,
-              // Written as ISO on the server: read in the browser's own zone, a midnight-UTC day
-              // lands on the day before.
-              birthDate: isoDay(details.birthDate),
-              street: details.address.street,
-              houseNumber: details.address.houseNumber,
-              zip: details.address.zip,
-              city: details.address.city,
-            }}
+          <Field
+            label={de.customers.card.reminderCount}
+            value={String(customer.reminderCount)}
+            testId="reminder-count"
           />
-        )}
-      </Section>
+          {archived ? null : <RenewalForm customerId={customer.id} />}
+        </Section>
 
-      <Section heading={words.groupHeading}>
-        {archived ? (
-          <Field label={de.customers.fields.group} value={de.customers.groups[customer.group]} />
-        ) : (
-          <GroupControl customerId={customer.id} group={customer.group} counts={groupCounts} />
-        )}
-      </Section>
+        <Section heading={words.notesHeading}>
+          {archived ? (
+            <p data-testid="notes-text" className="max-w-prose whitespace-pre-line">
+              {details.notes === "" ? words.notesEmpty : details.notes}
+            </p>
+          ) : (
+            <NotesEditor customerId={customer.id} notes={details.notes} />
+          )}
+        </Section>
 
-      {/* A disclosure, per FD: on a two-year-old record this is fifty rows of something consulted
+        <Section heading={words.detailsHeading}>
+          {archived ? (
+            <>
+              <Field label={de.customers.fields.birthDate} value={germanDate(details.birthDate)} />
+              <p>
+                {details.address.street} {details.address.houseNumber}
+              </p>
+              <p>
+                {details.address.zip} {details.address.city}
+              </p>
+            </>
+          ) : (
+            <DetailsEditor
+              customerId={customer.id}
+              details={{
+                firstName: details.firstName,
+                lastName: details.lastName,
+                // Written as ISO on the server: read in the browser's own zone, a midnight-UTC day
+                // lands on the day before.
+                birthDate: isoDay(details.birthDate),
+                street: details.address.street,
+                houseNumber: details.address.houseNumber,
+                zip: details.address.zip,
+                city: details.address.city,
+              }}
+            />
+          )}
+        </Section>
+
+        <Section heading={words.groupHeading}>
+          {archived ? (
+            <Field label={de.customers.fields.group} value={de.customers.groups[customer.group]} />
+          ) : (
+            <GroupControl customerId={customer.id} group={customer.group} counts={groupCounts} />
+          )}
+        </Section>
+
+        {/* A disclosure, per FD: on a two-year-old record this is fifty rows of something consulted
           only when a visit is disputed, and nothing in the suite reaches it (§3.12), so unlike the
           archive search it can genuinely be closed. */}
-      <Card>
-        <details>
-          <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-            <CardHeader>
-              <CardTitle>
-                <h2>{words.historyHeading}</h2>
-              </CardTitle>
-              <CardDescription>{words.historyDisclosure}</CardDescription>
-            </CardHeader>
-          </summary>
-          <CardContent className="mt-6 flex flex-col gap-4">
-            <History records={view.history} />
-          </CardContent>
-        </details>
-      </Card>
+        <Card>
+          <details>
+            <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+              <CardHeader>
+                <CardTitle>
+                  <h2>{words.historyHeading}</h2>
+                </CardTitle>
+                <CardDescription>{words.historyDisclosure}</CardDescription>
+              </CardHeader>
+            </summary>
+            <CardContent className="mt-6 flex flex-col gap-4">
+              <History records={view.history} />
+            </CardContent>
+          </details>
+        </Card>
 
-      {/* Every irreversible action on one household, together and behind a heading that says what
+        {/* Every irreversible action on one household, together and behind a heading that says what
           they are — so none of them is a stray click away from the household editor (PRD §6). Each
           keeps its own confirmation. An archived household is offered none of the three: there is no
           way back out of ARCHIVED, they hold no slot and they are issued no card. */}
-      {archived ? null : (
-        <Section heading={words.dangerHeading}>
-          <p className="max-w-prose text-sm text-muted-foreground">{words.dangerHint}</p>
+        {archived ? null : (
+          <Section heading={words.dangerHeading}>
+            <p className="max-w-prose text-sm text-muted-foreground">{words.dangerHint}</p>
 
-          {/* One card holds the section already, so the inner frame goes: it was one more bordered
+            {/* One card holds the section already, so the inner frame goes: it was one more bordered
               box on a screen whose only bordered things were 22 hairlines. The three `<h3>`s stay —
               they are what says which control is which. */}
-          <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-3">
-              <h3 className="text-lg font-semibold">{de.customers.reissue.heading}</h3>
-              <ReissueControls
-                customerId={customer.id}
-                cardNumber={cardNumber}
-                nextCardNumber={nextCardNumber}
-              />
-            </div>
+            <div className="flex flex-col gap-6">
+              <div className="flex flex-col gap-3">
+                <h3 className="text-lg font-semibold">{de.customers.reissue.heading}</h3>
+                <ReissueControls
+                  customerId={customer.id}
+                  cardNumber={cardNumber}
+                  nextCardNumber={nextCardNumber}
+                />
+              </div>
 
-            <div className="flex flex-col gap-3">
-              <h3 className="text-lg font-semibold">{de.customers.block.heading}</h3>
-              {/* The reason is stated once, under the header — duplicating it here would make
+              <div className="flex flex-col gap-3">
+                <h3 className="text-lg font-semibold">{de.customers.block.heading}</h3>
+                {/* The reason is stated once, under the header — duplicating it here would make
                   `block-reason-current` strict-mode-ambiguous as well as saying it twice. */}
-              <BlockControls
-                customerId={customer.id}
-                status={customer.status}
-                blockReason={customer.blockReason}
-              />
-            </div>
+                <BlockControls
+                  customerId={customer.id}
+                  status={customer.status}
+                  blockReason={customer.blockReason}
+                />
+              </div>
 
-            <div className="flex flex-col gap-3">
-              <h3 className="text-lg font-semibold">{de.customers.archive.heading}</h3>
-              <ArchiveControls
-                customerId={customer.id}
-                customerNumber={customer.customerNumber}
-                status={customer.status}
-              />
+              <div className="flex flex-col gap-3">
+                <h3 className="text-lg font-semibold">{de.customers.archive.heading}</h3>
+                <ArchiveControls
+                  customerId={customer.id}
+                  customerNumber={customer.customerNumber}
+                  status={customer.status}
+                  returnTo={`/kunden/${customer.id}`}
+                />
+              </div>
             </div>
-          </div>
-        </Section>
-      )}
-    </main>
+          </Section>
+        )}
+      </main>
+    </NoticeBoard>
   );
 }
 
@@ -604,9 +628,9 @@ export default async function CustomerRecordPage({
    * It follows that reloading that URL confirms again. That is the price of the simplest thing that
    * works, and it is paid by an act nobody repeats.
    */
-  searchParams: Promise<{ aufgenommen?: string | string[] }>;
+  searchParams: Promise<{ aufgenommen?: string | string[]; [ARCHIVED]?: string | string[] }>;
 }): Promise<React.ReactElement> {
-  const [{ id }, { aufgenommen }] = await Promise.all([params, searchParams]);
+  const [{ id }, query] = await Promise.all([params, searchParams]);
   // A URL is typed by hand as easily as it is clicked, so a non-numeric id is the same answer as an
   // id nobody holds: there is no such customer.
   const numericId = Number(id);
@@ -633,5 +657,12 @@ export default async function CustomerRecordPage({
     throw error;
   }
 
-  return <CustomerRecord view={view} settings={settings} justRegistered={aufgenommen === "1"} />;
+  return (
+    <CustomerRecord
+      view={view}
+      settings={settings}
+      justRegistered={query.aufgenommen === "1"}
+      justArchived={query[ARCHIVED] === "1"}
+    />
+  );
 }

@@ -30,8 +30,10 @@ export interface AddApplicantState {
 export const initialAddApplicantState: AddApplicantState = { status: "idle", savedCount: 0 };
 
 /**
- * What the removal control shows. There is no `saved` state: a removal takes the row off the list
- * the page is rendering, so the answer to a successful one is the list without it.
+ * What the removal control shows. There is no `saved` state and there cannot be one: a removal takes
+ * the row off the list, and this control with it. The successful answer is handed to the page
+ * instead, through the redirect in `actions.ts` — a rejection is the only one that has anywhere to
+ * be read, because a rejection is the answer that leaves the row standing.
  */
 export interface RemoveApplicantState {
   readonly status: "idle" | "error";
