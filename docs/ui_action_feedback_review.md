@@ -47,7 +47,7 @@ permitted literals.
 
 ### 2.1 What changes about green
 
-`src/app/accents.ts:48-50` currently rules a save _out_ of green:
+**Settled and built.** `src/app/accents.ts` used to rule a save _out_ of green:
 
 > It is _not_ worn by a save. Editing a note or a spelling on an existing record is feedback that
 > something took, not the completion of an act — those stay the neutral `<Alert role="status">` in
@@ -61,24 +61,27 @@ them. The distinction the old rule protects is real but it is not one a voluntee
 to make, and it is being paid for with the thing they do need: a confirmation that reads as a
 confirmation at a glance.
 
-Both places that record the old rule must be rewritten with the change, not left to contradict it:
-`src/app/accents.ts:39-55` and the comment at `src/app/kunden/[id]/record-forms.tsx:122-129`.
+Both places that recorded the old rule were rewritten with the change rather than left to contradict
+it: `CONFIRMATION_ACCENT`'s own comment and the one inside `SaveFeedback`. A comment cannot be
+rewritten a step before the code it describes, which is why the record's five saves went green with
+it — the two settings and waiting-list confirmations in §3.3 follow in step 2.
 
 ### 2.2 Amber does not collide with the lapsed certificate
 
-Amber is currently reserved application-wide for "a certificate lapsed", asserted in four separate
-comments (`kunden/archive-controls.tsx:65`, `kunden/neu/archive-search-panel.tsx:270`,
-`kunden/neu/registration-screen.tsx:76`, `warteliste/remove-applicant-controls.tsx:53`) and used as
-row chrome in `kunden/page.tsx:97-101` and as the counter's `warn` verdict
+Amber was reserved application-wide for "a certificate lapsed", asserted in four separate comments
+(`kunden/archive-controls.tsx`, `kunden/neu/archive-search-panel.tsx`,
+`kunden/neu/registration-screen.tsx`, `warteliste/remove-applicant-controls.tsx`) and used as row
+chrome in `kunden/page.tsx:97-101` and as the counter's `warn` verdict
 (`ausgabe/counter-lookup.tsx:56`).
 
 The two readings coexist because they are never the same element and never the same grammar: a
 lapsed certificate is **standing state**, attached to a row or a verdict and true until somebody
 changes it; a refusal is an **answer to a button**, gone on the next render. The counter's amber
 `warn` tone is in fact already the first reading of "the rules say be careful", so this extends a
-precedent rather than inventing one. The four comments claiming exclusivity need rewording, and
-`accents.ts` gains a `REFUSAL_ACCENT` so there is one definition instead of a fifth hand-written
-tint.
+precedent rather than inventing one. **Built:** the four comments claiming exclusivity now state both
+readings, and `accents.ts` carries `REFUSAL_ACCENT` so there is one definition instead of a fifth
+hand-written tint. Nothing wears it yet — the tone exists on `Notice`, and the tier that would select
+it is step 4.
 
 ### 2.3 One component
 
@@ -141,15 +144,18 @@ message cannot live inside that component at all. See §5.
 
 All measured at `background-color: lab(100 0 0)` — white — with no icon and no border tint.
 
-| Write                    | Control                                     | Text                                                   |
-| ------------------------ | ------------------------------------------- | ------------------------------------------------------ |
-| `updateHouseholdAction`  | `kunden/[id]/household-editor.tsx`          | „Gespeichert."                                         |
-| `updateDetailsAction`    | `kunden/[id]/details-editor.tsx`            | „Gespeichert."                                         |
-| `updateNotesAction`      | `kunden/[id]/notes-editor.tsx`              | „Gespeichert."                                         |
-| `changeGroupAction`      | `kunden/[id]/group-control.tsx`             | „Gespeichert."                                         |
-| `renewCertificateAction` | `kunden/[id]/renewal-form.tsx`              | „Nachweis gespeichert. Erinnerungen zurückgesetzt: 0." |
-| `addApplicantAction`     | `warteliste/add-applicant-form.tsx:108-114` | „Testine Rueckmeldung steht jetzt auf der Warteliste." |
-| `saveSettings`           | `einstellungen/settings-form.tsx:338-348`   | „Gespeichert. Die neuen Werte gelten ab sofort."       |
+| Write                    | Control                                     | Text                                                   | Green  |
+| ------------------------ | ------------------------------------------- | ------------------------------------------------------ | ------ |
+| `updateHouseholdAction`  | `kunden/[id]/household-editor.tsx`          | „Gespeichert."                                         | ✅     |
+| `updateDetailsAction`    | `kunden/[id]/details-editor.tsx`            | „Gespeichert."                                         | ✅     |
+| `updateNotesAction`      | `kunden/[id]/notes-editor.tsx`              | „Gespeichert."                                         | ✅     |
+| `changeGroupAction`      | `kunden/[id]/group-control.tsx`             | „Gespeichert."                                         | ✅     |
+| `renewCertificateAction` | `kunden/[id]/renewal-form.tsx`              | „Nachweis gespeichert. Erinnerungen zurückgesetzt: 0." | ✅     |
+| `addApplicantAction`     | `warteliste/add-applicant-form.tsx:108-114` | „Testine Rueckmeldung steht jetzt auf der Warteliste." | step 2 |
+| `saveSettings`           | `einstellungen/settings-form.tsx:338-348`   | „Gespeichert. Die neuen Werte gelten ab sofort."       | step 2 |
+
+The five on the customer record went with the comment that had ruled them out (§2.1); the other two
+are single elements that flip a variant between success and refusal, and convert with the recolour.
 
 `changeGroupAction` is the case that most deserves green: moving a household between RED and BLUE
 takes effect immediately, even for a distribution the same day, and the record it changes looks

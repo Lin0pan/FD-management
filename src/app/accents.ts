@@ -37,17 +37,20 @@ export const GROUP_STYLES: Record<Group, string> = {
 export const FREE_SLOT_ACCENT = "border-emerald-600/40 bg-emerald-600/15";
 
 /**
- * An act the staff member asked for has completed: a hand-out recorded, a reminder logged, a
- * certificate renewed, a household taken on.
+ * A write the staff member asked for has gone through: a hand-out recorded, a reminder logged, a
+ * certificate renewed, a household taken on, a note saved.
  *
  * Green, next to `FREE_SLOT_ACCENT`'s emerald, and the two are deliberately not the same green:
  * a free slot is a standing fact about the register that is true until somebody takes it, while this
  * is a receipt for something that just happened. Both are good news, which is why neither is red or
  * amber; the shades differ because only one of them is still there on the next screen.
  *
- * It is *not* worn by a save. Editing a note or a spelling on an existing record is feedback that
- * something took, not the completion of an act — those stay the neutral `<Alert role="status">` in
- * `kunden/[id]/record-forms.tsx`, and the boundary is drawn there.
+ * **A save wears it too.** This once drew the boundary at the completion of an *act* and left an
+ * edit to an existing record in a neutral box, on the argument that a corrected spelling is not
+ * something that happened. The distinction is real and it is not one a volunteer at a counter needs
+ * to make: three saves in a row on `/kunden/253` produced three plain white boxes on the same
+ * surface as the card behind them, and "did that save?" — the question a confirmation exists to
+ * answer — was left open by all three (`docs/ui_action_feedback_review.md` §2.1).
  *
  * The word goes with it as always: every user of this accent states what happened in German, and the
  * tint only repeats it.

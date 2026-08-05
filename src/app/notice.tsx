@@ -36,18 +36,18 @@ export type NoticeTone = "success" | "refusal" | "error";
  * `error` is the one that reaches for a theme token rather than a literal: `destructive` is the
  * only chromatic token `globals.css` defines, and its `variant` also paints the sentence and the
  * icon, which is why it is the only tone that leaves `AlertDescription` to its own colour.
+ *
+ * None of them colours its icon. `Alert` sets `*:[svg]:text-current` on every child svg, which
+ * outranks a class on the icon itself — `Confirmation` carried a `text-green-700` that had never
+ * rendered a single green tick, measured foreground-black on the live page. The icon takes the
+ * colour of the box it sits in, and the box is the thing the tint is on.
  */
 const TONES: Record<
   NoticeTone,
-  {
-    readonly Icon: typeof Check;
-    readonly box: string;
-    readonly icon?: string;
-    readonly destructive?: true;
-  }
+  { readonly Icon: typeof Check; readonly box: string; readonly destructive?: true }
 > = {
-  success: { Icon: Check, box: CONFIRMATION_ACCENT, icon: "text-green-700" },
-  refusal: { Icon: TriangleAlert, box: REFUSAL_ACCENT, icon: "text-amber-700" },
+  success: { Icon: Check, box: CONFIRMATION_ACCENT },
+  refusal: { Icon: TriangleAlert, box: REFUSAL_ACCENT },
   error: { Icon: CircleAlert, box: "border-destructive/40 bg-destructive/5", destructive: true },
 };
 
@@ -61,10 +61,10 @@ export function Notice({
   /** Goes on the sentence, so a spec asserts the words rather than the box around them. */
   testId: string;
 }): React.ReactElement {
-  const { Icon, box, icon, destructive } = TONES[tone];
+  const { Icon, box, destructive } = TONES[tone];
   return (
     <Alert role="status" variant={destructive ? "destructive" : "default"} className={box}>
-      <Icon className={icon} />
+      <Icon />
       <AlertDescription
         data-testid={testId}
         // `text-foreground` overrides `AlertDescription`'s muted default — the sentence is the
