@@ -21,6 +21,7 @@ import {
 import { parseEuros } from "@/domain/money";
 import { parseWeekColour } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
+import { tierOf } from "../notice-tier";
 import { settingsDeps } from "./deps";
 import type { SaveSettingsState } from "./save-settings-state";
 
@@ -83,25 +84,64 @@ function formValues(formData: FormData): Record<string, unknown> {
 }
 
 /**
- * Turn a typed domain error into the German sentence the screen shows.
+ * The two settings the domain and the form spell differently.
+ *
+ * `Settings` nests the anchor week, so the domain calls these `weekAnchor.isoWeek` and
+ * `weekAnchor.colour`; an HTML form is flat and `<input name>` cannot be a path, so the form calls
+ * them `weekAnchorIsoWeek` and `weekAnchorColour` — the ids §7.2 of
+ * `docs/ui_redesign_einstellungen.md` fixed. The other six settings are spelled the same on both
+ * sides and are not listed.
+ */
+const INPUT_NAME: Record<string, string | undefined> = {
+  "weekAnchor.isoWeek": "weekAnchorIsoWeek",
+  "weekAnchor.colour": "weekAnchorColour",
+};
+
+/**
+ * Turn a typed domain error into the answer the screen shows: the German sentence, the tier it is
+ * said in, and — where the error names one — the field to mark.
  *
  * Every error carries the values that made it fail, so the message can name concrete numbers
  * without re-deriving them here.
+ *
+ * `field` is the **form input's** name, which is what the form needs in order to mark one — turning a
+ * domain fact into what the browser can use is this adapter's whole job, and it already does it for
+ * the sentence. Six of the eight settings are spelled the same on both sides; the two nested ones
+ * are not, and {@link INPUT_NAME} is that translation.
+ *
+ * It used to be recovered in the browser instead, by comparing the finished sentence back against
+ * `invalidSettings(<label>)`. That is a match on a German string: it held only while the eight
+ * labels stayed distinct, and the first reworded one would have unmarked a field with nothing
+ * failing. The field belongs to the error and now travels with it.
+ *
+ * `QuotaBelowActiveCustomers` deliberately names no field: it is a collision between the new maximum
+ * and the register's actual size, so marking `quotaN` alone would say the number is malformed when
+ * it is merely too small. That refusal stays a summary by the button.
  */
-function germanMessage(error: unknown): string {
+function refusal(error: unknown): Pick<SaveSettingsState, "message" | "tier" | "field"> {
+  const tier = tierOf(error);
   if (error instanceof QuotaBelowActiveCustomers) {
-    return de.settings.errors.quotaBelowActiveCustomers(error.quotaN, error.activeCustomers);
+    return {
+      message: de.settings.errors.quotaBelowActiveCustomers(error.quotaN, error.activeCustomers),
+      tier,
+    };
   }
   if (error instanceof InvalidEuroAmount) {
-    return de.settings.errors.invalidAmount(error.text);
+    return { message: de.settings.errors.invalidAmount(error.text), tier };
   }
   if (error instanceof InvalidSettings) {
-    return de.settings.errors.invalidSettings(de.settings.errorFields[error.field] ?? error.field);
+    return {
+      message: de.settings.errors.invalidSettings(
+        de.settings.errorFields[error.field] ?? error.field,
+      ),
+      tier,
+      field: INPUT_NAME[error.field] ?? error.field,
+    };
   }
   if (error instanceof DomainError && error.code === "NoSettingsInForce") {
-    return de.settings.errors.noSettings;
+    return { message: de.settings.errors.noSettings, tier };
   }
-  return de.settings.errors.unknown;
+  return { message: de.settings.errors.unknown, tier };
 }
 
 /**
@@ -117,7 +157,16 @@ export async function saveSettings(
 ): Promise<SaveSettingsState> {
   const parsed = settingsForm.safeParse(formValues(formData));
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0].message };
+    // A refusal, not an error: every issue this schema raises is a value somebody typed into a field
+    // that is still on screen — a quota that is not a whole number, a price that is not an amount.
+    // The path is already the input's own name, so it marks the field without a translation.
+    const issue = parsed.error.issues[0];
+    return {
+      status: "error",
+      message: issue.message,
+      tier: "refusal",
+      field: typeof issue.path[0] === "string" ? issue.path[0] : undefined,
+    };
   }
   const form = parsed.data;
 
@@ -135,7 +184,7 @@ export async function saveSettings(
       },
     });
   } catch (error: unknown) {
-    return { status: "error", message: germanMessage(error) };
+    return { status: "error", ...refusal(error) };
   }
 
   revalidatePath("/einstellungen");
