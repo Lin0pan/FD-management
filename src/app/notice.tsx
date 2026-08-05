@@ -27,8 +27,16 @@
 import { Check, CircleAlert, TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CONFIRMATION_ACCENT, REFUSAL_ACCENT } from "./accents";
+import type { NoticeTier } from "./notice-tier";
 
-export type NoticeTone = "success" | "refusal" | "error";
+/**
+ * The three answers, built from the two a failure can be plus the one a success is.
+ *
+ * `NoticeTier` is stated in `notice-tier.ts` rather than here because a `"use server"` action has to
+ * name it and must not import a component to do so. Composing rather than re-listing is what keeps
+ * the two vocabularies from drifting: a tier the actions can produce is a tone this can render.
+ */
+export type NoticeTone = "success" | NoticeTier;
 
 /**
  * The chrome of each tone.
@@ -67,6 +75,12 @@ export function Notice({
       <Icon />
       <AlertDescription
         data-testid={testId}
+        // The tier rides on an attribute rather than on a second test id, because four specs assert
+        // `getByTestId("…-error").toHaveCount(0)` to mean *nothing was refused*: move amber to an id
+        // of its own and all four go on asserting the absence of something that no longer renders.
+        // So `-error` in a test id means the answer was no, and this says which no it was — read off
+        // the same locator, exactly as `data-verdict` is on the counter's banner.
+        data-tier={tone}
         // `text-foreground` overrides `AlertDescription`'s muted default — the sentence is the
         // message here, not a note under one. The destructive variant has already coloured it.
         className={destructive ? "max-w-prose" : "max-w-prose text-foreground"}
