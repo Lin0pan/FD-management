@@ -255,8 +255,34 @@ function History({ records }: { records: ReadonlyArray<DistributionRecord> }): R
           badge's worth of rarity — but "Erschienen: nein" is a second exception in the same small
           table and a no-show is not a debt, so two chromes here would be texture rather than
           emphasis. The words already say it, which is the requirement. */}
-      <Table>
-        <TableHeader>
+      {/*
+       * A box of its own, so the record is the same shape whether a household has three hand-outs or
+       * three hundred. Measured against an inflated register, 130 rows — five years at the
+       * fortnightly cycle — took the opened record from 1 536px to 6 457px, and ten years doubles
+       * that again. It is not a performance problem (~19ms), so nothing here paginates or
+       * virtualises: every row stays in the DOM and browser find still crosses the whole history.
+       *
+       * The scrollport is the `Table` primitive's *own* container, which is what `containerProps`
+       * exists for. A second wrapper around it would nest two overflow contexts, and that is exactly
+       * what made the sticky header on /kunden take three attempts
+       * (`docs/ui_conversion_guide.md`, "A sticky table header inside a scroll container does not
+       * stick").
+       *
+       * `tabIndex` is a requirement rather than a polish item: a scrollable region that cannot take
+       * focus cannot be scrolled by keyboard at all (WCAG 2.1.1). It therefore needs a name, hence
+       * the `role` and the label.
+       *
+       * The print overrides matter for the one occasion this table is put on paper — a disputed
+       * visit. An overflow box otherwise prints only the slice that happened to be visible.
+       */}
+      <Table
+        containerClassName="max-h-[60vh] overflow-y-auto print:max-h-none print:overflow-visible"
+        containerProps={{ tabIndex: 0, role: "region", "aria-label": words.historyRegionLabel }}
+      >
+        {/* `top-0`, not the `top-12` /kunden uses: there the scrollport is the window and the sticky
+            nav has to be cleared, here it is the container above and there is nothing to clear.
+            `bg-card` and opaque, or the rows read through the header. */}
+        <TableHeader className="sticky top-0 z-10 bg-card">
           <TableRow className="hover:bg-transparent">
             <TableHead>{words.historyColumns.date}</TableHead>
             <TableHead>{words.historyColumns.showedUp}</TableHead>

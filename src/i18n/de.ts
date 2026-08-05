@@ -456,6 +456,13 @@ export const de = {
         "ändern ihn nicht.",
       historyEmpty: "Für diesen Haushalt ist noch keine Ausgabe erfasst.",
       /**
+       * The accessible name of the scrolling box the history sits in. It has to be spoken, because
+       * the box carries `tabIndex={0}` so that it can be scrolled by keyboard at all (WCAG 2.1.1),
+       * and a focus stop that announces nothing is worse than none. It names the table *and* says
+       * why focus landed there; the heading's own words would announce the same string twice.
+       */
+      historyRegionLabel: "Bisherige Ausgaben, scrollbare Liste",
+      /**
        * The household table's age column. It used to live inside the birthdate label — where it
        * made that label differ on every row — and a column is what stops it doing that.
        */
