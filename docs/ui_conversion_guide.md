@@ -622,8 +622,15 @@ What to actually check, beyond "it looks right":
   a heading is the bug from "Two traps".
 - **Exercise the writes, don't just render them.** The pilot's reminder, serve, correct and remove
   flows all behaved — but only clicking them proved that the `role="status"` override lands, the
-  `getElementById` refocus still works, and the two-step `<details>` guard genuinely blocks a single
-  click (the click on the closed disclosure _retries and fails_, which is the property).
+  `getElementById` clear of the number field still works, and the two-step `<details>` guard genuinely
+  blocks a single click (the click on the closed disclosure _retries and fails_, which is the
+  property).
+- **Watch where the viewport lands, not only what rendered.** `HTMLElement.focus()` scrolls its
+  element into view. The counter used to re-focus the number field after a hand-out; the confirmation
+  it had just rendered sits two screens below that field, so the success message was scrolled off the
+  moment it appeared. Every check passed — it was in the DOM, `visible`, and correctly worded. Only
+  reading `window.scrollY` either side of the click, or looking at the screen, shows it. If a click
+  moves focus, ask what that does to the scroll position before asking how it looks.
 - **`playwright-cli console`** — zero errors. Warnings from browser-native inputs on hand-crafted URLs
   are fine.
 - **Three widths, plus every breakpoint you introduced**: ~1440, ~800, ~390, and both sides of any

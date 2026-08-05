@@ -13,13 +13,13 @@ import { foldName } from "@/domain/customer/nameSearch";
  *
  * `recordAttendance` is proved case by case against fakes, and the once-per-day constraint against a
  * throwaway SQLite file. What neither can see is the counter loop a staff member actually performs:
- * type a number, read the verdict, press the button, watch the screen switch to today's record and
- * the field re-focus for the next customer. So this spec records a hand-out on the real screen
- * against a real database and asserts the German confirmation, then proves the two things the UI must
- * never let slip — a second hand-out on the same day (the button is simply gone, and only one row
- * exists) and a cleared "Bezahlt" box (the row stores `paid = false`).
+ * type a number, read the verdict, press the button, watch the screen switch to today's record. So
+ * this spec records a hand-out on the real screen against a real database and asserts the German
+ * confirmation, then proves the three things the UI must never let slip — a second hand-out on the
+ * same day (the button is simply gone, and only one row exists), a cleared "Bezahlt" box (the row
+ * stores `paid = false`), and the confirmation staying under the eye that pressed the button.
  *
- * Two households are seeded straight through Prisma: both RED, active, current certificate, one card.
+ * Three households are seeded straight through Prisma: all RED, active, current certificate, one card.
  * They take numbers in the 220s so the registration and card specs, which allocate the *lowest* free
  * number in the shared `data/e2e.db`, keep the low sequence they assert against, and so they stay
  * clear of the counter spec's 201–206/239 and the portions spec's 211.
@@ -50,6 +50,7 @@ const TODAYS_DAY_KEY = "2026-01-08";
 const NUMBERS = {
   paid: 221,
   unpaid: 222,
+  inView: 223,
 } as const;
 
 /** Born well before 13 years ago: a grown-up. Comfortably inside the last 13 years: a child. */
@@ -162,6 +163,7 @@ test.describe("Ausgabe erfassen", () => {
     pinToday();
     await seedHousehold(NUMBERS.paid);
     await seedHousehold(NUMBERS.unpaid);
+    await seedHousehold(NUMBERS.inView);
   });
 
   test.afterAll(async () => {
@@ -221,5 +223,25 @@ test.describe("Ausgabe erfassen", () => {
 
     const records = await recordsFor(NUMBERS.unpaid);
     expect(records).toEqual([{ paid: false, dayKey: TODAYS_DAY_KEY, showedUp: true }]);
+  });
+
+  test("leaves the confirmation where the button was pressed instead of scrolling away from it", async ({
+    page,
+  }) => {
+    // The one thing `toBeVisible` cannot see. The screen used to re-focus the number field on
+    // success, and `focus()` scrolls its element into view — so the viewport jumped two screens up
+    // to the lookup card and left the confirmation below the fold. It was in the DOM and "visible"
+    // the whole time; a staff member had to scroll down to find out the hand-out had been recorded.
+    await lookUp(page, NUMBERS.inView);
+
+    // Playwright scrolls a target into view before clicking it, so the reading has to be taken after
+    // that has already happened — otherwise this measures Playwright's scroll, not the screen's.
+    await page.getByTestId("serve-button").scrollIntoViewIfNeeded();
+    const scrolledTo = await page.evaluate(() => window.scrollY);
+
+    await page.getByTestId("serve-button").click();
+
+    await expect(page.getByTestId("serve-confirmation")).toBeInViewport();
+    expect(await page.evaluate(() => window.scrollY)).toBe(scrolledTo);
   });
 });
