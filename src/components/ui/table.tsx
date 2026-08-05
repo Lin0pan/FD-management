@@ -3,8 +3,8 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Two deliberate departures from what `shadcn add table` writes — both would be lost if this file
- * were ever regenerated, so they are stated here rather than left to be rediscovered.
+ * Three deliberate departures from what `shadcn add table` writes — all of which would be lost if
+ * this file were ever regenerated, so they are stated here rather than left to be rediscovered.
  *
  * **No `"use client"`.** Nothing in this module is client-only: no hooks, no handlers, no browser
  * API. Upstream marks it so because that is how the whole set ships. Keeping the directive would
@@ -16,16 +16,32 @@ import { cn } from "@/lib/utils";
  * is not `visible` the other computes to `auto`, so the div becomes the scrollport the header
  * sticks to. A screen that wants a sticky header therefore has to be able to turn the container's
  * overflow off at the widths where the table fits (`overflow-x-auto lg:overflow-x-visible`).
+ *
+ * **`containerProps`.** The other side of the same coin: `...props` goes to the `<table>`, so a
+ * screen that bounds the container's height — the customer record's hand-out history — has nowhere
+ * to put the `tabIndex`, `role` and `aria-label` that make the box keyboard-scrollable (WCAG 2.1.1).
+ * Those attributes have to land on the element that actually scrolls, and that is this div. Its
+ * `className` is folded into the same `cn` as `containerClassName`, so passing one never silently
+ * drops the other.
  */
 function Table({
   className,
   containerClassName,
+  containerProps,
   ...props
-}: React.ComponentProps<"table"> & { containerClassName?: string }) {
+}: React.ComponentProps<"table"> & {
+  containerClassName?: string;
+  containerProps?: React.ComponentProps<"div">;
+}) {
   return (
     <div
       data-slot="table-container"
-      className={cn("relative w-full overflow-x-auto", containerClassName)}
+      {...containerProps}
+      className={cn(
+        "relative w-full overflow-x-auto",
+        containerClassName,
+        containerProps?.className,
+      )}
     >
       <table
         data-slot="table"
