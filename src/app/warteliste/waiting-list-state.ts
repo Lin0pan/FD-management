@@ -6,6 +6,8 @@
  * interface alias there is a build-time error rather than a style question.
  */
 
+import type { NoticeTier } from "../notice-tier";
+
 /**
  * What the "auf die Warteliste setzen" form shows after a submission.
  *
@@ -16,6 +18,14 @@
 export interface AddApplicantState {
   readonly status: "idle" | "saved" | "error";
   readonly message?: string;
+  /**
+   * Which of the two refusals this is, decided from the typed error (`notice-tier.ts`).
+   *
+   * Optional for the same reason `message` is: this is a flat interface rather than a discriminated
+   * union, so neither field can be required while `idle` and `saved` share the shape. The action
+   * always sets the two together.
+   */
+  readonly tier?: NoticeTier;
   /**
    * How many applicants this form has saved. The form remounts its fields whenever the count goes
    * up, which is how it comes back empty for the next applicant.
@@ -38,6 +48,8 @@ export const initialAddApplicantState: AddApplicantState = { status: "idle", sav
 export interface RemoveApplicantState {
   readonly status: "idle" | "error";
   readonly message?: string;
+  /** Which of the two refusals this is — see {@link AddApplicantState.tier}. */
+  readonly tier?: NoticeTier;
 }
 
 export const initialRemoveApplicantState: RemoveApplicantState = { status: "idle" };

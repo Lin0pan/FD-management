@@ -12,7 +12,10 @@
  * thing that comes back to the row, because a rejection is the one answer that leaves it standing.
  */
 
+import type { NoticeTier } from "../notice-tier";
+
 export type StaleReissueState =
-  { readonly status: "idle" } | { readonly status: "error"; readonly message: string };
+  | { readonly status: "idle" }
+  | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
 
 export const initialStaleReissueState: StaleReissueState = { status: "idle" };

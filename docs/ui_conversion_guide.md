@@ -68,8 +68,8 @@ covers `src/domain` and `src/application` only, so `src/app/` changes are invisi
    `toHaveText`, which is exact: a testid must never come to contain its own label. The convention is
    the testid on the **value**, never the label.
 2. **Carry `data-*` state attributes and load-bearing classes with the element they sit on** —
-   `data-verdict` on the verdict banner, `whitespace-pre-line` where a hand-typed reason is shown
-   verbatim (there is an e2e asserting the CSS itself).
+   `data-verdict` on the verdict banner, `data-tier` on every `Notice`, `whitespace-pre-line` where a
+   hand-typed reason is shown verbatim (there is an e2e asserting the CSS itself).
 3. **Native `<input type="checkbox">` stays native** wherever the action reads the value as _presence_
    in the `FormData` (`formData.get("x") !== null`). Radix's `Checkbox` is a `button[role=checkbox]`
    and submits nothing of its own. Pair it with `<Label htmlFor>` and style the input.
@@ -96,6 +96,20 @@ covers `src/domain` and `src/application` only, so `src/app/` changes are invisi
     the `<nav>` breaks it — put such a thing beside `<Nav />` in `layout.tsx`. The `nav-<section>`
     testids and `aria-current="page"` are the contract; the active section is marked three ways at once
     (rule, tint, weight) because colour alone is a distinction only some of the staff can make.
+11. **`-error` in a test id means _the answer was no_, not _the red tier_.** A refusal wears
+    `<feature>-error` in both tiers, and which tier it is comes off `data-tier` on the same locator —
+    the way `data-verdict` is already read off the counter's banner:
+
+    ```ts
+    await expect(page.getByTestId("settings-error")).toHaveAttribute("data-tier", "refusal");
+    ```
+
+    The two are easy to take for one thing, and splitting them would fail silently: four specs assert
+    `getByTestId("…-error").toHaveCount(0)` to mean _nothing was refused_, so giving amber an id of
+    its own would leave all four asserting the absence of something that no longer renders — green,
+    and testing nothing. The tier is decided from the typed `DomainErrorCode` in
+    `src/app/notice-tier.ts` and never from the German sentence, which is the thing most likely to be
+    reworded (`docs/ui_action_feedback_review.md` §4, §6.1).
 
 ## Two traps the test suite cannot see
 

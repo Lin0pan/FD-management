@@ -69,17 +69,14 @@ const CONTROL_HEIGHT = "h-9";
 /**
  * Whether a rejection names this field.
  *
- * The action returns a sentence, not a field name, so the field is read back out of the sentence:
- * an `InvalidSettings` message is always `invalidSettings(<the field's German label>)`, and the
- * eight labels are distinct — `errorFields[x]` is the same string as `fields[x]` for every setting.
- *
- * Deliberately temporary. `docs/ui_redesign_einstellungen.md` §8 step 2 puts the field on
- * `SaveSettingsState` — which is what a per-field message needs anyway — and this goes with it.
- * It is here so that this commit changes no type and no action, which is what lets its green e2e
- * run mean what it says.
+ * `state.field` is the input's own `name`, put there by the action from the typed error
+ * (`actions.ts`). This used to read the field back out of the finished German sentence, by comparing
+ * `state.message` against `invalidSettings(<label>)` — its own comment called that deliberately
+ * temporary, and it was: the match held only while the eight labels stayed distinct, so the first
+ * reworded label would have quietly stopped marking a field with nothing failing anywhere.
  */
-function rejects(state: SaveSettingsState, label: string): boolean {
-  return state.status === "error" && state.message === de.settings.errors.invalidSettings(label);
+function rejects(state: SaveSettingsState, name: string): boolean {
+  return state.status === "error" && state.field === name;
 }
 
 /**
@@ -92,7 +89,7 @@ function rejects(state: SaveSettingsState, label: string): boolean {
  *
  * Exactly two children, always — the label and one control — because the two rows of `FIELD_ROWS`
  * are what keeps the row's baselines straight. A field that wants a hint under its control wraps
- * both in one element.
+ * both in one element, which is what a rejected field does with its mark.
  */
 function Field({
   name,
@@ -116,8 +113,37 @@ function Field({
       >
         {label}
       </label>
-      {children}
+      {invalid ? (
+        // One grid row, two elements: the mark rides under the control rather than beside it, so
+        // the subgrid still sees a single row and the labels above stay on one baseline.
+        <div className="flex flex-col gap-1">
+          {children}
+          <FieldRejection name={name} />
+        </div>
+      ) : (
+        children
+      )}
     </div>
+  );
+}
+
+/**
+ * The mark under a rejected input (`docs/ui_redesign_einstellungen.md` §4.2c).
+ *
+ * The summary notice by the button is 442px from the field it names, which is what §3.2 measured
+ * and what made a rejected save a hunt. This is the other end of that: the words at the field, the
+ * `aria-invalid` border and the reddened label pointing at it, and `aria-describedby` so a screen
+ * reader reads the two together instead of leaving the sentence to be found by eye.
+ *
+ * It carries no `settings-error` test id. That one stays on the summary, which is the element
+ * holding the sentence naming the field — `settings.spec.ts` asserts its exact text, and one
+ * `settings-error` per screen is what keeps that assertion unambiguous (§7.5).
+ */
+function FieldRejection({ name }: { name: string }): React.ReactElement {
+  return (
+    <p id={`${name}-error`} data-testid="settings-field-error" className="text-sm text-destructive">
+      {de.settings.errors.invalidValue}
+    </p>
   );
 }
 
@@ -165,6 +191,7 @@ function NumberField({
         id={name}
         defaultValue={value}
         aria-invalid={invalid ? true : undefined}
+        aria-describedby={invalid ? `${name}-error` : undefined}
       />
     </Field>
   );
@@ -196,6 +223,7 @@ function EuroField({
         id={name}
         defaultValue={formatEuroAmount(cents)}
         aria-invalid={invalid ? true : undefined}
+        aria-describedby={invalid ? `${name}-error` : undefined}
       />
     </Field>
   );
@@ -203,7 +231,7 @@ function EuroField({
 
 export function SettingsForm({ settings }: { settings: Settings }): React.ReactElement {
   const [state, formAction, pending] = useActionState(saveSettings, initialSaveSettingsState);
-  const invalid = (label: string): boolean => rejects(state, label);
+  const invalid = (name: string): boolean => rejects(state, name);
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
@@ -214,35 +242,35 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
             label={de.settings.fields.quotaN}
             span="lg:col-span-2"
             value={settings.quotaN}
-            invalid={invalid(de.settings.fields.quotaN)}
+            invalid={invalid("quotaN")}
           />
           <NumberField
             name="portionsPerGrownUp"
             label={de.settings.fields.portionsPerGrownUp}
             span="lg:col-span-2"
             value={settings.portionsPerGrownUp}
-            invalid={invalid(de.settings.fields.portionsPerGrownUp)}
+            invalid={invalid("portionsPerGrownUp")}
           />
           <NumberField
             name="portionsPerChild"
             label={de.settings.fields.portionsPerChild}
             span="lg:col-span-2"
             value={settings.portionsPerChild}
-            invalid={invalid(de.settings.fields.portionsPerChild)}
+            invalid={invalid("portionsPerChild")}
           />
           <EuroField
             name="pricePerGrownUp"
             label={de.settings.fields.pricePerGrownUp}
             span="lg:col-span-3"
             cents={settings.pricePerGrownUp}
-            invalid={invalid(de.settings.fields.pricePerGrownUp)}
+            invalid={invalid("pricePerGrownUp")}
           />
           <EuroField
             name="pricePerChild"
             label={de.settings.fields.pricePerChild}
             span="lg:col-span-3"
             cents={settings.pricePerChild}
-            invalid={invalid(de.settings.fields.pricePerChild)}
+            invalid={invalid("pricePerChild")}
           />
         </div>
         <p className="max-w-prose text-sm text-muted-foreground">{de.settings.prices.hint}</p>
@@ -254,7 +282,7 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
             name="weekAnchorIsoWeek"
             label={de.settings.fields.weekAnchorIsoWeek}
             span="lg:col-span-3"
-            invalid={invalid(de.settings.fields.weekAnchorIsoWeek)}
+            invalid={invalid("weekAnchorIsoWeek")}
           >
             <Input
               className={`${CONTROL_HEIGHT} tabular-nums`}
@@ -262,14 +290,17 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
               name="weekAnchorIsoWeek"
               id="weekAnchorIsoWeek"
               defaultValue={settings.weekAnchor.isoWeek}
-              aria-invalid={invalid(de.settings.fields.weekAnchorIsoWeek) ? true : undefined}
+              aria-invalid={invalid("weekAnchorIsoWeek") ? true : undefined}
+              aria-describedby={
+                invalid("weekAnchorIsoWeek") ? "weekAnchorIsoWeek-error" : undefined
+              }
             />
           </Field>
           <Field
             name="weekAnchorColour"
             label={de.settings.fields.weekAnchorColour}
             span="lg:col-span-3"
-            invalid={invalid(de.settings.fields.weekAnchorColour)}
+            invalid={invalid("weekAnchorColour")}
           >
             {/*
               No red or blue on this control. Here the group is a value being chosen, not a
@@ -281,7 +312,8 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
               name="weekAnchorColour"
               id="weekAnchorColour"
               defaultValue={settings.weekAnchor.colour}
-              aria-invalid={invalid(de.settings.fields.weekAnchorColour) ? true : undefined}
+              aria-invalid={invalid("weekAnchorColour") ? true : undefined}
+              aria-describedby={invalid("weekAnchorColour") ? "weekAnchorColour-error" : undefined}
             >
               {COLOURS.map((colour) => (
                 <option key={colour} value={colour}>
@@ -294,14 +326,17 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
             name="distributionWeekday"
             label={de.settings.fields.distributionWeekday}
             span="lg:col-span-3"
-            invalid={invalid(de.settings.fields.distributionWeekday)}
+            invalid={invalid("distributionWeekday")}
           >
             <select
               className={SELECT}
               name="distributionWeekday"
               id="distributionWeekday"
               defaultValue={settings.distributionWeekday}
-              aria-invalid={invalid(de.settings.fields.distributionWeekday) ? true : undefined}
+              aria-invalid={invalid("distributionWeekday") ? true : undefined}
+              aria-describedby={
+                invalid("distributionWeekday") ? "distributionWeekday-error" : undefined
+              }
             >
               {WEEKDAYS.map((weekday) => (
                 <option key={weekday} value={weekday}>
@@ -337,7 +372,10 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
 
         {state.status !== "idle" && state.message !== undefined ? (
           <Notice
-            tone={state.status === "error" ? "error" : "success"}
+            // A refused save is amber, not red: nothing is broken, a value needs fixing and the
+            // field it names is marked. `state.tier` is decided from the typed error on the server
+            // and cannot be re-read from this sentence (`notice-tier.ts`).
+            tone={state.status === "error" ? (state.tier ?? "error") : "success"}
             text={state.message}
             testId={state.status === "error" ? "settings-error" : "settings-saved"}
           />

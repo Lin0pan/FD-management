@@ -8,7 +8,10 @@
  * and each re-renders read-only, so the only thing the form ever gets back is a rejection.
  */
 
+import type { NoticeTier } from "../notice-tier";
+
 export type ArchiveState =
-  { readonly status: "idle" } | { readonly status: "error"; readonly message: string };
+  | { readonly status: "idle" }
+  | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
 
 export const initialArchiveState: ArchiveState = { status: "idle" };

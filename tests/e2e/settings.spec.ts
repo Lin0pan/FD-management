@@ -71,9 +71,22 @@ test.describe("Einstellungen", () => {
     await page.locator("#reason").fill("Höchstzahl senken");
     await page.getByRole("button", { name: de.settings.save, exact: true }).click();
 
-    await expect(page.getByTestId("settings-error")).toHaveText(
-      de.settings.errors.invalidSettings(de.settings.fields.quotaN),
+    const refusal = page.getByTestId("settings-error");
+    await expect(refusal).toHaveText(de.settings.errors.invalidSettings(de.settings.fields.quotaN));
+
+    // Amber, not red: nothing is broken, a value needs fixing. The tier is decided from the typed
+    // `InvalidSettings` in the action and rides on the state, so it cannot drift from the sentence
+    // (`docs/ui_action_feedback_review.md` §4).
+    await expect(refusal).toHaveAttribute("data-tier", "refusal");
+
+    // And the refusal says *which* field, 442px from where it is stated. The field it names carries
+    // the mark, which is what makes the summary findable.
+    await expect(page.locator("#quotaN")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId("settings-field-error")).toHaveCount(1);
+    await expect(page.getByTestId("settings-field-error")).toHaveText(
+      de.settings.errors.invalidValue,
     );
+    await expect(page.locator("#pricePerGrownUp")).not.toHaveAttribute("aria-invalid", "true");
 
     await page.reload();
     await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("2,75");

@@ -3,9 +3,7 @@
 A UX review of the feedback the application gives after an action that saves, changes or deletes
 something — what it did, what was missing, and the one scheme all of it has converged on.
 
-**Status.** Steps 1–3 of §6 are built and this document describes the built state; step 4 — carrying
-the refusal tier across the server-action boundary, so a refusal can be amber — is not, and until it
-is, every refusal is red.
+**Status.** All four steps of §6 are built and this document describes the built state.
 
 Companion to `docs/ui_conversion_guide.md`, which owns the styling rules this document works within
 (rule 9 on literal colours, the `role="status"` override, the accessibility-snapshot workflow). It
@@ -84,8 +82,9 @@ changes it; a refusal is an **answer to a button**, gone on the next render. The
 `warn` tone is in fact already the first reading of "the rules say be careful", so this extends a
 precedent rather than inventing one. **Built:** the four comments claiming exclusivity now state both
 readings, and `accents.ts` carries `REFUSAL_ACCENT` so there is one definition instead of a fifth
-hand-written tint. Nothing wears it yet — the tone exists on `Notice`, and the tier that would select
-it is step 4.
+hand-written tint. **It is worn:** twenty-four of the thirty domain codes answer through `Notice`'s
+`refusal` tone, and the two readings have not collided anywhere — measured on the live page, the
+counter's amber `warn` verdict and an amber refusal never appear as the same element.
 
 ### 2.3 One component
 
@@ -241,8 +240,12 @@ page was reached rather than an answer from a control on it.
 
 ## 4. Amber or red
 
-The tier has to be decided from the typed error, not from the sentence. Every code in
-`src/domain/errors.ts:13-43`, sorted.
+**Built.** The tier is decided from the typed error, not from the sentence, and lives in
+`src/app/notice-tier.ts` — a `Record<DomainErrorCode, NoticeTier>` rather than a `switch` with a
+default, so a 31st code fails the build until somebody decides what it means. Deciding it from the
+sentence was never an option: a German string is the thing most likely to be reworded, and a tier
+read back out of one changes when somebody fixes a comma. Every code in `src/domain/errors.ts:13-43`,
+sorted.
 
 ### Amber — the staff member can resolve this at the counter
 
@@ -296,22 +299,29 @@ Thirty codes, plus the untyped fallback. The four not-found codes and `NoSetting
 because they mean the screen is describing something that no longer exists — a reload or a colleague
 is needed, not another attempt.
 
-### 4.1 What this costs mechanically
+### 4.1 What this cost mechanically
 
-The tier does not currently cross the server-action boundary. Every action returns
-`{ status: "error", message }` and throws the typed error away in a `*Message(error)` helper. Three
-consequences:
+The tier did not cross the server-action boundary: every action returned `{ status: "error", message }`
+and threw the typed error away in a `*Message(error)` helper. Three consequences, all discharged:
 
-1. The ten `*-state.ts` modules need the tier on the state — either `status: "refused" | "error"` or
-   a `tier` field. They already exist as separate modules precisely because a `"use server"` file may
-   export nothing but async functions, so this is the right place for it.
-2. Each `actions.ts` maps the caught `DomainError.code` to the tier at the point where it already
-   maps it to a German sentence.
-3. **One existing workaround breaks.** `einstellungen/settings-form.tsx:82` decides which field to
-   mark invalid by string-comparing `state.message` back against
-   `de.settings.errors.invalidSettings(label)`. Its own comment calls it "deliberately temporary" and
-   points at `docs/ui_redesign_einstellungen.md` §8 step 2, which puts the field on
-   `SaveSettingsState`. That step should be done as part of this work, not around it.
+1. **Fourteen state types across ten `*-state.ts` modules grew the tier.** A `tier` field rather
+   than a second discriminant, so `status: "error"` stays and each of the fifteen render sites is one
+   token — `tone={state.tier}`. Widening the status would have put a two-arm check and a
+   status-to-tone derivation at every one of them, for a distinction the `tier` names outright. The
+   modules already existed separately because a `"use server"` file may export nothing but async
+   functions, which is why the tier had somewhere to live.
+2. **Each `actions.ts` maps the caught `DomainError.code` to the tier** at the point where it already
+   maps it to a German sentence, through `tierOf(error)`.
+3. **One existing workaround broke, as expected.** `einstellungen/settings-form.tsx` decided which
+   field to mark invalid by string-comparing `state.message` back against
+   `de.settings.errors.invalidSettings(label)`. `InvalidSettings.field` now travels on
+   `SaveSettingsState` as the _input's_ name, which is `docs/ui_redesign_einstellungen.md` §8 step 2's
+   first half; §4.2c's per-field mark went with it, and §4.2d — keeping the typed values — did not.
+
+**Six returns have no typed error to read**, being Zod shape failures. They are tiered literally, by
+one rule: _did a staff member type the bad value?_ A malformed date or amount in a field they can see
+is a refusal, because the form is right there. A malformed **hidden** field — every `surrogateId`
+parse — is an error: the form is stale and there is nothing on screen to correct.
 
 ---
 
@@ -368,23 +378,47 @@ banner eight pixels clipped. Measured after: top 760, bottom 800, in a 900px vie
    with new dictionary keys, new `saved` states, four redirect flags for the controls that do not
    survive their own write, and the banner-clearing rule (§3.5). Three e2e tests added and four
    extended; nothing existing changed its meaning.
-4. ⬜ **Carry the tier across the boundary** and retier every refusal to amber, folding in the
-   settings per-field fix from `docs/ui_redesign_einstellungen.md` §8 step 2.
+4. ✅ **The tier carried across the boundary**, twenty-four codes retiered to amber and six left red,
+   with the settings per-field fix from `docs/ui_redesign_einstellungen.md` §8 step 2 folded in. No
+   test id changed and no existing assertion was renamed: the tier rides on `data-tier`, read off the
+   same locator (§4.2 below). Two e2e tests added — one amber, one red.
 
-Step 4 is the only one that touches types and actions, and `settings.spec.ts` — which distinguishes
-success from refusal purely by which testid is present — is the spec to watch. Until it is done every
-refusal stays red, which is the status quo rather than a regression.
+Step 4 was the only one that touched types and actions. `settings.spec.ts` — which distinguishes
+success from refusal purely by which testid is present — was the spec to watch, and it passed
+unedited but for the two assertions added to it.
+
+### 6.1 Why the test ids did not change
+
+Every refusal keeps its `<feature>-error` test id in **both** tiers, and the tier goes on a
+`data-tier` attribute set by `Notice` on the same element:
+
+```ts
+await expect(page.getByTestId("settings-error")).toHaveAttribute("data-tier", "refusal");
+```
+
+Precedent: the counter's verdict banner carries `data-verdict={verdict.kind}`
+(`ausgabe/counter-lookup.tsx`), read by eight assertions rather than through a per-verdict id.
+
+The reason it is not a new `-refused` id: four specs assert `getByTestId("…-error").toHaveCount(0)`
+to mean _nothing was refused_ — `age-13.spec.ts`, `customer-record.spec.ts` twice and
+`reissue.spec.ts`. Move amber to a new id and those four go on asserting the absence of an id that no
+longer renders, so they pass without testing anything. **So `-error` in a test id means _the answer
+was no_, not _the red tier_** — recorded in `docs/ui_conversion_guide.md`, because the two are easy
+to take for the same thing.
 
 ---
 
 ## 7. Open questions
 
-- **Should a refusal keep what was typed?** Every refusal observed cleared its form: the past-date
-  renewal lost both fields, and the rejected settings save reverted `quotaN` from 3 back to 239 —
-  discarding valid edits along with the invalid one. `docs/ui_conversion_guide.md` already lists this
-  as `/einstellungen` step 2. It is a feedback problem too: a message saying "nothing was saved" next
-  to a form that has silently reset is worse than either alone. Not in scope above; worth deciding
-  before step 4.
+- **Should a refusal keep what was typed?** ⬜ **Still open, and now the only thing in this document
+  that is.** Every refusal observed cleared its form: the past-date renewal lost both fields, and the
+  rejected settings save reverted `quotaN` from 3 back to 239 — discarding valid edits along with the
+  invalid one. Re-measured after step 4 on `/einstellungen`: a rejected `weekAnchorIsoWeek` still
+  comes back as the stored `2026-W02`, with the field marked and the words beside it explaining a
+  value that is no longer on screen. Step 4 deliberately did not take it on — it is
+  `docs/ui_redesign_einstellungen.md` §4.2d, it touches every `defaultValue` on every form, and it is
+  a different argument from what colour a refusal is. It is now the higher-value of the two halves it
+  was paired with: the field is marked, so the only thing still missing is the value it names.
 - **Should the archive keep its own banner?** ✅ **Answered: yes, and the reason turned out not to be
   the one the question assumed.** The record does state the outcome plainly — but it states it at the
   _top_ of the record, and the control is at the foot of it. Measured after archiving from the danger

@@ -184,7 +184,7 @@ export function ServeControls({
               />
             ) : null}
             {showingCorrect && correctState.status === "error" ? (
-              <Notice tone="error" text={correctState.message} testId="serve-error" />
+              <Notice tone={correctState.tier} text={correctState.message} testId="serve-error" />
             ) : null}
           </form>
         </CardContent>
@@ -211,7 +211,7 @@ export function ServeControls({
               {de.distribution.serve.submit}
             </Button>
             {showingServe && serveState.status === "error" ? (
-              <Notice tone="error" text={serveState.message} testId="serve-error" />
+              <Notice tone={serveState.tier} text={serveState.message} testId="serve-error" />
             ) : null}
           </form>
         </CardContent>

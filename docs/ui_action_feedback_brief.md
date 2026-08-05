@@ -3,8 +3,9 @@
 The working instructions for building what `docs/ui_action_feedback_review.md` describes. The review
 is the spec; this file is the order of work, the scope boundary and the traps.
 
-**Scope of this round: steps 1–3. Step 4 is deliberately out**, and §"Not this round" says why and
-what it will need.
+**All four steps of the review have landed** (PRs #85–#89). Step 4 — the amber tier — was split out
+into a brief of its own while it was outstanding; both it and this file's § "Not this round" are gone
+now that there is nothing outstanding to describe.
 
 ---
 
@@ -89,19 +90,3 @@ From `CLAUDE.md` and `docs/ui_conversion_guide.md`:
 - `main` is ruleset-protected. Land each step via PR, `gh pr merge --squash --auto`.
 
 Update `docs/ui_action_feedback_review.md` as you go so it describes the built state, not the plan.
-
----
-
-## Not this round — step 4, the amber tier
-
-**Steps 1–3 are done** (PRs #85–#88). Step 4 was split out on purpose: it is roughly as much work as
-the three together, and it is the only part that changes types and server actions. The three were
-worth living with first — they are what makes the difference visible at the counter, and they carry
-no risk to the action contracts.
-
-It has a brief of its own: **`docs/ui_action_feedback_step4_brief.md`**, which carries what this one
-did for the first three rounds — the order of work, the decision already taken about test ids, the
-open question to settle first, and the four things that moved under review §4.1 while steps 1–3 were
-landing.
-
-Until it lands every refusal stays red, which is the status quo, not a regression.

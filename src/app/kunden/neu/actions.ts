@@ -13,6 +13,7 @@
 
 import { redirect } from "next/navigation";
 import { registerCustomer } from "@/application/customers/register-customer";
+import { tierOf } from "../../notice-tier";
 import { customerDeps } from "../deps";
 import type { RegisterCustomerState } from "./register-customer-state";
 import { germanMessage, registrationForm, registrationValues } from "./registration-input";
@@ -30,7 +31,7 @@ export async function submitRegistration(
 ): Promise<RegisterCustomerState> {
   const parsed = registrationForm.safeParse(registrationValues(formData));
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0].message };
+    return { status: "error", message: parsed.error.issues[0].message, tier: "refusal" };
   }
   const form = parsed.data;
 
@@ -54,7 +55,7 @@ export async function submitRegistration(
     });
     id = customer.id;
   } catch (error: unknown) {
-    return { status: "error", message: germanMessage(error) };
+    return { status: "error", message: germanMessage(error), tier: tierOf(error) };
   }
 
   // Outside the try: `redirect` works by throwing, and catching it here would turn a successful

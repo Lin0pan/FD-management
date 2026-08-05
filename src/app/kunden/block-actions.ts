@@ -24,6 +24,7 @@ import { unblockCustomer } from "@/application/customers/unblock-customer";
 import { IllegalStatusTransition, MissingAuditReason } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { blockSaved, type BlockState } from "./block-state";
+import { tierOf } from "../notice-tier";
 import { customerDeps } from "./deps";
 
 /** A surrogate id as a hidden form field carries it — a positive whole number, or the form is stale. */
@@ -45,7 +46,7 @@ export async function blockCustomerAction(
 ): Promise<BlockState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
   if (!customerId.success) {
-    return { status: "error", message: de.customers.block.errors.unknown };
+    return { status: "error", message: de.customers.block.errors.unknown, tier: "error" };
   }
 
   try {
@@ -55,12 +56,20 @@ export async function blockCustomerAction(
     });
   } catch (error: unknown) {
     if (error instanceof MissingAuditReason) {
-      return { status: "error", message: de.customers.block.errors.missingReason };
+      return {
+        status: "error",
+        message: de.customers.block.errors.missingReason,
+        tier: tierOf(error),
+      };
     }
     if (error instanceof IllegalStatusTransition) {
-      return { status: "error", message: de.customers.block.errors.notBlockable };
+      return {
+        status: "error",
+        message: de.customers.block.errors.notBlockable,
+        tier: tierOf(error),
+      };
     }
-    return { status: "error", message: de.customers.block.errors.unknown };
+    return { status: "error", message: de.customers.block.errors.unknown, tier: tierOf(error) };
   }
 
   revalidatePath(`/kunden/${customerId.data}`);
@@ -78,16 +87,20 @@ export async function unblockCustomerAction(
 ): Promise<BlockState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
   if (!customerId.success) {
-    return { status: "error", message: de.customers.block.errors.unknown };
+    return { status: "error", message: de.customers.block.errors.unknown, tier: "error" };
   }
 
   try {
     await unblockCustomer(customerDeps, { customerId: customerId.data });
   } catch (error: unknown) {
     if (error instanceof IllegalStatusTransition) {
-      return { status: "error", message: de.customers.block.errors.notBlocked };
+      return {
+        status: "error",
+        message: de.customers.block.errors.notBlocked,
+        tier: tierOf(error),
+      };
     }
-    return { status: "error", message: de.customers.block.errors.unknown };
+    return { status: "error", message: de.customers.block.errors.unknown, tier: tierOf(error) };
   }
 
   revalidatePath(`/kunden/${customerId.data}`);

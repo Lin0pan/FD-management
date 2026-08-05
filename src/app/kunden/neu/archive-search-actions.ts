@@ -17,6 +17,7 @@ import { draftFromArchived } from "@/application/customers/draft-from-archived";
 import { searchArchivedCustomers } from "@/application/customers/search-archived-customers";
 import { CustomerNotArchived, CustomerNotFound, EmptySearchQuery } from "@/domain/errors";
 import { de } from "@/i18n/de";
+import { tierOf } from "../../notice-tier";
 import { customerDeps } from "../deps";
 import type { ArchiveDraftResult, ArchiveSearchState } from "./archive-search-state";
 import { toPrefillDraft } from "./registration-input";
@@ -64,7 +65,14 @@ export async function searchArchive(
       error instanceof EmptySearchQuery
         ? de.customers.archiveSearch.noCriteria
         : de.customers.archiveSearch.errors.unknown;
-    return { status: "error", matches: [], truncated: false, message, criteria };
+    return {
+      status: "error",
+      matches: [],
+      truncated: false,
+      message,
+      criteria,
+      tier: tierOf(error),
+    };
   }
 }
 
@@ -82,11 +90,11 @@ export async function loadArchivedDraft(archivedCustomerId: number): Promise<Arc
     return { status: "ok", draft: toPrefillDraft(draft) };
   } catch (error: unknown) {
     if (error instanceof CustomerNotFound) {
-      return { status: "error", message: words.notFound };
+      return { status: "error", message: words.notFound, tier: tierOf(error) };
     }
     if (error instanceof CustomerNotArchived) {
-      return { status: "error", message: words.notArchived };
+      return { status: "error", message: words.notArchived, tier: tierOf(error) };
     }
-    return { status: "error", message: words.prefillFailed };
+    return { status: "error", message: words.prefillFailed, tier: tierOf(error) };
   }
 }

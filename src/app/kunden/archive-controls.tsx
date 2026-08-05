@@ -105,7 +105,7 @@ export function ArchiveControls({
           {pending ? de.customers.archive.submitting : de.customers.archive.submit}
         </Button>
         {showing && state.status === "error" ? (
-          <Notice tone="error" text={state.message} testId="archive-error" />
+          <Notice tone={state.tier} text={state.message} testId="archive-error" />
         ) : null}
       </form>
     </details>

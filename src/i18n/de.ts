@@ -1159,6 +1159,15 @@ export const de = {
         `Es wurde nichts gespeichert.`,
       invalidSettings: (field: string): string => `Ungültiger Wert im Feld „${field}“.`,
       invalidAmount: (text: string): string => `„${text}“ ist kein Betrag wie 2,50.`,
+      /**
+       * The mark under the field itself, where the label above it has already named the field.
+       *
+       * Deliberately terser than the summary by the button rather than a copy of it: the summary
+       * has to say *which* field, because it is 442px away from every one of them, and repeating
+       * that name directly beneath its own label reads as a stutter. What this has to do is point,
+       * and the `aria-invalid` border points with it.
+       */
+      invalidValue: "Ungültiger Wert.",
     },
   },
 } as const;

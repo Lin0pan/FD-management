@@ -410,4 +410,52 @@ test.describe("Kundenakte pflegen", () => {
     await expect(page.getByTestId("reissue-saved")).toHaveText(de.customers.reissue.saved(card(3)));
     await expect(page.getByTestId("notes-saved")).toHaveCount(0);
   });
+
+  /*
+   * The two refusals, and the difference between them.
+   *
+   * Both wear a `<feature>-error` test id, because that id means *the answer was no* rather than
+   * *the red tier* — four specs assert `toHaveCount(0)` on one to mean nothing was refused, and a
+   * separate id for amber would leave them asserting the absence of something that no longer
+   * renders. The tier is on `data-tier`, off the same locator, exactly as the counter's verdict is
+   * (`docs/ui_action_feedback_review.md` §4).
+   */
+
+  test("a rule saying no is amber, not red", async ({ page }) => {
+    // The household is RED by now — the group test above moved it there. Asking for RED again is
+    // `GroupUnchanged`: refused rather than quietly accepted, because a move writes an audit entry
+    // and makes the printed card stale, and neither should happen for a change nobody made.
+    await page.goto(`/kunden/${id}`);
+    await page.getByTestId("group-RED").check();
+    await page.getByTestId("group-submit").click();
+
+    const refusal = page.getByTestId("group-error");
+    await expect(refusal).toHaveText(de.customers.errors.groupUnchanged(de.customers.groups.RED));
+    await expect(refusal).toHaveAttribute("data-tier", "refusal");
+  });
+
+  test("a record that is no longer there is red", async ({ page }) => {
+    await page.goto(`/kunden/${id}`);
+
+    // The one place a spec has to reach past the UI, and the reason is that the UI cannot produce
+    // this: `CustomerNotFound` means the screen is describing a household that has gone since it
+    // was drawn, which a browser sitting on a live record will not do on request. Rewriting the
+    // hidden id is how that stale screen is staged — the form still submits, and the action answers
+    // the way it would answer the real thing.
+    //
+    // The note is typed *first* and the id rewritten after: the textarea is controlled, so filling
+    // it re-renders the form, and React restores a controlled hidden input to the value its prop
+    // says. Rewriting before typing puts the real id back before the submit ever reads it.
+    await page.getByTestId("notes-field").fill("Wird nicht gespeichert.");
+    await page
+      .locator('form:has([data-testid="notes-submit"]) input[name="customerId"]')
+      .evaluate((input: HTMLInputElement): void => {
+        input.value = "999999";
+      });
+    await page.getByTestId("notes-submit").click();
+
+    const failure = page.getByTestId("notes-error");
+    await expect(failure).toHaveText(de.customers.record.errors.unknown);
+    await expect(failure).toHaveAttribute("data-tier", "error");
+  });
 });

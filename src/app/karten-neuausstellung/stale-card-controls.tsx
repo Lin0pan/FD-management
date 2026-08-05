@@ -63,7 +63,7 @@ export function StaleCardControls({
         </div>
       </details>
       {state.status === "error" ? (
-        <Notice tone="error" text={state.message} testId="stale-reissue-error" />
+        <Notice tone={state.tier} text={state.message} testId="stale-reissue-error" />
       ) : null}
     </form>
   );

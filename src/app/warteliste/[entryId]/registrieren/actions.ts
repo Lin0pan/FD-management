@@ -21,6 +21,7 @@ import {
   registrationForm,
   registrationValues,
 } from "@/app/kunden/neu/registration-input";
+import { tierOf } from "../../../notice-tier";
 import { waitingListDeps } from "../../deps";
 
 /** The entry as the hidden field carries it — written by the screen, never typed. */
@@ -42,12 +43,12 @@ export async function submitPromotedRegistration(
 ): Promise<RegisterCustomerState> {
   const entry = entryId.safeParse(String(formData.get("entryId") ?? ""));
   if (!entry.success) {
-    return { status: "error", message: de.waitingList.errors.notFound };
+    return { status: "error", message: de.waitingList.errors.notFound, tier: "error" };
   }
 
   const parsed = registrationForm.safeParse(registrationValues(formData));
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0].message };
+    return { status: "error", message: parsed.error.issues[0].message, tier: "refusal" };
   }
   const form = parsed.data;
 
@@ -73,9 +74,9 @@ export async function submitPromotedRegistration(
     id = customer.id;
   } catch (error: unknown) {
     if (error instanceof WaitingListEntryNotFound) {
-      return { status: "error", message: de.waitingList.errors.notFound };
+      return { status: "error", message: de.waitingList.errors.notFound, tier: tierOf(error) };
     }
-    return { status: "error", message: germanMessage(error) };
+    return { status: "error", message: germanMessage(error), tier: tierOf(error) };
   }
 
   // Outside the try: `redirect` works by throwing, and catching it here would turn a successful

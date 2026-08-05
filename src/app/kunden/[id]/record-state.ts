@@ -17,10 +17,12 @@
  * registration screen counts rather than compares).
  */
 
+import type { NoticeTier } from "../../notice-tier";
+
 export type RecordFormState =
   | { readonly status: "idle" }
   | { readonly status: "saved"; readonly saves: number }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
 
 export const initialRecordFormState: RecordFormState = { status: "idle" };
 

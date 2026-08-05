@@ -3,7 +3,13 @@
  *
  * It lives outside `actions.ts` because a `"use server"` module may export nothing but async
  * functions — a plain type or object there would be a build-time error, not a style question.
+ *
+ * Each refusal carries its `tier` beside the sentence: whether the counter is being told a rule said
+ * no or that something is wrong is decided from the typed error in the action and cannot be
+ * re-derived from the German (`notice-tier.ts`).
  */
+
+import type { NoticeTier } from "../notice-tier";
 
 /**
  * What the serve form shows after a submission. `recorded` carries the Berlin time the hand-out was
@@ -12,7 +18,7 @@
 export type ServeState =
   | { readonly status: "idle" }
   | { readonly status: "recorded"; readonly at: string }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
 
 export const initialServeState: ServeState = { status: "idle" };
 
@@ -27,7 +33,7 @@ export const initialServeState: ServeState = { status: "idle" };
 export type CorrectState =
   | { readonly status: "idle" }
   | { readonly status: "saved" }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
 
 export const initialCorrectState: CorrectState = { status: "idle" };
 
@@ -38,7 +44,7 @@ export const initialCorrectState: CorrectState = { status: "idle" };
 export type ReminderState =
   | { readonly status: "idle" }
   | { readonly status: "logged"; readonly count: number }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
 
 export const initialReminderState: ReminderState = { status: "idle" };
 
@@ -46,6 +52,6 @@ export const initialReminderState: ReminderState = { status: "idle" };
 export type RenewalState =
   | { readonly status: "idle" }
   | { readonly status: "saved" }
-  | { readonly status: "error"; readonly message: string };
+  | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
 
 export const initialRenewalState: RenewalState = { status: "idle" };

@@ -23,6 +23,7 @@ import { reissueCard } from "@/application/customers/reissue-card";
 import { formatCardNumber } from "@/domain/card/cardNumber";
 import { CustomerArchived } from "@/domain/errors";
 import { de } from "@/i18n/de";
+import { tierOf } from "../notice-tier";
 import { customerDeps } from "../kunden/deps";
 import { ISSUED_CARD } from "./issued-card";
 import { type StaleReissueState } from "./reissue-state";
@@ -53,7 +54,7 @@ export async function reissueStaleCardAction(
 ): Promise<StaleReissueState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
   if (!customerId.success) {
-    return { status: "error", message: de.customers.reissue.errors.unknown };
+    return { status: "error", message: de.customers.reissue.errors.unknown, tier: "error" };
   }
 
   let cardNumber: string;
@@ -64,14 +65,18 @@ export async function reissueStaleCardAction(
     });
     const customer = await customerDeps.customers.findById(customerId.data);
     if (customer === null) {
-      return { status: "error", message: de.customers.reissue.errors.unknown };
+      return { status: "error", message: de.customers.reissue.errors.unknown, tier: "error" };
     }
     cardNumber = formatCardNumber(customer.customerNumber, card.index);
   } catch (error: unknown) {
     if (error instanceof CustomerArchived) {
-      return { status: "error", message: de.customers.reissue.errors.archived };
+      return {
+        status: "error",
+        message: de.customers.reissue.errors.archived,
+        tier: tierOf(error),
+      };
     }
-    return { status: "error", message: de.customers.reissue.errors.unknown };
+    return { status: "error", message: de.customers.reissue.errors.unknown, tier: tierOf(error) };
   }
 
   revalidatePath("/karten-neuausstellung");

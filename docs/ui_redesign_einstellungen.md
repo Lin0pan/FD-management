@@ -4,9 +4,14 @@ A UX analysis of the settings screen as it stands today, and a concept for rebui
 shadcn/ui primitives — one of the last three screens in the conversion
 `docs/ui_conversion_guide.md` describes.
 
-**Status:** **§8 step 1 is built** — the conversion. The measurements in §3 are the "before", and
-§8 carries the "after" against each of them. Steps 2–4 are open; §3.1 is untouched and is the one
-worth the most.
+**Status:** **§8 step 1 is built** — the conversion — **and half of step 2**: §4.2c, the error at the
+field, landed with `docs/ui_action_feedback_review.md`'s step 4, which had to put the field on
+`SaveSettingsState` anyway to be rid of the string comparison that stood in for it. **§4.2d — a
+rejected save keeping what was typed — is still open, and is now the single most valuable item
+here**: the field is marked and the words are beside it, so the only thing still missing is the
+value they are about. Steps 3–4 are open; §3.1 is untouched.
+
+The measurements in §3 are the "before", and §8 carries the "after" against each of them.
 
 The screen has one property none of the others has: **it is the only place in the application where
 FD can change what the software believes.** CLAUDE.md's "policy values are data, not constants" is
@@ -338,11 +343,23 @@ count, 2 for the quota, 3 for a euro amount, 3 for the anchor week, 3 for a sele
 the shell's width; the field grid inside it does not. A 408px box for a single digit is the clearest
 possible signal that nobody thought about that field.
 
-**(c) The error goes to the field.** `saveSettings` already returns a typed `InvalidSettings` naming
-the field — `de.settings.errorFields` is keyed by exactly those names. Render the message under the
-input, set `aria-invalid` on it, and keep the summary notice by the button for the errors that name
-no field (the quota-below-active-count rule names two numbers, not one field). That deletes 454px of
-travel and makes `errorFields` do the job it was built for instead of substituting for proximity.
+**(c) The error goes to the field. ✅ Built.** `SaveSettingsState` carries the field a refusal names,
+as the **input's** name rather than the domain's — `Settings` nests the anchor week and an HTML form
+is flat, so the action translates `weekAnchor.isoWeek` to `weekAnchorIsoWeek` on the way out, which is
+adapter work it already does for the sentence. A Zod issue carries its own path and marks its field
+too, so a quota that is not a whole number is marked as surely as one that breaks an invariant.
+
+The mark is `aria-invalid`, the reddened label, and a `settings-field-error` paragraph under the
+input wired with `aria-describedby`. It is **terser than the summary** — „Ungültiger Wert." — because
+the label directly above has already named the field and repeating it there reads as a stutter. The
+summary by the button stays, keeps `settings-error`, and is the one that says _which_ field, since it
+is 442px from every one of them; it is also the only thing a field-less refusal has, and the
+quota-below-active-count rule is exactly that, naming two numbers rather than one field (verified
+live: nothing is marked for it).
+
+That is one element per screen holding `settings-error`, which is what §7.5 asked for — but by
+_moving_ nothing rather than by printing the same sentence twice, which is what §7.5 assumed the
+resolution would have to be.
 
 **(d) A rejected save keeps what was typed.** `SaveSettingsState` grows the submitted values, and
 each field's `defaultValue` becomes `state.values?.x ?? settings.x`. On success the state carries no
@@ -498,6 +515,12 @@ All derive from `tests/e2e/settings.spec.ts`, which must pass **with no test edi
    that string**. Simplest: keep the summary notice with the testid, and render the per-field message
    as a second, untestid'd element. Two messages saying the same thing is not ideal — but it is what
    lets step (1) of §8 be a restyle, and the per-field one can be the terser of the two.
+
+   **Resolved as built, and the duplication turned out to be avoidable.** The summary keeps
+   `settings-error` and its exact sentence, and the field's mark is not that sentence at all but the
+   terse „Ungültiger Wert." — the two say different things, so neither repeats the other. `#quotaN`
+   also keeps its id, so the spec's fill and the new `aria-invalid` assertion reach the same input.
+
 6. **`settings-version` stays one element per version, newest first**, `toHaveCount(3)` after the
    second save, `.first()` marked with `de.settings.history.current`, and each row `toContainText`
    `` `${de.settings.fields.pricePerGrownUp}: 2,50 €` `` — **including the label, the colon and the
@@ -537,6 +560,14 @@ Suggested sequence: **(1)** conversion — cards, grid, widths, labels, heights 
 state and the rhythm sentence, if still wanted.
 
 Step 2 is worth doing even if nothing else is.
+
+**Step 2 came in two halves and only one has landed.** §4.2c — the field on the state and the mark
+beside it — went with `docs/ui_action_feedback_review.md`'s step 4, because carrying the refusal tier
+across the same boundary meant the state had to grow anyway, and the string comparison standing in
+for the field would have broken with it either way. §4.2d — keeping what was typed — did not: it
+touches every `defaultValue` on the form, the review asks the same question application-wide, and it
+is a different argument from what colour a refusal is. What is left of step 2 is that half, and it
+is still the finding worth the most.
 
 ### Step 1, as built
 

@@ -34,6 +34,7 @@ import {
 } from "@/domain/errors";
 import { customerFieldLabel, de } from "@/i18n/de";
 import { germanTime } from "@/i18n/format";
+import { tierOf } from "../notice-tier";
 import { counterActionDeps } from "./deps";
 import { RECORD_REMOVED } from "./removed-flag";
 import type { CorrectState, ReminderState, RenewalState, ServeState } from "./serve-state";
@@ -86,7 +87,7 @@ function correctMessage(error: unknown): string {
 export async function recordServe(_previous: ServeState, formData: FormData): Promise<ServeState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
   if (!customerId.success) {
-    return { status: "error", message: de.distribution.serve.errors.unknown };
+    return { status: "error", message: de.distribution.serve.errors.unknown, tier: "error" };
   }
 
   try {
@@ -97,7 +98,7 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
     revalidatePath("/ausgabe");
     return { status: "recorded", at: germanTime(record.date) };
   } catch (error: unknown) {
-    return { status: "error", message: serveMessage(error) };
+    return { status: "error", message: serveMessage(error), tier: tierOf(error) };
   }
 }
 
@@ -119,7 +120,7 @@ export async function correctServe(
 ): Promise<CorrectState> {
   const recordId = surrogateId.safeParse(String(formData.get("recordId") ?? ""));
   if (!recordId.success) {
-    return { status: "error", message: de.distribution.serve.errors.notFound };
+    return { status: "error", message: de.distribution.serve.errors.notFound, tier: "error" };
   }
   const remove = formData.get("action") === "REMOVE";
 
@@ -132,7 +133,7 @@ export async function correctServe(
     );
     revalidatePath("/ausgabe");
   } catch (error: unknown) {
-    return { status: "error", message: correctMessage(error) };
+    return { status: "error", message: correctMessage(error), tier: tierOf(error) };
   }
 
   if (remove) {
@@ -177,7 +178,11 @@ export async function logReminder(
 ): Promise<ReminderState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
   if (!customerId.success) {
-    return { status: "error", message: de.distribution.certificate.reminder.errors.unknown };
+    return {
+      status: "error",
+      message: de.distribution.certificate.reminder.errors.unknown,
+      tier: "error",
+    };
   }
 
   try {
@@ -185,7 +190,7 @@ export async function logReminder(
     revalidatePath("/ausgabe");
     return { status: "logged", count };
   } catch (error: unknown) {
-    return { status: "error", message: reminderMessage(error) };
+    return { status: "error", message: reminderMessage(error), tier: tierOf(error) };
   }
 }
 
@@ -200,11 +205,19 @@ export async function recordRenewal(
 ): Promise<RenewalState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
   if (!customerId.success) {
-    return { status: "error", message: de.distribution.certificate.renewal.errors.unknown };
+    return {
+      status: "error",
+      message: de.distribution.certificate.renewal.errors.unknown,
+      tier: "error",
+    };
   }
   const validUntil = dayInput.safeParse(String(formData.get("validUntil") ?? ""));
   if (!validUntil.success) {
-    return { status: "error", message: de.distribution.certificate.renewal.errors.notADate };
+    return {
+      status: "error",
+      message: de.distribution.certificate.renewal.errors.notADate,
+      tier: "refusal",
+    };
   }
 
   try {
@@ -216,6 +229,6 @@ export async function recordRenewal(
     revalidatePath("/ausgabe");
     return { status: "saved" };
   } catch (error: unknown) {
-    return { status: "error", message: renewalMessage(error) };
+    return { status: "error", message: renewalMessage(error), tier: tierOf(error) };
   }
 }

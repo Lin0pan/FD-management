@@ -28,6 +28,7 @@ import {
 import { customerFieldLabel, de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { calendarDay } from "../kunden/neu/registration-input";
+import { tierOf } from "../notice-tier";
 import { waitingListDeps } from "./deps";
 import { REMOVED } from "./removed-flag";
 import { type AddApplicantState, type RemoveApplicantState } from "./waiting-list-state";
@@ -85,7 +86,12 @@ export async function addApplicantAction(
 ): Promise<AddApplicantState> {
   const parsed = applicationForm.safeParse(applicationValues(formData));
   if (!parsed.success) {
-    return { ...previous, status: "error", message: parsed.error.issues[0].message };
+    return {
+      ...previous,
+      status: "error",
+      message: parsed.error.issues[0].message,
+      tier: "refusal",
+    };
   }
   const form = parsed.data;
 
@@ -109,6 +115,7 @@ export async function addApplicantAction(
         ...previous,
         status: "error",
         message: de.waitingList.errors.certificateExpired(germanDate(error.validUntil)),
+        tier: tierOf(error),
       };
     }
     if (error instanceof MissingRequiredField) {
@@ -116,12 +123,23 @@ export async function addApplicantAction(
         ...previous,
         status: "error",
         message: de.customers.errors.missingField(customerFieldLabel(error.field)),
+        tier: tierOf(error),
       };
     }
     if (error instanceof BirthDateInFuture) {
-      return { ...previous, status: "error", message: de.customers.errors.birthDateInFuture };
+      return {
+        ...previous,
+        status: "error",
+        message: de.customers.errors.birthDateInFuture,
+        tier: tierOf(error),
+      };
     }
-    return { ...previous, status: "error", message: de.waitingList.errors.unknown };
+    return {
+      ...previous,
+      status: "error",
+      message: de.waitingList.errors.unknown,
+      tier: tierOf(error),
+    };
   }
 
   revalidatePath("/warteliste");
@@ -154,7 +172,7 @@ export async function removeApplicantAction(
 ): Promise<RemoveApplicantState> {
   const entryId = surrogateId.safeParse(String(formData.get("entryId") ?? ""));
   if (!entryId.success) {
-    return { status: "error", message: de.waitingList.errors.notFound };
+    return { status: "error", message: de.waitingList.errors.notFound, tier: "error" };
   }
 
   try {
@@ -164,12 +182,12 @@ export async function removeApplicantAction(
     });
   } catch (error: unknown) {
     if (error instanceof MissingAuditReason) {
-      return { status: "error", message: de.waitingList.errors.missingReason };
+      return { status: "error", message: de.waitingList.errors.missingReason, tier: tierOf(error) };
     }
     if (error instanceof WaitingListEntryNotFound) {
-      return { status: "error", message: de.waitingList.errors.notFound };
+      return { status: "error", message: de.waitingList.errors.notFound, tier: tierOf(error) };
     }
-    return { status: "error", message: de.waitingList.errors.unknown };
+    return { status: "error", message: de.waitingList.errors.unknown, tier: tierOf(error) };
   }
 
   revalidatePath("/warteliste");

@@ -7,6 +7,7 @@
  */
 
 import type { ArchivedCustomerMatch } from "@/application/customers/search-archived-customers";
+import type { NoticeTier } from "../../notice-tier";
 
 /**
  * What the panel shows after a search.
@@ -21,6 +22,13 @@ export interface ArchiveSearchState {
   /** Whether the register held more matches than the list shows — see `MAX_ARCHIVE_SEARCH_RESULTS`. */
   readonly truncated: boolean;
   readonly message?: string;
+  /**
+   * Which of the two refusals this is, decided from the typed error (`notice-tier.ts`).
+   *
+   * Optional for the same reason `message` is: this is a flat interface rather than a discriminated
+   * union, so neither field can be required while `idle` and `results` share the shape.
+   */
+  readonly tier?: NoticeTier;
   /**
    * What was actually asked, handed straight back so the panel can put it in the fields again.
    *
@@ -63,10 +71,14 @@ export type ArchiveDraftResult =
       readonly status: "ok";
       readonly draft: PrefillDraft;
     }
-  | {
-      readonly status: "error";
-      readonly message: string;
-    };
+  | ArchiveDraftRefusal;
+
+/** The refusing half of {@link ArchiveDraftResult}, named because the panel holds one in state. */
+export interface ArchiveDraftRefusal {
+  readonly status: "error";
+  readonly message: string;
+  readonly tier: NoticeTier;
+}
 
 /**
  * A registration draft as it crosses to the browser: the same values `draftFromArchived` returns,
