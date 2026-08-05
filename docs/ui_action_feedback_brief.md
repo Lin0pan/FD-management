@@ -94,23 +94,14 @@ Update `docs/ui_action_feedback_review.md` as you go so it describes the built s
 
 ## Not this round — step 4, the amber tier
 
-Split out on purpose: it is roughly as much work as steps 1–3 together, and it is the only part that
-changes types and server actions. Steps 1–3 are worth living with first — they are what makes the
-difference visible at the counter, and they carry no risk to the action contracts.
+**Steps 1–3 are done** (PRs #85–#88). Step 4 was split out on purpose: it is roughly as much work as
+the three together, and it is the only part that changes types and server actions. The three were
+worth living with first — they are what makes the difference visible at the counter, and they carry
+no risk to the action contracts.
 
-When it is picked up it needs, from review §4 and §4.1:
+It has a brief of its own: **`docs/ui_action_feedback_step4_brief.md`**, which carries what this one
+did for the first three rounds — the order of work, the decision already taken about test ids, the
+open question to settle first, and the four things that moved under review §4.1 while steps 1–3 were
+landing.
 
-- The tier carried across the server-action boundary. Every action currently returns
-  `{ status: "error", message }` and throws the typed error away; the ten `*-state.ts` modules need
-  `status: "refused" | "error"` or a `tier` field, mapped from `DomainError.code` at the point where
-  each `actions.ts` already maps it to a German sentence.
-- All 30 codes in `src/domain/errors.ts:13-43` retiered per §4 — 24 amber, 6 red, plus the untyped
-  `errors.unknown` fallback as red.
-- The per-field settings fix from `docs/ui_redesign_einstellungen.md` §8 step 2 folded in.
-  `einstellungen/settings-form.tsx:82` decides which field to mark invalid by string-comparing
-  `state.message` back against the dictionary; its own comment calls that "deliberately temporary",
-  and it breaks the moment the tier moves onto the state.
-- `settings.spec.ts` is the spec to watch — it distinguishes success from refusal purely by which
-  testid is present.
-
-Until then every refusal stays red, which is the status quo, not a regression.
+Until it lands every refusal stays red, which is the status quo, not a regression.
