@@ -423,8 +423,15 @@ export const de = {
      * the card the household is carrying out of date.
      */
     record: {
-      /** What the hand-out history says about itself while it is folded away. */
-      historyDisclosure: "Aufklappen, wenn eine Ausgabe strittig ist.",
+      /**
+       * What the hand-out history says about itself while it is folded away.
+       *
+       * It names what is behind the fold, not an occasion for opening it. A disputed visit is the
+       * reason the history is a disclosure rather than the whole screen, but it is not the only
+       * reason to open one — and a label that gives a single reason reads as the only permitted
+       * one.
+       */
+      historyDisclosure: "Ausklappen, um alle bisherigen Ausgaben zu sehen",
       detailsHeading: "Person und Anschrift",
       detailsHint:
         "Korrekturen an Name, Geburtsdatum und Anschrift. Der Name gilt zugleich für die Zeile " +
