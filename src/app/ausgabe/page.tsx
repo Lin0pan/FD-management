@@ -454,11 +454,18 @@ export default async function DistributionPage({
         ) : (
           <>
             <VerdictBanner verdict={counter.lookup.verdict} />
-            {counter.lookup.customer === null ? null : (
-              <CustomerDetails customer={counter.lookup.customer} />
-            )}
-            {counter.lookup.customerId === null ? null : (
+            {/* One guard, not two. `customer` and `customerId` are null on exactly the same
+                NOT_FOUND branch — `lookupCustomer` says so where it defines `CounterLookup` — so
+                testing them separately said there were cases where a household has an id but no
+                details, and there are none. Both are narrowed here because `CustomerDetails` now
+                needs the id, and a non-null assertion is not an option. The banner stays outside:
+                a number nobody holds still gets a verdict. */}
+            {counter.lookup.customer === null || counter.lookup.customerId === null ? null : (
               <>
+                <CustomerDetails
+                  customer={counter.lookup.customer}
+                  customerId={counter.lookup.customerId}
+                />
                 {/* Keyed by customer so a confirmation from one lookup cannot survive into the
                     next customer's screen; within one customer the state rides out revalidation,
                     which is what keeps the renewal confirmation visible once the certificate
@@ -483,25 +490,6 @@ export default async function DistributionPage({
                         }
                   }
                 />
-                {/* The way off this screen and onto the whole record (US-16.5). Everything the
-                    counter shows is a slice of it, and the question staff most often have next —
-                    who else lives there, what was noted, when did they last collect — is answered
-                    there and nowhere here.
-
-                    `ghost`, like every other link that only navigates: on this screen a border
-                    means the control writes something — a hand-out, a renewal, a block — and this
-                    one writes nothing. It needs no separating, unlike the same link on
-                    /karten-neuausstellung: it stands on its own line in a column, and the vertical
-                    gap already keeps it off the controls above and below it. */}
-                <Button variant="ghost" asChild className="self-start">
-                  <Link
-                    href={`/kunden/${counter.lookup.customerId}`}
-                    data-testid="counter-record-link"
-                  >
-                    {de.distribution.counter.recordLink}
-                  </Link>
-                </Button>
-
                 {/* Blocking and archiving are offered here because the reasons for both show up at
                     the counter: the certificate still expired after several reminders, the no-show
                     run above (FR-2), and whatever a household does in front of the person serving
@@ -512,9 +500,23 @@ export default async function DistributionPage({
                     customer served (PRD §6). Keyed by customer, like the certificate controls, so
                     nothing typed about one household survives into the next lookup. Still the
                     pre-shadcn disclosures: they are shared with the customer record, so restyling
-                    them is that screen's change, not this one's. */}
-                {counter.lookup.customer === null ? null : (
-                  <div className="flex flex-col gap-3">
+                    them is that screen's change, not this one's.
+
+                    In a card, because everything else after a lookup is one and these two used to
+                    float against the page like something left over. The heading is the record's
+                    own — the same two acts, offered from a different screen, and a second wording
+                    of one fact is how two screens come to disagree. It is read from
+                    `customers.record` rather than copied into `distribution`, which is the same
+                    call `cardsDue` makes for the reissue words. No hint paragraph and no `<h3>`
+                    per control: the record needs those to tell three controls apart, and here each
+                    `<summary>` names itself. */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      <h2>{de.customers.record.dangerHeading}</h2>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-3">
                     <BlockControls
                       key={`block-${counter.lookup.customerId}`}
                       customerId={counter.lookup.customerId}
@@ -530,8 +532,8 @@ export default async function DistributionPage({
                         typeof nummer === "string" ? nummer : "",
                       )}`}
                     />
-                  </div>
-                )}
+                  </CardContent>
+                </Card>
               </>
             )}
           </>

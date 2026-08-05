@@ -12,8 +12,10 @@
  */
 
 import { Check, CircleHelp, TriangleAlert, X, type LucideIcon } from "lucide-react";
+import Link from "next/link";
 import type { CounterCustomerView } from "@/application/customers/lookup-customer";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
@@ -187,8 +189,11 @@ function TableHeadCell({ children }: { children: string }): React.ReactElement {
  */
 export function CustomerDetails({
   customer,
+  customerId,
 }: {
   customer: CounterCustomerView;
+  /** The surrogate id the record lives under. Not on `CounterCustomerView` — it is `CounterLookup`'s. */
+  customerId: number;
 }): React.ReactElement {
   return (
     <Card data-testid="counter-customer">
@@ -206,8 +211,16 @@ export function CustomerDetails({
             painted one way on their record and another at the counter. And the status badged every
             state including `aktiv`, which is nine records in ten: a pill that says "this one is
             normal" is texture, not emphasis, and `STATUS_CHROME` is where that judgement is already
-            made. What is left is a mark per exception, the same mark the list and the record make. */}
-        <CardAction className="flex flex-wrap items-center gap-2">
+            made. What is left is a mark per exception, the same mark the list and the record make.
+
+            The way onto the whole record rides in the same corner (US-16.5). Everything the counter
+            shows is a slice of it, and the question staff most often have next — who else lives
+            there, what was noted, when did they last collect — is answered there and nowhere here.
+            It belongs beside the household's name rather than below the serve button, because it is
+            a fact about *them* and not a step in serving them; /kunden/[id] hangs the way to the
+            card off its header row for the same reason. `gap-3` rather than `gap-2`: two badges
+            beside each other need less air than a badge beside a control. */}
+        <CardAction className="flex flex-wrap items-center gap-3">
           <Badge
             data-testid="counter-group"
             variant="outline"
@@ -220,6 +233,11 @@ export function CustomerDetails({
             testId="counter-status"
             chrome={STATUS_CHROME[customer.status]}
           />
+          <Button variant="ghost" asChild>
+            <Link href={`/kunden/${customerId}`} data-testid="counter-record-link">
+              {de.distribution.counter.recordLink}
+            </Link>
+          </Button>
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">

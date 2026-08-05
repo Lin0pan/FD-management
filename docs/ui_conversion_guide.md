@@ -71,10 +71,14 @@ out a card that cannot be taken back, that is worth more than uniformity.
 
 **The corollary is about placement, not weight.** A `ghost` link 8px from a bordered button stops
 reading as a second thing you can do and starts reading as a caption on the button — the shapes group
-before the words are read. Give it room: `justify-between` across the row (`/karten-neuausstellung`),
-a line of its own in a column (`/ausgabe`), or the far side of a header row (`/kunden/[id]`). Ghost
-works on the `/kunden` hub for exactly this reason — a card-header toolbar already says "these are
-controls", so the border has no work left to do.
+before the words are read. Give it room: `justify-between` across the row
+(`/karten-neuausstellung`), or the far side of a header row — the `CardAction` slot, as `/kunden/[id]`
+and `/ausgabe` both do with their link to a record. Ghost works on the `/kunden` hub for exactly this
+reason: a card-header toolbar already says "these are controls", so the border has no work left to do.
+
+A link that names a record belongs in that header row and not at the foot of the screen, which is the
+same rule "Page skeleton" states above — and the reason it is a rule is that a control standing alone
+under the last card reads as something left over rather than as part of the screen.
 
 Equalising the two is the trap. `/karten-neuausstellung` briefly gave its reissue control and its
 record link the same `outline`, which made an irreversible write and a harmless navigation look
