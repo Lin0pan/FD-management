@@ -98,12 +98,11 @@ export const de = {
        * Shown on the record the registration lands on, not on the form — a successful registration
        * redirects, so the form itself never has good news to report.
        *
-       * The second sentence names the next act rather than repeating what the screen already shows.
-       * The record states the household, the number and the card number in full immediately below;
-       * what it cannot say is that the card has still to be printed, and the button that prints it
-       * is in the header beside the name.
+       * One sentence, and only the fact. It once went on to say the card could now be printed; FD
+       * asked for that dropped, and they are right that the screen does not need it — the button
+       * that prints the card is in the header, a hand's width above this line.
        */
-      saved: "Aufnahme gespeichert. Die Karte kann jetzt gedruckt werden.",
+      saved: "Kunde erfolgreich hinzugefügt.",
       /**
        * The way out of a full register (US-12.4). It stands beside the "alle Nummern sind vergeben"
        * message because that message is otherwise a dead end, and turning an applicant away is
