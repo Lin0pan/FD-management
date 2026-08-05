@@ -9,7 +9,6 @@
  */
 
 import { useActionState } from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,6 +19,7 @@ import { de } from "@/i18n/de";
 import { saveSettings } from "./actions";
 import { initialSaveSettingsState } from "./save-settings-state";
 import type { SaveSettingsState } from "./save-settings-state";
+import { Notice } from "../notice";
 
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 const COLOURS = ["RED", "BLUE"] as const;
@@ -336,15 +336,11 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
         </div>
 
         {state.status !== "idle" && state.message !== undefined ? (
-          <Alert
-            // `Alert` hardcodes `role="alert"`; a confirmation is not an alarm.
-            role="status"
-            variant={state.status === "error" ? "destructive" : "default"}
-            data-testid={state.status === "error" ? "settings-error" : "settings-saved"}
-            className="max-w-prose"
-          >
-            <AlertDescription>{state.message}</AlertDescription>
-          </Alert>
+          <Notice
+            tone={state.status === "error" ? "error" : "success"}
+            text={state.message}
+            testId={state.status === "error" ? "settings-error" : "settings-saved"}
+          />
         ) : null}
 
         <div>

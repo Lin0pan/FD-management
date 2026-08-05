@@ -64,7 +64,7 @@ confirmation at a glance.
 Both places that recorded the old rule were rewritten with the change rather than left to contradict
 it: `CONFIRMATION_ACCENT`'s own comment and the one inside `SaveFeedback`. A comment cannot be
 rewritten a step before the code it describes, which is why the record's five saves went green with
-it — the two settings and waiting-list confirmations in §3.3 follow in step 2.
+it, a step ahead of the two in §3.3 that followed with the recolour.
 
 ### 2.2 Amber does not collide with the lapsed certificate
 
@@ -105,8 +105,8 @@ were untouched. `docs/ui_conversion_guide.md` asked for exactly this extraction,
 Two things were deliberately left hand-written, because neither is an answer to a button: the
 confirmation _steps_ inside the archive and removal disclosures (a warning before an act, not after
 one) and `/ausgabe`'s `ErrorNote`, which is a `role="alert"` about the installation rather than about
-a click. `settings-form.tsx` renders success and refusal through one `Alert` whose variant flips, so
-it converts with the recolour in step 2 rather than here.
+a click. `settings-form.tsx` renders success and refusal through one element whose tone flips, so it
+converted with the recolour rather than with the extraction.
 
 ---
 
@@ -144,18 +144,28 @@ message cannot live inside that component at all. See §5.
 
 All measured at `background-color: lab(100 0 0)` — white — with no icon and no border tint.
 
-| Write                    | Control                                     | Text                                                   | Green  |
-| ------------------------ | ------------------------------------------- | ------------------------------------------------------ | ------ |
-| `updateHouseholdAction`  | `kunden/[id]/household-editor.tsx`          | „Gespeichert."                                         | ✅     |
-| `updateDetailsAction`    | `kunden/[id]/details-editor.tsx`            | „Gespeichert."                                         | ✅     |
-| `updateNotesAction`      | `kunden/[id]/notes-editor.tsx`              | „Gespeichert."                                         | ✅     |
-| `changeGroupAction`      | `kunden/[id]/group-control.tsx`             | „Gespeichert."                                         | ✅     |
-| `renewCertificateAction` | `kunden/[id]/renewal-form.tsx`              | „Nachweis gespeichert. Erinnerungen zurückgesetzt: 0." | ✅     |
-| `addApplicantAction`     | `warteliste/add-applicant-form.tsx:108-114` | „Testine Rueckmeldung steht jetzt auf der Warteliste." | step 2 |
-| `saveSettings`           | `einstellungen/settings-form.tsx:338-348`   | „Gespeichert. Die neuen Werte gelten ab sofort."       | step 2 |
+**All seven are green.** The five on the customer record went with the comment that had ruled them
+out (§2.1); the other two are single elements that flip a variant between success and refusal, and
+converted with the recolour.
 
-The five on the customer record went with the comment that had ruled them out (§2.1); the other two
-are single elements that flip a variant between success and refusal, and convert with the recolour.
+| Write                    | Control                                     | Text                                                   |
+| ------------------------ | ------------------------------------------- | ------------------------------------------------------ |
+| `updateHouseholdAction`  | `kunden/[id]/household-editor.tsx`          | „Gespeichert."                                         |
+| `updateDetailsAction`    | `kunden/[id]/details-editor.tsx`            | „Gespeichert."                                         |
+| `updateNotesAction`      | `kunden/[id]/notes-editor.tsx`              | „Gespeichert."                                         |
+| `changeGroupAction`      | `kunden/[id]/group-control.tsx`             | „Gespeichert."                                         |
+| `renewCertificateAction` | `kunden/[id]/renewal-form.tsx`              | „Nachweis gespeichert. Erinnerungen zurückgesetzt: 0." |
+| `addApplicantAction`     | `warteliste/add-applicant-form.tsx:108-114` | „Testine Rueckmeldung steht jetzt auf der Warteliste." |
+| `saveSettings`           | `einstellungen/settings-form.tsx:338-348`   | „Gespeichert. Die neuen Werte gelten ab sofort."       |
+
+**One of them is green and nobody sees it.** Measured on the recolour pass, with the button scrolled
+into view first, as §5's rule requires: pressing „Auf die Warteliste setzen" leaves `window.scrollY`
+where it was (482), but the applicant's new row is inserted into the list _above_ the form, which
+pushes the button from 816px down to 961px and its confirmation to 905px — both past the bottom of a
+900px viewport. The white box had the same fate, so this is not the recolour's doing, but it is the
+counter's scroll bug (`docs/ui_conversion_guide.md:634`) arriving by the other route: there, focus
+moved the viewport away from the message; here, the message is pushed out from under a viewport that
+never moved. **Step 3 owns it**, with the rest of the question of where a banner goes.
 
 `changeGroupAction` is the case that most deserves green: moving a household between RED and BLUE
 takes effect immediately, even for a distribution the same day, and the record it changes looks
@@ -290,6 +300,12 @@ And the rule the counter already learned the hard way (`docs/ui_conversion_guide
 `tests/e2e/serve.spec.ts:244`): **the confirmation must stay where the button was pressed.** Measured
 live, the hand-out confirmation lands at 472px of a 720px viewport. Any banner added below must be
 checked the same way, with `window.scrollY` either side of the click.
+
+`window.scrollY` alone is not the whole check, though — §3.3 found the waiting list failing this rule
+with the scroll position untouched, because a revalidate that inserts a row _above_ the form pushes
+the button and its answer off the bottom instead. Measure the button's own `getBoundingClientRect()`
+either side of the click as well, and scroll it into view before pressing it, or the measurement is
+of a viewport Playwright moved rather than one staff would be looking at.
 
 ---
 

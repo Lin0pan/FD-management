@@ -18,7 +18,6 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -102,12 +101,8 @@ export function AddApplicantForm(): React.ReactElement {
           {state.status === "error" && state.message !== undefined ? (
             <Notice tone="error" text={state.message} testId="waiting-list-add-error" />
           ) : null}
-          {state.status === "saved" ? (
-            <Alert role="status">
-              <AlertDescription data-testid="waiting-list-add-saved" className="max-w-prose">
-                {state.message}
-              </AlertDescription>
-            </Alert>
+          {state.status === "saved" && state.message !== undefined ? (
+            <Notice tone="success" text={state.message} testId="waiting-list-add-saved" />
           ) : null}
 
           <Button
