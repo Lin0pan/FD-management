@@ -96,8 +96,8 @@
         "Verify in browser using the playwright-cli skill against a PRODUCTION build, reading the ACCESSIBILITY SNAPSHOT: the control is announced as a combobox named 'Kundennummer' with the lowest free number selected, the hint is readable text and not a title attribute, and the keyboard can reach the control, type 1 then 5 and land on 15"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The proposed-number Stat is replaced by a labelled native <select data-testid=\"customer-number-select\"> over proposal.freeNumbers, uncontrolled, defaultValue = proposal.customerNumber, h-8 to match the form's Inputs. free-number-count hint inflected at one, absent on a full register (the Alert is the message there). customerNumberTaken -> customerNumberUnavailable(number), one sentence for both codes. New src/app/kunden/neu/fresh-pool.ts holds the lost-race re-read, shared by both registration actions (not \"use server\": exporting a helper from one publishes it as an endpoint). Five e2e specs rewritten off the removed testid. Browser-verified against a production build: combobox named 'Kundennummer' opening on the lowest free number, hint is readable <p> text with no title attribute, Tab reaches it from add-member, type-ahead 3 then 7 lands on 37 (the PRD's 1,5 -> 15 is unverifiable in data/fd.db, where 6-18 are taken), 0 horizontal overflow at 1920/1280/1024/800/390. Full e2e suite green (116 passed). Docs: technical_documentation.md (tree, registration-form, actions, fresh-pool, the promotion section) and ui_redesign_kunden_neu.md (three supersession notes)."
     },
     {
       "id": "US-005",

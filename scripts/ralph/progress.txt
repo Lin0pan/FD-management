@@ -171,3 +171,54 @@ Started: Thu Aug  6 08:53:47 CEST 2026
   - **A domain guard makes the fake's own uniqueness check irrelevant**: the waiting-list fake never
     rejects a duplicate number, but `assertFreeNumber` refuses before `create` is reached, so seeding
     `new FakeCustomerRepository(17)` is enough to test a taken slot there.
+---
+
+## 2026-08-06 12:30 - US-004 (batch 24 / US-24.4)
+- The registration form's read-only `proposed-number` `Stat` is **replaced** by a labelled native
+  `<select name="customerNumber" data-testid="customer-number-select">` over `proposal.freeNumbers`,
+  uncontrolled, opening on `proposal.customerNumber` via `defaultValue`, `h-8` to match this form's
+  `Input`s (the settings screen's `SELECT` is `h-9` — that screen puts every control on `h-9`, this
+  one leaves `Input` at its default, and copying the height would be the ragged baseline the
+  conversion guide warns about). Hint `free-number-count` beneath it, inflected at one, and **absent**
+  on a full register — „0 freie Nummern — die niedrigste ist vorausgewählt“ would be a sentence about
+  a preselection that does not exist, and the `Alert` above the form is the message there.
+- `de.customers.errors.customerNumberTaken` → `customerNumberUnavailable(customerNumber)`, one
+  sentence for `CustomerNumberTaken` **and** `CustomerNumberOutOfRange`. The old string ended „bitte
+  erneut speichern“, which was right while the software picked the number and is wrong now that staff
+  do. `assignment.proposedNumber` removed.
+- New `src/app/kunden/neu/fresh-pool.ts`: on a lost race **only**, re-read `proposeRegistration` and
+  return the pool in `RegisterCustomerState.freeNumbers`, which the form prefers over its prop. Both
+  registration actions share it and hand it their own deps. It is deliberately **not** `"use server"`
+  — exporting a helper from an action module publishes it as a callable endpoint.
+- Both actions pass `form.customerNumber` through; neither gains a rule of its own.
+- Files: `registration-form.tsx`, `fresh-pool.ts` (new), `actions.ts`,
+  `warteliste/[entryId]/registrieren/actions.ts`, `registration-input.ts`,
+  `register-customer-state.ts`, `i18n/de.ts`, five e2e specs, `docs/technical_documentation.md`,
+  `docs/ui_redesign_kunden_neu.md`.
+- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1022 tests), build, and the
+  **full e2e suite** (116 passed, 1 pre-existing skip) — run here rather than left to US-005, because
+  removing a testid touched five spec files.
+- Browser-verified against a production build on 3100: combobox named „Kundennummer“ with the lowest
+  free number selected, hint is readable `<p>` text with no `title`, Tab from `add-member` lands on
+  it, type-ahead works, 0 horizontal overflow at 1920/1280/1024/800/390, select 32px = `Input` 32px.
+- **Learnings for future iterations:**
+  - **Removing a UI testid is a five-spec change here.** `proposed-number` was driven by
+    `archive`, `registration`, `waiting-list`, `card` and `reregistration` — four of them named after
+    something else entirely. `grep -rn "<testid>" tests/` and rewrite them in the *same* story;
+    typecheck cannot see a testid string, so the only gate that catches it is `test:e2e`.
+  - **`innerText()` → `inputValue()` and `toHaveText` → `toHaveValue`** is the whole migration when a
+    read-only tile becomes a `<select>`. The full-register case is the one that needs thought: there
+    is no „—“ to assert any more, so assert `toBeDisabled()` plus `option` count 0.
+  - **A `<select>`'s type-ahead cannot be proved against an arbitrary pair of digits.** Chrome
+    searches from the *current* selection and keeps its buffer for ~1s, so a second check inside the
+    same run reads as a stale prefix — put `page.waitForTimeout(1500)` between attempts — and the
+    number you type must actually be free in `data/fd.db` (6–18 are taken there, so „15“ lands on
+    150 and proves nothing).
+  - **A helper two server actions share cannot live in either of them.** A `"use server"` module may
+    export nothing but async functions, and every export it *does* have becomes a callable endpoint.
+    A plain sibling module taking `deps` as a parameter is the shape — `registration-input.ts` is the
+    same pattern for the schema.
+  - **`docs/ui_redesign_kunden_neu.md` is a record of a finished conversion, not a live reference.**
+    When a later story undoes one of its decisions, add a marked supersession note beside it (`>
+    **Superseded by US-24**` / `~~…~~ [superseded by US-24]`) and say what is *not* superseded —
+    rewriting it would describe a redesign that never happened.
