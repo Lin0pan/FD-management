@@ -53,6 +53,7 @@ import type {
   WaitingListRepository,
 } from "../src/application/ports";
 import { addToWaitingList } from "../src/application/waiting-list/add-to-waiting-list";
+import { formatCardNumber } from "../src/domain/card/cardNumber";
 import type { Address, HouseholdMemberDetails } from "../src/domain/customer/customer";
 import type { WeekColour } from "../src/domain/policy/settings";
 import { startOfUtcDay } from "../src/domain/distribution/weekColour";
@@ -350,7 +351,8 @@ const CAST: ReadonlyArray<HouseholdShape> = [
     // Registered after the first archive freed slot 1, so it takes that number rather than 19 — the
     // slot rule, visible. Deliberately not on the same day as the archive: two events sharing an
     // instant would leave the order to the sort's stability rather than to the fixture.
-    demonstrates: "expired certificate, reminded twice — and reuses a slot an archive freed",
+    demonstrates:
+      "expired certificate, reminded twice — reuses a freed slot, so its first card is not k1 (US-25)",
     registeredDaysAgo: 80,
     members: [{ years: 46 }, { years: 44 }, { years: 16 }, { years: 14 }],
     certificateValidInDays: -35,
@@ -358,7 +360,8 @@ const CAST: ReadonlyArray<HouseholdShape> = [
   },
   {
     key: "returned",
-    demonstrates: "re-registered after archiving — new number, new card, linked to the old record",
+    demonstrates:
+      "re-registered after archiving — new record, freed slot, and a first card above k1 (US-25)",
     registeredDaysAgo: 20,
     members: [{ years: 30 }, { years: 28 }, { years: 3 }],
     certificateValidInDays: 12,
@@ -835,8 +838,8 @@ function waitingListEvents(deps: DemoDeps): DemoEvent[] {
  */
 async function printSummary(deps: DemoDeps, customerIds: Map<string, number>): Promise<void> {
   console.log("\nSeeded the demo register:\n");
-  console.log("  Nr.  Name                      Status      Was zu sehen ist");
-  console.log("  ---  ------------------------  ----------  " + "-".repeat(60));
+  console.log("  Nr.  Karte   Name                      Status      Was zu sehen ist");
+  console.log("  ---  ------  ------------------------  ----------  " + "-".repeat(60));
 
   for (const shape of CAST) {
     const id = customerIds.get(shape.key);
@@ -847,9 +850,14 @@ async function printSummary(deps: DemoDeps, customerIds: Map<string, number>): P
     if (customer === null) {
       continue;
     }
+    // The card number is in the table because two rows exist to show that it does *not* start at
+    // `k1` on a reused slot (US-25), and a table without it would leave that claim to the prose.
+    const card = await deps.cards.currentCard(id);
+    const cardNumber = card === null ? "—" : formatCardNumber(customer.customerNumber, card.index);
     const name = `${customer.details.lastName}, ${customer.details.firstName}`;
     console.log(
-      `  ${String(customer.customerNumber).padStart(3)}  ${name.padEnd(24).slice(0, 24)}  ` +
+      `  ${String(customer.customerNumber).padStart(3)}  ${cardNumber.padEnd(6)}  ` +
+        `${name.padEnd(24).slice(0, 24)}  ` +
         `${customer.status.padEnd(10)}  ${shape.demonstrates}`,
     );
   }
@@ -860,7 +868,10 @@ async function printSummary(deps: DemoDeps, customerIds: Map<string, number>): P
       `${tally.unpaid} of them unpaid, ${tally.noShows} no-shows.` +
       "\n  Today has deliberately no hand-outs recorded — the counter is yours to play with." +
       "\n  Two numbers appear twice above: archiving releases the slot, so a later registration" +
-      "\n  takes it while the archived record keeps the number it had. That is the rule, not a bug.\n",
+      "\n  takes it while the archived record keeps the number it had. That is the rule, not a bug." +
+      "\n  Their card numbers do not: the two households on a reused slot hold a first card ending" +
+      "\n  in k2, because the archived household walked out with k1 and it is theirs for good" +
+      "\n  (US-25). Type one of those k1s at the counter — it is refused, not resolved.\n",
   );
 }
 

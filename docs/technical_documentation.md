@@ -1890,8 +1890,9 @@ beyond it:
   `defaultValue`s, and a key change resets both in one move. That is also what "leer beginnen" means:
   clearing the selection mounts a blank form, with no half-filled field left over from the household
   that was dropped. Between the panel and the form it renders the banner that says, before the form
-  is read at all, that a **new** number and a **new** card (`k1`) are being issued and the archived
-  record stays untouched — the one mistake this feature could otherwise produce is a staff member
+  is read at all, that a **new** number and a **new** card are being issued and the archived
+  record stays untouched. It names **no index**: the banner renders before the slot is chosen, and
+  since US-25 a first card on a slot an archive freed is not `k1` — the one mistake this feature could otherwise produce is a staff member
   believing the old record was reactivated (PRD §6).
 - **`neu/archive-search-panel.tsx`** is a **sibling** of the registration form, never nested in it:
   HTML forms do not nest, and the search criteria are not part of the registration that gets saved.
@@ -2522,8 +2523,11 @@ What it creates: 12 active, 3 blocked (distinct reasons) and 5 archived (distinc
 households of 1–6 people; 3 lapsed certificates with reminder trails of 1–3 plus one renewed (which
 resets the count) and 2 expiring within 30 days; a card reissued after a loss; a household whose
 child turned 13 and one moved between groups, so both reasons appear on the cards-due list; a
-re-registration linked to the archived record it came from; eight past distribution days of
-hand-outs including no-shows and unpaid ones; and three waiting-list applicants.
+re-registration linked to the archived record it came from; **two households sitting on a customer
+number an archive freed**, whose first cards are therefore `1k2` and `2k2` rather than `k1` (US-25),
+which is what the fixture shows about the counting rule that no other row can; eight past
+distribution days of hand-outs including no-shows and unpaid ones; and three waiting-list applicants.
+The summary the script prints carries the card number beside the customer number for that reason.
 
 Attendance and payment are varied by **counting, not by a random draw** (`NO_SHOW_EVERY`,
 `UNPAID_EVERY`). A fixture exists to guarantee what it demonstrates, and an earlier version that

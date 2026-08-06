@@ -3,6 +3,15 @@
 > Source story: `docs/user_stories_mvp.md` §US-11 (Tier 2). Depends on **US-01** (registration) and
 > **US-10** (archived records).
 
+> **Superseded in part by US-25 — "a fresh card index starting at `k1`".** A re-registration still
+> gets a new record, a new customer number and a card of its own, and it still gains no branch of its
+> own: it takes its index from the same rule a walk-in does. That rule counts over the customer
+> **number** now, so the index is `k1` only where no card has ever been printed under the number
+> handed out. If the household happens to be given a slot an archive freed, their first card counts
+> on from the card its previous holder walked away with — which is the point this criterion was
+> making, now true of the card number as well as of the record. See
+> `tasks/prd-us-25-globally-unique-card-numbers.md`.
+
 ## 1. Introduction
 
 People come back. Circumstances change, a certificate lapses and is renewed months later, someone
