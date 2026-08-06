@@ -1,20 +1,31 @@
-import { expect, test, type Page } from "@playwright/test";
+import { resolve } from "node:path";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { faker } from "@faker-js/faker";
+import { PrismaClient } from "@prisma/client";
+import { foldName } from "@/domain/customer/nameSearch";
 import { de } from "@/i18n/de";
 
 /**
  * Registering a customer, driven through the built app
- * (tasks/prd-us-01-register-customer.md §US-01.7).
+ * (tasks/prd-us-01-register-customer.md §US-01.7, tasks/prd-us-24-choose-customer-number.md
+ * §US-024.5).
  *
  * This is the only proof that the whole chain holds together — form, server action,
  * `registerCustomer`, the Prisma adapter and the partial unique index on the customer number. The
  * unit gates cover each of those in isolation; what they cannot see is a customer number that never
  * reaches the card, or a rejection that quietly wrote half a household.
  *
+ * Since US-24 the number is a *choice*, and the whole feature is the difference between the number
+ * the form offered and the number the database stored — a difference no layer below the browser can
+ * be asked about. So the second half of this file is about the dropdown: what it opens on, what it
+ * offers, that a number picked out of it is the number saved, and that a number posted around it is
+ * refused without writing anything.
+ *
  * The specs run **serially against one shared database** (`data/e2e.db`, deleted and re-seeded
  * before the server boots): they share the customer-number sequence with every other spec file, so
- * nothing here names a customer number outright. The happy path reads the one the form proposes and
- * the rejection spec asserts that the same number is still free afterwards.
+ * nothing here names a customer number outright. The happy path reads the one the form proposes, the
+ * rejection spec asserts that the same number is still free afterwards, and the pool specs seed
+ * {@link NUMBERS} — a band of their own — and read the ends of the register out of Prisma.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -26,6 +37,41 @@ const GROWN_UP_BIRTH_DATE = "1988-04-17";
 /** Born comfortably inside the last 13 years: a child until 2033. */
 const CHILD_BIRTH_DATE = "2020-06-15";
 const CERTIFICATE_VALID_UNTIL = "2027-03-31";
+
+/**
+ * The three numbers the dropdown specs own.
+ *
+ * High, and clear of the low sequence the registration, archive, card and re-registration specs
+ * consume — but **inside the quota of 240**, which is what makes this band different from the ones
+ * the other specs took (241 upwards). The pool the control offers is `1..quotaN`, so a household
+ * seeded above the quota is invisible to it: a number nobody may pick could not prove that a taken
+ * number is kept out of the list, because it was never in it. 232–234 are free of every band listed
+ * in `scripts/ralph/progress.txt` — counter (201–206, 239), portions (211), serve (221–222) and
+ * reminders (231) are the only ones below 240.
+ */
+const NUMBERS = {
+  /** Held by an active household: never an option, and the number the stale form posts. */
+  taken: 232,
+  /** Held by an archived household: the slot came back, so it *is* an option. */
+  released: 233,
+  /** Free, and the one the choice spec picks instead of the number the form opened on. */
+  chosen: 234,
+} as const;
+
+/** Certificates for the seeded households: valid long past any day this suite could run. */
+const SEEDED_CERTIFICATE_VALID_UNTIL = "2027-06-30";
+/** When the seeded households were taken on, and when the archived one gave its number back. */
+const SEEDED_ISSUED_AT = "2025-01-02T00:00:00.000Z";
+const SEEDED_ARCHIVED_AT = "2025-11-03T10:00:00.000Z";
+
+/**
+ * The database the built app is running against — the same file, opened a second time.
+ *
+ * `playwright.config.ts` sets `DATABASE_URL` for the *server*; this process never had one, so the
+ * path is spelled out. It is absolute because a relative SQLite url resolves against the schema
+ * directory, not the working directory.
+ */
+const prisma = new PrismaClient({ datasourceUrl: `file:${resolve("data/e2e.db")}` });
 
 interface Person {
   readonly firstName: string;
@@ -49,11 +95,143 @@ async function fillPersonalData(page: Page, applicant: Person): Promise<void> {
   await page.locator("#certificateValidUntil").fill(CERTIFICATE_VALID_UNTIL);
 }
 
+/**
+ * Put one household on a number of this spec's own, straight through Prisma.
+ *
+ * Through the database rather than through the form because what is under test is the *pool*, not
+ * the intake: registering two more households on the screen would prove US-01 again and could not
+ * put anybody on a number of my choosing anyway — the form allocates the lowest free one unless
+ * somebody picks, which is the very thing being set up here.
+ *
+ * An archived row is seeded as archived rather than archived through the app: `archive.spec.ts`
+ * drives that flow, and what this spec needs is only the state it leaves behind — a household that
+ * kept its number as history and gave up the slot.
+ */
+async function seedHousehold(customerNumber: number, status: "ACTIVE" | "ARCHIVED"): Promise<void> {
+  const firstName = faker.person.firstName();
+  const lastName = faker.person.lastName();
+  const birthDate = new Date(`${GROWN_UP_BIRTH_DATE}T00:00:00.000Z`);
+  const archived = status === "ARCHIVED";
+
+  await prisma.customer.create({
+    data: {
+      customerNumber,
+      firstName,
+      lastName,
+      // Written beside the names they come from: a row seeded without them is a household the
+      // customer list could never find.
+      firstNameFolded: foldName(firstName),
+      lastNameFolded: foldName(lastName),
+      birthDate,
+      street: faker.location.street(),
+      houseNumber: faker.location.buildingNumber(),
+      zip: faker.location.zipCode("#####"),
+      city: faker.location.city(),
+      group: "RED",
+      status,
+      blockReason: null,
+      archiveReason: archived ? "Umgezogen, telefonisch abgemeldet." : null,
+      archivedAt: archived ? new Date(SEEDED_ARCHIVED_AT) : null,
+      reminderCount: 0,
+      notes: "",
+      householdMembers: { create: [{ firstName, lastName, birthDate }] },
+      certificates: {
+        create: {
+          type: "Jobcenter-Bescheid",
+          validUntil: new Date(`${SEEDED_CERTIFICATE_VALID_UNTIL}T00:00:00.000Z`),
+          recordedAt: new Date(SEEDED_ISSUED_AT),
+        },
+      },
+      cards: {
+        // The printed counts match the household exactly, so neither card is due for reissue
+        // (US-13) and this spec leaves the home screen's badge where it found it.
+        create: {
+          index: 1,
+          issuedAt: new Date(SEEDED_ISSUED_AT),
+          reason: "FIRST_ISSUE",
+          grownUpsAtIssue: 1,
+          childrenAtIssue: 0,
+          groupAtIssue: "RED",
+        },
+      },
+    },
+  });
+}
+
+/**
+ * The lowest free number, as the *database* has it at this moment.
+ *
+ * Worked out here rather than imported from `src/domain/customer/customerNumber.ts`: the claim is
+ * that the control opens on the number the register implies, and computing the expectation with the
+ * very function under the screen would make the assertion agree with itself. It is the same two
+ * facts the repository reads — every number a non-archived household holds (a blocked one still
+ * occupies its slot; only archiving releases it) and the quota in force — and it has to be read at
+ * assertion time, because the specs before this file in the alphabet have all moved it.
+ */
+async function lowestFreeNumber(): Promise<number> {
+  const [settings, holders] = await Promise.all([
+    prisma.settingsVersion.findFirstOrThrow({ orderBy: [{ recordedAt: "desc" }, { id: "desc" }] }),
+    prisma.customer.findMany({
+      where: { status: { not: "ARCHIVED" } },
+      select: { customerNumber: true },
+    }),
+  ]);
+  const taken = new Set(holders.map((holder) => holder.customerNumber));
+
+  for (let candidate = 1; candidate <= settings.quotaN; candidate += 1) {
+    if (!taken.has(candidate)) {
+      return candidate;
+    }
+  }
+  throw new Error(`The shared e2e register is full at a quota of ${settings.quotaN}.`);
+}
+
+/**
+ * Everything a refused registration must leave exactly as it found it.
+ *
+ * The customers are listed rather than counted, because the failure worth catching is not only a
+ * household that got written but one whose number, group or status moved on the way through. The
+ * four child tables are counted: a registration writes a member row, a certificate, a card and an
+ * audit entry, so a half-finished one shows up here even when no customer row survived it.
+ */
+async function registerSnapshot(): Promise<string> {
+  const [customers, members, certificates, cards, auditEntries] = await Promise.all([
+    prisma.customer.findMany({
+      orderBy: { id: "asc" },
+      select: { id: true, customerNumber: true, status: true, group: true },
+    }),
+    prisma.householdMember.count(),
+    prisma.certificate.count(),
+    prisma.card.count(),
+    prisma.auditEntry.count(),
+  ]);
+  return JSON.stringify({ customers, members, certificates, cards, auditEntries });
+}
+
+/** One `<option>` of the number control, addressed by the number it carries. */
+function option(page: Page, customerNumber: number): Locator {
+  return page.locator(`#customerNumber option[value="${customerNumber}"]`);
+}
+
 test.describe.configure({ mode: "serial" });
 
 test.describe("Kundenaufnahme", () => {
   /** The number the happy path consumed, so the rejection spec can name its successor. */
   let registeredNumber: string;
+
+  test.beforeAll(async () => {
+    // Seeded before the first spec rather than before the dropdown ones: both numbers are far above
+    // anything the three intake specs below consume, so the register they see is unchanged, and a
+    // seed that runs once cannot be half-applied by a spec that failed.
+    await seedHousehold(NUMBERS.taken, "ACTIVE");
+    await seedHousehold(NUMBERS.released, "ARCHIVED");
+  });
+
+  test.afterAll(async () => {
+    // The households stay: they are the register, and the specs that follow this file read deltas
+    // against whatever it left behind. Only the second connection to the file is given up.
+    await prisma.$disconnect();
+  });
 
   test("a two-person household is registered with a number, a card and derived counts", async ({
     page,
@@ -148,5 +326,102 @@ test.describe("Kundenaufnahme", () => {
     // how it is reached every day after the first minute — says nothing.
     await page.goto(new URL(page.url()).pathname);
     await expect(page.getByTestId("registration-confirmation")).toHaveCount(0);
+  });
+
+  // The number as a choice (US-24). Everything above this line registers on the number the form
+  // opened on, which is what makes it the proof that the default did not move.
+
+  test("the control opens on the lowest free number the register has", async ({ page }) => {
+    // Read from the database, not written down: three specs before this one in the alphabet
+    // register households, and the two above it in this file do too, so the lowest free number is a
+    // fact about the whole run rather than a constant anybody could state here.
+    const lowest = await lowestFreeNumber();
+
+    await page.goto("/kunden/neu");
+
+    await expect(page.getByTestId("customer-number-select")).toHaveValue(String(lowest));
+    // The preselection is the *first* option and not merely a selected one somewhere in the list:
+    // the hint under the control promises staff that the lowest is what they are being offered.
+    await expect(page.locator("#customerNumber option").first()).toHaveAttribute(
+      "value",
+      String(lowest),
+    );
+  });
+
+  test("a number an active household holds is not offered, and one archiving freed is", async ({
+    page,
+  }) => {
+    await page.goto("/kunden/neu");
+
+    // The two seeded households differ in nothing but their status, so the status is the only thing
+    // that can be keeping one number out of the list and letting the other in. This is the rule the
+    // register runs on — a number is a slot, and only archiving gives the slot back.
+    await expect(option(page, NUMBERS.taken)).toHaveCount(0);
+    await expect(option(page, NUMBERS.released)).toHaveCount(1);
+  });
+
+  test("the number picked in the dropdown is the number the household gets", async ({ page }) => {
+    const applicant = person(faker.person.lastName());
+
+    await page.goto("/kunden/neu");
+
+    // Higher than the one the form opened on — otherwise a save that ignored the choice entirely
+    // would pass, which is the failure this whole story exists to prevent.
+    const proposedNumber = await page.getByTestId("customer-number-select").inputValue();
+    expect(Number(proposedNumber)).toBeLessThan(NUMBERS.chosen);
+
+    await page.getByTestId("customer-number-select").selectOption(String(NUMBERS.chosen));
+    await fillPersonalData(page, applicant);
+    await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
+    await page.waitForURL(/\/kunden\/\d+(\?|$)/);
+
+    await expect(page.getByTestId("customer-number")).toHaveText(String(NUMBERS.chosen));
+    await expect(page.getByTestId("card-number")).toHaveText(`${NUMBERS.chosen}k1`);
+
+    // And in the store, which is the only place the difference between the offered number and the
+    // saved one could hide: the record screen renders whatever it was handed.
+    const saved = await prisma.customer.findFirstOrThrow({
+      where: { customerNumber: NUMBERS.chosen, status: { not: "ARCHIVED" } },
+      select: { lastName: true, cards: { select: { index: true } } },
+    });
+    expect(saved.lastName).toBe(applicant.lastName);
+    expect(saved.cards.map((card) => card.index)).toEqual([1]);
+  });
+
+  test("a number posted around the control is refused by name and writes nothing", async ({
+    page,
+  }) => {
+    const before = await registerSnapshot();
+
+    await page.goto("/kunden/neu");
+    await fillPersonalData(page, person(faker.person.lastName()));
+
+    // A stale form: the number was on offer when the page was rendered and somebody has taken it
+    // since. The option is put back by hand because the *server* is what has to refuse it — a
+    // control that no longer lists the number cannot prove anything about the rule behind it, and
+    // this is exactly the shape a form left open over a distribution day would post.
+    await page
+      .getByTestId("customer-number-select")
+      .evaluate((select: HTMLSelectElement, value: string): void => {
+        const stale = document.createElement("option");
+        stale.value = value;
+        stale.textContent = value;
+        select.append(stale);
+        select.value = value;
+      }, String(NUMBERS.taken));
+
+    await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
+
+    // The sentence names the number, because "not available" about an unnamed number is advice a
+    // staff member cannot act on when the form offers 200 of them.
+    await expect(page.getByTestId("registration-error")).toHaveText(
+      de.customers.errors.customerNumberUnavailable(NUMBERS.taken),
+    );
+    await expect(page).toHaveURL(/\/kunden\/neu$/);
+
+    // Not "no customer was created" but "the register is the register it was": a refusal that wrote
+    // a household member, a certificate or an audit entry on its way to failing would leave the
+    // count of customers untouched and still be a bug.
+    expect(await registerSnapshot()).toBe(before);
   });
 });

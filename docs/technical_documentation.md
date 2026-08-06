@@ -2580,6 +2580,20 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   and the rejection asserts against the successor of the number the happy path consumed rather than
   against a literal. Names and addresses come from Faker with a fixed seed; every date is a literal,
   because the rules under test are about dates.
+  It also covers US-24 end to end (§US-24.5) — the number as a **choice** — in four tests after the
+  three above, which deliberately register on the number the form opened on and so prove the default
+  did not move. The dropdown opens on the lowest free number, read out of Prisma at assertion time
+  and worked out in the spec rather than imported from `customerNumber.ts`, so the expectation cannot
+  agree with the rule it is checking. A number picked out of the list — higher than the proposal — is
+  the number the customer row and the card `<n>k1` carry, checked in the database as well as on the
+  screen. And a number posted **around** the control (an `<option>` appended by hand, the shape a
+  form left open over a distribution day would post) is refused with the German sentence naming it,
+  with a snapshot of every customer plus the household-member, certificate, card and audit-entry
+  counts identical either side of the attempt. The spec seeds two households of its own through
+  Prisma, on 232 (active, so its number is never an option) and 233 (archived, so its number is),
+  and registers on 234. That band is high but **inside the quota of 240** on purpose: the pool is
+  `1..quotaN`, so the bands the other specs took above 240 could prove nothing about a control that
+  never offers them.
 - `card.spec.ts` covers US-02 end to end (§US-02.5): a three-person household is registered, the
   overview's card link is followed to `/kunden/[id]/karte`, and the card is asserted to match
   `^[0-9]+k1$` — the number the form proposed plus `k1` — with the name and group as entered, the
