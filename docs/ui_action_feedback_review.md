@@ -242,9 +242,9 @@ page was reached rather than an answer from a control on it.
 
 **Built.** The tier is decided from the typed error, not from the sentence, and lives in
 `src/app/notice-tier.ts` — a `Record<DomainErrorCode, NoticeTier>` rather than a `switch` with a
-default, so a 31st code fails the build until somebody decides what it means. Deciding it from the
+default, so a 32nd code fails the build until somebody decides what it means. Deciding it from the
 sentence was never an option: a German string is the thing most likely to be reworded, and a tier
-read back out of one changes when somebody fixes a comma. Every code in `src/domain/errors.ts:13-43`,
+read back out of one changes when somebody fixes a comma. Every code in `src/domain/errors.ts:13-44`,
 sorted.
 
 ### Amber — the staff member can resolve this at the counter
@@ -265,6 +265,7 @@ _A rule refused a well-formed request:_
 | `IllegalStatusTransition`    | not blockable / not blocked / not archivable   |
 | `NoFreeCustomerNumber`       | the register is full — go via the waiting list |
 | `CustomerNumberTaken`        | that number is in use                          |
+| `CustomerNumberOutOfRange`   | that number is not a slot in 1..N              |
 | `QuotaBelowActiveCustomers`  | the new maximum is under the active count      |
 | `WrongGroupForWeek`          | this is not that group's week                  |
 

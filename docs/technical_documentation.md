@@ -136,7 +136,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── policy/settings.test.ts   # its Vitest spec
 │   │   ├── customer/householdComposition.ts  # grown-up/children split, derived from birthdates
 │   │   ├── customer/householdComposition.test.ts  # its Vitest spec
-│   │   ├── customer/customerNumber.ts # lowest free slot in 1..quotaN
+│   │   ├── customer/customerNumber.ts # the free slots in 1..quotaN, the lowest, and the check
 │   │   ├── customer/customerNumber.test.ts  # its Vitest spec
 │   │   ├── customer/group.ts          # Group type and the RED/BLUE balancing suggestion
 │   │   ├── customer/group.test.ts     # its Vitest spec
@@ -454,13 +454,16 @@ file falls back to the wall clock rather than failing a request.
 The `DomainErrorCode` union — the closed set of failure modes — plus an abstract `DomainError` base
 class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
 `QuotaBelowActiveCustomers`, `MissingAuditReason`, `EmptyHousehold`, `BirthDateInFuture`,
-`NoFreeCustomerNumber`, `CustomerNumberTaken`, `CustomerNotFound`, `CustomerArchived`,
-`CustomerNotArchived`, `InvalidCustomerRecord`, `MissingRequiredField`, `InvalidCardNumber`,
-`CardIndexTaken`,
-`InvalidEuroAmount` today).
-Each carries the values that made it fail, so the UI can render a
-German message naming concrete numbers without re-deriving them, and callers switch on `code`
-instead of parsing strings.
+`NoFreeCustomerNumber`, `CustomerNumberTaken`, `CustomerNumberOutOfRange`, `CustomerNotFound`,
+`CustomerArchived`, `CustomerNotArchived`, `InvalidCustomerRecord`, `MissingRequiredField`,
+`InvalidCardNumber`, `CardIndexTaken`, `InvalidEuroAmount` today). Each carries the values that made
+it fail, so the UI can render a German message naming concrete numbers without re-deriving them, and
+callers switch on `code` instead of parsing strings.
+
+`CustomerNumberTaken` and `CustomerNumberOutOfRange` are two codes for what staff read as one
+sentence — the number is not available, pick another (US-24). They are separate because the
+_program_ acts differently: `registerCustomer` retries a `CustomerNumberTaken` when it allocated the
+number itself, so a quota violation wearing that code would be retried as if it were a lost race.
 
 ### `src/domain/policy/settings.ts`
 
@@ -537,8 +540,20 @@ duplicates and numbers above the quota are ignored, since neither can make a slo
 more or less free. A full range raises `NoFreeCustomerNumber` carrying the quota, so the UI can name
 the limit FD has to raise or free.
 
-The function is advisory in the same sense as `suggestGroup`: the database's partial unique index is
-the final authority on whether the number was still free when the write landed (US-01.4).
+`freeNumbers(takenNumbers, quotaN)` is the pool the allocation picks from — every slot in `1..quotaN`
+that nobody active holds, ascending — and the registration form offers it as a dropdown so a staff
+member can take a number other than the lowest (US-24). `findLowestFreeNumber` is its first element,
+so the number the screen opens on and the number the rule would allocate cannot come apart.
+
+`assertFreeNumber(requested, takenNumbers, quotaN)` is the verdict on a number that was _chosen_
+rather than allocated: it gives the number back when it is free, raises `CustomerNumberOutOfRange`
+when it is not a whole number in `1..quotaN` — which a form left open while staff lowered the quota
+(US-14) produces without anybody tampering — and raises `CustomerNumberTaken` when an active customer
+holds it. That second error is deliberately the one the repository raises from its unique index: it
+is the same fact, found earlier.
+
+The functions are advisory in the same sense as `suggestGroup`: the database's partial unique index
+is the final authority on whether the number was still free when the write landed (US-01.4).
 
 ### `src/domain/customer/nameSearch.ts`
 
@@ -1045,10 +1060,11 @@ The two read-side use cases the customer screens sit on:
   household is offered no replacement — the card itself is not a permission, and a blocked household
   still holds theirs.
 
-`customerNumber.ts` therefore exports the rule in **two forms**: `findLowestFreeNumber` returning
-`number | null` for callers that only want to _show_ the next number, and `lowestFreeNumber` throwing
-`NoFreeCustomerNumber` for the caller that is about to allocate one. The second is written in terms
-of the first, so there is still one statement of the rule.
+`customerNumber.ts` therefore exports the rule in **three forms**: `freeNumbers` returning the whole
+pool for the screen that offers a choice, `findLowestFreeNumber` returning `number | null` for
+callers that only want to _show_ the next number, and `lowestFreeNumber` throwing
+`NoFreeCustomerNumber` for the caller that is about to allocate one. Each is written in terms of the
+one before it, so there is still one statement of the rule.
 
 ### `src/application/customers/recordReminder` and `renewCertificate`
 
