@@ -106,3 +106,33 @@ Started: Thu Aug  6 08:53:47 CEST 2026
     formatting slip is fixed rather than reported — but `npm run format:check` still catches files the
     hook never saw (the incoming `tasks/*.md` PRD from the loader was unformatted).
 ---
+
+## 2026-08-06 09:15 - US-002 (batch 24 / US-24.2)
+- `RegistrationProposal` gained `readonly freeNumbers: ReadonlyArray<number>` — the ascending pool of
+  free slots the registration dropdown will offer. `customerNumber` stays, keeps its `number | null`
+  type and its meaning for the three callers that only ask "is a slot free, and which"
+  (`/kunden`, `/warteliste`, `FreeSlotBanner`).
+- `proposeRegistration` now calls `freeNumbers` **once** and takes `customerNumber` from the result
+  (`free.length === 0 ? null : free[0]`) instead of calling `findLowestFreeNumber` — one scan, so the
+  number the form opens on cannot disagree with the numbers it offers. `NoSettingsInForce` and the
+  callers' catch behaviour are untouched.
+- Files: `src/application/customers/propose-registration.ts`,
+  `src/application/customers/customers.test.ts` (5 new named tests, written red first),
+  `docs/technical_documentation.md` (§`proposeRegistration and readCustomer`).
+- Gates: lint, typecheck, `test:coverage` (49 files, 1014 tests, domain + application 100%), build,
+  `format:check`.
+- **Learnings for future iterations:**
+  - **`proposeRegistration` has no test file of its own** — its tests live in the shared
+    `src/application/customers/customers.test.ts` under `describe("proposeRegistration")`, alongside
+    `registerCustomer`, `readCustomer` and the rest. `grep -n 'describe("' ` that file before creating
+    a new one; the hand-written fakes at its top are shared by every block in it.
+  - **`FakeCustomerRepository` derives `takenActiveNumbers` from live status**, exactly like the
+    partial index: the constructor's `taken` array plus every `created` row that is not `ARCHIVED`.
+    To prove an archived household released its slot, `create({ ...storedCustomer("ACTIVE"),
+    customerNumber: N })` and then `archive(id, reason, date)` on the fake directly — no use case
+    needed, and `storedCustomer` hard-codes number 50, so always override it.
+  - **A widened read-model interface costs nothing at the call sites** when the new field is additive:
+    the four `proposeRegistration` callers compiled untouched. Adding a field is the cheap change;
+    changing what an existing one means is the expensive one — which is why US-24.2 kept
+    `customerNumber` rather than replacing it.
+---

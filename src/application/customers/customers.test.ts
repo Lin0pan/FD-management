@@ -1059,6 +1059,54 @@ describe("proposeRegistration", () => {
 
     await expect(proposeRegistration(deps())).rejects.toThrow(NoSettingsInForce);
   });
+
+  it("offers every number in the quota that no active customer holds", async () => {
+    settings = new FakeSettingsRepository(version({ quotaN: 5 }));
+    customers = new FakeCustomerRepository([1, 2, 4]);
+
+    const proposal = await proposeRegistration(deps());
+
+    expect(proposal.freeNumbers).toEqual([3, 5]);
+  });
+
+  it("offers the number an archived household released", async () => {
+    settings = new FakeSettingsRepository(version({ quotaN: 3 }));
+    customers = new FakeCustomerRepository([1]);
+    const archived = await customers.create({ ...storedCustomer("ACTIVE"), customerNumber: 2 });
+    await customers.archive(archived.id, "MOVED_AWAY", new Date(TODAY));
+
+    const proposal = await proposeRegistration(deps());
+
+    expect(proposal.freeNumbers).toEqual([2, 3]);
+  });
+
+  it("bounds the offer by the quota in force, not by the highest number in the register", async () => {
+    settings = new FakeSettingsRepository(version({ quotaN: 3 }));
+    customers = new FakeCustomerRepository([1, 7]);
+
+    const proposal = await proposeRegistration(deps());
+
+    expect(proposal.freeNumbers).toEqual([2, 3]);
+  });
+
+  it("offers nothing when the register is full, alongside the null proposal", async () => {
+    settings = new FakeSettingsRepository(version({ quotaN: 2 }));
+    customers = new FakeCustomerRepository([1, 2]);
+
+    const proposal = await proposeRegistration(deps());
+
+    expect(proposal.freeNumbers).toEqual([]);
+    expect(proposal.customerNumber).toBeNull();
+  });
+
+  it("proposes the first of the numbers it offers, so the two cannot disagree", async () => {
+    settings = new FakeSettingsRepository(version({ quotaN: 5 }));
+    customers = new FakeCustomerRepository([1, 2, 4]);
+
+    const proposal = await proposeRegistration(deps());
+
+    expect(proposal.customerNumber).toBe(proposal.freeNumbers[0]);
+  });
 });
 
 describe("readCustomer", () => {

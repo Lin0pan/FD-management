@@ -1021,10 +1021,14 @@ grounds to turn anyone away (FR-5).
 
 The two read-side use cases the customer screens sit on:
 
-- **`proposeRegistration`** answers what the _empty_ form should show: the lowest free number (via
-  `findLowestFreeNumber`, the total form of the rule, so a full register is `null` rather than a
-  throw), the suggested group, both group sizes and the day to judge birthdates against. Read-only —
-  it reserves nothing.
+- **`proposeRegistration`** answers what the _empty_ form should show: every free number and the one
+  the form opens on, the suggested group, both group sizes and the day to judge birthdates against.
+  Read-only — it reserves nothing. The two number fields come from **one** `freeNumbers` call
+  (US-24.2): `freeNumbers` is the pool the registration screen offers as a dropdown, and
+  `customerNumber` is its first element, `null` on a full register rather than a throw — the screen
+  has to render either way, and the three callers that only ask "is a slot free, and which"
+  (`/kunden`, `/warteliste`, and `/kunden/neu`'s `FreeSlotBanner`) read that field alone. Deriving
+  one from the other is what keeps the number offered and the number preselected from disagreeing.
 - **`readCustomer`** answers what the customer overview shows: the customer plus everything
   derivable from them, worked out here rather than in the page — the card number from the slot and
   the card index, and the household counts, portions and price from `describeAllowance` (US-07.4), so

@@ -45,8 +45,8 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "RegistrationProposal gained freeNumbers; customerNumber is now derived from the same single freeNumbers call (free.length === 0 ? null : free[0]) rather than a second scan via findLowestFreeNumber. Doc comments on both fields say they come from one reading. Five named tests added to the proposeRegistration block in customers.test.ts, red first. The four callers and NoSettingsInForce untouched. Docs: technical_documentation.md §proposeRegistration."
     },
     {
       "id": "US-003",
