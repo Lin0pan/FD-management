@@ -139,3 +139,44 @@ Started: Thu Aug  6 13:53:09 CEST 2026
   - The fake's `issueCounts` counts rows now too. No application test asserted the old max-index
     reading, so nothing outside infrastructure moved.
 ---
+
+## 2026-08-06 22:15 - US-004 (Registration and reissue continue the slot's run)
+- `RegisterCustomerDeps` gained `cards: CardRepository` (read-only, one question). Every real caller
+  already carried it — `customerDeps`, `waitingListDeps` and the demo seed's `DemoDeps` all had a
+  `cards` adapter, so no composition root moved.
+- `registerCustomer` computes `nextCardIndex(await deps.cards.highestIndexForNumber(customerNumber))`
+  **inside the attempt loop and after the number is settled**, and the literal `index: 1` is gone.
+- `issueCard` asks `highestIndexForNumber(customer.customerNumber)`; the `current === null ? 1 : …`
+  branch and the `nextCardNumber` import went with it. `currentCard` stays on the port for its other
+  callers.
+- `CardNumberTaken` propagates from both use cases and is **not** retried — the retry loop moves to
+  another slot, which is the wrong answer for a slot the registration has already won.
+- Files changed:
+  - `src/application/customers/register-customer.ts`, `issue-card.ts`.
+  - `src/domain/customer/customer.ts` — `NewCustomer.card`'s doc said "index 1 for the one handed
+    over with the registration".
+  - `src/application/customers/customers.test.ts`, `src/application/waiting-list/waiting-list.test.ts`
+    — the six named cases the PRD asks for (written red in a previous iteration) plus `cards` in the
+    `readCustomer` and `readCard` describes' deps.
+  - `tests/e2e/archive.spec.ts`, `reregistration.spec.ts`, `waiting-list.spec.ts`.
+  - `docs/technical_documentation.md` — the `issueCard` section's counting rule, the two passages
+    saying a re-registration "starts at card index 1", the waiting-list e2e walkthrough.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests, domain + application 100%), build,
+  **full e2e (120 passed, 1 skipped)** — all green. The 5 specs US-002 left red are fixed.
+- **Learnings for future iterations:**
+  - **Three e2e specs asserted `${customerNumber}k1` in a *shared* `register` helper** used both for
+    a fresh slot and for a successor on a freed one. The helper now asserts
+    `new RegExp('^' + customerNumber + 'k\\d+$')` — the card names the slot, index unpinned — and the
+    three tests that know the slot's run assert `k2` outright at the call site. That is the honest
+    split: a helper cannot know the run, a test that arranged an archive can.
+  - `--grep` on a `describe.configure({ mode: "serial" })` file runs the matched test **alone**, so
+    the `beforeAll`/earlier-test state it depends on is missing and it fails with a bogus
+    `Cannot read properties of undefined`. Run the whole spec file (`npx playwright test <file>
+    --project=chromium`) to see a real failure.
+  - A Playwright failure inside a serial describe stops the rest of the file ("N did not run"), so
+    one red test hides however many follow it. Re-run the file after each fix rather than assuming.
+  - `npm run format:check` is red on `tasks/prd-us-25-globally-unique-card-numbers.md` and has been
+    since 043789a; CI does not run it, and lint-staged only formats what a commit stages.
+  - US-005 next: `de.customers.registration.prefilled.detail` still promises "einer neuen Karte
+    (k1)". `src/i18n/de.ts:390`.
+---

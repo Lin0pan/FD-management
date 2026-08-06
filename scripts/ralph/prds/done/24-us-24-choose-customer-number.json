@@ -1,0 +1,123 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-24-choose-customer-number",
+  "description": "US-24 Choose the customer number when registering — the registration form stops showing the allocated number as a read-only figure and offers every free number in 1..N as a dropdown, preselected to the lowest. Accept it and registration is unchanged; pick another and that is the number the household gets. The number shown when Aufnehmen is pressed is ALWAYS the number saved — no silent substitution. Layered vertical slice: pure domain functions and one new typed error, then the proposal, then the use case, then the screen, then e2e. NO schema change and NO new port method — takenActiveNumbers() already answers the query, and the partial unique index stays the final authority on a free slot. Source: tasks/prd-us-24-choose-customer-number.md",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "freeNumbers and assertFreeNumber — the pool, and the check on a chosen slot (domain)",
+      "description": "As a developer, I want the set of free slots and the verdict on a requested one to be pure functions, so the screen offering a number and the use case saving it read the same rule. Source: tasks/prd-us-24-choose-customer-number.md §US-024.1",
+      "acceptanceCriteria": [
+        "src/domain/customer/customerNumber.ts exports freeNumbers(takenNumbers: ReadonlyArray<number>, quotaN: number): ReadonlyArray<number> — every integer in 1..quotaN that nobody active holds, ASCENDING",
+        "The existing findLowestFreeNumber is re-expressed on top of it (const free = freeNumbers(...); return free.length === 0 ? null : free[0];) so the pool is defined ONCE. Its behaviour and signature are unchanged, and lowestFreeNumber keeps throwing NoFreeCustomerNumber on an empty pool",
+        "freeNumbers ignores duplicates in takenNumbers and entries above quotaN or below 1, exactly as findLowestFreeNumber does today — the caller passes what the register happens to contain, and neither can make a slot inside the range more or less free",
+        "A full register gives []; a quotaN of 0 gives []; an empty takenNumbers gives [1..quotaN]",
+        "The same module exports assertFreeNumber(requested: number, takenNumbers: ReadonlyArray<number>, quotaN: number): number, returning requested when it is free",
+        "assertFreeNumber throws CustomerNumberTaken(requested) when an active customer holds it — the error that ALREADY EXISTS, because this is the same fact the unique index reports. Do NOT invent a second one",
+        "assertFreeNumber throws a NEW typed error CustomerNumberOutOfRange when requested is not an integer, is below 1, or is above quotaN. It carries { customerNumber, quotaN }. This is not hypothetical: US-14 lets staff lower N while a registration form is open. It is a SEPARATE CODE even though US-004 gives it the SAME German sentence as CustomerNumberTaken: the retry loop in registerCustomer catches CustomerNumberTaken by type and retries it, so a quota violation wearing that code would be retried as if it were a lost race",
+        "CustomerNumberOutOfRange is added to the DomainErrorCode union in src/domain/errors.ts and therefore to TIERS in src/app/notice-tier.ts, where it is a 'refusal' — the form is right there and the staff member can settle it by picking again. TIERS is a Record over the union, so the build fails until it is tiered; that is the mechanism working",
+        "The module stays pure: no I/O, no Date, no import from Next.js, React or Prisma",
+        "STRICT TDD: the invariant-breaking test is written FIRST, red before green. One named test per rule, named after the rule rather than the function",
+        "Named tests exist for: [1,2,4] with quotaN 5 gives [3,5]; a gap left by archiving is in the pool; a taken number is refused; 0, -1, quotaN + 1 and 1.5 are all out of range; the number quotaN itself is IN range; the pool is ascending even when takenNumbers is not sorted",
+        "Domain coverage stays at 100%: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "freeNumbers is the single scan; findLowestFreeNumber is its first element and lowestFreeNumber unchanged on top of that. assertFreeNumber checks range before occupancy. CustomerNumberOutOfRange added to DomainErrorCode and tiered 'refusal' in notice-tier.ts. 34 domain tests, written red first; domain coverage 100%. Docs: technical_documentation.md (tree line, errors section, customerNumber section, the 'two forms' note is now three) and ui_action_feedback_review.md (code table, the '31st code' count)."
+    },
+    {
+      "id": "US-002",
+      "title": "proposeRegistration hands out the whole pool (application)",
+      "description": "As a staff member, I want the form to know every number it may offer me, so the dropdown is a fact about the register rather than a guess. Source: tasks/prd-us-24-choose-customer-number.md §US-024.2",
+      "acceptanceCriteria": [
+        "RegistrationProposal in src/application/customers/propose-registration.ts gains readonly freeNumbers: ReadonlyArray<number> — the pool from US-001, ascending",
+        "customerNumber STAYS and keeps its meaning and its number | null type: it is the option the dropdown opens on, and three other screens (/kunden, /warteliste, and /kunden/neu's FreeSlotBanner) already ask this proposal only 'is a slot free, and which'. Do NOT replace it — four callers exist and only the registration form reads the new field",
+        "The doc comment on customerNumber is updated to say it is the first of freeNumbers and that the two are computed from ONE call, so they cannot disagree",
+        "proposeRegistration calls freeNumbers ONCE and derives customerNumber from the result. No second scan of the register",
+        "A full register gives freeNumbers: [] AND customerNumber: null — still not a thrown error, because the screen has to render either way",
+        "NoSettingsInForce still propagates unchanged; the four existing callers and their catch behaviour are untouched",
+        "TDD against HAND-WRITTEN FAKES, never a mocking library. Named tests for: the pool skips every active number; an archived household's number is in the pool; the pool is bounded by the quota in force and not by the highest number in the register; a full register gives an empty pool and a null proposal; freeNumbers[0] equals customerNumber whenever one exists",
+        "Time comes from the Clock port — no zero-argument new Date() anywhere",
+        "Application coverage stays at 100%: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "RegistrationProposal gained freeNumbers; customerNumber is now derived from the same single freeNumbers call (free.length === 0 ? null : free[0]) rather than a second scan via findLowestFreeNumber. Doc comments on both fields say they come from one reading. Five named tests added to the proposeRegistration block in customers.test.ts, red first. The four callers and NoSettingsInForce untouched. Docs: technical_documentation.md §proposeRegistration."
+    },
+    {
+      "id": "US-003",
+      "title": "registerCustomer honours a chosen number (application)",
+      "description": "As a staff member, I want the number I picked to be the number that is saved, and to be told plainly when it is not available, rather than quietly given a different one. Source: tasks/prd-us-24-choose-customer-number.md §US-024.3",
+      "acceptanceCriteria": [
+        "RegisterCustomerInput in src/application/customers/register-customer.ts gains readonly customerNumber?: number — the slot staff chose. Left out, everything behaves exactly as it does today",
+        "ABSENT: the existing behaviour is untouched — lowest free number, and the MAX_ATTEMPTS retry loop on CustomerNumberTaken that moves to the next free slot",
+        "PRESENT: the number is checked with assertFreeNumber and used as given. NO RETRY — a second attempt could only produce a different number, and substituting a number a staff member did not choose is the one outcome this feature exists to prevent. CustomerNumberTaken from the repository's unique index propagates to the caller unchanged",
+        "Everything else about the registration is identical either way: same transaction, same first card at index 1, same ACTIVE status, same reminderCount: 0, same countsAtIssue snapshot, same previousCustomerId handling",
+        "The audit entry is UNCHANGED. customerNumber is already in REGISTERED_FIELDS, and whether the rule or a human chose the slot is not something a later reader can act on. No new field, no new event, no new changedFields entry",
+        "registerFromWaitingList (US-12.2) inherits the field through RegisterCustomerInput and needs NO change of its own — including its guarantee that a failed registration leaves the queue untouched, which must still hold when the failure is CustomerNumberTaken",
+        "@throws documentation on registerCustomer AND registerFromWaitingList names CustomerNumberOutOfRange",
+        "There must be exactly ONE code path that writes a customer. Keep the for(;;) loop shape with an attempt budget of 1 when a number was chosen, or branch early — but do not duplicate the create-and-audit block",
+        "TDD against HAND-WRITTEN FAKES. Named tests for: a chosen free number is saved; a chosen number held by an active customer is refused and NOTHING is written (no customer, no card, no audit entry); a chosen number above the quota in force is refused as out of range; a chosen number freed by archiving is accepted; an omitted number still allocates the lowest free one and still retries a lost race; a chosen number does NOT retry",
+        "Application coverage stays at 100%: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "RegisterCustomerInput gained optional customerNumber. One code path still writes: the loop keeps its shape and only the number's origin and the attempt budget differ (MAX_ATTEMPTS when allocated, CHOSEN_NUMBER_ATTEMPTS = 1 when chosen), so a chosen number is never substituted. registerFromWaitingList needed only @throws. Six named tests added to customers.test.ts and two to waiting-list.test.ts, red first; 1022 tests, domain + application 100%. Docs: technical_documentation.md §registerCustomer and the waiting-list bullet."
+    },
+    {
+      "id": "US-004",
+      "title": "The number dropdown on the registration form (presentation)",
+      "description": "As a staff member, I want to see the number the household is about to get and change it in one control, on the screen where I am already typing. Source: tasks/prd-us-24-choose-customer-number.md §US-024.4",
+      "acceptanceCriteria": [
+        "In the Zuordnung section of src/app/kunden/neu/registration-form.tsx, the read-only Stat data-testid=\"proposed-number\" is REPLACED by a labelled <select name=\"customerNumber\" id=\"customerNumber\" data-testid=\"customer-number-select\">. Two controls showing one number is how they start disagreeing",
+        "The select is a NATIVE <select>, not src/components/ui/select.tsx: the action reads customerNumber out of the FormData and a Radix select submits nothing of its own, and a native one is type-ahead searchable over 240 options with no JavaScript of ours. Same argument the group radios in this file already make",
+        "Its options are proposal.freeNumbers, ascending, one <option> per number, value and text both the number itself",
+        "It opens on proposal.customerNumber — the lowest free slot — via defaultValue. It is UNCONTROLLED, so a refused save leaves the staff member's choice on screen (#91)",
+        "<label htmlFor=\"customerNumber\"> carries de.customers.fields.customerNumber ('Kundennummer'), matching the Field pattern this form already uses — NOT a nested <label><span>, which leaves an unnamed combobox in the accessibility snapshot",
+        "A hint line under it, data-testid=\"free-number-count\", says how many numbers are free and that the lowest is preselected. It is INFLECTED at one: '1 freie Nummer' vs '213 freie Nummern'",
+        "When the register is full (proposal.customerNumber === null) the select is DISABLED and renders no options; the existing full-register Alert and its waiting-list button are the message, and the submit button stays disabled as it is today",
+        "The select matches the height of the form's Inputs so the Zuordnung row keeps one baseline — radix-nova defaults differ, see docs/ui_conversion_guide.md",
+        "customerNumber is added to the registrationForm Zod schema in src/app/kunden/neu/registration-input.ts, read as a POSITIVE INTEGER string. A blank or non-numeric value is refused with de.customers.errors.missingField(de.customers.fields.customerNumber) — it can only be a tampered or stale submission, and it must NEVER fall through to 'the system picks one'",
+        "de.customers.errors.customerNumberTaken is REPLACED by customerNumberUnavailable(customerNumber: number): string — 'Die Kundennummer 37 ist nicht mehr verfügbar. Bitte eine andere Nummer wählen.' The old static string ended 'Bitte erneut speichern.', which is now WRONG ADVICE: a chosen number that is gone fails identically however often it is re-submitted. Both errors carry the number, so the message can name it. It has exactly one reader (customerErrorMessage), so the rename is contained",
+        "customerErrorMessage returns that ONE SENTENCE FOR BOTH CustomerNumberTaken and CustomerNumberOutOfRange. A staff member does not act differently on 'somebody just took it' than on 'the quota moved under you' — either way they pick another number. The code is what the program branches on and what notice-tier.ts tiers; the sentence is what staff read. Do NOT merge the two error codes to match. Both registration actions get the message for free, since they share the module",
+        "submitRegistration (src/app/kunden/neu/actions.ts) AND the waiting-list promotion action both pass form.customerNumber through to their use case. Neither gains a rule of its own",
+        "ON A LOST RACE ONLY (CustomerNumberTaken), the action re-reads proposeRegistration and returns the fresh pool in RegisterCustomerState; the form prefers that list over its prop when one is present. Without this the form goes on offering a number that provably cannot be saved, and the staff member's obvious next move — pick it again — fails identically. EVERY OTHER REFUSAL returns the state it does today",
+        "Every German string is a key in src/i18n/de.ts. New keys go under de.customers.assignment; assignment.proposedNumber is REMOVED once nothing reads it. No German literal in a component",
+        "RegistrationScreen still remounts the form when the archive selection changes, and a re-registration (US-11.3) or a waiting-list promotion (US-12.4) shows the same control with the same default — NO branch on the draft",
+        "document.documentElement.scrollWidth - clientWidth is 0 at 1920, 1280, 1024, 800 and 390",
+        "Typecheck passes",
+        "Lint passes",
+        "Verify in browser using the playwright-cli skill against a PRODUCTION build, reading the ACCESSIBILITY SNAPSHOT: the control is announced as a combobox named 'Kundennummer' with the lowest free number selected, the hint is readable text and not a title attribute, and the keyboard can reach the control, type 1 then 5 and land on 15"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "The proposed-number Stat is replaced by a labelled native <select data-testid=\"customer-number-select\"> over proposal.freeNumbers, uncontrolled, defaultValue = proposal.customerNumber, h-8 to match the form's Inputs. free-number-count hint inflected at one, absent on a full register (the Alert is the message there). customerNumberTaken -> customerNumberUnavailable(number), one sentence for both codes. New src/app/kunden/neu/fresh-pool.ts holds the lost-race re-read, shared by both registration actions (not \"use server\": exporting a helper from one publishes it as an endpoint). Five e2e specs rewritten off the removed testid. Browser-verified against a production build: combobox named 'Kundennummer' opening on the lowest free number, hint is readable <p> text with no title attribute, Tab reaches it from add-member, type-ahead 3 then 7 lands on 37 (the PRD's 1,5 -> 15 is unverifiable in data/fd.db, where 6-18 are taken), 0 horizontal overflow at 1920/1280/1024/800/390. Full e2e suite green (116 passed). Docs: technical_documentation.md (tree, registration-form, actions, fresh-pool, the promotion section) and ui_redesign_kunden_neu.md (three supersession notes)."
+    },
+    {
+      "id": "US-005",
+      "title": "E2E — registering on a number nobody proposed",
+      "description": "As a developer, I want the picked number proved against the built app, because the whole feature is the difference between what the form offered and what the database stored. Source: tasks/prd-us-24-choose-customer-number.md §US-024.5",
+      "acceptanceCriteria": [
+        "tests/e2e/registration.spec.ts is EXTENDED — no new spec file. The existing registration flow still passes with the dropdown untouched, and the customer it creates still gets the lowest free number",
+        "Asserts the default: the select's selected option equals the lowest free number, READ FROM THE DATABASE in the spec rather than hard-coded — the register is shared with every other spec",
+        "Asserts the choice: selecting a higher free number and saving produces a customer holding THAT number, checked in the database, with card <number>k1",
+        "Asserts the pool: a number held by an ACTIVE customer is not among the options; a number freed by ARCHIVING a household is",
+        "Asserts the refusal: submitting a customerNumber that an active customer holds (posted around the select, the way a stale form would) creates NOTHING — a database snapshot before and after is identical — and the German message names the taken number",
+        "SYNTHETIC data only (Faker), and the spec seeds in a high, otherwise unused customer-number band so no other spec's registrations land inside it",
+        "No other spec file is modified",
+        "Typecheck passes",
+        "Lint passes",
+        "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first — a live dev server on port 3000 fails the suite for the wrong reason)"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "registration.spec.ts extended by four tests after the existing three (which still register on the number the form opens on, so they prove the default did not move). Seeds 232 ACTIVE and 233 ARCHIVED through Prisma and registers on 234 — a band inside the quota of 240 on purpose, because the pool is 1..quotaN and the other specs' bands above 240 are invisible to the control. The lowest free number is read from Prisma and computed in the spec rather than imported from customerNumber.ts, so the expectation cannot agree with the rule under test. The stale submission appends an <option> by hand and posts it; the snapshot compares every customer row plus the household-member, certificate, card and audit-entry counts. No other spec file touched. Full e2e suite: 120 passed, 1 pre-existing skip. Docs: technical_documentation.md §registration.spec.ts."
+    }
+  ]
+}

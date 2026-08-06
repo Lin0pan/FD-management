@@ -91,8 +91,8 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Both use cases read the slot's run: registerCustomer inside the retry loop and after the number is settled, issueCard in place of currentCard. The literal index: 1 and the current === null branch are gone. CardNumberTaken propagates from both and is not retried. The 5 e2e specs US-002 left red are green: 2 fixed themselves, and 3 asserted `<n>k1` on a freed number — the shared register helpers now assert the card names the slot without pinning the index, and the three tests that know the run assert k2 outright. Full e2e: 120 passed, 1 skipped."
     },
     {
       "id": "US-005",
