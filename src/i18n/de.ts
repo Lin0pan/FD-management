@@ -381,13 +381,19 @@ export const de = {
        * The banner over a pre-filled form. It states the one thing a staff member could otherwise
        * get wrong — that this is a new registration and not a reactivation — and it names the household
        * the data came from, so a pre-fill from the wrong row is visible without scrolling.
+       *
+       * It names no card index and must not gain one back. It said „einer neuen Karte (k1)" until
+       * US-25, when an index came to count the *slot's* cards rather than the record's: a household
+       * registering on a freed number is handed the next number on that run, so the first card of a
+       * new record can be `66k2`. The banner could not name it anyway — it renders before the slot
+       * is chosen, and the number is on the card view a click after the form is submitted.
        */
       prefilled: {
         heading: "Daten aus dem Archiv übernommen",
         detail: (name: string, formerNumber: number, archivedOn: string): string =>
           `Übernommen von „${name}“, archiviert am ${archivedOn} unter der Kundennummer ` +
           `${formerNumber}. Es wird ein neuer Datensatz mit einer neu vergebenen Kundennummer und ` +
-          `einer neuen Karte (k1) angelegt. Der archivierte Datensatz bleibt unverändert erhalten.`,
+          `einer neuen Karte angelegt. Der archivierte Datensatz bleibt unverändert erhalten.`,
         editableHint:
           "Alle übernommenen Felder können geändert werden — der Haushalt kann seither " +
           "gewachsen, kleiner geworden oder umgezogen sein.",
