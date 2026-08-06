@@ -109,8 +109,8 @@
         "Verify in browser using the playwright-cli skill against a PRODUCTION build, reading the ACCESSIBILITY SNAPSHOT: the pre-fill banner on /kunden/neu reads correctly and names no card index, and /kunden/[id]/karte for a re-registered household announces the real card number and 'Ausgestellte Karten 1'"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The literal '(k1)' is out of de.customers.archiveSearch.prefilled.detail and the doc comment above it now says why no index may come back. Nothing else moved: no key added or removed, no component touched (the e2e reads the dictionary function, so it followed), and every other card string still holds — cardView.supersededNone says 'die erste des Haushalts', which is true of a first card at k2. Verified against a production build on 3100 with the demo seed: the banner reads correctly and names no index, /kunden/20/karte announces '2k2' with 'Karten insgesamt 1', and scrollWidth - clientWidth is 0 at 1920/1280/1024/800/390 with the pre-fill applied."
     },
     {
       "id": "US-006",

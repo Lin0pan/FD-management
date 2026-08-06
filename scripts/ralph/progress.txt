@@ -180,3 +180,43 @@ Started: Thu Aug  6 13:53:09 CEST 2026
   - US-005 next: `de.customers.registration.prefilled.detail` still promises "einer neuen Karte
     (k1)". `src/i18n/de.ts:390`.
 ---
+
+## 2026-08-06 22:25 - US-005 (The screens stop promising k1)
+- `de.customers.archiveSearch.prefilled.detail` no longer says „einer neuen Karte (k1)" — the rest of
+  the sentence (which archived record, that it stays unchanged) is preserved verbatim. Its doc comment
+  now records *why* no index may be named again: the banner renders before the slot is chosen, and
+  since US-25 a first card on a freed number is not `k1`.
+- Every other German string mentioning a card was re-read and left alone. Two worth naming:
+  `counter.verdicts.outdatedCard` („Karte ungültig") is about *the card*, not "your" card, which is
+  what makes it read properly for a stranger's; `cardView.supersededNone` („Diese Karte ist die erste
+  des Haushalts und ersetzt keine frühere") stays true of a first card at `k2`, because it says *des
+  Haushalts* — the superseded list is the record's run, not the slot's.
+- Files changed: `src/i18n/de.ts` only. No key added or removed, no component touched — the one e2e
+  assertion calls `words.prefilled.detail(...)` rather than quoting it, so it followed the change.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests), build — all green.
+- **Browser verification** (playwright-cli, production build on 3100 against `data/fd.db` after
+  `npm run db:reset && npm run db:demo`), accessibility snapshot read:
+  - `/kunden/neu` with the archive pre-fill applied (searched „Dück", took the match): the banner is a
+    `status` with the `<h2>` and reads "Übernommen von „Milena Dück“, archiviert am 07.06.2026 unter
+    der Kundennummer 5. Es wird ein neuer Datensatz mit einer neu vergebenen Kundennummer und einer
+    neuen Karte angelegt. …" — no index anywhere.
+  - `document.documentElement.scrollWidth - clientWidth` is **0** at 1920, 1280, 1024, 800 and 390
+    with the pre-fill on screen.
+  - `/kunden/20/karte` (the seed's re-registered household): "Kartennummer 2k2", "Ausgestellte Karten
+    / Karten insgesamt 1", "davon nach Verlust 0".
+- **Learnings for future iterations:**
+  - **The demo seed already demonstrates the new rule**, and has since US-004 landed: customer 19 sits
+    on slot 1 at index 2 and customer 20 on slot 2 at index 2, because the seed replays the real use
+    cases. US-007's remaining job there is the `demonstrates` *string*, not the shape.
+  - **A UI story with a card in it needs `npm run db:reset && npm run db:demo` first** — a bare
+    `db:reset` seeds settings only, so `data/fd.db` has no customers at all and every screen is empty.
+  - **`tsx` cannot resolve `@prisma/client` from a script in `/tmp`.** Write throwaway inspection
+    scripts inside the repo (a gitignored/temporary dir) and delete them, and use a `.mts` file rather
+    than `tsx -e` — `-e` compiles as CJS and rejects top-level `await`.
+  - `playwright-cli --raw eval "…"` needs `2>/dev/null | tail -1`: the version-mismatch banner is on
+    stdout too.
+  - **`docs/user_stories_mvp.md` still states the old rule in two places** — §US-02 point 7 ("card
+    number `<number>k1`") and ~line 341 ("card index starting at `k1`"). US-007's criteria do not name
+    that file, but they do say *no documentation claims a card number can repeat*. Follow the
+    house style for a superseded requirement: strike through, mark, keep — never delete.
+---
