@@ -1177,11 +1177,35 @@ export const de = {
     save: "Speichern",
     saving: "Wird gespeichert …",
     saved: "Gespeichert. Die neuen Werte gelten ab sofort.",
+    /**
+     * The version history, folded away and written as a diff.
+     *
+     * Each superseded version states only what moved — `Preis je Erwachsenem: 1,80 € → 2,00 €` —
+     * because the list used to restate all 136 characters per row so that one of them could change
+     * (docs/ui_redesign_einstellungen.md §3.6). The labels are `fields`, `colours` and `weekdays`
+     * above: a change is named with the same words as the control that made it.
+     */
     history: {
       heading: "Änderungsverlauf",
       empty: "Es gibt noch keine weiteren Fassungen.",
       recordedAt: "Geändert am",
       current: "aktuell gültig",
+      disclosure: "Ausklappen, um alle bisherigen Fassungen zu sehen",
+      /** Stated at zero in words, so a count that failed to load cannot pass for an empty history. */
+      count: (count: number): string => {
+        if (count === 0) {
+          return "Noch keine Fassung";
+        }
+        return count === 1 ? "1 Fassung" : `${count} Fassungen`;
+      },
+      /** With the fold shut, the other half of what the summary answers: when this last moved. */
+      lastChange: (date: string): string => `zuletzt geändert am ${date}`,
+      /** A single version was never *changed* — it is where the configuration started. */
+      created: (date: string): string => `angelegt am ${date}`,
+      initial: "Erstkonfiguration",
+      noChange: "Keine Änderung an den Werten",
+      /** One changed field, both sides of it: `Preis je Erwachsenem: 1,80 € → 2,00 €`. */
+      change: (label: string, from: string, to: string): string => `${label}: ${from} → ${to}`,
     },
     errors: {
       notAnInteger: "Bitte eine ganze Zahl ab 0 eingeben.",

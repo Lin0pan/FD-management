@@ -294,9 +294,9 @@ describe("listSettingsVersions", () => {
       version("2026-06-01T00:00:00.000Z", { quotaN: 240 }),
     );
 
-    const versions = await listSettingsVersions({ settings: repository });
+    const entries = await listSettingsVersions({ settings: repository });
 
-    expect(versions.map((entry) => entry.settings.quotaN)).toEqual([240, 200]);
+    expect(entries.map((entry) => entry.version.settings.quotaN)).toEqual([240, 200]);
   });
 
   it("does not rely on the repository returning versions in any order", async () => {
@@ -305,14 +305,80 @@ describe("listSettingsVersions", () => {
       version("2026-01-01T00:00:00.000Z", { quotaN: 200 }),
     );
 
-    const versions = await listSettingsVersions({ settings: repository });
+    const entries = await listSettingsVersions({ settings: repository });
 
-    expect(versions.map((entry) => entry.settings.quotaN)).toEqual([240, 200]);
+    expect(entries.map((entry) => entry.version.settings.quotaN)).toEqual([240, 200]);
   });
 
   it("returns an empty list for a database that was never seeded", async () => {
-    const versions = await listSettingsVersions({ settings: new FakeSettingsRepository() });
+    const entries = await listSettingsVersions({ settings: new FakeSettingsRepository() });
 
-    expect(versions).toEqual([]);
+    expect(entries).toEqual([]);
+  });
+
+  it("calls the oldest version the initial configuration rather than a change from nothing", async () => {
+    const repository = new FakeSettingsRepository(
+      version("2026-01-01T00:00:00.000Z", { quotaN: 200 }),
+      version("2026-06-01T00:00:00.000Z", { quotaN: 240 }),
+    );
+
+    const entries = await listSettingsVersions({ settings: repository });
+
+    expect(entries[1].kind).toBe("initial");
+  });
+
+  it("calls a lone version the initial configuration too", async () => {
+    const repository = new FakeSettingsRepository(version("2026-01-01T00:00:00.000Z"));
+
+    const entries = await listSettingsVersions({ settings: repository });
+
+    expect(entries.map((entry) => entry.kind)).toEqual(["initial"]);
+  });
+
+  it("pairs each version with the changes that produced it", async () => {
+    const repository = new FakeSettingsRepository(
+      version("2026-01-01T00:00:00.000Z", { pricePerGrownUp: 200 }),
+      version("2026-06-01T00:00:00.000Z", { pricePerGrownUp: 250 }),
+    );
+
+    const [newest] = await listSettingsVersions({ settings: repository });
+
+    expect(newest).toEqual({
+      kind: "revision",
+      version: version("2026-06-01T00:00:00.000Z", { pricePerGrownUp: 250 }),
+      changes: [{ field: "pricePerGrownUp", from: 200, to: 250 }],
+    });
+  });
+
+  it("diffs each version against the one below it, not against the newest", async () => {
+    const repository = new FakeSettingsRepository(
+      version("2026-01-01T00:00:00.000Z", { quotaN: 200 }),
+      version("2026-06-01T00:00:00.000Z", { quotaN: 220 }),
+      version("2026-09-01T00:00:00.000Z", { quotaN: 240 }),
+    );
+
+    const entries = await listSettingsVersions({ settings: repository });
+
+    expect(entries.map((entry) => (entry.kind === "revision" ? entry.changes : "initial"))).toEqual(
+      [
+        [{ field: "quotaN", from: 220, to: 240 }],
+        [{ field: "quotaN", from: 200, to: 220 }],
+        "initial",
+      ],
+    );
+  });
+
+  it("reports a save that changed no value as a revision with nothing in it", async () => {
+    // Two identical saves are possible — the form does not stop them — and it is the screen's job
+    // to say "keine Änderung an den Werten", not this use case's to hide the version.
+    const repository = new FakeSettingsRepository(
+      version("2026-01-01T00:00:00.000Z"),
+      version("2026-06-01T00:00:00.000Z"),
+    );
+
+    const [newest] = await listSettingsVersions({ settings: repository });
+
+    expect(newest.kind).toBe("revision");
+    expect(newest.kind === "revision" ? newest.changes : undefined).toEqual([]);
   });
 });
