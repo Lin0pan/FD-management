@@ -61,6 +61,13 @@ Started: Thu Aug  6 08:53:47 CEST 2026
 - **A UI review needs a *populated* screen.** `data/fd.db` has ~20 households; a scroll cap or a
   column layout proves nothing against 8 rows. Copy the db to `/tmp`, seed through Prisma, and point
   `DATABASE_URL` **and** `FD_FIXED_NOW_FILE` at the copy for `npm run start -- --port 3100`.
+- **A helper two server actions share cannot live in either of them.** A `"use server"` module may
+  export nothing but async functions, and every export it *does* have becomes a callable endpoint.
+  Put it in a plain sibling module taking `deps` as a parameter — `registration-input.ts` (schema)
+  and `kunden/neu/fresh-pool.ts` (the lost-race re-read) are both that shape.
+- **Removing or renaming a UI testid is a multi-spec change, and no gate but `test:e2e` sees it.**
+  A testid is a string: `lint`, `typecheck` and `test:coverage` are all green with five broken specs.
+  `grep -rn "<testid>" tests/` and run the full suite in the *same* story as the UI change.
 - **E2E customer-number bands are taken, not squeezed into**: 201–206/239 (counter), 211 (portions),
   221–222 (serve), 231 (reminders), 241 (block), 251 (reissue), 271 (age 13), 281–285 (customer
   list), 291 (customer record), 301–303 (group progress), 311–315 (group walk). A new spec takes the
