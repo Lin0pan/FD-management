@@ -66,7 +66,7 @@ test.describe("Kundenaufnahme", () => {
 
     // The number is a proposal, not a reservation — but on a serial run it is the number the save
     // will actually assign, so the card can be predicted from it.
-    const proposedNumber = await page.getByTestId("proposed-number").innerText();
+    const proposedNumber = await page.getByTestId("customer-number-select").inputValue();
     registeredNumber = proposedNumber;
 
     await fillPersonalData(page, applicant);
@@ -105,7 +105,7 @@ test.describe("Kundenaufnahme", () => {
 
     // The number the previous registration left free — its successor, because that one is now
     // taken. It has to still be free after the rejection.
-    const proposedNumber = await page.getByTestId("proposed-number").innerText();
+    const proposedNumber = await page.getByTestId("customer-number-select").inputValue();
     expect(proposedNumber).toBe(String(Number(registeredNumber) + 1));
 
     await fillPersonalData(page, person(faker.person.lastName()));
@@ -125,7 +125,7 @@ test.describe("Kundenaufnahme", () => {
 
     // Nothing was written, and no customer number was consumed on the way.
     await page.goto("/kunden/neu");
-    await expect(page.getByTestId("proposed-number")).toHaveText(proposedNumber);
+    await expect(page.getByTestId("customer-number-select")).toHaveValue(proposedNumber);
   });
 
   // Last in the file on purpose: it registers a household of its own, and the rejection above

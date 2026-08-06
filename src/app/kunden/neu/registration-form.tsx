@@ -178,6 +178,20 @@ function Section({
 /** The field grid: twelve columns at `lg`, two at `sm`, one below. */
 const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
 
+/**
+ * A native `<select>` wearing this form's tokens and the height of its `Input`s.
+ *
+ * The recipe is `SELECT` from `einstellungen/settings-form.tsx` at a different control height: that
+ * screen puts every control on `h-9`, this one leaves `Input` at its `h-8` default, and a select
+ * carrying the other screen's height is exactly the ragged baseline `docs/ui_conversion_guide.md`
+ * warns about. The disabled tokens come from `Input` too — the full register renders this control
+ * greyed rather than removed.
+ */
+const SELECT =
+  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm transition-colors " +
+  "outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 " +
+  "disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:bg-input/30";
+
 /** The household as the form starts out: the archived one if there is a draft, otherwise one blank row. */
 function initialRows(draft: PrefillDraft | null): ReadonlyArray<MemberRow> {
   return draft === null ? [EMPTY_ROW] : draft.householdMembers.map((member) => ({ ...member }));
@@ -230,6 +244,12 @@ export function RegistrationForm({
 
   const counts = derivedCounts(members, proposal.today);
   const full = proposal.customerNumber === null;
+
+  // The numbers the dropdown offers: the register as the action re-read it after a lost race if it
+  // sent one back, otherwise the reading the page was rendered with. Preferring the fresh list is
+  // what stops the form going on offering a number that provably cannot be saved (US-24) — the
+  // staff member's obvious next move, picking it again, would fail identically.
+  const freeNumbers = state.freeNumbers ?? proposal.freeNumbers;
 
   function updateRow(index: number, patch: Partial<MemberRow>): void {
     if (index === 0) {
@@ -496,12 +516,51 @@ export function RegistrationForm({
         }
       >
         <div className="flex flex-wrap items-start gap-6">
-          <Stat
-            label={de.customers.assignment.proposedNumber}
-            value={String(proposal.customerNumber ?? de.customers.derived.unknown)}
-            testId="proposed-number"
-            className="min-w-56"
-          />
+          {/*
+           * The number, as a control rather than as a figure (US-24).
+           *
+           * It used to be a read-only `Stat` beside a form that could not change it, which made the
+           * one decision on this screen the software's rather than the staff member's. The tile is
+           * *replaced* rather than joined by a control: two things showing one number is how they
+           * start disagreeing.
+           *
+           * Native, not `components/ui/select.tsx`, for the reason the group radios below give: the
+           * action reads `customerNumber` out of the `FormData` and a Radix select submits nothing
+           * of its own. A native one is also type-ahead searchable over 240 options — typing `1`
+           * then `5` lands on 15 — with no JavaScript of ours.
+           *
+           * Uncontrolled: `defaultValue` opens it on the lowest free slot, and a refused save then
+           * leaves the staff member's own choice standing rather than snapping back to the
+           * proposal (#91). When a lost race removes their number from the list the browser falls
+           * back to the first option, which is the lowest free one again.
+           */}
+          <div className="flex w-56 flex-col gap-1.5">
+            <label htmlFor="customerNumber" className="text-sm font-medium">
+              {de.customers.fields.customerNumber}
+            </label>
+            <select
+              className={SELECT}
+              name="customerNumber"
+              id="customerNumber"
+              data-testid="customer-number-select"
+              defaultValue={proposal.customerNumber ?? ""}
+              disabled={full}
+            >
+              {freeNumbers.map((number) => (
+                <option key={number} value={number}>
+                  {number}
+                </option>
+              ))}
+            </select>
+            {/* No hint on a full register: „0 freie Nummern — die niedrigste ist vorausgewählt“
+                would be a sentence about a preselection that does not exist. The `Alert` at the top
+                of the form is the message there, and it offers the waiting list with it. */}
+            {full ? null : (
+              <p data-testid="free-number-count" className="text-xs text-muted-foreground">
+                {de.customers.assignment.freeNumberCount(freeNumbers.length)}
+              </p>
+            )}
+          </div>
 
           {/*
            * The group choice, behind a disclosure (US-20). FD accept the proposal, so two

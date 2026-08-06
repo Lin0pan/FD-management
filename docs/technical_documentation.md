@@ -95,6 +95,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   │   ├── archive-search-actions.ts # "use server": searchArchivedCustomers / draftFromArchived
 │   │   │   │   ├── archive-search-state.ts   # the panel's state + the draft as the form's strings
 │   │   │   │   ├── actions.ts        # "use server": Zod → registerCustomer → redirect
+│   │   │   │   ├── fresh-pool.ts     # the free numbers re-read after a lost race, shared by both registration actions
 │   │   │   │   ├── register-customer-state.ts  # form state (not exportable from actions.ts)
 │   │   │   │   └── registration-input.ts  # the form's Zod schema + German error mapping, shared with /warteliste
 │   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on; hosts the block, reissue + archive controls
@@ -1818,6 +1819,17 @@ beyond it:
   first of them, so overwriting row one would drop a member and duplicate another. The optional
   `previousCustomerId` travels as a hidden input — absent, not blank, for a walk-in — and reaches
   `registerCustomer` as the display metadata it is.
+  The **customer number is a control, not a figure** (US-24). The `Zuordnung` section opens with a
+  labelled native `<select name="customerNumber" data-testid="customer-number-select">` holding
+  `proposal.freeNumbers` — every free slot in `1..quotaN`, ascending — and opening on
+  `proposal.customerNumber`, the lowest of them, via `defaultValue`. It replaces the read-only
+  `proposed-number` `Stat` rather than joining it: two controls showing one number is how they start
+  disagreeing. Native for the reason the group radios are, and uncontrolled so a refused save leaves
+  the staff member's own choice standing (#91). The hint beneath it, `free-number-count`, says how
+  many numbers are left and that the lowest is preselected, inflected at one; on a **full** register
+  the select is disabled with no options and the hint is absent, because the `Alert` above the form
+  is the message there and it offers the waiting list with it. The number on screen when `Aufnehmen`
+  is pressed is always the number saved — `registerCustomer` never substitutes a chosen one.
   The `Gruppe` radios sit in a **closed** `<details>` inside the `<form>` (US-20): the state is not
   persisted, so every load starts closed, and the `<summary>` — `data-testid="group-choice-open"` —
   names the proposed group in its own `GROUP_STYLES` colour, always with the word. The suggestion and
@@ -1860,7 +1872,17 @@ beyond it:
   three parallel lists, so the row count is the **longest** of them — a row whose birthdate was left
   blank must reach the domain and be rejected there rather than vanishing on the way. `redirect()`
   is called **outside** the `try`: it works by throwing, and catching it would turn a successful
-  registration into "could not be saved".
+  registration into "could not be saved". It passes the chosen `customerNumber` straight through to
+  `registerCustomer` and gains no rule of its own.
+- **`neu/fresh-pool.ts`** holds the one recovery a refused registration can offer by itself: on a
+  **lost race only** (`CustomerNumberTaken`) it re-reads `proposeRegistration` and the action returns
+  the fresh pool in `RegisterCustomerState.freeNumbers`, which the form prefers over its prop.
+  Without it the form goes on offering a number that provably cannot be saved, and the staff member's
+  obvious next move — picking it again — fails identically. Every **other** refusal returns the state
+  it always did: the numbers are still what the page was rendered with, and a second query per blank
+  birthdate would be noise. It is a plain module rather than `"use server"`, because exporting a
+  helper from an action module publishes it as a callable endpoint; both registration actions import
+  it and hand it their own deps.
 - **`[id]/page.tsx`** is the **customer record** (US-16.5): everything known about one household and
   everything editable about them. It renders what `readCustomer` already derived — the counts from
   the birthdates, the standard portions and price (US-07.4), the card number from the slot and the
@@ -2299,7 +2321,10 @@ parsing is shared through `kunden/neu/registration-input.ts`: one Zod schema, on
 one German error mapping, so a field cannot start being accepted on one screen and refused on the
 other. The action calls **one** use case, `registerFromWaitingList` — never `registerCustomer` plus a
 removal of its own, because the order of those two is the guarantee the feature rests on and
-"remember to do B after A" is exactly what a screen forgets.
+"remember to do B after A" is exactly what a screen forgets. A promoted applicant is registered on a
+**chosen** number like any other (US-24): the same form means the same dropdown with the same
+default, the action passes `customerNumber` through, and it shares `neu/fresh-pool.ts` so a lost race
+here also comes back with the register as it now stands.
 
 - **`promotion-screen.tsx`** holds the one piece of judgement the screen has: when the certificate
   lapsed during the wait, the warning is shown **before** the form, naming the day it ran to (FR-5).

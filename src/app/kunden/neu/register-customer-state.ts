@@ -23,6 +23,15 @@ export interface RegisterCustomerState {
    * the two together — a state with a message and no tier does not occur.
    */
   readonly tier?: NoticeTier;
+  /**
+   * The free numbers as the register stands *now*, set only when the refusal was a lost race
+   * (US-24). Without it the form goes on offering a number that provably cannot be saved, and the
+   * staff member's obvious next move — pick it again — fails identically.
+   *
+   * Absent on every other refusal, and on `idle`: re-reading the register is worth a query when the
+   * pool is what went stale, and is noise when a birthdate was left blank.
+   */
+  readonly freeNumbers?: ReadonlyArray<number>;
 }
 
 export const initialRegisterCustomerState: RegisterCustomerState = { status: "idle" };

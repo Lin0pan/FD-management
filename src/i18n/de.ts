@@ -150,7 +150,16 @@ export const de = {
       unknown: "—",
     },
     assignment: {
-      proposedNumber: "Vorgeschlagene Kundennummer",
+      /**
+       * The hint under the number dropdown (US-24): how much of the register is left, and that the
+       * control opened on the lowest of it. Inflected at one, because „1 freie Nummern“ is the
+       * kind of German that makes staff distrust the rest of the screen — and at one there is no
+       * „niedrigste“ to speak of either, so the sentence says which number is meant instead.
+       */
+      freeNumberCount: (count: number): string =>
+        count === 1
+          ? "Noch 1 freie Nummer — sie ist vorausgewählt."
+          : `${count} freie Nummern — die niedrigste ist vorausgewählt.`,
       /**
        * The folded group choice (US-20). Two halves rather than one sentence, because the proposed
        * group goes between them wearing its own colour — and a colour never travels without the
@@ -186,8 +195,19 @@ export const de = {
       noFreeCustomerNumber: (quotaN: number): string =>
         `Alle ${quotaN} Kundennummern sind vergeben. Bitte einen Haushalt archivieren oder die ` +
         `Höchstzahl in den Einstellungen erhöhen. Es wurde nichts gespeichert.`,
-      customerNumberTaken:
-        "Die Kundennummer wurde zwischenzeitlich vergeben. Bitte erneut speichern.",
+      /**
+       * One sentence for both `CustomerNumberTaken` and `CustomerNumberOutOfRange` (US-24): staff
+       * do not act differently on „somebody just took it“ than on „the quota moved under you“ —
+       * either way they pick another number. The two codes stay apart because the program branches
+       * on them; only the sentence is shared.
+       *
+       * It names the number and asks for a different one. Its predecessor said „bitte erneut
+       * speichern“, which was right while the software picked the number and is wrong now that
+       * staff do: a chosen number that is gone fails identically however often it is re-submitted.
+       */
+      customerNumberUnavailable: (customerNumber: number): string =>
+        `Die Kundennummer ${customerNumber} ist nicht mehr verfügbar. Bitte eine andere Nummer ` +
+        `wählen.`,
       notADate: "Bitte ein Datum im Format TT.MM.JJJJ auswählen.",
       notesTooLong: (maxLength: number, length: number): string =>
         `Die Notiz ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +

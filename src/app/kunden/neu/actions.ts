@@ -15,6 +15,7 @@ import { redirect } from "next/navigation";
 import { registerCustomer } from "@/application/customers/register-customer";
 import { tierOf } from "../../notice-tier";
 import { customerDeps } from "../deps";
+import { freshPoolAfterRace } from "./fresh-pool";
 import type { RegisterCustomerState } from "./register-customer-state";
 import { germanMessage, registrationForm, registrationValues } from "./registration-input";
 
@@ -51,11 +52,17 @@ export async function submitRegistration(
       householdMembers: form.householdMembers,
       notes: form.notes,
       group: form.group,
+      customerNumber: form.customerNumber,
       previousCustomerId: form.previousCustomerId,
     });
     id = customer.id;
   } catch (error: unknown) {
-    return { status: "error", message: germanMessage(error), tier: tierOf(error) };
+    return {
+      status: "error",
+      message: germanMessage(error),
+      tier: tierOf(error),
+      ...(await freshPoolAfterRace(customerDeps, error)),
+    };
   }
 
   // Outside the try: `redirect` works by throwing, and catching it here would turn a successful

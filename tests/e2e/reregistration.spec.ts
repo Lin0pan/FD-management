@@ -115,7 +115,7 @@ async function register(page: Page, lastName: string): Promise<Household> {
   };
 
   await page.goto("/kunden/neu");
-  const customerNumber = await page.getByTestId("proposed-number").innerText();
+  const customerNumber = await page.getByTestId("customer-number-select").inputValue();
 
   await page.locator("#firstName").fill(applicant.firstName);
   await page.locator("#lastName").fill(applicant.lastName);
@@ -300,7 +300,7 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     // offered it. That is what makes the re-registration below an honest test: the old number is
     // gone, and a path that tried to restore it would have to collide with an active household.
     await page.goto("/kunden/neu");
-    await expect(page.getByTestId("proposed-number")).toHaveText(returning.customerNumber);
+    await expect(page.getByTestId("customer-number-select")).toHaveValue(returning.customerNumber);
 
     successor = await register(page, surname);
     expect(successor.customerNumber).toBe(returning.customerNumber);
@@ -338,7 +338,7 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     page,
   }) => {
     await page.goto("/kunden/neu");
-    const offered = await page.getByTestId("proposed-number").innerText();
+    const offered = await page.getByTestId("customer-number-select").inputValue();
     expect(offered).not.toBe(returning.customerNumber);
 
     await searchArchive(page, surname);
@@ -374,7 +374,7 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     // *today*, and the number on offer is the allocator's, not the one they used to have.
     await expect(page.locator("#certificateType")).toHaveValue("");
     await expect(page.locator("#certificateValidUntil")).toHaveValue("");
-    await expect(page.getByTestId("proposed-number")).toHaveText(offered);
+    await expect(page.getByTestId("customer-number-select")).toHaveValue(offered);
 
     // Every pre-filled field is a field, not a display: a household that has moved is typed over.
     await page.locator("#city").fill("Delbrück");
@@ -393,7 +393,7 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     page,
   }) => {
     await page.goto("/kunden/neu");
-    reregisteredNumber = await page.getByTestId("proposed-number").innerText();
+    reregisteredNumber = await page.getByTestId("customer-number-select").inputValue();
     expect(reregisteredNumber).not.toBe(returning.customerNumber);
 
     await searchArchive(page, surname);

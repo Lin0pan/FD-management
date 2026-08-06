@@ -15,6 +15,7 @@ import { z } from "zod";
 import { registerFromWaitingList } from "@/application/waiting-list/register-from-waiting-list";
 import { WaitingListEntryNotFound } from "@/domain/errors";
 import { de } from "@/i18n/de";
+import { freshPoolAfterRace } from "@/app/kunden/neu/fresh-pool";
 import type { RegisterCustomerState } from "@/app/kunden/neu/register-customer-state";
 import {
   germanMessage,
@@ -69,6 +70,7 @@ export async function submitPromotedRegistration(
       householdMembers: form.householdMembers,
       notes: form.notes,
       group: form.group,
+      customerNumber: form.customerNumber,
       previousCustomerId: form.previousCustomerId,
     });
     id = customer.id;
@@ -76,7 +78,12 @@ export async function submitPromotedRegistration(
     if (error instanceof WaitingListEntryNotFound) {
       return { status: "error", message: de.waitingList.errors.notFound, tier: tierOf(error) };
     }
-    return { status: "error", message: germanMessage(error), tier: tierOf(error) };
+    return {
+      status: "error",
+      message: germanMessage(error),
+      tier: tierOf(error),
+      ...(await freshPoolAfterRace(waitingListDeps, error)),
+    };
   }
 
   // Outside the try: `redirect` works by throwing, and catching it here would turn a successful

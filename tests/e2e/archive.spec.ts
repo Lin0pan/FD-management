@@ -94,7 +94,7 @@ async function register(page: Page): Promise<Household> {
   const childFirstName = faker.person.firstName();
 
   await page.goto("/kunden/neu");
-  const customerNumber = await page.getByTestId("proposed-number").innerText();
+  const customerNumber = await page.getByTestId("customer-number-select").inputValue();
 
   await page.locator("#firstName").fill(firstName);
   await page.locator("#lastName").fill(lastName);
@@ -338,7 +338,7 @@ test.describe("Kunde archivieren", () => {
     // The point of the whole story: the number the archived household gave up is the lowest free one
     // again, so the very next registration is offered it — no gap in the sequence, no renumbering.
     await page.goto("/kunden/neu");
-    await expect(page.getByTestId("proposed-number")).toHaveText(household.customerNumber);
+    await expect(page.getByTestId("customer-number-select")).toHaveValue(household.customerNumber);
 
     const successor = await register(page);
     expect(successor.customerNumber).toBe(household.customerNumber);

@@ -225,7 +225,8 @@ in black and white.
 
 Worth knowing before the restyle starts, because it decides where care is spent.
 `registration.spec.ts` and `reregistration.spec.ts` assert `household-row`, `grown-ups`, `children`,
-`proposed-number`, `registration-error`, `archive-match-name`, `-household-size`, `-reason`,
+`proposed-number` (`customer-number-select` since US-24), `registration-error`, `archive-match-name`,
+`-household-size`, `-reason`,
 `-former-number`, `archive-prefill-notice`, `-detail`, `-clear`, `archive-search-submit`,
 `add-member`, `remove-member-0`, and sixteen field `#id`s.
 
@@ -366,6 +367,12 @@ is the second screen that needs it, which is the guide's own threshold: **extrac
 
 `Vorgeschlagene Kundennummer` becomes the same tile in the `Zuordnung` card, instead of an 832px box.
 
+> **Superseded by US-24.** The tile was right while the number was the software's to pick, and wrong
+> once it became the staff member's. It is now a labelled native `<select>`
+> (`data-testid="customer-number-select"`) offering every free number and opening on the lowest, with
+> a `free-number-count` hint beneath it; the `proposed-number` testid is gone. The rest of this
+> section still holds — `Stat` is what the two derived counts are, on this screen and on the record.
+
 **(h) The submit gets a `CardFooter` and a size.** `Aufnehmen` is the one irreversible-ish act on the
 screen and it is currently a 119×40 button after 1 700px of form. In the `Zuordnung` card's footer,
 `size="lg"`, with the disabled-because-full case (§4.4) beside it.
@@ -461,7 +468,7 @@ Everything needed is installed. No `shadcn add` required.
 | household `<ul>` / `<li className="grid sm:grid-cols-4">`               | `Table` / `TableHeader` / `TableRow` / `TableCell`; testids move to `TableRow` |
 | `add-member` / `remove-member-N` `<button>`s                            | `<Button variant="outline" size="sm">` / `variant="ghost" size="sm"`           |
 | `grown-ups` / `children` boxes                                          | the extracted `Stat` tile (§4.2g)                                              |
-| `proposed-number` box                                                   | the same `Stat` tile                                                           |
+| `proposed-number` box                                                   | the same `Stat` tile — replaced by a native `<select>` in US-24                |
 | the `Gruppe` `<fieldset>` + native radios                               | stays a `<fieldset>`; each option a `<label>` wearing `GROUP_STYLES` (§6)      |
 | `registration-error` (full register)                                    | `<Alert variant="destructive" role="status">` under the `h1` (§4.4)            |
 | `registration-error` (save refused)                                     | `<Alert variant="destructive" role="status">` in the `Zuordnung` footer        |
@@ -512,7 +519,10 @@ Beyond the ten in `docs/ui_conversion_guide.md`. All of these come from `registr
    by label. Adding `htmlFor` and `aria-label` is free; renaming an id is not.
 2. **`grown-ups` and `children` hold exactly the digit** — `toHaveText("1")`. A `Stat` tile may wrap
    them; the testid must not come to contain its own label.
-3. **`proposed-number` holds exactly the number**, asserted against the value the API returned.
+3. ~~**`proposed-number` holds exactly the number**, asserted against the value the API returned.~~
+   [superseded by US-24] The tile is a `<select data-testid="customer-number-select">`, and the specs
+   read its `inputValue()` rather than its text. What is _not_ superseded is the constraint: the
+   number the form shows is still asserted against the value the API returned, never a literal.
 4. **`household-row` counts are asserted**: 1 on a fresh form, 0 when the last row is removed, 2
    after a two-member prefill. Whatever a row becomes, `data-testid="household-row"` must sit on
    exactly one element per member.

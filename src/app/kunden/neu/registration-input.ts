@@ -20,6 +20,7 @@ import type { RegistrationDraft } from "@/application/customers/draft-from-archi
 import { parseGroup } from "@/domain/customer/group";
 import {
   BirthDateInFuture,
+  CustomerNumberOutOfRange,
   CustomerNumberTaken,
   EmptyHousehold,
   MissingRequiredField,
@@ -73,6 +74,28 @@ const previousCustomerId = z.string().transform((value, ctx): number | undefined
   return Number(value);
 });
 
+/**
+ * The slot staff picked in the dropdown (US-24).
+ *
+ * Every value the form can produce is a positive integer, because the options *are* the free
+ * numbers; anything else is a tampered or stale submission and is refused as a missing field. It
+ * must never fall through to `undefined`, which the use case reads as „the software picks one“ —
+ * the number on screen when `Aufnehmen` was pressed is the number that gets saved, or nothing is.
+ *
+ * Whether the number is still free is not decided here. That is `assertFreeNumber`'s and the
+ * partial unique index's, in that order.
+ */
+const customerNumber = z.string().transform((value, ctx): number => {
+  if (!/^[1-9]\d*$/.test(value)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: de.customers.errors.missingField(de.customers.fields.customerNumber),
+    });
+    return z.NEVER;
+  }
+  return Number(value);
+});
+
 export const registrationForm = z.object({
   firstName: z.string(),
   lastName: z.string(),
@@ -85,6 +108,7 @@ export const registrationForm = z.object({
   certificateValidUntil: calendarDay,
   notes: z.string(),
   group,
+  customerNumber,
   previousCustomerId,
   householdMembers: z.array(
     z.object({
@@ -137,6 +161,7 @@ export function registrationValues(formData: FormData): Record<string, unknown> 
     certificateValidUntil: text("certificateValidUntil"),
     notes: text("notes"),
     group: text("group"),
+    customerNumber: text("customerNumber"),
     previousCustomerId: text("previousCustomerId"),
     householdMembers: householdRows(formData),
   };
@@ -171,8 +196,12 @@ export function customerErrorMessage(error: unknown): string | null {
   if (error instanceof NoFreeCustomerNumber) {
     return de.customers.errors.noFreeCustomerNumber(error.quotaN);
   }
-  if (error instanceof CustomerNumberTaken) {
-    return de.customers.errors.customerNumberTaken;
+  // Two codes, one sentence. `CustomerNumberTaken` says somebody won the race for the number and
+  // `CustomerNumberOutOfRange` says the quota moved under the open form (US-14), but the staff
+  // member's next move is the same either way: pick another number. What the program branches on —
+  // the retry in `registerCustomer`, the tier in `notice-tier.ts` — is the code, not this.
+  if (error instanceof CustomerNumberTaken || error instanceof CustomerNumberOutOfRange) {
+    return de.customers.errors.customerNumberUnavailable(error.customerNumber);
   }
   return null;
 }
