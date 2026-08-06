@@ -457,7 +457,8 @@ class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`
 `QuotaBelowActiveCustomers`, `MissingAuditReason`, `EmptyHousehold`, `BirthDateInFuture`,
 `NoFreeCustomerNumber`, `CustomerNumberTaken`, `CustomerNumberOutOfRange`, `CustomerNotFound`,
 `CustomerArchived`, `CustomerNotArchived`, `InvalidCustomerRecord`, `MissingRequiredField`,
-`InvalidCardNumber`, `CardIndexTaken`, `InvalidEuroAmount` today). Each carries the values that made
+`InvalidCardNumber`, `CardIndexTaken`, `CardNumberTaken`, `InvalidEuroAmount` today). Each carries
+the values that made
 it fail, so the UI can render a German message naming concrete numbers without re-deriving them, and
 callers switch on `code` instead of parsing strings.
 
@@ -465,6 +466,12 @@ callers switch on `code` instead of parsing strings.
 sentence — the number is not available, pick another (US-24). They are separate because the
 _program_ acts differently: `registerCustomer` retries a `CustomerNumberTaken` when it allocated the
 number itself, so a quota violation wearing that code would be retried as if it were a lost race.
+
+`CardIndexTaken` and `CardNumberTaken` are split the same way, one per constraint on `Card`.
+`CardIndexTaken` is a race between two issues on one _record_ — `(customerId, index)` — which a
+retry settles by reading the run again. `CardNumberTaken` is the wider guarantee: `(customerNumber,
+index)` says a card number that has been printed once is never printed again (US-25), so it means
+the slot's run was read stale rather than that two writes collided.
 
 ### `src/domain/policy/settings.ts`
 
@@ -760,18 +767,31 @@ _when_ "today" is stays with the caller and this rule cannot acquire a second op
 ### `src/domain/card/cardNumber.ts`
 
 The card number staff read out at the counter, `<customer number>k<index>` — `12k1` is the first
-card of customer 12 and `12k2` the one issued after they lost it (US-09). It is **derived, never
-stored**: the string is the customer's slot and the index of the card they hold, so persisting it
-would give the same fact two homes and every reissue would have to keep them in step — the mistake
-the Excel sheet made with the household counts.
+card printed under slot 12 and `12k2` the second. It is **derived, never stored**: the string is a
+customer number and a card index, so persisting it would give the same fact two homes and every
+reissue would have to keep them in step — the mistake the Excel sheet made with the household
+counts.
+
+The index counts the **slot's** cards, across every household that has ever held the number, rather
+than the cards of the household holding it today (US-25). A customer number is a slot an archived
+household releases (US-10, US-11, US-24) and the household keeps its physical card, so a run that
+restarted at `k1` for each new holder would put two pieces of card in the world bearing one number —
+and the counter, resolving the slot to its current holder, would answer `Ausgabe frei` to a card
+belonging to a household that left the register. Counting on from the highest index ever issued on
+the slot makes a card number name one physical card for good, and an old one presented at the
+counter lands on the `OUTDATED_CARD` verdict that already exists.
 
 `formatCardNumber(customerNumber, index)` writes it and validates nothing: both arguments come off a
 persisted card the register already guarantees is a positive whole number, so a check here would only
-be an unreachable branch. `nextCardNumber(card)` gives the number that replaces one, same customer
-and index + 1. Issuing it invalidates every earlier card as a consequence, because validity is
-_being the highest index_ rather than a flag somebody has to remember to clear (FR-4); the function
-says only what the next index is, and deciding a card is due belongs to the application layer, which
-is the only one that knows the highest issued index.
+be an unreachable branch. `nextCardIndex(highestIssuedOnSlot)` is the counting rule itself, one
+place for both registration and reissue to ask: the highest index ever issued on the slot plus one,
+so `0` — what a slot nobody has ever held answers — yields `1` and no first-card constant is written
+down anywhere. It raises `InvalidCardNumber` for a negative or fractional argument, neither of which
+can come off a card the register issued. `nextCardNumber(card)` gives the number that replaces one,
+same slot and `nextCardIndex(card.index)`. Issuing it invalidates every earlier card on the slot as a
+consequence, because validity is _being the highest index_ rather than a flag somebody has to
+remember to clear (FR-4); the functions say only what the next index is, and deciding a card is due
+belongs to the application layer, which is the only one that can see the slot's whole run.
 
 `parseCardNumber(text)` reads a typed number back and is where the strictness lives. It is forgiving
 where forgiveness cannot change which card is meant — an uppercase `K` and surrounding whitespace,
@@ -783,9 +803,10 @@ Anything else raises `InvalidCardNumber` carrying the text as entered, so the co
 quote back what was typed — a mistyped `50l3` and an unknown-but-well-formed `50k9` are different
 problems for staff, and only the first is this error.
 
-Card numbers are **not unique across the archive**: slot 50 can be reassigned once a household is
-archived, so `50k1` may name a different person later (FR-6). Nothing keys a row or a foreign key by
-a card number.
+A card number is **issued once and never again**: slot 50 can be reassigned once a household is
+archived (FR-6), but the new holder's first card counts on from the slot's highest index, so `50k1`
+never names a second piece of card. Nothing keys a row or a foreign key by a card number all the
+same — the guarantee is there for the person reading a number at the counter, not for the schema.
 
 ### `src/domain/distribution/weekColour.ts`
 
