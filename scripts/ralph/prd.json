@@ -24,8 +24,8 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "freeNumbers is the single scan; findLowestFreeNumber is its first element and lowestFreeNumber unchanged on top of that. assertFreeNumber checks range before occupancy. CustomerNumberOutOfRange added to DomainErrorCode and tiered 'refusal' in notice-tier.ts. 34 domain tests, written red first; domain coverage 100%. Docs: technical_documentation.md (tree line, errors section, customerNumber section, the 'two forms' note is now three) and ui_action_feedback_review.md (code table, the '31st code' count)."
     },
     {
       "id": "US-002",
