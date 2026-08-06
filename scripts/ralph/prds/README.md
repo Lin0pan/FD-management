@@ -77,34 +77,35 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 
 ## Batches
 
-| #   | File                                     | Stories | Branch                                 |
-| --- | ---------------------------------------- | ------- | -------------------------------------- |
-| 01  | `01-us-14-configure-business-rules.json` | 5       | `ralph/us-14-configure-business-rules` |
-| 02  | `02-us-01-register-customer.json`        | 7       | `ralph/us-01-register-customer`        |
-| 03  | `03-us-02-issue-customer-card.json`      | 5       | `ralph/us-02-issue-customer-card`      |
-| 04  | `04-us-03-week-colour.json`              | 5       | `ralph/us-03-week-colour`              |
-| 05  | `05-us-07-portions-and-price.json`       | 3       | `ralph/us-07-portions-and-price`       |
-| 06  | `06-us-04-lookup-customer.json`          | 7       | `ralph/us-04-lookup-customer`          |
-| 07  | `07-us-05-record-attendance.json`        | 5       | `ralph/us-05-record-attendance`        |
-| 08  | `08-us-06-certificate-reminder.json`     | 5       | `ralph/us-06-certificate-reminder`     |
-| 09  | `09-us-08-block-unblock-customer.json`   | 6       | `ralph/us-08-block-unblock-customer`   |
-| 10  | `10-us-09-reissue-card-after-loss.json`  | 4       | `ralph/us-09-reissue-card-after-loss`  |
-| 11  | `11-us-10-archive-customer.json`         | 5       | `ralph/us-10-archive-customer`         |
-| 12  | `12-us-13-age-13-reclassification.json`  | 5       | `ralph/us-13-age-13-reclassification`  |
-| 13  | `13-us-11-reuse-archived-record.json`    | 5       | `ralph/us-11-reuse-archived-record`    |
-| 14  | `14-us-12-waiting-list.json`             | 5       | `ralph/us-12-waiting-list`             |
-| 15  | `15-us-15-customer-list.json`            | 4       | `ralph/us-15-customer-list`            |
-| 16  | `16-us-16-maintain-customer-record.json` | 5       | `ralph/us-16-maintain-customer-record` |
-| 17  | `17-us-17-navigation-shell.json`         | 6       | `ralph/us-17-navigation-shell`         |
-| 18  | `18-us-18-waiting-list-signals.json`     | 4       | `ralph/us-18-waiting-list-signals`     |
-| 19  | `19-us-19-fold-archive-search.json`      | 3       | `ralph/us-19-fold-archive-search`      |
-| 20  | `20-us-20-fold-group-choice.json`        | 3       | `ralph/us-20-fold-group-choice`        |
-| 21  | `21-us-22-drop-week-colour-lookup.json`  | 4       | `ralph/us-22-drop-week-colour-lookup`  |
-| 22  | `22-us-21-step-through-group.json`       | 4       | `ralph/us-21-step-through-group`       |
-| 23  | `23-us-23-group-progress.json`           | 5       | `ralph/us-23-group-progress`           |
-| 24  | `24-us-24-choose-customer-number.json`   | 5       | `ralph/us-24-choose-customer-number`   |
+| #   | File                                         | Stories | Branch                                     |
+| --- | -------------------------------------------- | ------- | ------------------------------------------ |
+| 01  | `01-us-14-configure-business-rules.json`     | 5       | `ralph/us-14-configure-business-rules`     |
+| 02  | `02-us-01-register-customer.json`            | 7       | `ralph/us-01-register-customer`            |
+| 03  | `03-us-02-issue-customer-card.json`          | 5       | `ralph/us-02-issue-customer-card`          |
+| 04  | `04-us-03-week-colour.json`                  | 5       | `ralph/us-03-week-colour`                  |
+| 05  | `05-us-07-portions-and-price.json`           | 3       | `ralph/us-07-portions-and-price`           |
+| 06  | `06-us-04-lookup-customer.json`              | 7       | `ralph/us-04-lookup-customer`              |
+| 07  | `07-us-05-record-attendance.json`            | 5       | `ralph/us-05-record-attendance`            |
+| 08  | `08-us-06-certificate-reminder.json`         | 5       | `ralph/us-06-certificate-reminder`         |
+| 09  | `09-us-08-block-unblock-customer.json`       | 6       | `ralph/us-08-block-unblock-customer`       |
+| 10  | `10-us-09-reissue-card-after-loss.json`      | 4       | `ralph/us-09-reissue-card-after-loss`      |
+| 11  | `11-us-10-archive-customer.json`             | 5       | `ralph/us-10-archive-customer`             |
+| 12  | `12-us-13-age-13-reclassification.json`      | 5       | `ralph/us-13-age-13-reclassification`      |
+| 13  | `13-us-11-reuse-archived-record.json`        | 5       | `ralph/us-11-reuse-archived-record`        |
+| 14  | `14-us-12-waiting-list.json`                 | 5       | `ralph/us-12-waiting-list`                 |
+| 15  | `15-us-15-customer-list.json`                | 4       | `ralph/us-15-customer-list`                |
+| 16  | `16-us-16-maintain-customer-record.json`     | 5       | `ralph/us-16-maintain-customer-record`     |
+| 17  | `17-us-17-navigation-shell.json`             | 6       | `ralph/us-17-navigation-shell`             |
+| 18  | `18-us-18-waiting-list-signals.json`         | 4       | `ralph/us-18-waiting-list-signals`         |
+| 19  | `19-us-19-fold-archive-search.json`          | 3       | `ralph/us-19-fold-archive-search`          |
+| 20  | `20-us-20-fold-group-choice.json`            | 3       | `ralph/us-20-fold-group-choice`            |
+| 21  | `21-us-22-drop-week-colour-lookup.json`      | 4       | `ralph/us-22-drop-week-colour-lookup`      |
+| 22  | `22-us-21-step-through-group.json`           | 4       | `ralph/us-21-step-through-group`           |
+| 23  | `23-us-23-group-progress.json`               | 5       | `ralph/us-23-group-progress`               |
+| 24  | `24-us-24-choose-customer-number.json`       | 5       | `ralph/us-24-choose-customer-number`       |
+| 25  | `25-us-25-globally-unique-card-numbers.json` | 7       | `ralph/us-25-globally-unique-card-numbers` |
 
-115 stories total — the rows sum to it. Every story cites its source PRD section in its
+122 stories total — the rows sum to it. Every story cites its source PRD section in its
 `description`, so an iteration can read the full context when a criterion is ambiguous.
 
 Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 onwards are not
@@ -131,6 +132,21 @@ dropdown, still preselected to the lowest. Domain + application + presentation +
 change and no new port method** — `takenActiveNumbers()` already answers the query. It touches
 `src/app/kunden/neu/**` and `src/i18n/de.ts`, so it shares no file with 21–23 and can follow them in
 any order.
+
+**Batch 25 (US-25)** is a correction rather than a feature, and it is the only post-MVP batch with a
+**schema change**. A customer number is a slot an archived household releases, so the card number
+built from it repeats: Customer1 archived on slot 66 leaves `66k1` on a card nobody collected, and
+Customer2 registering on slot 66 is handed `66k1` again — the counter answers „Ausgabe frei" to a
+former household's card. US-25 makes a card index count the **slot's** whole run instead of the
+record's, so Customer2 starts at `66k2` and the existing `OUTDATED_CARD` verdict does the rest.
+Domain + schema + infrastructure + application + one German string + e2e + docs. It **must run after
+24**, which is what made choosing a reused number easy in the first place.
+
+Two things about 25 that no earlier batch has needed: it **regenerates `prisma/migrations/`** (FD hold
+no real data, so history is disposable — CLAUDE.md), which drops the hand-written partial unique index
+on `Customer.customerNumber` unless US-002 puts it back; and it adds a **new port method**
+(`highestIndexForNumber`), so every hand-written fake `CardRepository` in the application tests has to
+gain it before the suite compiles.
 
 Batches 21 to 23 all edit `src/app/ausgabe/page.tsx`, so the "merge before starting the next batch"
 rule is load-bearing here for the same reason it was for 19 and 20. **Run them in this order**: 21 frees the
