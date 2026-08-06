@@ -300,9 +300,18 @@ class FakeCustomerRepository implements CustomerRepository {
  * answers with the highest index rather than the last one written, so a test can leave a gap in the
  * run — the shape a hand-fixed database or a future deletion would leave — and the use case still
  * has to count on from the top.
+ *
+ * It is handed the register because a card's slot is *read off the customer row* rather than passed
+ * in (US-25) — that is what makes `Card.customerNumber` unable to disagree with the household's, and
+ * a fake that let a caller state the slot could be told one the household does not hold.
  */
 class FakeCardRepository implements CardRepository {
   readonly cards = new Map<number, IssuedCard[]>();
+  private readonly register: FakeCustomerRepository;
+
+  constructor(register: FakeCustomerRepository) {
+    this.register = register;
+  }
 
   /** Put cards on record without going through the use case, e.g. to leave a gap in the indices. */
   place(customerId: number, ...indices: number[]): void {
@@ -334,12 +343,30 @@ class FakeCardRepository implements CardRepository {
     return Promise.resolve([...this.cardsOf(customerId)].sort((a, b) => b.index - a.index));
   }
 
-  // The adapter counts in SQL; the fake counts in memory. Both answer off the cards that exist, so
-  // neither can report a loss the run does not contain.
+  /**
+   * The highest index ever printed on the slot, across every household that has held it — the
+   * archived ones included, which is the only reason the method exists (US-25).
+   */
+  highestIndexForNumber(customerNumber: number): Promise<number> {
+    let highest = 0;
+    for (const [customerId, cards] of this.cards) {
+      if (this.slotOf(customerId) !== customerNumber) {
+        continue;
+      }
+      for (const card of cards) {
+        highest = Math.max(highest, card.index);
+      }
+    }
+    return Promise.resolve(highest);
+  }
+
+  // The adapter counts in SQL; the fake counts in memory. Both count the customer's own rows rather
+  // than the index they have reached, so neither reports a household as having been through cards
+  // that a predecessor on the slot held.
   issueCounts(customerId: number): Promise<CardIssueCounts> {
     const cards = this.cardsOf(customerId);
     return Promise.resolve({
-      cardsIssued: cards.reduce((highest, card) => Math.max(highest, card.index), 0),
+      cardsIssued: cards.length,
       reissuesForLoss: cards.filter((card) => card.reason === "LOST").length,
     });
   }
@@ -353,6 +380,12 @@ class FakeCardRepository implements CardRepository {
     const cards = this.cards.get(customerId) ?? [];
     this.cards.set(customerId, cards);
     return cards;
+  }
+
+  /** The slot the household holds, or `null` for an id the register does not know. */
+  private slotOf(customerId: number): number | null {
+    const customer = this.register.created.find((held) => held.id === customerId);
+    return customer?.customerNumber ?? null;
   }
 }
 
@@ -772,7 +805,7 @@ describe("issueCard", () => {
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
-    cards = new FakeCardRepository();
+    cards = new FakeCardRepository(customers);
     audit = new FakeAuditLog();
   });
 
@@ -946,7 +979,7 @@ describe("reissueCard", () => {
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
-    cards = new FakeCardRepository();
+    cards = new FakeCardRepository(customers);
     audit = new FakeAuditLog();
     distribution = new FakeDistributionRecordRepository();
   });
@@ -1406,7 +1439,7 @@ describe("readCard", () => {
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
-    cards = new FakeCardRepository();
+    cards = new FakeCardRepository(customers);
     settings = new FakeSettingsRepository(version());
     audit = new FakeAuditLog();
   });
@@ -1837,7 +1870,7 @@ describe("archiveCustomer", () => {
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
-    cards = new FakeCardRepository();
+    cards = new FakeCardRepository(customers);
     distribution = new FakeDistributionRecordRepository();
     audit = new FakeAuditLog();
   });
@@ -2240,7 +2273,7 @@ describe("draftFromArchived", () => {
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
-    cards = new FakeCardRepository();
+    cards = new FakeCardRepository(customers);
     distribution = new FakeDistributionRecordRepository();
     audit = new FakeAuditLog();
   });
@@ -2400,7 +2433,7 @@ describe("re-registering a household from an archived record", () => {
   beforeEach(() => {
     customers = new FakeCustomerRepository();
     settings = new FakeSettingsRepository(version());
-    cards = new FakeCardRepository();
+    cards = new FakeCardRepository(customers);
     distribution = new FakeDistributionRecordRepository();
     audit = new FakeAuditLog();
   });

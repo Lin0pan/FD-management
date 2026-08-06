@@ -201,7 +201,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │       ├── client.ts             # the process-wide PrismaClient
 │   │       ├── settings-repository.ts  # PrismaSettingsRepository (implements the port)
 │   │       ├── customer-repository.ts  # PrismaCustomerRepository + PrismaCustomerCounter
-│   │       ├── card-repository.ts    # PrismaCardRepository — the (customer, index) constraint
+│   │       ├── card-repository.ts    # PrismaCardRepository — the (customer, index) and (number, index) constraints
 │   │       ├── distribution-record-repository.ts  # PrismaDistributionRecordRepository — (customer, Berlin dayKey)
 │   │       ├── reminder-log-repository.ts  # PrismaReminderLogRepository — (customer, loggedOn) cap
 │   │       ├── certificate-repository.ts   # PrismaCertificateRepository — appends renewals
@@ -301,7 +301,7 @@ coverage-measured layers.
 | `SettingsRepository`           | `listVersions()`, `append(version)`                                                                                                                                                                                                                                                                                                     | No update/delete — policy history is append-only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `CustomerCounter`              | `countActive()`                                                                                                                                                                                                                                                                                                                         | The reality the quota `N` may not fall below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `findById(id)`, `findByCustomerNumber(n)`, `listWithStatus(status)`, `list(query)`, `searchArchived(query, limit)`, `create(customer)`, `updateHousehold(id, members)`, `updateDetails(id, details, household)`, `updateNotes(id, notes)`, `setGroup(id, group)`, `setStatus(…)`, `archive(…)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`. `setGroup` is a single column write (US-16.4) that deliberately leaves the cards printing the group they were issued with. `listWithStatus` is the one whole-register read — lowest number first, households and cards attached, for the cards-due list (US-13.2). `list` is the customer list's filtered read (US-15.2): every criterion of `CustomerListQuery` is a `WHERE` clause, ordered by ascending customer number. |
-| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issueCounts(customerId)`, `issue(customerId, card)`                                                                                                                                                                                                                                | `currentCard` is the highest index — there is no `valid` flag to read; `issueCounts` counts the run and its losses in one aggregate (US-09.2); `issue` reports a lost race as `CardIndexTaken`.                                                                                                                                                                                                                                                                                                                        |
+| `CardRepository`               | `currentCard(customerId)`, `highestIndexForNumber(customerNumber)`, `listCards(customerId)`, `issueCounts(customerId)`, `issue(customerId, card)`                                                                                                                                                                                       | `currentCard` is the highest index — there is no `valid` flag to read; `highestIndexForNumber` is the highest index ever printed on a **slot**, archived holders included, and is where the next card number is counted from (US-25); `issueCounts` counts the customer's own rows and their losses in one aggregate (US-09.2); `issue` reports a lost race on one record as `CardIndexTaken` and a card number already printed as `CardNumberTaken`.                                                                  |
 | `DistributionRecordRepository` | `listForCustomer(id)`, `listForDay(dayKey)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`                                                                                                                                                                                                                        | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade). `listForDay` takes the **Berlin** day key the caller derived from the clock — one query for the whole afternoon (US-23), never one per household — and the adapter matches it rather than re-deriving a day from an instant.                                                                                                            |
 | `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                                                                                                                                                                                                                                                                          | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3).                                                                                                                                                                                                                                                                                               |
 | `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                                                                                                                                                                                                                                                                            | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                                                                                                                                                                                                                                                                                                                     |
@@ -1090,8 +1090,9 @@ The two read-side use cases the customer screens sit on:
   once for the current card and once for the rest, would let two answers come from two moments. A
   customer with no card at all is refused as an `InvalidCustomerRecord` rather than shown a card
   without a number: registration writes the first card in the same transaction as the customer, so
-  an empty run can only come from a hand-edited database. It also carries `cardsIssued` (the current
-  index — how many numbers the household has been through) and `reissuesForLoss`, which come from
+  an empty run can only come from a hand-edited database. It also carries `cardsIssued` (how many
+  cards this household has been through — a count of their own rows, not the index they have reached,
+  which counts the slot's whole history since US-25) and `reissuesForLoss`, which come from
   `cards.issueCounts` rather than from filtering the run it already holds (US-09.2): counting here
   would state a second time which reason is a loss, and the two statements would drift the day US-13
   adds one. The counts are shown and never acted on — no threshold, no warning (§FR-4, §FR-5). Two
@@ -1627,12 +1628,24 @@ question, asked once of the customer register.
 `listCards` cannot come to read a snapshot differently, and checks the stored `groupAtIssue` word
 through `parseGroup` rather than trusting it — SQLite has no enum type.
 
-`issue` translates a `P2002` naming `index` into the domain's `CardIndexTaken`. The constraint behind
-it is `@@unique([customerId, index])`, and it is what makes "exactly one valid card" (FR-3) true
-under two simultaneous issues: if both writes landed, two cards would share the highest index and
-neither would be the current one. It is not the only one on the table: `@@unique([customerNumber, index])`
-stands beside it and makes a card number unrepeatable across the households a slot has been through
-(US-25), so slot 50 being reassigned no longer means two customers may each hold `50k1`.
+`highestIndexForNumber(customerNumber)` is the highest index any card has ever carried on a slot, `0`
+for a slot that has never held one — a single `aggregate` served by the leading column of
+`@@unique([customerNumber, index])`. Nothing about status is consulted: an archived household's cards
+count, because the card they walked away with is still out in the world, and only this layer can see
+them. It is deliberately not `currentCard(customerId).index` — the two agree for every active
+household, but that is an invariant the counting rule should not have to remember (US-25).
+
+`issue` writes the slot onto the card row itself, read off the customer inside **one transaction**
+with the insert, so `Card.customerNumber` can never disagree with the household's. A `P2002` on
+either of `Card`'s unique indexes is then translated into the domain's own error — but _which_ one is
+asked of the record rather than of the error, because a second card on an index the customer already
+holds breaks both indexes at once and which of them SQLite names is its own business. A customer who
+already holds the index lost a race between two of their own issues, reported as `CardIndexTaken`,
+which is what makes "exactly one valid card" (FR-3) true under two simultaneous issues: if both
+writes landed, two cards would share the highest index and neither would be the current one. Anyone
+else has been handed a card number that was printed once already, reported as `CardNumberTaken` —
+a fault no retry on this slot can answer (US-25), so slot 50 being reassigned no longer means two
+customers may each hold `50k1`.
 
 The `Card.reason` column is the one thing a superseded card's index cannot say — why the household
 needed another one. It is a plain string, narrowed back through `parseCardIssueReason` on the way
@@ -1649,9 +1662,12 @@ household collects in, so the printed group is a fact about the artefact and nev
 household, whose group is `Customer.group`.
 
 `issueCounts(customerId)` answers both numbers behind the reissue count (US-09.2) in a **single**
-`groupBy(["reason"])`: the highest index is the largest of the groups' maxima and the loss count is
-the size of the `LOST` group, so the query costs the same for a household on its first card as for
-one on its eleventh. The reason word is parsed rather than string-compared, so a hand-edited row
+`groupBy(["reason"])`: the total is the sum of the groups' sizes and the loss count is the size of
+the `LOST` group, so the query costs the same for a household on its first card as for one on its
+eleventh. It counts the customer's own **rows** and deliberately not the index they have reached: an
+index counts the slot's whole history (US-25), so a household given `66k4` as their first card would
+otherwise be reported as having been through four cards and appear to have lost three they never
+held. The reason word is parsed rather than string-compared, so a hand-edited row
 fails here as loudly as it does in `currentCard` instead of quietly dropping out of the loss count.
 
 ### `src/infrastructure/prisma/reminder-log-repository.ts` and `certificate-repository.ts`

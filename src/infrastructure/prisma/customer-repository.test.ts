@@ -27,7 +27,12 @@ import {
 } from "@/domain/customer/customer";
 import { foldName } from "@/domain/customer/nameSearch";
 import type { Group } from "@/domain/customer/group";
-import { CustomerNotFound, CustomerNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
+import {
+  CardNumberTaken,
+  CustomerNotFound,
+  CustomerNumberTaken,
+  InvalidCustomerRecord,
+} from "@/domain/errors";
 import { PrismaCustomerCounter, PrismaCustomerRepository } from "./customer-repository";
 import { clearRegister } from "./test-support";
 
@@ -216,6 +221,16 @@ describe("PrismaCustomerRepository.create", () => {
     const registered = await repository.create(newCustomer());
 
     expect(registered.customerNumber).toBe(50);
+  });
+
+  it("rejects a card number the household that left the slot printed, as CardNumberTaken", async () => {
+    const departed = await repository.create(newCustomer());
+    await repository.archive(departed.id, "weggezogen", new Date("2025-11-04T09:00:00.000Z"));
+
+    // The registration wins the slot — an archived household released it — and loses the card
+    // number, which is a different fault reported as itself: retrying on another slot would answer
+    // a question nobody asked, because the run of *this* slot was read stale (US-25).
+    await expect(repository.create(newCustomer())).rejects.toBeInstanceOf(CardNumberTaken);
   });
 
   it("keeps a blocked household's number reserved — only archiving releases a slot", async () => {
