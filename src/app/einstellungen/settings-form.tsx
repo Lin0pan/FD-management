@@ -19,6 +19,7 @@ import { saveSettings } from "./actions";
 import { initialSaveSettingsState } from "./save-settings-state";
 import type { SaveSettingsState, SubmittedSettings } from "./save-settings-state";
 import { Notice } from "../notice";
+import { selectClass } from "../select";
 
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 const COLOURS = ["RED", "BLUE"] as const;
@@ -50,20 +51,11 @@ const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
  */
 const FIELD_ROWS = "grid grid-rows-subgrid row-span-2 gap-1.5";
 
-/**
- * A native `<select>` wearing the same tokens and the same height as `Input`.
- *
- * The three selects stay native: Radix's `Select` is a `<button>` plus a portalled listbox, and
- * neither `selectOption` nor `toHaveValue` reaches it. Copied from `FILTER_SELECT` in
- * `kunden/page.tsx`, where it exists for the same reason.
- */
-const SELECT =
-  "h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm transition-colors " +
-  "outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 " +
-  "dark:bg-input/30";
-
 /** One height for every control on the screen; `Input` and `Button` both default to `h-8` (§3.4). */
 const CONTROL_HEIGHT = "h-9";
+
+/** The three selects, at this screen's control height. */
+const SELECT = selectClass(CONTROL_HEIGHT);
 
 /**
  * Whether a rejection names this field.

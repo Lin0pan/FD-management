@@ -51,6 +51,7 @@ import { GROUPS } from "@/domain/customer/group";
 import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { GROUP_STYLES } from "../../accents";
+import { selectClass } from "../../select";
 import { Stat } from "../../stat";
 import { Notice } from "../../notice";
 import { submitRegistration } from "./actions";
@@ -179,18 +180,14 @@ function Section({
 const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
 
 /**
- * A native `<select>` wearing this form's tokens and the height of its `Input`s.
+ * A native `<select>` at the height of this form's `Input`s.
  *
- * The recipe is `SELECT` from `einstellungen/settings-form.tsx` at a different control height: that
- * screen puts every control on `h-9`, this one leaves `Input` at its `h-8` default, and a select
- * carrying the other screen's height is exactly the ragged baseline `docs/ui_conversion_guide.md`
- * warns about. The disabled tokens come from `Input` too — the full register renders this control
- * greyed rather than removed.
+ * `/einstellungen` puts every control on `h-9`, this screen leaves `Input` at its `h-8` default, and
+ * a select carrying the other screen's height is exactly the ragged baseline
+ * `docs/ui_conversion_guide.md` warns about. The full register renders this control greyed rather
+ * than removed, which is what the shared recipe's `disabled:` tokens are for.
  */
-const SELECT =
-  "h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm transition-colors " +
-  "outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 " +
-  "disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:bg-input/30";
+const SELECT = selectClass("h-8");
 
 /** The household as the form starts out: the archived one if there is a draft, otherwise one blank row. */
 function initialRows(draft: PrefillDraft | null): ReadonlyArray<MemberRow> {
