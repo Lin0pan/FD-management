@@ -46,7 +46,10 @@ export interface RegisterFromWaitingListInput extends RegisterCustomerInput {
  * @throws {EmptyHousehold} if the household has no members.
  * @throws {BirthDateInFuture} if the applicant or a member was born after today.
  * @throws {NoFreeCustomerNumber} if every slot up to the quota is taken.
- * @throws {CustomerNumberTaken} if a concurrent registration kept winning the chosen slot.
+ * @throws {CustomerNumberTaken} if the slot staff chose is held, or if a concurrent registration
+ *   kept winning the allocated one. The entry is still waiting either way.
+ * @throws {CustomerNumberOutOfRange} if the slot staff chose is not a whole number within the quota
+ *   in force.
  */
 export async function registerFromWaitingList(
   deps: RegisterFromWaitingListDeps,

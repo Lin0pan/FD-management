@@ -21,6 +21,7 @@ import type {
 import {
   BirthDateInFuture,
   CustomerArchived,
+  CustomerNumberOutOfRange,
   CustomerNumberTaken,
   EmptyHousehold,
   EmptySearchQuery,
@@ -644,13 +645,72 @@ describe("registerCustomer", () => {
     expect(audit.entries).toHaveLength(0);
   });
 
-  it("moves to the next free number when another registration took the chosen one", async () => {
+  it("moves to the next free number when another registration won the race for it", async () => {
     customers.stealNext(1);
 
     const customer = await registerCustomer(deps(), registerInput());
 
     expect(customer.customerNumber).toBe(2);
     expect(customers.created).toHaveLength(1);
+  });
+
+  it("saves the number staff chose instead of the lowest free one", async () => {
+    const customer = await registerCustomer(deps(), registerInput({ customerNumber: 17 }));
+
+    expect(customer.customerNumber).toBe(17);
+    // The rest of the registration is the same registration: nothing about it branches on who
+    // picked the slot.
+    expect(customer.status).toBe("ACTIVE");
+    expect(customer.reminderCount).toBe(0);
+    expect(customer.card.index).toBe(1);
+  });
+
+  it("refuses a chosen number an active customer holds, writing nothing", async () => {
+    customers = new FakeCustomerRepository([17]);
+
+    await expect(registerCustomer(deps(), registerInput({ customerNumber: 17 }))).rejects.toThrow(
+      CustomerNumberTaken,
+    );
+    expect(customers.created).toHaveLength(0);
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("refuses a chosen number above the quota in force as out of range", async () => {
+    settings = new FakeSettingsRepository(version({ quotaN: 10 }));
+
+    await expect(registerCustomer(deps(), registerInput({ customerNumber: 11 }))).rejects.toThrow(
+      CustomerNumberOutOfRange,
+    );
+    expect(customers.created).toHaveLength(0);
+  });
+
+  it("accepts a chosen number that archiving freed", async () => {
+    const held = await customers.create({ ...storedCustomer("ACTIVE"), customerNumber: 17 });
+    await customers.archive(held.id, "zog fort", new Date(TODAY));
+
+    const customer = await registerCustomer(deps(), registerInput({ customerNumber: 17 }));
+
+    expect(customer.customerNumber).toBe(17);
+  });
+
+  it("substitutes no other number when a chosen one is lost in a race", async () => {
+    customers.stealNext(1);
+
+    const failure = await registerCustomer(deps(), registerInput({ customerNumber: 17 })).catch(
+      (error: unknown) => error,
+    );
+
+    expect(failure).toBeInstanceOf(CustomerNumberTaken);
+    expect(customers.created).toHaveLength(0);
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("records the same entry whether staff chose the number or the rule allocated it", async () => {
+    await registerCustomer(deps(), registerInput({ customerNumber: 17 }));
+
+    expect(audit.entries).toHaveLength(1);
+    expect(audit.entries[0].what).toBe("customer.registered");
+    expect(audit.entries[0].changedFields).toEqual(["customerNumber", "group", "status", "card"]);
   });
 
   it("never creates a duplicate when the race is lost repeatedly", async () => {

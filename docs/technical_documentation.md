@@ -920,6 +920,20 @@ staff could only answer by pressing the button again. The bound matters more tha
 unbounded loop would turn a repository fault into a hang. Anything that is not a lost race is not
 retried.
 
+The optional **`customerNumber`** on the input is the slot staff chose from the ones the form offered
+(US-24). Left out, everything above is unchanged. Given, it is checked with `assertFreeNumber` and
+used **as given**, and the attempt budget is **one**: the retry is only defensible while the number
+is the rule's to pick, because a second attempt lands on the next free slot and nobody is any the
+wiser. A number a staff member chose has no such substitute — retrying it would either write a number
+they did not pick, which is the one outcome this feature exists to prevent, or fail again on the same
+one. So a `CustomerNumberTaken` from the index, and a `CustomerNumberOutOfRange` from a form that was
+open while the quota was lowered, both go back to the screen where staff can pick another. Only the
+number's origin and the budget differ; there is one code path that writes a customer, so the
+transaction, the first card, the status and the audit entry cannot come apart between the two.
+
+The audit entry is the same either way. `customerNumber` is already among the fields it names, and
+whether the rule or a human chose the slot is not something a later reader could act on.
+
 The audit entry is written under `customer.registered` with an empty `why` — a registration needs no
 justification — and names `customerNumber`, `group`, `status` and `card`: what the _system_ decided,
 rather than repeating the fields staff typed, which are the record itself. A re-registration adds
@@ -1417,8 +1431,11 @@ clock in `waiting-list.test.ts`.
   allocation, the first card and the `customer.registered` entry are the ordinary ones — and only
   **then** removes the entry and logs `waitingList.promoted`. The order is the whole point: a
   registration can fail on the last field of the form, and an applicant removed a moment earlier
-  would have lost the place they waited months for. A test proves it by failing a registration on an
-  empty household and asserting the entry is still there.
+  would have lost the place they waited months for. Tests prove it by failing a registration on an
+  empty household and on a chosen customer number somebody else holds, and asserting the entry is
+  still there. The chosen number itself reaches `registerCustomer` through
+  `RegisterCustomerInput`, so a promotion offers the same dropdown as a walk-in without this use case
+  knowing the field exists.
 
 The applicant is promoted **by id** rather than taken from the head of the queue. The order is stated
 by `listWaiting` and by the banner, which names the longest-waiting applicant and no one else; what

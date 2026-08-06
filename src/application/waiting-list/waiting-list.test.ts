@@ -9,6 +9,7 @@ import type {
 import type { WaitingListDetails } from "@/domain/customer/waitingList";
 import {
   CertificateExpired,
+  CustomerNumberTaken,
   EmptyHousehold,
   MissingAuditReason,
   NoFreeCustomerNumber,
@@ -556,6 +557,37 @@ describe("registerFromWaitingList", () => {
     expect(waitingList.waiting).toEqual([waiting]);
     expect(waitingList.removals).toEqual([]);
     expect(customers.customers).toEqual([]);
+  });
+
+  it("promotes the applicant onto the number staff chose", async () => {
+    const waitingList = new FakeWaitingList(entry(4, at("2026-05-04")));
+    const customers = new FakeCustomerRepository(1);
+
+    const customer = await registerFromWaitingList(
+      { waitingList, customers, settings: new FakeSettingsRepository(240), clock, audit },
+      registerInput({ customerNumber: 17 }),
+    );
+
+    expect(customer.customerNumber).toBe(17);
+    expect(waitingList.removals).toEqual([
+      { entryId: 4, reason: "customerNumber=17", removedOn: customer.registeredOn },
+    ]);
+  });
+
+  it("leaves the applicant on the list when the chosen number is no longer free", async () => {
+    const waiting = entry(4, at("2026-05-04"));
+    const waitingList = new FakeWaitingList(waiting);
+    const customers = new FakeCustomerRepository(17);
+
+    await expect(
+      registerFromWaitingList(
+        { waitingList, customers, settings: new FakeSettingsRepository(240), clock, audit },
+        registerInput({ customerNumber: 17 }),
+      ),
+    ).rejects.toThrow(CustomerNumberTaken);
+    expect(waitingList.waiting).toEqual([waiting]);
+    expect(waitingList.removals).toEqual([]);
+    expect(customers.customers).toHaveLength(1);
   });
 
   it("records the promotion, naming the number the applicant received", async () => {

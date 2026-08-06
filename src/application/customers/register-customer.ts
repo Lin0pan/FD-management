@@ -19,7 +19,7 @@ import {
   type CustomerDetailsInput,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
-import { lowestFreeNumber } from "@/domain/customer/customerNumber";
+import { assertFreeNumber, lowestFreeNumber } from "@/domain/customer/customerNumber";
 import { suggestGroup, type Group } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import type { AuditLog, Clock, CustomerRepository, SettingsRepository } from "../ports";
@@ -59,6 +59,16 @@ const RE_REGISTERED_FIELD = "previousCustomerId";
  */
 const MAX_ATTEMPTS = 3;
 
+/**
+ * How often a number **staff chose** is attempted: once.
+ *
+ * The retry above is only defensible because the number is the rule's to pick — a second attempt
+ * lands on the next free slot and nobody is any the wiser. A number a staff member chose has no such
+ * substitute: retrying it would either write a number they did not pick or fail again on the same
+ * one. So the refusal goes back to the screen, where they can pick another (US-24.3).
+ */
+const CHOSEN_NUMBER_ATTEMPTS = 1;
+
 export interface RegisterCustomerDeps {
   readonly customers: CustomerRepository;
   readonly settings: SettingsRepository;
@@ -72,6 +82,15 @@ export interface RegisterCustomerInput extends CustomerDetailsInput {
    * with a neighbour belongs in the neighbour's week. Left out, the smaller group is suggested.
    */
   readonly group?: Group;
+  /**
+   * The slot staff chose from the free ones the form offered them (US-24), left out when nobody
+   * looked at the dropdown — in which case the lowest free number is allocated, exactly as before.
+   *
+   * Given, it is used **as given**: it is checked against the register and refused if it is not
+   * free, never quietly replaced. The number the form showed when staff pressed the button is the
+   * number the household gets, which is the whole of what this field is for.
+   */
+  readonly customerNumber?: number;
   /**
    * The archived record this form was pre-filled from (US-11.3), left out for a walk-in.
    *
@@ -91,7 +110,10 @@ export interface RegisterCustomerInput extends CustomerDetailsInput {
  * @throws {EmptyHousehold} if the household has no members.
  * @throws {BirthDateInFuture} if the customer or a member was born after today.
  * @throws {NoFreeCustomerNumber} if every slot up to the quota is taken.
- * @throws {CustomerNumberTaken} if a concurrent registration kept winning the chosen slot.
+ * @throws {CustomerNumberTaken} if the slot staff chose is held, or if a concurrent registration
+ *   kept winning the allocated one.
+ * @throws {CustomerNumberOutOfRange} if the slot staff chose is not a whole number within the quota
+ *   in force — a form that was open while the quota was lowered (US-14) can produce one.
  */
 export async function registerCustomer(
   deps: RegisterCustomerDeps,
@@ -115,11 +137,17 @@ export async function registerCustomer(
       ? [...REGISTERED_FIELDS]
       : [...REGISTERED_FIELDS, RE_REGISTERED_FIELD];
 
-  let attemptsLeft = MAX_ATTEMPTS;
+  // One code path writes a customer, whether the number was chosen or allocated: the two differ in
+  // where the number comes from and in how many attempts they are worth, and in nothing else.
+  const chosen = input.customerNumber;
+  let attemptsLeft = chosen === undefined ? MAX_ATTEMPTS : CHOSEN_NUMBER_ATTEMPTS;
   for (;;) {
     attemptsLeft -= 1;
     const takenNumbers = await deps.customers.takenActiveNumbers();
-    const customerNumber = lowestFreeNumber(takenNumbers, settings.quotaN);
+    const customerNumber =
+      chosen === undefined
+        ? lowestFreeNumber(takenNumbers, settings.quotaN)
+        : assertFreeNumber(chosen, takenNumbers, settings.quotaN);
 
     try {
       const customer = await deps.customers.create({
