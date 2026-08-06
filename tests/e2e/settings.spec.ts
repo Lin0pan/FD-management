@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 
 /**
@@ -17,6 +17,17 @@ import { de } from "@/i18n/de";
 
 /** The price every spec here edits: the per-grown-up price, seeded at 2,00 €. */
 const PRICE_LABEL = de.settings.fields.pricePerGrownUp;
+
+/**
+ * Open the version history.
+ *
+ * It is a `<details>` that starts closed (docs/ui_redesign_einstellungen.md §4.2e), so every
+ * assertion about the *text* of a version has to open it first — Playwright's visibility-aware
+ * matchers fail on collapsed content. `toHaveCount` needs no such thing and is asserted shut.
+ */
+async function openHistory(page: Page): Promise<void> {
+  await page.getByTestId("settings-history-open").click();
+}
 
 test.describe.configure({ mode: "serial" });
 
@@ -39,7 +50,12 @@ test.describe("Einstellungen", () => {
 
     await page.reload();
     await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("2,50");
-    // The new version is also listed in the read-only history, with its prices.
+    // The new version leads the read-only history. It is the one in force, so it is the one version
+    // stated in full rather than as a diff — the summary above it says how many there are.
+    await expect(page.getByTestId("settings-history-count")).toContainText(
+      de.settings.history.count(2),
+    );
+    await openHistory(page);
     await expect(page.getByTestId("settings-version").first()).toContainText(
       `${de.settings.fields.pricePerGrownUp}: 2,50 €`,
     );
@@ -57,12 +73,23 @@ test.describe("Einstellungen", () => {
     await page.reload();
     await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("2,75");
 
+    // Counted with the fold still shut, which is how FD will meet this list.
     const versions = page.getByTestId("settings-version");
     await expect(versions).toHaveCount(3);
+
+    await openHistory(page);
     // Newest first: the price just saved leads the list and is the one marked as in force.
     await expect(versions.first()).toContainText(`${de.settings.fields.pricePerGrownUp}: 2,75 €`);
-    await expect(versions.first()).toContainText(de.settings.history.current);
-    await expect(versions.nth(1)).toContainText(`${de.settings.fields.pricePerGrownUp}: 2,50 €`);
+    await expect(versions.first().getByTestId("settings-version-current")).toHaveText(
+      de.settings.history.current,
+    );
+    // The superseded version states the *move* rather than restating all eight values — a stronger
+    // claim than the old assertion, which only read the price that version happened to hold.
+    await expect(versions.nth(1)).toContainText(
+      de.settings.history.change(de.settings.fields.pricePerGrownUp, "2,00 €", "2,50 €"),
+    );
+    // And the oldest is where the configuration began, not a change from nothing.
+    await expect(versions.nth(2)).toContainText(de.settings.history.initial);
   });
 
   test("a rejected quota shows a German error and saves nothing", async ({ page }) => {
@@ -130,13 +157,57 @@ test.describe("Einstellungen", () => {
     // lists the settings themselves, not the audit reason — that lives in the log.
     const versions = page.getByTestId("settings-version");
     await expect(versions).toHaveCount(4);
+
+    await openHistory(page);
     await expect(versions.first()).toContainText(`${de.settings.fields.pricePerGrownUp}: 9,99 €`);
-    await expect(versions.first()).toContainText(de.settings.history.current);
+    await expect(versions.first().getByTestId("settings-version-current")).toHaveText(
+      de.settings.history.current,
+    );
+    // The quota was typed twice and ended where it started, so this save moved the price and only
+    // the price. The version below therefore names one field, not two.
+    await expect(versions.nth(1)).toContainText(
+      de.settings.history.change(de.settings.fields.pricePerGrownUp, "2,50 €", "2,75 €"),
+    );
 
     // And the form clears on a save — including `reason`, which describes this change and must not
     // be carried into the next one. That is the other half of the rule: a save clears everything, a
     // refusal keeps everything.
     await expect(page.locator("#reason")).toHaveValue("");
+  });
+
+  test("a changed Ausgabetag is named in the history", async ({ page }) => {
+    // The defect this history was rebuilt for: the Ausgabetag was one of three settings the old list
+    // never printed, so moving it — the setting with the most visible downstream effect, since the
+    // Start dashboard and /ausgabe both read it — produced a row identical to its predecessor in
+    // every character (`docs/ui_redesign_einstellungen.md` §3.6).
+    await page.goto("/einstellungen");
+    await page.locator("#distributionWeekday").selectOption("5");
+    await page.getByRole("button", { name: de.settings.save, exact: true }).click();
+    await expect(page.getByTestId("settings-saved")).toHaveText(de.settings.saved);
+
+    // Put it back in the same spec: the whole suite shares one database and two other screens read
+    // the Ausgabetag. That leaves the moved version superseded, which is where a diff is shown.
+    await page.locator("#distributionWeekday").selectOption("4");
+    await page.getByRole("button", { name: de.settings.save, exact: true }).click();
+    await expect(page.getByTestId("settings-saved")).toHaveText(de.settings.saved);
+
+    await page.reload();
+    await expect(page.locator("#distributionWeekday")).toHaveValue("4");
+
+    await openHistory(page);
+    const versions = page.getByTestId("settings-version");
+    await expect(versions.nth(1)).toContainText(
+      de.settings.history.change(
+        de.settings.fields.distributionWeekday,
+        de.settings.weekdays[4],
+        de.settings.weekdays[5],
+      ),
+    );
+    // And the day in force is stated in full by the version above it, which the old list did not do
+    // either.
+    await expect(versions.first()).toContainText(
+      `${de.settings.fields.distributionWeekday}: ${de.settings.weekdays[4]}`,
+    );
   });
 
   // The quota-below-*active-customers* rule (FR-4) is reachable from the browser as of US-01.6 —
