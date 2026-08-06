@@ -60,6 +60,7 @@ CREATE TABLE "Certificate" (
 CREATE TABLE "Card" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "customerId" INTEGER NOT NULL,
+    "customerNumber" INTEGER NOT NULL,
     "index" INTEGER NOT NULL,
     "issuedAt" DATETIME NOT NULL,
     "grownUpsAtIssue" INTEGER NOT NULL,
@@ -143,6 +144,9 @@ CREATE INDEX "Certificate_customerId_recordedAt_idx" ON "Certificate"("customerI
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Card_customerId_index_key" ON "Card"("customerId", "index");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Card_customerNumber_index_key" ON "Card"("customerNumber", "index");
 
 -- CreateIndex
 CREATE INDEX "DistributionRecord_date_idx" ON "DistributionRecord"("date");

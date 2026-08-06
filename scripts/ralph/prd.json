@@ -44,8 +44,8 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Column, both unique indexes and a regenerated migration (the partial customer-number index re-added by hand) are in; every direct card writer states the slot, and the adapter reads it off the customer row in one transaction with the insert. isCustomerNumberCollision now matches on meta.modelName too, or a duplicate card number reports itself as a taken customer number. 5 e2e specs are red until US-004 removes the literal index: 1 — see progress.txt, the specs are right and must not be patched."
     },
     {
       "id": "US-003",

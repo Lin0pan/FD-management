@@ -178,6 +178,7 @@ async function seedHousehold(): Promise<number> {
       },
       cards: {
         create: {
+          customerNumber: CUSTOMER_NUMBER,
           index: 1,
           issuedAt: utcMidnight("2026-01-02"),
           reason: "FIRST_ISSUE",
@@ -237,6 +238,7 @@ async function seedHouseholdWithHistory(customerNumber: number, handOuts: number
       },
       cards: {
         create: {
+          customerNumber,
           index: 1,
           issuedAt: utcMidnight("2026-01-02"),
           reason: "FIRST_ISSUE",

@@ -69,6 +69,18 @@ describe("the committed migrations", () => {
     );
   });
 
+  /**
+   * The guarantee that a card number is handed out once and never again (US-25). It rests on the
+   * database rather than on every caller asking the right question first, so a regenerated migration
+   * that lost it would leave the rule enforced by application code alone — the same failure mode as
+   * the partial index above.
+   */
+  it("keep the unique index that stops a card number being issued to a second household", () => {
+    expect(migrationSql()).toContain(
+      'CREATE UNIQUE INDEX "Card_customerNumber_index_key" ON "Card"("customerNumber", "index")',
+    );
+  });
+
   it("index the archive search by folded last name and birthdate, the pair staff type", () => {
     expect(migrationSql()).toContain(
       'CREATE INDEX "Customer_lastNameFolded_birthDate_idx" ON "Customer"("lastNameFolded", "birthDate")',

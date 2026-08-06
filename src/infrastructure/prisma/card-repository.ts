@@ -127,20 +127,35 @@ export class PrismaCardRepository implements CardRepository {
   /**
    * Write one card for a customer and hand it back as it was stored.
    *
+   * The slot the card is printed under is read off the customer row rather than taken as an
+   * argument, in one transaction with the insert: `Card.customerNumber` is the key the global
+   * constraint needs, and a caller that could pass it is a caller that could pass the wrong one.
+   * `IssuedCard` stays a pure domain type and gains nothing. An id nobody holds fails as it always
+   * did — on the foreign key, which is the register's question to answer, not this adapter's.
+   *
    * @throws {CardIndexTaken} if a concurrent issue took the index first.
    */
   async issue(customerId: number, card: IssuedCard): Promise<IssuedCard> {
     try {
-      const row = await this.prisma.card.create({
-        data: {
-          customerId,
-          index: card.index,
-          issuedAt: card.issuedAt,
-          reason: card.reason,
-          grownUpsAtIssue: card.countsAtIssue.grownUps,
-          childrenAtIssue: card.countsAtIssue.children,
-          groupAtIssue: card.groupAtIssue,
-        },
+      const row = await this.prisma.$transaction(async (tx) => {
+        const customer = await tx.customer.findUnique({
+          where: { id: customerId },
+          select: { customerNumber: true },
+        });
+        return tx.card.create({
+          data: {
+            customerId,
+            // `-1` is never written: the insert below fails on the foreign key first. It stands in
+            // only so an unknown id reaches that failure rather than a different one here.
+            customerNumber: customer?.customerNumber ?? -1,
+            index: card.index,
+            issuedAt: card.issuedAt,
+            reason: card.reason,
+            grownUpsAtIssue: card.countsAtIssue.grownUps,
+            childrenAtIssue: card.countsAtIssue.children,
+            groupAtIssue: card.groupAtIssue,
+          },
+        });
       });
       return PrismaCardRepository.toCard(row);
     } catch (error: unknown) {

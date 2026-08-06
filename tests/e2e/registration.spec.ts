@@ -146,6 +146,7 @@ async function seedHousehold(customerNumber: number, status: "ACTIVE" | "ARCHIVE
         // The printed counts match the household exactly, so neither card is due for reissue
         // (US-13) and this spec leaves the home screen's badge where it found it.
         create: {
+          customerNumber,
           index: 1,
           issuedAt: new Date(SEEDED_ISSUED_AT),
           reason: "FIRST_ISSUE",

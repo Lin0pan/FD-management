@@ -3,9 +3,9 @@
  *
  * Thin and test-after, per the testing approach (CLAUDE.md): what is worth proving here is the pair
  * of facts the pure layers cannot state — that `(customerId, index)` is unique, so two cards can
- * never share the highest index, and that the constraint is scoped to the *customer id* rather than
- * the card number, so two households may each hold `50k1` (FR-6). The rules about which index falls
- * due are covered in src/application.
+ * never share the highest index, and that `(customerNumber, index)` is unique too, so a card number
+ * is never handed out twice however many households a slot has been through (US-25). The rules about
+ * which index falls due are covered in src/application.
  *
  * Each run migrates a throwaway database file which is deleted afterwards, so nothing touches
  * data/fd.db. Synthetic data only (Faker), seeded so a failing run is reproducible.
@@ -269,7 +269,33 @@ describe("PrismaCardRepository.issue", () => {
 });
 
 describe("the card number across customers", () => {
-  it("lets two different customers both hold card number 50k1", async () => {
+  it("refuses a card number an archived household on the same slot already took", async () => {
+    const first = await insertCustomer(50, "ARCHIVED");
+    const second = await insertCustomer(50);
+
+    await repository.issue(first, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+
+    // 50k1 is printed on a card the departed household walked away with. Handing it out again is
+    // what US-25 makes impossible, and the database is the final authority on it.
+    await expect(
+      repository.issue(second, {
+        index: 1,
+        issuedAt: LATER,
+        reason: "FIRST_ISSUE",
+        countsAtIssue: PRINTED,
+        groupAtIssue: "RED",
+      }),
+    ).rejects.toBeInstanceOf(Error);
+    expect(await prisma.card.count({ where: { customerNumber: 50 } })).toBe(1);
+  });
+
+  it("lets the household that filled the slot take the next number on its run", async () => {
     const first = await insertCustomer(50, "ARCHIVED");
     const second = await insertCustomer(50);
 
@@ -281,7 +307,7 @@ describe("the card number across customers", () => {
       groupAtIssue: "RED",
     });
     await repository.issue(second, {
-      index: 1,
+      index: 2,
       issuedAt: LATER,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
@@ -293,7 +319,21 @@ describe("the card number across customers", () => {
       repository.currentCard(second),
     ]);
     expect(formatCardNumber(50, firstCard?.index ?? 0)).toBe("50k1");
-    expect(formatCardNumber(50, secondCard?.index ?? 0)).toBe("50k1");
+    expect(formatCardNumber(50, secondCard?.index ?? 0)).toBe("50k2");
+  });
+
+  it("writes the slot on the card row itself, read off the customer rather than passed in", async () => {
+    const customerId = await insertCustomer(77);
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+
+    const row = await prisma.card.findFirstOrThrow({ where: { customerId } });
+    expect(row.customerNumber).toBe(77);
   });
 });
 
@@ -357,6 +397,7 @@ describe("PrismaCardRepository.currentCard", () => {
     await prisma.card.create({
       data: {
         customerId,
+        customerNumber: 50,
         index: 1,
         issuedAt: TODAY,
         reason: "VERLOREN",
@@ -430,10 +471,15 @@ describe("PrismaCardRepository.listCards", () => {
 describe("PrismaCardRepository.issueCounts", () => {
   /** Hand a customer a run of cards, one per reason given, indexed from 1 upwards. */
   async function issueRun(customerId: number, ...reasons: string[]): Promise<void> {
+    const { customerNumber } = await prisma.customer.findUniqueOrThrow({
+      where: { id: customerId },
+      select: { customerNumber: true },
+    });
     for (const [position, reason] of reasons.entries()) {
       await prisma.card.create({
         data: {
           customerId,
+          customerNumber,
           index: position + 1,
           issuedAt: TODAY,
           reason,

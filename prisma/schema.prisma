@@ -224,14 +224,32 @@ model Certificate {
 
 /// A shopping card handed to a customer.
 ///
-/// `index` counts from 1 for the card issued with the registration; a reissue after a loss takes the
-/// next index (US-09), which is what makes an old card recognisable at the counter. The card number
-/// staff read out is derived from the customer number and this index, never stored.
+/// `index` counts the cards issued on a *customer number*, across every household that has ever held
+/// it: the first card printed under a slot is 1 and each further one — a reissue after a loss (US-09),
+/// or the first card of the household that later fills the freed slot — takes the next index. A card
+/// number therefore names one physical card for good (US-25). The card number staff read out is
+/// derived from the customer number and this index, never stored.
 model Card {
   id Int @id @default(autoincrement())
 
   customerId Int
   customer   Customer @relation(fields: [customerId], references: [id])
+
+  /// The slot this card was printed under — `Customer.customerNumber` as it stood, which is to say
+  /// as it will always stand: a number is fixed at registration and released only by archiving
+  /// (US-24, Non-Goals), so unlike the three `AtIssue` columns below this one snapshots nothing.
+  /// There is no moment at which it could come to differ from the customer's number.
+  ///
+  /// It is stored for the same reason `Customer.firstNameFolded` is: a **key the constraint needs**.
+  /// `@@unique([customerNumber, index])` cannot reach through the relation, and the guarantee that a
+  /// card number is never handed out twice has to rest on the database rather than on every future
+  /// caller remembering to ask the right question first. Not nullable and with no default, so every
+  /// writer must state it; the adapter reads it off the customer row in the same transaction as the
+  /// insert, so the two can never disagree.
+  ///
+  /// Never read as the card's number. What a card number *is* remains
+  /// `formatCardNumber(customer.customerNumber, card.index)`, derived at every read.
+  customerNumber Int
 
   index    Int
   issuedAt DateTime
@@ -273,7 +291,20 @@ model Card {
   /// The rule behind "exactly one valid card" (US-02, FR-3): validity is *being* the highest index,
   /// so two cards sharing one would leave no current card at all. This constraint, not the
   /// application, is the final authority on whether an index was still free when the write landed.
+  ///
+  /// It stays beside the global one below because it settles a different fact — a race between two
+  /// reissues on *one record* — and a lost race there is answered by re-reading the record, whereas a
+  /// duplicate card number is answered by re-reading the slot's whole run. The two therefore surface
+  /// as two different domain errors.
   @@unique([customerId, index])
+  /// A card number is never handed out twice (US-25). Without this, a household registering on a slot
+  /// an archived household released would be printed a card the departed household is still carrying,
+  /// and the counter would answer "Ausgabe frei" to it.
+  ///
+  /// **No separate `@@index([customerNumber])` is needed**: `customerNumber` is this index's leading
+  /// column, so `MAX(index) WHERE customerNumber = ?` — the one question the counting rule asks — is
+  /// served by it already. A second index would only be there to feel safe.
+  @@unique([customerNumber, index])
 }
 
 /// One hand-out that actually happened: a customer showed up on a distribution day, paid or did not,

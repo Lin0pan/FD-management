@@ -62,6 +62,17 @@ beforeEach(async () => {
   await clearRegister(prisma);
 });
 
+/**
+ * The same registration as {@link newCustomer}, on a slot a household has already been through: its
+ * card continues the slot's run rather than starting at 1 again (US-25). Which index the use case
+ * works out is src/application's business; what this file needs is a second registration on one
+ * number that the `(customerNumber, index)` constraint will accept.
+ */
+function nextOnTheSlot(overrides: Partial<Omit<NewCustomer, "details">> = {}): NewCustomer {
+  const customer = newCustomer(overrides);
+  return { ...customer, card: { ...customer.card, index: customer.card.index + 1 } };
+}
+
 /** A registrable two-person household: one grown-up and one child, with fixed birthdates. */
 function newCustomer(overrides: Partial<Omit<NewCustomer, "details">> = {}): NewCustomer {
   const lastName = faker.person.lastName();
@@ -231,7 +242,7 @@ describe("the link to an archived predecessor", () => {
   it("stores the archived record a registration was pre-filled from", async () => {
     const previousCustomerId = await archivedPredecessor(50);
 
-    const registered = await repository.create(newCustomer({ previousCustomerId }));
+    const registered = await repository.create(nextOnTheSlot({ previousCustomerId }));
 
     expect(registered.previousCustomerId).toBe(previousCustomerId);
     const row = await prisma.customer.findUniqueOrThrow({ where: { id: registered.id } });
@@ -240,7 +251,7 @@ describe("the link to an archived predecessor", () => {
 
   it("reads the link back off the record", async () => {
     const previousCustomerId = await archivedPredecessor(50);
-    const registered = await repository.create(newCustomer({ previousCustomerId }));
+    const registered = await repository.create(nextOnTheSlot({ previousCustomerId }));
 
     const found = await repository.findById(registered.id);
 
@@ -274,7 +285,7 @@ describe("the link to an archived predecessor", () => {
   it("lets the returning household take a number while the predecessor keeps showing its own", async () => {
     const previousCustomerId = await archivedPredecessor(50);
 
-    const registered = await repository.create(newCustomer({ previousCustomerId }));
+    const registered = await repository.create(nextOnTheSlot({ previousCustomerId }));
 
     expect(registered.customerNumber).toBe(50);
     const rows = await prisma.customer.findMany({
@@ -600,7 +611,7 @@ describe("PrismaCustomerRepository.archive", () => {
 
     await repository.archive(id, "verzogen", ARCHIVED_AT);
 
-    const successor = await repository.create(newCustomer());
+    const successor = await repository.create(nextOnTheSlot());
     expect(successor.customerNumber).toBe(50);
     expect(await repository.takenActiveNumbers()).toEqual([50]);
   });
@@ -722,6 +733,8 @@ describe("PrismaCustomerRepository.listWithStatus", () => {
     await prisma.card.create({
       data: {
         customerId: (await repository.findByCustomerNumber(50))?.id ?? 0,
+        // The slot the card is printed under, the same one the customer holds (US-25).
+        customerNumber: 50,
         index: 2,
         issuedAt: TODAY,
         reason: "LOST",
@@ -808,6 +821,8 @@ describe("PrismaCustomerRepository.findById", () => {
     await prisma.card.create({
       data: {
         customerId: created.id,
+        // The slot the card is printed under, the same one the customer holds (US-25).
+        customerNumber: 50,
         index: 2,
         issuedAt: TODAY,
         reason: "LOST",
@@ -825,6 +840,8 @@ describe("PrismaCustomerRepository.findById", () => {
     await prisma.card.create({
       data: {
         customerId: created.id,
+        // The slot the card is printed under, the same one the customer holds (US-25).
+        customerNumber: 50,
         index: 2,
         issuedAt: new Date("2026-08-06T09:00:00.000Z"),
         reason: "LOST",
@@ -843,7 +860,7 @@ describe("PrismaCustomerRepository.findById", () => {
 describe("PrismaCustomerRepository.findByCustomerNumber", () => {
   it("resolves a reassigned number to its active holder, not the household it was taken from", async () => {
     const archived = await repository.create(newCustomer({ status: "ARCHIVED" }));
-    const active = await repository.create(newCustomer());
+    const active = await repository.create(nextOnTheSlot());
 
     const found = await repository.findByCustomerNumber(50);
 
@@ -860,7 +877,7 @@ describe("PrismaCustomerRepository.findByCustomerNumber", () => {
 
   it("names the most recently archived holder when the number stands empty", async () => {
     await repository.create(newCustomer({ status: "ARCHIVED" }));
-    const later = await repository.create(newCustomer({ status: "ARCHIVED" }));
+    const later = await repository.create(nextOnTheSlot({ status: "ARCHIVED" }));
 
     const found = await repository.findByCustomerNumber(50);
 
@@ -878,6 +895,8 @@ describe("PrismaCustomerRepository.findByCustomerNumber", () => {
     await prisma.card.create({
       data: {
         customerId: created.id,
+        // The slot the card is printed under, the same one the customer holds (US-25).
+        customerNumber: 50,
         index: 2,
         issuedAt: TODAY,
         reason: "LOST",

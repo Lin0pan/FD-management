@@ -1630,9 +1630,9 @@ through `parseGroup` rather than trusting it — SQLite has no enum type.
 `issue` translates a `P2002` naming `index` into the domain's `CardIndexTaken`. The constraint behind
 it is `@@unique([customerId, index])`, and it is what makes "exactly one valid card" (FR-3) true
 under two simultaneous issues: if both writes landed, two cards would share the highest index and
-neither would be the current one. The constraint is per **customer id**, deliberately not per card
-number: slot 50 is reassigned when a household is archived, so two customers may each legitimately
-hold `50k1` (FR-6).
+neither would be the current one. It is not the only one on the table: `@@unique([customerNumber, index])`
+stands beside it and makes a card number unrepeatable across the households a slot has been through
+(US-25), so slot 50 being reassigned no longer means two customers may each hold `50k1`.
 
 The `Card.reason` column is the one thing a superseded card's index cannot say — why the household
 needed another one. It is a plain string, narrowed back through `parseCardIssueReason` on the way
@@ -2395,7 +2395,14 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   key targets it and never `customerNumber`, which is a reusable _slot_. There is deliberately **no
   `grownUps` and no `children` column** — both are derived from the household's birthdates, and
   stored they would drift with every birthday, which is exactly what the Excel sheet did.
-  `Card` is unique on `(customerId, index)`; the card number staff read out is derived from the
+  `Card` is unique on `(customerId, index)` **and** on `(customerNumber, index)`: the first settles a
+  race between two reissues on one record, the second makes a card number unrepeatable across every
+  household a slot has been through (US-25), so a card an archived household walked away with can
+  never be printed again. `Card.customerNumber` is stored for the second constraint's sake alone — a
+  key like `Customer.firstNameFolded`, written by the adapter off the customer row in the same
+  transaction, never read as the card's number and unable to go stale, because a customer number is
+  fixed at registration. It needs no index of its own: it leads the unique one, which is what serves
+  `MAX(index) WHERE customerNumber = ?`. The card number staff read out is still derived from the
   customer number and the index, never stored. Its `grownUpsAtIssue` / `childrenAtIssue` are the
   system's **only stored counts** and, with `groupAtIssue` beside them, the one deliberate
   denormalisation in the model: a snapshot of what was _printed_ on that piece of card, kept because

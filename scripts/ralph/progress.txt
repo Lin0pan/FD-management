@@ -45,3 +45,51 @@ Started: Thu Aug  6 13:53:09 CEST 2026
     partial unique index `Customer_customerNumber_onRegister_key` must be re-added to the new
     `migration.sql` by hand — `prisma migrate dev` drops it.
 ---
+
+## 2026-08-06 17:30 - US-002 (The card row carries the number printed on it)
+- `Card` gained `customerNumber Int` (not nullable, no default) and `@@unique([customerNumber, index])`
+  beside the existing `@@unique([customerId, index])`; no separate `@@index([customerNumber])` — the
+  new unique index leads with that column and serves `MAX(index) WHERE customerNumber = ?`.
+- Migration history regenerated (`rm -rf prisma/migrations` → `prisma migrate dev --name init`) and the
+  hand-written partial index `Customer_customerNumber_onRegister_key` re-added verbatim, comment and
+  all. `npm run db:reset` completes; /einstellungen renders the seeded settings, not "keine
+  Einstellungen hinterlegt".
+- Files changed:
+  - `prisma/schema.prisma`, `prisma/migrations/20260806150359_init/migration.sql` (old dir deleted).
+  - `src/infrastructure/prisma/customer-repository.ts` — the nested card create writes
+    `customerNumber`; `isCustomerNumberCollision` now also checks `meta.modelName === "Customer"`.
+  - `src/infrastructure/prisma/card-repository.ts` — `issue` reads the slot off the customer row in
+    one transaction with the insert (the column can then never disagree with the customer's number).
+  - `src/infrastructure/prisma/schema.test.ts` — asserts the new unique index survives a regeneration.
+  - `card-repository.test.ts`, `customer-repository.test.ts`, `certificate-repository.test.ts` and
+    12 e2e fixtures — every directly written card row now states its slot.
+  - `docs/technical_documentation.md`, `docs/tech_stack_architecture_sketch.md` — the two passages
+    arguing that `50k1` legitimately recurs.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1031 tests), build, `db:reset` — all green.
+- **KNOWN RED, EXPECTED, FIXED BY US-004: 5 e2e specs fail.** `npm run test:e2e` → 102 passed, 5
+  failed: archive.spec "the freed number is handed to the next household", card.spec "a registration
+  issues card k1", registration.spec "a two-person household is registered…", reregistration.spec "a
+  household is served and archived…", waiting-list.spec "promoting the applicant hands them the freed
+  number". All the same cause: `registerCustomer` still writes the literal `index: 1`, which the new
+  constraint refuses on a slot an archived household already printed a card on. This is the layering
+  the PRD chose (schema before application); US-004 removes the literal and the five go green. Do not
+  "fix" the specs — the specs are right.
+- **Learnings for future iterations:**
+  - **`pkill -f next-server` kills the bash tool's own shell** (its command line contains the
+    pattern), so everything after it in the command silently never runs — the call just exits 144.
+    Use `pkill -f "next-serve[r]"` or `pgrep -f "next-serve[r]"` to check first.
+  - **Prisma P2002 `meta` is `{ modelName, target: [columns] }`** on SQLite — e.g.
+    `{"modelName":"Card","target":["customerNumber","index"]}`. So a collision check can and should
+    name the model *and* the columns; `JSON.stringify(meta).includes("…")` matches across models and
+    is what made a duplicate card number report itself as a taken customer number. US-003's split of
+    `isCardIndexCollision` has the same shape: `target` is `["customerId","index"]` vs
+    `["customerNumber","index"]`.
+  - `prisma migrate dev` refuses to run while `data/fd.db` holds a migration that is no longer on
+    disk: delete the db file first (the `db:reset` node one-liner does it), then regenerate.
+  - `customer-repository.test.ts` now has `nextOnTheSlot(...)`, a `newCustomer` whose card index is
+    one higher — any adapter test that registers a *second* household on one slot needs it, because
+    two k1s on a number no longer fit through the database.
+  - `card.spec.ts`'s title "a registration issues card k1" is only true on a slot nobody has held.
+    It passes in isolation and fails in the suite, where an earlier spec has archived a household on
+    slot 1. US-006 should decide whether the title still says what it means.
+---

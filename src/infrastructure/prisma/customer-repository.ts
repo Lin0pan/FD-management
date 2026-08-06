@@ -60,15 +60,19 @@ type CustomerRow = Prisma.CustomerGetPayload<{ include: typeof CUSTOMER_INCLUDE 
  * Whether a failed write was the partial unique index rejecting a customer number that had been
  * taken in the meantime.
  *
- * The other unique constraint reachable from `create` — one card per `(customer, index)` — cannot
- * collide on a row that is being inserted for the first time, so the target is checked anyway
- * rather than assuming: a future constraint should surface as itself.
+ * The *model* is checked as well as the column, not only the column: the nested write inserts a card
+ * too, and `Card` carries a `customerNumber` of its own (US-25). Matching the word alone would report
+ * a card number already handed out on this slot as a lost race for the slot itself — which the
+ * caller answers by retrying on another number, leaving the real fault in place.
  */
 function isCustomerNumberCollision(error: unknown): boolean {
   return (
     error instanceof Prisma.PrismaClientKnownRequestError &&
     error.code === "P2002" &&
-    JSON.stringify(error.meta ?? {}).includes("customerNumber")
+    (error.meta as { modelName?: string } | undefined)?.modelName === "Customer" &&
+    JSON.stringify((error.meta as { target?: unknown } | undefined)?.target ?? []).includes(
+      "customerNumber",
+    )
   );
 }
 
@@ -440,6 +444,10 @@ export class PrismaCustomerRepository implements CustomerRepository {
           },
           cards: {
             create: {
+              // The slot the card is printed under, written in the same statement as the customer
+              // row it comes from — the key `@@unique([customerNumber, index])` needs, never the
+              // card's number, which stays derived (US-25).
+              customerNumber: customer.customerNumber,
               index: customer.card.index,
               issuedAt: customer.card.issuedAt,
               reason: customer.card.reason,

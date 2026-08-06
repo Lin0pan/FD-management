@@ -203,8 +203,10 @@ number `50` at different times. An attribute that gets recycled cannot serve as 
 safely key distribution records, cards, notes or any foreign key, because those would silently
 collapse two different people onto one slot.
 
-The card number has the same shape and the same limitation — `50k1` recurs for every occupant of
-slot `50`, so it is not archive-unique either.
+The card number has the same shape but **not** the same limitation: its index counts the slot's whole
+run rather than each occupant's own, so the household that fills a freed number is printed the next
+card on it and `50k1` is issued exactly once, ever (US-25). The card an archived household walked away
+with is therefore recognisable at the counter as the outdated card it is.
 
 **Consequences.**
 
@@ -215,7 +217,8 @@ slot `50`, so it is not archive-unique either.
   constraint of _at most one active customer per number_ (a partial/filtered unique index — archived
   rows are exempt). The domain layer owns "lowest free number" assignment (US-01).
 - The card row is keyed by / FK'd to `id`; its `<customerNo>k<index>` string is display data only.
-  `50k1` appearing for two different `id`s is therefore harmless.
+  The row carries `customerNumber` beside the foreign key all the same — not as identity, but as the
+  key `@@unique([customerNumber, index])` needs to refuse a card number twice (US-25).
 - **Purely internal.** The surrogate `id` is plumbing — it is not shown in the UI and not spoken by
   staff, who continue to use the customer number and card number as today. (Considered and rejected:
   a human-facing composite like `50-1`/`50-2` — it re-couples identity to the reusable slot, is a
