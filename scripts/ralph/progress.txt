@@ -16,6 +16,14 @@ Started: Thu Aug  6 13:53:09 CEST 2026
   lists the error classes by name in the `src/domain/errors.ts` section. Adding an export or an
   error makes both stale and no gate can tell — grep the file for the module path *and* for the
   vocabulary of the rule being changed.
+- **A Prisma `P2002` cannot always name *which* constraint was broken.** `meta` is
+  `{ modelName, target: [columns] }`, but where two unique indexes both cover the offending row
+  SQLite reports only one of them, and not the one that was declared or created first. Where the
+  distinction matters, match the target for the *shape* and then ask the database the question that
+  actually distinguishes the two faults (`card-repository.ts`'s `issue` counts the customer's own
+  rows on that index). For a **nested** write Prisma reports the *rooted* model — a card refused
+  inside `customer.create` comes back as `modelName: "Customer"` — so the model name alone tells
+  nothing about which table failed.
 - **Prior runs' patterns are in the archive**, not in this file: `scripts/ralph/archive/<date>-<story>/progress.txt`
   keeps a long consolidated list (playwright-cli usage, e2e customer-number bands, killing the dev
   server safely, testid greps). Read the most recent one before any UI or e2e story.
@@ -92,4 +100,42 @@ Started: Thu Aug  6 13:53:09 CEST 2026
   - `card.spec.ts`'s title "a registration issues card k1" is only true on a slot nobody has held.
     It passes in isolation and fails in the suite, where an earlier spec has archived a household on
     slot 1. US-006 should decide whether the title still says what it means.
+---
+
+## 2026-08-06 17:40 - US-003 (The repository answers for the slot)
+- `CardRepository.highestIndexForNumber(customerNumber)` on the port, the fake and the adapter — the
+  highest index ever printed on a slot, 0 for an untouched one, archived holders included. One
+  `aggregate({ _max: { index: true } })` served by the leading column of the new unique index.
+- `issue` reports the two constraints as themselves, and `issueCounts.cardsIssued` counts the
+  customer's own rows rather than `_max(index)`.
+- Files changed:
+  - `src/application/ports.ts` — the method and its argument; `CardIssueCounts.cardsIssued` reworded.
+  - `src/application/customers/read-card.ts` — `CardView.cardsIssued` reworded.
+  - `src/infrastructure/prisma/card-repository.ts` — header rewritten (the paragraph saying two
+    customers may each hold `50k1` said the opposite of the rule), `isCardCollision`, the
+    discriminating count, `highestIndexForNumber`, `issueCounts`.
+  - `src/infrastructure/prisma/customer-repository.ts` — one `isCollisionOn(error, columns)` replaces
+    `isCustomerNumberCollision`; `create` now also raises `CardNumberTaken`.
+  - `card-repository.test.ts` (+9 cases), `customer-repository.test.ts` (+1), `customers.test.ts`
+    (the fake), `docs/technical_documentation.md`.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1040 tests, domain + application 100%), build,
+  `format:check` — all green. e2e NOT run: US-002's 5 specs stay red until US-004.
+- **Learnings for future iterations:**
+  - **The `isCardIndexCollision` split the PRD asks for cannot be done on the constraint target
+    alone.** A card's `customerNumber` is written from the customer row, so a second card on an index
+    the customer already holds violates `(customerId, index)` *and* `(customerNumber, index)`, and
+    SQLite reports `["customerNumber","index"]` — even though `Card_customerId_index_key` is created
+    first in the migration. `issue` therefore matches either of `Card`'s targets and then counts the
+    customer's own rows on that index to decide which error it is. Do not "simplify" that back to a
+    target match: the existing US-02.3 concurrency tests go red immediately.
+  - **`PrismaCustomerRepository.create` had been mapping a duplicate *card* number to
+    `CustomerNumberTaken`.** Prisma reports a nested write under the rooted model, so the modelName
+    check US-002 added does not catch it; the columns do (`["customerNumber"]` = the register's
+    partial index, `["customerNumber","index"]` = `Card`'s). US-004 needs this, because a
+    registration writes its first card through `create` and not through `cards.issue`.
+  - `FakeCardRepository` in `customers.test.ts` is now constructed with the customer register —
+    `new FakeCardRepository(customers)` — because a card's slot is read off the customer row rather
+    than passed in. Every `beforeEach` already built `customers` first.
+  - The fake's `issueCounts` counts rows now too. No application test asserted the old max-index
+    reading, so nothing outside infrastructure moved.
 ---

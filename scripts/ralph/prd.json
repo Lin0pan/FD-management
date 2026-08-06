@@ -67,8 +67,8 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "highestIndexForNumber is on the port, the fake and the adapter (one _max aggregate). The collision split could NOT be done on the constraint target alone: a second card on an index a customer already holds breaks BOTH unique indexes and SQLite names the (customerNumber, index) one, so issue matches P2002 on either of Card's targets and then asks the record — the customer already holds that index → CardIndexTaken, otherwise CardNumberTaken. customer-repository.create CAN split on the target (Prisma reports the rooted model, so both are modelName Customer, but ['customerNumber'] vs ['customerNumber','index'] tells them apart) and now raises CardNumberTaken, which US-004 needs for registerCustomer to propagate it. issueCounts counts rows. The 5 e2e specs US-002 left red are still red — US-004 removes the literal index: 1."
     },
     {
       "id": "US-004",
