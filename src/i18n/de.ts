@@ -74,9 +74,14 @@ export const de = {
     /** The registration screen. */
     new: {
       heading: "Neuen Kunden aufnehmen",
+      /**
+       * „schlägt die Anwendung vor“ was true of both fields until US-24, and is now true of one:
+       * the number is the staff member's to pick from a list, with the lowest free one preselected.
+       * „vorausgewählt … können geändert werden“ is right about both.
+       */
       intro:
-        "Kundennummer und Gruppe schlägt die Anwendung vor. Erwachsene und Kinder werden aus den " +
-        "Geburtsdaten berechnet und können nicht eingetragen werden.",
+        "Kundennummer und Gruppe sind vorausgewählt und können geändert werden. Erwachsene und " +
+        "Kinder werden aus den Geburtsdaten berechnet und können nicht eingetragen werden.",
       addressHeading: "Anschrift",
       certificateHeading: "Bedarfsnachweis",
       householdHeading: "Haushalt",
@@ -151,21 +156,23 @@ export const de = {
     },
     assignment: {
       /**
-       * The hint under the number dropdown (US-24): how much of the register is left, and that the
-       * control opened on the lowest of it. Inflected at one, because „1 freie Nummern“ is the
-       * kind of German that makes staff distrust the rest of the screen — and at one there is no
-       * „niedrigste“ to speak of either, so the sentence says which number is meant instead.
+       * The hint under the number dropdown (US-24): how much of the register is left. Inflected at
+       * one, because „1 freie Nummern“ is the kind of German that makes staff distrust the rest of
+       * the screen.
+       *
+       * It said „die niedrigste ist vorausgewählt“ as well until the field was narrowed to the two
+       * columns a three-digit box asks for, where that ran to three ragged lines. The preselection
+       * is said once, in the page's intro, and the control shows the number it opened on — so what
+       * is left here is the one fact only this line carries: how many are still free.
        */
       freeNumberCount: (count: number): string =>
-        count === 1
-          ? "Noch 1 freie Nummer — sie ist vorausgewählt."
-          : `${count} freie Nummern — die niedrigste ist vorausgewählt.`,
+        count === 1 ? "Noch 1 freie Nummer" : `Noch ${count} freie Nummern`,
       /**
-       * The folded group choice (US-20). Two halves rather than one sentence, because the proposed
-       * group goes between them wearing its own colour — and a colour never travels without the
-       * word it names (US-03.4).
+       * The folded group choice (US-20): what the summary offers, after the badge naming the
+       * proposed group in its own colour — and a colour never travels without the word it names
+       * (US-03.4). It used to be prefixed with „Gruppe:“, which the column's own field label now
+       * says once, above the control rather than inside it.
        */
-      groupChoiceLabel: "Gruppe:",
       groupChoiceOverride: "andere Gruppe wählen",
       suggestedGroup: (group: string): string => `Vorschlag: ${group}`,
       groupSizes: (red: number, blue: number): string =>

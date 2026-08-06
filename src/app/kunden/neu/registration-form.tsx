@@ -180,6 +180,20 @@ function Section({
 const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
 
 /**
+ * A field's two rows — the label and the control — laid on the grid's own tracks, from
+ * `einstellungen/settings-form.tsx`.
+ *
+ * `Zuordnung` is where this form needs it, and for the reason the guide's `/kunden/neu` finding now
+ * records: not a label that wraps, but a column that had no label row at all. The group choice
+ * carried its name inside its own summary button, so the `Kundennummer` select sat 26px below its
+ * neighbour and the two hint lines under them 24px apart. Each column spans two of the parent's rows
+ * and inherits them, so both controls land on one baseline whatever the labels do — and it re-solves
+ * itself when the grid collapses at `sm`. Each field then has exactly two children; a hint under the
+ * control wraps both in one element.
+ */
+const FIELD_ROWS = "grid grid-rows-subgrid row-span-2 gap-1.5";
+
+/**
  * A native `<select>` at the height of this form's `Input`s.
  *
  * `/einstellungen` puts every control on `h-9`, this screen leaves `Input` at its `h-8` default, and
@@ -512,7 +526,7 @@ export function RegistrationForm({
           </>
         }
       >
-        <div className="flex flex-wrap items-start gap-6">
+        <div className={GRID}>
           {/*
            * The number, as a control rather than as a figure (US-24).
            *
@@ -531,32 +545,37 @@ export function RegistrationForm({
            * proposal (#91). When a lost race removes their number from the list the browser falls
            * back to the first option, which is the lowest free one again.
            */}
-          <div className="flex w-56 flex-col gap-1.5">
-            <label htmlFor="customerNumber" className="text-sm font-medium">
+          <div className={`${FIELD_ROWS} lg:col-span-2`}>
+            <label htmlFor="customerNumber" className="self-start text-sm font-medium">
               {de.customers.fields.customerNumber}
             </label>
-            <select
-              className={SELECT}
-              name="customerNumber"
-              id="customerNumber"
-              data-testid="customer-number-select"
-              defaultValue={proposal.customerNumber ?? ""}
-              disabled={full}
-            >
-              {freeNumbers.map((number) => (
-                <option key={number} value={number}>
-                  {number}
-                </option>
-              ))}
-            </select>
-            {/* No hint on a full register: „0 freie Nummern — die niedrigste ist vorausgewählt“
-                would be a sentence about a preselection that does not exist. The `Alert` at the top
-                of the form is the message there, and it offers the waiting list with it. */}
-            {full ? null : (
-              <p data-testid="free-number-count" className="text-xs text-muted-foreground">
-                {de.customers.assignment.freeNumberCount(freeNumbers.length)}
-              </p>
-            )}
+            {/* One grid row, two elements, so the subgrid above still sees a single row. Two of
+                twelve is what a box holding at most three digits asks for — the span `PLZ` gets in
+                `Person und Anschrift` — and it is what the hint beneath was shortened to fit. */}
+            <div className="flex flex-col gap-1.5">
+              <select
+                className={SELECT}
+                name="customerNumber"
+                id="customerNumber"
+                data-testid="customer-number-select"
+                defaultValue={proposal.customerNumber ?? ""}
+                disabled={full}
+              >
+                {freeNumbers.map((number) => (
+                  <option key={number} value={number}>
+                    {number}
+                  </option>
+                ))}
+              </select>
+              {/* No hint on a full register: „0 freie Nummern — die niedrigste ist vorausgewählt“
+                  would be a sentence about a preselection that does not exist. The `Alert` at the
+                  top of the form is the message there, and it offers the waiting list with it. */}
+              {full ? null : (
+                <p data-testid="free-number-count" className="text-xs text-muted-foreground">
+                  {de.customers.assignment.freeNumberCount(freeNumbers.length)}
+                </p>
+              )}
+            </div>
           </div>
 
           {/*
@@ -578,34 +597,42 @@ export function RegistrationForm({
            * the last registration chose says nothing about this one, and a control that remembers
            * being open would put the decision back on screen for the staff who never make it.
            */}
-          <div className="flex flex-col gap-2">
-            <details>
-              {/* `w-fit` is right here, unlike the archive search's summary: this one is a control,
-                  not a card header (`docs/ui_conversion_guide.md`). */}
-              <summary
-                data-testid="group-choice-open"
-                className={cn(
-                  buttonVariants({ variant: "outline" }),
-                  "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden",
-                )}
-              >
-                {de.customers.assignment.groupChoiceLabel}
-                <Badge variant="outline" className={GROUP_STYLES[proposal.suggestedGroup]}>
-                  {de.customers.groups[proposal.suggestedGroup]}
-                </Badge>
-                <span className="font-normal text-muted-foreground">
-                  — {de.customers.assignment.groupChoiceOverride}
-                </span>
-              </summary>
+          <div className={`${FIELD_ROWS} lg:col-span-6`}>
+            {/* A `<span>`, not a `<label>`: `<summary>` is not a labelable element, and this names a
+                set of radios rather than one control. It is the field label the column was missing —
+                the summary used to carry „Gruppe:“ itself, which read as a label but sat in the
+                control's own row and left this one empty. */}
+            <span id="groupChoice-label" className="self-start text-sm font-medium">
+              {de.customers.fields.group}
+            </span>
+            <div className="flex flex-col gap-1.5">
+              <details>
+                {/* `w-fit` is right here, unlike the archive search's summary: this one is a control,
+                    not a card header (`docs/ui_conversion_guide.md`). */}
+                <summary
+                  data-testid="group-choice-open"
+                  className={cn(
+                    buttonVariants({ variant: "outline" }),
+                    "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden",
+                  )}
+                >
+                  <Badge variant="outline" className={GROUP_STYLES[proposal.suggestedGroup]}>
+                    {de.customers.groups[proposal.suggestedGroup]}
+                  </Badge>
+                  <span className="font-normal text-muted-foreground">
+                    {de.customers.assignment.groupChoiceOverride}
+                  </span>
+                </summary>
 
-              {/* Native radios, not Radix: the action reads `group` out of the `FormData` and a
-                  `RadioGroup` submits nothing of its own. `#group-RED` is reached by CSS id in three
-                  specs, so the ids are load-bearing too. Each option wears the colour it names —
-                  this is the one screen where the group is actually *chosen*, and it was the one
-                  screen showing RED and BLUE in black and white. */}
-              <fieldset className="mt-3 flex flex-col gap-2">
-                <legend className="text-sm font-medium">{de.customers.fields.group}</legend>
-                <div className="flex flex-wrap gap-2">
+                {/* Native radios, not Radix: the action reads `group` out of the `FormData` and a
+                    `RadioGroup` submits nothing of its own. `#group-RED` is reached by CSS id in
+                    three specs, so the ids are load-bearing too. Each option wears the colour it
+                    names — this is the one screen where the group is actually *chosen*, and it was
+                    the one screen showing RED and BLUE in black and white.
+
+                    Named by the label above rather than by a `<legend>` of its own, which would put
+                    „Gruppe“ on screen twice in one column. */}
+                <fieldset className="mt-3 flex flex-wrap gap-2" aria-labelledby="groupChoice-label">
                   {GROUPS.map((group) => (
                     <label
                       key={group}
@@ -622,18 +649,20 @@ export function RegistrationForm({
                       <span>{de.customers.groups[group]}</span>
                     </label>
                   ))}
-                </div>
-              </fieldset>
-            </details>
+                </fieldset>
+              </details>
 
-            <p className="text-xs text-muted-foreground">
-              {de.customers.assignment.suggestedGroup(de.customers.groups[proposal.suggestedGroup])}{" "}
-              ·{" "}
-              {de.customers.assignment.groupSizes(
-                proposal.groupCounts.red,
-                proposal.groupCounts.blue,
-              )}
-            </p>
+              <p className="text-xs text-muted-foreground">
+                {de.customers.assignment.suggestedGroup(
+                  de.customers.groups[proposal.suggestedGroup],
+                )}{" "}
+                ·{" "}
+                {de.customers.assignment.groupSizes(
+                  proposal.groupCounts.red,
+                  proposal.groupCounts.blue,
+                )}
+              </p>
+            </div>
           </div>
         </div>
       </Section>
