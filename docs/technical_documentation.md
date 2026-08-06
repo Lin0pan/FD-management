@@ -95,6 +95,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   │   │   ├── archive-search-actions.ts # "use server": searchArchivedCustomers / draftFromArchived
 │   │   │   │   ├── archive-search-state.ts   # the panel's state + the draft as the form's strings
 │   │   │   │   ├── actions.ts        # "use server": Zod → registerCustomer → redirect
+│   │   │   │   ├── fresh-pool.ts     # the free numbers re-read after a lost race, shared by both registration actions
 │   │   │   │   ├── register-customer-state.ts  # form state (not exportable from actions.ts)
 │   │   │   │   └── registration-input.ts  # the form's Zod schema + German error mapping, shared with /warteliste
 │   │   │   ├── [id]/page.tsx         # the customer overview a registration lands on; hosts the block, reissue + archive controls
@@ -136,7 +137,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │   ├── policy/settings.test.ts   # its Vitest spec
 │   │   ├── customer/householdComposition.ts  # grown-up/children split, derived from birthdates
 │   │   ├── customer/householdComposition.test.ts  # its Vitest spec
-│   │   ├── customer/customerNumber.ts # lowest free slot in 1..quotaN
+│   │   ├── customer/customerNumber.ts # the free slots in 1..quotaN, the lowest, and the check
 │   │   ├── customer/customerNumber.test.ts  # its Vitest spec
 │   │   ├── customer/group.ts          # Group type and the RED/BLUE balancing suggestion
 │   │   ├── customer/group.test.ts     # its Vitest spec
@@ -454,13 +455,16 @@ file falls back to the wall clock rather than failing a request.
 The `DomainErrorCode` union — the closed set of failure modes — plus an abstract `DomainError` base
 class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`,
 `QuotaBelowActiveCustomers`, `MissingAuditReason`, `EmptyHousehold`, `BirthDateInFuture`,
-`NoFreeCustomerNumber`, `CustomerNumberTaken`, `CustomerNotFound`, `CustomerArchived`,
-`CustomerNotArchived`, `InvalidCustomerRecord`, `MissingRequiredField`, `InvalidCardNumber`,
-`CardIndexTaken`,
-`InvalidEuroAmount` today).
-Each carries the values that made it fail, so the UI can render a
-German message naming concrete numbers without re-deriving them, and callers switch on `code`
-instead of parsing strings.
+`NoFreeCustomerNumber`, `CustomerNumberTaken`, `CustomerNumberOutOfRange`, `CustomerNotFound`,
+`CustomerArchived`, `CustomerNotArchived`, `InvalidCustomerRecord`, `MissingRequiredField`,
+`InvalidCardNumber`, `CardIndexTaken`, `InvalidEuroAmount` today). Each carries the values that made
+it fail, so the UI can render a German message naming concrete numbers without re-deriving them, and
+callers switch on `code` instead of parsing strings.
+
+`CustomerNumberTaken` and `CustomerNumberOutOfRange` are two codes for what staff read as one
+sentence — the number is not available, pick another (US-24). They are separate because the
+_program_ acts differently: `registerCustomer` retries a `CustomerNumberTaken` when it allocated the
+number itself, so a quota violation wearing that code would be retried as if it were a lost race.
 
 ### `src/domain/policy/settings.ts`
 
@@ -537,8 +541,20 @@ duplicates and numbers above the quota are ignored, since neither can make a slo
 more or less free. A full range raises `NoFreeCustomerNumber` carrying the quota, so the UI can name
 the limit FD has to raise or free.
 
-The function is advisory in the same sense as `suggestGroup`: the database's partial unique index is
-the final authority on whether the number was still free when the write landed (US-01.4).
+`freeNumbers(takenNumbers, quotaN)` is the pool the allocation picks from — every slot in `1..quotaN`
+that nobody active holds, ascending — and the registration form offers it as a dropdown so a staff
+member can take a number other than the lowest (US-24). `findLowestFreeNumber` is its first element,
+so the number the screen opens on and the number the rule would allocate cannot come apart.
+
+`assertFreeNumber(requested, takenNumbers, quotaN)` is the verdict on a number that was _chosen_
+rather than allocated: it gives the number back when it is free, raises `CustomerNumberOutOfRange`
+when it is not a whole number in `1..quotaN` — which a form left open while staff lowered the quota
+(US-14) produces without anybody tampering — and raises `CustomerNumberTaken` when an active customer
+holds it. That second error is deliberately the one the repository raises from its unique index: it
+is the same fact, found earlier.
+
+The functions are advisory in the same sense as `suggestGroup`: the database's partial unique index
+is the final authority on whether the number was still free when the write landed (US-01.4).
 
 ### `src/domain/customer/nameSearch.ts`
 
@@ -905,6 +921,20 @@ staff could only answer by pressing the button again. The bound matters more tha
 unbounded loop would turn a repository fault into a hang. Anything that is not a lost race is not
 retried.
 
+The optional **`customerNumber`** on the input is the slot staff chose from the ones the form offered
+(US-24). Left out, everything above is unchanged. Given, it is checked with `assertFreeNumber` and
+used **as given**, and the attempt budget is **one**: the retry is only defensible while the number
+is the rule's to pick, because a second attempt lands on the next free slot and nobody is any the
+wiser. A number a staff member chose has no such substitute — retrying it would either write a number
+they did not pick, which is the one outcome this feature exists to prevent, or fail again on the same
+one. So a `CustomerNumberTaken` from the index, and a `CustomerNumberOutOfRange` from a form that was
+open while the quota was lowered, both go back to the screen where staff can pick another. Only the
+number's origin and the budget differ; there is one code path that writes a customer, so the
+transaction, the first card, the status and the audit entry cannot come apart between the two.
+
+The audit entry is the same either way. `customerNumber` is already among the fields it names, and
+whether the rule or a human chose the slot is not something a later reader could act on.
+
 The audit entry is written under `customer.registered` with an empty `why` — a registration needs no
 justification — and names `customerNumber`, `group`, `status` and `card`: what the _system_ decided,
 rather than repeating the fields staff typed, which are the record itself. A re-registration adds
@@ -1006,10 +1036,14 @@ grounds to turn anyone away (FR-5).
 
 The two read-side use cases the customer screens sit on:
 
-- **`proposeRegistration`** answers what the _empty_ form should show: the lowest free number (via
-  `findLowestFreeNumber`, the total form of the rule, so a full register is `null` rather than a
-  throw), the suggested group, both group sizes and the day to judge birthdates against. Read-only —
-  it reserves nothing.
+- **`proposeRegistration`** answers what the _empty_ form should show: every free number and the one
+  the form opens on, the suggested group, both group sizes and the day to judge birthdates against.
+  Read-only — it reserves nothing. The two number fields come from **one** `freeNumbers` call
+  (US-24.2): `freeNumbers` is the pool the registration screen offers as a dropdown, and
+  `customerNumber` is its first element, `null` on a full register rather than a throw — the screen
+  has to render either way, and the three callers that only ask "is a slot free, and which"
+  (`/kunden`, `/warteliste`, and `/kunden/neu`'s `FreeSlotBanner`) read that field alone. Deriving
+  one from the other is what keeps the number offered and the number preselected from disagreeing.
 - **`readCustomer`** answers what the customer overview shows: the customer plus everything
   derivable from them, worked out here rather than in the page — the card number from the slot and
   the card index, and the household counts, portions and price from `describeAllowance` (US-07.4), so
@@ -1045,10 +1079,11 @@ The two read-side use cases the customer screens sit on:
   household is offered no replacement — the card itself is not a permission, and a blocked household
   still holds theirs.
 
-`customerNumber.ts` therefore exports the rule in **two forms**: `findLowestFreeNumber` returning
-`number | null` for callers that only want to _show_ the next number, and `lowestFreeNumber` throwing
-`NoFreeCustomerNumber` for the caller that is about to allocate one. The second is written in terms
-of the first, so there is still one statement of the rule.
+`customerNumber.ts` therefore exports the rule in **three forms**: `freeNumbers` returning the whole
+pool for the screen that offers a choice, `findLowestFreeNumber` returning `number | null` for
+callers that only want to _show_ the next number, and `lowestFreeNumber` throwing
+`NoFreeCustomerNumber` for the caller that is about to allocate one. Each is written in terms of the
+one before it, so there is still one statement of the rule.
 
 ### `src/application/customers/recordReminder` and `renewCertificate`
 
@@ -1397,8 +1432,11 @@ clock in `waiting-list.test.ts`.
   allocation, the first card and the `customer.registered` entry are the ordinary ones — and only
   **then** removes the entry and logs `waitingList.promoted`. The order is the whole point: a
   registration can fail on the last field of the form, and an applicant removed a moment earlier
-  would have lost the place they waited months for. A test proves it by failing a registration on an
-  empty household and asserting the entry is still there.
+  would have lost the place they waited months for. Tests prove it by failing a registration on an
+  empty household and on a chosen customer number somebody else holds, and asserting the entry is
+  still there. The chosen number itself reaches `registerCustomer` through
+  `RegisterCustomerInput`, so a promotion offers the same dropdown as a walk-in without this use case
+  knowing the field exists.
 
 The applicant is promoted **by id** rather than taken from the head of the queue. The order is stated
 by `listWaiting` and by the banner, which names the longest-waiting applicant and no one else; what
@@ -1781,6 +1819,17 @@ beyond it:
   first of them, so overwriting row one would drop a member and duplicate another. The optional
   `previousCustomerId` travels as a hidden input — absent, not blank, for a walk-in — and reaches
   `registerCustomer` as the display metadata it is.
+  The **customer number is a control, not a figure** (US-24). The `Zuordnung` section opens with a
+  labelled native `<select name="customerNumber" data-testid="customer-number-select">` holding
+  `proposal.freeNumbers` — every free slot in `1..quotaN`, ascending — and opening on
+  `proposal.customerNumber`, the lowest of them, via `defaultValue`. It replaces the read-only
+  `proposed-number` `Stat` rather than joining it: two controls showing one number is how they start
+  disagreeing. Native for the reason the group radios are, and uncontrolled so a refused save leaves
+  the staff member's own choice standing (#91). The hint beneath it, `free-number-count`, says how
+  many numbers are left and that the lowest is preselected, inflected at one; on a **full** register
+  the select is disabled with no options and the hint is absent, because the `Alert` above the form
+  is the message there and it offers the waiting list with it. The number on screen when `Aufnehmen`
+  is pressed is always the number saved — `registerCustomer` never substitutes a chosen one.
   The `Gruppe` radios sit in a **closed** `<details>` inside the `<form>` (US-20): the state is not
   persisted, so every load starts closed, and the `<summary>` — `data-testid="group-choice-open"` —
   names the proposed group in its own `GROUP_STYLES` colour, always with the word. The suggestion and
@@ -1823,7 +1872,17 @@ beyond it:
   three parallel lists, so the row count is the **longest** of them — a row whose birthdate was left
   blank must reach the domain and be rejected there rather than vanishing on the way. `redirect()`
   is called **outside** the `try`: it works by throwing, and catching it would turn a successful
-  registration into "could not be saved".
+  registration into "could not be saved". It passes the chosen `customerNumber` straight through to
+  `registerCustomer` and gains no rule of its own.
+- **`neu/fresh-pool.ts`** holds the one recovery a refused registration can offer by itself: on a
+  **lost race only** (`CustomerNumberTaken`) it re-reads `proposeRegistration` and the action returns
+  the fresh pool in `RegisterCustomerState.freeNumbers`, which the form prefers over its prop.
+  Without it the form goes on offering a number that provably cannot be saved, and the staff member's
+  obvious next move — picking it again — fails identically. Every **other** refusal returns the state
+  it always did: the numbers are still what the page was rendered with, and a second query per blank
+  birthdate would be noise. It is a plain module rather than `"use server"`, because exporting a
+  helper from an action module publishes it as a callable endpoint; both registration actions import
+  it and hand it their own deps.
 - **`[id]/page.tsx`** is the **customer record** (US-16.5): everything known about one household and
   everything editable about them. It renders what `readCustomer` already derived — the counts from
   the birthdates, the standard portions and price (US-07.4), the card number from the slot and the
@@ -2262,7 +2321,10 @@ parsing is shared through `kunden/neu/registration-input.ts`: one Zod schema, on
 one German error mapping, so a field cannot start being accepted on one screen and refused on the
 other. The action calls **one** use case, `registerFromWaitingList` — never `registerCustomer` plus a
 removal of its own, because the order of those two is the guarantee the feature rests on and
-"remember to do B after A" is exactly what a screen forgets.
+"remember to do B after A" is exactly what a screen forgets. A promoted applicant is registered on a
+**chosen** number like any other (US-24): the same form means the same dropdown with the same
+default, the action passes `customerNumber` through, and it shares `neu/fresh-pool.ts` so a lost race
+here also comes back with the register as it now stands.
 
 - **`promotion-screen.tsx`** holds the one piece of judgement the screen has: when the certificate
   lapsed during the wait, the warning is shown **before** the form, naming the day it ran to (FR-5).
@@ -2518,6 +2580,20 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   and the rejection asserts against the successor of the number the happy path consumed rather than
   against a literal. Names and addresses come from Faker with a fixed seed; every date is a literal,
   because the rules under test are about dates.
+  It also covers US-24 end to end (§US-24.5) — the number as a **choice** — in four tests after the
+  three above, which deliberately register on the number the form opened on and so prove the default
+  did not move. The dropdown opens on the lowest free number, read out of Prisma at assertion time
+  and worked out in the spec rather than imported from `customerNumber.ts`, so the expectation cannot
+  agree with the rule it is checking. A number picked out of the list — higher than the proposal — is
+  the number the customer row and the card `<n>k1` carry, checked in the database as well as on the
+  screen. And a number posted **around** the control (an `<option>` appended by hand, the shape a
+  form left open over a distribution day would post) is refused with the German sentence naming it,
+  with a snapshot of every customer plus the household-member, certificate, card and audit-entry
+  counts identical either side of the attempt. The spec seeds two households of its own through
+  Prisma, on 232 (active, so its number is never an option) and 233 (archived, so its number is),
+  and registers on 234. That band is high but **inside the quota of 240** on purpose: the pool is
+  `1..quotaN`, so the bands the other specs took above 240 could prove nothing about a control that
+  never offers them.
 - `card.spec.ts` covers US-02 end to end (§US-02.5): a three-person household is registered, the
   overview's card link is followed to `/kunden/[id]/karte`, and the card is asserted to match
   `^[0-9]+k1$` — the number the form proposed plus `k1` — with the name and group as entered, the

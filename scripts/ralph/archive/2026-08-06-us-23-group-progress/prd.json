@@ -24,8 +24,8 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "freeNumbers is the single scan; findLowestFreeNumber is its first element and lowestFreeNumber unchanged on top of that. assertFreeNumber checks range before occupancy. CustomerNumberOutOfRange added to DomainErrorCode and tiered 'refusal' in notice-tier.ts. 34 domain tests, written red first; domain coverage 100%. Docs: technical_documentation.md (tree line, errors section, customerNumber section, the 'two forms' note is now three) and ui_action_feedback_review.md (code table, the '31st code' count)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -45,8 +45,8 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "RegistrationProposal gained freeNumbers; customerNumber is now derived from the same single freeNumbers call (free.length === 0 ? null : free[0]) rather than a second scan via findLowestFreeNumber. Doc comments on both fields say they come from one reading. Five named tests added to the proposeRegistration block in customers.test.ts, red first. The four callers and NoSettingsInForce untouched. Docs: technical_documentation.md §proposeRegistration."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -67,8 +67,8 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "RegisterCustomerInput gained optional customerNumber. One code path still writes: the loop keeps its shape and only the number's origin and the attempt budget differ (MAX_ATTEMPTS when allocated, CHOSEN_NUMBER_ATTEMPTS = 1 when chosen), so a chosen number is never substituted. registerFromWaitingList needed only @throws. Six named tests added to customers.test.ts and two to waiting-list.test.ts, red first; 1022 tests, domain + application 100%. Docs: technical_documentation.md §registerCustomer and the waiting-list bullet."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -96,8 +96,8 @@
         "Verify in browser using the playwright-cli skill against a PRODUCTION build, reading the ACCESSIBILITY SNAPSHOT: the control is announced as a combobox named 'Kundennummer' with the lowest free number selected, the hint is readable text and not a title attribute, and the keyboard can reach the control, type 1 then 5 and land on 15"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "The proposed-number Stat is replaced by a labelled native <select data-testid=\"customer-number-select\"> over proposal.freeNumbers, uncontrolled, defaultValue = proposal.customerNumber, h-8 to match the form's Inputs. free-number-count hint inflected at one, absent on a full register (the Alert is the message there). customerNumberTaken -> customerNumberUnavailable(number), one sentence for both codes. New src/app/kunden/neu/fresh-pool.ts holds the lost-race re-read, shared by both registration actions (not \"use server\": exporting a helper from one publishes it as an endpoint). Five e2e specs rewritten off the removed testid. Browser-verified against a production build: combobox named 'Kundennummer' opening on the lowest free number, hint is readable <p> text with no title attribute, Tab reaches it from add-member, type-ahead 3 then 7 lands on 37 (the PRD's 1,5 -> 15 is unverifiable in data/fd.db, where 6-18 are taken), 0 horizontal overflow at 1920/1280/1024/800/390. Full e2e suite green (116 passed). Docs: technical_documentation.md (tree, registration-form, actions, fresh-pool, the promotion section) and ui_redesign_kunden_neu.md (three supersession notes)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
@@ -116,8 +116,8 @@
         "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first — a live dev server on port 3000 fails the suite for the wrong reason)"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "registration.spec.ts extended by four tests after the existing three (which still register on the number the form opens on, so they prove the default did not move). Seeds 232 ACTIVE and 233 ARCHIVED through Prisma and registers on 234 — a band inside the quota of 240 on purpose, because the pool is 1..quotaN and the other specs' bands above 240 are invisible to the control. The lowest free number is read from Prisma and computed in the spec rather than imported from customerNumber.ts, so the expectation cannot agree with the rule under test. The stale submission appends an <option> by hand and posts it; the snapshot compares every customer row plus the household-member, certificate, card and audit-entry counts. No other spec file touched. Full e2e suite: 120 passed, 1 pre-existing skip. Docs: technical_documentation.md §registration.spec.ts."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

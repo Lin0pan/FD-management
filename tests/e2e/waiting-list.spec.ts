@@ -104,7 +104,7 @@ async function fillPersonalData(page: Page, person: Applicant): Promise<void> {
  */
 async function register(page: Page): Promise<Household> {
   await page.goto("/kunden/neu");
-  const customerNumber = await page.getByTestId("proposed-number").innerText();
+  const customerNumber = await page.getByTestId("customer-number-select").inputValue();
 
   await fillPersonalData(page, applicant());
   // The applicant mirrors into the first household row, so a one-person household is already there.
@@ -167,11 +167,13 @@ test.describe("Warteliste", () => {
     expect([filler.customerNumber, other.customerNumber]).toEqual(["1", "2"]);
     expect(await countOnRegister()).toBe(QUOTA);
 
-    // The third applicant meets a register with nothing left to give: no number is proposed, the
-    // limit is named, and the way onto the waiting list is offered right there. It is a link and not
-    // a redirect on purpose — the form stays on screen, because the quota may be what should change.
+    // The third applicant meets a register with nothing left to give: the number dropdown has
+    // nothing to offer and is disabled, the limit is named, and the way onto the waiting list is
+    // offered right there. It is a link and not a redirect on purpose — the form stays on screen,
+    // because the quota may be what should change.
     await page.goto("/kunden/neu");
-    await expect(page.getByTestId("proposed-number")).toHaveText(de.customers.derived.unknown);
+    await expect(page.getByTestId("customer-number-select")).toBeDisabled();
+    await expect(page.getByTestId("customer-number-select").locator("option")).toHaveCount(0);
     await expect(page.getByTestId("registration-error")).toContainText(
       de.customers.errors.noFreeCustomerNumber(QUOTA),
     );
@@ -234,7 +236,7 @@ test.describe("Warteliste", () => {
     // beneath it, so a walk-in may still be registered. FD decide who is served, not the software.
     await page.goto("/kunden/neu");
     await expect(page.getByTestId("waiting-list-free-slot-detail")).toHaveText(names);
-    await expect(page.getByTestId("proposed-number")).toHaveText(filler.customerNumber);
+    await expect(page.getByTestId("customer-number-select")).toHaveValue(filler.customerNumber);
 
     // The hub carries no banner any more, in any state (FR-1): it named one applicant and one number
     // above the register staff came for, and that decision now stands where it is made. What is left

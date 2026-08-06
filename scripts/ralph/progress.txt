@@ -1,6 +1,5 @@
 # Ralph Progress Log
-Started: Sun Aug  2 10:27:14 CEST 2026
----
+Started: Thu Aug  6 08:53:47 CEST 2026
 
 ## Codebase Patterns
 - **Measuring a screen's height**: `next build` then `npm run start -- --port 3100` (kill any
@@ -62,191 +61,222 @@ Started: Sun Aug  2 10:27:14 CEST 2026
 - **A UI review needs a *populated* screen.** `data/fd.db` has ~20 households; a scroll cap or a
   column layout proves nothing against 8 rows. Copy the db to `/tmp`, seed through Prisma, and point
   `DATABASE_URL` **and** `FD_FIXED_NOW_FILE` at the copy for `npm run start -- --port 3100`.
+- **A helper two server actions share cannot live in either of them.** A `"use server"` module may
+  export nothing but async functions, and every export it *does* have becomes a callable endpoint.
+  Put it in a plain sibling module taking `deps` as a parameter — `registration-input.ts` (schema)
+  and `kunden/neu/fresh-pool.ts` (the lost-race re-read) are both that shape.
+- **Removing or renaming a UI testid is a multi-spec change, and no gate but `test:e2e` sees it.**
+  A testid is a string: `lint`, `typecheck` and `test:coverage` are all green with five broken specs.
+  `grep -rn "<testid>" tests/` and run the full suite in the *same* story as the UI change.
 - **E2E customer-number bands are taken, not squeezed into**: 201–206/239 (counter), 211 (portions),
-  221–222 (serve), 231 (reminders), 241 (block), 251 (reissue), 271 (age 13), 281–285 (customer
-  list), 291 (customer record), 301–303 (group progress), 311–315 (group walk). A new spec takes the
-  next band up — **unless a later-running spec asserts an end of the register**. `group-walk.spec.ts`
-  asserts 315 is the last RED number, and the suite runs in *alphabetical file order*, so a spec
-  sorting before it must seed *below* 311. Check what the specs after yours assert about the whole
-  register before choosing a band, not only which numbers are free.
+  221–222 (serve), 231 (reminders), 232–234 (registration, US-24), 241 (block), 251 (reissue),
+  271 (age 13), 281–285 (customer list), 291 (customer record), 301–303 (group progress),
+  311–315 (group walk). A new spec takes the next band up — **unless a later-running spec asserts an
+  end of the register**. `group-walk.spec.ts` asserts 315 is the last RED number, and the suite runs
+  in *alphabetical file order*, so a spec sorting before it must seed *below* 311. Check what the
+  specs after yours assert about the whole register before choosing a band, not only which numbers
+  are free.
+- **Only numbers ≤ the quota (240) exist as far as the register's *pool* is concerned.** Most bands
+  above sit above 240, which is fine for a spec that seeds a household and looks at it, and useless
+  for one about which numbers are *offered*: `freeNumbers` is `1..quotaN`, so 241 is neither free nor
+  taken. A spec about the pool has to seed inside the quota — 232–238 and 223–230 are the room left
+  down there.
 
 ---
 
-## 2026-08-02 10:30 - batch bookkeeping (chore)
-- The batch-23 load left two things half-done, both of which the `prds/README.md` workflow names:
-  `archive/2026-08-02-us-21-step-through-group/prd.json` held the *incoming* batch (all `passes`
-  false) instead of the finished batch 22, and `prds/done/22-us-21-step-through-group.json` was
-  never written. Both now hold `HEAD:scripts/ralph/prd.json`, the batch-22 file as it finished.
-- The `## Codebase Patterns` block was carried over from the archived `progress.txt` rather than
-  starting empty (README point 2) — this batch edits the same screen and runs the same tooling.
-
----
-
-## 2026-08-02 10:30 - US-001 (groupProgress, domain)
-- Implemented `src/domain/distribution/groupProgress.ts`: `groupProgress(entries): Progress`, the one
-  rule behind the `/ausgabe` tally (US-23). Strict TDD — the invariant test (`served <= expected`)
-  was written and run red (module missing) before a line of implementation existed.
-- Files changed:
-  - `src/domain/distribution/groupProgress.test.ts` (new, 6 named tests)
-  - `src/domain/distribution/groupProgress.ts` (new)
-  - `docs/technical_documentation.md` (tree entries + a `### src/domain/distribution/groupProgress.ts`
-    section beside `groupWalk.ts`)
-  - `scripts/ralph/prd.json` (US-001 passes: true)
-- Gates: lint, typecheck, `test:coverage` (47 files / 947 tests, `groupProgress.ts` 100/100/100/100,
-  domain + application thresholds intact) and `next build` all green.
+## 2026-08-06 09:05 - US-001 (batch 24 / US-24.1)
+- `freeNumbers(takenNumbers, quotaN)` added to `src/domain/customer/customerNumber.ts` — the whole
+  ascending pool of free slots — and `findLowestFreeNumber` re-expressed as its first element, so the
+  register is scanned once and the number the screen opens on cannot disagree with the one the rule
+  allocates. `lowestFreeNumber` is unchanged on top of that.
+- `assertFreeNumber(requested, takenNumbers, quotaN)` added: range first, occupancy second. A number
+  outside `1..quotaN` (or not whole) raises the new `CustomerNumberOutOfRange`; a number an active
+  customer holds raises the *existing* `CustomerNumberTaken`, deliberately the same error the
+  repository raises from its partial unique index.
+- `CustomerNumberOutOfRange` added to `DomainErrorCode` and tiered `refusal` in
+  `src/app/notice-tier.ts` (the `Record` failed the build until it was tiered — the mechanism working).
+- Files: `src/domain/customer/customerNumber.ts` + `.test.ts` (34 tests), `src/domain/errors.ts`,
+  `src/app/notice-tier.ts` + `.test.ts`, `docs/technical_documentation.md`,
+  `docs/ui_action_feedback_review.md`. Batch bookkeeping (archive, PRD, `prds/README.md`) landed as a
+  separate `chore(ralph)` commit first.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1009 tests, domain + application 100%), build.
 - **Learnings for future iterations:**
-  - `expected` is `!blocked || servedToday`, and the `||` is the whole story: a household blocked
-    *after* it collected stays in the denominator, which is what makes `served <= expected` true by
-    construction rather than by test. US-003 must pass the roster rows straight in — the shapes were
-    chosen to match, so `groupProgress(members)` type-checks with `GroupRosterMember` as it is.
-  - The invariant is asserted over **every sub-roster** of the four flag combinations (a 16-case
-    power set built in the spec), not one sample — cheap here because the state space is two booleans,
-    and it is the criterion the PRD spells out.
-  - Both counters come out of **one** pass, so the served count and the marks in the list cannot
-    drift: the screen renders `progress` and the same `members` array US-003 counted.
-
+  - **A new `DomainErrorCode` costs four edits, not one**: the union in `src/domain/errors.ts`, the
+    class, `TIERS` in `src/app/notice-tier.ts` (a `Record` over the union, so the build names it), and
+    *two* docs — `docs/technical_documentation.md`'s errors section lists every subclass by name, and
+    `docs/ui_action_feedback_review.md` §4 has a table of every code sorted by tier plus a running
+    count ("a 31st code fails the build"), which goes stale silently.
+  - **The count in that sentence is stated in three places** — `notice-tier.ts`'s doc comment, its
+    `TIERS` comment, and the review doc. Grep for the old number, not for the word "code".
+  - `docs/technical_documentation.md` describes a domain module **three** times, not two: the `src/`
+    tree line (~line 139), the `### <path>` reference section, and often a prose passage further down
+    that says *why* it has the shape it has (here, "the rule in two forms" at ~line 1048). Grep the
+    exported function names across the file, not just the module path.
+  - **Two error codes with one German sentence is a deliberate pattern here**, not a redundancy: the
+    code is what the program branches on (`registerCustomer` retries `CustomerNumberTaken` by type),
+    the sentence is what staff read. Do not "tidy" them together.
+  - The pre-commit hook runs `eslint --fix` and `prettier --write` on staged files and re-stages, so a
+    formatting slip is fixed rather than reported — but `npm run format:check` still catches files the
+    hook never saw (the incoming `tasks/*.md` PRD from the loader was unformatted).
 ---
 
-## 2026-08-02 11:05 - US-002 (listForDay, ports + infrastructure)
-
-- `DistributionRecordRepository` gained `listForDay(dayKey)` — every hand-out written on one Berlin
-  day, in one query, so US-003 can answer "who of this group has collected?" without a query per
-  household. The adapter is a single `findMany({ where: { dayKey } })` mapped through the existing
-  `toRecord`, so `dayKey` still never leaves the adapter. No schema change, no migration.
-- Files changed:
-  - `src/application/ports.ts` (the method + its doc comment)
-  - `src/infrastructure/prisma/distribution-record-repository.ts` (the adapter)
-  - `src/infrastructure/prisma/distribution-record-repository.test.ts` (3 integration tests: the day
-    asked for whoever collected; the day before and after excluded; an empty day is `[]`)
-  - the five test files holding a `FakeDistributionRecordRepository` (see Codebase Patterns)
-  - `docs/technical_documentation.md` (the ports table row)
-  - `scripts/ralph/prd.json` (US-002 passes: true)
-- Gates: lint, typecheck, `test:coverage` (47 files / 950 tests, domain + application at 100%) and
-  `next build` all green.
+## 2026-08-06 09:15 - US-002 (batch 24 / US-24.2)
+- `RegistrationProposal` gained `readonly freeNumbers: ReadonlyArray<number>` — the ascending pool of
+  free slots the registration dropdown will offer. `customerNumber` stays, keeps its `number | null`
+  type and its meaning for the three callers that only ask "is a slot free, and which"
+  (`/kunden`, `/warteliste`, `FreeSlotBanner`).
+- `proposeRegistration` now calls `freeNumbers` **once** and takes `customerNumber` from the result
+  (`free.length === 0 ? null : free[0]`) instead of calling `findLowestFreeNumber` — one scan, so the
+  number the form opens on cannot disagree with the numbers it offers. `NoSettingsInForce` and the
+  callers' catch behaviour are untouched.
+- Files: `src/application/customers/propose-registration.ts`,
+  `src/application/customers/customers.test.ts` (5 new named tests, written red first),
+  `docs/technical_documentation.md` (§`proposeRegistration and readCustomer`).
+- Gates: lint, typecheck, `test:coverage` (49 files, 1014 tests, domain + application 100%), build,
+  `format:check`.
 - **Learnings for future iterations:**
-  - The **key, not the instant** is the parameter. Passing a `Date` would have put a second
-    `berlinDayKey` call in the adapter, and the boundary between two days would then be decided in
-    two places; the caller already holds the Berlin day from the `Clock`.
-  - The four fakes that actually hold records now filter by `berlinDayKey(record.date) === dayKey`,
-    which is what makes US-003's "23:30 Berlin, already tomorrow in UTC" test provable against a
-    fake at all. `maintain-customer.test.ts`'s stub fake answers `[]`, matching its `listForCustomer`.
-  - `docs/technical_documentation.md` has **no `###` section for this adapter** — only the tree line
-    at ~203 and the ports table at ~302. Adding a port method means the table row; running
-    `npx prettier --write` on that file afterwards is required, because the table's column padding
-    is Prettier's.
-
+  - **`proposeRegistration` has no test file of its own** — its tests live in the shared
+    `src/application/customers/customers.test.ts` under `describe("proposeRegistration")`, alongside
+    `registerCustomer`, `readCustomer` and the rest. `grep -n 'describe("' ` that file before creating
+    a new one; the hand-written fakes at its top are shared by every block in it.
+  - **`FakeCustomerRepository` derives `takenActiveNumbers` from live status**, exactly like the
+    partial index: the constructor's `taken` array plus every `created` row that is not `ARCHIVED`.
+    To prove an archived household released its slot, `create({ ...storedCustomer("ACTIVE"),
+    customerNumber: N })` and then `archive(id, reason, date)` on the fake directly — no use case
+    needed, and `storedCustomer` hard-codes number 50, so always override it.
+  - **A widened read-model interface costs nothing at the call sites** when the new field is additive:
+    the four `proposeRegistration` callers compiled untouched. Adding a field is the cheap change;
+    changing what an existing one means is the expensive one — which is why US-24.2 kept
+    `customerNumber` rather than replacing it.
 ---
 
-## 2026-08-02 11:45 - US-003 (the roster carries who they are and whether they collected)
-
-- `readGroupRoster` was **extended**, not replaced: `GroupRosterView` gained `members`
-  (`GroupRosterMember` = `{ customerId, customerNumber, firstName, lastName, blocked, servedToday }`,
-  in the register's own order) and `progress` (`groupProgress(members)` from US-001). The day's
-  hand-outs are read through **one** `listForDay(berlinDayKey(deps.clock.now()))` and joined to the
-  roster in memory by `customerId`. Still a pure read — no record, no reminder, no status change, no
-  audit entry.
-- Files changed:
-  - `src/application/distribution/read-group-roster.ts` (the `records` dep, the member shape, the join)
-  - `src/application/distribution/read-group-roster.test.ts` (a `FakeDistributionRecordRepository`
-    and 11 new named tests; the 15 US-21 tests are untouched and still pass)
-  - `docs/technical_documentation.md` (the `readGroupRoster` section: the new fields and the two
-    US-23 decisions)
-  - `scripts/ralph/prd.json` (US-003 passes: true)
-- Gates: lint, typecheck, `test:coverage` (47 files / 962 tests, domain + application at 100%) and
-  `next build` all green. Strict TDD — 11 red, 15 green, then the implementation.
+## 2026-08-06 09:12 - US-003 (batch 24 / US-24.3)
+- `RegisterCustomerInput` gained `readonly customerNumber?: number` — the slot staff chose. Absent,
+  registration is bit-for-bit what it was: `lowestFreeNumber` plus the `MAX_ATTEMPTS` retry on a lost
+  race. Present, the number goes through `assertFreeNumber` and is written **as given**.
+- The retry is the whole design question, and the answer is an attempt budget rather than a second
+  code path: `CHOSEN_NUMBER_ATTEMPTS = 1`. Retrying a number a staff member picked could only write a
+  different one — the outcome the feature exists to prevent — or fail identically. So the `for(;;)`
+  loop keeps its shape and only the number's origin and the budget differ; the create-and-audit block
+  is not duplicated, and the transaction, first card, status and audit entry cannot come apart
+  between the two paths.
+- The audit entry is untouched: `customerNumber` was already in `REGISTERED_FIELDS`, and who chose
+  the slot is not something a later reader could act on.
+- `registerFromWaitingList` needed **no code change** — it inherits the field through
+  `RegisterCustomerInput` — only its `@throws`. A test proves its queue guarantee still holds when
+  the failure is `CustomerNumberTaken` rather than an empty household.
+- Files: `src/application/customers/register-customer.ts` + `customers.test.ts` (6 new named tests),
+  `src/application/waiting-list/register-from-waiting-list.ts` + `waiting-list.test.ts` (2 new),
+  `docs/technical_documentation.md`.
+- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1022 tests, domain + application
+  100%), build. No UI change in this story, so no browser check — US-004 is where the screen moves.
 - **Learnings for future iterations:**
-  - **No composition root needed changing.** `src/app/ausgabe/deps.ts` already put `records` in
-    `distributionDeps` (the counter shows a hand-out already recorded today), so adding the dep to
-    `ReadGroupRosterDeps` type-checked at the call site untouched. Check `deps.ts` before wiring.
-  - The PRD's "23:30 Berlin on a day whose UTC date is already the next one" **cannot happen** —
-    Berlin is *ahead* of UTC, so the disagreement runs the other way. The two tests written instead
-    pin both directions of the real boundary (see Codebase Patterns), which is what the criterion was
-    reaching for.
-  - `customerRecord` in the roster spec defaulted `id` to `customerNumber`, which made the join
-    unprovable. It now takes an optional `id`, and one test gives two households swapped ids and
-    numbers — joining by the wrong key marks the wrong household, and only that shape catches it.
-  - `groupProgress(members)` type-checks against `GroupRosterMember` **as it stands**, because US-001
-    chose `ProgressEntry` to be the two flags and nothing else. US-004 renders `progress` and the same
-    `members` array, so no third count exists anywhere.
-
+  - **An optional input field is the cheap way to extend a use case with two callers**: nothing in
+    `registerFromWaitingList` mentions `customerNumber`, and it got the feature by construction.
+    Widening the shared input beats a parameter on each path — the same lesson US-002 recorded about
+    widening a read model.
+  - **A test name is part of the story's vocabulary.** "another registration took the chosen one" read
+    fine until "chosen" started meaning *staff-chosen*; renamed to "won the race for it". Grep the
+    existing test names for a word the story is about to redefine.
+  - `FakeCustomerRepository.stealNext(1)` proves the *no-retry* rule as well as the retry one: with a
+    chosen number the steal must surface as `CustomerNumberTaken` with `created` still empty, where
+    the allocating path lands on 2.
+  - **A domain guard makes the fake's own uniqueness check irrelevant**: the waiting-list fake never
+    rejects a duplicate number, but `assertFreeNumber` refuses before `create` is reached, so seeding
+    `new FakeCustomerRepository(17)` is enough to test a taken slot there.
 ---
 
-## 2026-08-02 12:30 - US-004 (the tally, and the group list behind it)
-
-- New `src/app/ausgabe/group-progress-card.tsx`: a `Card` between the banner and the counter holding
-  a closed `<details>`. The summary **is** the tally (`Gruppe Rot: 40 von 122 Haushalten abgeholt`,
-  both figures in the one `group-progress` node); opening it lists the group in customer-number order
-  in `sm:grid-cols-2 lg:grid-cols-3`, capped at `max-h-72` and scrolling inside its own box. Each row
-  is a `<Link href="/ausgabe?nummer=N">` named "400 Tatyana O'Reilly". Served rows carry `abgeholt`
-  (`served-<number>`), blocked ones `gesperrt` (`blocked-<number>`), both through `/kunden`'s
-  `StateWord`; the unserved carry the name and nothing else. An empty group is a sentence, not an
-  empty disclosure. Server component throughout — the fold is the browser's.
-- Files changed:
-  - `src/app/ausgabe/group-progress-card.tsx` (new)
-  - `src/app/ausgabe/page.tsx` (the card between banner and counter, keyed by the looked-up number)
-  - `src/i18n/de.ts` (`de.distribution.progress`: `summary`, `open`, `close`, `served`, `empty`)
-  - `docs/technical_documentation.md` (tree line + a `#### The tally and the group list` section)
-  - `docs/ui_conversion_guide.md` (three findings, see below)
-  - `scripts/ralph/prd.json` (US-004 passes: true)
-- Gates: lint, typecheck, `test:coverage` (47 files / 962 tests, domain + application at 100%),
-  `next build` and the **full e2e suite** (97 passed, 1 pre-existing skip) all green.
-- Measured at 1440x900 against a production build with 126 seeded RED households: **54px closed**,
-  358px open, counter input bottom 556px closed / 860px open — above the fold either way. No
-  horizontal overflow (`scrollWidth - clientWidth === 0`) at 1920, 1280, 1024, 800 or 390; at 390 the
-  card is 76px closed because the sentence wraps, and the list stacks to one column.
+## 2026-08-06 12:30 - US-004 (batch 24 / US-24.4)
+- The registration form's read-only `proposed-number` `Stat` is **replaced** by a labelled native
+  `<select name="customerNumber" data-testid="customer-number-select">` over `proposal.freeNumbers`,
+  uncontrolled, opening on `proposal.customerNumber` via `defaultValue`, `h-8` to match this form's
+  `Input`s (the settings screen's `SELECT` is `h-9` — that screen puts every control on `h-9`, this
+  one leaves `Input` at its default, and copying the height would be the ragged baseline the
+  conversion guide warns about). Hint `free-number-count` beneath it, inflected at one, and **absent**
+  on a full register — „0 freie Nummern — die niedrigste ist vorausgewählt“ would be a sentence about
+  a preselection that does not exist, and the `Alert` above the form is the message there.
+- `de.customers.errors.customerNumberTaken` → `customerNumberUnavailable(customerNumber)`, one
+  sentence for `CustomerNumberTaken` **and** `CustomerNumberOutOfRange`. The old string ended „bitte
+  erneut speichern“, which was right while the software picked the number and is wrong now that staff
+  do. `assignment.proposedNumber` removed.
+- New `src/app/kunden/neu/fresh-pool.ts`: on a lost race **only**, re-read `proposeRegistration` and
+  return the pool in `RegisterCustomerState.freeNumbers`, which the form prefers over its prop. Both
+  registration actions share it and hand it their own deps. It is deliberately **not** `"use server"`
+  — exporting a helper from an action module publishes it as a callable endpoint.
+- Both actions pass `form.customerNumber` through; neither gains a rule of its own.
+- Files: `registration-form.tsx`, `fresh-pool.ts` (new), `actions.ts`,
+  `warteliste/[entryId]/registrieren/actions.ts`, `registration-input.ts`,
+  `register-customer-state.ts`, `i18n/de.ts`, five e2e specs, `docs/technical_documentation.md`,
+  `docs/ui_redesign_kunden_neu.md`.
+- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1022 tests), build, and the
+  **full e2e suite** (116 passed, 1 pre-existing skip) — run here rather than left to US-005, because
+  removing a testid touched five spec files.
+- Browser-verified against a production build on 3100: combobox named „Kundennummer“ with the lowest
+  free number selected, hint is readable `<p>` text with no `title`, Tab from `add-member` lands on
+  it, type-ahead works, 0 horizontal overflow at 1920/1280/1024/800/390, select 32px = `Input` 32px.
 - **Learnings for future iterations:**
-  - **A `<details>` survives a soft navigation.** Clicking a row re-renders the route client-side, so
-    `open` stayed `true` and the verdict arrived under a hundred rows. `key={the looked-up number}`
-    on the card remounts it. The browser check caught this; nothing in the suite would have.
-  - **`group` + `group-open:` swaps the fold's own label without a client component** — "Liste
-    anzeigen" / "Liste ausblenden", and the hidden word stays out of the accessibility tree, so the
-    summary is still announced with exactly one of them.
-  - Reviewing this screen needs a **populated** group. `data/fd.db` holds 8 walkable RED households,
-    which proves nothing about a scroll cap: copy it to `/tmp`, seed ~120 through Prisma and point
-    `DATABASE_URL` + `FD_FIXED_NOW_FILE` at the copy for `npm run start -- --port 3100`. The seed
-    shape is in `tests/e2e/group-walk.spec.ts` (`householdMembers`/`certificates`/`cards` are
-    relations; `DistributionRecord` needs `showedUp` and has no `portions` column).
-  - `StateWord` from `src/app/kunden/state-word.tsx` is **the** way to mark a state anywhere in the
-    app — it puts the testid on the word, not the badge. `gesperrt` therefore comes from
-    `de.customers.status.BLOCKED` rather than a second key under `distribution.progress`: one word,
-    one meaning, one source.
-
+  - **Removing a UI testid is a five-spec change here.** `proposed-number` was driven by
+    `archive`, `registration`, `waiting-list`, `card` and `reregistration` — four of them named after
+    something else entirely. `grep -rn "<testid>" tests/` and rewrite them in the *same* story;
+    typecheck cannot see a testid string, so the only gate that catches it is `test:e2e`.
+  - **`innerText()` → `inputValue()` and `toHaveText` → `toHaveValue`** is the whole migration when a
+    read-only tile becomes a `<select>`. The full-register case is the one that needs thought: there
+    is no „—“ to assert any more, so assert `toBeDisabled()` plus `option` count 0.
+  - **A `<select>`'s type-ahead cannot be proved against an arbitrary pair of digits.** Chrome
+    searches from the *current* selection and keeps its buffer for ~1s, so a second check inside the
+    same run reads as a stale prefix — put `page.waitForTimeout(1500)` between attempts — and the
+    number you type must actually be free in `data/fd.db` (6–18 are taken there, so „15“ lands on
+    150 and proves nothing).
+  - **A helper two server actions share cannot live in either of them.** A `"use server"` module may
+    export nothing but async functions, and every export it *does* have becomes a callable endpoint.
+    A plain sibling module taking `deps` as a parameter is the shape — `registration-input.ts` is the
+    same pattern for the schema.
+  - **`docs/ui_redesign_kunden_neu.md` is a record of a finished conversion, not a live reference.**
+    When a later story undoes one of its decisions, add a marked supersession note beside it (`>
+    **Superseded by US-24**` / `~~…~~ [superseded by US-24]`) and say what is *not* superseded —
+    rewriting it would describe a redesign that never happened.
 ---
 
-## 2026-08-02 13:15 - US-005 (E2E — the tally moves when a household is served)
-
-- New `tests/e2e/group-progress.spec.ts` (6 serial tests), pinned to the RED Thursday 08.01.2026
-  through `FD_FIXED_NOW_FILE` and dropping the file in `afterAll`. Three RED households seeded
-  through Prisma at **301–303** (served / untouched / blocked). It asserts: the summary states the
-  group in words and both figures with nothing opened; the list renders in the register's own order
-  with the blocked household marked `gesperrt` and no served marks yet; the blocked household is
-  listed but out of `expected`; serving 301 **through the UI** raises `served` by exactly one on the
-  next load, marks `served-301` and leaves 302 unmarked; clicking a name in the list produces that
-  household's verdict banner and the fold comes back closed; opening and closing the fold leaves a
-  register snapshot identical.
-- Files changed:
-  - `tests/e2e/group-progress.spec.ts` (new)
-  - `docs/technical_documentation.md` (tree line + a spec-by-spec bullet beside `group-walk.spec.ts`,
-    and the "opening writes nothing" bullet in the card's section now names its proof)
-  - `scripts/ralph/prd.json` (US-005 passes: true)
-- Gates: lint, typecheck, `test:coverage` (47 files / 962 tests, domain + application at 100%),
-  `next build` and the **full e2e suite** (103 passed, 1 pre-existing skip — 6 new) all green. No
-  other spec file was modified. No browser review: this story adds no UI, and the screen it drives
-  was reviewed with `playwright-cli` under US-004.
+## 2026-08-06 13:20 - US-005 (batch 24 / US-24.5)
+- `tests/e2e/registration.spec.ts` extended by **four** tests — no new spec file, no other spec
+  touched. They sit *after* the three intake tests on purpose: those still register on the number the
+  form opened on, so they are the proof that the default did not move when the tile became a control.
+  - the control opens on the **lowest free number**, read out of Prisma at assertion time;
+  - a number an **active** household holds is not among the options and one **archiving** freed is —
+    two seeded households differing in nothing but their status, so the status is the only thing that
+    can explain the difference;
+  - a number **picked** out of the list (higher than the proposal) is the number the record, the card
+    `234k1` and the customer row all carry;
+  - a number **posted around** the control — an `<option>` appended by hand, the shape a form left
+    open over a distribution day would post — is refused with the German sentence naming it, and a
+    snapshot of every customer row plus the household-member, certificate, card and audit-entry
+    counts is identical either side of the attempt.
+- Seeds 232 (ACTIVE) and 233 (ARCHIVED) through Prisma in `beforeAll` and registers on 234.
+- Files: `tests/e2e/registration.spec.ts`, `docs/technical_documentation.md` (the
+  `registration.spec.ts` bullet in the e2e section).
+- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1022 tests), build, and the full
+  e2e suite — **120 passed**, 1 pre-existing skip (up from 116, the four new tests).
 - **Learnings for future iterations:**
-  - **The band must clear what *later* specs assert, not just what earlier ones took.** The obvious
-    move was "next band up" — 321+ — and it would have failed `group-walk.spec.ts`, which asserts
-    315 is the register's last RED number and runs *after* this spec in alphabetical file order. The
-    numbers went to 301–303 instead. See Codebase Patterns.
-  - **`expected` is restated in the spec rather than imported.** Calling `groupProgress` from an e2e
-    spec would compare the rule with itself; the spec spells FR-5 out (`!blocked || servedToday`)
-    over rows read straight from Prisma, so the assertion is an independent statement of the rule.
-  - **A `<details>`'s state is read with `toHaveJSProperty("open", true|false)`**, not
-    `toHaveAttribute("open", "")` — the property is the live state, the attribute only the initial
-    one, and toggling by click does not write the attribute back.
-  - Locate the fold by what it holds — `page.locator("details").filter({ has: … })` — because
-    `/ausgabe` renders the block and archive disclosures too, and `page.locator("details").first()`
-    is a bet on DOM order.
-  - `getByTestId(/^group-member-/).evaluateAll(…)` reads the rendered order in one round trip;
-    comparing it with Prisma's `orderBy: customerNumber` is what proves the list does not re-sort,
-    where asserting `301 → 302 → 303` would pass on a page sorted by anything at all.
+  - **A band above the quota cannot test the pool.** Every band from 241 up is invisible to
+    `freeNumbers`, which is `1..quotaN` — a household on 241 is neither free nor taken, so "a taken
+    number is not offered" would pass against a control that offers nothing at all. The registration
+    band had to go *inside* 240 (232–234), which is the opposite of the "take the next band up" rule
+    every other spec follows.
+  - **`toHaveValue` does not work on an `<option>`** — "Not an input element". The option's number is
+    an attribute: `toHaveAttribute("value", …)`. `toHaveValue` is for the `<select>` itself, which is
+    how the other specs read the current choice.
+  - **Compute the expectation without the function under test.** The lowest free number is worked out
+    in the spec from the non-archived rows and the quota in force, not by importing
+    `findLowestFreeNumber` — importing it would make the e2e assertion agree with the rule it is
+    supposed to be checking from the outside. `foldName` is a different case: it is imported for
+    *seeding*, where the spec has to write what the app would have written.
+  - **A stale submission is `evaluate` on the select, not `selectOption`.** `selectOption` fails on a
+    value that is not in the list, which is exactly the case worth testing; appending the `<option>`
+    and setting `.value` posts what a form rendered before somebody else took the number would post.
+    The select is uncontrolled, so React neither notices nor undoes it.
+  - **`prisma.settingsVersion.findFirstOrThrow({ orderBy: [{ recordedAt: "desc" }, { id: "desc" }] })`
+    is how a spec reads the quota in force.** `recordedAt` is deliberately not unique, so the tiebreak
+    on `id` matters — `settings.spec.ts` appends versions and two saves can share a millisecond.
+  - **Adding a `beforeAll` to a shared serial describe seeds for the specs above it too.** Numbers far
+    from the low sequence keep that harmless; a seed inside the range the intake specs consume would
+    silently rewrite the successor arithmetic in "an empty household is refused".

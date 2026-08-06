@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CardIndexTaken,
   CustomerNotFound,
+  CustomerNumberOutOfRange,
   CustomerNumberTaken,
   GroupUnchanged,
   MissingRequiredField,
@@ -37,6 +38,10 @@ describe("tierOf", () => {
   it("tiers the two lost races apart: a taken number is retryable, a taken card index is not", () => {
     expect(tierOf(new CustomerNumberTaken(118))).toBe("refusal");
     expect(tierOf(new CardIndexTaken(7, 3))).toBe("error");
+  });
+
+  it("calls a chosen number outside the quota a refusal — the form is right there", () => {
+    expect(tierOf(new CustomerNumberOutOfRange(241, 240))).toBe("refusal");
   });
 
   it("calls anything untyped an error, because nobody has named it", () => {

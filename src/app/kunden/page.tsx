@@ -58,6 +58,7 @@ import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { FREE_SLOT_ACCENT, GROUP_STYLES } from "../accents";
+import { selectClass } from "../select";
 import { waitingListDeps } from "../warteliste/deps";
 import { customerDeps } from "./deps";
 import { SHELL } from "../shell";
@@ -101,10 +102,7 @@ const CERTIFICATE_CHROME: Record<CertificateState, Chrome | null> = {
 };
 
 /** The three filter selects, styled from the same string so they cannot drift apart. */
-const FILTER_SELECT =
-  "h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm transition-colors " +
-  "outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 " +
-  "dark:bg-input/30";
+const FILTER_SELECT = selectClass("h-9");
 
 /** The German name of a certificate state as a *filter option*, which spells out what it includes. */
 function certificateFilterLabel(state: CertificateState): string {

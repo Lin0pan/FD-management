@@ -36,7 +36,7 @@ test("a registration issues card k1 and the card view shows it", async ({ page }
 
   // The proposal is what the save will actually assign on this serial run, so the card number can
   // be predicted from it — that prediction is half of what this spec is for.
-  const proposedNumber = await page.getByTestId("proposed-number").innerText();
+  const proposedNumber = await page.getByTestId("customer-number-select").inputValue();
 
   await page.locator("#firstName").fill(applicant.firstName);
   await page.locator("#lastName").fill(applicant.lastName);

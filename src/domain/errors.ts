@@ -13,6 +13,7 @@ import type { Verdict } from "./distribution/counterVerdict";
 export type DomainErrorCode =
   | "NoFreeCustomerNumber"
   | "CustomerNumberTaken"
+  | "CustomerNumberOutOfRange"
   | "CustomerNotFound"
   | "CustomerArchived"
   | "CustomerNotArchived"
@@ -170,6 +171,29 @@ export class CustomerNumberTaken extends DomainError {
   constructor(customerNumber: number) {
     super(`Customer number ${customerNumber} was taken by another registration`);
     this.customerNumber = customerNumber;
+  }
+}
+
+/**
+ * A chosen customer number is not a slot at all: it is not a whole number, or it lies outside
+ * `1..quotaN` (US-24). Carries both the number and the quota it fell outside, so the limit can be
+ * named rather than merely asserted.
+ *
+ * It is a **separate code from {@link CustomerNumberTaken} even though staff read the same
+ * sentence** for both — either way they pick another number. The codes differ because the program
+ * branches on them: `registerCustomer` retries a `CustomerNumberTaken` when it allocated the number
+ * itself, and a quota violation wearing that code would be retried as if it were a lost race. It is
+ * not hypothetical either — US-14 lets staff lower the quota while a registration form is open.
+ */
+export class CustomerNumberOutOfRange extends DomainError {
+  readonly code = "CustomerNumberOutOfRange";
+  readonly customerNumber: number;
+  readonly quotaN: number;
+
+  constructor(customerNumber: number, quotaN: number) {
+    super(`Customer number ${customerNumber} is not a slot in 1..${quotaN}`);
+    this.customerNumber = customerNumber;
+    this.quotaN = quotaN;
   }
 }
 
