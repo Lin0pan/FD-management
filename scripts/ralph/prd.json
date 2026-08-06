@@ -116,8 +116,8 @@
         "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first — a live dev server on port 3000 fails the suite for the wrong reason)"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "registration.spec.ts extended by four tests after the existing three (which still register on the number the form opens on, so they prove the default did not move). Seeds 232 ACTIVE and 233 ARCHIVED through Prisma and registers on 234 — a band inside the quota of 240 on purpose, because the pool is 1..quotaN and the other specs' bands above 240 are invisible to the control. The lowest free number is read from Prisma and computed in the spec rather than imported from customerNumber.ts, so the expectation cannot agree with the rule under test. The stale submission appends an <option> by hand and posts it; the snapshot compares every customer row plus the household-member, certificate, card and audit-entry counts. No other spec file touched. Full e2e suite: 120 passed, 1 pre-existing skip. Docs: technical_documentation.md §registration.spec.ts."
     }
   ]
 }

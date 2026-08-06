@@ -69,12 +69,18 @@ Started: Thu Aug  6 08:53:47 CEST 2026
   A testid is a string: `lint`, `typecheck` and `test:coverage` are all green with five broken specs.
   `grep -rn "<testid>" tests/` and run the full suite in the *same* story as the UI change.
 - **E2E customer-number bands are taken, not squeezed into**: 201–206/239 (counter), 211 (portions),
-  221–222 (serve), 231 (reminders), 241 (block), 251 (reissue), 271 (age 13), 281–285 (customer
-  list), 291 (customer record), 301–303 (group progress), 311–315 (group walk). A new spec takes the
-  next band up — **unless a later-running spec asserts an end of the register**. `group-walk.spec.ts`
-  asserts 315 is the last RED number, and the suite runs in *alphabetical file order*, so a spec
-  sorting before it must seed *below* 311. Check what the specs after yours assert about the whole
-  register before choosing a band, not only which numbers are free.
+  221–222 (serve), 231 (reminders), 232–234 (registration, US-24), 241 (block), 251 (reissue),
+  271 (age 13), 281–285 (customer list), 291 (customer record), 301–303 (group progress),
+  311–315 (group walk). A new spec takes the next band up — **unless a later-running spec asserts an
+  end of the register**. `group-walk.spec.ts` asserts 315 is the last RED number, and the suite runs
+  in *alphabetical file order*, so a spec sorting before it must seed *below* 311. Check what the
+  specs after yours assert about the whole register before choosing a band, not only which numbers
+  are free.
+- **Only numbers ≤ the quota (240) exist as far as the register's *pool* is concerned.** Most bands
+  above sit above 240, which is fine for a spec that seeds a household and looks at it, and useless
+  for one about which numbers are *offered*: `freeNumbers` is `1..quotaN`, so 241 is neither free nor
+  taken. A spec about the pool has to seed inside the quota — 232–238 and 223–230 are the room left
+  down there.
 
 ---
 
@@ -229,3 +235,48 @@ Started: Thu Aug  6 08:53:47 CEST 2026
     When a later story undoes one of its decisions, add a marked supersession note beside it (`>
     **Superseded by US-24**` / `~~…~~ [superseded by US-24]`) and say what is *not* superseded —
     rewriting it would describe a redesign that never happened.
+---
+
+## 2026-08-06 13:20 - US-005 (batch 24 / US-24.5)
+- `tests/e2e/registration.spec.ts` extended by **four** tests — no new spec file, no other spec
+  touched. They sit *after* the three intake tests on purpose: those still register on the number the
+  form opened on, so they are the proof that the default did not move when the tile became a control.
+  - the control opens on the **lowest free number**, read out of Prisma at assertion time;
+  - a number an **active** household holds is not among the options and one **archiving** freed is —
+    two seeded households differing in nothing but their status, so the status is the only thing that
+    can explain the difference;
+  - a number **picked** out of the list (higher than the proposal) is the number the record, the card
+    `234k1` and the customer row all carry;
+  - a number **posted around** the control — an `<option>` appended by hand, the shape a form left
+    open over a distribution day would post — is refused with the German sentence naming it, and a
+    snapshot of every customer row plus the household-member, certificate, card and audit-entry
+    counts is identical either side of the attempt.
+- Seeds 232 (ACTIVE) and 233 (ARCHIVED) through Prisma in `beforeAll` and registers on 234.
+- Files: `tests/e2e/registration.spec.ts`, `docs/technical_documentation.md` (the
+  `registration.spec.ts` bullet in the e2e section).
+- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1022 tests), build, and the full
+  e2e suite — **120 passed**, 1 pre-existing skip (up from 116, the four new tests).
+- **Learnings for future iterations:**
+  - **A band above the quota cannot test the pool.** Every band from 241 up is invisible to
+    `freeNumbers`, which is `1..quotaN` — a household on 241 is neither free nor taken, so "a taken
+    number is not offered" would pass against a control that offers nothing at all. The registration
+    band had to go *inside* 240 (232–234), which is the opposite of the "take the next band up" rule
+    every other spec follows.
+  - **`toHaveValue` does not work on an `<option>`** — "Not an input element". The option's number is
+    an attribute: `toHaveAttribute("value", …)`. `toHaveValue` is for the `<select>` itself, which is
+    how the other specs read the current choice.
+  - **Compute the expectation without the function under test.** The lowest free number is worked out
+    in the spec from the non-archived rows and the quota in force, not by importing
+    `findLowestFreeNumber` — importing it would make the e2e assertion agree with the rule it is
+    supposed to be checking from the outside. `foldName` is a different case: it is imported for
+    *seeding*, where the spec has to write what the app would have written.
+  - **A stale submission is `evaluate` on the select, not `selectOption`.** `selectOption` fails on a
+    value that is not in the list, which is exactly the case worth testing; appending the `<option>`
+    and setting `.value` posts what a form rendered before somebody else took the number would post.
+    The select is uncontrolled, so React neither notices nor undoes it.
+  - **`prisma.settingsVersion.findFirstOrThrow({ orderBy: [{ recordedAt: "desc" }, { id: "desc" }] })`
+    is how a spec reads the quota in force.** `recordedAt` is deliberately not unique, so the tiebreak
+    on `id` matters — `settings.spec.ts` appends versions and two saves can share a millisecond.
+  - **Adding a `beforeAll` to a shared serial describe seeds for the specs above it too.** Numbers far
+    from the low sequence keep that harmless; a seed inside the range the intake specs consume would
+    silently rewrite the successor arithmetic in "an empty household is refused".
