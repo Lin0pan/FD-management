@@ -136,3 +136,38 @@ Started: Thu Aug  6 08:53:47 CEST 2026
     changing what an existing one means is the expensive one — which is why US-24.2 kept
     `customerNumber` rather than replacing it.
 ---
+
+## 2026-08-06 09:12 - US-003 (batch 24 / US-24.3)
+- `RegisterCustomerInput` gained `readonly customerNumber?: number` — the slot staff chose. Absent,
+  registration is bit-for-bit what it was: `lowestFreeNumber` plus the `MAX_ATTEMPTS` retry on a lost
+  race. Present, the number goes through `assertFreeNumber` and is written **as given**.
+- The retry is the whole design question, and the answer is an attempt budget rather than a second
+  code path: `CHOSEN_NUMBER_ATTEMPTS = 1`. Retrying a number a staff member picked could only write a
+  different one — the outcome the feature exists to prevent — or fail identically. So the `for(;;)`
+  loop keeps its shape and only the number's origin and the budget differ; the create-and-audit block
+  is not duplicated, and the transaction, first card, status and audit entry cannot come apart
+  between the two paths.
+- The audit entry is untouched: `customerNumber` was already in `REGISTERED_FIELDS`, and who chose
+  the slot is not something a later reader could act on.
+- `registerFromWaitingList` needed **no code change** — it inherits the field through
+  `RegisterCustomerInput` — only its `@throws`. A test proves its queue guarantee still holds when
+  the failure is `CustomerNumberTaken` rather than an empty household.
+- Files: `src/application/customers/register-customer.ts` + `customers.test.ts` (6 new named tests),
+  `src/application/waiting-list/register-from-waiting-list.ts` + `waiting-list.test.ts` (2 new),
+  `docs/technical_documentation.md`.
+- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1022 tests, domain + application
+  100%), build. No UI change in this story, so no browser check — US-004 is where the screen moves.
+- **Learnings for future iterations:**
+  - **An optional input field is the cheap way to extend a use case with two callers**: nothing in
+    `registerFromWaitingList` mentions `customerNumber`, and it got the feature by construction.
+    Widening the shared input beats a parameter on each path — the same lesson US-002 recorded about
+    widening a read model.
+  - **A test name is part of the story's vocabulary.** "another registration took the chosen one" read
+    fine until "chosen" started meaning *staff-chosen*; renamed to "won the race for it". Grep the
+    existing test names for a word the story is about to redefine.
+  - `FakeCustomerRepository.stealNext(1)` proves the *no-retry* rule as well as the retry one: with a
+    chosen number the steal must surface as `CustomerNumberTaken` with `created` still empty, where
+    the allocating path lands on 2.
+  - **A domain guard makes the fake's own uniqueness check irrelevant**: the waiting-list fake never
+    rejects a duplicate number, but `assertFreeNumber` refuses before `create` is reached, so seeding
+    `new FakeCustomerRepository(17)` is enough to test a taken slot there.

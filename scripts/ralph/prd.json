@@ -67,8 +67,8 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "RegisterCustomerInput gained optional customerNumber. One code path still writes: the loop keeps its shape and only the number's origin and the attempt budget differ (MAX_ATTEMPTS when allocated, CHOSEN_NUMBER_ATTEMPTS = 1 when chosen), so a chosen number is never substituted. registerFromWaitingList needed only @throws. Six named tests added to customers.test.ts and two to waiting-list.test.ts, red first; 1022 tests, domain + application 100%. Docs: technical_documentation.md §registerCustomer and the waiting-list bullet."
     },
     {
       "id": "US-004",
