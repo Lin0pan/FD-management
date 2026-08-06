@@ -23,8 +23,8 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "nextCardIndex + CardNumberTaken landed; docs/technical_documentation.md's cardNumber and errors sections updated with them (the paragraph claiming card numbers repeat across the archive is gone). US-007 still owns CLAUDE.md, domain_analysis.md, the PRD notes and the demo seed."
     },
     {
       "id": "US-002",
