@@ -12,7 +12,8 @@ import { germanDate } from "@/i18n/format";
  *
  * Every part is proved on its own already: `searchArchivedCustomers` lists only archived rows against
  * fakes, `draftFromArchived` copies a household without touching it, `registerCustomer` allocates the
- * lowest free number and issues `k1`, and the folded search keys are matched against a throwaway
+ * lowest free number and issues the next card due on it, and the folded search keys are matched
+ * against a throwaway
  * SQLite file. What none of them can see is the sentence FD actually cares about — *these are the same
  * people and a different customer*. That claim spans three screens, two customer records and the
  * allocator in between, so it can only be made here.
@@ -145,7 +146,10 @@ async function register(page: Page, lastName: string): Promise<Household> {
   const id = Number(new URL(page.url()).pathname.split("/").at(-1));
   expect(Number.isInteger(id)).toBe(true);
 
-  await expect(page.getByTestId("card-number")).toHaveText(`${customerNumber}k1`);
+  // The card names the slot, and the index is deliberately not pinned here: it counts the slot's
+  // whole run rather than this household's, so the successor below — registered onto the number the
+  // returning household released — is not `k1` (US-25).
+  await expect(page.getByTestId("card-number")).toHaveText(new RegExp(`^${customerNumber}k\\d+$`));
   return { id, customerNumber, applicant, child, address };
 }
 
@@ -305,6 +309,9 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     successor = await register(page, surname);
     expect(successor.customerNumber).toBe(returning.customerNumber);
     expect(successor.id).not.toBe(returning.id);
+    // The number is reusable, the card number is not: the returning household is still carrying
+    // `k1`, so the successor is handed `k2` (US-25).
+    await expect(page.getByTestId("card-number")).toHaveText(`${successor.customerNumber}k2`);
   });
 
   test("the archive search finds only the archived household of that name", async ({ page }) => {

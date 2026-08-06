@@ -20,6 +20,7 @@ import type {
   ArchivedCustomer,
   AuditEntry,
   AuditLog,
+  CardRepository,
   Clock,
   CustomerRepository,
   NewWaitingListEntry,
@@ -198,6 +199,35 @@ class FakeCustomerRepository implements CustomerRepository {
 
   archive(): Promise<void> {
     return Promise.reject(new Error("A waiting-list use case never archives a customer"));
+  }
+}
+
+/**
+ * The cards, as far as a promotion needs them: what the slot the applicant is given has already
+ * printed (US-25). Everything else a card store does belongs to a card use case, and a promotion
+ * that called one would be the second registration path this module exists to avoid.
+ */
+class FakeCardRepository implements CardRepository {
+  constructor(private readonly highestPerSlot: ReadonlyMap<number, number> = new Map()) {}
+
+  highestIndexForNumber(customerNumber: number): Promise<number> {
+    return Promise.resolve(this.highestPerSlot.get(customerNumber) ?? 0);
+  }
+
+  currentCard(): Promise<null> {
+    return Promise.reject(new Error("A waiting-list use case never reads a card"));
+  }
+
+  listCards(): Promise<never> {
+    return Promise.reject(new Error("A waiting-list use case never reads a card run"));
+  }
+
+  issueCounts(): Promise<never> {
+    return Promise.reject(new Error("A waiting-list use case never counts a customer's cards"));
+  }
+
+  issue(): Promise<never> {
+    return Promise.reject(new Error("A waiting-list use case never issues a card of its own"));
   }
 }
 
@@ -532,7 +562,14 @@ describe("registerFromWaitingList", () => {
     const customers = new FakeCustomerRepository(1);
 
     const customer = await registerFromWaitingList(
-      { waitingList, customers, settings: new FakeSettingsRepository(240), clock, audit },
+      {
+        waitingList,
+        customers,
+        cards: new FakeCardRepository(),
+        settings: new FakeSettingsRepository(240),
+        clock,
+        audit,
+      },
       registerInput(),
     );
 
@@ -550,7 +587,14 @@ describe("registerFromWaitingList", () => {
 
     await expect(
       registerFromWaitingList(
-        { waitingList, customers, settings: new FakeSettingsRepository(240), clock, audit },
+        {
+          waitingList,
+          customers,
+          cards: new FakeCardRepository(),
+          settings: new FakeSettingsRepository(240),
+          clock,
+          audit,
+        },
         registerInput({ householdMembers: [] }),
       ),
     ).rejects.toThrow(EmptyHousehold);
@@ -564,7 +608,14 @@ describe("registerFromWaitingList", () => {
     const customers = new FakeCustomerRepository(1);
 
     const customer = await registerFromWaitingList(
-      { waitingList, customers, settings: new FakeSettingsRepository(240), clock, audit },
+      {
+        waitingList,
+        customers,
+        cards: new FakeCardRepository(),
+        settings: new FakeSettingsRepository(240),
+        clock,
+        audit,
+      },
       registerInput({ customerNumber: 17 }),
     );
 
@@ -574,6 +625,21 @@ describe("registerFromWaitingList", () => {
     ]);
   });
 
+  it("continues the run of the slot the applicant is promoted onto", async () => {
+    const waitingList = new FakeWaitingList(entry(4, at("2026-05-04")));
+    const customers = new FakeCustomerRepository(1);
+    // Slot 17 was held before and 17k2 is out there somewhere; the promotion inherits the rule from
+    // `registerCustomer` rather than having one of its own (US-25).
+    const cards = new FakeCardRepository(new Map([[17, 2]]));
+
+    const customer = await registerFromWaitingList(
+      { waitingList, customers, cards, settings: new FakeSettingsRepository(240), clock, audit },
+      registerInput({ customerNumber: 17 }),
+    );
+
+    expect(customer.card.index).toBe(3);
+  });
+
   it("leaves the applicant on the list when the chosen number is no longer free", async () => {
     const waiting = entry(4, at("2026-05-04"));
     const waitingList = new FakeWaitingList(waiting);
@@ -581,7 +647,14 @@ describe("registerFromWaitingList", () => {
 
     await expect(
       registerFromWaitingList(
-        { waitingList, customers, settings: new FakeSettingsRepository(240), clock, audit },
+        {
+          waitingList,
+          customers,
+          cards: new FakeCardRepository(),
+          settings: new FakeSettingsRepository(240),
+          clock,
+          audit,
+        },
         registerInput({ customerNumber: 17 }),
       ),
     ).rejects.toThrow(CustomerNumberTaken);
@@ -597,6 +670,7 @@ describe("registerFromWaitingList", () => {
       {
         waitingList,
         customers: new FakeCustomerRepository(),
+        cards: new FakeCardRepository(),
         settings: new FakeSettingsRepository(240),
         clock,
         audit,
@@ -624,6 +698,7 @@ describe("registerFromWaitingList", () => {
         {
           waitingList: new FakeWaitingList(),
           customers,
+          cards: new FakeCardRepository(),
           settings: new FakeSettingsRepository(240),
           clock,
           audit,

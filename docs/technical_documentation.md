@@ -964,8 +964,10 @@ exists.
 
 `previousCustomerId` is the **only** thing about a re-registration that differs from a walk-in
 (US-11.3). It is optional on the input, stored as `null` when absent, and nothing branches on it: a
-returning household still takes the lowest free number, still starts at card index 1 and still has a
-reminder count of zero. There is no second registration path, which is the point — see below.
+returning household still takes the lowest free number, still gets the next card due on it and still
+has a reminder count of zero. There is no second registration path, which is the point — see below.
+That the card index is read from the slot rather than set to 1 is what stops a household handed their
+old number back being printed a second copy of the card they are still carrying (US-25).
 
 ### `src/application/customers/issueCard`
 
@@ -978,9 +980,12 @@ paths that could drift apart.
 entry's instant are the same event — loads the customer (`CustomerNotFound` for an id nobody holds),
 refuses an archived one (`CustomerArchived`, because their slot may already be another household's,
 FR-6) but serves a **blocked** one, since a block turns a customer away at the counter without
-unregistering them (US-08). The new index is `currentCard(customerId)` + 1, asked of
-`nextCardNumber` so "the next card is the next index" is stated once, or 1 when the customer holds
-none yet. Reading the _highest_ index rather than counting rows is what makes a gap in the run
+unregistering them (US-08). The new index is `highestIndexForNumber(customer.customerNumber)` + 1,
+asked of `nextCardIndex` so "the next card is the next index" is stated once. The question is put to
+the **slot**, not to the record: an untouched slot answers 0 and the first card comes out as `k1`
+without a branch saying so, and a household who took over a number an archived one released counts on
+from the card that household walked away with — which is how a card number is issued exactly once,
+ever (US-25). Reading the _highest_ index rather than counting rows is what makes a gap in the run
 harmless.
 
 The counts printed on the card are derived here, from the household's birthdates at the moment of the
@@ -1401,8 +1406,9 @@ What comes out is a **new customer**, not the old one brought back:
 - a new surrogate id, and a **newly allocated lowest free number** — the old slot was released the
   day the household was archived and may be someone else's by now (FR-3), so nothing assumes they
   get it back;
-- a card at **index 1** with reason `FIRST_ISSUE`, printing the counts of the household as it stands
-  today;
+- a card at the **next index due on whichever slot they were given** with reason `FIRST_ISSUE`,
+  printing the counts of the household as it stands today — index 1 only where nobody has ever held
+  that number, because a card number is issued once and never again (US-25);
 - a **reminder count of 0**, and the certificate presented today recorded as the first row of a
   fresh trail (FR-4);
 - `registeredOn` = today, because it is derived from the first card.
@@ -2789,7 +2795,8 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   **no** banner in that state at all, only the same badge, now reading `Platz frei` and
   `data-free-slot="true"`. Promoting them from the banner opens the registration form pre-filled from the entry
   (surname, certificate, a one-person household deriving 1 / 0), and saving it hands them exactly the
-  number the archived household released, with `1k1` on the card. The entry is then read straight
+  number the archived household released, with `1k2` on the card — the number came back, the card
+  number did not, because the archived household left holding `1k1` (US-25). The entry is then read straight
   from Prisma: still there, both rows still counted, `removedOn` stamped and `removalReason` reading
   `customerNumber=1` — off the list without being deleted from it (FR-7). The last spec asserts the
   second applicant has moved up to position 1 with the register full again and no banner promising a

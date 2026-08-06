@@ -113,8 +113,9 @@ export interface NewCustomer {
   readonly status: CustomerStatus;
   readonly reminderCount: number;
   /**
-   * The card the customer currently holds — index 1 for the one handed over with the registration,
-   * counting on with every reissue (US-09). It is an {@link IssuedCard} like any other: a card
+   * The card the customer currently holds — the next one due on their slot for the one handed over
+   * with the registration (index 1 only where nobody has held that number before, US-25), counting
+   * on with every reissue (US-09). It is an {@link IssuedCard} like any other: a card
    * written with a registration and a card written by `issueCard` are the same thing, and two shapes
    * would let the two paths drift apart.
    */

@@ -10,9 +10,10 @@
  * It is also the **only** registration path, which is what makes re-registering a returning
  * household (US-11.3) a matter of where the form's values came from rather than of different code:
  * a draft built from an archived record is registered through here like anything staff typed, and
- * comes out a new customer with a new number and a card at index 1.
+ * comes out a new customer with a new number and the next card on that number's run.
  */
 
+import { nextCardIndex } from "@/domain/card/cardNumber";
 import { CustomerNumberTaken } from "@/domain/errors";
 import {
   createCustomerDetails,
@@ -22,7 +23,13 @@ import {
 import { assertFreeNumber, lowestFreeNumber } from "@/domain/customer/customerNumber";
 import { suggestGroup, type Group } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
-import type { AuditLog, Clock, CustomerRepository, SettingsRepository } from "../ports";
+import type {
+  AuditLog,
+  CardRepository,
+  Clock,
+  CustomerRepository,
+  SettingsRepository,
+} from "../ports";
 import { readCurrentSettings } from "../settings/read-current-settings";
 
 /** The audit event name every registration is recorded under. */
@@ -71,6 +78,13 @@ const CHOSEN_NUMBER_ATTEMPTS = 1;
 
 export interface RegisterCustomerDeps {
   readonly customers: CustomerRepository;
+  /**
+   * Read only, and only for one question: what the highest index ever printed on the slot the
+   * registration settles on is (US-25). The card itself is written with the customer, in the
+   * register's one transaction — a registration that issued its card through this port would be
+   * two writes where the whole point of the use case is one.
+   */
+  readonly cards: CardRepository;
   readonly settings: SettingsRepository;
   readonly clock: Clock;
   readonly audit: AuditLog;
@@ -95,10 +109,12 @@ export interface RegisterCustomerInput extends CustomerDetailsInput {
    * The archived record this form was pre-filled from (US-11.3), left out for a walk-in.
    *
    * Passing it changes **nothing** about the registration: the household still gets the lowest free
-   * number, a fresh card at index 1 and a reminder count of zero, exactly as if they had never been
-   * here before. It is stored so that a later screen can show the history, and there is no branch on
-   * it anywhere — a re-registration that took a different path would be the merge US-11 rules out
-   * (tasks/prd-us-11-reuse-archived-record.md §FR-5).
+   * number, the next card on that number's run and a reminder count of zero, exactly as if they had
+   * never been here before. It is stored so that a later screen can show the history, and there is no
+   * branch on it anywhere — a re-registration that took a different path would be the merge US-11
+   * rules out (tasks/prd-us-11-reuse-archived-record.md §FR-5). It is also why the card index is read
+   * from the slot rather than set to 1: a household handed their old number back would otherwise be
+   * printed a second copy of the card still in their kitchen drawer (US-25).
    */
   readonly previousCustomerId?: number;
 }
@@ -114,6 +130,10 @@ export interface RegisterCustomerInput extends CustomerDetailsInput {
  *   kept winning the allocated one.
  * @throws {CustomerNumberOutOfRange} if the slot staff chose is not a whole number within the quota
  *   in force — a form that was open while the quota was lowered (US-14) can produce one.
+ * @throws {CardNumberTaken} if the card number this registration was about to print was issued
+ *   between the read of the slot's run and the write. It is **not** retried: the retry below moves
+ *   to another slot, and this slot is already won — what went stale is the run on it, which the
+ *   screen has to re-read (US-25).
  */
 export async function registerCustomer(
   deps: RegisterCustomerDeps,
@@ -148,6 +168,11 @@ export async function registerCustomer(
       chosen === undefined
         ? lowestFreeNumber(takenNumbers, settings.quotaN)
         : assertFreeNumber(chosen, takenNumbers, settings.quotaN);
+    // Read after the number is settled and inside the loop, because the run belongs to the *slot*:
+    // an allocated number can move to a different one on a retry, and an index read before that
+    // would print the previous slot's next card under the new slot's number. A slot no household
+    // has ever held answers 0, which is how a first card still comes out as k1 without saying so.
+    const index = nextCardIndex(await deps.cards.highestIndexForNumber(customerNumber));
 
     try {
       const customer = await deps.customers.create({
@@ -157,7 +182,7 @@ export async function registerCustomer(
         status: "ACTIVE",
         reminderCount: 0,
         card: {
-          index: 1,
+          index,
           issuedAt: now,
           reason: "FIRST_ISSUE",
           countsAtIssue,
@@ -173,8 +198,10 @@ export async function registerCustomer(
       });
       return customer;
     } catch (error: unknown) {
-      // Only a lost race is worth a second go, and only while attempts remain. Anything else — a
-      // full register, a broken database — would fail the same way however often it was repeated.
+      // Only a lost race *for the number* is worth a second go, and only while attempts remain.
+      // Anything else — a full register, a broken database, a card number spent since the run was
+      // read — would fail the same way however often it was repeated, or, in `CardNumberTaken`'s
+      // case, would answer a stale read of one slot by moving the household to another.
       if (attemptsLeft === 0 || !(error instanceof CustomerNumberTaken)) {
         throw error;
       }
