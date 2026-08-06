@@ -372,6 +372,16 @@ is the second screen that needs it, which is the guide's own threshold: **extrac
 > (`data-testid="customer-number-select"`) offering every free number and opening on the lowest, with
 > a `free-number-count` hint beneath it; the `proposed-number` testid is gone. The rest of this
 > section still holds — `Stat` is what the two derived counts are, on this screen and on the record.
+>
+> **And the card came onto the grid with it.** Replacing the tile with a labelled control gave the
+> number column a label row that the group column — folded into a summary carrying its own „Gruppe:“
+> — did not have, so the select sat 26px below its neighbour and the two hint lines 24px apart. The
+> `flex flex-wrap` row is therefore now the form's own `GRID` with `FIELD_ROWS` on each column
+> (`grid-rows-subgrid`, from `/einstellungen`): the number takes `lg:col-span-2`, the span `PLZ`
+> gets, and the group `lg:col-span-6` and a field label of its own. The summary lost its „Gruppe:“
+> prefix to that label and the `<legend>` inside it to `aria-labelledby`, so the word is on screen
+> once. Measured at 1440×900 on a production build: labels, controls and hints each on one baseline,
+> and the card 235px → 219px.
 
 **(h) The submit gets a `CardFooter` and a size.** `Aufnehmen` is the one irreversible-ish act on the
 screen and it is currently a 119×40 button after 1 700px of form. In the `Zuordnung` card's footer,
@@ -747,6 +757,21 @@ shipped it. The fold is therefore worth having for the two lines of visual noise
 putting the proposal on one legible line — not for page height. A future "make `/kunden/neu` shorter"
 story should target the `Zuordnung` footer (69px) or the `Stat` tile, which is where the 220px
 actually is, and should measure _which element sets the height_ before it states a budget.
+
+That story never came, and the tile went anyway: US-24 replaced it with the number `<select>`, and
+the alignment fix that followed took the row onto the grid. Measured the same way, 1440×900, on a
+production build with the demo seed:
+
+| Claim                                 | After US-020.2 | After US-24 | After the alignment fix |
+| ------------------------------------- | -------------- | ----------- | ----------------------- |
+| `Zuordnung` card height, group closed | 220px          | 235px       | 219px                   |
+| Rag between the two columns' controls | n/a (tile)     | 26px        | 0                       |
+| Rag between the two hint lines        | n/a            | 24px        | 0                       |
+
+Still not the ≤ 210 that §11.3 asked for, and for the reason recorded above: the budget was derived
+from a number nobody had measured. What sets the height now is the card's own padding and its 69px
+footer, not anything in the row — which is what a "make `/kunden/neu` shorter" story would have to
+take on.
 
 The closed card met its target; `#firstName` did not, and the two criteria could not both hold. 470
 is 630 − 160, which assumes the archive card takes **zero** height once closed — but the same story

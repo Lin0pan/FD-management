@@ -618,6 +618,23 @@ focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:b
   colon for a cleaner line and turned all four red — a failure that names no testid and points at
   `<main>`, so it reads like a missing element rather than a changed separator. The label and the
   separator are part of the contract wherever a sweep is how a value is asserted.
+- **A column with no label row rags a row exactly as a two-line label does — and nobody renamed
+  anything.** The `Zuordnung` box holds two columns. US-20 folded the group choice behind a summary
+  reading „Gruppe: (Blau) — andere Gruppe wählen“, which looks like a labelled control and is not:
+  the name sits _in_ the control's own row. That was invisible while the neighbour was a `Stat` tile,
+  which has no label row either, and became a defect the moment US-24 replaced the tile with a
+  labelled `<select>` — 26px between the two controls and 24px between the two hints beneath them, on
+  a screen where nothing had changed about either label. **A folded control is a labelling decision,
+  not only a height one**: whatever a summary says about itself, the column still needs its label
+  where every other column keeps it. The fix is the same `GRID` + `FIELD_ROWS` as everywhere else,
+  plus a `<span>` label for the group (a `<summary>` is not labelable, so `<label htmlFor>` cannot
+  reach it) and `aria-labelledby` on the `<fieldset>` in place of its now-duplicate `<legend>`.
+- **Narrowing a field to the width its content asks for is a dictionary change too.** The same pass
+  took the number from a hand-rolled `w-56` to `lg:col-span-2` (163px), and its hint — „225 freie
+  Nummern — die niedrigste ist vorausgewählt.“ — went to three ragged lines and made the card
+  _taller_ than the misaligned version it replaced. The honest fix is the one this guide already
+  names for labels: shorter words, not a wider box. „Noch 225 freie Nummern“ is one line, and the
+  preselection it dropped is said once in the page's intro, where it covers the group as well.
 - **`useId` beats the field name for a form's `htmlFor`.** The record carries two forms that both
   hold a `firstName`; ids taken from the name would collide and point every label at whichever
   rendered first. Where a spec reaches a field by CSS id — `/kunden/neu` does, sixteen times — the
