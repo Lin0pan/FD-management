@@ -102,8 +102,9 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 21  | `21-us-22-drop-week-colour-lookup.json`  | 4       | `ralph/us-22-drop-week-colour-lookup`  |
 | 22  | `22-us-21-step-through-group.json`       | 4       | `ralph/us-21-step-through-group`       |
 | 23  | `23-us-23-group-progress.json`           | 5       | `ralph/us-23-group-progress`           |
+| 24  | `24-us-24-choose-customer-number.json`   | 5       | `ralph/us-24-choose-customer-number`   |
 
-110 stories total — the rows sum to it. Every story cites its source PRD section in its
+115 stories total — the rows sum to it. Every story cites its source PRD section in its
 `description`, so an iteration can read the full context when a criterion is ambiguous.
 
 Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 onwards are not
@@ -124,8 +125,15 @@ first post-MVP batches that are _not_ presentation-only:
 - **23 (US-23)** adds the "x von y abgeholt" tally and the group list behind it. Domain +
   **one new port method** (`listForDay`) + application + presentation + e2e; still no schema change.
 
-All three edit `src/app/ausgabe/page.tsx`, so the "merge before starting the next batch" rule is
-load-bearing here for the same reason it was for 19 and 20. **Run them in this order**: 21 frees the
+**Batch 24 (US-24)** is the fourth post-counter change FD asked for: the registration screen stops
+handing out the lowest free customer number as a read-only figure and offers the whole free pool as a
+dropdown, still preselected to the lowest. Domain + application + presentation + e2e; **no schema
+change and no new port method** — `takenActiveNumbers()` already answers the query. It touches
+`src/app/kunden/neu/**` and `src/i18n/de.ts`, so it shares no file with 21–23 and can follow them in
+any order.
+
+Batches 21 to 23 all edit `src/app/ausgabe/page.tsx`, so the "merge before starting the next batch"
+rule is load-bearing here for the same reason it was for 19 and 20. **Run them in this order**: 21 frees the
 vertical space, 22 creates `read-group-roster.ts`, and 23 extends that same file rather than adding a
 second use case that would load the group a second time.
 
