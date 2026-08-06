@@ -4,11 +4,13 @@ A UX analysis of the settings screen as it stands today, and a concept for rebui
 shadcn/ui primitives — one of the last three screens in the conversion
 `docs/ui_conversion_guide.md` describes.
 
-**Status:** **§8 steps 1 and 2 are built.** The conversion, then the rejected-save fix in its two
-halves — §4.2c, the error at the field, and §4.2d, the form keeping what was typed. **§3.1, the worst
-defect on the screen, is fixed**: a rejected save no longer discards the valid edits made alongside
-the invalid one, and the marked field no longer holds a value nobody typed. Steps 3 and 4 — the
-history table and the empty state — are open.
+**Status:** **§8 steps 1, 2 and 3 are built.** The conversion, then the rejected-save fix in its two
+halves — §4.2c, the error at the field, and §4.2d, the form keeping what was typed — then the
+history. **§3.1, the worst defect on the screen, is fixed**: a rejected save no longer discards the
+valid edits made alongside the invalid one, and the marked field no longer holds a value nobody
+typed. **§3.6 is fixed too, though not as §4.2e first proposed**: the history is a diff behind a
+closed fold, not a table of eight columns — see §4.2e for the measurement that decided it. Step 4,
+the empty state, is open.
 
 The measurements in §3 are the "before", and §8 carries the "after" against each of them.
 
@@ -392,14 +394,37 @@ next renewal empty, with no new plumbing.
 > This changed `save-settings-state.ts` and the action's return shape, so it was **not** a restyle —
 > §8 gave it its own commit, as asked.
 
-**(e) The history becomes a table, one column per setting.** Eight columns and a date. A change is
-then a column whose value differs from the row below it, found by eye in one pass instead of by
-diffing 136 characters (§3.6). All eight settings appear, so an Ausgabetag change stops being
-invisible. `aktuell gültig` becomes a `Badge` on the in-force row rather than a muted suffix.
+**(e) The history becomes a diff, folded away by default. ✅ Built — and not as the table this
+section first proposed.** ~~The history becomes a table, one column per setting.~~
 
-At two versions this is over-engineering; at twenty — which is where FD will be in a decade, since
-FR-1 keeps every version forever — it is the difference between a record and a pile. The table is
-also the shape that lets a future "was hat sich geändert?" highlight be a `className` on one cell.
+The table was the right diagnosis and the wrong shape. Eight columns and a date would have made a
+change "a column whose value differs from the row below it" — still a comparison the reader has to
+perform, just across a shorter distance, and still one row of eight cells per version. What a reader
+of this list wants is the answer, not the materials for it, so each superseded version now states
+**only what moved**, in one line and in the words of the control that moved it:
+
+```
+Geändert am 05.07.2025   Ausgabetag: Dienstag → Mittwoch
+Geändert am 05.04.2025   Preis je Kind: 1,25 € → 1,30 €
+```
+
+Measured on 41 versions at 1440×900: **4 434px → 1 532px** opened (4.9 screens → 1.7), and **46px**
+— one line — with the fold shut. The table would have cut the characters and kept the height.
+
+What survives from the proposal: all eight settings are covered, so an Ausgabetag change stops being
+invisible (the diff is derived in `src/domain/policy/settings-diff.ts`, which splits `weekAnchor`
+into its week and its colour precisely because they are two controls); the version in force is the
+one stated in full, and carries `aktuell gültig` as a `Badge` rather than a muted em-dash suffix.
+
+Two things the diff needed that a table did not. The oldest version has no predecessor, so it reads
+`Erstkonfiguration` rather than a change from nothing — a distinction `listSettingsVersions` makes in
+its return type, not in the page. And a save that changed no value says `Keine Änderung an den
+Werten`, because a version with nothing beside it would read as a rendering fault.
+
+**Closed by default**, per §11 question 1 below: this is consulted after a disagreement about a
+price, not during the work the rest of the screen is for. The fold is the same `<details>` the
+hand-out history on the customer record uses, and the summary carries the count and the date of the
+last change, so the answer to "when did this last move" needs no click at all.
 
 **(f) The empty state gets the form.** Instead of returning early, render the form with the
 provisional defaults the seed would have written and a notice saying nothing is in force yet.
@@ -547,10 +572,19 @@ All derive from `tests/e2e/settings.spec.ts`, which must pass **with no test edi
 6. **`settings-version` stays one element per version, newest first**, `toHaveCount(3)` after the
    second save, `.first()` marked with `de.settings.history.current`, and each row `toContainText`
    `` `${de.settings.fields.pricePerGrownUp}: 2,50 €` `` — **including the label, the colon and the
-   euro sign**. This is the `Feld: Wert` sweep trap from the record, and a table splitting label and
-   value into a heading and a cell **breaks it**. Resolution: the table's `TableCell` for a price
-   must still contain the whole `Preis je Erwachsenem: 2,50 €` string, or the spec must be edited
-   deliberately — see §8, where the history table is a content change for exactly this reason.
+   euro sign**. This is the `Feld: Wert` sweep trap from the record, and any shape that splits the
+   label from its value **breaks it**.
+
+   **Resolved as built (§4.2e).** The testid, the ordering and the count all held; the strings were
+   edited deliberately, and only in the direction of a stronger claim. `.first()` is the version in
+   force and still states `Preis je Erwachsenem: 2,50 €` in full, with `aktuell gültig` now on a
+   `Badge` of its own (`settings-version-current`). A superseded row asserts the **transition** —
+   `de.settings.history.change(label, "2,00 €", "2,50 €")`, which the old assertion could not have
+   caught — and the diff keeps `Feld: Wert` inside it, so the sweep trap is avoided rather than
+   argued with. Two further consequences for anyone editing this spec: the fold is **closed**, so
+   every text assertion opens it first (`toHaveCount` does not need to), and the Ausgabetag now has
+   a spec of its own, because §3.6's invisible change is the defect this was built for.
+
 7. **A rejected save must leave the stored value untouched**, proved by a reload asserting `2,75`.
    §4.2d changes what the _form_ shows after a rejection, never what was written.
 8. **Every new German string goes in `src/i18n/de.ts`** — the two new card headings, the empty-state
@@ -562,23 +596,23 @@ All derive from `tests/e2e/settings.spec.ts`, which must pass **with no test edi
 
 ## 8. Restyle vs. content change
 
-| Change                                                         | Restyle? | Notes                                                                                                  |
-| -------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
-| `SHELL`, `Card`, `Input`, `Button`, `Alert`, tokens            | ✅       | Pure conversion                                                                                        |
-| Real `<h2>` in every `CardTitle`, incl. the unnamed section    | ✅       | Fixes §3.8; guide trap 1                                                                               |
-| `htmlFor`/`id` instead of nesting; hint via `aria-describedby` | ✅       | Fixes §3.7; ids in §7.2 preserved                                                                      |
-| The 12-column grid and per-field widths                        | ✅       | `className` only                                                                                       |
-| One control height                                             | ✅       | `className` only                                                                                       |
-| Regrouping into `Mengen und Preise` / `Ausgaberhythmus`        | ⚠️       | Structure, but the two headings are new dictionary keys                                                |
-| `aria-invalid` + a border on the rejected field                | ✅       | Attribute and `className`; the summary notice is untouched                                             |
-| **Keeping the typed values after a rejection**                 | ❌       | Changes `SaveSettingsState` and the action's return shape                                              |
-| **Per-field error messages**                                   | ❌       | Depends on the state change above                                                                      |
-| **The history as a table with all eight settings**             | ❌       | Breaks §7.6's `toContainText` unless the cell keeps `Feld: Wert`; and three settings are new on screen |
-| **The empty state rendering the form**                         | ❌       | Changes what the page does, not how it looks                                                           |
-| **Naming the current rhythm in words** (§4.4)                  | ❌       | A new read (`getWeekColour`) on this page                                                              |
+| Change                                                         | Restyle? | Notes                                                                                       |
+| -------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------- |
+| `SHELL`, `Card`, `Input`, `Button`, `Alert`, tokens            | ✅       | Pure conversion                                                                             |
+| Real `<h2>` in every `CardTitle`, incl. the unnamed section    | ✅       | Fixes §3.8; guide trap 1                                                                    |
+| `htmlFor`/`id` instead of nesting; hint via `aria-describedby` | ✅       | Fixes §3.7; ids in §7.2 preserved                                                           |
+| The 12-column grid and per-field widths                        | ✅       | `className` only                                                                            |
+| One control height                                             | ✅       | `className` only                                                                            |
+| Regrouping into `Mengen und Preise` / `Ausgaberhythmus`        | ⚠️       | Structure, but the two headings are new dictionary keys                                     |
+| `aria-invalid` + a border on the rejected field                | ✅       | Attribute and `className`; the summary notice is untouched                                  |
+| **Keeping the typed values after a rejection**                 | ❌       | Changes `SaveSettingsState` and the action's return shape                                   |
+| **Per-field error messages**                                   | ❌       | Depends on the state change above                                                           |
+| **The history as a diff, folded away** (was: as a table)       | ❌       | Built: breaks §7.6's `toContainText`, edited deliberately; three settings are new on screen |
+| **The empty state rendering the form**                         | ❌       | Changes what the page does, not how it looks                                                |
+| **Naming the current rhythm in words** (§4.4)                  | ❌       | A new read (`getWeekColour`) on this page                                                   |
 
 Suggested sequence: **(1)** conversion — cards, grid, widths, labels, heights — e2e green untouched →
-**(2)** the rejected-save fix, which is the finding worth the most → **(3)** the history table, with
+**(2)** the rejected-save fix, which is the finding worth the most → **(3)** the history, with
 `settings.spec.ts` edited deliberately and the reason recorded in the commit → **(4)** the empty
 state and the rhythm sentence, if still wanted.
 
@@ -692,10 +726,13 @@ history back.
 
 ## 11. Open questions
 
-1. **Does anyone at FD ever read the Änderungsverlauf?** §4.2e is the most expensive item in this
-   document and it is worth nothing if the answer is no. If the history is only ever consulted after
-   a disagreement about a price, a table of eight columns is right; if it is never opened, it should
-   shrink to a date list and the effort should go into §4.2d instead.
+1. ~~**Does anyone at FD ever read the Änderungsverlauf?**~~ **Answered: rarely, and after a
+   disagreement about a price** — never during the work the rest of the screen is for. That is why
+   it now folds away closed and why the effort went into making each entry **short** rather than
+   **wide**: a reader who opens this twice a year wants one line per version stating what moved, not
+   an eight-column grid to navigate. Neither branch of the original question was taken — the answer
+   was not "a table" and not "a bare date list", because a date list keeps the one defect that
+   mattered, that the record says something changed and refuses to say what (§3.6). See §4.2e.
 2. **Should the reason surface here?** It is collected, it goes to the audit log (FR-8), and the log
    has no screen. Either put the reason on `SettingsVersion` — one field, and it makes the history
    answer _why_ — or drop the field and stop asking for something no one can read back. The current
