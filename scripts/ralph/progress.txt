@@ -266,3 +266,50 @@ Started: Thu Aug  6 13:53:09 CEST 2026
     user_stories_mvp.md` still states the old rule in two places (§US-02 point 7 and ~line 341),
     which US-005's log already flagged.
 ---
+
+## 2026-08-06 23:50 - US-007 (The documents say the new rule)
+- The places that argued for the *per-record* counting rule now argue for the slot's:
+  - `CLAUDE.md`, "Derive, don't store": a **third** exception, `Card.customerNumber`. Framed as a
+    *key* like `firstNameFolded` — the `@@unique([customerNumber, index])` needs the slot on the row
+    and `MAX(index) WHERE customerNumber = ?` is the counting rule's question — and explicitly *not*
+    a snapshot like the three `AtIssue` fields, because a customer number cannot change.
+  - `docs/domain_analysis.md` §Customer Card: a card number is **issued once and never reused**; the
+    index counts the cards of the *number*, not of the household holding it. §4.4 (reissue) was left
+    alone — for an active household the slot's highest and the record's are the same card.
+  - `docs/technical_documentation.md`: the demo-register section names the two households on a freed
+    slot and their `1k2` / `2k2`; the `registration-screen.tsx` bullet no longer says the pre-fill
+    banner promises a card `(k1)` — US-005 took that literal out of the dictionary and the doc kept it.
+  - `tasks/prd-us-02`, `-us-09`, `-us-11`: a **note** at the top of each, not a rewrite. US-02's also
+    marks the two lines that state the opposite rule *as a requirement* (FR-6, and the criterion
+    asking for an integration test that two customers may both hold `50k1`).
+  - `docs/user_stories_mvp.md`: not named in the criteria, but it states the old rule in three places
+    (§US-01.7, §US-02.2, §US-11.3). Each gained an inline `[superseded by US-25]` in the doc's own
+    `[added]` style — struck through nothing, deleted nothing.
+  - `docs/ui_redesign_kunden_karte.md` §1: one parenthesis saying the household examined as "her
+    first card `1k1`" now reads `1k2`. A review record of a session that happened is not rewritten.
+- `prisma/demo-seed.ts`: the **shape** has demonstrated the rule since US-004 (customers on slots 1
+  and 2, both freed by an archive, both holding a first card at `k2`) — what was missing was
+  *visibility*. The summary table gained a `Karte` column, the two `demonstrates` strings say the
+  first card is not `k1`, and the closing paragraph says the card numbers do **not** come back with
+  the slot. Verified: `npm run db:demo -- --reset` prints `1  1k2  Möldner, Sally` and
+  `2  2k2  Dück, Milena`.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests), build, `prettier --check` on every
+  touched file, `db:reset` + `db:demo` — all green. e2e not re-run: nothing under `tests/` or `src/`
+  moved and the e2e suite does not use the demo seed.
+- **Learnings for future iterations:**
+  - **Prettier reflows a long inline code span across a line break and then un-indents it**, which in
+    a nested list looks like the bullet ended. `` `formatCardNumber(customer.customerNumber,
+    card.index)` `` came back mangled; splitting the identifiers into two short spans fixed it.
+    Run `npx prettier --check` on the *markdown* you touched, not only on the TypeScript.
+  - **`docs/` and `tasks/` take opposite treatment for a superseded rule**, and CLAUDE.md says why:
+    `docs/` is the source of truth for what FD needs and is *updated* when a decision changed;
+    `tasks/` is the record of what was asked for and gets a *note*. `user_stories_mvp.md` sits in
+    `docs/` but reads like a record, so it took the middle road — text kept, marked inline.
+  - The repository-wide grep the criterion asks for has two **false positives** worth not
+    "fixing": `docs/user_stories_mvp.md:72` and `tech_stack_architecture_sketch.md:201` say the
+    *customer number* is not unique across the archive, which is still true and is the premise US-25
+    works from; `ui_redesign_kunden_verwalten.md` §3.4 "the register's card number repeats its
+    customer number" is about a **column** showing `12` beside `12k1`.
+  - The demo seed's summary reads the register back through the repositories (`deps.cards.currentCard`),
+    so a column added there costs one query per row and cannot disagree with what the screens show.
+---

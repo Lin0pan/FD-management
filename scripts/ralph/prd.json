@@ -148,8 +148,8 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "CLAUDE.md's exception list is three long now; docs/domain_analysis.md defines a card number as issued once and never reused; the three superseded PRDs carry a note at the top (US-02's also marks the two lines that state the OPPOSITE rule as a requirement — FR-6 and the integration-test criterion). docs/user_stories_mvp.md was not named by the criteria but states the old rule in three places (US-01.7, US-02.2, US-11.3) and now carries an inline [superseded by US-25] on each. The demo seed's SHAPE already demonstrated the rule since US-004 (two households on a freed slot, cards 1k2 and 2k2) — what was missing was visibility, so the summary table gained a Karte column and the two demonstrates strings say it. Documentation-only apart from that summary; e2e not re-run, nothing under tests/ or src/ moved."
     }
   ]
 }
