@@ -129,8 +129,8 @@
         "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first — a live dev server on port 3000 fails the suite for the wrong reason)"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "tests/e2e/card-number.spec.ts: seven serial tests on slot 236 — a number of its own, high but INSIDE the quota of 240, because the number is picked in the dropdown and the control only offers 1..quotaN (the 241+ bands the seeding specs took are unpickable). Registers RED through the form, archives with a reason, registers the successor on the freed number (236k2, not 236k1), asserts both cards at the counter, 'Karten insgesamt 1' on the card view, the (customerNumber, index) pairs across the WHOLE register plus the archived household's surviving row, and a reissue to 236k3 with 236k1 still refused. card.spec.ts's title and two comments were corrected — US-002 left that decision to this story: its k1 holds only because the form proposes an untouched slot. Full e2e: 127 passed, 1 skipped."
     },
     {
       "id": "US-007",

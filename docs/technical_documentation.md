@@ -217,7 +217,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── age-13.spec.ts                # a 13th birthday moves the numbers with nobody touching them
 │   ├── archive.spec.ts               # archiving frees the number and keeps the record findable
 │   ├── block.spec.ts                 # block shows its reason at the counter and is reversible
-│   ├── card.spec.ts                  # registration issues k1 and the card view shows it
+│   ├── card-number.spec.ts           # one slot, two households: a card number is never reissued
+│   ├── card.spec.ts                  # registration on an untouched number issues k1
 │   ├── counter.spec.ts               # every counter verdict, and that a lookup writes nothing
 │   ├── customer-list.spec.ts         # search, filters and the group balance on /kunden
 │   ├── customer-record.spec.ts       # four edits on the record, each read back off another screen
@@ -2649,7 +2650,9 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   `^[0-9]+k1$` — the number the form proposed plus `k1` — with the name and group as entered, the
   counts derived again on that request (2 grown-ups / 1 child) and no superseded numbers. It is the
   only proof that the number the form proposed, the card the registration transaction wrote and the
-  card the view renders are the same card.
+  card the view renders are the same card. The `k1` holds because the form proposes the lowest
+  _free_ number, which on this run is a slot nobody has ever held; a registration onto a number an
+  archived household released starts above _their_ card, and that is `card-number.spec.ts`'s case.
 - `distribution.spec.ts` covers US-03 end to end (§US-03.5). The banner is a pure function of the
   calendar, so the spec first decides what day the app thinks it is: it writes an ISO instant to
   `data/e2e-now.txt`, the file `FD_FIXED_NOW_FILE` points `systemClock` at (see
@@ -2922,6 +2925,21 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   comes back **closed** (FR-7, and the remount `page.tsx` keys for), and opening and closing the fold
   **records nothing** (FR-9) — the same register snapshot `group-walk.spec.ts` takes, either side of
   a fold. Pinned to the RED Thursday 08.01.2026 through `FD_FIXED_NOW_FILE`, deleted in `afterAll`.
+- `card-number.spec.ts` covers US-25 end to end (§US-025.6): the bug the story exists to close, which
+  needs two households and a customer number in between and is therefore invisible to every unit
+  gate. On one slot of its own — **236**, high but _inside_ the quota of 240, because the number is
+  **picked in the dropdown** (US-24) and the control only offers `1..quotaN` — it registers a RED
+  household, archives it while its card is still in the world, and registers a second household on
+  the number that just came free. The successor's card is asserted to be `236k2` and not the
+  archived household's `236k1`; at the counter `236k1` returns `OUTDATED_CARD` with the current
+  number named beside it and `236k2` returns „Ausgabe frei"; `/kunden/[id]/karte` shows „Karten
+  insgesamt 1" for the successor, because the index counts the slot's history while the count counts
+  the household's. Two claims are then made of the database directly, which no screen can make: no
+  two `Card` rows share a `(customerNumber, index)` pair anywhere in the register, and the archived
+  household's row is still there — nothing was deleted to make room. Finally a reissue takes the
+  successor to `236k3`, proving the slot's run only ever goes upwards: a retired card number stays
+  retired however many cards the slot goes on to print. Pinned to the RED Thursday 08.01.2026
+  through `FD_FIXED_NOW_FILE`, deleted in `afterAll`.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

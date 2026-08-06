@@ -24,6 +24,12 @@ Started: Thu Aug  6 13:53:09 CEST 2026
   rows on that index). For a **nested** write Prisma reports the *rooted* model — a card refused
   inside `customer.create` comes back as `modelName: "Customer"` — so the model name alone tells
   nothing about which table failed.
+- **The e2e customer-number bands, as they now stand.** Below the quota of 240: counter 201–206 and
+  239, portions 211, serve 221–222, reminders 231, registration 232–234, card numbers 236. Above it:
+  block 241, reissue 251, age-13 271, customer-list 281–285, customer-record 291, group-progress
+  301–303, group-walk 311–315. A spec whose number must be **pickable in the /kunden/neu dropdown**
+  has to sit below 240 — the pool is `1..quotaN` — and everything else should stay above it, clear of
+  the low sequence the allocating specs (registration, card, archive, reregistration) consume.
 - **Prior runs' patterns are in the archive**, not in this file: `scripts/ralph/archive/<date>-<story>/progress.txt`
   keeps a long consolidated list (playwright-cli usage, e2e customer-number bands, killing the dev
   server safely, testid greps). Read the most recent one before any UI or e2e story.
@@ -219,4 +225,44 @@ Started: Thu Aug  6 13:53:09 CEST 2026
     number `<number>k1`") and ~line 341 ("card index starting at `k1`"). US-007's criteria do not name
     that file, but they do say *no documentation claims a card number can repeat*. Follow the
     house style for a superseded requirement: strike through, mark, keep — never delete.
+---
+
+## 2026-08-06 23:20 - US-006 (E2E — the archived household's card is refused)
+- `tests/e2e/card-number.spec.ts`: seven serial tests walking the scenario that motivated US-25 on
+  one slot — register RED through the form on a **chosen** number, archive it with a reason while its
+  card is still in the world, register a different household on the number that just came free.
+- Asserted: the successor's card is `236k2` and not the archived household's `236k1`; at the counter
+  `236k1` → `OUTDATED_CARD` with `counter-card-number` naming the current card, `236k2` → „Ausgabe
+  frei" with the serve button; `/kunden/[id]/karte` shows „Karten insgesamt 1" for the successor
+  (index counts the slot, count counts the household); no two `Card` rows share a
+  `(customerNumber, index)` pair **anywhere in the register** and the archived household's row is
+  still there; a reissue takes the successor to `236k3` while `236k1` stays refused.
+- Files changed:
+  - `tests/e2e/card-number.spec.ts` (new).
+  - `tests/e2e/card.spec.ts` — title and two comments. US-002 left this decision to US-006: the spec
+    claims `k1`, which now holds only because the form proposes an *untouched* slot, and one comment
+    said a first card is "never a number carried over from whoever last held this customer number",
+    which is the opposite of the rule. No assertion moved.
+  - `docs/technical_documentation.md` — the `tests/e2e/` tree and a catalogue entry for the new spec;
+    the `card.spec.ts` entry now says why its `k1` holds.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests), build, `prettier --check` on the
+  touched files, **full e2e (127 passed, 1 skipped)** — all green.
+- **Learnings for future iterations:**
+  - **A spec that needs two households on one customer number must pick the number, and can only
+    pick below the quota.** `/kunden/neu` offers `1..quotaN` (240 seeded), so the 241+ bands the
+    seeding specs took are invisible to the control. 235–238 were the only free ones below it; this
+    spec took 236. The band list is now in Codebase Patterns above.
+  - The dropdown offers a number an **archived** household holds, which is what makes the second
+    registration possible at all — `register()` asserts the option exists before selecting it, so a
+    regression in US-10's slot release fails here as itself rather than as a timeout.
+  - Extra households in the shared register are safe for the specs that come after: `group-progress`,
+    `group-walk` and `customer-list` all read their expectations out of Prisma (or take a baseline)
+    at assertion time. `home.spec.ts`'s `cards-due-badge`/`waiting-list-free-slot` assertions are
+    `toHaveCount(0)` for elements that moved to the hub — nothing to disturb.
+  - A spec pinning `data/e2e-now.txt` must delete it in `afterAll`, or January is frozen for
+    `settings.spec.ts`, which stamps a version *now*.
+  - US-007 next: the documents. `CLAUDE.md`'s "Derive, don't store" list, `docs/domain_analysis.md`,
+    the three superseded PRD notes, the demo seed's `demonstrates` string — and `docs/
+    user_stories_mvp.md` still states the old rule in two places (§US-02 point 7 and ~line 341),
+    which US-005's log already flagged.
 ---
