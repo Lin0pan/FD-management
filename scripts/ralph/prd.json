@@ -82,8 +82,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done. SettingsVersion gained nullable priceCapCents; the init migration was regenerated (20260807065541_init) with the hand-written Customer_customerNumber_onRegister_key partial index re-added, and npm run db:reset run. append writes settings.priceCap, toDomain reads row.priceCapCents ?? null through createSettings; both FOR NOW placeholders are gone and the seed sets priceCap: 500. Four new integration tests (round trip of 500 and null, a cap of 0 staying 0, a hand-edited -1 refused naming priceCap, the seeded cap capping 4+3 at 500). One e2e expectation moved deliberately: portions.spec.ts's household whose per-head sum is 6,00 € now stops at the seeded cap of 5,00 €, portions still rising 5 → 6."
     },
     {
       "id": "US-004",

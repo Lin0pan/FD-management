@@ -118,3 +118,43 @@ Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
     `priceCap: null` until US-003 and the form has no control until US-004), so the new history row
     is unreachable on screen. US-004 verifies it end to end, as its criteria say.
 ---
+
+## Fri Aug 7 2026 — US-003 (The cap is stored and versioned)
+- `SettingsVersion` gained `priceCapCents Int?`, documented with why NULL is a real configuration
+  (no cap) rather than a missing value, and why it is not a `0` sentinel — `0` is a coherent cap
+  that makes every distribution free.
+- Pre-release migration rules: `prisma/migrations/` deleted and regenerated as
+  `20260807065541_init`, the hand-written `Customer_customerNumber_onRegister_key` partial unique
+  index re-appended, `npm run db:reset` run and the seeded row verified to hold `priceCapCents: 500`.
+  No `ON DELETE CASCADE` and no `ON DELETE SET NULL` in the regenerated SQL.
+- `PrismaSettingsRepository.append` writes `settings.priceCap`; `toDomain` reads
+  `row.priceCapCents ?? null` back through `createSettings`. Both `FOR NOW` placeholders from
+  US-001 are gone (repository and seed); `einstellungen/actions.ts` still holds its, as US-004 owns it.
+- `seed.ts` now sets `priceCap: 500` — FD's real cap — so seeded data exercises the capped path.
+- Four integration tests added (test-after, throwaway SQLite file): the 500/`null` round trip with
+  `priceFor` on both sides, a cap of `0` surviving as `0`, a hand-edited `-1` refused naming
+  `priceCap`, and the seeded cap capping 4 grown-ups + 3 children at 500.
+- Files: `prisma/schema.prisma`, `prisma/migrations/20260807065541_init/migration.sql` (replacing
+  `20260806150359_init`), `src/infrastructure/prisma/settings-repository.ts`, `seed.ts`,
+  `settings-repository.test.ts`, `tests/e2e/portions.spec.ts`.
+- Gates: lint, typecheck, `test:coverage` (1074 tests, domain+application 100%), `build` and the
+  **full e2e suite** (134 passed, 1 skipped) green.
+- **Learnings for future iterations:**
+  - **`npx prisma migrate dev` refuses to regenerate while `data/fd.db` still holds the old
+    migration row** — it reports "the following migration(s) are applied to the database but missing
+    from the local migrations directory" and writes nothing. Delete `data/fd.db` first (the
+    `node -e` line from the `db:reset` script does it), then `migrate dev --name init --skip-seed`,
+    then re-append the partial index, then `npm run db:reset`. Doing it in the other order costs a
+    round trip.
+  - **`pkill -f "next dev"` kills the Bash tool's own shell** — the pattern matches the wrapper
+    `bash -c` command line, and the call comes back as exit 144 with no output. Check the port
+    instead (`ss -ltnp | grep :3000`) and, if something is really listening, match on
+    `node.*next-server`.
+  - **Seeding a policy value changes what e2e specs assert.** The cap of 500 moved exactly one
+    expectation — `portions.spec.ts`'s 6,00 € household — and nothing else, because every other
+    price assertion in `tests/e2e/` is at or below 5,00 €. `grep -rn ',00 €' tests/e2e/` is the
+    check to run before changing a seeded number.
+  - A Prisma `Int?` column comes back as `number | null`, so `StoredVersion` spells the field
+    `number | null` and `toDomain` still says `?? null`: `undefined` would reach `createSettings`
+    as a *missing* field rather than a configured absence, and the domain spells "no cap" one way.
+---
