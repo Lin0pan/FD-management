@@ -82,3 +82,39 @@ Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
     ("the four per-head values"), so widening `PriceValues` makes it stale with nothing to catch it.
     It now says five, and the cap is not per head.
 ---
+
+## Fri Aug 7 2026 — US-002 (A changed cap is named in the history and the audit entry)
+- `SETTINGS_FIELDS` gained `"priceCap"` after `"pricePerChild"`, so `changedSettingsFields` reports
+  it and `updateSettings` writes it into the audit entry. `isUnchanged` needed no special case:
+  `previous[field] === next[field]` compares `null` to `null` correctly.
+- `SettingsChange` gained `{ field: "priceCap"; from: Cents | null; to: Cents | null }` and
+  `diffSettings` compares the whole of `Cents | null`, so *introduced* (`null` → value), *removed*
+  (value → `null`) and *changed* all report, while `null` → `null` does not.
+- `describeChange` in `src/app/einstellungen/page.tsx` gained the case through a `describeCap`
+  helper; no `default` branch was added. `de.settings.prices.noCap` = „kein Maximalpreis“ and
+  `de.settings.fields.priceCap` = „Maximalpreis je Ausgabe“, so a row reads
+  `Maximalpreis je Ausgabe: kein Maximalpreis → 5,00 €`.
+- 9 tests written first, red before green (8 failed on the first run): four transitions on each of
+  the two functions plus the two full-field-order lists.
+- Files: `src/domain/policy/settings.ts`, `settings-diff.ts` and both their tests,
+  `src/app/einstellungen/page.tsx`, `src/i18n/de.ts`, `src/application/settings/settings.test.ts`.
+- Gates: lint, typecheck, `test:coverage` (1070 tests, domain+application 100%) and `build` green.
+- **Learnings for future iterations:**
+  - **Widening `SETTINGS_FIELDS` breaks a *count* assertion, not a type.** `updateSettings`'s
+    "treats every field as changed when there is no previous version" test in
+    `src/application/settings/settings.test.ts` asserts `toHaveLength(7)`. It is now 8, moved
+    deliberately with a comment saying why — grep the application tests for `toHaveLength` before
+    assuming a field addition is type-safe end to end.
+  - **`formatEuros(0)` is `0,00 €`, which is why every read-back of the cap needs its own null
+    branch before formatting.** `describeCap` in `einstellungen/page.tsx` is that branch for the
+    history; US-004 needs the same shape again for the form value and the version summary line, and
+    losing it turns *no cap* into *free for everyone* on the next save.
+  - The exhaustive-`switch` guard worked as the Codebase Patterns entry promises: the build failed
+    on `page.tsx` the moment the union member existed, before any test was written for the screen.
+  - `de.settings.errorFields.priceCap` is deliberately **not** added yet — US-004 owns it together
+    with the form field it marks. `fields.priceCap` had to land here because the history row names
+    the field.
+  - No browser verification in this story: nothing can set a cap yet (the repository still writes
+    `priceCap: null` until US-003 and the form has no control until US-004), so the new history row
+    is unreachable on screen. US-004 verifies it end to end, as its criteria say.
+---

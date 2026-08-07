@@ -58,8 +58,8 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done. 'priceCap' added to SETTINGS_FIELDS after pricePerChild (isUnchanged needed no special case) and to SettingsChange as Cents | null; diffSettings compares the whole of Cents | null so introduce/remove/change all report and null → null does not. The exhaustive switch in einstellungen/page.tsx gained the case via a describeCap helper that branches on null BEFORE formatEuros, with de.settings.prices.noCap = 'kein Maximalpreis' and de.settings.fields.priceCap = 'Maximalpreis je Ausgabe' (US-004 still owns errorFields.priceCap and the version summary line). 9 tests written first, red before green. One existing application expectation moved deliberately: the no-previous-version audit entry now lists 8 changed fields, not 7."
     },
     {
       "id": "US-003",
