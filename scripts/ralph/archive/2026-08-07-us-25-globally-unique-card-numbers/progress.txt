@@ -1,0 +1,315 @@
+# Ralph Progress Log
+Started: Thu Aug  6 13:53:09 CEST 2026
+
+## Codebase Patterns
+- **Adding a `DomainErrorCode` is a three-file change**: the union in `src/domain/errors.ts`, the
+  class beside it, and `TIERS` in `src/app/notice-tier.ts`. `TIERS` is a `Record` over the union, so
+  the *build* fails until the code is tiered — that is the mechanism, not an obstacle. The header
+  comment of `notice-tier.ts` counts the codes ("a 32nd code…", "the six red ones"), so it goes
+  stale silently; update it with the entry.
+- **An error class with no caller yet still needs a test**, because `domain/` coverage is gated at
+  100%. `src/domain/errors.test.ts` is where those live — see the `MissingAuditReason` block for the
+  shape, including the comment saying which story will call it.
+- **`errors.ts` cannot import from `domain/card/`**: `cardNumber.ts` imports `errors.ts`, so a
+  message that wants to read `66k1` writes the `k` inline rather than calling `formatCardNumber`.
+- **`docs/technical_documentation.md` explains each domain module in a `### <path>` section** and
+  lists the error classes by name in the `src/domain/errors.ts` section. Adding an export or an
+  error makes both stale and no gate can tell — grep the file for the module path *and* for the
+  vocabulary of the rule being changed.
+- **A Prisma `P2002` cannot always name *which* constraint was broken.** `meta` is
+  `{ modelName, target: [columns] }`, but where two unique indexes both cover the offending row
+  SQLite reports only one of them, and not the one that was declared or created first. Where the
+  distinction matters, match the target for the *shape* and then ask the database the question that
+  actually distinguishes the two faults (`card-repository.ts`'s `issue` counts the customer's own
+  rows on that index). For a **nested** write Prisma reports the *rooted* model — a card refused
+  inside `customer.create` comes back as `modelName: "Customer"` — so the model name alone tells
+  nothing about which table failed.
+- **The e2e customer-number bands, as they now stand.** Below the quota of 240: counter 201–206 and
+  239, portions 211, serve 221–222, reminders 231, registration 232–234, card numbers 236. Above it:
+  block 241, reissue 251, age-13 271, customer-list 281–285, customer-record 291, group-progress
+  301–303, group-walk 311–315. A spec whose number must be **pickable in the /kunden/neu dropdown**
+  has to sit below 240 — the pool is `1..quotaN` — and everything else should stay above it, clear of
+  the low sequence the allocating specs (registration, card, archive, reregistration) consume.
+- **Prior runs' patterns are in the archive**, not in this file: `scripts/ralph/archive/<date>-<story>/progress.txt`
+  keeps a long consolidated list (playwright-cli usage, e2e customer-number bands, killing the dev
+  server safely, testid greps). Read the most recent one before any UI or e2e story.
+---
+
+## 2026-08-06 13:55 - US-001 (The next index is the slot's, not the record's)
+- Implemented the counting rule for US-25 in the domain layer, TDD, red before green.
+- Files changed:
+  - `src/domain/card/cardNumber.ts` — new `nextCardIndex(highestIssuedOnSlot)`; `nextCardNumber`
+    re-expressed on top of it; module header rewritten to say the index counts the *slot's* cards.
+  - `src/domain/card/cardNumber.test.ts` — four named cases for `nextCardIndex`; the
+    `nextCardNumber` case renamed to the rule it states.
+  - `src/domain/errors.ts` — `CardNumberTaken { customerNumber, index }`, 32nd `DomainErrorCode`.
+  - `src/domain/errors.test.ts`, `src/app/notice-tier.test.ts` — cover it.
+  - `src/app/notice-tier.ts` — tiered `error`, header comment recounted.
+  - `docs/technical_documentation.md` — `cardNumber.ts` and `errors.ts` sections.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1028 tests, domain 100%), build — all green.
+- **Learnings for future iterations:**
+  - `0` is a *valid* argument to `nextCardIndex` and the whole point of it: the untouched slot. The
+    guard rejects negatives and non-integers only.
+  - `InvalidCardNumber` takes a `text: string`, so the guard passes `String(highest)`. The message
+    reads oddly for an index ("…is not a card number such as 50k3") but the PRD names that error.
+  - The doc paragraph "Card numbers are **not** unique across the archive" existed in *two* places:
+    `docs/technical_documentation.md` (fixed here) and the header of
+    `src/infrastructure/prisma/card-repository.ts` (US-003 owns that one).
+  - US-002 next: the schema change is a **regenerated** migration history, and the hand-written
+    partial unique index `Customer_customerNumber_onRegister_key` must be re-added to the new
+    `migration.sql` by hand — `prisma migrate dev` drops it.
+---
+
+## 2026-08-06 17:30 - US-002 (The card row carries the number printed on it)
+- `Card` gained `customerNumber Int` (not nullable, no default) and `@@unique([customerNumber, index])`
+  beside the existing `@@unique([customerId, index])`; no separate `@@index([customerNumber])` — the
+  new unique index leads with that column and serves `MAX(index) WHERE customerNumber = ?`.
+- Migration history regenerated (`rm -rf prisma/migrations` → `prisma migrate dev --name init`) and the
+  hand-written partial index `Customer_customerNumber_onRegister_key` re-added verbatim, comment and
+  all. `npm run db:reset` completes; /einstellungen renders the seeded settings, not "keine
+  Einstellungen hinterlegt".
+- Files changed:
+  - `prisma/schema.prisma`, `prisma/migrations/20260806150359_init/migration.sql` (old dir deleted).
+  - `src/infrastructure/prisma/customer-repository.ts` — the nested card create writes
+    `customerNumber`; `isCustomerNumberCollision` now also checks `meta.modelName === "Customer"`.
+  - `src/infrastructure/prisma/card-repository.ts` — `issue` reads the slot off the customer row in
+    one transaction with the insert (the column can then never disagree with the customer's number).
+  - `src/infrastructure/prisma/schema.test.ts` — asserts the new unique index survives a regeneration.
+  - `card-repository.test.ts`, `customer-repository.test.ts`, `certificate-repository.test.ts` and
+    12 e2e fixtures — every directly written card row now states its slot.
+  - `docs/technical_documentation.md`, `docs/tech_stack_architecture_sketch.md` — the two passages
+    arguing that `50k1` legitimately recurs.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1031 tests), build, `db:reset` — all green.
+- **KNOWN RED, EXPECTED, FIXED BY US-004: 5 e2e specs fail.** `npm run test:e2e` → 102 passed, 5
+  failed: archive.spec "the freed number is handed to the next household", card.spec "a registration
+  issues card k1", registration.spec "a two-person household is registered…", reregistration.spec "a
+  household is served and archived…", waiting-list.spec "promoting the applicant hands them the freed
+  number". All the same cause: `registerCustomer` still writes the literal `index: 1`, which the new
+  constraint refuses on a slot an archived household already printed a card on. This is the layering
+  the PRD chose (schema before application); US-004 removes the literal and the five go green. Do not
+  "fix" the specs — the specs are right.
+- **Learnings for future iterations:**
+  - **`pkill -f next-server` kills the bash tool's own shell** (its command line contains the
+    pattern), so everything after it in the command silently never runs — the call just exits 144.
+    Use `pkill -f "next-serve[r]"` or `pgrep -f "next-serve[r]"` to check first.
+  - **Prisma P2002 `meta` is `{ modelName, target: [columns] }`** on SQLite — e.g.
+    `{"modelName":"Card","target":["customerNumber","index"]}`. So a collision check can and should
+    name the model *and* the columns; `JSON.stringify(meta).includes("…")` matches across models and
+    is what made a duplicate card number report itself as a taken customer number. US-003's split of
+    `isCardIndexCollision` has the same shape: `target` is `["customerId","index"]` vs
+    `["customerNumber","index"]`.
+  - `prisma migrate dev` refuses to run while `data/fd.db` holds a migration that is no longer on
+    disk: delete the db file first (the `db:reset` node one-liner does it), then regenerate.
+  - `customer-repository.test.ts` now has `nextOnTheSlot(...)`, a `newCustomer` whose card index is
+    one higher — any adapter test that registers a *second* household on one slot needs it, because
+    two k1s on a number no longer fit through the database.
+  - `card.spec.ts`'s title "a registration issues card k1" is only true on a slot nobody has held.
+    It passes in isolation and fails in the suite, where an earlier spec has archived a household on
+    slot 1. US-006 should decide whether the title still says what it means.
+---
+
+## 2026-08-06 17:40 - US-003 (The repository answers for the slot)
+- `CardRepository.highestIndexForNumber(customerNumber)` on the port, the fake and the adapter — the
+  highest index ever printed on a slot, 0 for an untouched one, archived holders included. One
+  `aggregate({ _max: { index: true } })` served by the leading column of the new unique index.
+- `issue` reports the two constraints as themselves, and `issueCounts.cardsIssued` counts the
+  customer's own rows rather than `_max(index)`.
+- Files changed:
+  - `src/application/ports.ts` — the method and its argument; `CardIssueCounts.cardsIssued` reworded.
+  - `src/application/customers/read-card.ts` — `CardView.cardsIssued` reworded.
+  - `src/infrastructure/prisma/card-repository.ts` — header rewritten (the paragraph saying two
+    customers may each hold `50k1` said the opposite of the rule), `isCardCollision`, the
+    discriminating count, `highestIndexForNumber`, `issueCounts`.
+  - `src/infrastructure/prisma/customer-repository.ts` — one `isCollisionOn(error, columns)` replaces
+    `isCustomerNumberCollision`; `create` now also raises `CardNumberTaken`.
+  - `card-repository.test.ts` (+9 cases), `customer-repository.test.ts` (+1), `customers.test.ts`
+    (the fake), `docs/technical_documentation.md`.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1040 tests, domain + application 100%), build,
+  `format:check` — all green. e2e NOT run: US-002's 5 specs stay red until US-004.
+- **Learnings for future iterations:**
+  - **The `isCardIndexCollision` split the PRD asks for cannot be done on the constraint target
+    alone.** A card's `customerNumber` is written from the customer row, so a second card on an index
+    the customer already holds violates `(customerId, index)` *and* `(customerNumber, index)`, and
+    SQLite reports `["customerNumber","index"]` — even though `Card_customerId_index_key` is created
+    first in the migration. `issue` therefore matches either of `Card`'s targets and then counts the
+    customer's own rows on that index to decide which error it is. Do not "simplify" that back to a
+    target match: the existing US-02.3 concurrency tests go red immediately.
+  - **`PrismaCustomerRepository.create` had been mapping a duplicate *card* number to
+    `CustomerNumberTaken`.** Prisma reports a nested write under the rooted model, so the modelName
+    check US-002 added does not catch it; the columns do (`["customerNumber"]` = the register's
+    partial index, `["customerNumber","index"]` = `Card`'s). US-004 needs this, because a
+    registration writes its first card through `create` and not through `cards.issue`.
+  - `FakeCardRepository` in `customers.test.ts` is now constructed with the customer register —
+    `new FakeCardRepository(customers)` — because a card's slot is read off the customer row rather
+    than passed in. Every `beforeEach` already built `customers` first.
+  - The fake's `issueCounts` counts rows now too. No application test asserted the old max-index
+    reading, so nothing outside infrastructure moved.
+---
+
+## 2026-08-06 22:15 - US-004 (Registration and reissue continue the slot's run)
+- `RegisterCustomerDeps` gained `cards: CardRepository` (read-only, one question). Every real caller
+  already carried it — `customerDeps`, `waitingListDeps` and the demo seed's `DemoDeps` all had a
+  `cards` adapter, so no composition root moved.
+- `registerCustomer` computes `nextCardIndex(await deps.cards.highestIndexForNumber(customerNumber))`
+  **inside the attempt loop and after the number is settled**, and the literal `index: 1` is gone.
+- `issueCard` asks `highestIndexForNumber(customer.customerNumber)`; the `current === null ? 1 : …`
+  branch and the `nextCardNumber` import went with it. `currentCard` stays on the port for its other
+  callers.
+- `CardNumberTaken` propagates from both use cases and is **not** retried — the retry loop moves to
+  another slot, which is the wrong answer for a slot the registration has already won.
+- Files changed:
+  - `src/application/customers/register-customer.ts`, `issue-card.ts`.
+  - `src/domain/customer/customer.ts` — `NewCustomer.card`'s doc said "index 1 for the one handed
+    over with the registration".
+  - `src/application/customers/customers.test.ts`, `src/application/waiting-list/waiting-list.test.ts`
+    — the six named cases the PRD asks for (written red in a previous iteration) plus `cards` in the
+    `readCustomer` and `readCard` describes' deps.
+  - `tests/e2e/archive.spec.ts`, `reregistration.spec.ts`, `waiting-list.spec.ts`.
+  - `docs/technical_documentation.md` — the `issueCard` section's counting rule, the two passages
+    saying a re-registration "starts at card index 1", the waiting-list e2e walkthrough.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests, domain + application 100%), build,
+  **full e2e (120 passed, 1 skipped)** — all green. The 5 specs US-002 left red are fixed.
+- **Learnings for future iterations:**
+  - **Three e2e specs asserted `${customerNumber}k1` in a *shared* `register` helper** used both for
+    a fresh slot and for a successor on a freed one. The helper now asserts
+    `new RegExp('^' + customerNumber + 'k\\d+$')` — the card names the slot, index unpinned — and the
+    three tests that know the slot's run assert `k2` outright at the call site. That is the honest
+    split: a helper cannot know the run, a test that arranged an archive can.
+  - `--grep` on a `describe.configure({ mode: "serial" })` file runs the matched test **alone**, so
+    the `beforeAll`/earlier-test state it depends on is missing and it fails with a bogus
+    `Cannot read properties of undefined`. Run the whole spec file (`npx playwright test <file>
+    --project=chromium`) to see a real failure.
+  - A Playwright failure inside a serial describe stops the rest of the file ("N did not run"), so
+    one red test hides however many follow it. Re-run the file after each fix rather than assuming.
+  - `npm run format:check` is red on `tasks/prd-us-25-globally-unique-card-numbers.md` and has been
+    since 043789a; CI does not run it, and lint-staged only formats what a commit stages.
+  - US-005 next: `de.customers.registration.prefilled.detail` still promises "einer neuen Karte
+    (k1)". `src/i18n/de.ts:390`.
+---
+
+## 2026-08-06 22:25 - US-005 (The screens stop promising k1)
+- `de.customers.archiveSearch.prefilled.detail` no longer says „einer neuen Karte (k1)" — the rest of
+  the sentence (which archived record, that it stays unchanged) is preserved verbatim. Its doc comment
+  now records *why* no index may be named again: the banner renders before the slot is chosen, and
+  since US-25 a first card on a freed number is not `k1`.
+- Every other German string mentioning a card was re-read and left alone. Two worth naming:
+  `counter.verdicts.outdatedCard` („Karte ungültig") is about *the card*, not "your" card, which is
+  what makes it read properly for a stranger's; `cardView.supersededNone` („Diese Karte ist die erste
+  des Haushalts und ersetzt keine frühere") stays true of a first card at `k2`, because it says *des
+  Haushalts* — the superseded list is the record's run, not the slot's.
+- Files changed: `src/i18n/de.ts` only. No key added or removed, no component touched — the one e2e
+  assertion calls `words.prefilled.detail(...)` rather than quoting it, so it followed the change.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests), build — all green.
+- **Browser verification** (playwright-cli, production build on 3100 against `data/fd.db` after
+  `npm run db:reset && npm run db:demo`), accessibility snapshot read:
+  - `/kunden/neu` with the archive pre-fill applied (searched „Dück", took the match): the banner is a
+    `status` with the `<h2>` and reads "Übernommen von „Milena Dück“, archiviert am 07.06.2026 unter
+    der Kundennummer 5. Es wird ein neuer Datensatz mit einer neu vergebenen Kundennummer und einer
+    neuen Karte angelegt. …" — no index anywhere.
+  - `document.documentElement.scrollWidth - clientWidth` is **0** at 1920, 1280, 1024, 800 and 390
+    with the pre-fill on screen.
+  - `/kunden/20/karte` (the seed's re-registered household): "Kartennummer 2k2", "Ausgestellte Karten
+    / Karten insgesamt 1", "davon nach Verlust 0".
+- **Learnings for future iterations:**
+  - **The demo seed already demonstrates the new rule**, and has since US-004 landed: customer 19 sits
+    on slot 1 at index 2 and customer 20 on slot 2 at index 2, because the seed replays the real use
+    cases. US-007's remaining job there is the `demonstrates` *string*, not the shape.
+  - **A UI story with a card in it needs `npm run db:reset && npm run db:demo` first** — a bare
+    `db:reset` seeds settings only, so `data/fd.db` has no customers at all and every screen is empty.
+  - **`tsx` cannot resolve `@prisma/client` from a script in `/tmp`.** Write throwaway inspection
+    scripts inside the repo (a gitignored/temporary dir) and delete them, and use a `.mts` file rather
+    than `tsx -e` — `-e` compiles as CJS and rejects top-level `await`.
+  - `playwright-cli --raw eval "…"` needs `2>/dev/null | tail -1`: the version-mismatch banner is on
+    stdout too.
+  - **`docs/user_stories_mvp.md` still states the old rule in two places** — §US-02 point 7 ("card
+    number `<number>k1`") and ~line 341 ("card index starting at `k1`"). US-007's criteria do not name
+    that file, but they do say *no documentation claims a card number can repeat*. Follow the
+    house style for a superseded requirement: strike through, mark, keep — never delete.
+---
+
+## 2026-08-06 23:20 - US-006 (E2E — the archived household's card is refused)
+- `tests/e2e/card-number.spec.ts`: seven serial tests walking the scenario that motivated US-25 on
+  one slot — register RED through the form on a **chosen** number, archive it with a reason while its
+  card is still in the world, register a different household on the number that just came free.
+- Asserted: the successor's card is `236k2` and not the archived household's `236k1`; at the counter
+  `236k1` → `OUTDATED_CARD` with `counter-card-number` naming the current card, `236k2` → „Ausgabe
+  frei" with the serve button; `/kunden/[id]/karte` shows „Karten insgesamt 1" for the successor
+  (index counts the slot, count counts the household); no two `Card` rows share a
+  `(customerNumber, index)` pair **anywhere in the register** and the archived household's row is
+  still there; a reissue takes the successor to `236k3` while `236k1` stays refused.
+- Files changed:
+  - `tests/e2e/card-number.spec.ts` (new).
+  - `tests/e2e/card.spec.ts` — title and two comments. US-002 left this decision to US-006: the spec
+    claims `k1`, which now holds only because the form proposes an *untouched* slot, and one comment
+    said a first card is "never a number carried over from whoever last held this customer number",
+    which is the opposite of the rule. No assertion moved.
+  - `docs/technical_documentation.md` — the `tests/e2e/` tree and a catalogue entry for the new spec;
+    the `card.spec.ts` entry now says why its `k1` holds.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests), build, `prettier --check` on the
+  touched files, **full e2e (127 passed, 1 skipped)** — all green.
+- **Learnings for future iterations:**
+  - **A spec that needs two households on one customer number must pick the number, and can only
+    pick below the quota.** `/kunden/neu` offers `1..quotaN` (240 seeded), so the 241+ bands the
+    seeding specs took are invisible to the control. 235–238 were the only free ones below it; this
+    spec took 236. The band list is now in Codebase Patterns above.
+  - The dropdown offers a number an **archived** household holds, which is what makes the second
+    registration possible at all — `register()` asserts the option exists before selecting it, so a
+    regression in US-10's slot release fails here as itself rather than as a timeout.
+  - Extra households in the shared register are safe for the specs that come after: `group-progress`,
+    `group-walk` and `customer-list` all read their expectations out of Prisma (or take a baseline)
+    at assertion time. `home.spec.ts`'s `cards-due-badge`/`waiting-list-free-slot` assertions are
+    `toHaveCount(0)` for elements that moved to the hub — nothing to disturb.
+  - A spec pinning `data/e2e-now.txt` must delete it in `afterAll`, or January is frozen for
+    `settings.spec.ts`, which stamps a version *now*.
+  - US-007 next: the documents. `CLAUDE.md`'s "Derive, don't store" list, `docs/domain_analysis.md`,
+    the three superseded PRD notes, the demo seed's `demonstrates` string — and `docs/
+    user_stories_mvp.md` still states the old rule in two places (§US-02 point 7 and ~line 341),
+    which US-005's log already flagged.
+---
+
+## 2026-08-06 23:50 - US-007 (The documents say the new rule)
+- The places that argued for the *per-record* counting rule now argue for the slot's:
+  - `CLAUDE.md`, "Derive, don't store": a **third** exception, `Card.customerNumber`. Framed as a
+    *key* like `firstNameFolded` — the `@@unique([customerNumber, index])` needs the slot on the row
+    and `MAX(index) WHERE customerNumber = ?` is the counting rule's question — and explicitly *not*
+    a snapshot like the three `AtIssue` fields, because a customer number cannot change.
+  - `docs/domain_analysis.md` §Customer Card: a card number is **issued once and never reused**; the
+    index counts the cards of the *number*, not of the household holding it. §4.4 (reissue) was left
+    alone — for an active household the slot's highest and the record's are the same card.
+  - `docs/technical_documentation.md`: the demo-register section names the two households on a freed
+    slot and their `1k2` / `2k2`; the `registration-screen.tsx` bullet no longer says the pre-fill
+    banner promises a card `(k1)` — US-005 took that literal out of the dictionary and the doc kept it.
+  - `tasks/prd-us-02`, `-us-09`, `-us-11`: a **note** at the top of each, not a rewrite. US-02's also
+    marks the two lines that state the opposite rule *as a requirement* (FR-6, and the criterion
+    asking for an integration test that two customers may both hold `50k1`).
+  - `docs/user_stories_mvp.md`: not named in the criteria, but it states the old rule in three places
+    (§US-01.7, §US-02.2, §US-11.3). Each gained an inline `[superseded by US-25]` in the doc's own
+    `[added]` style — struck through nothing, deleted nothing.
+  - `docs/ui_redesign_kunden_karte.md` §1: one parenthesis saying the household examined as "her
+    first card `1k1`" now reads `1k2`. A review record of a session that happened is not rewritten.
+- `prisma/demo-seed.ts`: the **shape** has demonstrated the rule since US-004 (customers on slots 1
+  and 2, both freed by an archive, both holding a first card at `k2`) — what was missing was
+  *visibility*. The summary table gained a `Karte` column, the two `demonstrates` strings say the
+  first card is not `k1`, and the closing paragraph says the card numbers do **not** come back with
+  the slot. Verified: `npm run db:demo -- --reset` prints `1  1k2  Möldner, Sally` and
+  `2  2k2  Dück, Milena`.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests), build, `prettier --check` on every
+  touched file, `db:reset` + `db:demo` — all green. e2e not re-run: nothing under `tests/` or `src/`
+  moved and the e2e suite does not use the demo seed.
+- **Learnings for future iterations:**
+  - **Prettier reflows a long inline code span across a line break and then un-indents it**, which in
+    a nested list looks like the bullet ended. `` `formatCardNumber(customer.customerNumber,
+    card.index)` `` came back mangled; splitting the identifiers into two short spans fixed it.
+    Run `npx prettier --check` on the *markdown* you touched, not only on the TypeScript.
+  - **`docs/` and `tasks/` take opposite treatment for a superseded rule**, and CLAUDE.md says why:
+    `docs/` is the source of truth for what FD needs and is *updated* when a decision changed;
+    `tasks/` is the record of what was asked for and gets a *note*. `user_stories_mvp.md` sits in
+    `docs/` but reads like a record, so it took the middle road — text kept, marked inline.
+  - The repository-wide grep the criterion asks for has two **false positives** worth not
+    "fixing": `docs/user_stories_mvp.md:72` and `tech_stack_architecture_sketch.md:201` say the
+    *customer number* is not unique across the archive, which is still true and is the premise US-25
+    works from; `ui_redesign_kunden_verwalten.md` §3.4 "the register's card number repeats its
+    customer number" is about a **column** showing `12` beside `12k1`.
+  - The demo seed's summary reads the register back through the repositories (`deps.cards.currentCard`),
+    so a column added there costs one query per row and cannot disagree with what the screens show.
+---

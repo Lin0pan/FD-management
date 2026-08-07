@@ -104,8 +104,9 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 23  | `23-us-23-group-progress.json`               | 5       | `ralph/us-23-group-progress`               |
 | 24  | `24-us-24-choose-customer-number.json`       | 5       | `ralph/us-24-choose-customer-number`       |
 | 25  | `25-us-25-globally-unique-card-numbers.json` | 7       | `ralph/us-25-globally-unique-card-numbers` |
+| 26  | `26-us-26-price-cap.json`                    | 7       | `ralph/us-26-price-cap`                    |
 
-122 stories total — the rows sum to it. Every story cites its source PRD section in its
+129 stories total — the rows sum to it. Every story cites its source PRD section in its
 `description`, so an iteration can read the full context when a criterion is ambiguous.
 
 Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 onwards are not
@@ -147,6 +148,29 @@ no real data, so history is disposable — CLAUDE.md), which drops the hand-writ
 on `Customer.customerNumber` unless US-002 puts it back; and it adds a **new port method**
 (`highestIndexForNumber`), so every hand-written fake `CardRepository` in the application tests has to
 gain it before the suite compiles.
+
+**Batch 26 (US-26)** is a new requirement rather than a correction: FD caps what any one household
+pays for a distribution at a **Maximalpreis** — 5,00 € today — which the software has never known
+about, so it quotes 11,00 € for four grown-ups and three children where FD collects 5,00 €. The
+behavioural change is one line in `priceFor`, because every screen that shows a price already derives
+it there; the other six stories exist because the cap must be **configurable, versioned and
+auditable** like every other policy value. Domain + schema + infrastructure + application-free
+(no use case changes at all) + settings screen + e2e + docs.
+
+Its seven stories group the PRD's nine: `§US-26.1` and `§US-26.2` are one story because adding a
+required field to `Settings` breaks the repository, the seed, the server action and every test fake
+at once, and there is no reason to pay that twice; `§US-26.5` and `§US-26.6` are one because they are
+one screen, one dictionary edit and one browser session; and `§US-26.7` — whose code the typecheck
+already forces into story 1 — is checked inside the e2e story that registers the household it needs.
+
+Three things about 26 to hold on to. It is the **second batch with a schema change** and regenerates
+`prisma/migrations/` for the same reason 25 did — so the hand-written partial unique index on
+`Customer.customerNumber` has to be re-added, this time by US-004. The cap is `Cents | null` and an
+**empty field means no cap**, which is a different claim from a cap of `0,00 €` (free for everyone);
+`formatEuroAmount(0)` is `0,00`, so the renderer branches on `null` before formatting and the e2e
+spec asserts the empty field precisely because losing that branch would be silent. And it adds a
+member to the `SettingsChange` union, whose `switch` in `src/app/einstellungen/page.tsx` is
+exhaustive — the build fails until US-003 handles the new case, which is the mechanism working.
 
 Batches 21 to 23 all edit `src/app/ausgabe/page.tsx`, so the "merge before starting the next batch"
 rule is load-bearing here for the same reason it was for 19 and 20. **Run them in this order**: 21 frees the
