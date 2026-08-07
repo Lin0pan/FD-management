@@ -35,7 +35,15 @@ Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
   `Customer.customerNumber` (`Customer_customerNumber_onRegister_key`) at the end of the migration
   SQL. `src/infrastructure/prisma/schema.test.ts` greps for it and for the `onDelete: Restrict`
   clauses, so a lost line fails CI rather than production — but re-add it deliberately, and run
-  `npm run db:reset` afterwards or the schema and the database drift silently.
+  `npm run db:reset` afterwards or the schema and the database drift silently. **Delete
+  `data/fd.db` before `migrate dev`**: with the old migration row still in `_prisma_migrations`,
+  Prisma refuses to regenerate and writes nothing.
+- **Never `pkill -f "next dev"`** — the pattern matches the Bash tool's own wrapper command line and
+  kills the shell (exit 144, no output). Check `ss -ltnp | grep :3000` instead and, if something
+  really is listening, match on `node.*next-server`.
+- **Changing a seeded policy value moves e2e expectations.** `grep -rn ',00 €' tests/e2e/` before
+  editing a number in `seed.ts` — the seeded cap of 500 moved exactly one assertion and it would
+  have surfaced two stories later otherwise.
 - **The e2e customer-number bands, as they now stand.** Below the quota of 240: counter 201–206 and
   239, portions 211, serve 221–222, reminders 231, registration 232–234, card numbers 236. Above it:
   block 241, reissue 251, age-13 271, customer-list 281–285, customer-record 291, group-progress
