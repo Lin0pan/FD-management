@@ -10,18 +10,23 @@ are stated. `CONTRIBUTING.md` covers human onboarding (setup, commands, why each
 
 ## Orientation
 
-| Question                                 | Document                                 |
-| ---------------------------------------- | ---------------------------------------- |
-| Why this stack and this architecture?    | `docs/tech_stack_architecture_sketch.md` |
-| What must the software do?               | `docs/user_stories_mvp.md`               |
-| What is the domain?                      | `docs/domain_analysis.md`                |
-| How is the code actually organised?      | `docs/technical_documentation.md`        |
-| How is the dev setup and pipeline built? | `docs/fd_dev_setup_overview.md`          |
-| What am I building next, story by story? | `tasks/` (one PRD per user story)        |
-| How do I style a screen?                 | `docs/ui_styling_guide.md`               |
+| Question                                         | Document                                      |
+| ------------------------------------------------ | --------------------------------------------- |
+| Why is the architecture the way it is?           | `docs/architecture/` — arc42 chapters + ADRs  |
+| How is the code organised, and what lives where? | `docs/architecture/05-building-block-view.md` |
+| What must the software do?                       | `docs/user_stories_mvp.md`                    |
+| What is the domain?                              | `docs/domain_analysis.md`                     |
+| How is the dev setup and pipeline built?         | `docs/architecture/07-deployment-view.md`     |
+| What am I building next, story by story?         | `tasks/` (one PRD per user story)             |
+| How do I style a screen?                         | `docs/ui_styling_guide.md`                    |
 
-`docs/` is the source of truth for _what FD needs_ — treat it as given unless a decision changed, in
-which case update it. `tasks/` is the implementation-facing translation of it.
+`docs/architecture/` is the architecture record: a change that makes a chapter wrong updates that
+chapter in the same PR, and a hard-to-reverse choice gets an ADR. `docs/technical_documentation.md`
+and `docs/tech_stack_architecture_sketch.md` are **legacy**, kept briefly and retiring into it — read
+them as history and do not extend them.
+
+The rest of `docs/` is the source of truth for _what FD needs_ — treat it as given unless a decision
+changed, in which case update it. `tasks/` is the implementation-facing translation of it.
 
 ## What this project optimises for
 

@@ -1,0 +1,58 @@
+# 12. Glossary
+
+_Last reviewed: 2026-08-07_
+
+The words that carry a specific meaning here, and the German↔English mapping the codebase runs on:
+**identifiers are English, screens are German**, so almost every domain noun exists twice. Where the
+two could be confused, the canonical form is the English identifier.
+
+## Domain terms
+
+| Term                                | Definition                                                                                                                                                                       | Aliases / notes                                                                                          |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| **Card**                            | A physical shopping card handed to a household. Validity is _being the highest index_ on the slot — there is deliberately no `valid` flag                                        | de. _Kundenkarte_                                                                                        |
+| **Card number**                     | `<customer number>k<index>`, e.g. `12k1`. **Derived at every read**, never stored. Names one physical card for good, because the index counts every card ever issued on the slot | de. _Kartennummer_                                                                                       |
+| **Certificate**                     | The proof of need entitling a household to shop, e.g. a Jobcenter notice. Arrives on paper; rows are appended, never edited                                                      | de. _Bescheinigung_                                                                                      |
+| **Certificate state**               | `VALID`, `EXPIRING_SOON` (within 30 days) or `EXPIRED`. An expired certificate never refuses a hand-out — it serves and prompts a reminder                                       | —                                                                                                        |
+| **Customer**                        | One **household** on the register, identified by the person registered. Not one person                                                                                           | de. _Kunde_. Careful: the customer is also one of their own household member rows                        |
+| **Customer number**                 | A **slot** in `1..N`, not an identity. Released by archiving and refilled by the next registration                                                                               | de. _Kundennummer_. See [ADR-008](adr/008-treat-a-customer-number-as-a-reusable-slot-not-an-identity.md) |
+| **Distribution / distribution day** | The weekly hand-out, on the configured weekday. One group collects per week                                                                                                      | de. _Ausgabe_ — which is also the name of the counter screen                                             |
+| **Group**                           | `RED` or `BLUE` — which week of the two-week cycle a household collects in. A property of the _household_, editable                                                              | de. _Gruppe_. Deliberately **not** the same type as week colour, though the two values coincide          |
+| **Grown-up**                        | A household member aged **13 or older** on the date being asked about. Derived from birthdates, never stored                                                                     | de. _Erwachsener_. The 13-year boundary is `GROWN_UP_AGE_YEARS`                                          |
+| **Household composition**           | The derived pair (grown-ups, children) for a household _at a given date_                                                                                                         | de. _Haushalt_. The thing the spreadsheet stored and this system refuses to                              |
+| **Note**                            | A free remark on a household, editable from the record and from the counter                                                                                                      | de. _Bemerkung_                                                                                          |
+| **Portion allowance**               | How much food a household may take: portions per grown-up × grown-ups + portions per child × children, from the policy in force                                                  | de. _Portionen_                                                                                          |
+| **Price cap**                       | The most one household pays for one distribution, whatever its size. Nullable — absent means no cap, and is distinct from a cap of zero                                          | de. **Maximalpreis**                                                                                     |
+| **Quota (N)**                       | The number of customer slots FD hands out. A policy value; may not be set below the count of active households                                                                   | de. _Kontingent_                                                                                         |
+| **Reissue**                         | Issuing a replacement card. Reasons: `FIRST_ISSUE`, `LOST`, `STALE_COUNTS`, `OTHER`. A reissue **is** how a change to a printed card is recorded                                 | de. _Neuausstellung_                                                                                     |
+| **Stale card**                      | A card whose printed facts have been overtaken — by a 13th birthday, a household change or a group move                                                                          | Reasons `AGE_13`, `HOUSEHOLD_CHANGE`, `GROUP_CHANGE`                                                     |
+| **Status**                          | `ACTIVE`, `BLOCKED` or `ARCHIVED`. A blocked household is turned away but keeps its slot; only archiving releases it, and archiving is irreversible                              | de. _aktiv / gesperrt / archiviert_                                                                      |
+| **Verdict**                         | The single answer the counter gives about a household today, from a fixed precedence chain. Never a list of hints                                                                | See [chapter 6](06-runtime-view.md#scenario-1--serving-a-household-at-the-counter)                       |
+| **Waiting list**                    | Applicants with no free slot, in strict arrival order. Rows are stamped removed, never deleted                                                                                   | de. _Warteliste_                                                                                         |
+| **Week colour**                     | `RED` or `BLUE` for a given calendar week, derived by strict alternation from a single configured anchor                                                                         | de. _Wochenfarbe_. A property of the _calendar_, unlike a household's group                              |
+
+## Architecture terms
+
+| Term                    | Definition                                                                                                                                                      | Aliases / notes                                                                             |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Adapter**             | An implementation of a port, living only in `src/infrastructure/`                                                                                               | —                                                                                           |
+| **Composition root**    | A `deps.ts` file wiring adapters into a use case's dependencies. Exactly four exist, and they are the only files in `src/app/` that import infrastructure       | —                                                                                           |
+| **Derive, don't store** | The project's central rule: anything computable is computed at the point of use. Four argued exceptions exist                                                   | [ADR-007](adr/007-derive-anything-computable-rather-than-storing-it.md)                     |
+| **Hexagonal-lite**      | This project's layering: `domain / application / infrastructure / app`, dependencies inwards only — without aggregates, events or CQRS. The "lite" is the point | [ADR-001](adr/001-layer-the-system-hexagonal-lite-and-enforce-the-boundary-in-the-build.md) |
+| **Port**                | An interface in `src/application/ports.ts` through which the core reaches persistence, time or the audit log. Ten of them                                       | —                                                                                           |
+| **Ralph**               | The autonomous agent loop in `scripts/ralph/` that implements PRD batches unattended. A stakeholder, because the ESLint boundary rules exist for it             | —                                                                                           |
+| **Refusal**             | A notice tier: the system worked correctly and the answer is no. Distinct from an error, and decided from the error's _code_, never its German sentence         | —                                                                                           |
+| **Use case**            | One function in `src/application/` per user intention, taking `(deps, input)`. No classes, no DI container                                                      | —                                                                                           |
+
+## Abbreviations
+
+| Term      | Definition                                                                                      |
+| --------- | ----------------------------------------------------------------------------------------------- |
+| **FD**    | _Delbrücker Füllhorn_, the food bank this software is for                                       |
+| **ADR**   | Architecture decision record — one decision, with the reasoning that was true when it was taken |
+| **PRD**   | Product requirements document; one per user story, in [`tasks/`](../../tasks/)                  |
+| **US-nn** | A numbered user story, e.g. US-26 (the price cap)                                               |
+
+---
+
+Previous: [11. Risks and technical debt](11-risks-and-technical-debt.md) · Back to the [index](README.md)

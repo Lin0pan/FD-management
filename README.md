@@ -63,7 +63,10 @@ features follow the build order **US-14 → US-01 → US-02 → US-03 → US-04 
 
 ## Documentation
 
-- [`docs/technical_documentation.md`](./docs/technical_documentation.md) — how the codebase is
-  organised and how to work in it (layers, modules, config, testing, CI, extending it).
+- [`docs/architecture/`](./docs/architecture/README.md) — the architecture, as twelve arc42 chapters
+  plus the decision records: what the system is for, what constrains it, how it is built, and why.
+  **Start here.**
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md) — workflow, TDD approach, and why each CI gate exists.
-- `docs/` — domain analysis, user stories, tech-stack/architecture sketch, dev-process overview.
+- [`docs/ui_styling_guide.md`](./docs/ui_styling_guide.md) — the rules for every screen.
+- `docs/` — domain analysis and user stories. `technical_documentation.md` and
+  `tech_stack_architecture_sketch.md` are legacy, retiring into `docs/architecture/`.
