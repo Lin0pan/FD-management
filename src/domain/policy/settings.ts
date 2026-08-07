@@ -177,6 +177,7 @@ const SETTINGS_FIELDS = [
   "distributionWeekday",
   "pricePerGrownUp",
   "pricePerChild",
+  "priceCap",
 ] as const;
 
 /** The name of one editable policy field, as it appears in an audit entry. */

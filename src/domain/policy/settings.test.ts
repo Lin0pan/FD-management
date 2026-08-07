@@ -272,6 +272,7 @@ describe("changedSettingsFields", () => {
       "distributionWeekday",
       "pricePerGrownUp",
       "pricePerChild",
+      "priceCap",
     ]);
   });
 
@@ -285,6 +286,29 @@ describe("changedSettingsFields", () => {
   ])("reports %s when only that value differs", (field, overrides) => {
     const next = createSettings(settingsInput(overrides));
     expect(changedSettingsFields(previous, next)).toEqual([field]);
+  });
+
+  it("reports priceCap when a cap is introduced", () => {
+    const next = createSettings(settingsInput({ priceCap: 500 }));
+    expect(changedSettingsFields(previous, next)).toEqual(["priceCap"]);
+  });
+
+  it("reports priceCap when a cap is removed", () => {
+    const capped = createSettings(settingsInput({ priceCap: 500 }));
+    const uncapped = createSettings(settingsInput({ priceCap: null }));
+    expect(changedSettingsFields(capped, uncapped)).toEqual(["priceCap"]);
+  });
+
+  it("reports priceCap when the cap moves to another amount", () => {
+    const capped = createSettings(settingsInput({ priceCap: 500 }));
+    const next = createSettings(settingsInput({ priceCap: 600 }));
+    expect(changedSettingsFields(capped, next)).toEqual(["priceCap"]);
+  });
+
+  it("reports nothing when neither version has a cap", () => {
+    // `null === null`, so the absent cap needs no special case in `isUnchanged`.
+    const next = createSettings(settingsInput({ priceCap: null }));
+    expect(changedSettingsFields(previous, next)).toEqual([]);
   });
 
   it("reports weekAnchor when the anchor week moves", () => {

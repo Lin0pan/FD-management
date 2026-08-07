@@ -22,7 +22,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { DomainError } from "@/domain/errors";
-import { formatEuros } from "@/domain/money";
+import { type Cents, formatEuros } from "@/domain/money";
 import type { Settings } from "@/domain/policy/settings";
 import type { SettingsChange } from "@/domain/policy/settings-diff";
 import { de } from "@/i18n/de";
@@ -70,7 +70,23 @@ function describeChange(change: SettingsChange): string {
         formatEuros(change.from),
         formatEuros(change.to),
       );
+    case "priceCap":
+      return sentence(
+        de.settings.fields.priceCap,
+        describeCap(change.from),
+        describeCap(change.to),
+      );
   }
+}
+
+/**
+ * One side of a cap change: the amount, or the words for there not being one.
+ *
+ * Branching on `null` before formatting is the whole point — `formatEuros(0)` is `0,00 €`, and a
+ * missing branch would print a cap of nothing (free for everyone) where FD had removed the cap.
+ */
+function describeCap(cap: Cents | null): string {
+  return cap === null ? de.settings.prices.noCap : formatEuros(cap);
 }
 
 /** All eight values, for the one version that is worth reading in full: the one in force. */

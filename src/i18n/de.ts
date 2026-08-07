@@ -1189,6 +1189,11 @@ export const de = {
       distributionWeekday: "Ausgabetag",
       pricePerGrownUp: "Preis je Erwachsenem",
       pricePerChild: "Preis je Kind",
+      /**
+       * Not the bare „Maximalpreis“: the screen holds two per-head prices beside it, and what tells
+       * this one apart is that it is a limit per household per distribution.
+       */
+      priceCap: "Maximalpreis je Ausgabe",
     },
     colours: {
       RED: "Rot",
@@ -1207,6 +1212,12 @@ export const de = {
       hint:
         "Der Preis wird je Kopf berechnet: je Erwachsenem und je Kind. Was ein Haushalt zahlt, " +
         "ergibt sich daraus automatisch.",
+      /**
+       * What an empty Maximalpreis says, wherever a cap is read back — the history and the version
+       * summary. „kein Maximalpreis“ and „0,00 €“ are two different configurations: the second one
+       * means every household collects for free, so neither may ever be printed for the other.
+       */
+      noCap: "kein Maximalpreis",
     },
     /**
      * German names for the fields a domain error can name. The keys are the `field` values
