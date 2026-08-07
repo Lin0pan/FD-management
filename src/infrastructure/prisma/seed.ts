@@ -27,8 +27,7 @@ export function provisionalSettingsVersion(): SettingsVersion {
       distributionWeekday: 4,
       pricePerGrownUp: 200,
       pricePerChild: 100,
-      // FOR NOW — US-26.4 seeds FD's real cap of 5,00 € once the column exists to hold it.
-      priceCap: null,
+      priceCap: 500,
     }),
   };
 }

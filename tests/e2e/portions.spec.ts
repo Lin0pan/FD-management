@@ -117,9 +117,9 @@ test("portions and price are derived from the household, not stored", async ({ p
 
   const record = `/kunden/${customer.id}`;
 
-  // The seeded settings are 2 portions and 200c per grown-up, 1 portion and 100c per child
-  // (src/infrastructure/prisma/seed.ts). Two grown-ups and one child: 2·2 + 1 = 5 portions,
-  // 2·2,00 € + 1,00 € = 5,00 €.
+  // The seeded settings are 2 portions and 200c per grown-up, 1 portion and 100c per child, with a
+  // Maximalpreis of 500c (src/infrastructure/prisma/seed.ts). Two grown-ups and one child:
+  // 2·2 + 1 = 5 portions, 2·2,00 € + 1,00 € = 5,00 €, which is exactly the cap.
   await page.goto(record);
   await expect(page.getByTestId("grown-ups")).toHaveText("2");
   await expect(page.getByTestId("children")).toHaveText("1");
@@ -140,11 +140,14 @@ test("portions and price are derived from the household, not stored", async ({ p
     },
   });
 
-  // On the next request the same screen derives the allowance afresh: 2·2 + 2 = 6 portions,
-  // 2·2,00 € + 2·1,00 € = 6,00 €.
+  // On the next request the same screen derives the allowance afresh: 2·2 + 2 = 6 portions. The
+  // price stays 5,00 €, because the seeded Maximalpreis is 5,00 € and the per-head sum of 6,00 €
+  // is above it (US-26). That is the cap doing exactly what it exists for — it caps money, not
+  // food, so the portions rise while the price does not. US-26.7's spec proves both sides of it
+  // deliberately; here the point remains that nothing is stored and everything is derived afresh.
   await page.reload();
   await expect(page.getByTestId("grown-ups")).toHaveText("2");
   await expect(page.getByTestId("children")).toHaveText("2");
   await expect(page.getByTestId("portions")).toHaveText("6");
-  await expect(page.getByTestId("price")).toHaveText("6,00 €");
+  await expect(page.getByTestId("price")).toHaveText("5,00 €");
 });

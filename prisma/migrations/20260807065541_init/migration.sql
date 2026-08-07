@@ -9,7 +9,8 @@ CREATE TABLE "SettingsVersion" (
     "weekAnchorColour" TEXT NOT NULL,
     "distributionWeekday" INTEGER NOT NULL,
     "pricePerGrownUpCents" INTEGER NOT NULL,
-    "pricePerChildCents" INTEGER NOT NULL
+    "pricePerChildCents" INTEGER NOT NULL,
+    "priceCapCents" INTEGER
 );
 
 -- CreateTable

@@ -54,10 +54,18 @@ model SettingsVersion {
   distributionWeekday Int
 
   /// What one grown-up and one child each pay, in whole euro cents. FD charges per head, so what a
-  /// household owes is derived — `grownUps × pricePerGrownUpCents + children × pricePerChildCents`
-  /// — and never stored on this row.
+  /// household owes is derived — `grownUps × pricePerGrownUpCents + children × pricePerChildCents`,
+  /// capped by `priceCapCents` below — and never stored on this row.
   pricePerGrownUpCents Int
   pricePerChildCents   Int
+
+  /// The most one household pays for one distribution, whatever its size — FD's *Maximalpreis*.
+  ///
+  /// **Nullable because absent is a real configuration, not a missing value:** NULL means there is
+  /// no cap and every household pays the per-head sum. It is deliberately not a `0` sentinel,
+  /// because `0` already means something else on this row — a cap of `0` is a coherent setting that
+  /// makes every distribution free — and the two must stay distinguishable on the settings screen.
+  priceCapCents Int?
 
   @@index([recordedAt])
 }
