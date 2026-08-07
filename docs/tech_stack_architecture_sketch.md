@@ -149,7 +149,9 @@ tests/e2e/           # Playwright
   number reuse) is pure functions, tested in milliseconds with no DB, no browser, no mocks.
 - **Change tolerance** — the domain analysis is an MVP starting point, not a finished spec, and
   still carries three open questions. The concrete policy values (prices per head, portions per
-  head, quota `N`) are simply unknown today; when they arrive, they are config rows, not code. Later
+  head, quota `N`) are simply unknown today; when they arrive, they are config rows, not code. The
+  Maximalpreis (US-26) is the case in evidence: FD named it after the pricing was built, and it cost
+  a nullable column and a form field rather than a change to how a price is derived. Later
   additions — reporting, retention rules, block history — land in `domain/policy/` and the
   repositories rather than scattered across UI code.
 - **Framework insurance** — replacing Next.js touches only `src/app/`.

@@ -449,6 +449,14 @@ link here.
 One height for all of them — the guide's `FILTER_SELECT` recipe from `kunden/page.tsx` gives the
 native selects the same `h-9` and the same focus ring as `Input`, which fixes §3.4 in one constant.
 
+> **Since built: US-26 added a sixth field to `Mengen und Preise`.** `priceCap` — the Maximalpreis,
+> an optional amount whose empty field means "no cap" — sits after `pricePerChild`, and the row was
+> re-spanned from `2 + 2 + 2 + 3 + 3` to **`2 + 2 + 2 + 2 + 2 + 2`**, which is what keeps six
+> controls on one line and gives the three money fields the same width as each other. The card's
+> hint was reworded with it: the price is per head **and** the Maximalpreis is the most a household
+> pays whatever its size, so the mock-up's „Der Preis wird je Kopf berechnet.“ above is the shorter
+> sentence this screen used to carry.
+
 ### 4.4 One thing worth adding, and one worth resisting
 
 **Worth adding:** the `Ausgaberhythmus` card should state the consequence of its three fields —

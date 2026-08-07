@@ -240,8 +240,12 @@ documented rather than remembered.
 1. The portion allowance is computed from the derived grown-up/children counts and the configured
    portions-per-grown-up / portions-per-child values.
 2. The price is **derived per head**: the configured price per grown-up times the grown-up count
-   plus the configured price per child times the children count. It never flexes with supply or
-   occasion.
+   plus the configured price per child times the children count, and then **capped at the
+   configured Maximalpreis** — the most one household pays for one distribution, whatever its size
+   (US-26). Where no Maximalpreis is configured the per-head sum stands. It never flexes with
+   supply or occasion.
+   `[changed]` — FD stated the cap after this story was written; four grown-ups and three children
+   owe 11,00 € per head but pay FD's Maximalpreis of 5,00 €.
 3. The allowance shown is always the **standard** one derived from the configured portion values.
    Day-to-day adjustments for supply or special occasions do happen, but they are made physically at
    the counter and are **out of scope for the software** — the system neither captures nor records
@@ -419,19 +423,24 @@ cards that made outdated
 ### US-14 — Configure the Business Rules
 
 **As a** staff member
-**I want to** edit the quota, prices per head and portion values in the application
+**I want to** edit the quota, prices per head, the Maximalpreis and portion values in the application
 **So that** FD can adapt to changed prices or supply without calling a developer.
 
 **Acceptance Criteria**
 
 1. Editable: customer quota `N`; portions per grown-up and per child; the price per grown-up and per
-   child; the week-cycle anchor and distribution weekday.
+   child; the **Maximalpreis** per household per distribution (US-26); the week-cycle anchor and
+   distribution weekday.
 2. A saved change **takes effect immediately** — there is no date to pick. The superseded values
    are kept as read-only history, so past distribution records can still be interpreted with the
    values that applied at the time.
 3. Lowering `N` below the number of active customers is refused with a clear explanation. `[added]` —
    otherwise the quota silently contradicts reality.
 4. Price values are entered and stored in whole cents.
+5. The Maximalpreis is **optional**: an empty field means there is no cap, which is a different
+   claim from a cap of 0,00 € (food is free for everyone). Both are configurable and the screen
+   tells them apart. `[added]` — the two readings are one lost branch apart and the failure would
+   be silent; see US-26.
 
 **Related:** US-01, US-06, US-07, US-12
 
