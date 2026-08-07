@@ -151,6 +151,7 @@ const SETTINGS: SettingsVersion = {
     distributionWeekday: 3,
     pricePerGrownUp: 200,
     pricePerChild: 100,
+    priceCap: null,
   }),
 };
 

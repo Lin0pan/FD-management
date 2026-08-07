@@ -332,13 +332,14 @@ function CustomerRecord({
   const { details } = customer;
   const archived = customer.status === "ARCHIVED";
   const words = de.customers.record;
-  // The four per-head values the household editor derives its live figures from, and nothing more:
+  // The five policy values the household editor derives its live figures from, and nothing more:
   // the quota and the week anchor have no bearing on what a household receives.
   const policy: AllowanceValues = {
     portionsPerGrownUp: settings.portionsPerGrownUp,
     portionsPerChild: settings.portionsPerChild,
     pricePerGrownUp: settings.pricePerGrownUp,
     pricePerChild: settings.pricePerChild,
+    priceCap: settings.priceCap,
   };
 
   return (

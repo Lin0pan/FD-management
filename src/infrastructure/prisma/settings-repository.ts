@@ -35,6 +35,8 @@ function toDomain(row: StoredVersion): SettingsVersion {
       distributionWeekday: row.distributionWeekday,
       pricePerGrownUp: row.pricePerGrownUpCents,
       pricePerChild: row.pricePerChildCents,
+      // FOR NOW — US-26.4 adds the nullable `priceCapCents` column this reads back.
+      priceCap: null,
     }),
   };
 }

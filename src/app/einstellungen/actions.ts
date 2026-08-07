@@ -191,6 +191,8 @@ export async function saveSettings(
         distributionWeekday: form.distributionWeekday,
         pricePerGrownUp: form.pricePerGrownUp,
         pricePerChild: form.pricePerChild,
+        // FOR NOW — US-26.5 adds the Maximalpreis field this reads.
+        priceCap: null,
       },
     });
   } catch (error: unknown) {
