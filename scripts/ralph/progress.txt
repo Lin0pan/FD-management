@@ -42,6 +42,9 @@ Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
   301–303, group-walk 311–315. A spec whose number must be **pickable in the /kunden/neu dropdown**
   has to sit below 240 — the pool is `1..quotaN` — and everything else should stay above it, clear of
   the low sequence the allocating specs (registration, card, archive, reregistration) consume.
+- **Get the *files* out of a wide type break, not the errors**:
+  `npm run typecheck 2>&1 | grep -E "^src/" | cut -d'(' -f1 | sort -u`. Adding a required field to
+  `Settings` breaks ~18 files at once and the raw output is a screen per error.
 - **Prior runs' patterns are in the archive**, not in this file:
   `scripts/ralph/archive/2026-08-07-us-25-globally-unique-card-numbers/progress.txt` is the most
   recent and keeps a long consolidated list (playwright-cli usage, e2e customer-number bands,
