@@ -969,6 +969,23 @@ export const de = {
         noNotes: "Keine Bemerkung hinterlegt.",
       },
       /**
+       * The disclosure that lets the counter write the note it is reading (US-16.3).
+       *
+       * Two words for one control, because the two acts are not the same one. „hinzufügen" is a
+       * household nobody has written anything about yet; „bearbeiten" warns that there is already
+       * a colleague's sentence in the field, and that saving replaces it. The button is read at a
+       * glance with a queue waiting, so which of the two it is has to be legible before it is
+       * clicked rather than after.
+       *
+       * No hint under the field, unlike the same editor on the customer record: that one says the
+       * note „wird an der Ausgabe angezeigt", which at the Ausgabe describes where the reader is
+       * standing.
+       */
+      notes: {
+        add: "Bemerkung hinzufügen",
+        edit: "Bemerkung bearbeiten",
+      },
+      /**
        * The note for a card whose printed counts the household has outgrown (US-13.4).
        *
        * Deliberately not a verdict and deliberately not a warning: it names the difference, says

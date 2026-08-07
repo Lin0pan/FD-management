@@ -25,6 +25,7 @@ import { germanDate } from "@/i18n/format";
 import { GROUP_STYLES } from "../accents";
 import { STATUS_CHROME, StateWord } from "../kunden/state-word";
 import { Stat } from "../stat";
+import { NotesControls } from "./notes-controls";
 
 /**
  * What the banner has to say, over and above its colour: an icon, a headline readable from a metre
@@ -348,11 +349,34 @@ export function CustomerDetails({
                 )}
           </p>
         )}
-        <div className="flex flex-col gap-1 border-t pt-4">
-          <span className="text-sm text-muted-foreground">{de.customers.fields.notes}</span>
-          <p data-testid="counter-notes" className="max-w-prose">
+        {/* The note, and the way to write one without leaving the screen (US-16.3).
+
+            `record.notesHeading` rather than `fields.notes`: „Bemerkung (optional)" is a *form
+            field's* label, and above a paragraph it told the reader that a note they are looking at
+            was optional to write. The „(optional)" survives on the field inside the fold, where it
+            is the answer to a question somebody is about to ask.
+
+            `whitespace-pre-line` for the same reason the block reason has it: a note is typed into
+            a multi-line field, and the paragraphs a colleague wrote must reach the counter rather
+            than collapse into one run-on line.
+
+            No fold for an archived household — `updateNotes` refuses one, and the record screen
+            already drops to read-only text there. A control that can only ever answer "nein" is
+            worse than no control.
+
+            Keyed by customer: a `<details>` keeps `open` through a soft navigation, and this screen
+            navigates to itself from the group list, the walk and the lookup form
+            (docs/ui_conversion_guide.md). Without the key the next household's card arrives with the
+            fold open and the previous household's text still in the field — which is the one way
+            this control could write a note onto the wrong record. */}
+        <div className="flex flex-col gap-2 border-t pt-4">
+          <span className="text-sm text-muted-foreground">{de.customers.record.notesHeading}</span>
+          <p data-testid="counter-notes" className="max-w-prose whitespace-pre-line">
             {customer.notes === "" ? de.distribution.counter.details.noNotes : customer.notes}
           </p>
+          {customer.status === "ARCHIVED" ? null : (
+            <NotesControls key={customerId} customerId={customerId} notes={customer.notes} />
+          )}
         </div>
       </CardContent>
     </Card>
