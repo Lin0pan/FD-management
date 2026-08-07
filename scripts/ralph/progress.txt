@@ -166,3 +166,55 @@ Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
     `number | null` and `toDomain` still says `?? null`: `undefined` would reach `createSettings`
     as a *missing* field rather than a configured absence, and the domain spells "no cap" one way.
 ---
+
+## Fri Aug 7 2026 — US-004 (Maximalpreis is editable, and its changes are readable)
+- A sixth `EuroField` — `name`/`id` `priceCap`, label „Maximalpreis je Ausgabe" — sits after „Preis
+  je Kind" in the **Mengen und Preise** card, and the twelve-column grid is re-spanned
+  `2+2+2+2+2+2` (it was `2+2+2+3+3` and full). No checkbox, no toggle: the empty field is the
+  affordance, and a toggle could contradict the amount beside it.
+- `actions.ts` gained `optionalEuroAmount` beside `euroAmount`: a value that trims to `""` becomes
+  `null`, anything else goes through the same `parseEuros`. `SubmittedSettings`, `formValues` and
+  `shownValue` carry `priceCap`, so the §4.2d rule holds for it — a refusal hands an emptied field
+  back **empty**. The `FOR NOW — US-26.5` placeholder in `saveSettings` is gone.
+- `capValue` in the form and `describeCap` on the page both branch on `null` **before** formatting.
+  The version summary line now reads `… · Preis je Kind: 1,00 € · Maximalpreis je Ausgabe: 5,00 €`,
+  and „kein Maximalpreis" where there is none.
+- `de.settings.errorFields.priceCap` added (`InvalidSettings("priceCap")` needs no `INPUT_NAME`
+  entry — spelled the same on both sides), and `settings.prices.hint` reworded to state the per-head
+  rule, the cap, and that an empty field means there is none.
+- Files: `src/app/einstellungen/{actions.ts,settings-form.tsx,save-settings-state.ts,page.tsx}`,
+  `src/i18n/de.ts`, `docs/ui_redesign_einstellungen.md` (§4.2d said „nine fields").
+- Gates: lint, typecheck, `test:coverage` (1074 tests, domain+application 100%) and `build` green.
+- **Browser verification** (playwright-cli, production build on 3100 after `npm run db:reset`,
+  accessibility snapshot read, `data/fd.db` reset again afterwards):
+  - The control announces as `textbox "Maximalpreis je Ausgabe"` — the hint is **not** in the
+    accessible name — and `aria-describedby="prices-hint"` resolves to the reworded sentence.
+  - Saved `6,00` → shown back; cleared and saved → the input's value is `""` after a reload, never
+    `0,00`; re-introduced `5,00`.
+  - The three history rows read exactly `Maximalpreis je Ausgabe: 5,00 € → 6,00 €`,
+    `6,00 € → kein Maximalpreis` and `kein Maximalpreis → 5,00 €`; the fold summary still states
+    „5 Fassungen · zuletzt geändert am 07.08.2026".
+  - A refused `5,0o` marks `#priceCap` (`aria-invalid`, one `settings-field-error`) while
+    `#pricePerChild` and `#reason` keep what was typed.
+  - Six controls, all 163px wide and on one baseline at 1440; `scrollWidth - clientWidth` is **0**
+    at 1920, 1440, 1280, 1024, 800 and 390.
+- **Learnings for future iterations:**
+  - **A refused *optional* amount is a Zod refusal, not an `InvalidSettings`.** `parseEuros` only
+    accepts digits, so a negative or fractional cap cannot be typed and
+    `InvalidSettings("priceCap")` is unreachable from this form. The summary notice therefore reads
+    „Bitte einen Betrag wie 2,50 eingeben." and **does not name the field** — the mark on the field
+    does. US-005's criterion "names it in the summary notice" has to be read that way; the PRD
+    prescribes that sentence (§US-26.5), so do not reword it.
+  - **`settings.spec.ts` needed no edit**, because every version-summary assertion there is
+    `toContainText`. The line gaining a segment moved nothing — check `toContainText` vs
+    `toHaveText` before assuming a summary change breaks e2e.
+  - **`shownValue`'s `?? stored` fallback is safe for an empty field** only because `values` is
+    absent on a save and present on a refusal: `""` is a real submitted value, so `?? ` (not `||`)
+    is what keeps a cleared cap cleared. A `||` here would silently restore the stored cap.
+  - **`EuroField` now takes an optional `describedBy`** and joins it with the error id, so a field
+    can carry both a hint and a mark. Only `priceCap` uses it — the hint is the sentence that makes
+    its *empty* state legible.
+  - **`pkill -f "node.*next-server"` kills the Bash tool's own shell too** (exit 144, no output) —
+    the same trap the existing entry records for `next dev`, because the pattern matches the wrapper
+    command line. It does stop the server, but the rest of the compound command never runs.
+---

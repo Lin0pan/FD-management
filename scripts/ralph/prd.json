@@ -113,8 +113,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done. A sixth EuroField `priceCap` in 'Mengen und Preise', grid re-spanned to 2+2+2+2+2+2 (all six controls 163px and on one baseline at 1440, no overflow at 1920/1440/1280/1024/800/390). `optionalEuroAmount` in actions.ts turns a field trimming to '' into null and sends anything else through the existing parseEuros; SubmittedSettings/formValues/shownValue carry priceCap so a refusal keeps an emptied field empty. A `capValue` helper branches on null before formatEuroAmount, and FullValues states the cap through the same describeCap the history uses. de gained errorFields.priceCap; prices.hint reworded to state the per-head rule, the cap and what an empty field means, and it now reaches the cap input via aria-describedby='prices-hint'. Browser-verified against a production build on 3100: textbox named exactly 'Maximalpreis je Ausgabe', 5,00 shown back after a save, EMPTY after clearing and reloading, the three history rows reading 'Maximalpreis je Ausgabe: 5,00 € → 6,00 €', '6,00 € → kein Maximalpreis' and 'kein Maximalpreis → 5,00 €', the fold summary '5 Fassungen · zuletzt geändert am 07.08.2026', and a refused '5,0o' marking the field while pricePerChild and reason kept what was typed. NOTE for US-005: a malformed cap is refused by Zod, so the summary notice is 'Bitte einen Betrag wie 2,50 eingeben.' — the PRD prescribes that sentence, and it does not name the field; the MARK on the field is what names it."
     },
     {
       "id": "US-005",
