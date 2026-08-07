@@ -20,6 +20,7 @@ function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
     distributionWeekday: 4,
     pricePerGrownUp: 200,
     pricePerChild: 100,
+    priceCap: null,
     ...overrides,
   };
 }
@@ -41,6 +42,7 @@ describe("createSettings", () => {
     expect(settings.distributionWeekday).toBe(4);
     expect(settings.pricePerGrownUp).toBe(200);
     expect(settings.pricePerChild).toBe(100);
+    expect(settings.priceCap).toBeNull();
   });
 
   it("accepts a quota of exactly one", () => {
@@ -130,6 +132,32 @@ describe("createSettings", () => {
     expect(priceFor(settings, 2, 3)).toBe(0);
   });
 
+  it("accepts a maximum price", () => {
+    expect(createSettings(settingsInput({ priceCap: 500 })).priceCap).toBe(500);
+  });
+
+  it("accepts no maximum price at all", () => {
+    expect(createSettings(settingsInput({ priceCap: null })).priceCap).toBeNull();
+  });
+
+  it("accepts a maximum price of nothing, which is not the same as having none", () => {
+    expect(createSettings(settingsInput({ priceCap: 0 })).priceCap).toBe(0);
+  });
+
+  it("rejects a negative maximum price", () => {
+    expect(() => createSettings(settingsInput({ priceCap: -1 }))).toThrow(/priceCap/);
+  });
+
+  it("rejects a fractional maximum price", () => {
+    expect(() => createSettings(settingsInput({ priceCap: 2.5 }))).toThrow(/priceCap/);
+  });
+
+  it("accepts a maximum price below the price of a single grown-up", () => {
+    expect(createSettings(settingsInput({ pricePerGrownUp: 200, priceCap: 100 })).priceCap).toBe(
+      100,
+    );
+  });
+
   it("names the offending field in the error", () => {
     expect(() => createSettings(settingsInput({ quotaN: 0 }))).toThrow(/quotaN/);
   });
@@ -198,6 +226,34 @@ describe("priceFor", () => {
   it("charges nothing for a household of nobody", () => {
     expect(priceFor(settings, 0, 0)).toBe(0);
   });
+
+  it("charges the per-head sum when there is no cap", () => {
+    expect(priceFor(createSettings(settingsInput({ priceCap: null })), 4, 3)).toBe(1100);
+  });
+
+  it("charges the per-head sum when it stays below the cap", () => {
+    expect(priceFor(createSettings(settingsInput({ priceCap: 500 })), 1, 1)).toBe(300);
+  });
+
+  it("stops at the cap for a large household", () => {
+    expect(priceFor(createSettings(settingsInput({ priceCap: 500 })), 4, 3)).toBe(500);
+  });
+
+  it("charges the cap exactly when the sum equals it", () => {
+    expect(priceFor(createSettings(settingsInput({ priceCap: 500 })), 2, 1)).toBe(500);
+  });
+
+  it("charges nothing when the cap is zero", () => {
+    expect(priceFor(createSettings(settingsInput({ priceCap: 0 })), 4, 3)).toBe(0);
+  });
+
+  it("caps a single-grown-up household too", () => {
+    expect(priceFor(createSettings(settingsInput({ priceCap: 100 })), 1, 0)).toBe(100);
+  });
+
+  it("caps an empty household at nothing", () => {
+    expect(priceFor(createSettings(settingsInput({ priceCap: 500 })), 0, 0)).toBe(0);
+  });
 });
 
 describe("changedSettingsFields", () => {
@@ -216,6 +272,7 @@ describe("changedSettingsFields", () => {
       "distributionWeekday",
       "pricePerGrownUp",
       "pricePerChild",
+      "priceCap",
     ]);
   });
 
@@ -229,6 +286,29 @@ describe("changedSettingsFields", () => {
   ])("reports %s when only that value differs", (field, overrides) => {
     const next = createSettings(settingsInput(overrides));
     expect(changedSettingsFields(previous, next)).toEqual([field]);
+  });
+
+  it("reports priceCap when a cap is introduced", () => {
+    const next = createSettings(settingsInput({ priceCap: 500 }));
+    expect(changedSettingsFields(previous, next)).toEqual(["priceCap"]);
+  });
+
+  it("reports priceCap when a cap is removed", () => {
+    const capped = createSettings(settingsInput({ priceCap: 500 }));
+    const uncapped = createSettings(settingsInput({ priceCap: null }));
+    expect(changedSettingsFields(capped, uncapped)).toEqual(["priceCap"]);
+  });
+
+  it("reports priceCap when the cap moves to another amount", () => {
+    const capped = createSettings(settingsInput({ priceCap: 500 }));
+    const next = createSettings(settingsInput({ priceCap: 600 }));
+    expect(changedSettingsFields(capped, next)).toEqual(["priceCap"]);
+  });
+
+  it("reports nothing when neither version has a cap", () => {
+    // `null === null`, so the absent cap needs no special case in `isUnchanged`.
+    const next = createSettings(settingsInput({ priceCap: null }));
+    expect(changedSettingsFields(previous, next)).toEqual([]);
   });
 
   it("reports weekAnchor when the anchor week moves", () => {

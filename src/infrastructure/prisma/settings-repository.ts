@@ -13,6 +13,7 @@ interface StoredVersion {
   readonly distributionWeekday: number;
   readonly pricePerGrownUpCents: number;
   readonly pricePerChildCents: number;
+  readonly priceCapCents: number | null;
 }
 
 /**
@@ -35,6 +36,10 @@ function toDomain(row: StoredVersion): SettingsVersion {
       distributionWeekday: row.distributionWeekday,
       pricePerGrownUp: row.pricePerGrownUpCents,
       pricePerChild: row.pricePerChildCents,
+      // `?? null` rather than the raw column: Prisma types an absent value as `null`, but the
+      // domain spells "no cap" exactly one way, and `undefined` would slip past `createSettings`
+      // as a missing field instead of a configured one.
+      priceCap: row.priceCapCents ?? null,
     }),
   };
 }
@@ -79,6 +84,7 @@ export class PrismaSettingsRepository implements SettingsRepository {
         distributionWeekday: settings.distributionWeekday,
         pricePerGrownUpCents: settings.pricePerGrownUp,
         pricePerChildCents: settings.pricePerChild,
+        priceCapCents: settings.priceCap,
       },
     });
   }

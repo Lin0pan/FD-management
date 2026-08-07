@@ -1,0 +1,155 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-25-globally-unique-card-numbers",
+  "description": "US-25 A card number is never handed out twice — a card index becomes one above the highest index EVER issued on that CUSTOMER NUMBER, archived holders included, instead of one above the highest on that customer RECORD. Today a customer number is a slot an archived household releases (US-10, US-11, US-24), so Customer1 archived on slot 66 leaves 66k1 printed on a card in the world and Customer2 registering on slot 66 is handed 66k1 again — the counter then answers 'Ausgabe frei' to a card belonging to a household that left the register. With the new rule Customer2 starts at 66k2, 66k1 can never be issued again, and presenting it lands on the OUTDATED_CARD verdict that already exists. Layered vertical slice: domain counting rule and one new typed error, then the schema column and unique constraint, then the repository, then the two use cases, then the one German string that promises k1, then e2e, then the documents. SCHEMA CHANGE: Card gains customerNumber Int and @@unique([customerNumber, index]); migration history is REGENERATED, not stacked on, and the hand-written partial unique index must be re-added. NEW PORT METHOD: CardRepository.highestIndexForNumber. Source: tasks/prd-us-25-globally-unique-card-numbers.md",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "The next index is the slot's, not the record's (domain)",
+      "description": "As a developer, I want the counting rule to be one pure function over the slot's whole run, so registration and reissue cannot come to different answers about where the numbering starts. Source: tasks/prd-us-25-globally-unique-card-numbers.md §US-025.1",
+      "acceptanceCriteria": [
+        "src/domain/card/cardNumber.ts exports nextCardIndex(highestIssuedOnSlot: number): number — highestIssuedOnSlot + 1, so a slot that has never held a card (0) yields 1 and a slot whose archived holder reached 3 yields 4",
+        "nextCardNumber is RE-EXPRESSED on top of it — { customerNumber: card.customerNumber, index: nextCardIndex(card.index) } — so 'the next index is one on from the highest' is stated ONCE. Its signature and behaviour are unchanged",
+        "nextCardIndex throws InvalidCardNumber for a negative or non-integer argument. 0 is VALID and is the whole point of the function: it is what an untouched slot answers. Do NOT reject it",
+        "The module header comment is REWRITTEN. It currently says a card number is 'the customer's slot and the index of the card THEY hold' and that 12k2 is 'the one issued after THEY lost it'. Both sentences are now wrong in the case that matters. It must state instead: the index counts the SLOT'S cards, across every household that has ever held it, so a card number names one physical card for good",
+        "formatCardNumber, parseCardNumber, parseCounterQuery and counterQueryOrNull are UNCHANGED — in behaviour and in signature. The grammar staff read and type is not what this story changes. No leading-zero rule is relaxed, no new separator is introduced",
+        "A new typed error CardNumberTaken is added to src/domain/errors.ts, carrying { customerNumber, index }, for the new global constraint. It is NOT CardIndexTaken: that one names a race between two issues on one RECORD, and card-repository.ts already anticipates this split in the doc comment on isCardIndexCollision ('Card may grow a second unique constraint, and it should then surface as itself rather than as a lost race that a retry would answer wrongly')",
+        "CardNumberTaken is added to the DomainErrorCode union — the 32nd — and therefore to TIERS in src/app/notice-tier.ts, where it is an 'error' alongside CardIndexTaken and for the same reason: the screen read the card run stale and has to be re-read, not re-submitted. TIERS is a Record over the union, so the build fails until it is tiered; that is the mechanism working",
+        "The module stays pure: no I/O, no Date, no import from Next.js, React or Prisma",
+        "STRICT TDD: the invariant-breaking test is written FIRST, red before green. One named test per rule, named after the rule rather than the function",
+        "Named tests exist for: a slot that has never held a card starts at 1; a slot whose last card was k3 issues k4; the next number keeps the customer number and only moves the index; a negative highest index is refused; a fractional highest index is refused",
+        "Domain coverage stays at 100%: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "nextCardIndex + CardNumberTaken landed; docs/technical_documentation.md's cardNumber and errors sections updated with them (the paragraph claiming card numbers repeat across the archive is gone). US-007 still owns CLAUDE.md, domain_analysis.md, the PRD notes and the demo seed."
+    },
+    {
+      "id": "US-002",
+      "title": "The card row carries the number printed on it (schema)",
+      "description": "As a developer, I want the database itself to refuse a duplicate card number, so the guarantee does not rest on every future caller remembering to ask the right question first. Source: tasks/prd-us-25-globally-unique-card-numbers.md §US-025.2",
+      "acceptanceCriteria": [
+        "Card in prisma/schema.prisma gains customerNumber Int — the slot the card was printed under. NOT nullable and with NO default, so every writer must state it",
+        "@@unique([customerNumber, index]) is added. @@unique([customerId, index]) STAYS: it still settles a race between two reissues on one record, which is a different fact and gets a different error (US-001)",
+        "NO separate @@index([customerNumber]) is added — the new unique index already serves MAX(index) WHERE customerNumber = ? as its leading column. Say so in the schema comment rather than adding one to be safe",
+        "The column's doc comment makes the argument for storing it. It is NOT a snapshot in the sense grownUpsAtIssue and groupAtIssue are — those capture a value that goes on changing, and this one cannot change at all, since a customer's number is fixed at registration and released only by archiving (US-24 Non-Goals). It is the same kind of thing as firstNameFolded: a KEY the constraint needs, written by the adapter from the customer row in the same transaction, never read as the card's number. What a card number IS remains formatCardNumber(customer.customerNumber, card.index), derived at every read",
+        "Migration history is REGENERATED, not stacked on: rm -rf prisma/migrations/, npx prisma migrate dev --name init, then npm run db:reset. FD hold no real data, so a corrective migration would describe a system nobody ever ran (CLAUDE.md, Database migrations)",
+        "THE HAND-WRITTEN PARTIAL UNIQUE INDEX IS RE-ADDED to the regenerated prisma/migrations/*_init/migration.sql, verbatim, comment included: CREATE UNIQUE INDEX \"Customer_customerNumber_onRegister_key\" ON \"Customer\"(\"customerNumber\") WHERE \"status\" <> 'ARCHIVED'; — regenerating DROPS it, and without it the slot rule is enforced by application code alone",
+        "src/infrastructure/prisma/schema.test.ts still passes: no relation gained onDelete: Cascade, and every nullable relation still says onDelete: Restrict out loud (the test also greps the generated migration SQL)",
+        "npm run db:reset completes and the settings screen reports settings in force — the symptom CLAUDE.md names for a schema that drifted from the database",
+        "Existing infrastructure tests still compile and pass: any card written directly in a test or fixture now needs customerNumber",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Column, both unique indexes and a regenerated migration (the partial customer-number index re-added by hand) are in; every direct card writer states the slot, and the adapter reads it off the customer row in one transaction with the insert. isCustomerNumberCollision now matches on meta.modelName too, or a duplicate card number reports itself as a taken customer number. 5 e2e specs are red until US-004 removes the literal index: 1 — see progress.txt, the specs are right and must not be patched."
+    },
+    {
+      "id": "US-003",
+      "title": "The repository answers for the slot (infrastructure)",
+      "description": "As a developer, I want the store to be able to say what the highest index ever issued on a customer number is, because it is the only layer that can see the archived holders. Source: tasks/prd-us-25-globally-unique-card-numbers.md §US-025.3",
+      "acceptanceCriteria": [
+        "CardRepository in src/application/ports.ts gains highestIndexForNumber(customerNumber: number): Promise<number> — the highest index of any card ever issued on that slot, 0 when none ever was. ARCHIVED HOLDERS COUNT; nothing about status is consulted, because a card that was printed exists whatever became of the household",
+        "Its doc comment states why it is not currentCard(customerId).index: the two agree for every ACTIVE household — the active holder always sits at the top of the slot's run, since a registration starts above every predecessor and only the active holder is ever reissued — but the invariant is exactly what the counting rule must not have to remember. Both callers ask the slot",
+        "PrismaCardRepository.highestIndexForNumber is ONE aggregate with _max: { index: true }, answering 0 for null. One query, served by the leading column of the new unique index",
+        "issue writes the customerNumber column. The adapter READS IT OFF THE CUSTOMER ROW rather than taking it as an argument, in ONE TRANSACTION with the insert, so the column can never disagree with the slot the customer holds. IssuedCard (a pure domain type) does NOT gain the field. An unknown customerId fails as it does today",
+        "PrismaCustomerRepository.create writes customerNumber onto the first card in the same transaction it already writes the customer, the household, the certificate and the card in — it is writing both rows, so it has the number in hand",
+        "isCardIndexCollision is SPLIT so the two constraints surface as themselves: (customerId, index) → CardIndexTaken, (customerNumber, index) → CardNumberTaken. Matched on the CONSTRAINT TARGET, not on a substring of the meta blob — the present check (JSON.stringify(error.meta).includes(\"index\")) would match either, so a global duplicate would be reported as a per-record race and retried into failing again",
+        "The header comment of card-repository.ts is REWRITTEN. The paragraph beginning 'Card numbers are NOT unique across the archive: two customers may each hold 50k1' states the OPPOSITE of the rule from now on and must say so, including why the per-customer constraint is kept beside the new one",
+        "issueCounts.cardsIssued becomes a COUNT OF THE CUSTOMER'S OWN CARD ROWS, not _max(index). Under the new rule an index counts the slot's history, so a returning household holding 66k4 as their first card would otherwise report four cards issued and appear to have lost three it never held. Still ONE grouped aggregate: the total is the sum of the groups' _count._all",
+        "CardIssueCounts.cardsIssued in ports.ts loses the words 'The index of the card the customer holds' and gains 'How many cards this customer has been issued'; CardView.cardsIssued in src/application/customers/read-card.ts loses 'the current index, since every reissue counts on from the highest' for the same reason. The German string 'Ausgestellte Karten' on /kunden/[id]/karte needs NO change — it goes on meaning what it says",
+        "Test-after INTEGRATION tests against a throwaway SQLite file, using clearRegister from src/infrastructure/prisma/test-support.ts. Named cases: a slot that has never held a card answers 0; the highest index counts an archived holder's cards; issuing the same card number twice is refused by the database; two customers may still not share an index on one record; a customer's card count is the rows they hold, not their highest index",
+        "Every hand-written fake CardRepository in the application tests gains highestIndexForNumber, so the suite still compiles",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "highestIndexForNumber is on the port, the fake and the adapter (one _max aggregate). The collision split could NOT be done on the constraint target alone: a second card on an index a customer already holds breaks BOTH unique indexes and SQLite names the (customerNumber, index) one, so issue matches P2002 on either of Card's targets and then asks the record — the customer already holds that index → CardIndexTaken, otherwise CardNumberTaken. customer-repository.create CAN split on the target (Prisma reports the rooted model, so both are modelName Customer, but ['customerNumber'] vs ['customerNumber','index'] tells them apart) and now raises CardNumberTaken, which US-004 needs for registerCustomer to propagate it. issueCounts counts rows. The 5 e2e specs US-002 left red are still red — US-004 removes the literal index: 1."
+    },
+    {
+      "id": "US-004",
+      "title": "Registration and reissue continue the slot's run (application)",
+      "description": "As a staff member, I want a household registering on a freed number to be handed the next unused card number, so the card the previous household walked away with can never be presented as valid. Source: tasks/prd-us-25-globally-unique-card-numbers.md §US-025.4",
+      "acceptanceCriteria": [
+        "RegisterCustomerDeps in src/application/customers/register-customer.ts gains readonly cards: CardRepository, and every caller (the server actions, registerFromWaitingList, the demo seed) passes it",
+        "registerCustomer computes the first card's index as nextCardIndex(await deps.cards.highestIndexForNumber(customerNumber)), INSIDE the attempt loop and AFTER the number is settled — the index depends on which slot was taken, and the allocated-number path can move to a different slot on a retry",
+        "The literal index: 1 DISAPPEARS from register-customer.ts. A slot nobody has ever held still produces 1; that is now a consequence of the rule rather than a constant",
+        "issueCard in src/application/customers/issue-card.ts asks highestIndexForNumber(customer.customerNumber) instead of currentCard(customerId), and its current === null ? 1 : ... branch disappears with it — the two cases are the same call now. currentCard STAYS on the port; other callers use it",
+        "CardNumberTaken propagates to the caller from both use cases. registerCustomer does NOT retry it: the retry loop exists for a lost customer-number race and moves to another slot, and a taken card number on a slot the registration has already won means the run was read stale. @throws documentation on both use cases names it",
+        "Everything else about a registration is untouched: same transaction, same FIRST_ISSUE reason, same ACTIVE status, same reminderCount: 0, same countsAtIssue and groupAtIssue snapshot, same previousCustomerId handling, same audit entry with the same changedFields. NO new audit event and NO new field — that a card number continues a predecessor's run is a property of the numbering, not a decision a later reader can act on",
+        "registerFromWaitingList (US-12.2) inherits this through registerCustomer and gains NO rule of its own; a failed registration still leaves the queue untouched",
+        "Re-registration from an archived record (US-11.3) gains NO branch. It gets its card index from the same call as a walk-in — which is the point: if the household happens to be given their old number back, they get the next card on that run rather than a duplicate of the card they are still carrying",
+        "reissueCard (US-09) and the stale-card reissue (US-13, US-16.4) are unchanged apart from inheriting issueCard's new source for the index",
+        "TDD against HAND-WRITTEN FAKES, never a mocking library. Named tests for: a registration on a fresh slot writes card index 1; a registration on a slot an archived household held at k1 writes k2; a registration on a slot an archived household held at k3 writes k4; a reissue counts on from the slot's highest, not the record's; a card number taken between the read and the write is not retried; the allocated-number retry re-reads the card run for the slot it moved to",
+        "Time comes from the Clock port — no zero-argument new Date() anywhere",
+        "Application coverage stays at 100%: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Both use cases read the slot's run: registerCustomer inside the retry loop and after the number is settled, issueCard in place of currentCard. The literal index: 1 and the current === null branch are gone. CardNumberTaken propagates from both and is not retried. The 5 e2e specs US-002 left red are green: 2 fixed themselves, and 3 asserted `<n>k1` on a freed number — the shared register helpers now assert the card names the slot without pinning the index, and the three tests that know the run assert k2 outright. Full e2e: 120 passed, 1 skipped."
+    },
+    {
+      "id": "US-005",
+      "title": "The screens stop promising k1 (presentation)",
+      "description": "As a staff member re-registering a household from the archive, I do not want the screen to tell me the card will be k1 when it will not. Source: tasks/prd-us-25-globally-unique-card-numbers.md §US-025.5",
+      "acceptanceCriteria": [
+        "de.customers.registration.prefilled.detail in src/i18n/de.ts no longer says 'einer neuen Karte (k1)'. The literal k1 is a promise the software can no longer keep, and it is the ONE place in the dictionary that makes it",
+        "Its replacement names NO index — the number is on the card view a click later, and the registration screen does not know it yet because the slot has not been chosen at the point this banner renders. The rest of the sentence (which archived record the data came from, that the archived record is kept unchanged) is preserved",
+        "Every other German string mentioning a card is re-read against the new rule and LEFT ALONE if it still holds. counter.verdicts.outdatedCard ('Karte ungültig') and the presented/current pair beside it are CORRECT AS THEY STAND — the wording is about the card, not about 'your' card, which is what makes it read properly when the person at the counter is holding a stranger's",
+        "No component gains a German literal; no key is added that a component does not read; no key is left in de.ts that nothing reads",
+        "document.documentElement.scrollWidth - clientWidth is 0 at 1920, 1280, 1024, 800 and 390 on /kunden/neu with an archive pre-fill",
+        "Typecheck passes",
+        "Lint passes",
+        "Verify in browser using the playwright-cli skill against a PRODUCTION build, reading the ACCESSIBILITY SNAPSHOT: the pre-fill banner on /kunden/neu reads correctly and names no card index, and /kunden/[id]/karte for a re-registered household announces the real card number and 'Ausgestellte Karten 1'"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "The literal '(k1)' is out of de.customers.archiveSearch.prefilled.detail and the doc comment above it now says why no index may come back. Nothing else moved: no key added or removed, no component touched (the e2e reads the dictionary function, so it followed), and every other card string still holds — cardView.supersededNone says 'die erste des Haushalts', which is true of a first card at k2. Verified against a production build on 3100 with the demo seed: the banner reads correctly and names no index, /kunden/20/karte announces '2k2' with 'Karten insgesamt 1', and scrollWidth - clientWidth is 0 at 1920/1280/1024/800/390 with the pre-fill applied."
+    },
+    {
+      "id": "US-006",
+      "title": "E2E — the archived household's card is refused",
+      "description": "As a developer, I want the scenario that motivated this PRD proved end to end against the built app, because it is the one bug a green unit suite already allowed. Source: tasks/prd-us-25-globally-unique-card-numbers.md §US-025.6",
+      "acceptanceCriteria": [
+        "One spec under tests/e2e/ covers the full sequence IN THIS ORDER: register a household on a chosen number (US-24) → note its card number → archive it → register a DIFFERENT household on the SAME number → assert the second household's card number is NOT the first's",
+        "Asserts at the counter (/ausgabe): typing the FIRST household's card number returns the 'Karte ungültig' verdict and names the current card number beside it; typing the SECOND household's card number returns 'Ausgabe frei' (given the right week colour)",
+        "Asserts the database directly: no two Card rows share a (customerNumber, index) pair after the flow, and the first household's card row is STILL THERE — nothing is deleted to make room",
+        "Asserts the reissue path: reissuing the second household's card yields the next index on the slot, and the first household's number is not reachable again",
+        "Asserts /kunden/[id]/karte for the second household shows 'Ausgestellte Karten 1' — the card count is theirs, not the slot's",
+        "SYNTHETIC data only (Faker), and the spec seeds in a high, otherwise unused customer-number band so no other spec's registrations land inside it",
+        "The existing registration, reissue and counter specs pass UNCHANGED",
+        "Typecheck passes",
+        "Lint passes",
+        "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first — a live dev server on port 3000 fails the suite for the wrong reason)"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "tests/e2e/card-number.spec.ts: seven serial tests on slot 236 — a number of its own, high but INSIDE the quota of 240, because the number is picked in the dropdown and the control only offers 1..quotaN (the 241+ bands the seeding specs took are unpickable). Registers RED through the form, archives with a reason, registers the successor on the freed number (236k2, not 236k1), asserts both cards at the counter, 'Karten insgesamt 1' on the card view, the (customerNumber, index) pairs across the WHOLE register plus the archived household's surviving row, and a reissue to 236k3 with 236k1 still refused. card.spec.ts's title and two comments were corrected — US-002 left that decision to this story: its k1 holds only because the form proposes an untouched slot. Full e2e: 127 passed, 1 skipped."
+    },
+    {
+      "id": "US-007",
+      "title": "The documents say the new rule (documentation)",
+      "description": "As the next developer, I want the places that state the old rule to state the new one, because three of them argue for it explicitly and would otherwise read as a decision FD once made. Source: tasks/prd-us-25-globally-unique-card-numbers.md §US-025.7",
+      "acceptanceCriteria": [
+        "CLAUDE.md, 'Derive, don't store': the exception list gains Card.customerNumber with its own argument — a key the (customerNumber, index) constraint needs, written by the adapter from the customer row, never read as the card's number — and says that UNLIKE the three AtIssue fields it snapshots nothing, because a customer number cannot change",
+        "docs/technical_documentation.md describes the counting rule as the SLOT'S rather than the record's, and names the counter consequence it exists for",
+        "docs/domain_analysis.md — wherever it defines a card number — says a card number is issued once and never reused",
+        "tasks/prd-us-02-issue-customer-card.md, tasks/prd-us-09-reissue-card-after-loss.md and tasks/prd-us-11-reuse-archived-record.md each carry a SHORT NOTE that US-25 superseded the per-record counting rule they specified. The PRDs are the record of what was asked for and are NOT rewritten; a note is how a change of mind is recorded",
+        "prisma/demo-seed.ts gains a shape that demonstrates the rule: a household archived on a slot and a second household registered on the SAME slot, so a manual click-through shows a card number that does not start at k1. Its 'demonstrates' string says so. The seed still replays the real use cases in order rather than writing rows directly",
+        "npm run db:reset followed by the demo seed completes, and the demonstrating household's card number is visibly not k1",
+        "grep the repository: no documentation claims a card number can repeat, and no comment still says two customers may each hold 50k1",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "CLAUDE.md's exception list is three long now; docs/domain_analysis.md defines a card number as issued once and never reused; the three superseded PRDs carry a note at the top (US-02's also marks the two lines that state the OPPOSITE rule as a requirement — FR-6 and the integration-test criterion). docs/user_stories_mvp.md was not named by the criteria but states the old rule in three places (US-01.7, US-02.2, US-11.3) and now carries an inline [superseded by US-25] on each. The demo seed's SHAPE already demonstrated the rule since US-004 (two households on a freed slot, cards 1k2 and 2k2) — what was missing was visibility, so the summary table gained a Karte column and the two demonstrates strings say it. Documentation-only apart from that summary; e2e not re-run, nothing under tests/ or src/ moved."
+    }
+  ]
+}

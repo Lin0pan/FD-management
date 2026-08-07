@@ -36,8 +36,8 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Done. priceCap: Cents | null on Settings, validated through requireInteger only when non-null; PriceValues widened to the three price fields; priceFor returns Math.min(sum, cap). 16 new named tests (6 validation, 10 pricing), red before green. The temporary priceCap: null sits in settings-repository.ts (US-003), seed.ts (US-003) and einstellungen/actions.ts (US-004), each marked FOR NOW with the story that removes it."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -58,8 +58,8 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Done. 'priceCap' added to SETTINGS_FIELDS after pricePerChild (isUnchanged needed no special case) and to SettingsChange as Cents | null; diffSettings compares the whole of Cents | null so introduce/remove/change all report and null → null does not. The exhaustive switch in einstellungen/page.tsx gained the case via a describeCap helper that branches on null BEFORE formatEuros, with de.settings.prices.noCap = 'kein Maximalpreis' and de.settings.fields.priceCap = 'Maximalpreis je Ausgabe' (US-004 still owns errorFields.priceCap and the version summary line). 9 tests written first, red before green. One existing application expectation moved deliberately: the no-previous-version audit entry now lists 8 changed fields, not 7."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -82,8 +82,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Done. SettingsVersion gained nullable priceCapCents; the init migration was regenerated (20260807065541_init) with the hand-written Customer_customerNumber_onRegister_key partial index re-added, and npm run db:reset run. append writes settings.priceCap, toDomain reads row.priceCapCents ?? null through createSettings; both FOR NOW placeholders are gone and the seed sets priceCap: 500. Four new integration tests (round trip of 500 and null, a cap of 0 staying 0, a hand-edited -1 refused naming priceCap, the seeded cap capping 4+3 at 500). One e2e expectation moved deliberately: portions.spec.ts's household whose per-head sum is 6,00 € now stops at the seeded cap of 5,00 €, portions still rising 5 → 6."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -113,8 +113,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Done. A sixth EuroField `priceCap` in 'Mengen und Preise', grid re-spanned to 2+2+2+2+2+2 (all six controls 163px and on one baseline at 1440, no overflow at 1920/1440/1280/1024/800/390). `optionalEuroAmount` in actions.ts turns a field trimming to '' into null and sends anything else through the existing parseEuros; SubmittedSettings/formValues/shownValue carry priceCap so a refusal keeps an emptied field empty. A `capValue` helper branches on null before formatEuroAmount, and FullValues states the cap through the same describeCap the history uses. de gained errorFields.priceCap; prices.hint reworded to state the per-head rule, the cap and what an empty field means, and it now reaches the cap input via aria-describedby='prices-hint'. Browser-verified against a production build on 3100: textbox named exactly 'Maximalpreis je Ausgabe', 5,00 shown back after a save, EMPTY after clearing and reloading, the three history rows reading 'Maximalpreis je Ausgabe: 5,00 € → 6,00 €', '6,00 € → kein Maximalpreis' and 'kein Maximalpreis → 5,00 €', the fold summary '5 Fassungen · zuletzt geändert am 07.08.2026', and a refused '5,0o' marking the field while pricePerChild and reason kept what was typed. NOTE for US-005: a malformed cap is refused by Zod, so the summary notice is 'Bitte einen Betrag wie 2,50 eingeben.' — the PRD prescribes that sentence, and it does not name the field; the MARK on the field is what names it."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
@@ -132,8 +132,8 @@
         "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first — a live dev server on port 3000 fails the suite for the wrong reason)"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Done. Four specs appended to tests/e2e/settings.spec.ts: the cap saved and shown back after a reload; cleared and the input's value asserted to be the empty string (not merely '0,00' absent); all three transitions named in the Änderungsverlauf through de.settings.history.change with 'kein Maximalpreis' on the absent side; and a refused '5,0o' marking #priceCap alone while pricePerChild and reason keep what was typed. The last cap spec hands the value back at the seeded 5,00 €. The five existing specs are unchanged — every version-summary assertion is toContainText, so the segment US-004 added moved none of them. Gotcha found and recorded: two saves in a row need a page.reload() between them, because a save clears the form and the revalidated render can land after the next fill. Full e2e suite 138 passed / 1 skipped; lint, typecheck, build and test:coverage green."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-006",
@@ -153,8 +153,8 @@
         "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first — a live dev server on port 3000 fails the suite for the wrong reason)"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "Done. New tests/e2e/price-cap.spec.ts: a 4+3 household on customer number 321 quoted 5,00 € on /ausgabe, /kunden/[id] and /kunden with 11,00 € on none of them; the live household editor raising the previewed portions 11 → 12 while the previewed price stays 5,00 €; a hand-out stored with priceCents 500 read straight out of SQLite and shown as 5,00 € in the history row; the cap raised to 6,00 € leaving that row at 5,00 € while the next hand-out would cost 6,00 €; the cap cleared stating 11,00 € everywhere with the portions unmoved at 11; and the seeded 5,00 € put back and in force at once, which is also how the register is handed on to the settings specs. The clock is pinned to the RED distribution day only for the three specs that serve, then unpinned so the settings versions are stamped like every other. One deliberate change to settings.spec.ts: its three ABSOLUTE version counts now read a baseline and assert before + 1, and the seeded version is addressed as versions.last() rather than nth(2) — the same claim, stated so it no longer assumes this file is the only one that saves settings. Full e2e suite 144 passed / 1 skipped; lint, typecheck, test:coverage and build green."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-007",
@@ -172,8 +172,8 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "Done. domain_analysis.md: the Price row names the Maximalpreis as part of the definition, walkthrough step 7 states the cap with FD's 11,00 € → 5,00 € case and that portions are unaffected, and open question 1 records that FD have since named three of the values. user_stories_mvp.md: US-07.2 derives min(per-head sum, Maximalpreis) marked `[changed]`, US-14's role line and criterion 1 name it, and a new criterion 5 states that an empty field and 0,00 € are different claims. technical_documentation.md: the settings enumeration, the priceFor section (with a paragraph on why Cents | null rather than a 0 sentinel, and Math.min being the whole rule), the SettingsVersion model section (nullable, no default, no backfill), the household editor's 'four policy values' → five with the cap-preview consequence, the policy-values bullet, and a new ⚠️ note on the settings screen about the optional-amount branch and why there is no toggle. Also fixed three documents the grep caught that still described the price as the unqualified sum: tasks/README.md (seeded-values table gains the 500 row, the formula becomes min(...)), CONTRIBUTING.md's configurable-data bullet, and tech_stack_architecture_sketch.md §4.1, where the cap is now the evidence for the change-tolerance claim. ui_redesign_einstellungen.md §4.3 gained a 'since built' note: the sixth field and the 2+2+2+2+2+2 re-span, so its span table is not read as current. tasks/prd-us-07-portions-and-price.md gained the forward reference in the header-quote style prd-us-02 uses. CLAUDE.md's 'Derive, don't store' list deliberately unamended. No code changes; lint, typecheck, test:coverage (49 files, 1074 tests) and build green."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

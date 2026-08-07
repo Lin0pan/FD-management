@@ -16,6 +16,7 @@ function settings(distributionWeekday: IsoWeekday): Settings {
     distributionWeekday,
     pricePerGrownUp: 200,
     pricePerChild: 100,
+    priceCap: null,
   });
 }
 

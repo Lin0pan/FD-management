@@ -103,8 +103,8 @@ CodeQL, Dependabot, and GitHub secret scanning run alongside.
   (`fd/domain-boundary` / `fd/application-boundary` in `eslint.config.mjs`, proved by
   `src/architecture.test.ts`), so a violation fails `npm run lint` and CI rather than waiting for a
   reviewer to notice. The same configs ban wall-clock reads outside `src/infrastructure`.
-- **Business rules are configurable data, not constants.** Portions, the prices per head and the
-  quota `N` live in the database, editable in the UI — never hard-coded. A change applies
+- **Business rules are configurable data, not constants.** Portions, the prices per head, the
+  Maximalpreis and the quota `N` live in the database, editable in the UI — never hard-coded. A change applies
   immediately; superseded versions are kept as history.
 - **Money is integer cents, never floats.** See `src/domain/money.ts`.
 

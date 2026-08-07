@@ -53,11 +53,14 @@ confirmed with FD before go-live.**
 | Portions per child    | 1                             |
 | Price per grown-up    | 200 cents                     |
 | Price per child       | 100 cents                     |
+| Maximalpreis          | 500 cents                     |
 | Week-cycle anchor     | ISO week `2026-W02` = **Red** |
 | Distribution weekday  | Thursday                      |
 
-The price is charged **per head**: what a household owes is `grown-ups × price per grown-up +
-children × price per child`, derived wherever it is shown and never stored.
+The price is charged **per head** up to the **Maximalpreis**: what a household owes is
+`min(grown-ups × price per grown-up + children × price per child, Maximalpreis)`, derived wherever
+it is shown and never stored. The Maximalpreis is optional — where none is configured the per-head
+sum stands — and it caps money only: the portion allowance keeps rising with every head (US-26).
 
 ## Index
 

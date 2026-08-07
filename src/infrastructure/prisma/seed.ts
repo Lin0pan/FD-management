@@ -27,6 +27,7 @@ export function provisionalSettingsVersion(): SettingsVersion {
       distributionWeekday: 4,
       pricePerGrownUp: 200,
       pricePerChild: 100,
+      priceCap: 500,
     }),
   };
 }

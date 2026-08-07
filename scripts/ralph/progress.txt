@@ -1,5 +1,5 @@
 # Ralph Progress Log
-Started: Thu Aug  6 13:53:09 CEST 2026
+Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
 
 ## Codebase Patterns
 - **Adding a `DomainErrorCode` is a three-file change**: the union in `src/domain/errors.ts`, the
@@ -7,6 +7,9 @@ Started: Thu Aug  6 13:53:09 CEST 2026
   the *build* fails until the code is tiered — that is the mechanism, not an obstacle. The header
   comment of `notice-tier.ts` counts the codes ("a 32nd code…", "the six red ones"), so it goes
   stale silently; update it with the entry.
+- **The same mechanism guards `SettingsChange`**: its `switch` in `src/app/einstellungen/page.tsx`
+  is exhaustive with no `default`, so adding a member to the union fails the build until the screen
+  renders it. Do not silence it with a `default` branch.
 - **An error class with no caller yet still needs a test**, because `domain/` coverage is gated at
   100%. `src/domain/errors.test.ts` is where those live — see the `MissingAuditReason` block for the
   shape, including the comment saying which story will call it.
@@ -16,6 +19,10 @@ Started: Thu Aug  6 13:53:09 CEST 2026
   lists the error classes by name in the `src/domain/errors.ts` section. Adding an export or an
   error makes both stale and no gate can tell — grep the file for the module path *and* for the
   vocabulary of the rule being changed.
+- **Adding a field to `Settings` is a wide change before it is a deep one.** `createSettings` is
+  called from the repository, the seed, the settings server action and every hand-written fake in
+  the application tests; all of them must supply the new field before anything compiles. Land the
+  field with a placeholder value at each call site, then replace them in the story that owns each.
 - **A Prisma `P2002` cannot always name *which* constraint was broken.** `meta` is
   `{ modelName, target: [columns] }`, but where two unique indexes both cover the offending row
   SQLite reports only one of them, and not the one that was declared or created first. Where the
@@ -24,292 +31,345 @@ Started: Thu Aug  6 13:53:09 CEST 2026
   rows on that index). For a **nested** write Prisma reports the *rooted* model — a card refused
   inside `customer.create` comes back as `modelName: "Customer"` — so the model name alone tells
   nothing about which table failed.
+- **Regenerating `prisma/migrations/` drops the hand-written partial unique index** on
+  `Customer.customerNumber` (`Customer_customerNumber_onRegister_key`) at the end of the migration
+  SQL. `src/infrastructure/prisma/schema.test.ts` greps for it and for the `onDelete: Restrict`
+  clauses, so a lost line fails CI rather than production — but re-add it deliberately, and run
+  `npm run db:reset` afterwards or the schema and the database drift silently. **Delete
+  `data/fd.db` before `migrate dev`**: with the old migration row still in `_prisma_migrations`,
+  Prisma refuses to regenerate and writes nothing.
+- **Never `pkill -f "next dev"`** — the pattern matches the Bash tool's own wrapper command line and
+  kills the shell (exit 144, no output). Check `ss -ltnp | grep :3000` instead and, if something
+  really is listening, match on `node.*next-server`.
+- **Changing a seeded policy value moves e2e expectations.** `grep -rn ',00 €' tests/e2e/` before
+  editing a number in `seed.ts` — the seeded cap of 500 moved exactly one assertion and it would
+  have surfaced two stories later otherwise.
 - **The e2e customer-number bands, as they now stand.** Below the quota of 240: counter 201–206 and
   239, portions 211, serve 221–222, reminders 231, registration 232–234, card numbers 236. Above it:
   block 241, reissue 251, age-13 271, customer-list 281–285, customer-record 291, group-progress
-  301–303, group-walk 311–315. A spec whose number must be **pickable in the /kunden/neu dropdown**
-  has to sit below 240 — the pool is `1..quotaN` — and everything else should stay above it, clear of
+  301–303, group-walk 311–315, price cap 321. A spec whose number must be **pickable in the
+  /kunden/neu dropdown** has to sit below 240 — the pool is `1..quotaN` — and everything else should
+  stay above it, clear of
   the low sequence the allocating specs (registration, card, archive, reregistration) consume.
-- **Prior runs' patterns are in the archive**, not in this file: `scripts/ralph/archive/<date>-<story>/progress.txt`
-  keeps a long consolidated list (playwright-cli usage, e2e customer-number bands, killing the dev
-  server safely, testid greps). Read the most recent one before any UI or e2e story.
+- **e2e spec files run in alphabetical path order, one worker, one shared database.** So a spec that
+  *writes* shared state is only ever seen by the files sorting after it — `npx playwright test --list`
+  prints the order. Anything a spec asserts as an **absolute count of a shared thing** is therefore a
+  landmine for the next spec added above it: `settings.spec.ts` counted its version history as
+  `3` and `4` and read the seeded version as `nth(2)`. It now reads a baseline with
+  `versionCount(page)` and asserts `before + 1`, and the oldest version as `.last()` — the same
+  claim (a save appends exactly one version), stated so that it does not depend on who ran first.
+- **Get the *files* out of a wide type break, not the errors**:
+  `npm run typecheck 2>&1 | grep -E "^src/" | cut -d'(' -f1 | sort -u`. Adding a required field to
+  `Settings` breaks ~18 files at once and the raw output is a screen per error.
+- **Two consecutive saves on the settings screen need a `page.reload()` between them in e2e.** A
+  successful save *clears* the form, and the revalidated render that does it can land **after** the
+  next `fill`, rewinding the field to the stored value; the second save then appends a version that
+  changed nothing and every history index below it shifts. `selectOption` happens to survive the
+  race, `fill` does not — reload and re-assert the stored value before typing again.
+- **Prior runs' patterns are in the archive**, not in this file:
+  `scripts/ralph/archive/2026-08-07-us-25-globally-unique-card-numbers/progress.txt` is the most
+  recent and keeps a long consolidated list (playwright-cli usage, e2e customer-number bands,
+  killing the dev server safely, testid greps). Read it before any UI or e2e story.
 ---
 
-## 2026-08-06 13:55 - US-001 (The next index is the slot's, not the record's)
-- Implemented the counting rule for US-25 in the domain layer, TDD, red before green.
-- Files changed:
-  - `src/domain/card/cardNumber.ts` — new `nextCardIndex(highestIssuedOnSlot)`; `nextCardNumber`
-    re-expressed on top of it; module header rewritten to say the index counts the *slot's* cards.
-  - `src/domain/card/cardNumber.test.ts` — four named cases for `nextCardIndex`; the
-    `nextCardNumber` case renamed to the rule it states.
-  - `src/domain/errors.ts` — `CardNumberTaken { customerNumber, index }`, 32nd `DomainErrorCode`.
-  - `src/domain/errors.test.ts`, `src/app/notice-tier.test.ts` — cover it.
-  - `src/app/notice-tier.ts` — tiered `error`, header comment recounted.
-  - `docs/technical_documentation.md` — `cardNumber.ts` and `errors.ts` sections.
-- Gates: lint, typecheck, `test:coverage` (49 files, 1028 tests, domain 100%), build — all green.
+## Fri Aug 7 2026 — US-001 (The cap exists and priceFor honours it)
+- `Settings` gained `readonly priceCap: Cents | null` after `pricePerChild`, documented with why
+  it is nullable rather than `0`-flagged. `createSettings` passes `null` through unconditionally
+  and sends a number to the existing `requireInteger("priceCap", …, 0)`; no second helper, no
+  cross-field rule against `pricePerGrownUp`.
+- `PriceValues` widened to `Pick<Settings, "pricePerGrownUp" | "pricePerChild" | "priceCap">`, and
+  `priceFor` now returns `Math.min(perHead, priceCap)` when a cap is set. `portionsFor` untouched —
+  the cap caps money, not food.
+- 16 new named tests written first, red before green (10 failing on the first run): the six
+  validation rules and the seven pricing rules the PRD names, including FD's own case
+  (4 grown-ups + 3 children at 200/100 with a cap of 500 → 500, not 1100).
+- Files: `src/domain/policy/settings.ts`, `src/domain/policy/settings.test.ts`,
+  `src/app/kunden/[id]/page.tsx` (the `AllowanceValues` object gains the cap),
+  plus the `priceCap: null` placeholder at `src/infrastructure/prisma/settings-repository.ts`,
+  `src/infrastructure/prisma/seed.ts` and `src/app/einstellungen/actions.ts`, and the settings
+  baseline in 12 test files.
+- Gates: lint, typecheck, `test:coverage` (1061 tests, domain+application 100%) and `build` green.
 - **Learnings for future iterations:**
-  - `0` is a *valid* argument to `nextCardIndex` and the whole point of it: the untouched slot. The
-    guard rejects negatives and non-integers only.
-  - `InvalidCardNumber` takes a `text: string`, so the guard passes `String(highest)`. The message
-    reads oddly for an index ("…is not a card number such as 50k3") but the PRD names that error.
-  - The doc paragraph "Card numbers are **not** unique across the archive" existed in *two* places:
-    `docs/technical_documentation.md` (fixed here) and the header of
-    `src/infrastructure/prisma/card-repository.ts` (US-003 owns that one).
-  - US-002 next: the schema change is a **regenerated** migration history, and the hand-written
-    partial unique index `Customer_customerNumber_onRegister_key` must be re-added to the new
-    `migration.sql` by hand — `prisma migrate dev` drops it.
+  - The "wide before deep" pattern held exactly as the Codebase Patterns entry predicts: **18 files
+    failed typecheck** the moment the field became required on `SettingsInput`. Fifteen of them were
+    a one-line insert after `pricePerChild: 100,` in a `settingsInput` baseline — a scripted insert
+    keyed on that exact line hit every one and nothing else, because no other literal in the repo
+    spells that line.
+  - `npm run typecheck 2>&1 | grep -E "^src/" | cut -d'(' -f1 | sort -u` is the fastest way to get
+    the *list of files* to fix out of a wide type break; the raw output is one screen per error.
+  - Each temporary placeholder carries a `// FOR NOW — US-26.x …` comment naming the story that
+    removes it, so a later iteration greps `FOR NOW` rather than re-reading this log.
+  - The `AllowanceValues` comment in `src/app/kunden/[id]/page.tsx` counts its fields out loud
+    ("the four per-head values"), so widening `PriceValues` makes it stale with nothing to catch it.
+    It now says five, and the cap is not per head.
 ---
 
-## 2026-08-06 17:30 - US-002 (The card row carries the number printed on it)
-- `Card` gained `customerNumber Int` (not nullable, no default) and `@@unique([customerNumber, index])`
-  beside the existing `@@unique([customerId, index])`; no separate `@@index([customerNumber])` — the
-  new unique index leads with that column and serves `MAX(index) WHERE customerNumber = ?`.
-- Migration history regenerated (`rm -rf prisma/migrations` → `prisma migrate dev --name init`) and the
-  hand-written partial index `Customer_customerNumber_onRegister_key` re-added verbatim, comment and
-  all. `npm run db:reset` completes; /einstellungen renders the seeded settings, not "keine
-  Einstellungen hinterlegt".
-- Files changed:
-  - `prisma/schema.prisma`, `prisma/migrations/20260806150359_init/migration.sql` (old dir deleted).
-  - `src/infrastructure/prisma/customer-repository.ts` — the nested card create writes
-    `customerNumber`; `isCustomerNumberCollision` now also checks `meta.modelName === "Customer"`.
-  - `src/infrastructure/prisma/card-repository.ts` — `issue` reads the slot off the customer row in
-    one transaction with the insert (the column can then never disagree with the customer's number).
-  - `src/infrastructure/prisma/schema.test.ts` — asserts the new unique index survives a regeneration.
-  - `card-repository.test.ts`, `customer-repository.test.ts`, `certificate-repository.test.ts` and
-    12 e2e fixtures — every directly written card row now states its slot.
-  - `docs/technical_documentation.md`, `docs/tech_stack_architecture_sketch.md` — the two passages
-    arguing that `50k1` legitimately recurs.
-- Gates: lint, typecheck, `test:coverage` (49 files, 1031 tests), build, `db:reset` — all green.
-- **KNOWN RED, EXPECTED, FIXED BY US-004: 5 e2e specs fail.** `npm run test:e2e` → 102 passed, 5
-  failed: archive.spec "the freed number is handed to the next household", card.spec "a registration
-  issues card k1", registration.spec "a two-person household is registered…", reregistration.spec "a
-  household is served and archived…", waiting-list.spec "promoting the applicant hands them the freed
-  number". All the same cause: `registerCustomer` still writes the literal `index: 1`, which the new
-  constraint refuses on a slot an archived household already printed a card on. This is the layering
-  the PRD chose (schema before application); US-004 removes the literal and the five go green. Do not
-  "fix" the specs — the specs are right.
+## Fri Aug 7 2026 — US-002 (A changed cap is named in the history and the audit entry)
+- `SETTINGS_FIELDS` gained `"priceCap"` after `"pricePerChild"`, so `changedSettingsFields` reports
+  it and `updateSettings` writes it into the audit entry. `isUnchanged` needed no special case:
+  `previous[field] === next[field]` compares `null` to `null` correctly.
+- `SettingsChange` gained `{ field: "priceCap"; from: Cents | null; to: Cents | null }` and
+  `diffSettings` compares the whole of `Cents | null`, so *introduced* (`null` → value), *removed*
+  (value → `null`) and *changed* all report, while `null` → `null` does not.
+- `describeChange` in `src/app/einstellungen/page.tsx` gained the case through a `describeCap`
+  helper; no `default` branch was added. `de.settings.prices.noCap` = „kein Maximalpreis“ and
+  `de.settings.fields.priceCap` = „Maximalpreis je Ausgabe“, so a row reads
+  `Maximalpreis je Ausgabe: kein Maximalpreis → 5,00 €`.
+- 9 tests written first, red before green (8 failed on the first run): four transitions on each of
+  the two functions plus the two full-field-order lists.
+- Files: `src/domain/policy/settings.ts`, `settings-diff.ts` and both their tests,
+  `src/app/einstellungen/page.tsx`, `src/i18n/de.ts`, `src/application/settings/settings.test.ts`.
+- Gates: lint, typecheck, `test:coverage` (1070 tests, domain+application 100%) and `build` green.
 - **Learnings for future iterations:**
-  - **`pkill -f next-server` kills the bash tool's own shell** (its command line contains the
-    pattern), so everything after it in the command silently never runs — the call just exits 144.
-    Use `pkill -f "next-serve[r]"` or `pgrep -f "next-serve[r]"` to check first.
-  - **Prisma P2002 `meta` is `{ modelName, target: [columns] }`** on SQLite — e.g.
-    `{"modelName":"Card","target":["customerNumber","index"]}`. So a collision check can and should
-    name the model *and* the columns; `JSON.stringify(meta).includes("…")` matches across models and
-    is what made a duplicate card number report itself as a taken customer number. US-003's split of
-    `isCardIndexCollision` has the same shape: `target` is `["customerId","index"]` vs
-    `["customerNumber","index"]`.
-  - `prisma migrate dev` refuses to run while `data/fd.db` holds a migration that is no longer on
-    disk: delete the db file first (the `db:reset` node one-liner does it), then regenerate.
-  - `customer-repository.test.ts` now has `nextOnTheSlot(...)`, a `newCustomer` whose card index is
-    one higher — any adapter test that registers a *second* household on one slot needs it, because
-    two k1s on a number no longer fit through the database.
-  - `card.spec.ts`'s title "a registration issues card k1" is only true on a slot nobody has held.
-    It passes in isolation and fails in the suite, where an earlier spec has archived a household on
-    slot 1. US-006 should decide whether the title still says what it means.
+  - **Widening `SETTINGS_FIELDS` breaks a *count* assertion, not a type.** `updateSettings`'s
+    "treats every field as changed when there is no previous version" test in
+    `src/application/settings/settings.test.ts` asserts `toHaveLength(7)`. It is now 8, moved
+    deliberately with a comment saying why — grep the application tests for `toHaveLength` before
+    assuming a field addition is type-safe end to end.
+  - **`formatEuros(0)` is `0,00 €`, which is why every read-back of the cap needs its own null
+    branch before formatting.** `describeCap` in `einstellungen/page.tsx` is that branch for the
+    history; US-004 needs the same shape again for the form value and the version summary line, and
+    losing it turns *no cap* into *free for everyone* on the next save.
+  - The exhaustive-`switch` guard worked as the Codebase Patterns entry promises: the build failed
+    on `page.tsx` the moment the union member existed, before any test was written for the screen.
+  - `de.settings.errorFields.priceCap` is deliberately **not** added yet — US-004 owns it together
+    with the form field it marks. `fields.priceCap` had to land here because the history row names
+    the field.
+  - No browser verification in this story: nothing can set a cap yet (the repository still writes
+    `priceCap: null` until US-003 and the form has no control until US-004), so the new history row
+    is unreachable on screen. US-004 verifies it end to end, as its criteria say.
 ---
 
-## 2026-08-06 17:40 - US-003 (The repository answers for the slot)
-- `CardRepository.highestIndexForNumber(customerNumber)` on the port, the fake and the adapter — the
-  highest index ever printed on a slot, 0 for an untouched one, archived holders included. One
-  `aggregate({ _max: { index: true } })` served by the leading column of the new unique index.
-- `issue` reports the two constraints as themselves, and `issueCounts.cardsIssued` counts the
-  customer's own rows rather than `_max(index)`.
-- Files changed:
-  - `src/application/ports.ts` — the method and its argument; `CardIssueCounts.cardsIssued` reworded.
-  - `src/application/customers/read-card.ts` — `CardView.cardsIssued` reworded.
-  - `src/infrastructure/prisma/card-repository.ts` — header rewritten (the paragraph saying two
-    customers may each hold `50k1` said the opposite of the rule), `isCardCollision`, the
-    discriminating count, `highestIndexForNumber`, `issueCounts`.
-  - `src/infrastructure/prisma/customer-repository.ts` — one `isCollisionOn(error, columns)` replaces
-    `isCustomerNumberCollision`; `create` now also raises `CardNumberTaken`.
-  - `card-repository.test.ts` (+9 cases), `customer-repository.test.ts` (+1), `customers.test.ts`
-    (the fake), `docs/technical_documentation.md`.
-- Gates: lint, typecheck, `test:coverage` (49 files, 1040 tests, domain + application 100%), build,
-  `format:check` — all green. e2e NOT run: US-002's 5 specs stay red until US-004.
+## Fri Aug 7 2026 — US-003 (The cap is stored and versioned)
+- `SettingsVersion` gained `priceCapCents Int?`, documented with why NULL is a real configuration
+  (no cap) rather than a missing value, and why it is not a `0` sentinel — `0` is a coherent cap
+  that makes every distribution free.
+- Pre-release migration rules: `prisma/migrations/` deleted and regenerated as
+  `20260807065541_init`, the hand-written `Customer_customerNumber_onRegister_key` partial unique
+  index re-appended, `npm run db:reset` run and the seeded row verified to hold `priceCapCents: 500`.
+  No `ON DELETE CASCADE` and no `ON DELETE SET NULL` in the regenerated SQL.
+- `PrismaSettingsRepository.append` writes `settings.priceCap`; `toDomain` reads
+  `row.priceCapCents ?? null` back through `createSettings`. Both `FOR NOW` placeholders from
+  US-001 are gone (repository and seed); `einstellungen/actions.ts` still holds its, as US-004 owns it.
+- `seed.ts` now sets `priceCap: 500` — FD's real cap — so seeded data exercises the capped path.
+- Four integration tests added (test-after, throwaway SQLite file): the 500/`null` round trip with
+  `priceFor` on both sides, a cap of `0` surviving as `0`, a hand-edited `-1` refused naming
+  `priceCap`, and the seeded cap capping 4 grown-ups + 3 children at 500.
+- Files: `prisma/schema.prisma`, `prisma/migrations/20260807065541_init/migration.sql` (replacing
+  `20260806150359_init`), `src/infrastructure/prisma/settings-repository.ts`, `seed.ts`,
+  `settings-repository.test.ts`, `tests/e2e/portions.spec.ts`.
+- Gates: lint, typecheck, `test:coverage` (1074 tests, domain+application 100%), `build` and the
+  **full e2e suite** (134 passed, 1 skipped) green.
 - **Learnings for future iterations:**
-  - **The `isCardIndexCollision` split the PRD asks for cannot be done on the constraint target
-    alone.** A card's `customerNumber` is written from the customer row, so a second card on an index
-    the customer already holds violates `(customerId, index)` *and* `(customerNumber, index)`, and
-    SQLite reports `["customerNumber","index"]` — even though `Card_customerId_index_key` is created
-    first in the migration. `issue` therefore matches either of `Card`'s targets and then counts the
-    customer's own rows on that index to decide which error it is. Do not "simplify" that back to a
-    target match: the existing US-02.3 concurrency tests go red immediately.
-  - **`PrismaCustomerRepository.create` had been mapping a duplicate *card* number to
-    `CustomerNumberTaken`.** Prisma reports a nested write under the rooted model, so the modelName
-    check US-002 added does not catch it; the columns do (`["customerNumber"]` = the register's
-    partial index, `["customerNumber","index"]` = `Card`'s). US-004 needs this, because a
-    registration writes its first card through `create` and not through `cards.issue`.
-  - `FakeCardRepository` in `customers.test.ts` is now constructed with the customer register —
-    `new FakeCardRepository(customers)` — because a card's slot is read off the customer row rather
-    than passed in. Every `beforeEach` already built `customers` first.
-  - The fake's `issueCounts` counts rows now too. No application test asserted the old max-index
-    reading, so nothing outside infrastructure moved.
+  - **`npx prisma migrate dev` refuses to regenerate while `data/fd.db` still holds the old
+    migration row** — it reports "the following migration(s) are applied to the database but missing
+    from the local migrations directory" and writes nothing. Delete `data/fd.db` first (the
+    `node -e` line from the `db:reset` script does it), then `migrate dev --name init --skip-seed`,
+    then re-append the partial index, then `npm run db:reset`. Doing it in the other order costs a
+    round trip.
+  - **`pkill -f "next dev"` kills the Bash tool's own shell** — the pattern matches the wrapper
+    `bash -c` command line, and the call comes back as exit 144 with no output. Check the port
+    instead (`ss -ltnp | grep :3000`) and, if something is really listening, match on
+    `node.*next-server`.
+  - **Seeding a policy value changes what e2e specs assert.** The cap of 500 moved exactly one
+    expectation — `portions.spec.ts`'s 6,00 € household — and nothing else, because every other
+    price assertion in `tests/e2e/` is at or below 5,00 €. `grep -rn ',00 €' tests/e2e/` is the
+    check to run before changing a seeded number.
+  - A Prisma `Int?` column comes back as `number | null`, so `StoredVersion` spells the field
+    `number | null` and `toDomain` still says `?? null`: `undefined` would reach `createSettings`
+    as a *missing* field rather than a configured absence, and the domain spells "no cap" one way.
 ---
 
-## 2026-08-06 22:15 - US-004 (Registration and reissue continue the slot's run)
-- `RegisterCustomerDeps` gained `cards: CardRepository` (read-only, one question). Every real caller
-  already carried it — `customerDeps`, `waitingListDeps` and the demo seed's `DemoDeps` all had a
-  `cards` adapter, so no composition root moved.
-- `registerCustomer` computes `nextCardIndex(await deps.cards.highestIndexForNumber(customerNumber))`
-  **inside the attempt loop and after the number is settled**, and the literal `index: 1` is gone.
-- `issueCard` asks `highestIndexForNumber(customer.customerNumber)`; the `current === null ? 1 : …`
-  branch and the `nextCardNumber` import went with it. `currentCard` stays on the port for its other
-  callers.
-- `CardNumberTaken` propagates from both use cases and is **not** retried — the retry loop moves to
-  another slot, which is the wrong answer for a slot the registration has already won.
-- Files changed:
-  - `src/application/customers/register-customer.ts`, `issue-card.ts`.
-  - `src/domain/customer/customer.ts` — `NewCustomer.card`'s doc said "index 1 for the one handed
-    over with the registration".
-  - `src/application/customers/customers.test.ts`, `src/application/waiting-list/waiting-list.test.ts`
-    — the six named cases the PRD asks for (written red in a previous iteration) plus `cards` in the
-    `readCustomer` and `readCard` describes' deps.
-  - `tests/e2e/archive.spec.ts`, `reregistration.spec.ts`, `waiting-list.spec.ts`.
-  - `docs/technical_documentation.md` — the `issueCard` section's counting rule, the two passages
-    saying a re-registration "starts at card index 1", the waiting-list e2e walkthrough.
-- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests, domain + application 100%), build,
-  **full e2e (120 passed, 1 skipped)** — all green. The 5 specs US-002 left red are fixed.
+## Fri Aug 7 2026 — US-004 (Maximalpreis is editable, and its changes are readable)
+- A sixth `EuroField` — `name`/`id` `priceCap`, label „Maximalpreis je Ausgabe" — sits after „Preis
+  je Kind" in the **Mengen und Preise** card, and the twelve-column grid is re-spanned
+  `2+2+2+2+2+2` (it was `2+2+2+3+3` and full). No checkbox, no toggle: the empty field is the
+  affordance, and a toggle could contradict the amount beside it.
+- `actions.ts` gained `optionalEuroAmount` beside `euroAmount`: a value that trims to `""` becomes
+  `null`, anything else goes through the same `parseEuros`. `SubmittedSettings`, `formValues` and
+  `shownValue` carry `priceCap`, so the §4.2d rule holds for it — a refusal hands an emptied field
+  back **empty**. The `FOR NOW — US-26.5` placeholder in `saveSettings` is gone.
+- `capValue` in the form and `describeCap` on the page both branch on `null` **before** formatting.
+  The version summary line now reads `… · Preis je Kind: 1,00 € · Maximalpreis je Ausgabe: 5,00 €`,
+  and „kein Maximalpreis" where there is none.
+- `de.settings.errorFields.priceCap` added (`InvalidSettings("priceCap")` needs no `INPUT_NAME`
+  entry — spelled the same on both sides), and `settings.prices.hint` reworded to state the per-head
+  rule, the cap, and that an empty field means there is none.
+- Files: `src/app/einstellungen/{actions.ts,settings-form.tsx,save-settings-state.ts,page.tsx}`,
+  `src/i18n/de.ts`, `docs/ui_redesign_einstellungen.md` (§4.2d said „nine fields").
+- Gates: lint, typecheck, `test:coverage` (1074 tests, domain+application 100%) and `build` green.
+- **Browser verification** (playwright-cli, production build on 3100 after `npm run db:reset`,
+  accessibility snapshot read, `data/fd.db` reset again afterwards):
+  - The control announces as `textbox "Maximalpreis je Ausgabe"` — the hint is **not** in the
+    accessible name — and `aria-describedby="prices-hint"` resolves to the reworded sentence.
+  - Saved `6,00` → shown back; cleared and saved → the input's value is `""` after a reload, never
+    `0,00`; re-introduced `5,00`.
+  - The three history rows read exactly `Maximalpreis je Ausgabe: 5,00 € → 6,00 €`,
+    `6,00 € → kein Maximalpreis` and `kein Maximalpreis → 5,00 €`; the fold summary still states
+    „5 Fassungen · zuletzt geändert am 07.08.2026".
+  - A refused `5,0o` marks `#priceCap` (`aria-invalid`, one `settings-field-error`) while
+    `#pricePerChild` and `#reason` keep what was typed.
+  - Six controls, all 163px wide and on one baseline at 1440; `scrollWidth - clientWidth` is **0**
+    at 1920, 1440, 1280, 1024, 800 and 390.
 - **Learnings for future iterations:**
-  - **Three e2e specs asserted `${customerNumber}k1` in a *shared* `register` helper** used both for
-    a fresh slot and for a successor on a freed one. The helper now asserts
-    `new RegExp('^' + customerNumber + 'k\\d+$')` — the card names the slot, index unpinned — and the
-    three tests that know the slot's run assert `k2` outright at the call site. That is the honest
-    split: a helper cannot know the run, a test that arranged an archive can.
-  - `--grep` on a `describe.configure({ mode: "serial" })` file runs the matched test **alone**, so
-    the `beforeAll`/earlier-test state it depends on is missing and it fails with a bogus
-    `Cannot read properties of undefined`. Run the whole spec file (`npx playwright test <file>
-    --project=chromium`) to see a real failure.
-  - A Playwright failure inside a serial describe stops the rest of the file ("N did not run"), so
-    one red test hides however many follow it. Re-run the file after each fix rather than assuming.
-  - `npm run format:check` is red on `tasks/prd-us-25-globally-unique-card-numbers.md` and has been
-    since 043789a; CI does not run it, and lint-staged only formats what a commit stages.
-  - US-005 next: `de.customers.registration.prefilled.detail` still promises "einer neuen Karte
-    (k1)". `src/i18n/de.ts:390`.
+  - **A refused *optional* amount is a Zod refusal, not an `InvalidSettings`.** `parseEuros` only
+    accepts digits, so a negative or fractional cap cannot be typed and
+    `InvalidSettings("priceCap")` is unreachable from this form. The summary notice therefore reads
+    „Bitte einen Betrag wie 2,50 eingeben." and **does not name the field** — the mark on the field
+    does. US-005's criterion "names it in the summary notice" has to be read that way; the PRD
+    prescribes that sentence (§US-26.5), so do not reword it.
+  - **`settings.spec.ts` needed no edit**, because every version-summary assertion there is
+    `toContainText`. The line gaining a segment moved nothing — check `toContainText` vs
+    `toHaveText` before assuming a summary change breaks e2e.
+  - **`shownValue`'s `?? stored` fallback is safe for an empty field** only because `values` is
+    absent on a save and present on a refusal: `""` is a real submitted value, so `?? ` (not `||`)
+    is what keeps a cleared cap cleared. A `||` here would silently restore the stored cap.
+  - **`EuroField` now takes an optional `describedBy`** and joins it with the error id, so a field
+    can carry both a hint and a mark. Only `priceCap` uses it — the hint is the sentence that makes
+    its *empty* state legible.
+  - **`pkill -f "node.*next-server"` kills the Bash tool's own shell too** (exit 144, no output) —
+    the same trap the existing entry records for `next dev`, because the pattern matches the wrapper
+    command line. It does stop the server, but the rest of the compound command never runs.
 ---
 
-## 2026-08-06 22:25 - US-005 (The screens stop promising k1)
-- `de.customers.archiveSearch.prefilled.detail` no longer says „einer neuen Karte (k1)" — the rest of
-  the sentence (which archived record, that it stays unchanged) is preserved verbatim. Its doc comment
-  now records *why* no index may be named again: the banner renders before the slot is chosen, and
-  since US-25 a first card on a freed number is not `k1`.
-- Every other German string mentioning a card was re-read and left alone. Two worth naming:
-  `counter.verdicts.outdatedCard` („Karte ungültig") is about *the card*, not "your" card, which is
-  what makes it read properly for a stranger's; `cardView.supersededNone` („Diese Karte ist die erste
-  des Haushalts und ersetzt keine frühere") stays true of a first card at `k2`, because it says *des
-  Haushalts* — the superseded list is the record's run, not the slot's.
-- Files changed: `src/i18n/de.ts` only. No key added or removed, no component touched — the one e2e
-  assertion calls `words.prefilled.detail(...)` rather than quoting it, so it followed the change.
-- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests), build — all green.
-- **Browser verification** (playwright-cli, production build on 3100 against `data/fd.db` after
-  `npm run db:reset && npm run db:demo`), accessibility snapshot read:
-  - `/kunden/neu` with the archive pre-fill applied (searched „Dück", took the match): the banner is a
-    `status` with the `<h2>` and reads "Übernommen von „Milena Dück“, archiviert am 07.06.2026 unter
-    der Kundennummer 5. Es wird ein neuer Datensatz mit einer neu vergebenen Kundennummer und einer
-    neuen Karte angelegt. …" — no index anywhere.
-  - `document.documentElement.scrollWidth - clientWidth` is **0** at 1920, 1280, 1024, 800 and 390
-    with the pre-fill on screen.
-  - `/kunden/20/karte` (the seed's re-registered household): "Kartennummer 2k2", "Ausgestellte Karten
-    / Karten insgesamt 1", "davon nach Verlust 0".
+## Fri Aug 7 2026 — US-005 (E2E — setting and clearing the Maximalpreis)
+- Four specs appended to `tests/e2e/settings.spec.ts`, serial like the rest of the file and ending
+  with the cap back at the seeded 5,00 € so the pricing specs are undisturbed:
+  - *a Maximalpreis is stored and shown again after a reload* — 5,00 → 4,00, saved, reloaded, and
+    the version in force states `Maximalpreis je Ausgabe: 4,00 €`.
+  - *clearing the Maximalpreis leaves the field empty, not 0,00* — the assertion is on the input's
+    **value** being `""`, not on `0,00` being absent from the page, and the version in force reads
+    „kein Maximalpreis“.
+  - *the history names the Maximalpreis being changed, removed and introduced* — all three
+    transitions asserted as diffs through `de.settings.history.change`, with „kein Maximalpreis“ on
+    the absent side in both directions.
+  - *a Maximalpreis that is not an amount is refused and nothing else is lost* — `5,0o` refuses the
+    save at tier `refusal`, marks `#priceCap` (one `settings-field-error`, `pricePerChild` unmarked),
+    and the §4.2d rule holds: the refused text, the `pricePerChild` edit and the reason all stay on
+    screen, and a reload shows both money fields as the database has them.
+- The existing five specs are **unchanged** — every version-summary assertion in the file is
+  `toContainText`, so the segment US-004 added to that line moved none of them.
+- No Faker: this spec touches no personal data at all, only policy amounts and one German reason
+  string, and the file's existing reasons are literals for the same reason.
+- Files: `tests/e2e/settings.spec.ts`.
+- Gates: lint, typecheck, `build`, `test:coverage` (1074 tests, domain+application 100%) and the
+  **full e2e suite** (138 passed, 1 skipped) green, run with nothing listening on 3000/3001.
 - **Learnings for future iterations:**
-  - **The demo seed already demonstrates the new rule**, and has since US-004 landed: customer 19 sits
-    on slot 1 at index 2 and customer 20 on slot 2 at index 2, because the seed replays the real use
-    cases. US-007's remaining job there is the `demonstrates` *string*, not the shape.
-  - **A UI story with a card in it needs `npm run db:reset && npm run db:demo` first** — a bare
-    `db:reset` seeds settings only, so `data/fd.db` has no customers at all and every screen is empty.
-  - **`tsx` cannot resolve `@prisma/client` from a script in `/tmp`.** Write throwaway inspection
-    scripts inside the repo (a gitignored/temporary dir) and delete them, and use a `.mts` file rather
-    than `tsx -e` — `-e` compiles as CJS and rejects top-level `await`.
-  - `playwright-cli --raw eval "…"` needs `2>/dev/null | tail -1`: the version-mismatch banner is on
-    stdout too.
-  - **`docs/user_stories_mvp.md` still states the old rule in two places** — §US-02 point 7 ("card
-    number `<number>k1`") and ~line 341 ("card index starting at `k1`"). US-007's criteria do not name
-    that file, but they do say *no documentation claims a card number can repeat*. Follow the
-    house style for a superseded requirement: strike through, mark, keep — never delete.
+  - **A save clears the form asynchronously, so two saves in a row need a reload between them.**
+    The first version of the third spec typed `5,00` right after the „Gespeichert“ notice and the
+    revalidated render rewound it to `4,00`; the second save then wrote a no-change version. Now in
+    Codebase Patterns.
+  - **A refused optional amount is Zod's refusal and names no field**, exactly as US-004 predicted:
+    the notice reads „Bitte einen Betrag wie 2,50 eingeben." and the mark on `#priceCap` is what
+    names it. The spec asserts both halves and says so in a comment, rather than asserting a
+    sentence that does not exist.
+  - **The current version is stated in full and only superseded ones show a diff**, so a spec that
+    wants to assert a *transition* has to save once more after making it — which is also the natural
+    place to hand a shared policy value back to its seeded state.
+  - `settings.spec.ts` runs last alphabetically in the shared project, so it is the safest file in
+    which to move a policy value — but US-006 extends `portions.spec.ts`, which runs *before* it, so
+    that story must restore the cap itself rather than relying on this one.
 ---
 
-## 2026-08-06 23:20 - US-006 (E2E — the archived household's card is refused)
-- `tests/e2e/card-number.spec.ts`: seven serial tests walking the scenario that motivated US-25 on
-  one slot — register RED through the form on a **chosen** number, archive it with a reason while its
-  card is still in the world, register a different household on the number that just came free.
-- Asserted: the successor's card is `236k2` and not the archived household's `236k1`; at the counter
-  `236k1` → `OUTDATED_CARD` with `counter-card-number` naming the current card, `236k2` → „Ausgabe
-  frei" with the serve button; `/kunden/[id]/karte` shows „Karten insgesamt 1" for the successor
-  (index counts the slot, count counts the household); no two `Card` rows share a
-  `(customerNumber, index)` pair **anywhere in the register** and the archived household's row is
-  still there; a reissue takes the successor to `236k3` while `236k1` stays refused.
-- Files changed:
-  - `tests/e2e/card-number.spec.ts` (new).
-  - `tests/e2e/card.spec.ts` — title and two comments. US-002 left this decision to US-006: the spec
-    claims `k1`, which now holds only because the form proposes an *untouched* slot, and one comment
-    said a first card is "never a number carried over from whoever last held this customer number",
-    which is the opposite of the rule. No assertion moved.
-  - `docs/technical_documentation.md` — the `tests/e2e/` tree and a catalogue entry for the new spec;
-    the `card.spec.ts` entry now says why its `k1` holds.
-- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests), build, `prettier --check` on the
-  touched files, **full e2e (127 passed, 1 skipped)** — all green.
+## Fri Aug 7 2026 — US-006 (E2E — the cap holds from the settings screen to the counter)
+- New spec `tests/e2e/price-cap.spec.ts`: FD's own household — four grown-ups and three children on
+  customer number 321, owing 11,00 € per head under the seeded Maximalpreis of 5,00 €. Six specs,
+  serial, against the shared register:
+  - the counter, the customer record and the customer list all state **5,00 €** and none of them
+    contains 11,00 € (the absence is scoped to the block the price stands in, not the whole page, so
+    a screen quoting the uncapped figure *beside* the capped one would still fail);
+  - the **live household editor**: an eighth member added but not saved raises the previewed
+    portions 11 → 12 and leaves the previewed price at 5,00 € — the browser-side derivation reads
+    the same cap the server does;
+  - a hand-out recorded at the counter stores `priceCents: 500`, asserted straight out of SQLite,
+    and the history row reads 5,00 €;
+  - raising the cap to 6,00 € leaves that row at 5,00 € while the *next* hand-out would cost 6,00 €;
+  - clearing the cap states 11,00 € on all three screens with the portions unmoved at 11;
+  - putting 5,00 € back is in force on the next request — and hands the register on at the seeded
+    value the settings specs open against.
+- `tests/e2e/settings.spec.ts`: the three **absolute** version counts (`count(2)`, `toHaveCount(3)`,
+  `toHaveCount(4)`) now read a baseline first and assert `before + 1`, and the seeded version is
+  addressed as `versions.last()` rather than `nth(2)`. Deliberate, and not a loosening: the claim is
+  still "a save appends exactly one version", but this file no longer owns the settings history —
+  `price-cap.spec.ts` saves three times before it. Every other assertion in that file is untouched.
+- `docs/technical_documentation.md`: the new spec added to the `tests/e2e/` tree.
+- Files: `tests/e2e/price-cap.spec.ts` (new), `tests/e2e/settings.spec.ts`,
+  `docs/technical_documentation.md`.
+- Gates: lint, typecheck, `test:coverage` (1074 tests, domain+application 100%), `build`, and the
+  full e2e suite — 144 passed / 1 skipped, up from 138.
 - **Learnings for future iterations:**
-  - **A spec that needs two households on one customer number must pick the number, and can only
-    pick below the quota.** `/kunden/neu` offers `1..quotaN` (240 seeded), so the 241+ bands the
-    seeding specs took are invisible to the control. 235–238 were the only free ones below it; this
-    spec took 236. The band list is now in Codebase Patterns above.
-  - The dropdown offers a number an **archived** household holds, which is what makes the second
-    registration possible at all — `register()` asserts the option exists before selecting it, so a
-    regression in US-10's slot release fails here as itself rather than as a timeout.
-  - Extra households in the shared register are safe for the specs that come after: `group-progress`,
-    `group-walk` and `customer-list` all read their expectations out of Prisma (or take a baseline)
-    at assertion time. `home.spec.ts`'s `cards-due-badge`/`waiting-list-free-slot` assertions are
-    `toHaveCount(0)` for elements that moved to the hub — nothing to disturb.
-  - A spec pinning `data/e2e-now.txt` must delete it in `afterAll`, or January is frozen for
-    `settings.spec.ts`, which stamps a version *now*.
-  - US-007 next: the documents. `CLAUDE.md`'s "Derive, don't store" list, `docs/domain_analysis.md`,
-    the three superseded PRD notes, the demo seed's `demonstrates` string — and `docs/
-    user_stories_mvp.md` still states the old rule in two places (§US-02 point 7 and ~line 341),
-    which US-005's log already flagged.
+  - **Check where a new e2e spec sorts before writing it.** Files run alphabetically under one
+    worker against one database, so `price-cap.spec.ts` lands between `portions` and `settings` —
+    which is exactly why its three settings saves collided with `settings.spec.ts`'s absolute
+    version counts and with nothing else. `npx playwright test --list` answers this in seconds and
+    is cheaper than discovering it from a red suite.
+  - **A spec that changes settings must hand the register back.** The last spec here saves 5,00 €
+    not for its own sake but because `settings.spec.ts` opens by asserting the Maximalpreis field
+    holds it. State restored *as an assertion* rather than in `afterAll` costs nothing and reads as
+    a rule ("a cap put back is in force at once") instead of as housekeeping.
+  - **Do the settings saves on the wall clock, not a pinned one.** `resolveSettingsAt` picks the
+    latest version whose `recordedAt` is not in the future, so a version saved while the clock is
+    pinned to January carries a January stamp and would outrank nothing — and could be outranked by
+    the seed. This spec pins 08.01.2026 only for the three specs that need a RED distribution day to
+    serve, then calls `unpinToday()` before the first save.
+  - **Scope a "this figure is absent" assertion to the block that holds the figure.** `page` is too
+    wide (the counter screen also carries the week banner and the group list) and the price testid
+    alone is too narrow (it cannot see a second, disagreeing derivation rendered beside it).
+  - The household editor numbers its member-row testids by **position**, so the row added to a
+    seven-member household is `member-first-name-7`. All three fields must be filled — `derived`
+    returns `null` while a birthdate is unparseable and every figure shows the "unknown" dash.
+  - Keep a spec's card `grownUpsAtIssue`/`childrenAtIssue` matching the household it seeds, or the
+    household appears on `/karten-neuausstellung` and the reissue spec — which runs after this one —
+    reads a list it did not put a row on.
 ---
 
-## 2026-08-06 23:50 - US-007 (The documents say the new rule)
-- The places that argued for the *per-record* counting rule now argue for the slot's:
-  - `CLAUDE.md`, "Derive, don't store": a **third** exception, `Card.customerNumber`. Framed as a
-    *key* like `firstNameFolded` — the `@@unique([customerNumber, index])` needs the slot on the row
-    and `MAX(index) WHERE customerNumber = ?` is the counting rule's question — and explicitly *not*
-    a snapshot like the three `AtIssue` fields, because a customer number cannot change.
-  - `docs/domain_analysis.md` §Customer Card: a card number is **issued once and never reused**; the
-    index counts the cards of the *number*, not of the household holding it. §4.4 (reissue) was left
-    alone — for an active household the slot's highest and the record's are the same card.
-  - `docs/technical_documentation.md`: the demo-register section names the two households on a freed
-    slot and their `1k2` / `2k2`; the `registration-screen.tsx` bullet no longer says the pre-fill
-    banner promises a card `(k1)` — US-005 took that literal out of the dictionary and the doc kept it.
-  - `tasks/prd-us-02`, `-us-09`, `-us-11`: a **note** at the top of each, not a rewrite. US-02's also
-    marks the two lines that state the opposite rule *as a requirement* (FR-6, and the criterion
-    asking for an integration test that two customers may both hold `50k1`).
-  - `docs/user_stories_mvp.md`: not named in the criteria, but it states the old rule in three places
-    (§US-01.7, §US-02.2, §US-11.3). Each gained an inline `[superseded by US-25]` in the doc's own
-    `[added]` style — struck through nothing, deleted nothing.
-  - `docs/ui_redesign_kunden_karte.md` §1: one parenthesis saying the household examined as "her
-    first card `1k1`" now reads `1k2`. A review record of a session that happened is not rewritten.
-- `prisma/demo-seed.ts`: the **shape** has demonstrated the rule since US-004 (customers on slots 1
-  and 2, both freed by an archive, both holding a first card at `k2`) — what was missing was
-  *visibility*. The summary table gained a `Karte` column, the two `demonstrates` strings say the
-  first card is not `k1`, and the closing paragraph says the card numbers do **not** come back with
-  the slot. Verified: `npm run db:demo -- --reset` prints `1  1k2  Möldner, Sally` and
-  `2  2k2  Dück, Milena`.
-- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests), build, `prettier --check` on every
-  touched file, `db:reset` + `db:demo` — all green. e2e not re-run: nothing under `tests/` or `src/`
-  moved and the e2e suite does not use the demo seed.
+## Fri Aug 7 2026 — US-007 (The documents say what FD charges)
+- Documentation only, no code. Every document that described what a household owes as the
+  unqualified per-head sum now states the Maximalpreis with it.
+- `docs/domain_analysis.md`: the `Price` row of the vocabulary table names the cap as part of the
+  definition; distribution-day walkthrough step 7 states it with FD's own case (11,00 € per head,
+  5,00 € paid) and says the portion allowance is unaffected; open question 1 records that FD have
+  since named three of the values and that they are seeded, not coded.
+- `docs/user_stories_mvp.md`: US-07.2 now derives `min(per-head sum, Maximalpreis)`, marked
+  `[changed]` with the reason (FD stated the cap after the story was written); US-14's role line and
+  criterion 1 name it, and a new criterion 5 states that an empty field and a cap of 0,00 € are
+  different claims — `[added]`, because the two are one lost branch apart.
+- `docs/technical_documentation.md`: the settings enumeration, the `priceFor` section (plus a
+  paragraph on why `Cents | null` rather than a `0` sentinel, and that `Math.min` is the whole rule),
+  the `SettingsVersion` model section (nullable, no default, no backfill — the migration was
+  regenerated), the household editor's "four policy values" → five with the cap-preview consequence
+  spelled out, the policy-values bullet in the conventions list, and a new ⚠️ note on the settings
+  screen about the optional-amount branch and why there is deliberately no activation toggle.
+- Three further documents the required grep caught: `tasks/README.md` (the seeded-values table gains
+  the 500 row and the formula becomes `min(…)`), `CONTRIBUTING.md`'s configurable-data bullet, and
+  `docs/tech_stack_architecture_sketch.md` §4.1, where the cap now stands as the evidence for the
+  change-tolerance claim it was already making.
+- `docs/ui_redesign_einstellungen.md` §4.3 gained a "since built" note — the sixth field and the
+  `2 + 2 + 2 + 2 + 2 + 2` re-span — so its span table and its ASCII mock-up's shorter hint are not
+  read as current.
+- `tasks/prd-us-07-portions-and-price.md` gained the forward reference, in the header-quote style
+  `prd-us-02` uses for "Superseded in part by US-25".
+- `CLAUDE.md`'s "Derive, don't store" list is deliberately **not** amended: the cap is a policy value
+  like the prices beside it, not a fourth stored-derivation exception.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1074 tests, domain+application 100%) and
+  `build` green.
 - **Learnings for future iterations:**
-  - **Prettier reflows a long inline code span across a line break and then un-indents it**, which in
-    a nested list looks like the bullet ended. `` `formatCardNumber(customer.customerNumber,
-    card.index)` `` came back mangled; splitting the identifiers into two short spans fixed it.
-    Run `npx prettier --check` on the *markdown* you touched, not only on the TypeScript.
-  - **`docs/` and `tasks/` take opposite treatment for a superseded rule**, and CLAUDE.md says why:
-    `docs/` is the source of truth for what FD needs and is *updated* when a decision changed;
-    `tasks/` is the record of what was asked for and gets a *note*. `user_stories_mvp.md` sits in
-    `docs/` but reads like a record, so it took the middle road — text kept, marked inline.
-  - The repository-wide grep the criterion asks for has two **false positives** worth not
-    "fixing": `docs/user_stories_mvp.md:72` and `tech_stack_architecture_sketch.md:201` say the
-    *customer number* is not unique across the archive, which is still true and is the premise US-25
-    works from; `ui_redesign_kunden_verwalten.md` §3.4 "the register's card number repeats its
-    customer number" is about a **column** showing `12` beside `12k1`.
-  - The demo seed's summary reads the register back through the repositories (`deps.cards.currentCard`),
-    so a column added there costs one query per row and cannot disagree with what the screens show.
+  - **A number in a document is a count that goes stale.** `technical_documentation.md` said the
+    browser-side editor prices "from the four numbers that bear on the answer" and the household
+    editor section said "no input for any of the four" — widening `PriceValues` made both wrong with
+    nothing to catch it. When a policy value is added, grep the docs for the *cardinality words*
+    ("the four", "the two per-head", "three open questions"), not only for the field name.
+  - **`docs/ui_redesign_einstellungen.md` is a design record, not a spec** — it holds the *proposal*
+    that was then built (§4.3's column spans, the ASCII mock's hint text). Do not rewrite it when the
+    screen moves on: that would misrepresent what was decided. Add a "since built" note under the
+    affected section, the way §4.3 now carries one.
+  - **`npm run format:check` currently fails on `tasks/prd-us-25-globally-unique-card-numbers.md`,
+    and `prettier --write` does not fix it** — Prettier is non-idempotent on continuation lines of a
+    backticked test name inside a list item, so writing produces output `--check` still rejects. It
+    predates this batch, no hook or CI job runs `format:check` (only `format` and `format:check` in
+    `package.json`, neither wired into `.husky/` or `.github/`), and settling it means rewording those
+    lines. Left alone deliberately — do not "fix" it by running `--write` and committing the churn.
+  - The grep the PRD prescribes (`per head`, `pricePerGrownUp`) is worth running with
+    `grep -rn … docs/ tasks/README.md CONTRIBUTING.md README.md` and *excluding* hits that already
+    say Maximalpreis — otherwise the sentences you just wrote drown the ones you have not.
 ---

@@ -371,8 +371,8 @@ That is one element per screen holding `settings-error`, which is what §7.5 ask
 _moving_ nothing rather than by printing the same sentence twice, which is what §7.5 assumed the
 resolution would have to be.
 
-**(d) A rejected save keeps what was typed. ✅ Built.** `SaveSettingsState` carries `values` — the
-nine fields as raw strings, exactly as submitted — and each field's `defaultValue` becomes
+**(d) A rejected save keeps what was typed. ✅ Built.** `SaveSettingsState` carries `values` — every
+field of the form as a raw string, exactly as submitted — and each field's `defaultValue` becomes
 `state.values?.x ?? <stored>`. **Present on a refusal, absent on a save**, and that asymmetry is the
 whole mechanism: after a save there is nothing to override with, so React's reset lands on the freshly
 revalidated figures, which is what it should do and what it already did.
@@ -448,6 +448,14 @@ link here.
 
 One height for all of them — the guide's `FILTER_SELECT` recipe from `kunden/page.tsx` gives the
 native selects the same `h-9` and the same focus ring as `Input`, which fixes §3.4 in one constant.
+
+> **Since built: US-26 added a sixth field to `Mengen und Preise`.** `priceCap` — the Maximalpreis,
+> an optional amount whose empty field means "no cap" — sits after `pricePerChild`, and the row was
+> re-spanned from `2 + 2 + 2 + 3 + 3` to **`2 + 2 + 2 + 2 + 2 + 2`**, which is what keeps six
+> controls on one line and gives the three money fields the same width as each other. The card's
+> hint was reworded with it: the price is per head **and** the Maximalpreis is the most a household
+> pays whatever its size, so the mock-up's „Der Preis wird je Kopf berechnet.“ above is the shorter
+> sentence this screen used to carry.
 
 ### 4.4 One thing worth adding, and one worth resisting
 

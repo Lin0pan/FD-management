@@ -3,6 +3,11 @@
 > Source story: `docs/user_stories_mvp.md` §US-07 (Tier 1). Depends on **US-14** (portion values and
 > prices per head) and **US-01.1** (derived counts). Consumed by **US-04** and **US-05**.
 
+> **Extended by US-26 — the Maximalpreis** (`prd-us-26-price-cap.md`). The price below is the
+> unqualified per-head sum; since US-26 `priceFor` returns `min(per-head sum, Maximalpreis)` where a
+> Maximalpreis is configured, so FD's four-grown-up, three-child household owes 11,00 € per head and
+> pays 5,00 €. The cap caps money only — `portionsFor` is unchanged.
+
 ## 1. Introduction
 
 At a busy counter nobody should be doing arithmetic. Given a customer's household, the app must state

@@ -228,6 +228,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── home.spec.ts                  # the Start dashboard against three pinned days
 │   ├── navigation.spec.ts            # the nav bar: every section reachable, the right one marked
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
+│   ├── price-cap.spec.ts             # the Maximalpreis holds from the settings screen to the counter
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
 │   ├── reissue.spec.ts               # a lost card is replaced and stops working at the counter
 │   ├── reminders.spec.ts             # the reminder trail: three visits, three reminders, renewal
@@ -477,8 +478,8 @@ the slot's run was read stale rather than that two writes collided.
 ### `src/domain/policy/settings.ts`
 
 The policy values FD can change without a deploy — quota `N`, portions per grown-up and per child,
-the price per grown-up and per child, the week-cycle anchor and the distribution weekday — and
-the rule that decides which of them apply at a point in time. A saved change is **in force
+the price per grown-up and per child, the Maximalpreis, the week-cycle anchor and the distribution
+weekday — and the rule that decides which of them apply at a point in time. A saved change is **in force
 immediately**; versions are **immutable and stamped with the instant they were recorded**:
 `resolveSettingsAt(versions, date)` returns the version with the greatest `recordedAt` that is not
 after `date` (of two recorded in the same instant, the later one written wins), and throws
@@ -489,11 +490,22 @@ that customer owe last March" is to resolve the version that was in force then.
 `createSettings(input)` validates every invariant on construction (quota ≥ 1, portions ≥ 0,
 ISO weekday 1–7, an `YYYY-Www` anchor, non-negative integer cents) and throws
 `InvalidSettings` naming the field. `priceFor(values, grownUps, children)` derives what a
-household owes — `grownUps × pricePerGrownUp + children × pricePerChild` — because FD charges per
-head. Every household size is therefore priceable and no table has to be kept in step with the
-sizes that actually turn up. It takes a `PriceValues` — the two per-head prices picked off
-`Settings`, mirroring `portionsFor`'s `PortionValues` — so that the record's household editor can
-price a household in the browser from the four numbers that bear on the answer, without being handed
+household owes — `grownUps × pricePerGrownUp + children × pricePerChild`, and then **no more than
+`priceCap`** — because FD charges per head but caps what one household pays for one distribution
+(US-26). Four grown-ups and three children at 2,00 € and 1,00 € owe 11,00 € per head and pay FD's
+Maximalpreis of 5,00 €. Every household size is therefore priceable and no table has to be kept in
+step with the sizes that actually turn up. `portionsFor` is untouched by the cap: it caps money, not
+food, so a household over the cap still gains portions for every further head.
+
+`priceCap` is `Cents | null`, and the `null` is load-bearing: **no cap** and a cap of **0,00 €**
+(food is free for everyone) are different configurations FD can both state, so the absence cannot be
+flagged with `0` the way portions or a child price of `0` would be. `Math.min` is the whole of the
+rule — a cap is a ceiling, `Math.max` appears nowhere near it — and because both operands are
+validated non-negative integers the result is integer cents without rounding.
+
+`priceFor` takes a `PriceValues` — the two per-head prices and the cap picked off `Settings`,
+mirroring `portionsFor`'s `PortionValues` — so that the record's household editor can
+price a household in the browser from the five numbers that bear on the answer, without being handed
 the quota and the week anchor as well (US-16.5). The module is pure: no I/O, no wall clock, and it works over an already-loaded array so
 the counter screen (US-04) resolves settings without a per-field query.
 
@@ -1801,6 +1813,14 @@ The failure is a _runtime_ error at page load, not a build error, so it will not
 value the `InvalidSettings` error carries. Add a key there when adding a validated settings field,
 or the screen quotes an English identifier at staff.
 
+⚠️ **An optional amount is an empty field, never a `0`.** The Maximalpreis (US-26) is the one
+settings value that may be absent, and `actions.ts` gives it its own transform beside `euroAmount`:
+a value that trims to `""` becomes `null`, anything else goes through the same `parseEuros`. Both
+`page.tsx` and the form branch on `null` **before** formatting, because `formatEuroAmount(0)` is
+`0,00` and a lost branch would quietly turn "no Maximalpreis" into "free for everyone" on the next
+save. There is deliberately **no** activation checkbox beside the amount: a toggle can contradict
+the field, and staff would have to know which of the two wins. The empty field is the affordance.
+
 ### `src/app/kunden/` — the Kunden-verwalten hub, the registration screen and the card view
 
 All routes share one `deps.ts`, and all follow the settings screen's wiring. What is worth knowing
@@ -1958,8 +1978,11 @@ beyond it:
   out and the counts it prices are all derived from what was just written.
   - **`household-editor.tsx`** is a client component because the counts, portions and price must
     update _as staff type_ (FR-1): it calls `composition`, `portionsFor` and `priceFor` against the
-    server's `today` and the four policy values, so what is on screen is what the save derives.
-    There is no input for any of the four. The edit is a **replacement of the whole set** — rows are
+    server's `today` and the five policy values — the two portion values, the two per-head prices
+    and the Maximalpreis — so what is on screen is what the save derives. Adding a head to a
+    household already at the cap therefore raises the previewed portions and leaves the previewed
+    price where it is, because the browser prices through `priceFor` like everything else and never
+    multiplies the counts itself. There is no input for any of the five. The edit is a **replacement of the whole set** — rows are
     addressed by position, because two members can share a name and a birthdate and a row has no
     identity to diff on. Each row shows the member's **current age** beside their birthdate, derived
     from the date in the field, which is what makes the 13-year boundary legible (PRD §6).
@@ -2413,7 +2436,11 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   machine-stamped instant the values took over — deliberately not unique, because two saves in the
   same millisecond are a concurrency accident, not a business error. It carries
   `pricePerGrownUpCents` / `pricePerChildCents` rather than a per-household price table: what a
-  household owes is derived, never stored.
+  household owes is derived, never stored. `priceCapCents` is **nullable** and that is the whole
+  design of it (US-26): `NULL` means FD has set no Maximalpreis, which is not the same claim as a
+  cap of `0` (every household pays nothing), so the absence is a real configuration rather than a
+  missing value and cannot be folded onto a `0` sentinel. There is no default and no backfill —
+  the migration was regenerated pre-release, so no row predates the column.
 - `Customer`, `HouseholdMember`, `Certificate` and `Card` are the register (US-01).
   `Customer.id` is a surrogate autoincrement key and **the only identity there is**; every foreign
   key targets it and never `customerNumber`, which is a reusable _slot_. There is deliberately **no
@@ -3040,8 +3067,8 @@ npm run lint && npm run typecheck && npm run test:coverage && npm run build
   comments, and filenames are English and greppable.
 - **Money is integer cents**, never floats. Format via `src/domain/money.ts`.
 - **Time comes from the `Clock` port**, never `new Date()` in domain/application code.
-- **Policy values are data, not constants** — portions, prices per head and quota `N` live in the
-  DB, editable in the UI. A change applies immediately; superseded versions are kept as history.
+- **Policy values are data, not constants** — portions, prices per head, the Maximalpreis and quota
+  `N` live in the DB, editable in the UI. A change applies immediately; superseded versions are kept as history.
 - **No actor in state records** — there is no login, so audit records never say _who_.
 - **Push logic down** — anything non-trivial in `src/app` belongs in a use case or the domain.
 

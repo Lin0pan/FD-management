@@ -22,7 +22,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { DomainError } from "@/domain/errors";
-import { formatEuros } from "@/domain/money";
+import { type Cents, formatEuros } from "@/domain/money";
 import type { Settings } from "@/domain/policy/settings";
 import type { SettingsChange } from "@/domain/policy/settings-diff";
 import { de } from "@/i18n/de";
@@ -70,10 +70,26 @@ function describeChange(change: SettingsChange): string {
         formatEuros(change.from),
         formatEuros(change.to),
       );
+    case "priceCap":
+      return sentence(
+        de.settings.fields.priceCap,
+        describeCap(change.from),
+        describeCap(change.to),
+      );
   }
 }
 
-/** All eight values, for the one version that is worth reading in full: the one in force. */
+/**
+ * One side of a cap change: the amount, or the words for there not being one.
+ *
+ * Branching on `null` before formatting is the whole point — `formatEuros(0)` is `0,00 €`, and a
+ * missing branch would print a cap of nothing (free for everyone) where FD had removed the cap.
+ */
+function describeCap(cap: Cents | null): string {
+  return cap === null ? de.settings.prices.noCap : formatEuros(cap);
+}
+
+/** All nine values, for the one version that is worth reading in full: the one in force. */
 function FullValues({ settings }: { settings: Settings }): React.ReactElement {
   return (
     <>
@@ -84,7 +100,10 @@ function FullValues({ settings }: { settings: Settings }): React.ReactElement {
       </span>
       <span className="block text-muted-foreground">
         {de.settings.fields.pricePerGrownUp}: {formatEuros(settings.pricePerGrownUp)} ·{" "}
-        {de.settings.fields.pricePerChild}: {formatEuros(settings.pricePerChild)}
+        {de.settings.fields.pricePerChild}: {formatEuros(settings.pricePerChild)} ·{" "}
+        {/* Through the same `describeCap` the history uses, so „kein Maximalpreis“ is one phrase in
+          one place and a version without a cap cannot read as a cap of 0,00 €. */}
+        {de.settings.fields.priceCap}: {describeCap(settings.priceCap)}
       </span>
       {/* The three settings the old history never printed at all, which is how a changed Ausgabetag
         managed to produce a row identical to its predecessor in every character (§3.6). */}

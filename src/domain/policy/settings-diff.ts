@@ -33,7 +33,8 @@ export type SettingsChange =
   | { readonly field: "weekAnchorColour"; readonly from: WeekColour; readonly to: WeekColour }
   | { readonly field: "distributionWeekday"; readonly from: IsoWeekday; readonly to: IsoWeekday }
   | { readonly field: "pricePerGrownUp"; readonly from: Cents; readonly to: Cents }
-  | { readonly field: "pricePerChild"; readonly from: Cents; readonly to: Cents };
+  | { readonly field: "pricePerChild"; readonly from: Cents; readonly to: Cents }
+  | { readonly field: "priceCap"; readonly from: Cents | null; readonly to: Cents | null };
 
 /** The name of one field a change can be reported against — the keys of `de.settings.fields`. */
 export type SettingsChangeField = SettingsChange["field"];
@@ -94,6 +95,11 @@ export function diffSettings(previous: Settings, next: Settings): ReadonlyArray<
   }
   if (previous.pricePerChild !== next.pricePerChild) {
     changes.push({ field: "pricePerChild", from: previous.pricePerChild, to: next.pricePerChild });
+  }
+  // Introducing a cap and removing one are both changes, so the comparison is over the whole of
+  // `Cents | null` rather than over the amount: `null` is a configuration here, not a missing value.
+  if (previous.priceCap !== next.priceCap) {
+    changes.push({ field: "priceCap", from: previous.priceCap, to: next.priceCap });
   }
 
   return changes;

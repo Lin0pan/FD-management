@@ -58,6 +58,7 @@ function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
     distributionWeekday: 4,
     pricePerGrownUp: 200,
     pricePerChild: 100,
+    priceCap: null,
     ...overrides,
   };
 }
@@ -283,7 +284,9 @@ describe("updateSettings", () => {
     await updateSettings(deps(), updateInput());
 
     expect(audit.entries[0].changedFields).toContain("pricePerGrownUp");
-    expect(audit.entries[0].changedFields).toHaveLength(7);
+    // Eight since the Maximalpreis joined `SETTINGS_FIELDS` (US-26): the seed states every policy
+    // value, and an absent cap is one of them being stated rather than one of them missing.
+    expect(audit.entries[0].changedFields).toHaveLength(8);
   });
 });
 

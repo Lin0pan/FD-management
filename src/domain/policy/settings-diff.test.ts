@@ -12,6 +12,7 @@ function settings(overrides: Partial<SettingsInput> = {}): Settings {
     distributionWeekday: 4,
     pricePerGrownUp: 200,
     pricePerChild: 100,
+    priceCap: null,
     ...overrides,
   });
 }
@@ -95,6 +96,34 @@ describe("diffSettings", () => {
     ]);
   });
 
+  it("reports an introduced cap from no cap to an amount", () => {
+    // The transition the nullable column exists for: `null` and `0` are two different claims, so
+    // introducing a cap has to read as a change rather than as an amount appearing out of nothing.
+    expect(diffSettings(settings(), settings({ priceCap: 500 }))).toEqual([
+      { field: "priceCap", from: null, to: 500 },
+    ]);
+  });
+
+  it("reports a removed cap from an amount back to no cap", () => {
+    expect(diffSettings(settings({ priceCap: 500 }), settings())).toEqual([
+      { field: "priceCap", from: 500, to: null },
+    ]);
+  });
+
+  it("reports a changed cap in cents", () => {
+    expect(diffSettings(settings({ priceCap: 500 }), settings({ priceCap: 600 }))).toEqual([
+      { field: "priceCap", from: 500, to: 600 },
+    ]);
+  });
+
+  it("reports nothing when neither version has a cap", () => {
+    expect(diffSettings(settings({ priceCap: null }), settings({ priceCap: null }))).toEqual([]);
+  });
+
+  it("reports nothing when both versions hold the same cap", () => {
+    expect(diffSettings(settings({ priceCap: 500 }), settings({ priceCap: 500 }))).toEqual([]);
+  });
+
   it("lists several changes in the order the form states the fields", () => {
     const next = settings({
       pricePerChild: 120,
@@ -118,6 +147,7 @@ describe("diffSettings", () => {
       distributionWeekday: 1,
       pricePerGrownUp: 1,
       pricePerChild: 2,
+      priceCap: 500,
     });
 
     expect(diffSettings(settings(), next).map((change) => change.field)).toEqual([
@@ -129,6 +159,7 @@ describe("diffSettings", () => {
       "distributionWeekday",
       "pricePerGrownUp",
       "pricePerChild",
+      "priceCap",
     ]);
   });
 });
