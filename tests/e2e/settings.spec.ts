@@ -32,6 +32,20 @@ async function openHistory(page: Page): Promise<void> {
   await page.getByTestId("settings-history-open").click();
 }
 
+/**
+ * How many versions the history holds right now.
+ *
+ * The counts below are asserted as *this plus one*, rather than as the absolute number they used to
+ * be. The claim is the same one — a save appends exactly one version — but this file no longer owns
+ * the settings history: `price-cap.spec.ts` saves a Maximalpreis three times before it, and the
+ * shared register is one database. An absolute count would tie two spec files to each other and
+ * fail the wrong one when either changed. The positional assertions (`nth(1)` for the version a
+ * save superseded) need no such thing: they count from the newest.
+ */
+async function versionCount(page: Page): Promise<number> {
+  return page.getByTestId("settings-version").count();
+}
+
 test.describe.configure({ mode: "serial" });
 
 test.describe("Einstellungen", () => {
@@ -42,6 +56,7 @@ test.describe("Einstellungen", () => {
     await expect(price).toHaveValue("2,00");
     // A change applies at once, so the screen has no effective-from field to fill in.
     await expect(page.locator("#effectiveFrom")).toHaveCount(0);
+    const before = await versionCount(page);
 
     await price.fill("2,50");
     // The reason is left empty on purpose: it is optional, and only a real page load proves the
@@ -56,7 +71,7 @@ test.describe("Einstellungen", () => {
     // The new version leads the read-only history. It is the one in force, so it is the one version
     // stated in full rather than as a diff — the summary above it says how many there are.
     await expect(page.getByTestId("settings-history-count")).toContainText(
-      de.settings.history.count(2),
+      de.settings.history.count(before + 1),
     );
     await openHistory(page);
     await expect(page.getByTestId("settings-version").first()).toContainText(
@@ -66,6 +81,8 @@ test.describe("Einstellungen", () => {
 
   test("a second save on the same day is applied too, and both are listed", async ({ page }) => {
     await page.goto("/einstellungen");
+
+    const before = await versionCount(page);
 
     // Saving twice in a row is the behaviour this screen exists for — settings apply at once and
     // are never dated, so nothing about the previous save can stand in the way of the next one.
@@ -78,7 +95,7 @@ test.describe("Einstellungen", () => {
 
     // Counted with the fold still shut, which is how FD will meet this list.
     const versions = page.getByTestId("settings-version");
-    await expect(versions).toHaveCount(3);
+    await expect(versions).toHaveCount(before + 1);
 
     await openHistory(page);
     // Newest first: the price just saved leads the list and is the one marked as in force.
@@ -91,8 +108,10 @@ test.describe("Einstellungen", () => {
     await expect(versions.nth(1)).toContainText(
       de.settings.history.change(de.settings.fields.pricePerGrownUp, "2,00 €", "2,50 €"),
     );
-    // And the oldest is where the configuration began, not a change from nothing.
-    await expect(versions.nth(2)).toContainText(de.settings.history.initial);
+    // And the oldest is where the configuration began, not a change from nothing. Addressed as the
+    // last row rather than by index: it is the seeded version, and how many stand above it depends
+    // on what the specs before this file saved.
+    await expect(versions.last()).toContainText(de.settings.history.initial);
   });
 
   test("a rejected quota shows a German error and saves nothing", async ({ page }) => {
@@ -136,6 +155,7 @@ test.describe("Einstellungen", () => {
 
   test("correcting the refused field saves the edits that rode with it", async ({ page }) => {
     await page.goto("/einstellungen");
+    const before = await versionCount(page);
 
     await page.getByLabel(PRICE_LABEL, { exact: true }).fill("9,99");
     await page.locator("#quotaN").fill("0");
@@ -159,7 +179,7 @@ test.describe("Einstellungen", () => {
     // One version appended, carrying the price that rode along with the correction. The history
     // lists the settings themselves, not the audit reason — that lives in the log.
     const versions = page.getByTestId("settings-version");
-    await expect(versions).toHaveCount(4);
+    await expect(versions).toHaveCount(before + 1);
 
     await openHistory(page);
     await expect(versions.first()).toContainText(`${de.settings.fields.pricePerGrownUp}: 9,99 €`);

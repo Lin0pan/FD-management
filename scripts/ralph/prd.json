@@ -153,8 +153,8 @@
         "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first — a live dev server on port 3000 fails the suite for the wrong reason)"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done. New tests/e2e/price-cap.spec.ts: a 4+3 household on customer number 321 quoted 5,00 € on /ausgabe, /kunden/[id] and /kunden with 11,00 € on none of them; the live household editor raising the previewed portions 11 → 12 while the previewed price stays 5,00 €; a hand-out stored with priceCents 500 read straight out of SQLite and shown as 5,00 € in the history row; the cap raised to 6,00 € leaving that row at 5,00 € while the next hand-out would cost 6,00 €; the cap cleared stating 11,00 € everywhere with the portions unmoved at 11; and the seeded 5,00 € put back and in force at once, which is also how the register is handed on to the settings specs. The clock is pinned to the RED distribution day only for the three specs that serve, then unpinned so the settings versions are stamped like every other. One deliberate change to settings.spec.ts: its three ABSOLUTE version counts now read a baseline and assert before + 1, and the seeded version is addressed as versions.last() rather than nth(2) — the same claim, stated so it no longer assumes this file is the only one that saves settings. Full e2e suite 144 passed / 1 skipped; lint, typecheck, test:coverage and build green."
     },
     {
       "id": "US-007",

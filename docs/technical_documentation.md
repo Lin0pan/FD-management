@@ -228,6 +228,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── home.spec.ts                  # the Start dashboard against three pinned days
 │   ├── navigation.spec.ts            # the nav bar: every section reachable, the right one marked
 │   ├── portions.spec.ts              # portions and price follow the household, not a stored column
+│   ├── price-cap.spec.ts             # the Maximalpreis holds from the settings screen to the counter
 │   ├── registration.spec.ts          # register a customer and get a card vs. the built app
 │   ├── reissue.spec.ts               # a lost card is replaced and stops working at the counter
 │   ├── reminders.spec.ts             # the reminder trail: three visits, three reminders, renewal

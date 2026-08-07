@@ -47,9 +47,17 @@ Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
 - **The e2e customer-number bands, as they now stand.** Below the quota of 240: counter 201–206 and
   239, portions 211, serve 221–222, reminders 231, registration 232–234, card numbers 236. Above it:
   block 241, reissue 251, age-13 271, customer-list 281–285, customer-record 291, group-progress
-  301–303, group-walk 311–315. A spec whose number must be **pickable in the /kunden/neu dropdown**
-  has to sit below 240 — the pool is `1..quotaN` — and everything else should stay above it, clear of
+  301–303, group-walk 311–315, price cap 321. A spec whose number must be **pickable in the
+  /kunden/neu dropdown** has to sit below 240 — the pool is `1..quotaN` — and everything else should
+  stay above it, clear of
   the low sequence the allocating specs (registration, card, archive, reregistration) consume.
+- **e2e spec files run in alphabetical path order, one worker, one shared database.** So a spec that
+  *writes* shared state is only ever seen by the files sorting after it — `npx playwright test --list`
+  prints the order. Anything a spec asserts as an **absolute count of a shared thing** is therefore a
+  landmine for the next spec added above it: `settings.spec.ts` counted its version history as
+  `3` and `4` and read the seeded version as `nth(2)`. It now reads a baseline with
+  `versionCount(page)` and asserts `before + 1`, and the oldest version as `.last()` — the same
+  claim (a save appends exactly one version), stated so that it does not depend on who ran first.
 - **Get the *files* out of a wide type break, not the errors**:
   `npm run typecheck 2>&1 | grep -E "^src/" | cut -d'(' -f1 | sort -u`. Adding a required field to
   `Settings` breaks ~18 files at once and the raw output is a screen per error.
@@ -261,4 +269,56 @@ Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
   - `settings.spec.ts` runs last alphabetically in the shared project, so it is the safest file in
     which to move a policy value — but US-006 extends `portions.spec.ts`, which runs *before* it, so
     that story must restore the cap itself rather than relying on this one.
+---
+
+## Fri Aug 7 2026 — US-006 (E2E — the cap holds from the settings screen to the counter)
+- New spec `tests/e2e/price-cap.spec.ts`: FD's own household — four grown-ups and three children on
+  customer number 321, owing 11,00 € per head under the seeded Maximalpreis of 5,00 €. Six specs,
+  serial, against the shared register:
+  - the counter, the customer record and the customer list all state **5,00 €** and none of them
+    contains 11,00 € (the absence is scoped to the block the price stands in, not the whole page, so
+    a screen quoting the uncapped figure *beside* the capped one would still fail);
+  - the **live household editor**: an eighth member added but not saved raises the previewed
+    portions 11 → 12 and leaves the previewed price at 5,00 € — the browser-side derivation reads
+    the same cap the server does;
+  - a hand-out recorded at the counter stores `priceCents: 500`, asserted straight out of SQLite,
+    and the history row reads 5,00 €;
+  - raising the cap to 6,00 € leaves that row at 5,00 € while the *next* hand-out would cost 6,00 €;
+  - clearing the cap states 11,00 € on all three screens with the portions unmoved at 11;
+  - putting 5,00 € back is in force on the next request — and hands the register on at the seeded
+    value the settings specs open against.
+- `tests/e2e/settings.spec.ts`: the three **absolute** version counts (`count(2)`, `toHaveCount(3)`,
+  `toHaveCount(4)`) now read a baseline first and assert `before + 1`, and the seeded version is
+  addressed as `versions.last()` rather than `nth(2)`. Deliberate, and not a loosening: the claim is
+  still "a save appends exactly one version", but this file no longer owns the settings history —
+  `price-cap.spec.ts` saves three times before it. Every other assertion in that file is untouched.
+- `docs/technical_documentation.md`: the new spec added to the `tests/e2e/` tree.
+- Files: `tests/e2e/price-cap.spec.ts` (new), `tests/e2e/settings.spec.ts`,
+  `docs/technical_documentation.md`.
+- Gates: lint, typecheck, `test:coverage` (1074 tests, domain+application 100%), `build`, and the
+  full e2e suite — 144 passed / 1 skipped, up from 138.
+- **Learnings for future iterations:**
+  - **Check where a new e2e spec sorts before writing it.** Files run alphabetically under one
+    worker against one database, so `price-cap.spec.ts` lands between `portions` and `settings` —
+    which is exactly why its three settings saves collided with `settings.spec.ts`'s absolute
+    version counts and with nothing else. `npx playwright test --list` answers this in seconds and
+    is cheaper than discovering it from a red suite.
+  - **A spec that changes settings must hand the register back.** The last spec here saves 5,00 €
+    not for its own sake but because `settings.spec.ts` opens by asserting the Maximalpreis field
+    holds it. State restored *as an assertion* rather than in `afterAll` costs nothing and reads as
+    a rule ("a cap put back is in force at once") instead of as housekeeping.
+  - **Do the settings saves on the wall clock, not a pinned one.** `resolveSettingsAt` picks the
+    latest version whose `recordedAt` is not in the future, so a version saved while the clock is
+    pinned to January carries a January stamp and would outrank nothing — and could be outranked by
+    the seed. This spec pins 08.01.2026 only for the three specs that need a RED distribution day to
+    serve, then calls `unpinToday()` before the first save.
+  - **Scope a "this figure is absent" assertion to the block that holds the figure.** `page` is too
+    wide (the counter screen also carries the week banner and the group list) and the price testid
+    alone is too narrow (it cannot see a second, disagreeing derivation rendered beside it).
+  - The household editor numbers its member-row testids by **position**, so the row added to a
+    seven-member household is `member-first-name-7`. All three fields must be filled — `derived`
+    returns `null` while a birthdate is unparseable and every figure shows the "unknown" dash.
+  - Keep a spec's card `grownUpsAtIssue`/`childrenAtIssue` matching the household it seeds, or the
+    household appears on `/karten-neuausstellung` and the reissue spec — which runs after this one —
+    reads a list it did not put a row on.
 ---
