@@ -23,8 +23,8 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "nextCardIndex + CardNumberTaken landed; docs/technical_documentation.md's cardNumber and errors sections updated with them (the paragraph claiming card numbers repeat across the archive is gone). US-007 still owns CLAUDE.md, domain_analysis.md, the PRD notes and the demo seed."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -44,8 +44,8 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Column, both unique indexes and a regenerated migration (the partial customer-number index re-added by hand) are in; every direct card writer states the slot, and the adapter reads it off the customer row in one transaction with the insert. isCustomerNumberCollision now matches on meta.modelName too, or a duplicate card number reports itself as a taken customer number. 5 e2e specs are red until US-004 removes the literal index: 1 — see progress.txt, the specs are right and must not be patched."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -67,8 +67,8 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "highestIndexForNumber is on the port, the fake and the adapter (one _max aggregate). The collision split could NOT be done on the constraint target alone: a second card on an index a customer already holds breaks BOTH unique indexes and SQLite names the (customerNumber, index) one, so issue matches P2002 on either of Card's targets and then asks the record — the customer already holds that index → CardIndexTaken, otherwise CardNumberTaken. customer-repository.create CAN split on the target (Prisma reports the rooted model, so both are modelName Customer, but ['customerNumber'] vs ['customerNumber','index'] tells them apart) and now raises CardNumberTaken, which US-004 needs for registerCustomer to propagate it. issueCounts counts rows. The 5 e2e specs US-002 left red are still red — US-004 removes the literal index: 1."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -91,8 +91,8 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Both use cases read the slot's run: registerCustomer inside the retry loop and after the number is settled, issueCard in place of currentCard. The literal index: 1 and the current === null branch are gone. CardNumberTaken propagates from both and is not retried. The 5 e2e specs US-002 left red are green: 2 fixed themselves, and 3 asserted `<n>k1` on a freed number — the shared register helpers now assert the card names the slot without pinning the index, and the three tests that know the run assert k2 outright. Full e2e: 120 passed, 1 skipped."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
@@ -109,8 +109,8 @@
         "Verify in browser using the playwright-cli skill against a PRODUCTION build, reading the ACCESSIBILITY SNAPSHOT: the pre-fill banner on /kunden/neu reads correctly and names no card index, and /kunden/[id]/karte for a re-registered household announces the real card number and 'Ausgestellte Karten 1'"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "The literal '(k1)' is out of de.customers.archiveSearch.prefilled.detail and the doc comment above it now says why no index may come back. Nothing else moved: no key added or removed, no component touched (the e2e reads the dictionary function, so it followed), and every other card string still holds — cardView.supersededNone says 'die erste des Haushalts', which is true of a first card at k2. Verified against a production build on 3100 with the demo seed: the banner reads correctly and names no index, /kunden/20/karte announces '2k2' with 'Karten insgesamt 1', and scrollWidth - clientWidth is 0 at 1920/1280/1024/800/390 with the pre-fill applied."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-006",
@@ -129,8 +129,8 @@
         "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first — a live dev server on port 3000 fails the suite for the wrong reason)"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "tests/e2e/card-number.spec.ts: seven serial tests on slot 236 — a number of its own, high but INSIDE the quota of 240, because the number is picked in the dropdown and the control only offers 1..quotaN (the 241+ bands the seeding specs took are unpickable). Registers RED through the form, archives with a reason, registers the successor on the freed number (236k2, not 236k1), asserts both cards at the counter, 'Karten insgesamt 1' on the card view, the (customerNumber, index) pairs across the WHOLE register plus the archived household's surviving row, and a reissue to 236k3 with 236k1 still refused. card.spec.ts's title and two comments were corrected — US-002 left that decision to this story: its k1 holds only because the form proposes an untouched slot. Full e2e: 127 passed, 1 skipped."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-007",
@@ -148,8 +148,8 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "CLAUDE.md's exception list is three long now; docs/domain_analysis.md defines a card number as issued once and never reused; the three superseded PRDs carry a note at the top (US-02's also marks the two lines that state the OPPOSITE rule as a requirement — FR-6 and the integration-test criterion). docs/user_stories_mvp.md was not named by the criteria but states the old rule in three places (US-01.7, US-02.2, US-11.3) and now carries an inline [superseded by US-25] on each. The demo seed's SHAPE already demonstrated the rule since US-004 (two households on a freed slot, cards 1k2 and 2k2) — what was missing was visibility, so the summary table gained a Karte column and the two demonstrates strings say it. Documentation-only apart from that summary; e2e not re-run, nothing under tests/ or src/ moved."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

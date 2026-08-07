@@ -3,6 +3,7 @@ import { DomainError, InvalidCardNumber } from "../errors";
 import {
   counterQueryOrNull,
   formatCardNumber,
+  nextCardIndex,
   nextCardNumber,
   parseCardNumber,
   parseCounterQuery,
@@ -184,8 +185,31 @@ describe("counterQueryOrNull", () => {
   });
 });
 
+/**
+ * The counting rule the whole of US-25 turns on. Its argument is the highest index ever issued on a
+ * *slot* — archived holders included — which is why `0` is an ordinary answer rather than a broken
+ * one: it is what a customer number nobody has ever held reports.
+ */
+describe("nextCardIndex", () => {
+  it("starts a slot that has never held a card at 1", () => {
+    expect(nextCardIndex(0)).toBe(1);
+  });
+
+  it("issues k4 on a slot whose last card was k3, whoever held it", () => {
+    expect(nextCardIndex(3)).toBe(4);
+  });
+
+  it("refuses a negative highest index — a slot cannot have issued less than nothing", () => {
+    expect(() => nextCardIndex(-1)).toThrow(InvalidCardNumber);
+  });
+
+  it("refuses a fractional highest index, because cards are counted whole", () => {
+    expect(() => nextCardIndex(1.5)).toThrow(InvalidCardNumber);
+  });
+});
+
 describe("nextCardNumber", () => {
-  it("counts the index on and keeps the customer number", () => {
+  it("keeps the customer number and only moves the index", () => {
     expect(nextCardNumber({ customerNumber: 50, index: 3 })).toEqual({
       customerNumber: 50,
       index: 4,

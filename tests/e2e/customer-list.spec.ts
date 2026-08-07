@@ -237,6 +237,7 @@ async function seedHousehold(seed: Seed): Promise<void> {
         // The printed counts match the household exactly, so none of these cards is due for reissue
         // (US-13) and this spec leaves the home screen's badge where it found it.
         create: Array.from({ length: seed.cards }, (_, index) => ({
+          customerNumber: seed.customerNumber,
           index: index + 1,
           issuedAt: new Date("2025-01-02T00:00:00.000Z"),
           reason: index === 0 ? "FIRST_ISSUE" : "LOST",

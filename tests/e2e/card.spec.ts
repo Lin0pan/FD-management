@@ -6,10 +6,11 @@ import { de } from "@/i18n/de";
  * The card a registration issues, driven through the built app
  * (tasks/prd-us-02-issue-customer-card.md §US-02.5).
  *
- * The unit gates prove that `issueCard` picks index 1 for a household holding no card and that
- * `readCard` derives the counts from the birthdates. What they cannot see is whether the number the
- * form proposed, the card the registration transaction wrote and the card the view renders are the
- * same card — this spec follows that one household from the empty form to `<number>k1` on screen.
+ * The unit gates prove that `issueCard` counts on from the highest index the customer number has
+ * ever carried and that `readCard` derives the counts from the birthdates. What they cannot see is
+ * whether the number the form proposed, the card the registration transaction wrote and the card the
+ * view renders are the same card — this spec follows that one household from the empty form to
+ * `<number>k1` on screen.
  *
  * It shares `data/e2e.db` and therefore the customer-number sequence with the other specs, so it
  * asserts against the number the screen proposes and never against a literal id.
@@ -26,7 +27,9 @@ const SECOND_GROWN_UP_BIRTH_DATE = "1987-09-30";
 const CHILD_BIRTH_DATE = "2022-01-20";
 const CERTIFICATE_VALID_UNTIL = "2027-06-30";
 
-test("a registration issues card k1 and the card view shows it", async ({ page }) => {
+test("a registration on an untouched number issues card k1 and the card view shows it", async ({
+  page,
+}) => {
   const lastName = faker.person.lastName();
   const applicant = { firstName: faker.person.firstName(), lastName };
   const partner = { firstName: faker.person.firstName(), lastName };
@@ -73,8 +76,10 @@ test("a registration issues card k1 and the card view shows it", async ({ page }
   await page.getByTestId("card-view-link").click();
   await page.waitForURL(/\/kunden\/\d+\/karte$/);
 
-  // A card issued at registration is always the household's first — index 1, never 0 and never a
-  // number carried over from whoever last held this customer number.
+  // Index 1 because the form proposes the lowest *free* number, which on this run is a slot nobody
+  // has ever held: a card index counts the slot's whole history, so a registration onto a number an
+  // archived household released starts above their card rather than at 1 (US-25). That case is
+  // `card-number.spec.ts`; what is asserted here is that an untouched slot still begins at 1.
   const cardNumber = await page.getByTestId("card-number").innerText();
   expect(cardNumber).toMatch(/^[0-9]+k1$/);
   expect(cardNumber).toBe(`${proposedNumber}k1`);

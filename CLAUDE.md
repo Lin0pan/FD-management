@@ -53,7 +53,7 @@ deliberately and say why in the commit; do not add an inline disable.
   `src/infrastructure/clock.ts`. (A zero-argument `new Date()` is a lint error in domain and
   application; `new Date(someValue)` is fine — it transforms a value that was passed in.)
 - **Derive, don't store** anything computable — grown-up/children counts, portion allowance, card
-  validity. Two sources of truth is the Excel failure we are replacing. There are exactly two
+  validity. Two sources of truth is the Excel failure we are replacing. There are exactly three
   exceptions, each with an argument of its own kind:
   - `Card.grownUpsAtIssue` / `childrenAtIssue` / `groupAtIssue` — a snapshot of what was _printed_ on
     a physical card, so a birthday that overtook the counts (US-13) or a move between RED and BLUE
@@ -64,6 +64,14 @@ deliberately and say why in the commit; do not add an inline disable.
     fold neither umlauts nor Unicode case in a `WHERE` clause, so `foldName`'s output is stored and
     indexed. Never displayed and never read as the name; written from the names in the same
     statement, so a write that changes a name must rewrite them with it.
+  - `Card.customerNumber` — a **key**, in the same sense `firstNameFolded` is one (US-25). The
+    `@@unique([customerNumber, index])` that makes a card number unique for good needs the slot on
+    the card row itself, and `MAX(index) WHERE customerNumber = ?` is the question the counting rule
+    asks. Unlike the three `AtIssue` fields it snapshots **nothing**: a customer number is fixed at
+    registration and released only by archiving, so there is no later value for it to disagree with.
+    Written by the adapter off the customer row in the same transaction as the insert, and never read
+    as the card's number: what a card number _is_ stays the pair `customer.customerNumber` and
+    `card.index` put through `formatCardNumber`, derived at every read.
 
   Any further "just store it" needs an argument of that kind.
 

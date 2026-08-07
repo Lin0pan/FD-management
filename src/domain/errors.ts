@@ -24,6 +24,7 @@ export type DomainErrorCode =
   | "WrongGroupForWeek"
   | "InvalidCardNumber"
   | "CardIndexTaken"
+  | "CardNumberTaken"
   | "AlreadyServedToday"
   | "ReminderAlreadyLoggedToday"
   | "CertificateStillValid"
@@ -339,6 +340,30 @@ export class CardIndexTaken extends DomainError {
   constructor(customerId: number, index: number) {
     super(`Card index ${index} of customer ${customerId} was taken by another issue`);
     this.customerId = customerId;
+    this.index = index;
+  }
+}
+
+/**
+ * The card number a card was about to be printed with had already been issued on that slot. Carries
+ * the customer number and the index, so the screen can name the card — `66k1` — rather than an
+ * internal id nobody at the counter has ever seen.
+ *
+ * Raised by the repository, which owns the `@@unique([customerNumber, index])` constraint that is
+ * the final authority on a card number being spent. It is deliberately **not**
+ * {@link CardIndexTaken}: that one is a race between two issues on one *record*, which a retry
+ * settles by counting on from what is now there. This one says the run of the *slot* — every
+ * household that has ever held the number, archived ones included — was read stale, and a card
+ * number that has been printed once is never printed again (US-25).
+ */
+export class CardNumberTaken extends DomainError {
+  readonly code = "CardNumberTaken";
+  readonly customerNumber: number;
+  readonly index: number;
+
+  constructor(customerNumber: number, index: number) {
+    super(`Card number ${customerNumber}k${index} has already been issued`);
+    this.customerNumber = customerNumber;
     this.index = index;
   }
 }

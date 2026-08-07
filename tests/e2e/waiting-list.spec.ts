@@ -115,7 +115,10 @@ async function register(page: Page): Promise<Household> {
 
   const id = Number(new URL(page.url()).pathname.split("/").at(-1));
   expect(Number.isInteger(id)).toBe(true);
-  await expect(page.getByTestId("card-number")).toHaveText(`${customerNumber}k1`);
+  // The card names the slot, and the index is deliberately not pinned here: it counts the slot's
+  // whole run rather than this household's, so a registration onto a released number is not `k1`
+  // (US-25). The promotion below asserts the index, because it knows the run.
+  await expect(page.getByTestId("card-number")).toHaveText(new RegExp(`^${customerNumber}k\\d+$`));
 
   return { id, customerNumber };
 }
@@ -267,9 +270,11 @@ test.describe("Warteliste", () => {
     await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
     await page.waitForURL(/\/kunden\/\d+(\?|$)/);
 
-    // They were given the number the archived household released, and the card that goes with it.
+    // They were given the number the archived household released, and the next card on it: the
+    // filler walked away holding `k1`, so the promotion continues the slot's run at `k2` (US-25).
+    // The promotion inherits that from `registerCustomer` and has no rule of its own.
     await expect(page.getByTestId("customer-number")).toHaveText(String(filler.customerNumber));
-    await expect(page.getByTestId("card-number")).toHaveText(`${filler.customerNumber}k1`);
+    await expect(page.getByTestId("card-number")).toHaveText(`${filler.customerNumber}k2`);
     await expect(page.getByRole("main")).toContainText(fullName(first));
 
     // A promotion is a registration, so it confirms like one: the same sentence the registration

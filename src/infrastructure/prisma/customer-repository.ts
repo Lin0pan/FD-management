@@ -19,7 +19,12 @@ import {
 } from "@/domain/customer/customer";
 import { parseGroup, type Group, type GroupCounts } from "@/domain/customer/group";
 import { foldName } from "@/domain/customer/nameSearch";
-import { CustomerNotFound, CustomerNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
+import {
+  CardNumberTaken,
+  CustomerNotFound,
+  CustomerNumberTaken,
+  InvalidCustomerRecord,
+} from "@/domain/errors";
 
 /**
  * Everyone who still holds a customer number.
@@ -57,18 +62,24 @@ const CUSTOMER_INCLUDE = {
 type CustomerRow = Prisma.CustomerGetPayload<{ include: typeof CUSTOMER_INCLUDE }>;
 
 /**
- * Whether a failed write was the partial unique index rejecting a customer number that had been
- * taken in the meantime.
+ * Whether a failed write was one named unique index rejecting the row: the columns of the index, in
+ * order, and not a substring of the error's `meta` blob.
  *
- * The other unique constraint reachable from `create` — one card per `(customer, index)` — cannot
- * collide on a row that is being inserted for the first time, so the target is checked anyway
- * rather than assuming: a future constraint should surface as itself.
+ * A registration writes the customer *and* their first card in one nested statement, and both rows
+ * carry a `customerNumber` (US-25) — so matching the word alone would report a card number already
+ * printed on this slot as a lost race for the slot itself, which the caller answers by retrying on
+ * another number and leaves the real fault in place. Prisma names the *rooted* model for a nested
+ * write, `Customer` for both, so the columns are the only thing that tells them apart.
  */
-function isCustomerNumberCollision(error: unknown): boolean {
+function isCollisionOn(error: unknown, columns: readonly string[]): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+    return false;
+  }
+  const target = (error.meta as { target?: unknown } | undefined)?.target;
   return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002" &&
-    JSON.stringify(error.meta ?? {}).includes("customerNumber")
+    Array.isArray(target) &&
+    target.length === columns.length &&
+    columns.every((column, position) => target[position] === column)
   );
 }
 
@@ -396,6 +407,7 @@ export class PrismaCustomerRepository implements CustomerRepository {
    * anywhere leaves neither a half-built household nor a consumed customer number.
    *
    * @throws {CustomerNumberTaken} if another registration took the number first.
+   * @throws {CardNumberTaken} if the first card's number had already been printed on that slot.
    */
   async create(customer: NewCustomer): Promise<RegisteredCustomer> {
     const { details } = customer;
@@ -440,6 +452,10 @@ export class PrismaCustomerRepository implements CustomerRepository {
           },
           cards: {
             create: {
+              // The slot the card is printed under, written in the same statement as the customer
+              // row it comes from — the key `@@unique([customerNumber, index])` needs, never the
+              // card's number, which stays derived (US-25).
+              customerNumber: customer.customerNumber,
               index: customer.card.index,
               issuedAt: customer.card.issuedAt,
               reason: customer.card.reason,
@@ -463,8 +479,15 @@ export class PrismaCustomerRepository implements CustomerRepository {
         registeredOn: customer.card.issuedAt,
       };
     } catch (error: unknown) {
-      if (isCustomerNumberCollision(error)) {
+      // The partial index on the register — the slot itself was taken while this was in flight.
+      if (isCollisionOn(error, ["customerNumber"])) {
         throw new CustomerNumberTaken(customer.customerNumber);
+      }
+      // `Card`'s global index — the slot was won, but the card number on it has been printed before
+      // (US-25). A different fault: another slot answers the first, and nothing answers this one but
+      // reading the slot's run again.
+      if (isCollisionOn(error, ["customerNumber", "index"])) {
+        throw new CardNumberTaken(customer.customerNumber, customer.card.index);
       }
       if (isMissingPredecessor(error) && customer.previousCustomerId !== null) {
         throw new CustomerNotFound(customer.previousCustomerId);

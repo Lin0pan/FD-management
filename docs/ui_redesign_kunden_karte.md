@@ -18,7 +18,9 @@ wrong here. §4.5 says explicitly what must not change and why.
 Driven through `playwright-cli` against a production build (`npm run build && npm run start --
 --port 3100`) on the demo register, at 1440×900, 800×900 and 390×844. Two households, because the
 screen has two shapes: **customer 19** holds her first card (`1k1`, no predecessor) and **customer
-17** holds `17k2` after a loss, so the superseded list and the issue counts are populated. The
+17** holds `17k2` after a loss, so the superseded list and the issue counts are populated. (Since
+US-25 that same household's first card reads `1k2` — it sits on a slot an archive freed, and the
+index counts the slot's cards. The two shapes, and every measurement below, are unaffected.) The
 reissue disclosure was opened for real. The accessibility snapshot was read alongside the
 screenshots, per the conversion guide. Numbers below are measured off the live DOM.
 

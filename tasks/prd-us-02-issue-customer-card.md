@@ -3,6 +3,16 @@
 > Source story: `docs/user_stories_mvp.md` §US-02 (Tier 1). Depends on **US-01**. Extended by
 > **US-09** (reissue after loss) and **US-13** (reissue after a 13th birthday).
 
+> **Superseded in part by US-25 — the counting rule.** This PRD counts a card index over the customer
+> **record** (FR-6 below: `50k1` "may recur for a different customer once the number is reassigned").
+> It counts over the **customer number** instead since US-25: one above the highest index ever issued
+> on that slot, archived holders included, enforced by `@@unique([customerNumber, index])`. A card
+> number is therefore issued once and never reused, and a card an archived household kept is refused
+> at the counter rather than resolving to whoever holds the slot now. Everything else here stands —
+> the format, the parser, "exactly one valid card per customer", and the per-record constraint, which
+> survives beside the new one and keeps its own error. See
+> `tasks/prd-us-25-globally-unique-card-numbers.md`.
+
 ## 1. Introduction
 
 Every customer carries a card with a number that identifies them at the counter and sets their
@@ -65,6 +75,7 @@ invalidates the previous one, reused by first issue, loss and stale-count reissu
 - [ ] `PrismaCardRepository` exposes `currentCard(customerId)` returning the highest index, and
       `issue(customerId, index, reason)`
 - [ ] Integration test proves two different customers may both hold `50k1` (different surrogate ids)
+      — `[superseded by US-25]`, which forbids exactly this and proves the refusal instead
 - [ ] Integration test proves a concurrent double-issue cannot create two cards with the same index
       (unique constraint surfaces as a typed error)
 
@@ -103,7 +114,8 @@ it onto the physical card or feed it into the printing system.
 - FR-5: All card information must be presented digitally in the application. The MVP must not attempt
   to produce a physical or printable card.
 - FR-6: Card numbers must not be assumed unique across the archive — `50k1` may recur for a different
-  person after slot 50 is reassigned.
+  person after slot 50 is reassigned. `[superseded by US-25]` — a card number is now unique for the
+  lifetime of the database and the schema enforces it; only the **customer number** is still reused.
 
 ## 5. Non-Goals
 

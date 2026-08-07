@@ -1,282 +1,315 @@
 # Ralph Progress Log
-Started: Thu Aug  6 08:53:47 CEST 2026
+Started: Thu Aug  6 13:53:09 CEST 2026
 
 ## Codebase Patterns
-- **Measuring a screen's height**: `next build` then `npm run start -- --port 3100` (kill any
-  next-server first), then playwright-cli. `document.body.scrollHeight` is useless on a short page —
-  the shell fills the viewport, so it reads 900 either way. Measure the **last `main > *` child's
-  `getBoundingClientRect().bottom`**, and measure a *populated* screen too (`/ausgabe?nummer=1`).
-- **playwright-cli in this sandbox**: `playwright-cli open` only — `--browser=chrome` fails, there is
-  no Google Chrome at /opt/google/chrome. The skill-version warning banner is noise; ignore it. Use
-  `--raw` and `tail -1` to get just the value out of `eval`.
-- **A grep across `tests/` is part of removing a UI element**, not only `src/`. A spec in a
-  *different* file, named after a different screen, can be the one driving the element you are
-  removing.
-- **The dev server on 3100 reads `data/fd.db`**; the e2e servers read `data/e2e.db` (3000) and
-  `data/e2e-isolated.db` (3001). Playwright's config reuses an existing server outside CI, so kill
-  any `next-server` before `npm run test:e2e` or the suite tests the previous build.
-- **Never `pkill -f next-server` from the Bash tool** — the pattern matches the tool's own wrapper
-  command line and kills the shell (exit 144, no output). `pgrep -f "port 3100" | xargs kill` does
-  the same. Use `ps -eo pid,args | grep -E "next-serve[r]"` and `kill` the pid.
-- **`getByRole("alert")` is never 0 in this app.** Next injects a client-side route announcer with
-  `role="alert"` into every page — invisible in the SSR HTML, so `curl | grep` disagrees with
-  Playwright. Assert the absence of an error with `page.locator('[data-slot="alert"]')`; every
-  shadcn `ui/` primitive carries a `data-slot`.
-- **`tsconfig.json` includes `tests/`**, so `npm run typecheck` type-checks the specs. Deleting a key
-  from `src/i18n/de.ts` fails typecheck while any spec still reads it — the spec has to go first.
-- **`docs/technical_documentation.md` documents the e2e suite test by test**, so changing a spec
-  makes it stale and no gate can tell. Grep that file for the *spec file name* after touching a
-  spec, and for the feature's vocabulary after removing a feature — it is 2,500 lines and describes
-  the same thing from the layer's side, the screen's side and the suite's side.
-- **`docs/technical_documentation.md` documents a domain module twice**: once as a line in the `src/`
-  tree around line 156 and once as a `### <path>` section. Adding a module means both, or the tree
-  lists a file the reference section never explains.
-- **`playwright-cli eval` takes one expression.** Multi-statement JS fails inside `UtilityScript`;
-  wrap it in an arrow IIFE — `"(() => { const x = …; return JSON.stringify(x); })()"` — and quote
-  attribute selectors (`[data-testid=\"walk-hint\"]`).
-- **A disabled control is skipped by Tab**, so tab traversal cannot prove DOM order at the ends of a
-  row. Read the order with one `querySelectorAll` over the row's testids, and check the traversal on
-  a state where every control is enabled.
-- **A retracted requirement is struck through, marked and kept**, never deleted: `~~criterion~~`
-  plus `[withdrawn]` and the reason, in both `docs/user_stories_mvp.md` and the story's PRD. Say
-  what is *not* withdrawn too, or the next reader removes a parameter that still has callers.
-- **An e2e fact about "the whole register" is read from Prisma at assertion time**, never
-  hard-coded: the specs run serially in *alphabetical file order* against one shared `data/e2e.db`,
-  so which number is the first or last of a group depends on which specs ran before yours. Seed a
-  block for what you own; query for the ends.
-- **`counter-customer-number` identifies a household at the counter, `counter-card-number` does
-  not** — a household another spec reissued a card to shows `Nk2`, so an assertion on `Nk1` fails
-  for reasons that have nothing to do with what is under test.
-- **Adding a method to a port breaks five hand-written fakes.** `DistributionRecordRepository` is
-  faked in `customers.test.ts`, `lookup-customer.test.ts`, `maintain-customer.test.ts`,
-  `correct-attendance.test.ts` and `record-attendance.test.ts` — `grep -rln "<PortName>" src/ tests/`
-  before touching `ports.ts`, because typecheck is where you find out otherwise.
-- **Berlin and UTC only disagree between 23:00Z and midnight** (in winter; 22:00Z in summer). A test
-  that means to prove "the Berlin day, not the UTC one" must put an instant *in that hour* — a
-  23:30 **Berlin** time is 22:30Z and proves nothing, because both calendars still say the same day.
-- **A `<details>` keeps `open` through a soft navigation, not only a re-render.** Following a
-  `<Link>` on the same route re-renders in place, so a fold the user opened is still open on the new
-  screen. `key={<what the page is about>}` on the component holding it remounts it closed. Only a
-  browser check finds this.
-- **A UI review needs a *populated* screen.** `data/fd.db` has ~20 households; a scroll cap or a
-  column layout proves nothing against 8 rows. Copy the db to `/tmp`, seed through Prisma, and point
-  `DATABASE_URL` **and** `FD_FIXED_NOW_FILE` at the copy for `npm run start -- --port 3100`.
-- **A helper two server actions share cannot live in either of them.** A `"use server"` module may
-  export nothing but async functions, and every export it *does* have becomes a callable endpoint.
-  Put it in a plain sibling module taking `deps` as a parameter — `registration-input.ts` (schema)
-  and `kunden/neu/fresh-pool.ts` (the lost-race re-read) are both that shape.
-- **Removing or renaming a UI testid is a multi-spec change, and no gate but `test:e2e` sees it.**
-  A testid is a string: `lint`, `typecheck` and `test:coverage` are all green with five broken specs.
-  `grep -rn "<testid>" tests/` and run the full suite in the *same* story as the UI change.
-- **E2E customer-number bands are taken, not squeezed into**: 201–206/239 (counter), 211 (portions),
-  221–222 (serve), 231 (reminders), 232–234 (registration, US-24), 241 (block), 251 (reissue),
-  271 (age 13), 281–285 (customer list), 291 (customer record), 301–303 (group progress),
-  311–315 (group walk). A new spec takes the next band up — **unless a later-running spec asserts an
-  end of the register**. `group-walk.spec.ts` asserts 315 is the last RED number, and the suite runs
-  in *alphabetical file order*, so a spec sorting before it must seed *below* 311. Check what the
-  specs after yours assert about the whole register before choosing a band, not only which numbers
-  are free.
-- **Only numbers ≤ the quota (240) exist as far as the register's *pool* is concerned.** Most bands
-  above sit above 240, which is fine for a spec that seeds a household and looks at it, and useless
-  for one about which numbers are *offered*: `freeNumbers` is `1..quotaN`, so 241 is neither free nor
-  taken. A spec about the pool has to seed inside the quota — 232–238 and 223–230 are the room left
-  down there.
-
+- **Adding a `DomainErrorCode` is a three-file change**: the union in `src/domain/errors.ts`, the
+  class beside it, and `TIERS` in `src/app/notice-tier.ts`. `TIERS` is a `Record` over the union, so
+  the *build* fails until the code is tiered — that is the mechanism, not an obstacle. The header
+  comment of `notice-tier.ts` counts the codes ("a 32nd code…", "the six red ones"), so it goes
+  stale silently; update it with the entry.
+- **An error class with no caller yet still needs a test**, because `domain/` coverage is gated at
+  100%. `src/domain/errors.test.ts` is where those live — see the `MissingAuditReason` block for the
+  shape, including the comment saying which story will call it.
+- **`errors.ts` cannot import from `domain/card/`**: `cardNumber.ts` imports `errors.ts`, so a
+  message that wants to read `66k1` writes the `k` inline rather than calling `formatCardNumber`.
+- **`docs/technical_documentation.md` explains each domain module in a `### <path>` section** and
+  lists the error classes by name in the `src/domain/errors.ts` section. Adding an export or an
+  error makes both stale and no gate can tell — grep the file for the module path *and* for the
+  vocabulary of the rule being changed.
+- **A Prisma `P2002` cannot always name *which* constraint was broken.** `meta` is
+  `{ modelName, target: [columns] }`, but where two unique indexes both cover the offending row
+  SQLite reports only one of them, and not the one that was declared or created first. Where the
+  distinction matters, match the target for the *shape* and then ask the database the question that
+  actually distinguishes the two faults (`card-repository.ts`'s `issue` counts the customer's own
+  rows on that index). For a **nested** write Prisma reports the *rooted* model — a card refused
+  inside `customer.create` comes back as `modelName: "Customer"` — so the model name alone tells
+  nothing about which table failed.
+- **The e2e customer-number bands, as they now stand.** Below the quota of 240: counter 201–206 and
+  239, portions 211, serve 221–222, reminders 231, registration 232–234, card numbers 236. Above it:
+  block 241, reissue 251, age-13 271, customer-list 281–285, customer-record 291, group-progress
+  301–303, group-walk 311–315. A spec whose number must be **pickable in the /kunden/neu dropdown**
+  has to sit below 240 — the pool is `1..quotaN` — and everything else should stay above it, clear of
+  the low sequence the allocating specs (registration, card, archive, reregistration) consume.
+- **Prior runs' patterns are in the archive**, not in this file: `scripts/ralph/archive/<date>-<story>/progress.txt`
+  keeps a long consolidated list (playwright-cli usage, e2e customer-number bands, killing the dev
+  server safely, testid greps). Read the most recent one before any UI or e2e story.
 ---
 
-## 2026-08-06 09:05 - US-001 (batch 24 / US-24.1)
-- `freeNumbers(takenNumbers, quotaN)` added to `src/domain/customer/customerNumber.ts` — the whole
-  ascending pool of free slots — and `findLowestFreeNumber` re-expressed as its first element, so the
-  register is scanned once and the number the screen opens on cannot disagree with the one the rule
-  allocates. `lowestFreeNumber` is unchanged on top of that.
-- `assertFreeNumber(requested, takenNumbers, quotaN)` added: range first, occupancy second. A number
-  outside `1..quotaN` (or not whole) raises the new `CustomerNumberOutOfRange`; a number an active
-  customer holds raises the *existing* `CustomerNumberTaken`, deliberately the same error the
-  repository raises from its partial unique index.
-- `CustomerNumberOutOfRange` added to `DomainErrorCode` and tiered `refusal` in
-  `src/app/notice-tier.ts` (the `Record` failed the build until it was tiered — the mechanism working).
-- Files: `src/domain/customer/customerNumber.ts` + `.test.ts` (34 tests), `src/domain/errors.ts`,
-  `src/app/notice-tier.ts` + `.test.ts`, `docs/technical_documentation.md`,
-  `docs/ui_action_feedback_review.md`. Batch bookkeeping (archive, PRD, `prds/README.md`) landed as a
-  separate `chore(ralph)` commit first.
-- Gates: lint, typecheck, `test:coverage` (49 files, 1009 tests, domain + application 100%), build.
+## 2026-08-06 13:55 - US-001 (The next index is the slot's, not the record's)
+- Implemented the counting rule for US-25 in the domain layer, TDD, red before green.
+- Files changed:
+  - `src/domain/card/cardNumber.ts` — new `nextCardIndex(highestIssuedOnSlot)`; `nextCardNumber`
+    re-expressed on top of it; module header rewritten to say the index counts the *slot's* cards.
+  - `src/domain/card/cardNumber.test.ts` — four named cases for `nextCardIndex`; the
+    `nextCardNumber` case renamed to the rule it states.
+  - `src/domain/errors.ts` — `CardNumberTaken { customerNumber, index }`, 32nd `DomainErrorCode`.
+  - `src/domain/errors.test.ts`, `src/app/notice-tier.test.ts` — cover it.
+  - `src/app/notice-tier.ts` — tiered `error`, header comment recounted.
+  - `docs/technical_documentation.md` — `cardNumber.ts` and `errors.ts` sections.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1028 tests, domain 100%), build — all green.
 - **Learnings for future iterations:**
-  - **A new `DomainErrorCode` costs four edits, not one**: the union in `src/domain/errors.ts`, the
-    class, `TIERS` in `src/app/notice-tier.ts` (a `Record` over the union, so the build names it), and
-    *two* docs — `docs/technical_documentation.md`'s errors section lists every subclass by name, and
-    `docs/ui_action_feedback_review.md` §4 has a table of every code sorted by tier plus a running
-    count ("a 31st code fails the build"), which goes stale silently.
-  - **The count in that sentence is stated in three places** — `notice-tier.ts`'s doc comment, its
-    `TIERS` comment, and the review doc. Grep for the old number, not for the word "code".
-  - `docs/technical_documentation.md` describes a domain module **three** times, not two: the `src/`
-    tree line (~line 139), the `### <path>` reference section, and often a prose passage further down
-    that says *why* it has the shape it has (here, "the rule in two forms" at ~line 1048). Grep the
-    exported function names across the file, not just the module path.
-  - **Two error codes with one German sentence is a deliberate pattern here**, not a redundancy: the
-    code is what the program branches on (`registerCustomer` retries `CustomerNumberTaken` by type),
-    the sentence is what staff read. Do not "tidy" them together.
-  - The pre-commit hook runs `eslint --fix` and `prettier --write` on staged files and re-stages, so a
-    formatting slip is fixed rather than reported — but `npm run format:check` still catches files the
-    hook never saw (the incoming `tasks/*.md` PRD from the loader was unformatted).
+  - `0` is a *valid* argument to `nextCardIndex` and the whole point of it: the untouched slot. The
+    guard rejects negatives and non-integers only.
+  - `InvalidCardNumber` takes a `text: string`, so the guard passes `String(highest)`. The message
+    reads oddly for an index ("…is not a card number such as 50k3") but the PRD names that error.
+  - The doc paragraph "Card numbers are **not** unique across the archive" existed in *two* places:
+    `docs/technical_documentation.md` (fixed here) and the header of
+    `src/infrastructure/prisma/card-repository.ts` (US-003 owns that one).
+  - US-002 next: the schema change is a **regenerated** migration history, and the hand-written
+    partial unique index `Customer_customerNumber_onRegister_key` must be re-added to the new
+    `migration.sql` by hand — `prisma migrate dev` drops it.
 ---
 
-## 2026-08-06 09:15 - US-002 (batch 24 / US-24.2)
-- `RegistrationProposal` gained `readonly freeNumbers: ReadonlyArray<number>` — the ascending pool of
-  free slots the registration dropdown will offer. `customerNumber` stays, keeps its `number | null`
-  type and its meaning for the three callers that only ask "is a slot free, and which"
-  (`/kunden`, `/warteliste`, `FreeSlotBanner`).
-- `proposeRegistration` now calls `freeNumbers` **once** and takes `customerNumber` from the result
-  (`free.length === 0 ? null : free[0]`) instead of calling `findLowestFreeNumber` — one scan, so the
-  number the form opens on cannot disagree with the numbers it offers. `NoSettingsInForce` and the
-  callers' catch behaviour are untouched.
-- Files: `src/application/customers/propose-registration.ts`,
-  `src/application/customers/customers.test.ts` (5 new named tests, written red first),
-  `docs/technical_documentation.md` (§`proposeRegistration and readCustomer`).
-- Gates: lint, typecheck, `test:coverage` (49 files, 1014 tests, domain + application 100%), build,
-  `format:check`.
+## 2026-08-06 17:30 - US-002 (The card row carries the number printed on it)
+- `Card` gained `customerNumber Int` (not nullable, no default) and `@@unique([customerNumber, index])`
+  beside the existing `@@unique([customerId, index])`; no separate `@@index([customerNumber])` — the
+  new unique index leads with that column and serves `MAX(index) WHERE customerNumber = ?`.
+- Migration history regenerated (`rm -rf prisma/migrations` → `prisma migrate dev --name init`) and the
+  hand-written partial index `Customer_customerNumber_onRegister_key` re-added verbatim, comment and
+  all. `npm run db:reset` completes; /einstellungen renders the seeded settings, not "keine
+  Einstellungen hinterlegt".
+- Files changed:
+  - `prisma/schema.prisma`, `prisma/migrations/20260806150359_init/migration.sql` (old dir deleted).
+  - `src/infrastructure/prisma/customer-repository.ts` — the nested card create writes
+    `customerNumber`; `isCustomerNumberCollision` now also checks `meta.modelName === "Customer"`.
+  - `src/infrastructure/prisma/card-repository.ts` — `issue` reads the slot off the customer row in
+    one transaction with the insert (the column can then never disagree with the customer's number).
+  - `src/infrastructure/prisma/schema.test.ts` — asserts the new unique index survives a regeneration.
+  - `card-repository.test.ts`, `customer-repository.test.ts`, `certificate-repository.test.ts` and
+    12 e2e fixtures — every directly written card row now states its slot.
+  - `docs/technical_documentation.md`, `docs/tech_stack_architecture_sketch.md` — the two passages
+    arguing that `50k1` legitimately recurs.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1031 tests), build, `db:reset` — all green.
+- **KNOWN RED, EXPECTED, FIXED BY US-004: 5 e2e specs fail.** `npm run test:e2e` → 102 passed, 5
+  failed: archive.spec "the freed number is handed to the next household", card.spec "a registration
+  issues card k1", registration.spec "a two-person household is registered…", reregistration.spec "a
+  household is served and archived…", waiting-list.spec "promoting the applicant hands them the freed
+  number". All the same cause: `registerCustomer` still writes the literal `index: 1`, which the new
+  constraint refuses on a slot an archived household already printed a card on. This is the layering
+  the PRD chose (schema before application); US-004 removes the literal and the five go green. Do not
+  "fix" the specs — the specs are right.
 - **Learnings for future iterations:**
-  - **`proposeRegistration` has no test file of its own** — its tests live in the shared
-    `src/application/customers/customers.test.ts` under `describe("proposeRegistration")`, alongside
-    `registerCustomer`, `readCustomer` and the rest. `grep -n 'describe("' ` that file before creating
-    a new one; the hand-written fakes at its top are shared by every block in it.
-  - **`FakeCustomerRepository` derives `takenActiveNumbers` from live status**, exactly like the
-    partial index: the constructor's `taken` array plus every `created` row that is not `ARCHIVED`.
-    To prove an archived household released its slot, `create({ ...storedCustomer("ACTIVE"),
-    customerNumber: N })` and then `archive(id, reason, date)` on the fake directly — no use case
-    needed, and `storedCustomer` hard-codes number 50, so always override it.
-  - **A widened read-model interface costs nothing at the call sites** when the new field is additive:
-    the four `proposeRegistration` callers compiled untouched. Adding a field is the cheap change;
-    changing what an existing one means is the expensive one — which is why US-24.2 kept
-    `customerNumber` rather than replacing it.
+  - **`pkill -f next-server` kills the bash tool's own shell** (its command line contains the
+    pattern), so everything after it in the command silently never runs — the call just exits 144.
+    Use `pkill -f "next-serve[r]"` or `pgrep -f "next-serve[r]"` to check first.
+  - **Prisma P2002 `meta` is `{ modelName, target: [columns] }`** on SQLite — e.g.
+    `{"modelName":"Card","target":["customerNumber","index"]}`. So a collision check can and should
+    name the model *and* the columns; `JSON.stringify(meta).includes("…")` matches across models and
+    is what made a duplicate card number report itself as a taken customer number. US-003's split of
+    `isCardIndexCollision` has the same shape: `target` is `["customerId","index"]` vs
+    `["customerNumber","index"]`.
+  - `prisma migrate dev` refuses to run while `data/fd.db` holds a migration that is no longer on
+    disk: delete the db file first (the `db:reset` node one-liner does it), then regenerate.
+  - `customer-repository.test.ts` now has `nextOnTheSlot(...)`, a `newCustomer` whose card index is
+    one higher — any adapter test that registers a *second* household on one slot needs it, because
+    two k1s on a number no longer fit through the database.
+  - `card.spec.ts`'s title "a registration issues card k1" is only true on a slot nobody has held.
+    It passes in isolation and fails in the suite, where an earlier spec has archived a household on
+    slot 1. US-006 should decide whether the title still says what it means.
 ---
 
-## 2026-08-06 09:12 - US-003 (batch 24 / US-24.3)
-- `RegisterCustomerInput` gained `readonly customerNumber?: number` — the slot staff chose. Absent,
-  registration is bit-for-bit what it was: `lowestFreeNumber` plus the `MAX_ATTEMPTS` retry on a lost
-  race. Present, the number goes through `assertFreeNumber` and is written **as given**.
-- The retry is the whole design question, and the answer is an attempt budget rather than a second
-  code path: `CHOSEN_NUMBER_ATTEMPTS = 1`. Retrying a number a staff member picked could only write a
-  different one — the outcome the feature exists to prevent — or fail identically. So the `for(;;)`
-  loop keeps its shape and only the number's origin and the budget differ; the create-and-audit block
-  is not duplicated, and the transaction, first card, status and audit entry cannot come apart
-  between the two paths.
-- The audit entry is untouched: `customerNumber` was already in `REGISTERED_FIELDS`, and who chose
-  the slot is not something a later reader could act on.
-- `registerFromWaitingList` needed **no code change** — it inherits the field through
-  `RegisterCustomerInput` — only its `@throws`. A test proves its queue guarantee still holds when
-  the failure is `CustomerNumberTaken` rather than an empty household.
-- Files: `src/application/customers/register-customer.ts` + `customers.test.ts` (6 new named tests),
-  `src/application/waiting-list/register-from-waiting-list.ts` + `waiting-list.test.ts` (2 new),
-  `docs/technical_documentation.md`.
-- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1022 tests, domain + application
-  100%), build. No UI change in this story, so no browser check — US-004 is where the screen moves.
+## 2026-08-06 17:40 - US-003 (The repository answers for the slot)
+- `CardRepository.highestIndexForNumber(customerNumber)` on the port, the fake and the adapter — the
+  highest index ever printed on a slot, 0 for an untouched one, archived holders included. One
+  `aggregate({ _max: { index: true } })` served by the leading column of the new unique index.
+- `issue` reports the two constraints as themselves, and `issueCounts.cardsIssued` counts the
+  customer's own rows rather than `_max(index)`.
+- Files changed:
+  - `src/application/ports.ts` — the method and its argument; `CardIssueCounts.cardsIssued` reworded.
+  - `src/application/customers/read-card.ts` — `CardView.cardsIssued` reworded.
+  - `src/infrastructure/prisma/card-repository.ts` — header rewritten (the paragraph saying two
+    customers may each hold `50k1` said the opposite of the rule), `isCardCollision`, the
+    discriminating count, `highestIndexForNumber`, `issueCounts`.
+  - `src/infrastructure/prisma/customer-repository.ts` — one `isCollisionOn(error, columns)` replaces
+    `isCustomerNumberCollision`; `create` now also raises `CardNumberTaken`.
+  - `card-repository.test.ts` (+9 cases), `customer-repository.test.ts` (+1), `customers.test.ts`
+    (the fake), `docs/technical_documentation.md`.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1040 tests, domain + application 100%), build,
+  `format:check` — all green. e2e NOT run: US-002's 5 specs stay red until US-004.
 - **Learnings for future iterations:**
-  - **An optional input field is the cheap way to extend a use case with two callers**: nothing in
-    `registerFromWaitingList` mentions `customerNumber`, and it got the feature by construction.
-    Widening the shared input beats a parameter on each path — the same lesson US-002 recorded about
-    widening a read model.
-  - **A test name is part of the story's vocabulary.** "another registration took the chosen one" read
-    fine until "chosen" started meaning *staff-chosen*; renamed to "won the race for it". Grep the
-    existing test names for a word the story is about to redefine.
-  - `FakeCustomerRepository.stealNext(1)` proves the *no-retry* rule as well as the retry one: with a
-    chosen number the steal must surface as `CustomerNumberTaken` with `created` still empty, where
-    the allocating path lands on 2.
-  - **A domain guard makes the fake's own uniqueness check irrelevant**: the waiting-list fake never
-    rejects a duplicate number, but `assertFreeNumber` refuses before `create` is reached, so seeding
-    `new FakeCustomerRepository(17)` is enough to test a taken slot there.
+  - **The `isCardIndexCollision` split the PRD asks for cannot be done on the constraint target
+    alone.** A card's `customerNumber` is written from the customer row, so a second card on an index
+    the customer already holds violates `(customerId, index)` *and* `(customerNumber, index)`, and
+    SQLite reports `["customerNumber","index"]` — even though `Card_customerId_index_key` is created
+    first in the migration. `issue` therefore matches either of `Card`'s targets and then counts the
+    customer's own rows on that index to decide which error it is. Do not "simplify" that back to a
+    target match: the existing US-02.3 concurrency tests go red immediately.
+  - **`PrismaCustomerRepository.create` had been mapping a duplicate *card* number to
+    `CustomerNumberTaken`.** Prisma reports a nested write under the rooted model, so the modelName
+    check US-002 added does not catch it; the columns do (`["customerNumber"]` = the register's
+    partial index, `["customerNumber","index"]` = `Card`'s). US-004 needs this, because a
+    registration writes its first card through `create` and not through `cards.issue`.
+  - `FakeCardRepository` in `customers.test.ts` is now constructed with the customer register —
+    `new FakeCardRepository(customers)` — because a card's slot is read off the customer row rather
+    than passed in. Every `beforeEach` already built `customers` first.
+  - The fake's `issueCounts` counts rows now too. No application test asserted the old max-index
+    reading, so nothing outside infrastructure moved.
 ---
 
-## 2026-08-06 12:30 - US-004 (batch 24 / US-24.4)
-- The registration form's read-only `proposed-number` `Stat` is **replaced** by a labelled native
-  `<select name="customerNumber" data-testid="customer-number-select">` over `proposal.freeNumbers`,
-  uncontrolled, opening on `proposal.customerNumber` via `defaultValue`, `h-8` to match this form's
-  `Input`s (the settings screen's `SELECT` is `h-9` — that screen puts every control on `h-9`, this
-  one leaves `Input` at its default, and copying the height would be the ragged baseline the
-  conversion guide warns about). Hint `free-number-count` beneath it, inflected at one, and **absent**
-  on a full register — „0 freie Nummern — die niedrigste ist vorausgewählt“ would be a sentence about
-  a preselection that does not exist, and the `Alert` above the form is the message there.
-- `de.customers.errors.customerNumberTaken` → `customerNumberUnavailable(customerNumber)`, one
-  sentence for `CustomerNumberTaken` **and** `CustomerNumberOutOfRange`. The old string ended „bitte
-  erneut speichern“, which was right while the software picked the number and is wrong now that staff
-  do. `assignment.proposedNumber` removed.
-- New `src/app/kunden/neu/fresh-pool.ts`: on a lost race **only**, re-read `proposeRegistration` and
-  return the pool in `RegisterCustomerState.freeNumbers`, which the form prefers over its prop. Both
-  registration actions share it and hand it their own deps. It is deliberately **not** `"use server"`
-  — exporting a helper from an action module publishes it as a callable endpoint.
-- Both actions pass `form.customerNumber` through; neither gains a rule of its own.
-- Files: `registration-form.tsx`, `fresh-pool.ts` (new), `actions.ts`,
-  `warteliste/[entryId]/registrieren/actions.ts`, `registration-input.ts`,
-  `register-customer-state.ts`, `i18n/de.ts`, five e2e specs, `docs/technical_documentation.md`,
-  `docs/ui_redesign_kunden_neu.md`.
-- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1022 tests), build, and the
-  **full e2e suite** (116 passed, 1 pre-existing skip) — run here rather than left to US-005, because
-  removing a testid touched five spec files.
-- Browser-verified against a production build on 3100: combobox named „Kundennummer“ with the lowest
-  free number selected, hint is readable `<p>` text with no `title`, Tab from `add-member` lands on
-  it, type-ahead works, 0 horizontal overflow at 1920/1280/1024/800/390, select 32px = `Input` 32px.
+## 2026-08-06 22:15 - US-004 (Registration and reissue continue the slot's run)
+- `RegisterCustomerDeps` gained `cards: CardRepository` (read-only, one question). Every real caller
+  already carried it — `customerDeps`, `waitingListDeps` and the demo seed's `DemoDeps` all had a
+  `cards` adapter, so no composition root moved.
+- `registerCustomer` computes `nextCardIndex(await deps.cards.highestIndexForNumber(customerNumber))`
+  **inside the attempt loop and after the number is settled**, and the literal `index: 1` is gone.
+- `issueCard` asks `highestIndexForNumber(customer.customerNumber)`; the `current === null ? 1 : …`
+  branch and the `nextCardNumber` import went with it. `currentCard` stays on the port for its other
+  callers.
+- `CardNumberTaken` propagates from both use cases and is **not** retried — the retry loop moves to
+  another slot, which is the wrong answer for a slot the registration has already won.
+- Files changed:
+  - `src/application/customers/register-customer.ts`, `issue-card.ts`.
+  - `src/domain/customer/customer.ts` — `NewCustomer.card`'s doc said "index 1 for the one handed
+    over with the registration".
+  - `src/application/customers/customers.test.ts`, `src/application/waiting-list/waiting-list.test.ts`
+    — the six named cases the PRD asks for (written red in a previous iteration) plus `cards` in the
+    `readCustomer` and `readCard` describes' deps.
+  - `tests/e2e/archive.spec.ts`, `reregistration.spec.ts`, `waiting-list.spec.ts`.
+  - `docs/technical_documentation.md` — the `issueCard` section's counting rule, the two passages
+    saying a re-registration "starts at card index 1", the waiting-list e2e walkthrough.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests, domain + application 100%), build,
+  **full e2e (120 passed, 1 skipped)** — all green. The 5 specs US-002 left red are fixed.
 - **Learnings for future iterations:**
-  - **Removing a UI testid is a five-spec change here.** `proposed-number` was driven by
-    `archive`, `registration`, `waiting-list`, `card` and `reregistration` — four of them named after
-    something else entirely. `grep -rn "<testid>" tests/` and rewrite them in the *same* story;
-    typecheck cannot see a testid string, so the only gate that catches it is `test:e2e`.
-  - **`innerText()` → `inputValue()` and `toHaveText` → `toHaveValue`** is the whole migration when a
-    read-only tile becomes a `<select>`. The full-register case is the one that needs thought: there
-    is no „—“ to assert any more, so assert `toBeDisabled()` plus `option` count 0.
-  - **A `<select>`'s type-ahead cannot be proved against an arbitrary pair of digits.** Chrome
-    searches from the *current* selection and keeps its buffer for ~1s, so a second check inside the
-    same run reads as a stale prefix — put `page.waitForTimeout(1500)` between attempts — and the
-    number you type must actually be free in `data/fd.db` (6–18 are taken there, so „15“ lands on
-    150 and proves nothing).
-  - **A helper two server actions share cannot live in either of them.** A `"use server"` module may
-    export nothing but async functions, and every export it *does* have becomes a callable endpoint.
-    A plain sibling module taking `deps` as a parameter is the shape — `registration-input.ts` is the
-    same pattern for the schema.
-  - **`docs/ui_redesign_kunden_neu.md` is a record of a finished conversion, not a live reference.**
-    When a later story undoes one of its decisions, add a marked supersession note beside it (`>
-    **Superseded by US-24**` / `~~…~~ [superseded by US-24]`) and say what is *not* superseded —
-    rewriting it would describe a redesign that never happened.
+  - **Three e2e specs asserted `${customerNumber}k1` in a *shared* `register` helper** used both for
+    a fresh slot and for a successor on a freed one. The helper now asserts
+    `new RegExp('^' + customerNumber + 'k\\d+$')` — the card names the slot, index unpinned — and the
+    three tests that know the slot's run assert `k2` outright at the call site. That is the honest
+    split: a helper cannot know the run, a test that arranged an archive can.
+  - `--grep` on a `describe.configure({ mode: "serial" })` file runs the matched test **alone**, so
+    the `beforeAll`/earlier-test state it depends on is missing and it fails with a bogus
+    `Cannot read properties of undefined`. Run the whole spec file (`npx playwright test <file>
+    --project=chromium`) to see a real failure.
+  - A Playwright failure inside a serial describe stops the rest of the file ("N did not run"), so
+    one red test hides however many follow it. Re-run the file after each fix rather than assuming.
+  - `npm run format:check` is red on `tasks/prd-us-25-globally-unique-card-numbers.md` and has been
+    since 043789a; CI does not run it, and lint-staged only formats what a commit stages.
+  - US-005 next: `de.customers.registration.prefilled.detail` still promises "einer neuen Karte
+    (k1)". `src/i18n/de.ts:390`.
 ---
 
-## 2026-08-06 13:20 - US-005 (batch 24 / US-24.5)
-- `tests/e2e/registration.spec.ts` extended by **four** tests — no new spec file, no other spec
-  touched. They sit *after* the three intake tests on purpose: those still register on the number the
-  form opened on, so they are the proof that the default did not move when the tile became a control.
-  - the control opens on the **lowest free number**, read out of Prisma at assertion time;
-  - a number an **active** household holds is not among the options and one **archiving** freed is —
-    two seeded households differing in nothing but their status, so the status is the only thing that
-    can explain the difference;
-  - a number **picked** out of the list (higher than the proposal) is the number the record, the card
-    `234k1` and the customer row all carry;
-  - a number **posted around** the control — an `<option>` appended by hand, the shape a form left
-    open over a distribution day would post — is refused with the German sentence naming it, and a
-    snapshot of every customer row plus the household-member, certificate, card and audit-entry
-    counts is identical either side of the attempt.
-- Seeds 232 (ACTIVE) and 233 (ARCHIVED) through Prisma in `beforeAll` and registers on 234.
-- Files: `tests/e2e/registration.spec.ts`, `docs/technical_documentation.md` (the
-  `registration.spec.ts` bullet in the e2e section).
-- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1022 tests), build, and the full
-  e2e suite — **120 passed**, 1 pre-existing skip (up from 116, the four new tests).
+## 2026-08-06 22:25 - US-005 (The screens stop promising k1)
+- `de.customers.archiveSearch.prefilled.detail` no longer says „einer neuen Karte (k1)" — the rest of
+  the sentence (which archived record, that it stays unchanged) is preserved verbatim. Its doc comment
+  now records *why* no index may be named again: the banner renders before the slot is chosen, and
+  since US-25 a first card on a freed number is not `k1`.
+- Every other German string mentioning a card was re-read and left alone. Two worth naming:
+  `counter.verdicts.outdatedCard` („Karte ungültig") is about *the card*, not "your" card, which is
+  what makes it read properly for a stranger's; `cardView.supersededNone` („Diese Karte ist die erste
+  des Haushalts und ersetzt keine frühere") stays true of a first card at `k2`, because it says *des
+  Haushalts* — the superseded list is the record's run, not the slot's.
+- Files changed: `src/i18n/de.ts` only. No key added or removed, no component touched — the one e2e
+  assertion calls `words.prefilled.detail(...)` rather than quoting it, so it followed the change.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests), build — all green.
+- **Browser verification** (playwright-cli, production build on 3100 against `data/fd.db` after
+  `npm run db:reset && npm run db:demo`), accessibility snapshot read:
+  - `/kunden/neu` with the archive pre-fill applied (searched „Dück", took the match): the banner is a
+    `status` with the `<h2>` and reads "Übernommen von „Milena Dück“, archiviert am 07.06.2026 unter
+    der Kundennummer 5. Es wird ein neuer Datensatz mit einer neu vergebenen Kundennummer und einer
+    neuen Karte angelegt. …" — no index anywhere.
+  - `document.documentElement.scrollWidth - clientWidth` is **0** at 1920, 1280, 1024, 800 and 390
+    with the pre-fill on screen.
+  - `/kunden/20/karte` (the seed's re-registered household): "Kartennummer 2k2", "Ausgestellte Karten
+    / Karten insgesamt 1", "davon nach Verlust 0".
 - **Learnings for future iterations:**
-  - **A band above the quota cannot test the pool.** Every band from 241 up is invisible to
-    `freeNumbers`, which is `1..quotaN` — a household on 241 is neither free nor taken, so "a taken
-    number is not offered" would pass against a control that offers nothing at all. The registration
-    band had to go *inside* 240 (232–234), which is the opposite of the "take the next band up" rule
-    every other spec follows.
-  - **`toHaveValue` does not work on an `<option>`** — "Not an input element". The option's number is
-    an attribute: `toHaveAttribute("value", …)`. `toHaveValue` is for the `<select>` itself, which is
-    how the other specs read the current choice.
-  - **Compute the expectation without the function under test.** The lowest free number is worked out
-    in the spec from the non-archived rows and the quota in force, not by importing
-    `findLowestFreeNumber` — importing it would make the e2e assertion agree with the rule it is
-    supposed to be checking from the outside. `foldName` is a different case: it is imported for
-    *seeding*, where the spec has to write what the app would have written.
-  - **A stale submission is `evaluate` on the select, not `selectOption`.** `selectOption` fails on a
-    value that is not in the list, which is exactly the case worth testing; appending the `<option>`
-    and setting `.value` posts what a form rendered before somebody else took the number would post.
-    The select is uncontrolled, so React neither notices nor undoes it.
-  - **`prisma.settingsVersion.findFirstOrThrow({ orderBy: [{ recordedAt: "desc" }, { id: "desc" }] })`
-    is how a spec reads the quota in force.** `recordedAt` is deliberately not unique, so the tiebreak
-    on `id` matters — `settings.spec.ts` appends versions and two saves can share a millisecond.
-  - **Adding a `beforeAll` to a shared serial describe seeds for the specs above it too.** Numbers far
-    from the low sequence keep that harmless; a seed inside the range the intake specs consume would
-    silently rewrite the successor arithmetic in "an empty household is refused".
+  - **The demo seed already demonstrates the new rule**, and has since US-004 landed: customer 19 sits
+    on slot 1 at index 2 and customer 20 on slot 2 at index 2, because the seed replays the real use
+    cases. US-007's remaining job there is the `demonstrates` *string*, not the shape.
+  - **A UI story with a card in it needs `npm run db:reset && npm run db:demo` first** — a bare
+    `db:reset` seeds settings only, so `data/fd.db` has no customers at all and every screen is empty.
+  - **`tsx` cannot resolve `@prisma/client` from a script in `/tmp`.** Write throwaway inspection
+    scripts inside the repo (a gitignored/temporary dir) and delete them, and use a `.mts` file rather
+    than `tsx -e` — `-e` compiles as CJS and rejects top-level `await`.
+  - `playwright-cli --raw eval "…"` needs `2>/dev/null | tail -1`: the version-mismatch banner is on
+    stdout too.
+  - **`docs/user_stories_mvp.md` still states the old rule in two places** — §US-02 point 7 ("card
+    number `<number>k1`") and ~line 341 ("card index starting at `k1`"). US-007's criteria do not name
+    that file, but they do say *no documentation claims a card number can repeat*. Follow the
+    house style for a superseded requirement: strike through, mark, keep — never delete.
+---
+
+## 2026-08-06 23:20 - US-006 (E2E — the archived household's card is refused)
+- `tests/e2e/card-number.spec.ts`: seven serial tests walking the scenario that motivated US-25 on
+  one slot — register RED through the form on a **chosen** number, archive it with a reason while its
+  card is still in the world, register a different household on the number that just came free.
+- Asserted: the successor's card is `236k2` and not the archived household's `236k1`; at the counter
+  `236k1` → `OUTDATED_CARD` with `counter-card-number` naming the current card, `236k2` → „Ausgabe
+  frei" with the serve button; `/kunden/[id]/karte` shows „Karten insgesamt 1" for the successor
+  (index counts the slot, count counts the household); no two `Card` rows share a
+  `(customerNumber, index)` pair **anywhere in the register** and the archived household's row is
+  still there; a reissue takes the successor to `236k3` while `236k1` stays refused.
+- Files changed:
+  - `tests/e2e/card-number.spec.ts` (new).
+  - `tests/e2e/card.spec.ts` — title and two comments. US-002 left this decision to US-006: the spec
+    claims `k1`, which now holds only because the form proposes an *untouched* slot, and one comment
+    said a first card is "never a number carried over from whoever last held this customer number",
+    which is the opposite of the rule. No assertion moved.
+  - `docs/technical_documentation.md` — the `tests/e2e/` tree and a catalogue entry for the new spec;
+    the `card.spec.ts` entry now says why its `k1` holds.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests), build, `prettier --check` on the
+  touched files, **full e2e (127 passed, 1 skipped)** — all green.
+- **Learnings for future iterations:**
+  - **A spec that needs two households on one customer number must pick the number, and can only
+    pick below the quota.** `/kunden/neu` offers `1..quotaN` (240 seeded), so the 241+ bands the
+    seeding specs took are invisible to the control. 235–238 were the only free ones below it; this
+    spec took 236. The band list is now in Codebase Patterns above.
+  - The dropdown offers a number an **archived** household holds, which is what makes the second
+    registration possible at all — `register()` asserts the option exists before selecting it, so a
+    regression in US-10's slot release fails here as itself rather than as a timeout.
+  - Extra households in the shared register are safe for the specs that come after: `group-progress`,
+    `group-walk` and `customer-list` all read their expectations out of Prisma (or take a baseline)
+    at assertion time. `home.spec.ts`'s `cards-due-badge`/`waiting-list-free-slot` assertions are
+    `toHaveCount(0)` for elements that moved to the hub — nothing to disturb.
+  - A spec pinning `data/e2e-now.txt` must delete it in `afterAll`, or January is frozen for
+    `settings.spec.ts`, which stamps a version *now*.
+  - US-007 next: the documents. `CLAUDE.md`'s "Derive, don't store" list, `docs/domain_analysis.md`,
+    the three superseded PRD notes, the demo seed's `demonstrates` string — and `docs/
+    user_stories_mvp.md` still states the old rule in two places (§US-02 point 7 and ~line 341),
+    which US-005's log already flagged.
+---
+
+## 2026-08-06 23:50 - US-007 (The documents say the new rule)
+- The places that argued for the *per-record* counting rule now argue for the slot's:
+  - `CLAUDE.md`, "Derive, don't store": a **third** exception, `Card.customerNumber`. Framed as a
+    *key* like `firstNameFolded` — the `@@unique([customerNumber, index])` needs the slot on the row
+    and `MAX(index) WHERE customerNumber = ?` is the counting rule's question — and explicitly *not*
+    a snapshot like the three `AtIssue` fields, because a customer number cannot change.
+  - `docs/domain_analysis.md` §Customer Card: a card number is **issued once and never reused**; the
+    index counts the cards of the *number*, not of the household holding it. §4.4 (reissue) was left
+    alone — for an active household the slot's highest and the record's are the same card.
+  - `docs/technical_documentation.md`: the demo-register section names the two households on a freed
+    slot and their `1k2` / `2k2`; the `registration-screen.tsx` bullet no longer says the pre-fill
+    banner promises a card `(k1)` — US-005 took that literal out of the dictionary and the doc kept it.
+  - `tasks/prd-us-02`, `-us-09`, `-us-11`: a **note** at the top of each, not a rewrite. US-02's also
+    marks the two lines that state the opposite rule *as a requirement* (FR-6, and the criterion
+    asking for an integration test that two customers may both hold `50k1`).
+  - `docs/user_stories_mvp.md`: not named in the criteria, but it states the old rule in three places
+    (§US-01.7, §US-02.2, §US-11.3). Each gained an inline `[superseded by US-25]` in the doc's own
+    `[added]` style — struck through nothing, deleted nothing.
+  - `docs/ui_redesign_kunden_karte.md` §1: one parenthesis saying the household examined as "her
+    first card `1k1`" now reads `1k2`. A review record of a session that happened is not rewritten.
+- `prisma/demo-seed.ts`: the **shape** has demonstrated the rule since US-004 (customers on slots 1
+  and 2, both freed by an archive, both holding a first card at `k2`) — what was missing was
+  *visibility*. The summary table gained a `Karte` column, the two `demonstrates` strings say the
+  first card is not `k1`, and the closing paragraph says the card numbers do **not** come back with
+  the slot. Verified: `npm run db:demo -- --reset` prints `1  1k2  Möldner, Sally` and
+  `2  2k2  Dück, Milena`.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1048 tests), build, `prettier --check` on every
+  touched file, `db:reset` + `db:demo` — all green. e2e not re-run: nothing under `tests/` or `src/`
+  moved and the e2e suite does not use the demo seed.
+- **Learnings for future iterations:**
+  - **Prettier reflows a long inline code span across a line break and then un-indents it**, which in
+    a nested list looks like the bullet ended. `` `formatCardNumber(customer.customerNumber,
+    card.index)` `` came back mangled; splitting the identifiers into two short spans fixed it.
+    Run `npx prettier --check` on the *markdown* you touched, not only on the TypeScript.
+  - **`docs/` and `tasks/` take opposite treatment for a superseded rule**, and CLAUDE.md says why:
+    `docs/` is the source of truth for what FD needs and is *updated* when a decision changed;
+    `tasks/` is the record of what was asked for and gets a *note*. `user_stories_mvp.md` sits in
+    `docs/` but reads like a record, so it took the middle road — text kept, marked inline.
+  - The repository-wide grep the criterion asks for has two **false positives** worth not
+    "fixing": `docs/user_stories_mvp.md:72` and `tech_stack_architecture_sketch.md:201` say the
+    *customer number* is not unique across the archive, which is still true and is the premise US-25
+    works from; `ui_redesign_kunden_verwalten.md` §3.4 "the register's card number repeats its
+    customer number" is about a **column** showing `12` beside `12k1`.
+  - The demo seed's summary reads the register back through the repositories (`deps.cards.currentCard`),
+    so a column added there costs one query per row and cannot disagree with what the screens show.
+---

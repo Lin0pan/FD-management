@@ -3,6 +3,13 @@
 > Source story: `docs/user_stories_mvp.md` §US-09 (Tier 2). Depends on **US-02** (`issueCard`).
 > Shares its mechanics with **US-13** (reissue after a 13th birthday).
 
+> **Superseded in part by US-25 — where the next index comes from.** A reissue still hands out the
+> next running index and the numbers below still come out the same, because an active household's
+> card always sits at the top of its slot's run. What changed is the question asked: `issueCard` reads
+> the highest index ever issued on the customer **number** rather than the index of the card the
+> customer holds, so registration and reissue cannot come to different answers. See
+> `tasks/prd-us-25-globally-unique-card-numbers.md`.
+
 ## 1. Introduction
 
 Customers lose cards. When they do, staff issue a replacement that reuses the customer number with

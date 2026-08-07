@@ -20,6 +20,7 @@ import type {
 } from "@/domain/distribution/distributionRecord";
 import {
   BirthDateInFuture,
+  CardNumberTaken,
   CustomerArchived,
   CustomerNumberOutOfRange,
   CustomerNumberTaken,
@@ -119,6 +120,8 @@ class FakeCustomerRepository implements CustomerRepository {
   private nextId = 1;
   /** How many more writes a concurrent registration beats to the chosen number. */
   private stealsLeft = 0;
+  /** How many more writes another card lands on the card number this one was about to print. */
+  private cardStealsLeft = 0;
 
   constructor(
     private readonly taken: number[] = [],
@@ -128,6 +131,15 @@ class FakeCustomerRepository implements CustomerRepository {
   /** Have another registration take the chosen number, just before this one writes it, `times` over. */
   stealNext(times: number): void {
     this.stealsLeft = times;
+  }
+
+  /**
+   * Have the card number this registration was about to print turn out to be spent, `times` over —
+   * what the database says when the slot's run was read stale (US-25). It is a different fault from
+   * `stealNext`: the number is this registration's, and only the card on it was lost.
+   */
+  stealCardNext(times: number): void {
+    this.cardStealsLeft = times;
   }
 
   takenActiveNumbers(): Promise<ReadonlyArray<number>> {
@@ -202,6 +214,12 @@ class FakeCustomerRepository implements CustomerRepository {
       // `taken` where `takenActiveNumbers` still counts it.
       this.taken.push(customer.customerNumber);
       return Promise.reject(new CustomerNumberTaken(customer.customerNumber));
+    }
+    if (this.cardStealsLeft > 0) {
+      this.cardStealsLeft -= 1;
+      // The customer row is refused with the card, as the database refuses the whole transaction:
+      // the number stays free and nothing is created.
+      return Promise.reject(new CardNumberTaken(customer.customerNumber, customer.card.index));
     }
     const registered: RegisteredCustomer = {
       ...customer,
@@ -300,9 +318,18 @@ class FakeCustomerRepository implements CustomerRepository {
  * answers with the highest index rather than the last one written, so a test can leave a gap in the
  * run — the shape a hand-fixed database or a future deletion would leave — and the use case still
  * has to count on from the top.
+ *
+ * It is handed the register because a card's slot is *read off the customer row* rather than passed
+ * in (US-25) — that is what makes `Card.customerNumber` unable to disagree with the household's, and
+ * a fake that let a caller state the slot could be told one the household does not hold.
  */
 class FakeCardRepository implements CardRepository {
   readonly cards = new Map<number, IssuedCard[]>();
+  private readonly register: FakeCustomerRepository;
+
+  constructor(register: FakeCustomerRepository) {
+    this.register = register;
+  }
 
   /** Put cards on record without going through the use case, e.g. to leave a gap in the indices. */
   place(customerId: number, ...indices: number[]): void {
@@ -334,12 +361,30 @@ class FakeCardRepository implements CardRepository {
     return Promise.resolve([...this.cardsOf(customerId)].sort((a, b) => b.index - a.index));
   }
 
-  // The adapter counts in SQL; the fake counts in memory. Both answer off the cards that exist, so
-  // neither can report a loss the run does not contain.
+  /**
+   * The highest index ever printed on the slot, across every household that has held it — the
+   * archived ones included, which is the only reason the method exists (US-25).
+   */
+  highestIndexForNumber(customerNumber: number): Promise<number> {
+    let highest = 0;
+    for (const [customerId, cards] of this.cards) {
+      if (this.slotOf(customerId) !== customerNumber) {
+        continue;
+      }
+      for (const card of cards) {
+        highest = Math.max(highest, card.index);
+      }
+    }
+    return Promise.resolve(highest);
+  }
+
+  // The adapter counts in SQL; the fake counts in memory. Both count the customer's own rows rather
+  // than the index they have reached, so neither reports a household as having been through cards
+  // that a predecessor on the slot held.
   issueCounts(customerId: number): Promise<CardIssueCounts> {
     const cards = this.cardsOf(customerId);
     return Promise.resolve({
-      cardsIssued: cards.reduce((highest, card) => Math.max(highest, card.index), 0),
+      cardsIssued: cards.length,
       reissuesForLoss: cards.filter((card) => card.reason === "LOST").length,
     });
   }
@@ -353,6 +398,12 @@ class FakeCardRepository implements CardRepository {
     const cards = this.cards.get(customerId) ?? [];
     this.cards.set(customerId, cards);
     return cards;
+  }
+
+  /** The slot the household holds, or `null` for an id the register does not know. */
+  private slotOf(customerId: number): number | null {
+    const customer = this.register.created.find((held) => held.id === customerId);
+    return customer?.customerNumber ?? null;
   }
 }
 
@@ -499,15 +550,33 @@ function storedCustomer(
 
 describe("registerCustomer", () => {
   let customers: FakeCustomerRepository;
+  let cards: FakeCardRepository;
   let settings: FakeSettingsRepository;
   let audit: FakeAuditLog;
 
   function deps(today = TODAY) {
-    return { customers, settings, clock: fakeClock(today), audit };
+    return { customers, cards, settings, clock: fakeClock(today), audit };
+  }
+
+  /**
+   * Point the fakes at a register. The card store is built with it rather than beside it because it
+   * reads a card's slot off the customer row (US-25), so a store left over from a register a test
+   * replaced would answer for households that are no longer there.
+   */
+  function useRegister(register: FakeCustomerRepository): void {
+    customers = register;
+    cards = new FakeCardRepository(register);
+  }
+
+  /** A household that held `customerNumber`, printed `indices` on it, and has since left. */
+  async function archivedHolder(customerNumber: number, ...indices: number[]): Promise<void> {
+    const held = await customers.create({ ...storedCustomer("ACTIVE"), customerNumber });
+    cards.place(held.id, ...indices);
+    await customers.archive(held.id, "zog fort", new Date(TODAY));
   }
 
   beforeEach(() => {
-    customers = new FakeCustomerRepository();
+    useRegister(new FakeCustomerRepository());
     settings = new FakeSettingsRepository(version());
     audit = new FakeAuditLog();
   });
@@ -521,7 +590,7 @@ describe("registerCustomer", () => {
   });
 
   it("fills the gap an archived customer left before any higher number", async () => {
-    customers = new FakeCustomerRepository([1, 2, 4]);
+    useRegister(new FakeCustomerRepository([1, 2, 4]));
 
     const customer = await registerCustomer(deps(), registerInput());
 
@@ -530,7 +599,7 @@ describe("registerCustomer", () => {
 
   it("allocates within the quota in force today, not a hard-coded limit", async () => {
     settings = new FakeSettingsRepository(version({ quotaN: 2 }));
-    customers = new FakeCustomerRepository([1, 2]);
+    useRegister(new FakeCustomerRepository([1, 2]));
 
     await expect(registerCustomer(deps(), registerInput())).rejects.toThrow(NoFreeCustomerNumber);
   });
@@ -565,7 +634,7 @@ describe("registerCustomer", () => {
   });
 
   it("suggests the smaller group when staff made no choice", async () => {
-    customers = new FakeCustomerRepository([], { red: 10, blue: 8 });
+    useRegister(new FakeCustomerRepository([], { red: 10, blue: 8 }));
 
     const customer = await registerCustomer(deps(), registerInput({ group: undefined }));
 
@@ -573,7 +642,7 @@ describe("registerCustomer", () => {
   });
 
   it("lets an explicit group win over the suggestion", async () => {
-    customers = new FakeCustomerRepository([], { red: 10, blue: 8 });
+    useRegister(new FakeCustomerRepository([], { red: 10, blue: 8 }));
 
     const customer = await registerCustomer(deps(), registerInput({ group: "RED" }));
 
@@ -631,7 +700,7 @@ describe("registerCustomer", () => {
   });
 
   it("consumes no customer number when the write fails", async () => {
-    customers = new BrokenCustomerRepository();
+    useRegister(new BrokenCustomerRepository());
 
     await registerCustomer(deps(), registerInput()).catch(() => undefined);
 
@@ -639,7 +708,7 @@ describe("registerCustomer", () => {
   });
 
   it("does not retry a failure that is not a lost race", async () => {
-    customers = new BrokenCustomerRepository();
+    useRegister(new BrokenCustomerRepository());
 
     await expect(registerCustomer(deps(), registerInput())).rejects.toThrow("database unavailable");
     expect(audit.entries).toHaveLength(0);
@@ -666,7 +735,7 @@ describe("registerCustomer", () => {
   });
 
   it("refuses a chosen number an active customer holds, writing nothing", async () => {
-    customers = new FakeCustomerRepository([17]);
+    useRegister(new FakeCustomerRepository([17]));
 
     await expect(registerCustomer(deps(), registerInput({ customerNumber: 17 }))).rejects.toThrow(
       CustomerNumberTaken,
@@ -750,6 +819,56 @@ describe("registerCustomer", () => {
 
     expect(customer.previousCustomerId).toBeNull();
   });
+
+  it("writes card index 1 on a slot no household has ever held", async () => {
+    const customer = await registerCustomer(deps(), registerInput({ customerNumber: 17 }));
+
+    // Not a constant any more: 1 is what the rule answers for a slot whose run is empty.
+    expect(customer.card.index).toBe(1);
+  });
+
+  it("writes k2 on a slot whose archived household walked away holding k1", async () => {
+    await archivedHolder(17, 1);
+
+    const customer = await registerCustomer(deps(), registerInput({ customerNumber: 17 }));
+
+    expect(customer.card.index).toBe(2);
+  });
+
+  it("writes k4 on a slot whose archived household reached k3", async () => {
+    await archivedHolder(17, 1, 2, 3);
+
+    const customer = await registerCustomer(deps(), registerInput({ customerNumber: 17 }));
+
+    expect(customer.card.index).toBe(4);
+  });
+
+  it("does not retry a card number taken between the read and the write", async () => {
+    // A retry moves to another slot, which is the wrong answer here: the number is already this
+    // registration's, and what was read stale is the run of cards printed on it.
+    customers.stealCardNext(1);
+
+    const failure = await registerCustomer(deps(), registerInput()).catch(
+      (error: unknown) => error,
+    );
+
+    expect(failure).toBeInstanceOf(CardNumberTaken);
+    expect(customers.created).toHaveLength(0);
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("re-reads the card run for the slot a lost race moved the registration to", async () => {
+    await archivedHolder(1, 1, 2, 3);
+    await archivedHolder(2, 1, 2, 3, 4, 5);
+    // The first attempt settles on slot 1 and loses it; the second lands on slot 2, whose run is a
+    // different one. An index read before the number was settled would print 1k4 as 2k4.
+    customers.stealNext(1);
+
+    const customer = await registerCustomer(deps(), registerInput());
+
+    expect(customer.customerNumber).toBe(2);
+    expect(customer.card.index).toBe(6);
+  });
 });
 
 describe("issueCard", () => {
@@ -772,7 +891,7 @@ describe("issueCard", () => {
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
-    cards = new FakeCardRepository();
+    cards = new FakeCardRepository(customers);
     audit = new FakeAuditLog();
   });
 
@@ -792,6 +911,18 @@ describe("issueCard", () => {
 
     expect(card.index).toBe(2);
     await expect(cards.currentCard(customerId)).resolves.toEqual(card);
+  });
+
+  it("counts on from the slot's highest index, not the holder's — the archived cards count", async () => {
+    // Both households sit on slot 50: the one who left printed three cards there, and the one who
+    // holds it now has none of their own. Counting the record's cards would hand out 50k1 again.
+    const predecessor = await customerWith("ARCHIVED");
+    cards.place(predecessor, 1, 2, 3);
+    const customerId = await customerWith("ACTIVE");
+
+    const card = await issueCard(deps(), { customerId, reason: "FIRST_ISSUE" });
+
+    expect(card.index).toBe(4);
   });
 
   it("counts on from the highest index, not the number of cards, when the run has a gap", async () => {
@@ -946,7 +1077,7 @@ describe("reissueCard", () => {
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
-    cards = new FakeCardRepository();
+    cards = new FakeCardRepository(customers);
     audit = new FakeAuditLog();
     distribution = new FakeDistributionRecordRepository();
   });
@@ -1171,6 +1302,7 @@ describe("proposeRegistration", () => {
 
 describe("readCustomer", () => {
   let customers: FakeCustomerRepository;
+  let cards: FakeCardRepository;
   let settings: FakeSettingsRepository;
   let records: FakeDistributionRecordRepository;
   let audit: FakeAuditLog;
@@ -1188,7 +1320,7 @@ describe("readCustomer", () => {
   ];
 
   function deps(today = TODAY) {
-    return { customers, settings, records, clock: fakeClock(today), audit };
+    return { customers, cards, settings, records, clock: fakeClock(today), audit };
   }
 
   /** A RED household registered on 2026-05-01, i.e. with five own distributions behind them. */
@@ -1215,6 +1347,7 @@ describe("readCustomer", () => {
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
+    cards = new FakeCardRepository(customers);
     settings = new FakeSettingsRepository(version());
     records = new FakeDistributionRecordRepository();
     audit = new FakeAuditLog();
@@ -1386,7 +1519,7 @@ describe("readCard", () => {
   }
 
   function registerDeps(today = TODAY) {
-    return { customers, settings, clock: fakeClock(today), audit };
+    return { customers, cards, settings, clock: fakeClock(today), audit };
   }
 
   /**
@@ -1406,7 +1539,7 @@ describe("readCard", () => {
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
-    cards = new FakeCardRepository();
+    cards = new FakeCardRepository(customers);
     settings = new FakeSettingsRepository(version());
     audit = new FakeAuditLog();
   });
@@ -1837,7 +1970,7 @@ describe("archiveCustomer", () => {
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
-    cards = new FakeCardRepository();
+    cards = new FakeCardRepository(customers);
     distribution = new FakeDistributionRecordRepository();
     audit = new FakeAuditLog();
   });
@@ -2240,7 +2373,7 @@ describe("draftFromArchived", () => {
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
-    cards = new FakeCardRepository();
+    cards = new FakeCardRepository(customers);
     distribution = new FakeDistributionRecordRepository();
     audit = new FakeAuditLog();
   });
@@ -2394,13 +2527,13 @@ describe("re-registering a household from an archived record", () => {
   let audit: FakeAuditLog;
 
   function deps() {
-    return { customers, settings, clock: fakeClock(TODAY), audit };
+    return { customers, cards, settings, clock: fakeClock(TODAY), audit };
   }
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
     settings = new FakeSettingsRepository(version());
-    cards = new FakeCardRepository();
+    cards = new FakeCardRepository(customers);
     distribution = new FakeDistributionRecordRepository();
     audit = new FakeAuditLog();
   });
@@ -2427,13 +2560,17 @@ describe("re-registering a household from an archived record", () => {
    * the applicant is holding today, and register. The certificate and the notes come from the form
    * because the draft deliberately carries neither (US-11.2).
    */
-  async function reRegister(archivedCustomerId: number): Promise<RegisteredCustomer> {
+  async function reRegister(
+    archivedCustomerId: number,
+    customerNumber?: number,
+  ): Promise<RegisteredCustomer> {
     const draft = await draftFromArchived({ customers }, { archivedCustomerId });
     return registerCustomer(deps(), {
       ...draft,
       certificate: { type: "Jobcenter", validUntil: new Date("2027-06-30T00:00:00.000Z") },
       notes: "",
       previousCustomerId: archivedCustomerId,
+      customerNumber,
     });
   }
 
@@ -2485,6 +2622,17 @@ describe("re-registering a household from an archived record", () => {
     expect(customer.card.index).toBe(1);
     expect(customer.card.reason).toBe("FIRST_ISSUE");
     expect(customer.reminderCount).toBe(0);
+  });
+
+  it("hands a household given their old slot back the next card, not the one they still carry", async () => {
+    const archivedId = await archivedHousehold(1);
+    cards.place(archivedId, 1);
+
+    const customer = await reRegister(archivedId, 1);
+
+    // No branch on the re-registration: the index comes from the slot's run, which is why the card
+    // in the household's kitchen drawer cannot be handed out a second time.
+    expect(customer.card.index).toBe(2);
   });
 
   it("records the certificate presented today, never the lapsed one on the archived record", async () => {

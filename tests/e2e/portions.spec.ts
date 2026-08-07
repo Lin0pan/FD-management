@@ -101,6 +101,7 @@ test("portions and price are derived from the household, not stored", async ({ p
       },
       cards: {
         create: {
+          customerNumber: CUSTOMER_NUMBER,
           index: 1,
           issuedAt: utcMidnight("2026-01-02"),
           reason: "FIRST_ISSUE",

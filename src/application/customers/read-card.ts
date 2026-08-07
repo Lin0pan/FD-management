@@ -67,8 +67,10 @@ export interface CardView {
   /** The numbers this card replaced, newest first. Empty for a household's first card. */
   readonly superseded: ReadonlyArray<SupersededCard>;
   /**
-   * How many cards this household has been through, the one in their hand included — the current
-   * index, since every reissue counts on from the highest (US-09.2).
+   * How many cards this household has been through, the one in their hand included (US-09.2). It is
+   * a count of the cards on their record and deliberately not the index they have reached: an index
+   * counts the slot's whole history, so a household registered on a freed number can hold `66k4` as
+   * their first card (US-25).
    */
   readonly cardsIssued: number;
   /**

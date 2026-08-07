@@ -201,7 +201,7 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   │       ├── client.ts             # the process-wide PrismaClient
 │   │       ├── settings-repository.ts  # PrismaSettingsRepository (implements the port)
 │   │       ├── customer-repository.ts  # PrismaCustomerRepository + PrismaCustomerCounter
-│   │       ├── card-repository.ts    # PrismaCardRepository — the (customer, index) constraint
+│   │       ├── card-repository.ts    # PrismaCardRepository — the (customer, index) and (number, index) constraints
 │   │       ├── distribution-record-repository.ts  # PrismaDistributionRecordRepository — (customer, Berlin dayKey)
 │   │       ├── reminder-log-repository.ts  # PrismaReminderLogRepository — (customer, loggedOn) cap
 │   │       ├── certificate-repository.ts   # PrismaCertificateRepository — appends renewals
@@ -217,7 +217,8 @@ This file describes _how_ the current codebase is organised and how to work in i
 │   ├── age-13.spec.ts                # a 13th birthday moves the numbers with nobody touching them
 │   ├── archive.spec.ts               # archiving frees the number and keeps the record findable
 │   ├── block.spec.ts                 # block shows its reason at the counter and is reversible
-│   ├── card.spec.ts                  # registration issues k1 and the card view shows it
+│   ├── card-number.spec.ts           # one slot, two households: a card number is never reissued
+│   ├── card.spec.ts                  # registration on an untouched number issues k1
 │   ├── counter.spec.ts               # every counter verdict, and that a lookup writes nothing
 │   ├── customer-list.spec.ts         # search, filters and the group balance on /kunden
 │   ├── customer-record.spec.ts       # four edits on the record, each read back off another screen
@@ -301,7 +302,7 @@ coverage-measured layers.
 | `SettingsRepository`           | `listVersions()`, `append(version)`                                                                                                                                                                                                                                                                                                     | No update/delete — policy history is append-only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `CustomerCounter`              | `countActive()`                                                                                                                                                                                                                                                                                                                         | The reality the quota `N` may not fall below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `CustomerRepository`           | `takenActiveNumbers()`, `groupCounts()`, `findById(id)`, `findByCustomerNumber(n)`, `listWithStatus(status)`, `list(query)`, `searchArchived(query, limit)`, `create(customer)`, `updateHousehold(id, members)`, `updateDetails(id, details, household)`, `updateNotes(id, notes)`, `setGroup(id, group)`, `setStatus(…)`, `archive(…)` | `create` is one transaction; it reports a lost race for a number as `CustomerNumberTaken`. `setGroup` is a single column write (US-16.4) that deliberately leaves the cards printing the group they were issued with. `listWithStatus` is the one whole-register read — lowest number first, households and cards attached, for the cards-due list (US-13.2). `list` is the customer list's filtered read (US-15.2): every criterion of `CustomerListQuery` is a `WHERE` clause, ordered by ascending customer number. |
-| `CardRepository`               | `currentCard(customerId)`, `listCards(customerId)`, `issueCounts(customerId)`, `issue(customerId, card)`                                                                                                                                                                                                                                | `currentCard` is the highest index — there is no `valid` flag to read; `issueCounts` counts the run and its losses in one aggregate (US-09.2); `issue` reports a lost race as `CardIndexTaken`.                                                                                                                                                                                                                                                                                                                        |
+| `CardRepository`               | `currentCard(customerId)`, `highestIndexForNumber(customerNumber)`, `listCards(customerId)`, `issueCounts(customerId)`, `issue(customerId, card)`                                                                                                                                                                                       | `currentCard` is the highest index — there is no `valid` flag to read; `highestIndexForNumber` is the highest index ever printed on a **slot**, archived holders included, and is where the next card number is counted from (US-25); `issueCounts` counts the customer's own rows and their losses in one aggregate (US-09.2); `issue` reports a lost race on one record as `CardIndexTaken` and a card number already printed as `CardNumberTaken`.                                                                  |
 | `DistributionRecordRepository` | `listForCustomer(id)`, `listForDay(dayKey)`, `findById(id)`, `create(record)`, `setPaid(id, paid)`, `remove(id)`                                                                                                                                                                                                                        | `create` reports a lost race on the day as `AlreadyServedToday` via the unique `(customerId, Berlin dayKey)` constraint; records outlive customer status changes (no cascade). `listForDay` takes the **Berlin** day key the caller derived from the clock — one query for the whole afternoon (US-23), never one per household — and the adapter matches it rather than re-deriving a day from an instant.                                                                                                            |
 | `ReminderLogRepository`        | `findOnDay(customerId, loggedOn)`, `record(customerId, entry)`                                                                                                                                                                                                                                                                          | `record` writes the log entry and the customer's new `reminderCount` in one transaction; it reports a lost race on the day as `ReminderAlreadyLoggedToday` via the unique `(customerId, loggedOn)` constraint (US-06.3).                                                                                                                                                                                                                                                                                               |
 | `CertificateRepository`        | `renew(customerId, certificate, recordedAt)`                                                                                                                                                                                                                                                                                            | Appends the renewed certificate and resets `reminderCount` to 0 in one transaction; certificates are never overwritten, so the history of renewals stays readable.                                                                                                                                                                                                                                                                                                                                                     |
@@ -457,7 +458,8 @@ class and one concrete subclass per kind (`InvalidSettings`, `NoSettingsInForce`
 `QuotaBelowActiveCustomers`, `MissingAuditReason`, `EmptyHousehold`, `BirthDateInFuture`,
 `NoFreeCustomerNumber`, `CustomerNumberTaken`, `CustomerNumberOutOfRange`, `CustomerNotFound`,
 `CustomerArchived`, `CustomerNotArchived`, `InvalidCustomerRecord`, `MissingRequiredField`,
-`InvalidCardNumber`, `CardIndexTaken`, `InvalidEuroAmount` today). Each carries the values that made
+`InvalidCardNumber`, `CardIndexTaken`, `CardNumberTaken`, `InvalidEuroAmount` today). Each carries
+the values that made
 it fail, so the UI can render a German message naming concrete numbers without re-deriving them, and
 callers switch on `code` instead of parsing strings.
 
@@ -465,6 +467,12 @@ callers switch on `code` instead of parsing strings.
 sentence — the number is not available, pick another (US-24). They are separate because the
 _program_ acts differently: `registerCustomer` retries a `CustomerNumberTaken` when it allocated the
 number itself, so a quota violation wearing that code would be retried as if it were a lost race.
+
+`CardIndexTaken` and `CardNumberTaken` are split the same way, one per constraint on `Card`.
+`CardIndexTaken` is a race between two issues on one _record_ — `(customerId, index)` — which a
+retry settles by reading the run again. `CardNumberTaken` is the wider guarantee: `(customerNumber,
+index)` says a card number that has been printed once is never printed again (US-25), so it means
+the slot's run was read stale rather than that two writes collided.
 
 ### `src/domain/policy/settings.ts`
 
@@ -760,18 +768,31 @@ _when_ "today" is stays with the caller and this rule cannot acquire a second op
 ### `src/domain/card/cardNumber.ts`
 
 The card number staff read out at the counter, `<customer number>k<index>` — `12k1` is the first
-card of customer 12 and `12k2` the one issued after they lost it (US-09). It is **derived, never
-stored**: the string is the customer's slot and the index of the card they hold, so persisting it
-would give the same fact two homes and every reissue would have to keep them in step — the mistake
-the Excel sheet made with the household counts.
+card printed under slot 12 and `12k2` the second. It is **derived, never stored**: the string is a
+customer number and a card index, so persisting it would give the same fact two homes and every
+reissue would have to keep them in step — the mistake the Excel sheet made with the household
+counts.
+
+The index counts the **slot's** cards, across every household that has ever held the number, rather
+than the cards of the household holding it today (US-25). A customer number is a slot an archived
+household releases (US-10, US-11, US-24) and the household keeps its physical card, so a run that
+restarted at `k1` for each new holder would put two pieces of card in the world bearing one number —
+and the counter, resolving the slot to its current holder, would answer `Ausgabe frei` to a card
+belonging to a household that left the register. Counting on from the highest index ever issued on
+the slot makes a card number name one physical card for good, and an old one presented at the
+counter lands on the `OUTDATED_CARD` verdict that already exists.
 
 `formatCardNumber(customerNumber, index)` writes it and validates nothing: both arguments come off a
 persisted card the register already guarantees is a positive whole number, so a check here would only
-be an unreachable branch. `nextCardNumber(card)` gives the number that replaces one, same customer
-and index + 1. Issuing it invalidates every earlier card as a consequence, because validity is
-_being the highest index_ rather than a flag somebody has to remember to clear (FR-4); the function
-says only what the next index is, and deciding a card is due belongs to the application layer, which
-is the only one that knows the highest issued index.
+be an unreachable branch. `nextCardIndex(highestIssuedOnSlot)` is the counting rule itself, one
+place for both registration and reissue to ask: the highest index ever issued on the slot plus one,
+so `0` — what a slot nobody has ever held answers — yields `1` and no first-card constant is written
+down anywhere. It raises `InvalidCardNumber` for a negative or fractional argument, neither of which
+can come off a card the register issued. `nextCardNumber(card)` gives the number that replaces one,
+same slot and `nextCardIndex(card.index)`. Issuing it invalidates every earlier card on the slot as a
+consequence, because validity is _being the highest index_ rather than a flag somebody has to
+remember to clear (FR-4); the functions say only what the next index is, and deciding a card is due
+belongs to the application layer, which is the only one that can see the slot's whole run.
 
 `parseCardNumber(text)` reads a typed number back and is where the strictness lives. It is forgiving
 where forgiveness cannot change which card is meant — an uppercase `K` and surrounding whitespace,
@@ -783,9 +804,10 @@ Anything else raises `InvalidCardNumber` carrying the text as entered, so the co
 quote back what was typed — a mistyped `50l3` and an unknown-but-well-formed `50k9` are different
 problems for staff, and only the first is this error.
 
-Card numbers are **not unique across the archive**: slot 50 can be reassigned once a household is
-archived, so `50k1` may name a different person later (FR-6). Nothing keys a row or a foreign key by
-a card number.
+A card number is **issued once and never again**: slot 50 can be reassigned once a household is
+archived (FR-6), but the new holder's first card counts on from the slot's highest index, so `50k1`
+never names a second piece of card. Nothing keys a row or a foreign key by a card number all the
+same — the guarantee is there for the person reading a number at the counter, not for the schema.
 
 ### `src/domain/distribution/weekColour.ts`
 
@@ -943,8 +965,10 @@ exists.
 
 `previousCustomerId` is the **only** thing about a re-registration that differs from a walk-in
 (US-11.3). It is optional on the input, stored as `null` when absent, and nothing branches on it: a
-returning household still takes the lowest free number, still starts at card index 1 and still has a
-reminder count of zero. There is no second registration path, which is the point — see below.
+returning household still takes the lowest free number, still gets the next card due on it and still
+has a reminder count of zero. There is no second registration path, which is the point — see below.
+That the card index is read from the slot rather than set to 1 is what stops a household handed their
+old number back being printed a second copy of the card they are still carrying (US-25).
 
 ### `src/application/customers/issueCard`
 
@@ -957,9 +981,12 @@ paths that could drift apart.
 entry's instant are the same event — loads the customer (`CustomerNotFound` for an id nobody holds),
 refuses an archived one (`CustomerArchived`, because their slot may already be another household's,
 FR-6) but serves a **blocked** one, since a block turns a customer away at the counter without
-unregistering them (US-08). The new index is `currentCard(customerId)` + 1, asked of
-`nextCardNumber` so "the next card is the next index" is stated once, or 1 when the customer holds
-none yet. Reading the _highest_ index rather than counting rows is what makes a gap in the run
+unregistering them (US-08). The new index is `highestIndexForNumber(customer.customerNumber)` + 1,
+asked of `nextCardIndex` so "the next card is the next index" is stated once. The question is put to
+the **slot**, not to the record: an untouched slot answers 0 and the first card comes out as `k1`
+without a branch saying so, and a household who took over a number an archived one released counts on
+from the card that household walked away with — which is how a card number is issued exactly once,
+ever (US-25). Reading the _highest_ index rather than counting rows is what makes a gap in the run
 harmless.
 
 The counts printed on the card are derived here, from the household's birthdates at the moment of the
@@ -1069,8 +1096,9 @@ The two read-side use cases the customer screens sit on:
   once for the current card and once for the rest, would let two answers come from two moments. A
   customer with no card at all is refused as an `InvalidCustomerRecord` rather than shown a card
   without a number: registration writes the first card in the same transaction as the customer, so
-  an empty run can only come from a hand-edited database. It also carries `cardsIssued` (the current
-  index — how many numbers the household has been through) and `reissuesForLoss`, which come from
+  an empty run can only come from a hand-edited database. It also carries `cardsIssued` (how many
+  cards this household has been through — a count of their own rows, not the index they have reached,
+  which counts the slot's whole history since US-25) and `reissuesForLoss`, which come from
   `cards.issueCounts` rather than from filtering the run it already holds (US-09.2): counting here
   would state a second time which reason is a loss, and the two statements would drift the day US-13
   adds one. The counts are shown and never acted on — no threshold, no warning (§FR-4, §FR-5). Two
@@ -1379,8 +1407,9 @@ What comes out is a **new customer**, not the old one brought back:
 - a new surrogate id, and a **newly allocated lowest free number** — the old slot was released the
   day the household was archived and may be someone else's by now (FR-3), so nothing assumes they
   get it back;
-- a card at **index 1** with reason `FIRST_ISSUE`, printing the counts of the household as it stands
-  today;
+- a card at the **next index due on whichever slot they were given** with reason `FIRST_ISSUE`,
+  printing the counts of the household as it stands today — index 1 only where nobody has ever held
+  that number, because a card number is issued once and never again (US-25);
 - a **reminder count of 0**, and the certificate presented today recorded as the first row of a
   fresh trail (FR-4);
 - `registeredOn` = today, because it is derived from the first card.
@@ -1606,12 +1635,24 @@ question, asked once of the customer register.
 `listCards` cannot come to read a snapshot differently, and checks the stored `groupAtIssue` word
 through `parseGroup` rather than trusting it — SQLite has no enum type.
 
-`issue` translates a `P2002` naming `index` into the domain's `CardIndexTaken`. The constraint behind
-it is `@@unique([customerId, index])`, and it is what makes "exactly one valid card" (FR-3) true
-under two simultaneous issues: if both writes landed, two cards would share the highest index and
-neither would be the current one. The constraint is per **customer id**, deliberately not per card
-number: slot 50 is reassigned when a household is archived, so two customers may each legitimately
-hold `50k1` (FR-6).
+`highestIndexForNumber(customerNumber)` is the highest index any card has ever carried on a slot, `0`
+for a slot that has never held one — a single `aggregate` served by the leading column of
+`@@unique([customerNumber, index])`. Nothing about status is consulted: an archived household's cards
+count, because the card they walked away with is still out in the world, and only this layer can see
+them. It is deliberately not `currentCard(customerId).index` — the two agree for every active
+household, but that is an invariant the counting rule should not have to remember (US-25).
+
+`issue` writes the slot onto the card row itself, read off the customer inside **one transaction**
+with the insert, so `Card.customerNumber` can never disagree with the household's. A `P2002` on
+either of `Card`'s unique indexes is then translated into the domain's own error — but _which_ one is
+asked of the record rather than of the error, because a second card on an index the customer already
+holds breaks both indexes at once and which of them SQLite names is its own business. A customer who
+already holds the index lost a race between two of their own issues, reported as `CardIndexTaken`,
+which is what makes "exactly one valid card" (FR-3) true under two simultaneous issues: if both
+writes landed, two cards would share the highest index and neither would be the current one. Anyone
+else has been handed a card number that was printed once already, reported as `CardNumberTaken` —
+a fault no retry on this slot can answer (US-25), so slot 50 being reassigned no longer means two
+customers may each hold `50k1`.
 
 The `Card.reason` column is the one thing a superseded card's index cannot say — why the household
 needed another one. It is a plain string, narrowed back through `parseCardIssueReason` on the way
@@ -1628,9 +1669,12 @@ household collects in, so the printed group is a fact about the artefact and nev
 household, whose group is `Customer.group`.
 
 `issueCounts(customerId)` answers both numbers behind the reissue count (US-09.2) in a **single**
-`groupBy(["reason"])`: the highest index is the largest of the groups' maxima and the loss count is
-the size of the `LOST` group, so the query costs the same for a household on its first card as for
-one on its eleventh. The reason word is parsed rather than string-compared, so a hand-edited row
+`groupBy(["reason"])`: the total is the sum of the groups' sizes and the loss count is the size of
+the `LOST` group, so the query costs the same for a household on its first card as for one on its
+eleventh. It counts the customer's own **rows** and deliberately not the index they have reached: an
+index counts the slot's whole history (US-25), so a household given `66k4` as their first card would
+otherwise be reported as having been through four cards and appear to have lost three they never
+held. The reason word is parsed rather than string-compared, so a hand-edited row
 fails here as loudly as it does in `currentCard` instead of quietly dropping out of the loss count.
 
 ### `src/infrastructure/prisma/reminder-log-repository.ts` and `certificate-repository.ts`
@@ -1846,8 +1890,9 @@ beyond it:
   `defaultValue`s, and a key change resets both in one move. That is also what "leer beginnen" means:
   clearing the selection mounts a blank form, with no half-filled field left over from the household
   that was dropped. Between the panel and the form it renders the banner that says, before the form
-  is read at all, that a **new** number and a **new** card (`k1`) are being issued and the archived
-  record stays untouched — the one mistake this feature could otherwise produce is a staff member
+  is read at all, that a **new** number and a **new** card are being issued and the archived
+  record stays untouched. It names **no index**: the banner renders before the slot is chosen, and
+  since US-25 a first card on a slot an archive freed is not `k1` — the one mistake this feature could otherwise produce is a staff member
   believing the old record was reactivated (PRD §6).
 - **`neu/archive-search-panel.tsx`** is a **sibling** of the registration form, never nested in it:
   HTML forms do not nest, and the search criteria are not part of the registration that gets saved.
@@ -2374,7 +2419,14 @@ time must read as the wall clock staff saw — the same zone `berlinDayKey` coun
   key targets it and never `customerNumber`, which is a reusable _slot_. There is deliberately **no
   `grownUps` and no `children` column** — both are derived from the household's birthdates, and
   stored they would drift with every birthday, which is exactly what the Excel sheet did.
-  `Card` is unique on `(customerId, index)`; the card number staff read out is derived from the
+  `Card` is unique on `(customerId, index)` **and** on `(customerNumber, index)`: the first settles a
+  race between two reissues on one record, the second makes a card number unrepeatable across every
+  household a slot has been through (US-25), so a card an archived household walked away with can
+  never be printed again. `Card.customerNumber` is stored for the second constraint's sake alone — a
+  key like `Customer.firstNameFolded`, written by the adapter off the customer row in the same
+  transaction, never read as the card's number and unable to go stale, because a customer number is
+  fixed at registration. It needs no index of its own: it leads the unique one, which is what serves
+  `MAX(index) WHERE customerNumber = ?`. The card number staff read out is still derived from the
   customer number and the index, never stored. Its `grownUpsAtIssue` / `childrenAtIssue` are the
   system's **only stored counts** and, with `groupAtIssue` beside them, the one deliberate
   denormalisation in the model: a snapshot of what was _printed_ on that piece of card, kept because
@@ -2471,8 +2523,11 @@ What it creates: 12 active, 3 blocked (distinct reasons) and 5 archived (distinc
 households of 1–6 people; 3 lapsed certificates with reminder trails of 1–3 plus one renewed (which
 resets the count) and 2 expiring within 30 days; a card reissued after a loss; a household whose
 child turned 13 and one moved between groups, so both reasons appear on the cards-due list; a
-re-registration linked to the archived record it came from; eight past distribution days of
-hand-outs including no-shows and unpaid ones; and three waiting-list applicants.
+re-registration linked to the archived record it came from; **two households sitting on a customer
+number an archive freed**, whose first cards are therefore `1k2` and `2k2` rather than `k1` (US-25),
+which is what the fixture shows about the counting rule that no other row can; eight past
+distribution days of hand-outs including no-shows and unpaid ones; and three waiting-list applicants.
+The summary the script prints carries the card number beside the customer number for that reason.
 
 Attendance and payment are varied by **counting, not by a random draw** (`NO_SHOW_EVERY`,
 `UNPAID_EVERY`). A fixture exists to guarantee what it demonstrates, and an earlier version that
@@ -2599,7 +2654,9 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   `^[0-9]+k1$` — the number the form proposed plus `k1` — with the name and group as entered, the
   counts derived again on that request (2 grown-ups / 1 child) and no superseded numbers. It is the
   only proof that the number the form proposed, the card the registration transaction wrote and the
-  card the view renders are the same card.
+  card the view renders are the same card. The `k1` holds because the form proposes the lowest
+  _free_ number, which on this run is a slot nobody has ever held; a registration onto a number an
+  archived household released starts above _their_ card, and that is `card-number.spec.ts`'s case.
 - `distribution.spec.ts` covers US-03 end to end (§US-03.5). The banner is a pure function of the
   calendar, so the spec first decides what day the app thinks it is: it writes an ISO instant to
   `data/e2e-now.txt`, the file `FD_FIXED_NOW_FILE` points `systemClock` at (see
@@ -2745,7 +2802,8 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   **no** banner in that state at all, only the same badge, now reading `Platz frei` and
   `data-free-slot="true"`. Promoting them from the banner opens the registration form pre-filled from the entry
   (surname, certificate, a one-person household deriving 1 / 0), and saving it hands them exactly the
-  number the archived household released, with `1k1` on the card. The entry is then read straight
+  number the archived household released, with `1k2` on the card — the number came back, the card
+  number did not, because the archived household left holding `1k1` (US-25). The entry is then read straight
   from Prisma: still there, both rows still counted, `removedOn` stamped and `removalReason` reading
   `customerNumber=1` — off the list without being deleted from it (FR-7). The last spec asserts the
   second applicant has moved up to position 1 with the register full again and no banner promising a
@@ -2871,6 +2929,21 @@ The `@/*` alias is honoured by TypeScript, Next.js, and Vitest (the latter via a
   comes back **closed** (FR-7, and the remount `page.tsx` keys for), and opening and closing the fold
   **records nothing** (FR-9) — the same register snapshot `group-walk.spec.ts` takes, either side of
   a fold. Pinned to the RED Thursday 08.01.2026 through `FD_FIXED_NOW_FILE`, deleted in `afterAll`.
+- `card-number.spec.ts` covers US-25 end to end (§US-025.6): the bug the story exists to close, which
+  needs two households and a customer number in between and is therefore invisible to every unit
+  gate. On one slot of its own — **236**, high but _inside_ the quota of 240, because the number is
+  **picked in the dropdown** (US-24) and the control only offers `1..quotaN` — it registers a RED
+  household, archives it while its card is still in the world, and registers a second household on
+  the number that just came free. The successor's card is asserted to be `236k2` and not the
+  archived household's `236k1`; at the counter `236k1` returns `OUTDATED_CARD` with the current
+  number named beside it and `236k2` returns „Ausgabe frei"; `/kunden/[id]/karte` shows „Karten
+  insgesamt 1" for the successor, because the index counts the slot's history while the count counts
+  the household's. Two claims are then made of the database directly, which no screen can make: no
+  two `Card` rows share a `(customerNumber, index)` pair anywhere in the register, and the archived
+  household's row is still there — nothing was deleted to make room. Finally a reissue takes the
+  successor to `236k3`, proving the slot's run only ever goes upwards: a retired card number stays
+  retired however many cards the slot goes on to print. Pinned to the RED Thursday 08.01.2026
+  through `FD_FIXED_NOW_FILE`, deleted in `afterAll`.
 - E2E is where an `app/` bug actually surfaces: `npm run build` passes on a `"use server"` module
   that exports a non-function, and only a real page load fails. Any story touching a route needs a
   spec here.

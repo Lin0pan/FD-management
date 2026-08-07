@@ -9,7 +9,7 @@
  */
 
 import type { CardIssueReason, IssuedCard } from "@/domain/card/card";
-import { nextCardNumber } from "@/domain/card/cardNumber";
+import { nextCardIndex } from "@/domain/card/cardNumber";
 import { composition } from "@/domain/customer/householdComposition";
 import { CustomerArchived, CustomerNotFound } from "@/domain/errors";
 import type { AuditLog, CardRepository, Clock, CustomerRepository } from "../ports";
@@ -42,6 +42,9 @@ export interface IssueCardInput {
  *
  * @throws {CustomerNotFound} if no customer has that id.
  * @throws {CustomerArchived} if the customer has left the register.
+ * @throws {CardNumberTaken} if the index this issue was about to print was taken on the slot
+ *   between the read of its run and the write — the run was read stale and has to be re-read
+ *   (US-25).
  */
 export async function issueCard(
   deps: IssueCardDeps,
@@ -62,12 +65,11 @@ export async function issueCard(
   }
 
   // The index is asked of the card number value object rather than incremented here, so "the next
-  // card is the next index" is stated in one place. A customer with no card yet starts at 1.
-  const current = await deps.cards.currentCard(customerId);
-  const index =
-    current === null
-      ? 1
-      : nextCardNumber({ customerNumber: customer.customerNumber, index: current.index }).index;
+  // card is the next index" is stated in one place. The run belongs to the *slot*, not to this
+  // record: a household that took over a number an archived one left counts on from the card that
+  // household walked away with, so no card number is ever printed twice (US-25). A slot nobody has
+  // held answers 0 and the first card comes out as k1 — one call, no first-card branch.
+  const index = nextCardIndex(await deps.cards.highestIndexForNumber(customer.customerNumber));
 
   // What goes on the printed card, derived from the birthdates at this moment. It is written *with*
   // the card rather than read back later because the card leaves the building: from here on the

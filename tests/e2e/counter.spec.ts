@@ -146,6 +146,7 @@ async function seedHousehold(household: Household): Promise<string> {
       },
       cards: {
         create: household.cardIndexes.map((index) => ({
+          customerNumber: household.customerNumber,
           index,
           issuedAt: new Date("2026-01-02T00:00:00.000Z"),
           reason: index === 1 ? "FIRST_ISSUE" : "LOST",

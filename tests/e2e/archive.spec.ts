@@ -127,7 +127,10 @@ async function register(page: Page): Promise<Household> {
   const id = Number(new URL(page.url()).pathname.split("/").at(-1));
   expect(Number.isInteger(id)).toBe(true);
 
-  await expect(page.getByTestId("card-number")).toHaveText(`${customerNumber}k1`);
+  // The card names the slot, and the index is deliberately not pinned here: it counts the slot's
+  // whole run rather than this household's, so a registration onto a number an archived household
+  // released is not `k1` (US-25). The tests that know the run assert the index themselves.
+  await expect(page.getByTestId("card-number")).toHaveText(new RegExp(`^${customerNumber}k\\d+$`));
   return { id, customerNumber, name: `${firstName} ${lastName}` };
 }
 
@@ -344,6 +347,10 @@ test.describe("Kunde archivieren", () => {
     expect(successor.customerNumber).toBe(household.customerNumber);
     expect(successor.id).not.toBe(household.id);
     await expect(page.getByTestId("customer-number")).toHaveText(String(household.customerNumber));
+    // The number came back; the card number did not. The archived household walked out holding
+    // `k1`, so the new holder starts at `k2` and that piece of card can never be issued again
+    // (US-25).
+    await expect(page.getByTestId("card-number")).toHaveText(`${household.customerNumber}k2`);
 
     // The number now names its new holder — an active holder always wins over an archived one, so
     // the counter cannot serve or refuse the wrong household.

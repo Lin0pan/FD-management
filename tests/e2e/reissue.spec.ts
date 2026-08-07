@@ -123,6 +123,7 @@ async function seedHousehold(): Promise<number> {
       cards: {
         create: [
           {
+            customerNumber: CUSTOMER_NUMBER,
             index: 1,
             issuedAt: new Date(SEEDED_CARD_ISSUED_AT),
             reason: "FIRST_ISSUE",

@@ -89,6 +89,7 @@ async function insertCustomer(customerNumber: number, reminderCount = 0): Promis
       },
       cards: {
         create: {
+          customerNumber,
           index: 1,
           issuedAt: REGISTERED_AT,
           reason: "FIRST_ISSUE",

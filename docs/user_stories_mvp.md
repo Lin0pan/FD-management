@@ -56,6 +56,10 @@ shared spreadsheet.
 6. Saving is rejected with a clear message if: no free number exists, a required field is missing,
    the household is empty, or a date of birth lies in the future.
 7. On save, the customer is `active`, has reminder count `0`, and card number `<number>k1`.
+   `[superseded by US-25]` — the index is `k1` only on a customer number nobody has ever held a card
+   on. A number freed by archiving carries on above the card the previous household walked away with,
+   so a registration onto slot 66 whose predecessor held `66k1` saves `66k2`. Everything else in this
+   criterion stands.
 
 **Postconditions**
 
@@ -86,8 +90,11 @@ shared spreadsheet.
 
 1. The card shows: card number, first and last name, group (Red/Blue), grown-up count, children
    count.
-2. The card number is `<customer number>` + `k` + running index — customer 50's first card is
-   `50k1`, the next `50k2`.
+2. The card number is `<customer number>` + `k` + running index — the first card printed under
+   number 50 is `50k1`, the next `50k2`. `[superseded by US-25]` — the index counts the cards of the
+   **number**, not of the customer holding it: it carries on across every household that has ever
+   held the slot, so a card number is issued once and never reused. A returning household given a
+   number an archive freed therefore has a first card above `k1`.
 3. Exactly one card number per customer is valid at a time; issuing a new one invalidates all
    earlier ones immediately.
 4. All card information is presented **digitally** in the application — a card view on screen. The
@@ -338,7 +345,10 @@ see why.
 2. Confirming a match pre-fills personal data, address and household members into the registration
    form, all of it editable.
 3. The returning customer receives a **new** customer number — never their old one — and a fresh
-   card index starting at `k1`.
+   card index starting at `k1`. `[superseded by US-25]` — the card index is the new number's, not the
+   record's: it starts at `k1` only if no card has ever been printed under that number. The point is
+   the same one this criterion was making — the returning household never gets the card they are
+   still carrying back.
 4. The reminder count starts at 0 and the new certificate's validity period is recorded.
 5. The old archived record is retained; it is not overwritten or merged away. `[added]` — the
    analysis says data is reused but not what happens to the old record. Keeping both preserves the

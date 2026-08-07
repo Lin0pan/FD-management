@@ -1,10 +1,18 @@
 /**
  * The card number staff read out at the counter.
  *
- * It is **derived**, never stored: a card number is the customer's slot and the index of the card
- * they hold, so `12k1` is the first card of customer 12 and `12k2` the one issued after they lost it
- * (US-09). Storing the string would give the same fact two homes — the mistake the Excel sheet made
- * with the household counts — and a reissue would then have to keep them in step.
+ * It is **derived**, never stored: a card number is a customer number and a card index, so `12k1`
+ * is the first card printed under slot 12 and `12k2` the second. Storing the string would give the
+ * same fact two homes — the mistake the Excel sheet made with the household counts — and a reissue
+ * would then have to keep them in step.
+ *
+ * The index counts the **slot's** cards, across every household that has ever held it — not the
+ * cards of the household holding it today. A customer number is a slot an archived household
+ * releases (US-10, US-11, US-24), and the household walks away still carrying its card, so a run
+ * that restarted at `k1` for each new holder would put two different pieces of card in the world
+ * bearing one number, and the counter would answer for whichever of them it happened to resolve.
+ * Counting on from the highest index ever issued on the slot means a card number names one physical
+ * card for good: an old one presented at the counter is simply out of date (US-25).
  *
  * The module is pure: it formats and reads a value and knows nothing about how a card is persisted.
  */
@@ -128,13 +136,37 @@ export function counterQueryOrNull(text: string): CounterQuery | null {
 }
 
 /**
- * The card number that replaces `card` — the same customer, the next index.
+ * The index the next card printed on a slot carries, given the highest index **ever issued on that
+ * customer number** — archived holders included (US-25).
  *
- * Issuing it invalidates every earlier card of that customer, because validity is *being the highest
+ * `0` is a perfectly good argument and is the whole point of the function: it is what a slot nobody
+ * has ever held answers, and it yields `1`, so a first card is still `k1` without anybody writing
+ * that constant down. A slot whose last card was `k3` yields `4`, whether that `k3` is held by the
+ * household registering today or by one that left the register years ago.
+ *
+ * Registration and reissue both ask this question, so the counting rule is stated once. Which
+ * number the highest is remains the application layer's to find out — it is the only one that can
+ * see the slot's whole run.
+ *
+ * @throws {InvalidCardNumber} for a negative or fractional highest index. Neither can come off a
+ * card the register issued, so it means a caller has computed the run wrongly, and counting on from
+ * a nonsense number would print a card nobody could read back.
+ */
+export function nextCardIndex(highestIssuedOnSlot: number): number {
+  if (!Number.isInteger(highestIssuedOnSlot) || highestIssuedOnSlot < 0) {
+    throw new InvalidCardNumber(String(highestIssuedOnSlot));
+  }
+  return highestIssuedOnSlot + 1;
+}
+
+/**
+ * The card number that replaces `card` — the same slot, the next index.
+ *
+ * Issuing it invalidates every earlier card on that slot, because validity is *being the highest
  * index* rather than a flag somebody has to remember to clear (US-02.2, FR-4). This function only
  * says what the next index is; deciding that a new card is due belongs to the application layer,
  * which is the only one that knows what the highest issued index actually is.
  */
 export function nextCardNumber(card: CardNumber): CardNumber {
-  return { customerNumber: card.customerNumber, index: card.index + 1 };
+  return { customerNumber: card.customerNumber, index: nextCardIndex(card.index) };
 }

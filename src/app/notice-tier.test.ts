@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CardIndexTaken,
+  CardNumberTaken,
   CustomerNotFound,
   CustomerNumberOutOfRange,
   CustomerNumberTaken,
@@ -38,6 +39,10 @@ describe("tierOf", () => {
   it("tiers the two lost races apart: a taken number is retryable, a taken card index is not", () => {
     expect(tierOf(new CustomerNumberTaken(118))).toBe("refusal");
     expect(tierOf(new CardIndexTaken(7, 3))).toBe("error");
+  });
+
+  it("calls a card number already issued on the slot an error — the run was read stale", () => {
+    expect(tierOf(new CardNumberTaken(66, 1))).toBe("error");
   });
 
   it("calls a chosen number outside the quota a refusal — the form is right there", () => {

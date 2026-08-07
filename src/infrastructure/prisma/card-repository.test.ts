@@ -3,9 +3,9 @@
  *
  * Thin and test-after, per the testing approach (CLAUDE.md): what is worth proving here is the pair
  * of facts the pure layers cannot state — that `(customerId, index)` is unique, so two cards can
- * never share the highest index, and that the constraint is scoped to the *customer id* rather than
- * the card number, so two households may each hold `50k1` (FR-6). The rules about which index falls
- * due are covered in src/application.
+ * never share the highest index, and that `(customerNumber, index)` is unique too, so a card number
+ * is never handed out twice however many households a slot has been through (US-25). The rules about
+ * which index falls due are covered in src/application.
  *
  * Each run migrates a throwaway database file which is deleted afterwards, so nothing touches
  * data/fd.db. Synthetic data only (Faker), seeded so a failing run is reproducible.
@@ -21,7 +21,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { formatCardNumber } from "@/domain/card/cardNumber";
 import { foldName } from "@/domain/customer/nameSearch";
 import { composition } from "@/domain/customer/householdComposition";
-import { CardIndexTaken, InvalidCustomerRecord } from "@/domain/errors";
+import { CardIndexTaken, CardNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
 import { PrismaCardRepository } from "./card-repository";
 import { clearRegister } from "./test-support";
 
@@ -269,7 +269,85 @@ describe("PrismaCardRepository.issue", () => {
 });
 
 describe("the card number across customers", () => {
-  it("lets two different customers both hold card number 50k1", async () => {
+  it("refuses a card number an archived household on the same slot already took", async () => {
+    const first = await insertCustomer(50, "ARCHIVED");
+    const second = await insertCustomer(50);
+
+    await repository.issue(first, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+
+    // 50k1 is printed on a card the departed household walked away with. Handing it out again is
+    // what US-25 makes impossible, and the database is the final authority on it.
+    await expect(
+      repository.issue(second, {
+        index: 1,
+        issuedAt: LATER,
+        reason: "FIRST_ISSUE",
+        countsAtIssue: PRINTED,
+        groupAtIssue: "RED",
+      }),
+    ).rejects.toBeInstanceOf(CardNumberTaken);
+    expect(await prisma.card.count({ where: { customerNumber: 50 } })).toBe(1);
+  });
+
+  it("names the card number it refused, not the customer id, so the screen can say 50k1", async () => {
+    const first = await insertCustomer(50, "ARCHIVED");
+    const second = await insertCustomer(50);
+    await repository.issue(first, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+
+    const refused = await repository
+      .issue(second, {
+        index: 1,
+        issuedAt: LATER,
+        reason: "FIRST_ISSUE",
+        countsAtIssue: PRINTED,
+        groupAtIssue: "RED",
+      })
+      .catch((error: unknown) => error);
+
+    expect(refused).toBeInstanceOf(CardNumberTaken);
+    expect(formatCardNumber((refused as CardNumberTaken).customerNumber, 1)).toBe("50k1");
+  });
+
+  it("tells a spent card number apart from a lost race on one record", async () => {
+    // Both constraints cover a second card on an index the customer already holds, so the fault is
+    // told apart by the record and not by whichever index the database happened to name. A caller
+    // answers the two differently: one is settled by re-reading the run, the other by nothing.
+    const customerId = await insertCustomer(50);
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+
+    const refused = await repository
+      .issue(customerId, {
+        index: 1,
+        issuedAt: LATER,
+        reason: "LOST",
+        countsAtIssue: PRINTED,
+        groupAtIssue: "RED",
+      })
+      .catch((error: unknown) => error);
+
+    expect(refused).toBeInstanceOf(CardIndexTaken);
+    expect(refused).not.toBeInstanceOf(CardNumberTaken);
+  });
+
+  it("lets the household that filled the slot take the next number on its run", async () => {
     const first = await insertCustomer(50, "ARCHIVED");
     const second = await insertCustomer(50);
 
@@ -281,7 +359,7 @@ describe("the card number across customers", () => {
       groupAtIssue: "RED",
     });
     await repository.issue(second, {
-      index: 1,
+      index: 2,
       issuedAt: LATER,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
@@ -293,7 +371,97 @@ describe("the card number across customers", () => {
       repository.currentCard(second),
     ]);
     expect(formatCardNumber(50, firstCard?.index ?? 0)).toBe("50k1");
-    expect(formatCardNumber(50, secondCard?.index ?? 0)).toBe("50k1");
+    expect(formatCardNumber(50, secondCard?.index ?? 0)).toBe("50k2");
+  });
+
+  it("writes the slot on the card row itself, read off the customer rather than passed in", async () => {
+    const customerId = await insertCustomer(77);
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+
+    const row = await prisma.card.findFirstOrThrow({ where: { customerId } });
+    expect(row.customerNumber).toBe(77);
+  });
+});
+
+describe("PrismaCardRepository.highestIndexForNumber", () => {
+  it("answers 0 for a slot that has never held a card", async () => {
+    await insertCustomer(50);
+
+    expect(await repository.highestIndexForNumber(50)).toBe(0);
+  });
+
+  it("answers 0 for a customer number nobody has ever been registered on", async () => {
+    expect(await repository.highestIndexForNumber(404)).toBe(0);
+  });
+
+  it("counts the cards of an archived holder, because the card they left with still exists", async () => {
+    const departed = await insertCustomer(50, "ARCHIVED");
+    await repository.issue(departed, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+    await repository.issue(departed, {
+      index: 2,
+      issuedAt: LATER,
+      reason: "LOST",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+
+    // Nothing about status is consulted: the household is gone and 50k2 is still out in the world.
+    expect(await repository.highestIndexForNumber(50)).toBe(2);
+  });
+
+  it("reads the whole slot's run, not the holder's — the number carries on across households", async () => {
+    const departed = await insertCustomer(50, "ARCHIVED");
+    const holder = await insertCustomer(50);
+    await repository.issue(departed, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+    await repository.issue(holder, {
+      index: 2,
+      issuedAt: LATER,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+
+    expect(await repository.highestIndexForNumber(50)).toBe(2);
+    // And it is the slot that is asked, so the neighbouring number is untouched by any of it.
+    expect(await repository.highestIndexForNumber(51)).toBe(0);
+  });
+
+  it("answers with the highest index even where the run has a gap", async () => {
+    const customerId = await insertCustomer(50);
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+    await repository.issue(customerId, {
+      index: 4,
+      issuedAt: LATER,
+      reason: "OTHER",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+
+    expect(await repository.highestIndexForNumber(50)).toBe(4);
   });
 });
 
@@ -357,6 +525,7 @@ describe("PrismaCardRepository.currentCard", () => {
     await prisma.card.create({
       data: {
         customerId,
+        customerNumber: 50,
         index: 1,
         issuedAt: TODAY,
         reason: "VERLOREN",
@@ -430,10 +599,15 @@ describe("PrismaCardRepository.listCards", () => {
 describe("PrismaCardRepository.issueCounts", () => {
   /** Hand a customer a run of cards, one per reason given, indexed from 1 upwards. */
   async function issueRun(customerId: number, ...reasons: string[]): Promise<void> {
+    const { customerNumber } = await prisma.customer.findUniqueOrThrow({
+      where: { id: customerId },
+      select: { customerNumber: true },
+    });
     for (const [position, reason] of reasons.entries()) {
       await prisma.card.create({
         data: {
           customerId,
+          customerNumber,
           index: position + 1,
           issuedAt: TODAY,
           reason,
@@ -472,7 +646,7 @@ describe("PrismaCardRepository.issueCounts", () => {
     });
   });
 
-  it("reports the current index rather than the number of rows where the run has a gap", async () => {
+  it("counts the rows the household holds rather than the index they have reached", async () => {
     const customerId = await insertCustomer(50);
     await repository.issue(customerId, {
       index: 1,
@@ -490,8 +664,28 @@ describe("PrismaCardRepository.issueCounts", () => {
     });
 
     expect(await repository.issueCounts(customerId)).toEqual({
-      cardsIssued: 4,
+      cardsIssued: 2,
       reissuesForLoss: 1,
+    });
+  });
+
+  it("counts a returning household's first card as one, whatever index the slot had reached", async () => {
+    const departed = await insertCustomer(66, "ARCHIVED");
+    const returning = await insertCustomer(66);
+    await issueRun(departed, "FIRST_ISSUE", "LOST", "LOST");
+    await repository.issue(returning, {
+      index: 4,
+      issuedAt: LATER,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+
+    // 66k4 is the household's *first* card. Reading the index as a count would put three losses
+    // they never had in front of staff (US-09.2).
+    expect(await repository.issueCounts(returning)).toEqual({
+      cardsIssued: 1,
+      reissuesForLoss: 0,
     });
   });
 

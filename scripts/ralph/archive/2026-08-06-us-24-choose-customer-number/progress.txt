@@ -1,0 +1,282 @@
+# Ralph Progress Log
+Started: Thu Aug  6 08:53:47 CEST 2026
+
+## Codebase Patterns
+- **Measuring a screen's height**: `next build` then `npm run start -- --port 3100` (kill any
+  next-server first), then playwright-cli. `document.body.scrollHeight` is useless on a short page —
+  the shell fills the viewport, so it reads 900 either way. Measure the **last `main > *` child's
+  `getBoundingClientRect().bottom`**, and measure a *populated* screen too (`/ausgabe?nummer=1`).
+- **playwright-cli in this sandbox**: `playwright-cli open` only — `--browser=chrome` fails, there is
+  no Google Chrome at /opt/google/chrome. The skill-version warning banner is noise; ignore it. Use
+  `--raw` and `tail -1` to get just the value out of `eval`.
+- **A grep across `tests/` is part of removing a UI element**, not only `src/`. A spec in a
+  *different* file, named after a different screen, can be the one driving the element you are
+  removing.
+- **The dev server on 3100 reads `data/fd.db`**; the e2e servers read `data/e2e.db` (3000) and
+  `data/e2e-isolated.db` (3001). Playwright's config reuses an existing server outside CI, so kill
+  any `next-server` before `npm run test:e2e` or the suite tests the previous build.
+- **Never `pkill -f next-server` from the Bash tool** — the pattern matches the tool's own wrapper
+  command line and kills the shell (exit 144, no output). `pgrep -f "port 3100" | xargs kill` does
+  the same. Use `ps -eo pid,args | grep -E "next-serve[r]"` and `kill` the pid.
+- **`getByRole("alert")` is never 0 in this app.** Next injects a client-side route announcer with
+  `role="alert"` into every page — invisible in the SSR HTML, so `curl | grep` disagrees with
+  Playwright. Assert the absence of an error with `page.locator('[data-slot="alert"]')`; every
+  shadcn `ui/` primitive carries a `data-slot`.
+- **`tsconfig.json` includes `tests/`**, so `npm run typecheck` type-checks the specs. Deleting a key
+  from `src/i18n/de.ts` fails typecheck while any spec still reads it — the spec has to go first.
+- **`docs/technical_documentation.md` documents the e2e suite test by test**, so changing a spec
+  makes it stale and no gate can tell. Grep that file for the *spec file name* after touching a
+  spec, and for the feature's vocabulary after removing a feature — it is 2,500 lines and describes
+  the same thing from the layer's side, the screen's side and the suite's side.
+- **`docs/technical_documentation.md` documents a domain module twice**: once as a line in the `src/`
+  tree around line 156 and once as a `### <path>` section. Adding a module means both, or the tree
+  lists a file the reference section never explains.
+- **`playwright-cli eval` takes one expression.** Multi-statement JS fails inside `UtilityScript`;
+  wrap it in an arrow IIFE — `"(() => { const x = …; return JSON.stringify(x); })()"` — and quote
+  attribute selectors (`[data-testid=\"walk-hint\"]`).
+- **A disabled control is skipped by Tab**, so tab traversal cannot prove DOM order at the ends of a
+  row. Read the order with one `querySelectorAll` over the row's testids, and check the traversal on
+  a state where every control is enabled.
+- **A retracted requirement is struck through, marked and kept**, never deleted: `~~criterion~~`
+  plus `[withdrawn]` and the reason, in both `docs/user_stories_mvp.md` and the story's PRD. Say
+  what is *not* withdrawn too, or the next reader removes a parameter that still has callers.
+- **An e2e fact about "the whole register" is read from Prisma at assertion time**, never
+  hard-coded: the specs run serially in *alphabetical file order* against one shared `data/e2e.db`,
+  so which number is the first or last of a group depends on which specs ran before yours. Seed a
+  block for what you own; query for the ends.
+- **`counter-customer-number` identifies a household at the counter, `counter-card-number` does
+  not** — a household another spec reissued a card to shows `Nk2`, so an assertion on `Nk1` fails
+  for reasons that have nothing to do with what is under test.
+- **Adding a method to a port breaks five hand-written fakes.** `DistributionRecordRepository` is
+  faked in `customers.test.ts`, `lookup-customer.test.ts`, `maintain-customer.test.ts`,
+  `correct-attendance.test.ts` and `record-attendance.test.ts` — `grep -rln "<PortName>" src/ tests/`
+  before touching `ports.ts`, because typecheck is where you find out otherwise.
+- **Berlin and UTC only disagree between 23:00Z and midnight** (in winter; 22:00Z in summer). A test
+  that means to prove "the Berlin day, not the UTC one" must put an instant *in that hour* — a
+  23:30 **Berlin** time is 22:30Z and proves nothing, because both calendars still say the same day.
+- **A `<details>` keeps `open` through a soft navigation, not only a re-render.** Following a
+  `<Link>` on the same route re-renders in place, so a fold the user opened is still open on the new
+  screen. `key={<what the page is about>}` on the component holding it remounts it closed. Only a
+  browser check finds this.
+- **A UI review needs a *populated* screen.** `data/fd.db` has ~20 households; a scroll cap or a
+  column layout proves nothing against 8 rows. Copy the db to `/tmp`, seed through Prisma, and point
+  `DATABASE_URL` **and** `FD_FIXED_NOW_FILE` at the copy for `npm run start -- --port 3100`.
+- **A helper two server actions share cannot live in either of them.** A `"use server"` module may
+  export nothing but async functions, and every export it *does* have becomes a callable endpoint.
+  Put it in a plain sibling module taking `deps` as a parameter — `registration-input.ts` (schema)
+  and `kunden/neu/fresh-pool.ts` (the lost-race re-read) are both that shape.
+- **Removing or renaming a UI testid is a multi-spec change, and no gate but `test:e2e` sees it.**
+  A testid is a string: `lint`, `typecheck` and `test:coverage` are all green with five broken specs.
+  `grep -rn "<testid>" tests/` and run the full suite in the *same* story as the UI change.
+- **E2E customer-number bands are taken, not squeezed into**: 201–206/239 (counter), 211 (portions),
+  221–222 (serve), 231 (reminders), 232–234 (registration, US-24), 241 (block), 251 (reissue),
+  271 (age 13), 281–285 (customer list), 291 (customer record), 301–303 (group progress),
+  311–315 (group walk). A new spec takes the next band up — **unless a later-running spec asserts an
+  end of the register**. `group-walk.spec.ts` asserts 315 is the last RED number, and the suite runs
+  in *alphabetical file order*, so a spec sorting before it must seed *below* 311. Check what the
+  specs after yours assert about the whole register before choosing a band, not only which numbers
+  are free.
+- **Only numbers ≤ the quota (240) exist as far as the register's *pool* is concerned.** Most bands
+  above sit above 240, which is fine for a spec that seeds a household and looks at it, and useless
+  for one about which numbers are *offered*: `freeNumbers` is `1..quotaN`, so 241 is neither free nor
+  taken. A spec about the pool has to seed inside the quota — 232–238 and 223–230 are the room left
+  down there.
+
+---
+
+## 2026-08-06 09:05 - US-001 (batch 24 / US-24.1)
+- `freeNumbers(takenNumbers, quotaN)` added to `src/domain/customer/customerNumber.ts` — the whole
+  ascending pool of free slots — and `findLowestFreeNumber` re-expressed as its first element, so the
+  register is scanned once and the number the screen opens on cannot disagree with the one the rule
+  allocates. `lowestFreeNumber` is unchanged on top of that.
+- `assertFreeNumber(requested, takenNumbers, quotaN)` added: range first, occupancy second. A number
+  outside `1..quotaN` (or not whole) raises the new `CustomerNumberOutOfRange`; a number an active
+  customer holds raises the *existing* `CustomerNumberTaken`, deliberately the same error the
+  repository raises from its partial unique index.
+- `CustomerNumberOutOfRange` added to `DomainErrorCode` and tiered `refusal` in
+  `src/app/notice-tier.ts` (the `Record` failed the build until it was tiered — the mechanism working).
+- Files: `src/domain/customer/customerNumber.ts` + `.test.ts` (34 tests), `src/domain/errors.ts`,
+  `src/app/notice-tier.ts` + `.test.ts`, `docs/technical_documentation.md`,
+  `docs/ui_action_feedback_review.md`. Batch bookkeeping (archive, PRD, `prds/README.md`) landed as a
+  separate `chore(ralph)` commit first.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1009 tests, domain + application 100%), build.
+- **Learnings for future iterations:**
+  - **A new `DomainErrorCode` costs four edits, not one**: the union in `src/domain/errors.ts`, the
+    class, `TIERS` in `src/app/notice-tier.ts` (a `Record` over the union, so the build names it), and
+    *two* docs — `docs/technical_documentation.md`'s errors section lists every subclass by name, and
+    `docs/ui_action_feedback_review.md` §4 has a table of every code sorted by tier plus a running
+    count ("a 31st code fails the build"), which goes stale silently.
+  - **The count in that sentence is stated in three places** — `notice-tier.ts`'s doc comment, its
+    `TIERS` comment, and the review doc. Grep for the old number, not for the word "code".
+  - `docs/technical_documentation.md` describes a domain module **three** times, not two: the `src/`
+    tree line (~line 139), the `### <path>` reference section, and often a prose passage further down
+    that says *why* it has the shape it has (here, "the rule in two forms" at ~line 1048). Grep the
+    exported function names across the file, not just the module path.
+  - **Two error codes with one German sentence is a deliberate pattern here**, not a redundancy: the
+    code is what the program branches on (`registerCustomer` retries `CustomerNumberTaken` by type),
+    the sentence is what staff read. Do not "tidy" them together.
+  - The pre-commit hook runs `eslint --fix` and `prettier --write` on staged files and re-stages, so a
+    formatting slip is fixed rather than reported — but `npm run format:check` still catches files the
+    hook never saw (the incoming `tasks/*.md` PRD from the loader was unformatted).
+---
+
+## 2026-08-06 09:15 - US-002 (batch 24 / US-24.2)
+- `RegistrationProposal` gained `readonly freeNumbers: ReadonlyArray<number>` — the ascending pool of
+  free slots the registration dropdown will offer. `customerNumber` stays, keeps its `number | null`
+  type and its meaning for the three callers that only ask "is a slot free, and which"
+  (`/kunden`, `/warteliste`, `FreeSlotBanner`).
+- `proposeRegistration` now calls `freeNumbers` **once** and takes `customerNumber` from the result
+  (`free.length === 0 ? null : free[0]`) instead of calling `findLowestFreeNumber` — one scan, so the
+  number the form opens on cannot disagree with the numbers it offers. `NoSettingsInForce` and the
+  callers' catch behaviour are untouched.
+- Files: `src/application/customers/propose-registration.ts`,
+  `src/application/customers/customers.test.ts` (5 new named tests, written red first),
+  `docs/technical_documentation.md` (§`proposeRegistration and readCustomer`).
+- Gates: lint, typecheck, `test:coverage` (49 files, 1014 tests, domain + application 100%), build,
+  `format:check`.
+- **Learnings for future iterations:**
+  - **`proposeRegistration` has no test file of its own** — its tests live in the shared
+    `src/application/customers/customers.test.ts` under `describe("proposeRegistration")`, alongside
+    `registerCustomer`, `readCustomer` and the rest. `grep -n 'describe("' ` that file before creating
+    a new one; the hand-written fakes at its top are shared by every block in it.
+  - **`FakeCustomerRepository` derives `takenActiveNumbers` from live status**, exactly like the
+    partial index: the constructor's `taken` array plus every `created` row that is not `ARCHIVED`.
+    To prove an archived household released its slot, `create({ ...storedCustomer("ACTIVE"),
+    customerNumber: N })` and then `archive(id, reason, date)` on the fake directly — no use case
+    needed, and `storedCustomer` hard-codes number 50, so always override it.
+  - **A widened read-model interface costs nothing at the call sites** when the new field is additive:
+    the four `proposeRegistration` callers compiled untouched. Adding a field is the cheap change;
+    changing what an existing one means is the expensive one — which is why US-24.2 kept
+    `customerNumber` rather than replacing it.
+---
+
+## 2026-08-06 09:12 - US-003 (batch 24 / US-24.3)
+- `RegisterCustomerInput` gained `readonly customerNumber?: number` — the slot staff chose. Absent,
+  registration is bit-for-bit what it was: `lowestFreeNumber` plus the `MAX_ATTEMPTS` retry on a lost
+  race. Present, the number goes through `assertFreeNumber` and is written **as given**.
+- The retry is the whole design question, and the answer is an attempt budget rather than a second
+  code path: `CHOSEN_NUMBER_ATTEMPTS = 1`. Retrying a number a staff member picked could only write a
+  different one — the outcome the feature exists to prevent — or fail identically. So the `for(;;)`
+  loop keeps its shape and only the number's origin and the budget differ; the create-and-audit block
+  is not duplicated, and the transaction, first card, status and audit entry cannot come apart
+  between the two paths.
+- The audit entry is untouched: `customerNumber` was already in `REGISTERED_FIELDS`, and who chose
+  the slot is not something a later reader could act on.
+- `registerFromWaitingList` needed **no code change** — it inherits the field through
+  `RegisterCustomerInput` — only its `@throws`. A test proves its queue guarantee still holds when
+  the failure is `CustomerNumberTaken` rather than an empty household.
+- Files: `src/application/customers/register-customer.ts` + `customers.test.ts` (6 new named tests),
+  `src/application/waiting-list/register-from-waiting-list.ts` + `waiting-list.test.ts` (2 new),
+  `docs/technical_documentation.md`.
+- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1022 tests, domain + application
+  100%), build. No UI change in this story, so no browser check — US-004 is where the screen moves.
+- **Learnings for future iterations:**
+  - **An optional input field is the cheap way to extend a use case with two callers**: nothing in
+    `registerFromWaitingList` mentions `customerNumber`, and it got the feature by construction.
+    Widening the shared input beats a parameter on each path — the same lesson US-002 recorded about
+    widening a read model.
+  - **A test name is part of the story's vocabulary.** "another registration took the chosen one" read
+    fine until "chosen" started meaning *staff-chosen*; renamed to "won the race for it". Grep the
+    existing test names for a word the story is about to redefine.
+  - `FakeCustomerRepository.stealNext(1)` proves the *no-retry* rule as well as the retry one: with a
+    chosen number the steal must surface as `CustomerNumberTaken` with `created` still empty, where
+    the allocating path lands on 2.
+  - **A domain guard makes the fake's own uniqueness check irrelevant**: the waiting-list fake never
+    rejects a duplicate number, but `assertFreeNumber` refuses before `create` is reached, so seeding
+    `new FakeCustomerRepository(17)` is enough to test a taken slot there.
+---
+
+## 2026-08-06 12:30 - US-004 (batch 24 / US-24.4)
+- The registration form's read-only `proposed-number` `Stat` is **replaced** by a labelled native
+  `<select name="customerNumber" data-testid="customer-number-select">` over `proposal.freeNumbers`,
+  uncontrolled, opening on `proposal.customerNumber` via `defaultValue`, `h-8` to match this form's
+  `Input`s (the settings screen's `SELECT` is `h-9` — that screen puts every control on `h-9`, this
+  one leaves `Input` at its default, and copying the height would be the ragged baseline the
+  conversion guide warns about). Hint `free-number-count` beneath it, inflected at one, and **absent**
+  on a full register — „0 freie Nummern — die niedrigste ist vorausgewählt“ would be a sentence about
+  a preselection that does not exist, and the `Alert` above the form is the message there.
+- `de.customers.errors.customerNumberTaken` → `customerNumberUnavailable(customerNumber)`, one
+  sentence for `CustomerNumberTaken` **and** `CustomerNumberOutOfRange`. The old string ended „bitte
+  erneut speichern“, which was right while the software picked the number and is wrong now that staff
+  do. `assignment.proposedNumber` removed.
+- New `src/app/kunden/neu/fresh-pool.ts`: on a lost race **only**, re-read `proposeRegistration` and
+  return the pool in `RegisterCustomerState.freeNumbers`, which the form prefers over its prop. Both
+  registration actions share it and hand it their own deps. It is deliberately **not** `"use server"`
+  — exporting a helper from an action module publishes it as a callable endpoint.
+- Both actions pass `form.customerNumber` through; neither gains a rule of its own.
+- Files: `registration-form.tsx`, `fresh-pool.ts` (new), `actions.ts`,
+  `warteliste/[entryId]/registrieren/actions.ts`, `registration-input.ts`,
+  `register-customer-state.ts`, `i18n/de.ts`, five e2e specs, `docs/technical_documentation.md`,
+  `docs/ui_redesign_kunden_neu.md`.
+- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1022 tests), build, and the
+  **full e2e suite** (116 passed, 1 pre-existing skip) — run here rather than left to US-005, because
+  removing a testid touched five spec files.
+- Browser-verified against a production build on 3100: combobox named „Kundennummer“ with the lowest
+  free number selected, hint is readable `<p>` text with no `title`, Tab from `add-member` lands on
+  it, type-ahead works, 0 horizontal overflow at 1920/1280/1024/800/390, select 32px = `Input` 32px.
+- **Learnings for future iterations:**
+  - **Removing a UI testid is a five-spec change here.** `proposed-number` was driven by
+    `archive`, `registration`, `waiting-list`, `card` and `reregistration` — four of them named after
+    something else entirely. `grep -rn "<testid>" tests/` and rewrite them in the *same* story;
+    typecheck cannot see a testid string, so the only gate that catches it is `test:e2e`.
+  - **`innerText()` → `inputValue()` and `toHaveText` → `toHaveValue`** is the whole migration when a
+    read-only tile becomes a `<select>`. The full-register case is the one that needs thought: there
+    is no „—“ to assert any more, so assert `toBeDisabled()` plus `option` count 0.
+  - **A `<select>`'s type-ahead cannot be proved against an arbitrary pair of digits.** Chrome
+    searches from the *current* selection and keeps its buffer for ~1s, so a second check inside the
+    same run reads as a stale prefix — put `page.waitForTimeout(1500)` between attempts — and the
+    number you type must actually be free in `data/fd.db` (6–18 are taken there, so „15“ lands on
+    150 and proves nothing).
+  - **A helper two server actions share cannot live in either of them.** A `"use server"` module may
+    export nothing but async functions, and every export it *does* have becomes a callable endpoint.
+    A plain sibling module taking `deps` as a parameter is the shape — `registration-input.ts` is the
+    same pattern for the schema.
+  - **`docs/ui_redesign_kunden_neu.md` is a record of a finished conversion, not a live reference.**
+    When a later story undoes one of its decisions, add a marked supersession note beside it (`>
+    **Superseded by US-24**` / `~~…~~ [superseded by US-24]`) and say what is *not* superseded —
+    rewriting it would describe a redesign that never happened.
+---
+
+## 2026-08-06 13:20 - US-005 (batch 24 / US-24.5)
+- `tests/e2e/registration.spec.ts` extended by **four** tests — no new spec file, no other spec
+  touched. They sit *after* the three intake tests on purpose: those still register on the number the
+  form opened on, so they are the proof that the default did not move when the tile became a control.
+  - the control opens on the **lowest free number**, read out of Prisma at assertion time;
+  - a number an **active** household holds is not among the options and one **archiving** freed is —
+    two seeded households differing in nothing but their status, so the status is the only thing that
+    can explain the difference;
+  - a number **picked** out of the list (higher than the proposal) is the number the record, the card
+    `234k1` and the customer row all carry;
+  - a number **posted around** the control — an `<option>` appended by hand, the shape a form left
+    open over a distribution day would post — is refused with the German sentence naming it, and a
+    snapshot of every customer row plus the household-member, certificate, card and audit-entry
+    counts is identical either side of the attempt.
+- Seeds 232 (ACTIVE) and 233 (ARCHIVED) through Prisma in `beforeAll` and registers on 234.
+- Files: `tests/e2e/registration.spec.ts`, `docs/technical_documentation.md` (the
+  `registration.spec.ts` bullet in the e2e section).
+- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1022 tests), build, and the full
+  e2e suite — **120 passed**, 1 pre-existing skip (up from 116, the four new tests).
+- **Learnings for future iterations:**
+  - **A band above the quota cannot test the pool.** Every band from 241 up is invisible to
+    `freeNumbers`, which is `1..quotaN` — a household on 241 is neither free nor taken, so "a taken
+    number is not offered" would pass against a control that offers nothing at all. The registration
+    band had to go *inside* 240 (232–234), which is the opposite of the "take the next band up" rule
+    every other spec follows.
+  - **`toHaveValue` does not work on an `<option>`** — "Not an input element". The option's number is
+    an attribute: `toHaveAttribute("value", …)`. `toHaveValue` is for the `<select>` itself, which is
+    how the other specs read the current choice.
+  - **Compute the expectation without the function under test.** The lowest free number is worked out
+    in the spec from the non-archived rows and the quota in force, not by importing
+    `findLowestFreeNumber` — importing it would make the e2e assertion agree with the rule it is
+    supposed to be checking from the outside. `foldName` is a different case: it is imported for
+    *seeding*, where the spec has to write what the app would have written.
+  - **A stale submission is `evaluate` on the select, not `selectOption`.** `selectOption` fails on a
+    value that is not in the list, which is exactly the case worth testing; appending the `<option>`
+    and setting `.value` posts what a form rendered before somebody else took the number would post.
+    The select is uncontrolled, so React neither notices nor undoes it.
+  - **`prisma.settingsVersion.findFirstOrThrow({ orderBy: [{ recordedAt: "desc" }, { id: "desc" }] })`
+    is how a spec reads the quota in force.** `recordedAt` is deliberately not unique, so the tiebreak
+    on `id` matters — `settings.spec.ts` appends versions and two saves can share a millisecond.
+  - **Adding a `beforeAll` to a shared serial describe seeds for the specs above it too.** Numbers far
+    from the low sequence keep that harmless; a seed inside the range the intake specs consume would
+    silently rewrite the successor arithmetic in "an empty household is refused".

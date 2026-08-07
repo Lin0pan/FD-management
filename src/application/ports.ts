@@ -334,7 +334,7 @@ export interface WaitingListRepository {
  * (tasks/prd-us-09-reissue-card-after-loss.md §FR-5).
  */
 export interface CardIssueCounts {
-  /** The index of the card the customer holds; 0 for a customer holding none. */
+  /** How many cards this customer has been issued; 0 for a customer holding none. */
   readonly cardsIssued: number;
   /** How many of the cards on file were issued because the previous one was lost. */
   readonly reissuesForLoss: number;
@@ -346,12 +346,26 @@ export interface CardIssueCounts {
  * The repository stores cards; it does not decide which one is valid. `currentCard` answers with the
  * highest index on record, and that card *is* the valid one (FR-4) — there is no flag to set and
  * none to clear when a replacement is issued. The adapter — not the caller — is the final authority
- * on whether an index was still free when the write landed, because the database holds the
- * `@@unique([customerId, index])` constraint that decides it.
+ * on whether an index was still free when the write landed, because the database holds the two
+ * constraints that decide it: `@@unique([customerId, index])`, a race between two issues on one
+ * record, and `@@unique([customerNumber, index])`, a card number that has already been printed
+ * (US-25).
  */
 export interface CardRepository {
   /** The customer's highest-indexed card, or `null` if they hold none yet. */
   currentCard(customerId: number): Promise<IssuedCard | null>;
+  /**
+   * The highest index any card has ever carried on that customer number, and **0** when none ever
+   * did. Archived holders count: nothing about status is consulted, because a card that was printed
+   * exists whatever became of the household that walked away with it (US-25).
+   *
+   * This is deliberately not `currentCard(customerId).index`. The two agree for every active
+   * household — the active holder always sits at the top of the slot's run, since a registration
+   * starts above every predecessor and only the active holder is ever reissued — but that invariant
+   * is exactly what the counting rule must not have to remember. Both callers, registration and
+   * reissue, ask the slot instead, and only the store can see the archived holders to answer.
+   */
+  highestIndexForNumber(customerNumber: number): Promise<number>;
   /**
    * Every card the customer has ever been issued, **highest index first** — so the first element is
    * the one they hold and the rest are the numbers it replaced. Ordering is the adapter's job
