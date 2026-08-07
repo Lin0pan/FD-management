@@ -172,8 +172,8 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done. domain_analysis.md: the Price row names the Maximalpreis as part of the definition, walkthrough step 7 states the cap with FD's 11,00 € → 5,00 € case and that portions are unaffected, and open question 1 records that FD have since named three of the values. user_stories_mvp.md: US-07.2 derives min(per-head sum, Maximalpreis) marked `[changed]`, US-14's role line and criterion 1 name it, and a new criterion 5 states that an empty field and 0,00 € are different claims. technical_documentation.md: the settings enumeration, the priceFor section (with a paragraph on why Cents | null rather than a 0 sentinel, and Math.min being the whole rule), the SettingsVersion model section (nullable, no default, no backfill), the household editor's 'four policy values' → five with the cap-preview consequence, the policy-values bullet, and a new ⚠️ note on the settings screen about the optional-amount branch and why there is no toggle. Also fixed three documents the grep caught that still described the price as the unqualified sum: tasks/README.md (seeded-values table gains the 500 row, the formula becomes min(...)), CONTRIBUTING.md's configurable-data bullet, and tech_stack_architecture_sketch.md §4.1, where the cap is now the evidence for the change-tolerance claim. ui_redesign_einstellungen.md §4.3 gained a 'since built' note: the sixth field and the 2+2+2+2+2+2 re-span, so its span table is not read as current. tasks/prd-us-07-portions-and-price.md gained the forward reference in the header-quote style prd-us-02 uses. CLAUDE.md's 'Derive, don't store' list deliberately unamended. No code changes; lint, typecheck, test:coverage (49 files, 1074 tests) and build green."
     }
   ]
 }

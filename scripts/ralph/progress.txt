@@ -322,3 +322,54 @@ Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
     household appears on `/karten-neuausstellung` and the reissue spec — which runs after this one —
     reads a list it did not put a row on.
 ---
+
+## Fri Aug 7 2026 — US-007 (The documents say what FD charges)
+- Documentation only, no code. Every document that described what a household owes as the
+  unqualified per-head sum now states the Maximalpreis with it.
+- `docs/domain_analysis.md`: the `Price` row of the vocabulary table names the cap as part of the
+  definition; distribution-day walkthrough step 7 states it with FD's own case (11,00 € per head,
+  5,00 € paid) and says the portion allowance is unaffected; open question 1 records that FD have
+  since named three of the values and that they are seeded, not coded.
+- `docs/user_stories_mvp.md`: US-07.2 now derives `min(per-head sum, Maximalpreis)`, marked
+  `[changed]` with the reason (FD stated the cap after the story was written); US-14's role line and
+  criterion 1 name it, and a new criterion 5 states that an empty field and a cap of 0,00 € are
+  different claims — `[added]`, because the two are one lost branch apart.
+- `docs/technical_documentation.md`: the settings enumeration, the `priceFor` section (plus a
+  paragraph on why `Cents | null` rather than a `0` sentinel, and that `Math.min` is the whole rule),
+  the `SettingsVersion` model section (nullable, no default, no backfill — the migration was
+  regenerated), the household editor's "four policy values" → five with the cap-preview consequence
+  spelled out, the policy-values bullet in the conventions list, and a new ⚠️ note on the settings
+  screen about the optional-amount branch and why there is deliberately no activation toggle.
+- Three further documents the required grep caught: `tasks/README.md` (the seeded-values table gains
+  the 500 row and the formula becomes `min(…)`), `CONTRIBUTING.md`'s configurable-data bullet, and
+  `docs/tech_stack_architecture_sketch.md` §4.1, where the cap now stands as the evidence for the
+  change-tolerance claim it was already making.
+- `docs/ui_redesign_einstellungen.md` §4.3 gained a "since built" note — the sixth field and the
+  `2 + 2 + 2 + 2 + 2 + 2` re-span — so its span table and its ASCII mock-up's shorter hint are not
+  read as current.
+- `tasks/prd-us-07-portions-and-price.md` gained the forward reference, in the header-quote style
+  `prd-us-02` uses for "Superseded in part by US-25".
+- `CLAUDE.md`'s "Derive, don't store" list is deliberately **not** amended: the cap is a policy value
+  like the prices beside it, not a fourth stored-derivation exception.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1074 tests, domain+application 100%) and
+  `build` green.
+- **Learnings for future iterations:**
+  - **A number in a document is a count that goes stale.** `technical_documentation.md` said the
+    browser-side editor prices "from the four numbers that bear on the answer" and the household
+    editor section said "no input for any of the four" — widening `PriceValues` made both wrong with
+    nothing to catch it. When a policy value is added, grep the docs for the *cardinality words*
+    ("the four", "the two per-head", "three open questions"), not only for the field name.
+  - **`docs/ui_redesign_einstellungen.md` is a design record, not a spec** — it holds the *proposal*
+    that was then built (§4.3's column spans, the ASCII mock's hint text). Do not rewrite it when the
+    screen moves on: that would misrepresent what was decided. Add a "since built" note under the
+    affected section, the way §4.3 now carries one.
+  - **`npm run format:check` currently fails on `tasks/prd-us-25-globally-unique-card-numbers.md`,
+    and `prettier --write` does not fix it** — Prettier is non-idempotent on continuation lines of a
+    backticked test name inside a list item, so writing produces output `--check` still rejects. It
+    predates this batch, no hook or CI job runs `format:check` (only `format` and `format:check` in
+    `package.json`, neither wired into `.husky/` or `.github/`), and settling it means rewording those
+    lines. Left alone deliberately — do not "fix" it by running `--write` and committing the churn.
+  - The grep the PRD prescribes (`per head`, `pricePerGrownUp`) is worth running with
+    `grep -rn … docs/ tasks/README.md CONTRIBUTING.md README.md` and *excluding* hits that already
+    say Maximalpreis — otherwise the sentences you just wrote drown the ones you have not.
+---
