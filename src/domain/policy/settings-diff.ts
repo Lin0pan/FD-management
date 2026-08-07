@@ -4,7 +4,7 @@
  * The settings screen used to restate every value on every row of its history, which made finding
  * the one that moved a matter of diffing two 136-character strings by eye — and printed only five
  * of the eight settings, so a change to the Ausgabetag produced a row identical to its predecessor
- * in every character (`docs/ui_redesign_einstellungen.md` §3.6). A version is therefore rendered as
+ * in every character. A version is therefore rendered as
  * the changes that produced it, and this is where they are derived.
  *
  * Two things this deliberately does *not* do:

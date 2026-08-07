@@ -16,9 +16,9 @@
  *
  * A plain module with no `"use client"` directive, so a server component may import it: a string
  * exported from a client module arrives across the boundary as a client-reference proxy rather than
- * as a string (`docs/ui_conversion_guide.md`, the `/warteliste` findings). A function rather than a
- * record of two strings for the same reason a `cva` variant is not a lookup table — the caller says
- * what it wants, and there is nothing to keep in sync.
+ * as a string (`docs/ui_styling_guide.md` §9). A function rather than a record of two strings for
+ * the same reason a `cva` variant is not a lookup table — the caller says what it wants, and there
+ * is nothing to keep in sync.
  */
 export function selectClass(height: "h-8" | "h-9"): string {
   return (

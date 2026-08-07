@@ -8,6 +8,6 @@
  *
  * A plain module with no `"use client"` directive, so a server component may import it: a string
  * exported from a client module arrives across the boundary as a client-reference proxy rather than
- * as a string (`docs/ui_conversion_guide.md`, the `/warteliste` findings).
+ * as a string (`docs/ui_styling_guide.md` §9).
  */
 export const SHELL = "mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6 md:p-8";

@@ -109,9 +109,9 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
  * The two answers leave by different routes, because a removal destroys the card that would show it.
  * `SET_PAID` comes back as `saved` and is read beside the button. `REMOVE` makes `todaysRecord` null,
  * so the whole correction card unmounts and takes the state holding the answer with it — which is
- * why this action's `removed` result was, for its whole life, a branch no component could render
- * (`docs/ui_action_feedback_review.md` §3.2). It redirects instead, keeping the number that was
- * looked up so the household stays on screen, and the counter states it above the verdict.
+ * why this action's `removed` result was, for its whole life, a branch no component could render.
+ * It redirects instead, keeping the number that was looked up so the household stays on screen,
+ * and the counter states it above the verdict.
  * `redirect` throws its own control-flow error and so is called outside the `try`.
  */
 export async function correctServe(

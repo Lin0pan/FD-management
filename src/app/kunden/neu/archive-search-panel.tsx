@@ -200,7 +200,7 @@ export function ArchiveSearchPanel({
        * What makes the fold safe is that the `<summary>` asks the *question* rather than naming the
        * feature. The cost of missing this search is a second record for a household FD already has,
        * which is the whole of US-11, and a control that must be opened is one that can be forgotten
-       * on the day it matters (`docs/ui_redesign_kunden_neu.md` §4.2b). The prompt therefore has to
+       * on the day it matters. The prompt therefore has to
        * survive the fold that hides the fields, and it is the only thing standing in for them.
        *
        * `reregistration.spec.ts` clicks `archive-search-open` before it fills — a real click, so a

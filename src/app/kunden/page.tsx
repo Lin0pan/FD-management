@@ -21,9 +21,9 @@
  * the number staff assign a new household's group by (US-01), and it counts every active household
  * whatever is currently on screen.
  *
- * The screen is two cards — the overview and the list — following
- * `docs/ui_redesign_kunden_verwalten.md`. One job runs through it: **find a household.** Everything
- * else earns its place by being a single glance (the balance, the three actions) or an aid to
+ * The screen is two cards — the overview and the list. One job runs through it: **find a
+ * household.** Everything else earns its place by being a single glance (the balance, the three
+ * actions) or an aid to
  * finding (the filters), which is why the filters live inside the list card rather than above it and
  * why the primary action stands beside the `h1` rather than in a band of its own.
  */
@@ -465,7 +465,7 @@ function Overview({
  * The register itself.
  *
  * The header sticks, which took three separate overflow overrides and had never once worked before
- * (see `docs/ui_conversion_guide.md`): `Card` ships `overflow-hidden`, the `Table` primitive wraps
+ * (see `docs/ui_styling_guide.md` §3): `Card` ships `overflow-hidden`, the `Table` primitive wraps
  * itself in `overflow-x-auto`, and either one on its own makes *itself* the scrollport the header
  * sticks to — so the header parks at the top of a box as tall as the table and leaves the window
  * with the rows. Below `xl` the container keeps its horizontal scroll and the header gives up

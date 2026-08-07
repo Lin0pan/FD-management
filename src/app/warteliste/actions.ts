@@ -162,7 +162,7 @@ export async function addApplicantAction(
  * Then it **redirects**, rather than returning a `saved` state, because the row this was submitted
  * from is what the revalidate takes away — the control and any state it held go with it, which is
  * why this was the worst of the six writes that said nothing: the only evidence was a row missing
- * from a list nobody was looking at (`docs/ui_action_feedback_review.md` §3.1, §5). `redirect`
+ * from a list nobody was looking at. `redirect`
  * throws its own control-flow error, so it is called outside the `try`, where the catch cannot file
  * the navigation as a failed removal.
  */

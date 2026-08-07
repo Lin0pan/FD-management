@@ -4,8 +4,7 @@
  * The application used to have one. Every refusal, from „Der Haushalt gehört bereits zur Gruppe Rot."
  * to „Kunde nicht gefunden.", came back as `{ status: "error", message }` and was painted the same
  * red — so the screen had no way to say *"nothing is broken, the rules just say no"*, which is the
- * most common thing it has to say at a counter with a queue at it
- * (`docs/ui_action_feedback_review.md` §4).
+ * most common thing it has to say at a counter with a queue at it.
  *
  * The distinction cannot be made from the sentence, and it must not be: a German string is the
  * thing most likely to be reworded, and a tier read back out of one is a tier that changes when

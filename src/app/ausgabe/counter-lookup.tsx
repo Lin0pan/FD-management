@@ -260,7 +260,7 @@ export function CustomerDetails({
             gets "Kundennummer 6", not two loose facts) and sets `tabular-nums`, which is what makes
             6k1 and 6k2 differ at a glance. The grid is the counts row's own, verbatim, so the pair
             takes the first two of the same four columns: identical widths on one baseline is what a
-            comparison needs (docs/ui_conversion_guide.md), and sharing the track keeps the card to
+            comparison needs (`docs/ui_styling_guide.md` §4), and sharing the track keeps the card to
             one column rhythm instead of two that miss each other by a pixel. */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat
@@ -366,7 +366,7 @@ export function CustomerDetails({
 
             Keyed by customer: a `<details>` keeps `open` through a soft navigation, and this screen
             navigates to itself from the group list, the walk and the lookup form
-            (docs/ui_conversion_guide.md). Without the key the next household's card arrives with the
+            (`docs/ui_styling_guide.md` §6). Without the key the next household's card arrives with the
             fold open and the previous household's text still in the field — which is the one way
             this control could write a note onto the wrong record. */}
         <div className="flex flex-col gap-2 border-t pt-4">

@@ -98,6 +98,10 @@ UI was still `1.0.0-rc` when this was set up, and an app expected to run for fiv
 maintenance should not sit on a release candidate. Switching later is a re-add of the components,
 not a rewrite of the screens.
 
+How the primitives are actually composed into a screen — the layout, colour, feedback and
+accessibility rules every page follows — is `docs/ui_styling_guide.md`. This section is only the
+choice of stack.
+
 ### 3.2 Note on Next.js
 
 Next.js is the most popular option but also the fastest-moving, and server components add

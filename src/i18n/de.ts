@@ -1174,7 +1174,7 @@ export const de = {
      * household gets, the three that decide *when*, and the write itself. What stood here before
      * was `Aktuell gültige Werte` over quota, portions and all three calendar settings — a heading
      * that described everything on the screen and therefore distinguished nothing, with the two
-     * price fields under `Preise` next door (docs/ui_redesign_einstellungen.md §3.5, §4.2a).
+     * price fields under `Preise` next door.
      */
     amountsHeading: "Mengen und Preise",
     rhythmHeading: "Ausgaberhythmus",
@@ -1250,9 +1250,9 @@ export const de = {
      * The version history, folded away and written as a diff.
      *
      * Each superseded version states only what moved — `Preis je Erwachsenem: 1,80 € → 2,00 €` —
-     * because the list used to restate all 136 characters per row so that one of them could change
-     * (docs/ui_redesign_einstellungen.md §3.6). The labels are `fields`, `colours` and `weekdays`
-     * above: a change is named with the same words as the control that made it.
+     * because the list used to restate all 136 characters per row so that one of them could change.
+     * The labels are `fields`, `colours` and `weekdays` above: a change is named with the same
+     * words as the control that made it.
      */
     history: {
       heading: "Änderungsverlauf",

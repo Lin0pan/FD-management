@@ -107,7 +107,7 @@ const WITHOUT_HISTORY_NUMBER = 293;
  * Enough that the box has something to scroll — thirty rows are around 1 100px against a 60vh
  * scrollport on the default 720px viewport — and no more, because every row is one more insert on
  * every run. It is *not* enough to show the header sticking the way five years of records would;
- * that is measured by hand against an inflated register, per `docs/ui_conversion_guide.md`.
+ * that is measured by hand against an inflated register, per `docs/ui_styling_guide.md` §11.
  */
 const HAND_OUTS = 30;
 
@@ -410,8 +410,8 @@ test.describe("Kundenakte pflegen", () => {
 
     // A wrong year is the mistake this refusal exists for: the type is right, four characters of the
     // date are not. Uncontrolled, React's post-action reset emptied *both* fields on the way back, so
-    // correcting a typo meant retyping the certificate as well
-    // (`docs/ui_redesign_einstellungen.md` §4.2d — the same finding as on the settings screen).
+    // correcting a typo meant retyping the certificate as well — the same finding as on the
+    // settings screen.
     await page.getByTestId("renewal-type").fill("Rentenbescheid");
     await page.getByTestId("renewal-valid-until").fill("2025-06-30");
     await page.getByTestId("renewal-save").click();
@@ -558,8 +558,7 @@ test.describe("Kundenakte pflegen", () => {
    * Both wear a `<feature>-error` test id, because that id means *the answer was no* rather than
    * *the red tier* — four specs assert `toHaveCount(0)` on one to mean nothing was refused, and a
    * separate id for amber would leave them asserting the absence of something that no longer
-   * renders. The tier is on `data-tier`, off the same locator, exactly as the counter's verdict is
-   * (`docs/ui_action_feedback_review.md` §4).
+   * renders. The tier is on `data-tier`, off the same locator, exactly as the counter's verdict is.
    */
 
   test("a rule saying no is amber, not red", async ({ page }) => {
@@ -612,7 +611,7 @@ test.describe("Kundenakte pflegen", () => {
  * polish item: a scrollable box that cannot take focus cannot be scrolled by keyboard at all
  * (WCAG 2.1.1). It **cannot** meaningfully prove the header sticks — that only shows itself above
  * the row count any fixture wants to insert on every run, so it is measured by hand against an
- * inflated copy of the register (`docs/ui_conversion_guide.md`).
+ * inflated copy of the register (`docs/ui_styling_guide.md` §11).
  */
 test.describe("Bisherige Ausgaben", () => {
   let withHistory: number;

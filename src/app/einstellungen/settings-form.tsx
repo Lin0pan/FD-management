@@ -40,8 +40,8 @@ const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
  * Without this the row is ragged, because a German label is as long as it is and a narrow column
  * wraps it: measured at 1440, `Höchstzahl der Kunden (N)` takes two lines in its 163px slot and
  * `Portionen je Kind` one, so the five inputs of the first card would start at y=286 and y=296.
- * That is the defect `docs/ui_conversion_guide.md` records from `/kunden/[id]`, where one two-line
- * label put every row's first input 20px below its neighbours.
+ * That is the rag `docs/ui_styling_guide.md` §3 exists to prevent, and it turns up on every form
+ * where the twelve columns are actually spent.
  *
  * `grid-rows-subgrid` is the fix rather than a `min-h-` guess: each field spans two of the parent's
  * rows and inherits them, so the label row is as tall as the tallest label in that row and every
@@ -119,10 +119,10 @@ function Field({
 }
 
 /**
- * The mark under a rejected input (`docs/ui_redesign_einstellungen.md` §4.2c).
+ * The mark under a rejected input.
  *
- * The summary notice by the button is 442px from the field it names, which is what §3.2 measured
- * and what made a rejected save a hunt. This is the other end of that: the words at the field, the
+ * The summary notice by the button is 442px from the field it names, measured, which is what made a
+ * rejected save a hunt. This is the other end of that: the words at the field, the
  * `aria-invalid` border and the reddened label pointing at it, and `aria-describedby` so a screen
  * reader reads the two together instead of leaving the sentence to be found by eye.
  *
@@ -246,9 +246,9 @@ function capValue(cap: Cents | null): string {
 /**
  * What a field shows: what was typed if the last save was refused, otherwise what is stored.
  *
- * This is the whole of `docs/ui_redesign_einstellungen.md` §4.2d. React resets an uncontrolled form
- * once its action resolves — refusal as well as success — and the reset restores each input from its
- * `defaultValue`. With the stored settings as the only `defaultValue`, a refusal rewound every field
+ * React resets an uncontrolled form once its action resolves — refusal as well as success — and the
+ * reset restores each input from its `defaultValue`. With the stored settings as the only
+ * `defaultValue`, a refusal rewound every field
  * to what the database said: four edits typed, one of them invalid, **four lost**, and the screen
  * then marking a field that held `240` and calling it an invalid value. Neither half of that is
  * survivable on its own; together they are why a rejected save meant retyping the whole change from
