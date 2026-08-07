@@ -51,7 +51,7 @@ export interface SaveSettingsState {
   readonly values?: SubmittedSettings;
 }
 
-/** The nine fields of the settings form as strings, keyed by the `name` each input carries. */
+/** The ten fields of the settings form as strings, keyed by the `name` each input carries. */
 export interface SubmittedSettings {
   readonly quotaN: string;
   readonly portionsPerGrownUp: string;
@@ -62,6 +62,12 @@ export interface SubmittedSettings {
   readonly reason: string;
   readonly pricePerGrownUp: string;
   readonly pricePerChild: string;
+  /**
+   * The Maximalpreis, and `""` is a value here rather than a gap: it is how the form says there is
+   * no cap. A refusal has to hand an emptied field back as empty, or correcting the field beside it
+   * would silently restore the cap that was just removed.
+   */
+  readonly priceCap: string;
 }
 
 export const initialSaveSettingsState: SaveSettingsState = { status: "idle" };

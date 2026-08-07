@@ -44,6 +44,26 @@ const euroAmount = z.string().transform((value, ctx): number => {
   }
 });
 
+/**
+ * A euro amount that may be left out — the Maximalpreis (US-26.5).
+ *
+ * An empty field is an answer here, not a missing one: it says there is no cap, which is a different
+ * claim from a cap of `0,00` (every household collects for free). So a value that trims to `""`
+ * becomes `null`, and anything else goes through the same {@link parseEuros} as a required amount —
+ * one parser for euro text, refusing `2,5o` with the same sentence wherever it is typed.
+ */
+const optionalEuroAmount = z.string().transform((value, ctx): number | null => {
+  if (value.trim() === "") {
+    return null;
+  }
+  try {
+    return parseEuros(value);
+  } catch {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: de.settings.errors.notAnAmount });
+    return z.NEVER;
+  }
+});
+
 const weekColour = z.string().transform((value, ctx) => {
   try {
     return parseWeekColour(value);
@@ -66,6 +86,7 @@ const settingsForm = z.object({
   reason: z.string(),
   pricePerGrownUp: euroAmount,
   pricePerChild: euroAmount,
+  priceCap: optionalEuroAmount,
 });
 
 /**
@@ -87,6 +108,7 @@ function formValues(formData: FormData): SubmittedSettings {
     reason: text("reason"),
     pricePerGrownUp: text("pricePerGrownUp"),
     pricePerChild: text("pricePerChild"),
+    priceCap: text("priceCap"),
   };
 }
 
@@ -96,8 +118,9 @@ function formValues(formData: FormData): SubmittedSettings {
  * `Settings` nests the anchor week, so the domain calls these `weekAnchor.isoWeek` and
  * `weekAnchor.colour`; an HTML form is flat and `<input name>` cannot be a path, so the form calls
  * them `weekAnchorIsoWeek` and `weekAnchorColour` — the ids §7.2 of
- * `docs/ui_redesign_einstellungen.md` fixed. The other six settings are spelled the same on both
- * sides and are not listed.
+ * `docs/ui_redesign_einstellungen.md` fixed. The other seven settings are spelled the same on both
+ * sides and are not listed — `priceCap` among them, which is why a rejected cap marks its field
+ * without an entry here.
  */
 const INPUT_NAME: Record<string, string | undefined> = {
   "weekAnchor.isoWeek": "weekAnchorIsoWeek",
@@ -113,7 +136,7 @@ const INPUT_NAME: Record<string, string | undefined> = {
  *
  * `field` is the **form input's** name, which is what the form needs in order to mark one — turning a
  * domain fact into what the browser can use is this adapter's whole job, and it already does it for
- * the sentence. Six of the eight settings are spelled the same on both sides; the two nested ones
+ * the sentence. Seven of the nine settings are spelled the same on both sides; the two nested ones
  * are not, and {@link INPUT_NAME} is that translation.
  *
  * It used to be recovered in the browser instead, by comparing the finished sentence back against
@@ -191,8 +214,7 @@ export async function saveSettings(
         distributionWeekday: form.distributionWeekday,
         pricePerGrownUp: form.pricePerGrownUp,
         pricePerChild: form.pricePerChild,
-        // FOR NOW — US-26.5 adds the Maximalpreis field this reads.
-        priceCap: null,
+        priceCap: form.priceCap,
       },
     });
   } catch (error: unknown) {

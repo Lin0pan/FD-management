@@ -371,8 +371,8 @@ That is one element per screen holding `settings-error`, which is what §7.5 ask
 _moving_ nothing rather than by printing the same sentence twice, which is what §7.5 assumed the
 resolution would have to be.
 
-**(d) A rejected save keeps what was typed. ✅ Built.** `SaveSettingsState` carries `values` — the
-nine fields as raw strings, exactly as submitted — and each field's `defaultValue` becomes
+**(d) A rejected save keeps what was typed. ✅ Built.** `SaveSettingsState` carries `values` — every
+field of the form as a raw string, exactly as submitted — and each field's `defaultValue` becomes
 `state.values?.x ?? <stored>`. **Present on a refusal, absent on a save**, and that asymmetry is the
 whole mechanism: after a save there is nothing to override with, so React's reset lands on the freshly
 revalidated figures, which is what it should do and what it already did.

@@ -1209,9 +1209,15 @@ export const de = {
       7: "Sonntag",
     },
     prices: {
+      /**
+       * Both halves of the rule, because the screen now holds both: the per-head calculation and
+       * the ceiling on it. The last sentence is what makes an empty field readable as a decision
+       * rather than as something nobody has filled in yet.
+       */
       hint:
-        "Der Preis wird je Kopf berechnet: je Erwachsenem und je Kind. Was ein Haushalt zahlt, " +
-        "ergibt sich daraus automatisch.",
+        "Der Preis wird je Kopf berechnet: je Erwachsenem und je Kind. Der Maximalpreis ist der " +
+        "Höchstbetrag, den ein Haushalt je Ausgabe zahlt, ganz gleich wie groß er ist. Bleibt das " +
+        "Feld leer, gibt es keinen Maximalpreis.",
       /**
        * What an empty Maximalpreis says, wherever a cap is read back — the history and the version
        * summary. „kein Maximalpreis“ and „0,00 €“ are two different configurations: the second one
@@ -1232,6 +1238,8 @@ export const de = {
       "weekAnchor.colour": "Gruppe der Ankerwoche",
       pricePerGrownUp: "Preis je Erwachsenem",
       pricePerChild: "Preis je Kind",
+      /** Spelled `priceCap` on both sides, so the refusal marks the field without a translation. */
+      priceCap: "Maximalpreis je Ausgabe",
     } as Record<string, string | undefined>,
     reason: "Grund der Änderung (optional)",
     reasonHint: "Wird, falls angegeben, im Änderungsprotokoll festgehalten.",

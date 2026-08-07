@@ -12,7 +12,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { formatEuroAmount } from "@/domain/money";
+import { type Cents, formatEuroAmount } from "@/domain/money";
 import type { Settings } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { saveSettings } from "./actions";
@@ -196,6 +196,7 @@ function EuroField({
   span,
   value,
   invalid,
+  describedBy,
 }: {
   name: string;
   label: string;
@@ -203,7 +204,15 @@ function EuroField({
   /** Already formatted, or the text that was refused — see {@link shownValue}. */
   value: string;
   invalid: boolean;
+  /** The id of a hint this field is explained by, where one explains this field in particular. */
+  describedBy?: string;
 }): React.ReactElement {
+  // A rejected field's mark and its hint are both read out, in that order, and neither replaces the
+  // other: the mark says the value is wrong, the hint says what the field means.
+  const described = [describedBy, invalid ? `${name}-error` : undefined]
+    .filter((id): id is string => id !== undefined)
+    .join(" ");
+
   return (
     <Field name={name} label={label} span={span} invalid={invalid}>
       <Input
@@ -216,10 +225,22 @@ function EuroField({
         id={name}
         defaultValue={value}
         aria-invalid={invalid ? true : undefined}
-        aria-describedby={invalid ? `${name}-error` : undefined}
+        aria-describedby={described === "" ? undefined : described}
       />
     </Field>
   );
+}
+
+/**
+ * What the Maximalpreis field shows for a stored cap: the amount, or nothing at all.
+ *
+ * The `null` branch comes **before** the formatting, because `formatEuroAmount(0)` is `0,00` — a
+ * cap of nothing, meaning every household collects for free. Losing this branch would print that
+ * for *no cap* and the next save would store it, turning a removed limit into a free distribution
+ * with nothing on screen to say so.
+ */
+function capValue(cap: Cents | null): string {
+  return cap === null ? "" : formatEuroAmount(cap);
 }
 
 /**
@@ -286,19 +307,34 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
           <EuroField
             name="pricePerGrownUp"
             label={de.settings.fields.pricePerGrownUp}
-            span="lg:col-span-3"
+            span="lg:col-span-2"
             value={shown("pricePerGrownUp", formatEuroAmount(settings.pricePerGrownUp))}
             invalid={invalid("pricePerGrownUp")}
           />
           <EuroField
             name="pricePerChild"
             label={de.settings.fields.pricePerChild}
-            span="lg:col-span-3"
+            span="lg:col-span-2"
             value={shown("pricePerChild", formatEuroAmount(settings.pricePerChild))}
             invalid={invalid("pricePerChild")}
           />
+          <EuroField
+            name="priceCap"
+            label={de.settings.fields.priceCap}
+            span="lg:col-span-2"
+            // Empty is a configuration here, not an unfilled field — see {@link capValue}.
+            value={shown("priceCap", capValue(settings.priceCap))}
+            invalid={invalid("priceCap")}
+            // The one field on the screen whose *empty* state means something, so the sentence
+            // saying what that is has to reach it. A sibling paragraph with `aria-describedby`
+            // rather than a `<span>` inside the label: nested, it is concatenated into the
+            // accessible name and announced as part of it (§3.7).
+            describedBy="prices-hint"
+          />
         </div>
-        <p className="max-w-prose text-sm text-muted-foreground">{de.settings.prices.hint}</p>
+        <p id="prices-hint" className="max-w-prose text-sm text-muted-foreground">
+          {de.settings.prices.hint}
+        </p>
       </Section>
 
       <Section heading={de.settings.rhythmHeading}>
