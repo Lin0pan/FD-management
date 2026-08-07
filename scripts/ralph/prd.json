@@ -36,8 +36,8 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done. priceCap: Cents | null on Settings, validated through requireInteger only when non-null; PriceValues widened to the three price fields; priceFor returns Math.min(sum, cap). 16 new named tests (6 validation, 10 pricing), red before green. The temporary priceCap: null sits in settings-repository.ts (US-003), seed.ts (US-003) and einstellungen/actions.ts (US-004), each marked FOR NOW with the story that removes it."
     },
     {
       "id": "US-002",

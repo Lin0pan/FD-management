@@ -47,3 +47,35 @@ Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
   recent and keeps a long consolidated list (playwright-cli usage, e2e customer-number bands,
   killing the dev server safely, testid greps). Read it before any UI or e2e story.
 ---
+
+## Fri Aug 7 2026 — US-001 (The cap exists and priceFor honours it)
+- `Settings` gained `readonly priceCap: Cents | null` after `pricePerChild`, documented with why
+  it is nullable rather than `0`-flagged. `createSettings` passes `null` through unconditionally
+  and sends a number to the existing `requireInteger("priceCap", …, 0)`; no second helper, no
+  cross-field rule against `pricePerGrownUp`.
+- `PriceValues` widened to `Pick<Settings, "pricePerGrownUp" | "pricePerChild" | "priceCap">`, and
+  `priceFor` now returns `Math.min(perHead, priceCap)` when a cap is set. `portionsFor` untouched —
+  the cap caps money, not food.
+- 16 new named tests written first, red before green (10 failing on the first run): the six
+  validation rules and the seven pricing rules the PRD names, including FD's own case
+  (4 grown-ups + 3 children at 200/100 with a cap of 500 → 500, not 1100).
+- Files: `src/domain/policy/settings.ts`, `src/domain/policy/settings.test.ts`,
+  `src/app/kunden/[id]/page.tsx` (the `AllowanceValues` object gains the cap),
+  plus the `priceCap: null` placeholder at `src/infrastructure/prisma/settings-repository.ts`,
+  `src/infrastructure/prisma/seed.ts` and `src/app/einstellungen/actions.ts`, and the settings
+  baseline in 12 test files.
+- Gates: lint, typecheck, `test:coverage` (1061 tests, domain+application 100%) and `build` green.
+- **Learnings for future iterations:**
+  - The "wide before deep" pattern held exactly as the Codebase Patterns entry predicts: **18 files
+    failed typecheck** the moment the field became required on `SettingsInput`. Fifteen of them were
+    a one-line insert after `pricePerChild: 100,` in a `settingsInput` baseline — a scripted insert
+    keyed on that exact line hit every one and nothing else, because no other literal in the repo
+    spells that line.
+  - `npm run typecheck 2>&1 | grep -E "^src/" | cut -d'(' -f1 | sort -u` is the fastest way to get
+    the *list of files* to fix out of a wide type break; the raw output is one screen per error.
+  - Each temporary placeholder carries a `// FOR NOW — US-26.x …` comment naming the story that
+    removes it, so a later iteration greps `FOR NOW` rather than re-reading this log.
+  - The `AllowanceValues` comment in `src/app/kunden/[id]/page.tsx` counts its fields out loud
+    ("the four per-head values"), so widening `PriceValues` makes it stale with nothing to catch it.
+    It now says five, and the cap is not per head.
+---
