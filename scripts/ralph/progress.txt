@@ -53,6 +53,11 @@ Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
 - **Get the *files* out of a wide type break, not the errors**:
   `npm run typecheck 2>&1 | grep -E "^src/" | cut -d'(' -f1 | sort -u`. Adding a required field to
   `Settings` breaks ~18 files at once and the raw output is a screen per error.
+- **Two consecutive saves on the settings screen need a `page.reload()` between them in e2e.** A
+  successful save *clears* the form, and the revalidated render that does it can land **after** the
+  next `fill`, rewinding the field to the stored value; the second save then appends a version that
+  changed nothing and every history index below it shifts. `selectOption` happens to survive the
+  race, `fill` does not — reload and re-assert the stored value before typing again.
 - **Prior runs' patterns are in the archive**, not in this file:
   `scripts/ralph/archive/2026-08-07-us-25-globally-unique-card-numbers/progress.txt` is the most
   recent and keeps a long consolidated list (playwright-cli usage, e2e customer-number bands,
@@ -217,4 +222,43 @@ Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
   - **`pkill -f "node.*next-server"` kills the Bash tool's own shell too** (exit 144, no output) —
     the same trap the existing entry records for `next dev`, because the pattern matches the wrapper
     command line. It does stop the server, but the rest of the compound command never runs.
+---
+
+## Fri Aug 7 2026 — US-005 (E2E — setting and clearing the Maximalpreis)
+- Four specs appended to `tests/e2e/settings.spec.ts`, serial like the rest of the file and ending
+  with the cap back at the seeded 5,00 € so the pricing specs are undisturbed:
+  - *a Maximalpreis is stored and shown again after a reload* — 5,00 → 4,00, saved, reloaded, and
+    the version in force states `Maximalpreis je Ausgabe: 4,00 €`.
+  - *clearing the Maximalpreis leaves the field empty, not 0,00* — the assertion is on the input's
+    **value** being `""`, not on `0,00` being absent from the page, and the version in force reads
+    „kein Maximalpreis“.
+  - *the history names the Maximalpreis being changed, removed and introduced* — all three
+    transitions asserted as diffs through `de.settings.history.change`, with „kein Maximalpreis“ on
+    the absent side in both directions.
+  - *a Maximalpreis that is not an amount is refused and nothing else is lost* — `5,0o` refuses the
+    save at tier `refusal`, marks `#priceCap` (one `settings-field-error`, `pricePerChild` unmarked),
+    and the §4.2d rule holds: the refused text, the `pricePerChild` edit and the reason all stay on
+    screen, and a reload shows both money fields as the database has them.
+- The existing five specs are **unchanged** — every version-summary assertion in the file is
+  `toContainText`, so the segment US-004 added to that line moved none of them.
+- No Faker: this spec touches no personal data at all, only policy amounts and one German reason
+  string, and the file's existing reasons are literals for the same reason.
+- Files: `tests/e2e/settings.spec.ts`.
+- Gates: lint, typecheck, `build`, `test:coverage` (1074 tests, domain+application 100%) and the
+  **full e2e suite** (138 passed, 1 skipped) green, run with nothing listening on 3000/3001.
+- **Learnings for future iterations:**
+  - **A save clears the form asynchronously, so two saves in a row need a reload between them.**
+    The first version of the third spec typed `5,00` right after the „Gespeichert“ notice and the
+    revalidated render rewound it to `4,00`; the second save then wrote a no-change version. Now in
+    Codebase Patterns.
+  - **A refused optional amount is Zod's refusal and names no field**, exactly as US-004 predicted:
+    the notice reads „Bitte einen Betrag wie 2,50 eingeben." and the mark on `#priceCap` is what
+    names it. The spec asserts both halves and says so in a comment, rather than asserting a
+    sentence that does not exist.
+  - **The current version is stated in full and only superseded ones show a diff**, so a spec that
+    wants to assert a *transition* has to save once more after making it — which is also the natural
+    place to hand a shared policy value back to its seeded state.
+  - `settings.spec.ts` runs last alphabetically in the shared project, so it is the safest file in
+    which to move a policy value — but US-006 extends `portions.spec.ts`, which runs *before* it, so
+    that story must restore the cap itself rather than relying on this one.
 ---

@@ -132,8 +132,8 @@
         "Full e2e suite passes: npm run test:e2e (rebuild and pkill -f next-server first — a live dev server on port 3000 fails the suite for the wrong reason)"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done. Four specs appended to tests/e2e/settings.spec.ts: the cap saved and shown back after a reload; cleared and the input's value asserted to be the empty string (not merely '0,00' absent); all three transitions named in the Änderungsverlauf through de.settings.history.change with 'kein Maximalpreis' on the absent side; and a refused '5,0o' marking #priceCap alone while pricePerChild and reason keep what was typed. The last cap spec hands the value back at the seeded 5,00 €. The five existing specs are unchanged — every version-summary assertion is toContainText, so the segment US-004 added moved none of them. Gotcha found and recorded: two saves in a row need a page.reload() between them, because a save clears the form and the revalidated render can land after the next fill. Full e2e suite 138 passed / 1 skipped; lint, typecheck, build and test:coverage green."
     },
     {
       "id": "US-006",

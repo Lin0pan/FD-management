@@ -18,6 +18,9 @@ import { de } from "@/i18n/de";
 /** The price every spec here edits: the per-grown-up price, seeded at 2,00 €. */
 const PRICE_LABEL = de.settings.fields.pricePerGrownUp;
 
+/** The optional amount the last four specs edit: the Maximalpreis, seeded at 5,00 € (US-26.8). */
+const CAP_LABEL = de.settings.fields.priceCap;
+
 /**
  * Open the version history.
  *
@@ -207,6 +210,141 @@ test.describe("Einstellungen", () => {
     // either.
     await expect(versions.first()).toContainText(
       `${de.settings.fields.distributionWeekday}: ${de.settings.weekdays[4]}`,
+    );
+  });
+
+  /*
+   * The Maximalpreis (US-26.8). It is the only optional value on this screen, and *empty* and
+   * `0,00` are one lost `null` branch apart: losing it would turn „no cap“ into „free for everyone“
+   * on the next save, silently and in the customers' favour. Nothing but a real round trip through
+   * the form, the action, Prisma and back proves the branch survived, so these four specs drive it.
+   *
+   * They run in order, like everything else in this file, and hand the cap back at 5,00 € — the
+   * seeded value the pricing specs assert against.
+   */
+
+  test("a Maximalpreis is stored and shown again after a reload", async ({ page }) => {
+    await page.goto("/einstellungen");
+
+    const cap = page.getByLabel(CAP_LABEL, { exact: true });
+    await expect(cap).toHaveValue("5,00");
+
+    await cap.fill("4,00");
+    await page.getByRole("button", { name: de.settings.save, exact: true }).click();
+    await expect(page.getByTestId("settings-saved")).toHaveText(de.settings.saved);
+
+    await page.reload();
+    await expect(page.getByLabel(CAP_LABEL, { exact: true })).toHaveValue("4,00");
+
+    // And the version in force states it beside the two per-head prices, which is where FD reads
+    // back what the software will charge.
+    await openHistory(page);
+    await expect(page.getByTestId("settings-version").first()).toContainText(
+      `${CAP_LABEL}: 4,00 €`,
+    );
+  });
+
+  test("clearing the Maximalpreis leaves the field empty, not 0,00", async ({ page }) => {
+    await page.goto("/einstellungen");
+
+    // Emptying the field is how a cap is removed — there is no toggle beside it, because a toggle
+    // could contradict the amount (US-26.5).
+    await page.getByLabel(CAP_LABEL, { exact: true }).fill("");
+    await page.getByRole("button", { name: de.settings.save, exact: true }).click();
+    await expect(page.getByTestId("settings-saved")).toHaveText(de.settings.saved);
+
+    await page.reload();
+    // The assertion this spec exists for, and it is deliberately on the input's **value**: a page
+    // that merely lacks the characters `0,00` would also pass a check for their absence, while a
+    // cap that had quietly become zero would show them here and nowhere else.
+    await expect(page.getByLabel(CAP_LABEL, { exact: true })).toHaveValue("");
+
+    await openHistory(page);
+    // No cap is a configuration, so the version in force says so in words rather than leaving the
+    // segment out or printing 0,00 €.
+    await expect(page.getByTestId("settings-version").first()).toContainText(
+      `${CAP_LABEL}: ${de.settings.prices.noCap}`,
+    );
+  });
+
+  test("the history names the Maximalpreis being changed, removed and introduced", async ({
+    page,
+  }) => {
+    await page.goto("/einstellungen");
+
+    // Introducing a cap again, and then moving it back to the seeded 5,00 €: the second save is
+    // what supersedes the introduction, and a superseded version is where a diff is shown. It also
+    // hands the register back the price the pricing specs assert against.
+    await page.getByLabel(CAP_LABEL, { exact: true }).fill("4,00");
+    await page.getByRole("button", { name: de.settings.save, exact: true }).click();
+    await expect(page.getByTestId("settings-saved")).toHaveText(de.settings.saved);
+
+    // Reloaded between the two saves on purpose: a save *clears* the form, and the revalidated
+    // render that does it can land after the next `fill`, which would then be rewound to the stored
+    // value and the second save would append a version that changed nothing.
+    await page.reload();
+    await expect(page.getByLabel(CAP_LABEL, { exact: true })).toHaveValue("4,00");
+
+    await page.getByLabel(CAP_LABEL, { exact: true }).fill("5,00");
+    await page.getByRole("button", { name: de.settings.save, exact: true }).click();
+    await expect(page.getByTestId("settings-saved")).toHaveText(de.settings.saved);
+
+    await page.reload();
+    await expect(page.getByLabel(CAP_LABEL, { exact: true })).toHaveValue("5,00");
+
+    await openHistory(page);
+    const versions = page.getByTestId("settings-version");
+    // All three transitions, newest first and each in full German: a cap introduced where there was
+    // none, a cap removed, and a cap moved. „kein Maximalpreis“ is the phrase on the absent side in
+    // both directions — the same words the field hint uses.
+    await expect(versions.nth(1)).toContainText(
+      de.settings.history.change(CAP_LABEL, de.settings.prices.noCap, "4,00 €"),
+    );
+    await expect(versions.nth(2)).toContainText(
+      de.settings.history.change(CAP_LABEL, "4,00 €", de.settings.prices.noCap),
+    );
+    await expect(versions.nth(3)).toContainText(
+      de.settings.history.change(CAP_LABEL, "5,00 €", "4,00 €"),
+    );
+  });
+
+  test("a Maximalpreis that is not an amount is refused and nothing else is lost", async ({
+    page,
+  }) => {
+    await page.goto("/einstellungen");
+
+    await page.getByLabel(CAP_LABEL, { exact: true }).fill("5,0o");
+    await page.getByLabel(de.settings.fields.pricePerChild, { exact: true }).fill("1,20");
+    await page.locator("#reason").fill("Maximalpreis anheben");
+    await page.getByRole("button", { name: de.settings.save, exact: true }).click();
+
+    const refusal = page.getByTestId("settings-error");
+    // An optional amount that is not empty goes through the same parser as a required one, so the
+    // refusal is Zod's and its sentence is the one the PRD prescribes (§US-26.5). It does **not**
+    // name the field — the parser knows the text, not which of the three money fields held it — and
+    // the mark below is what names it. That is the summary/mark division this screen already uses
+    // for `Ungültiger Wert.`, seen from the other side.
+    await expect(refusal).toHaveText(de.settings.errors.notAnAmount);
+    await expect(refusal).toHaveAttribute("data-tier", "refusal");
+
+    await expect(page.locator("#priceCap")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId("settings-field-error")).toHaveCount(1);
+    await expect(page.locator("#pricePerChild")).not.toHaveAttribute("aria-invalid", "true");
+
+    // The §4.2d rule for the new field: the edit that rode along with the refused one is still on
+    // screen, and so is the refused text itself — rewinding it to the stored 5,00 € would hide what
+    // was wrong with it.
+    await expect(page.getByLabel(CAP_LABEL, { exact: true })).toHaveValue("5,0o");
+    await expect(page.getByLabel(de.settings.fields.pricePerChild, { exact: true })).toHaveValue(
+      "1,20",
+    );
+    await expect(page.locator("#reason")).toHaveValue("Maximalpreis anheben");
+
+    // Kept on screen, written nowhere — both fields come back as the database has them.
+    await page.reload();
+    await expect(page.getByLabel(CAP_LABEL, { exact: true })).toHaveValue("5,00");
+    await expect(page.getByLabel(de.settings.fields.pricePerChild, { exact: true })).toHaveValue(
+      "1,00",
     );
   });
 
