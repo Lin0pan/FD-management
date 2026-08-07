@@ -24,7 +24,7 @@ const CAP_LABEL = de.settings.fields.priceCap;
 /**
  * Open the version history.
  *
- * It is a `<details>` that starts closed (docs/ui_redesign_einstellungen.md §4.2e), so every
+ * It is a `<details>` that starts closed, so every
  * assertion about the *text* of a version has to open it first — Playwright's visibility-aware
  * matchers fail on collapsed content. `toHaveCount` needs no such thing and is asserted shut.
  */
@@ -126,8 +126,7 @@ test.describe("Einstellungen", () => {
     await expect(refusal).toHaveText(de.settings.errors.invalidSettings(de.settings.fields.quotaN));
 
     // Amber, not red: nothing is broken, a value needs fixing. The tier is decided from the typed
-    // `InvalidSettings` in the action and rides on the state, so it cannot drift from the sentence
-    // (`docs/ui_action_feedback_review.md` §4).
+    // `InvalidSettings` in the action and rides on the state, so it cannot drift from the sentence.
     await expect(refusal).toHaveAttribute("data-tier", "refusal");
 
     // And the refusal says *which* field, 442px from where it is stated. The field it names carries
@@ -143,7 +142,7 @@ test.describe("Einstellungen", () => {
     // It used to hold none of them: React resets an uncontrolled form once its action resolves, so
     // the reset rewound every field to the stored settings and three edits were thrown away because
     // one of them was wrong. The marked field showing `240` and being called invalid was the same
-    // bug seen from the other side (`docs/ui_redesign_einstellungen.md` §3.1, §4.2d).
+    // bug seen from the other side.
     await expect(page.locator("#quotaN")).toHaveValue("0");
     await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("9,99");
     await expect(page.locator("#reason")).toHaveValue("Höchstzahl senken");
@@ -202,7 +201,7 @@ test.describe("Einstellungen", () => {
     // The defect this history was rebuilt for: the Ausgabetag was one of three settings the old list
     // never printed, so moving it — the setting with the most visible downstream effect, since the
     // Start dashboard and /ausgabe both read it — produced a row identical to its predecessor in
-    // every character (`docs/ui_redesign_einstellungen.md` §3.6).
+    // every character.
     await page.goto("/einstellungen");
     await page.locator("#distributionWeekday").selectOption("5");
     await page.getByRole("button", { name: de.settings.save, exact: true }).click();

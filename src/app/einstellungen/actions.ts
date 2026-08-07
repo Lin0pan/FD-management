@@ -117,8 +117,8 @@ function formValues(formData: FormData): SubmittedSettings {
  *
  * `Settings` nests the anchor week, so the domain calls these `weekAnchor.isoWeek` and
  * `weekAnchor.colour`; an HTML form is flat and `<input name>` cannot be a path, so the form calls
- * them `weekAnchorIsoWeek` and `weekAnchorColour` — the ids §7.2 of
- * `docs/ui_redesign_einstellungen.md` fixed. The other seven settings are spelled the same on both
+ * them `weekAnchorIsoWeek` and `weekAnchorColour`, and `settings.spec.ts` reaches both by those ids.
+ * The other seven settings are spelled the same on both
  * sides and are not listed — `priceCap` among them, which is why a rejected cap marks its field
  * without an entry here.
  */

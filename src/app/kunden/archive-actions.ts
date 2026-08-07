@@ -50,7 +50,7 @@ const surrogateId = z
  * the flag that screen states the outcome by. The navigation is half the point: the archive control
  * is at the foot of a page whose archived banner is at the head of it, and after the write that
  * banner measured 356px *above* the viewport — the outcome was stated plainly and nobody was
- * looking at it (`docs/ui_action_feedback_review.md` §7).
+ * looking at it.
  */
 export async function archiveCustomerAction(
   _previous: ArchiveState,

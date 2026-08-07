@@ -169,7 +169,7 @@ function VersionEntry({
  *
  * It used to restate all 136 characters of every version so that one of them could change — 41
  * versions were 4.9 screens of near-identical grey paragraphs, and two neighbouring rows differed at
- * exactly one character index (`docs/ui_redesign_einstellungen.md` §3.6). A diff answers "what
+ * exactly one character index. A diff answers "what
  * changed" in one line, which is why this supersedes §4.2e's table of eight columns: a column still
  * asks the reader to compare cells down it. The fold is the same `<details>` the hand-out history on
  * the customer record uses, for the same reason — this is consulted after a disagreement about a

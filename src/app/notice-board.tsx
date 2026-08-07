@@ -7,7 +7,7 @@
  * archive — and each holds its own `useActionState`, which keeps its last result until the component
  * unmounts. Nothing ever cleared one. Observed on `/kunden/266`: the „Gespeichert." from a group move
  * was still on screen through a card reissue and a block afterwards, because neither of those had
- * anything to say (`docs/ui_action_feedback_review.md` §3.5).
+ * anything to say.
  *
  * That was untidy while most writes said nothing. Now that every write confirms, it is the way a
  * staff member concludes an action succeeded when it never reported: a green banner sitting beside a
@@ -15,7 +15,7 @@
  *
  * The rule: **the screen shows the answer to the last thing that was asked, and nothing older.** A
  * control still renders its own notice, in its own place beside its own button — the viewport rule
- * (`docs/ui_conversion_guide.md`) is not up for negotiation — it just stops rendering it once
+ * (`docs/ui_styling_guide.md` §7) is not up for negotiation — it just stops rendering it once
  * another control has been answered.
  *
  * Screens without a board behave as they always did: `useNoticeSlot` returns what it was given, so a

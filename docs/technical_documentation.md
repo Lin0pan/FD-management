@@ -1902,7 +1902,8 @@ beyond it:
   and a submit that never opened the disclosure saves the proposal. Three specs — `archive.spec.ts`,
   `card.spec.ts`, `reregistration.spec.ts` — click the summary before checking `#group-RED` /
   `#group-BLUE`; anything else reaching a radio by id must do the same. The record's group control
-  (`[id]/group-control.tsx`) is **not** folded, on purpose: see `docs/ui_redesign_kunden_neu.md` §12.
+  (`[id]/group-control.tsx`) is **not** folded, on purpose: there the choice is why the card was
+  opened.
 - **`neu/registration-screen.tsx`** is the client half of the screen and holds the one piece of
   state the archive search and the form share: which archived household, if any, the form was filled
   from (US-11.4). The pre-fill is applied by **remounting the form under a new `key`** rather than by

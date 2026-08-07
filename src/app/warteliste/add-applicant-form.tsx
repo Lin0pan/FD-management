@@ -86,7 +86,7 @@ export function AddApplicantForm(): React.ReactElement {
   // arrives as a *new row in the list above this form*, which pushes the form, its button and its
   // confirmation down by the height of that row. With the button near the bottom of the screen when
   // it was pressed, the answer lands just past it: 905px of a 900px viewport, measured on the demo
-  // data (`docs/ui_action_feedback_review.md` §3.3).
+  // data.
   //
   // Asked rather than assumed, and only then: on any screen tall enough to hold the form the
   // confirmation is already in view, and scrolling a page that did not need it is its own way of

@@ -21,7 +21,7 @@ export interface SaveSettingsState {
   readonly tier?: NoticeTier;
   /**
    * The `name` of the input a refusal names, where it names one, so the form can mark it and put
-   * the words beside it (`docs/ui_redesign_einstellungen.md` §4.2c).
+   * the words beside it.
    *
    * The **input's** name, not the domain's: `Settings` nests the anchor week and an HTML form is
    * flat, and translating a domain fact into what the browser can use is the action's job. It is
@@ -32,7 +32,7 @@ export interface SaveSettingsState {
   readonly field?: string;
   /**
    * What was submitted, handed straight back so a refusal leaves the form as the staff member left
-   * it (`docs/ui_redesign_einstellungen.md` §4.2d).
+   * it.
    *
    * **Present on a refusal, absent on a save**, and that asymmetry is the whole mechanism. React
    * resets an uncontrolled form once its action resolves — success or refusal alike — and a reset

@@ -25,8 +25,7 @@
  *
  * Uncontrolled, React's own post-action reset emptied them either way — a past `gültig bis` was
  * refused *and* deleted, along with the certificate type beside it, and the staff member retyped both
- * to change one digit (`docs/ui_redesign_einstellungen.md` §4.2d, the same finding as on the settings
- * screen).
+ * to change one digit. The same finding as on `/einstellungen`, on a different screen.
  */
 
 import { useActionState, useState } from "react";

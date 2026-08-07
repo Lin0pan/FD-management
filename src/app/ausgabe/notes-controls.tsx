@@ -40,7 +40,7 @@ import { useNoticeSlot } from "../notice-board";
 /**
  * The `<summary>`-as-control recipe, shared verbatim with `BlockControls` and `ArchiveControls`:
  * closed, a control must not read as a collapsed section spanning the row
- * (`docs/ui_conversion_guide.md`, findings from `/karten-neuausstellung`).
+ * (`docs/ui_styling_guide.md` §6).
  */
 const SUMMARY = "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden";
 

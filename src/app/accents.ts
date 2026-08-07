@@ -17,7 +17,7 @@ import type { Group } from "@/domain/customer/group";
  *
  * Literal palette values rather than theme tokens: RED and BLUE *are* the printed cards FD hands
  * out, so this is one of the two places in the application where the colour is the datum rather
- * than a decoration of it (`docs/ui_conversion_guide.md` rule 9) — a theme may not re-map it. The
+ * than a decoration of it (`docs/ui_styling_guide.md` §5) — a theme may not re-map it. The
  * word is `de.customers.groups`.
  */
 export const GROUP_STYLES: Record<Group, string> = {
@@ -50,7 +50,7 @@ export const FREE_SLOT_ACCENT = "border-emerald-600/40 bg-emerald-600/15";
  * something that happened. The distinction is real and it is not one a volunteer at a counter needs
  * to make: three saves in a row on `/kunden/253` produced three plain white boxes on the same
  * surface as the card behind them, and "did that save?" — the question a confirmation exists to
- * answer — was left open by all three (`docs/ui_action_feedback_review.md` §2.1).
+ * answer — was left open by all three.
  *
  * The word goes with it as always: every user of this accent states what happened in German, and the
  * tint only repeats it.
@@ -64,7 +64,7 @@ export const CONFIRMATION_ACCENT = "border-green-600/40 bg-green-600/10";
  * them — "this household already collected today" is the counter's ordinary business and the staff
  * member can settle it on the spot, while red should mean the screen is describing something that is
  * no longer there. Red for both is what the application said before, and it made every refusal look
- * like a fault (`docs/ui_action_feedback_review.md` §4).
+ * like a fault.
  *
  * This is the second thing amber says here, and it does not collide with the first. A lapsed
  * certificate is **standing state** — attached to a row or a verdict, true until somebody changes

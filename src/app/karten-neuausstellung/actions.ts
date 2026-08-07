@@ -43,7 +43,7 @@ const surrogateId = z
  *
  * Then it **redirects**, rather than returning a `saved` state, because the row this was submitted
  * from is exactly what the revalidate removes — the control and any state it held go with it, which
- * is why this write had no confirmation at all (`docs/ui_action_feedback_review.md` §3.1, §5). The
+ * is why this write had no confirmation at all. The
  * new number rides in the URL and the page states it above the list, the same way the registration
  * hands its confirmation to the record it lands on. `redirect` throws its own control-flow error, so
  * it is called outside the `try` — inside, the catch would file the navigation as a failed reissue.

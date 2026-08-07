@@ -272,8 +272,7 @@ function History({ records }: { records: ReadonlyArray<DistributionRecord> }): R
        * The scrollport is the `Table` primitive's *own* container, which is what `containerProps`
        * exists for. A second wrapper around it would nest two overflow contexts, and that is exactly
        * what made the sticky header on /kunden take three attempts
-       * (`docs/ui_conversion_guide.md`, "A sticky table header inside a scroll container does not
-       * stick").
+       * (`docs/ui_styling_guide.md` §3).
        *
        * `tabIndex` is a requirement rather than a polish item: a scrollable region that cannot take
        * focus cannot be scrolled by keyboard at all (WCAG 2.1.1). It therefore needs a name, hence
@@ -356,7 +355,7 @@ function CustomerRecord({
          * as /kunden.
          *
          * The heading row carries the name and nothing else, and stays *outside* a card, as the
-         * heading row does on all seven screens (`docs/ui_conversion_guide.md`, "Page skeleton"). A
+         * heading row does on all seven screens (`docs/ui_styling_guide.md` §2). A
          * heading needs no boundary; the facts under it do — which is why they have their own, below.
          *
          * `customer-status` keeps its exact text in a span of its own, and the badge wraps that span
@@ -402,7 +401,7 @@ function CustomerRecord({
           work?", so it answers before the screen starts stating numbers.
 
           It is deliberately not a heading, so the record still announces as `h1` → the sections'
-          `h2`s (`docs/ui_conversion_guide.md`, trap 1); the `role="status"` inside `Confirmation` is
+          `h2`s (`docs/ui_styling_guide.md` §9); the `role="status"` inside `Confirmation` is
           what carries it to a screen reader. */}
         {justRegistered ? (
           <Confirmation text={de.customers.new.saved} testId="registration-confirmation" />
@@ -423,9 +422,9 @@ function CustomerRecord({
 
         {/* Who this household is, in a card of its own — the counter's customer card and the printed
           card's header, one rank down at 24px against their 36 and 48.
-          `docs/ui_redesign_kunden_record.md` §3.8 built this as a 14px muted line under the name,
-          modelled on the counter's subtitle of the day; the counter has since moved and the line
-          did not, so the same two facts were 36px on one screen and body text on the other.
+          It was once a 14px muted line under the name, modelled on the counter's subtitle of the
+          day; the counter moved and the line did not, so the same two facts were 36px on one screen
+          and body text on the other.
 
           It gets a ring for the reason every other block on this page has one: `--background` and
           `--card` are the same white, so a `Card` is *only* its ring, and a run of label/value

@@ -19,8 +19,8 @@
  * `gültig bis` in the past is refused because it is a typo — most likely a wrong year — and the whole
  * point is to correct four characters rather than retype the certificate's type beside it. Nothing
  * clears them, and nothing needs to: the form is inside `expired`, and a successful renewal makes the
- * certificate valid, so it unmounts with the state it held (`docs/ui_redesign_einstellungen.md`
- * §4.2d, the same finding on a different screen).
+ * certificate valid, so it unmounts with the state it held. The same finding as on `/einstellungen`,
+ * on a different screen.
  */
 
 import { useActionState, useState } from "react";

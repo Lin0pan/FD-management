@@ -131,7 +131,7 @@ export function SaveFeedback({
     // is not the completion of an *act* the way a hand-out is — a distinction that is real and that
     // nobody at a counter needs to make. What it cost was measurable: five forms on this screen
     // answering in a white box on the same surface as the card behind it, which is a poor answer to
-    // the question they exist for (`docs/ui_action_feedback_review.md` §2.1).
+    // the question they exist for.
     return <Notice tone="success" text={savedText} testId={`${testId}-saved`} />;
   }
   if (state.status === "error") {
