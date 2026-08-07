@@ -58,6 +58,12 @@ const NUMBERS = {
   outdatedCard: 204,
   blocked: 205,
   archived: 206,
+  /**
+   * The household the note is written on. Its own number rather than one of the six above, because
+   * the note tests *change* it and the verdict tests assert theirs verbatim — sharing one would
+   * make a verdict spec depend on which note test ran last.
+   */
+  notes: 207,
   /** Inside the quota of 240 and held by nobody — a number staff could plausibly mistype. */
   unassigned: 239,
 } as const;
@@ -214,7 +220,25 @@ async function expectVerdict(
     : expect(sentence).toHaveText(detail));
 }
 
+/**
+ * Open the note editor the way a staff member does — a real click on the `<summary>`.
+ *
+ * Never `evaluate(d => d.open = true)`: a fold that silently stopped opening has to turn the suite
+ * red rather than be nudged past (`docs/ui_conversion_guide.md`). The wait is not decoration —
+ * `fill()` needs visibility, and a closed `<details>` has none.
+ */
+async function openNoteEditor(page: Page): Promise<void> {
+  await page.getByTestId("counter-notes-open").click();
+  await expect(page.getByTestId("counter-notes-field")).toBeVisible();
+}
+
+/** A note typed as two lines, because that is how a colleague leaves two separate remarks. */
+const FIRST_NOTE = "Kommt meist zu zweit.\nHolt für die Nachbarin mit ab.";
+/** The note that replaces it — the counter edits in place, so a second save overwrites the first. */
+const SECOND_NOTE = "Holt ab jetzt allein ab.";
+
 const verdicts = de.distribution.counter.verdicts;
+const counterWords = de.distribution.counter;
 
 test.describe.configure({ mode: "serial" });
 
@@ -266,6 +290,15 @@ test.describe("Verdikt am Tresen", () => {
         customerNumber: NUMBERS.archived,
         group: "RED",
         status: "ARCHIVED",
+        certificateValidUntil: VALID_CERTIFICATE,
+        cardIndexes: [1],
+      },
+      {
+        // Seeded with no note, so the disclosure starts out offering to *add* one and the first
+        // save is the act a staff member actually performs at the table.
+        customerNumber: NUMBERS.notes,
+        group: "RED",
+        status: "ACTIVE",
         certificateValidUntil: VALID_CERTIFICATE,
         cardIndexes: [1],
       },
@@ -392,5 +425,104 @@ test.describe("Verdikt am Tresen", () => {
     );
 
     expect(await snapshotRegister()).toBe(before);
+  });
+
+  test("writes a first note without leaving the counter", async ({ page }) => {
+    await lookUp(page, String(NUMBERS.notes));
+
+    // Nothing on file, and the control says which of the two acts it is before it is clicked.
+    await expect(page.getByTestId("counter-notes")).toHaveText(counterWords.details.noNotes);
+    await expect(page.getByTestId("counter-notes-open")).toHaveText(counterWords.notes.add);
+
+    await openNoteEditor(page);
+    await page.getByTestId("counter-notes-field").fill(FIRST_NOTE);
+    await page.getByTestId("counter-notes-submit").click();
+
+    await expect(page.getByTestId("counter-notes-saved")).toBeVisible();
+    // The paragraph the *next* staff member reads, refreshed by the same save — the whole point of
+    // writing it here rather than on the record.
+    await expect(page.getByTestId("counter-notes")).toHaveText(FIRST_NOTE);
+  });
+
+  test("keeps both lines of a note that was typed as two", async ({ page }) => {
+    await lookUp(page, String(NUMBERS.notes));
+
+    // `toHaveText` normalises whitespace, so it cannot tell one line from two — it passes just as
+    // happily on a note collapsed into one run-on sentence. `innerText` is the rendered text, so it
+    // holds the break only while `whitespace-pre-line` is on the paragraph.
+    const rendered = await page.getByTestId("counter-notes").innerText();
+    expect(rendered.split("\n").map((line) => line.trim())).toEqual(FIRST_NOTE.split("\n"));
+  });
+
+  test("offers to edit a note that is already on file, not to add one", async ({ page }) => {
+    await lookUp(page, String(NUMBERS.notes));
+
+    await expect(page.getByTestId("counter-notes-open")).toHaveText(counterWords.notes.edit);
+
+    await openNoteEditor(page);
+    // Prefilled: the counter edits the note in place rather than appending to it, so what a
+    // colleague wrote has to be in the field before anything is typed over it.
+    await expect(page.getByTestId("counter-notes-field")).toHaveValue(FIRST_NOTE);
+  });
+
+  test("records one audit entry per saved note, and no reason", async ({ page }) => {
+    const before = await prisma.auditEntry.count();
+
+    await lookUp(page, String(NUMBERS.notes));
+    await openNoteEditor(page);
+    await page.getByTestId("counter-notes-field").fill(SECOND_NOTE);
+    await page.getByTestId("counter-notes-submit").click();
+    await expect(page.getByTestId("counter-notes-saved")).toBeVisible();
+
+    expect(await prisma.auditEntry.count()).toBe(before + 1);
+    const entry = await prisma.auditEntry.findFirst({ orderBy: { id: "desc" } });
+    expect(entry?.what).toBe("customer.notesUpdated");
+    expect(entry?.changedFields).toBe("notes");
+    // No reason is asked for and none is invented: the changed field already says what happened,
+    // and the note's own text is deliberately never copied into the log.
+    expect(entry?.why).toBe("");
+  });
+
+  test("clears a note that no longer applies", async ({ page }) => {
+    await lookUp(page, String(NUMBERS.notes));
+
+    await openNoteEditor(page);
+    await page.getByTestId("counter-notes-field").fill("");
+    await page.getByTestId("counter-notes-submit").click();
+
+    await expect(page.getByTestId("counter-notes-saved")).toBeVisible();
+    await expect(page.getByTestId("counter-notes")).toHaveText(counterWords.details.noNotes);
+    await expect(page.getByTestId("counter-notes-open")).toHaveText(counterWords.notes.add);
+  });
+
+  test("closes the note editor when the counter moves to another household", async ({ page }) => {
+    await lookUp(page, String(NUMBERS.notes));
+
+    const fold = page.locator("details").filter({ has: page.getByTestId("counter-notes-open") });
+    // Closed on arrival: the note is read on every lookup and written on hardly any.
+    await expect(fold).not.toHaveAttribute("open", /.*/);
+
+    await openNoteEditor(page);
+    await page.getByTestId("counter-notes-field").fill("Für den falschen Haushalt getippt.");
+
+    // A soft navigation, not a fresh page load — a `<details>` survives one, and so would the text
+    // above, which is how a note gets written onto the wrong household.
+    await page.getByTestId("group-progress").click();
+    await page.getByTestId(`group-member-${NUMBERS.clear}`).click();
+    await expect(page).toHaveURL(new RegExp(`nummer=${NUMBERS.clear}`));
+
+    await expect(page.getByTestId("counter-name")).toHaveText(names[NUMBERS.clear]);
+    await expect(fold).not.toHaveAttribute("open", /.*/);
+    await openNoteEditor(page);
+    await expect(page.getByTestId("counter-notes-field")).toHaveValue("Kommt immer früh.");
+  });
+
+  test("offers no note editor for an archived household", async ({ page }) => {
+    await lookUp(page, String(NUMBERS.archived));
+
+    // The note is still read — it may be why the household was archived — but `updateNotes` refuses
+    // an archived record, and a control that can only ever answer "nein" is worse than none.
+    await expect(page.getByTestId("counter-notes")).toBeVisible();
+    await expect(page.getByTestId("counter-notes-open")).toHaveCount(0);
   });
 });
