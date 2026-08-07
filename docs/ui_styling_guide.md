@@ -127,13 +127,20 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   | `CONFIRMATION_ACCENT` | a write went through                      |
   | `REFUSAL_ACCENT`      | a write was refused, nothing is broken    |
 
-  Plus the counter's own traffic light in `ausgabe/counter-lookup.tsx`. **Before painting a state,
-  look for it there.** If it is not listed, the question is what the state means, not which green. A
-  new meaning is a new named export in that file, never a tint in a screen.
+  **Before painting a state, look for it there.** If it is not listed, the question is what the state
+  means, not which green — and the answer is a new named export in that file, never a tint in a
+  screen.
 
+- **Two literals are deliberately outside it**, because each is one screen's own and answers to that
+  screen's job: the counter's traffic light (`ausgabe/counter-lookup.tsx`) and the two
+  full-strength submit buttons that follow it (`serve-controls.tsx`, `certificate-controls.tsx`).
 - **A meaning gets one colour application-wide**, and two unrelated meanings must not share a tint on
-  one screen. `grep -rn "bg-red-\|bg-blue-\|bg-green-\|bg-amber-\|bg-emerald-" src/app` finds every
-  copy.
+  one screen. A second _weight_ of a meaning is still that meaning and belongs in `accents.ts` beside
+  the first, not in a screen. Two are currently hand-written and must not be copied further: the
+  solid group fill (`bg-red-600` / `bg-blue-700`, against `GROUP_STYLES`' tint) exists in
+  `ausgabe/page.tsx` and `kunden/[id]/karte/page.tsx`, and "the certificate has lapsed" is written as
+  amber in `kunden/page.tsx`, `warteliste/page.tsx` and `warteliste/free-slot-banner.tsx`.
+  `grep -rn "bg-red-\|bg-blue-\|bg-green-\|bg-amber-\|bg-emerald-" src/app` finds every copy.
 - **Chrome marks the exception; the default state gets the word and nothing else.** Before adding a
   badge, count how many rows will wear it — if it is most of them, it is not a badge, it is texture.
   Keep which states are exceptions in a `Record<State, Chrome | null>` beside the component, the way
@@ -160,8 +167,12 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 | `destructive` | a confirm step. It is a **soft tint**; say so with a `className` if you need loud |
 | `link`        | inline within prose                                                               |
 
-- The one exception: a link that is the sole way out of a dead end keeps `outline`, because it is the
-  offered next step. Nothing else navigates with a border.
+- **A link that opens the screen's write is bordered**, because it _is_ the write, one click earlier:
+  „Neuen Kunden aufnehmen" and „Jetzt registrieren" are `default`, „Auf die Warteliste setzen" is
+  `outline`. `ghost` is for a link that goes somewhere and does nothing — the hub links, „Filter
+  zurücksetzen", „Zur Kundenübersicht".
+- The one true exception: a link that is the sole way out of a dead end keeps `outline` although it
+  only navigates, because it is the offered next step. Nothing else navigates with a border.
 - Give a ghost link room — `justify-between` across the row, or the `CardAction` slot. Eight pixels
   from a bordered button it reads as that button's caption, not as a second thing you can do.
 - **One name per destination.** A screen is called what it calls itself, everywhere it is linked.
@@ -239,7 +250,10 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 
 - Mark a rejected field by the input's **`name`**, carried on the action state — never by
   string-matching the message. Reddened label, `aria-invalid`, `aria-describedby`, and a short
-  `text-sm text-destructive` line under the control, alongside the form-level `Notice`.
+  `text-sm text-destructive` line under the control, alongside the form-level `Notice`. A refusal
+  that names **no** field carries none, and marks nothing: a quota below the active customer count is
+  a collision between two numbers, and marking one of them would call a value malformed that is only
+  too small.
 - Server action shape: `"use server"` actions in `*-actions.ts`, the state as a discriminated union
   (`idle | <success> | error` with a `tier`) in a sibling `*-state.ts`, the form a plain
   `<form action={…}>` with `useActionState`. Actions validate with Zod, call **one** use case, and
