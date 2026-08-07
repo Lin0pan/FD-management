@@ -52,9 +52,10 @@ This tree is the **architecture record**. The other documents each keep a distin
 | Document                                                                         | Job                                                                                                |
 | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | [`docs/domain_analysis.md`](../domain_analysis.md)                               | FD's process as it is run today — the source material                                              |
-| [`docs/user_stories_mvp.md`](../user_stories_mvp.md) + [`tasks/`](../../tasks/)  | What the software must do, story by story                                                          |
+| [`tasks/`](../../tasks/)                                                         | What the software must do, story by story — one PRD each, US-01 to US-26. The current record       |
 | [`docs/ui_styling_guide.md`](../ui_styling_guide.md)                             | How to build a screen. Still the whole UI standard                                                 |
 | [`CLAUDE.md`](../../CLAUDE.md)                                                   | The binding engineering standard for anyone, human or agent, writing code here                     |
+| [`docs/user_stories_mvp.md`](../user_stories_mvp.md)                             | **Not current.** An early MVP scope the system has moved past; `tasks/` is the record              |
 | [`docs/technical_documentation.md`](../technical_documentation.md)               | **Legacy.** An as-built reference kept temporarily; superseded by this tree and due for retirement |
 | [`docs/tech_stack_architecture_sketch.md`](../tech_stack_architecture_sketch.md) | **Legacy.** The original proposal; its reasoning now lives in chapters 4 and 9                     |
 
@@ -68,5 +69,5 @@ a new ADR that supersedes it.
 python3 .claude/skills/arc42/scripts/arc42.py check     # structure, ADR index, dead links, TODOs
 ```
 
-A TODO marker is an honest gap, not a defect — better than a confident guess. There is currently
-one, in [chapter 7](07-deployment-view.md), where the backup schedule should be.
+A TODO marker is an honest gap, not a defect — better than a confident guess. There are currently
+two, both in [chapter 7](07-deployment-view.md): the backup schedule, and FD's real customer quota.

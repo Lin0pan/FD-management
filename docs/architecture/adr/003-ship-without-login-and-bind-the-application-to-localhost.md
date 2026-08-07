@@ -6,10 +6,10 @@
 
 ## Context
 
-FD is three or four trusted colleagues sharing one machine in the distribution hall. Asked directly,
+FD is a handful of trusted colleagues sharing one machine in the distribution hall. Asked directly,
 they do not want accounts, roles or a sign-in: at a counter with a queue waiting, a login screen is
-a delay and a shared password is what would actually happen. There is no requirement anywhere in
-[the stories](../../user_stories_mvp.md) that depends on telling one staff member from another.
+a delay and a shared password is what would actually happen. No requirement asked for since depends
+on telling one staff member from another.
 
 The data is nonetheless sensitive, so "no login" cannot mean "no access control" — it has to mean
 the access control is somewhere else.
@@ -53,4 +53,5 @@ on the network. Physical control of the machine is the access control.
 
 - [Chapter 3 — context and scope](../03-context-and-scope.md)
 - [Chapter 7 — deployment view](../07-deployment-view.md)
-- `docs/user_stories_mvp.md` §4 "Deliberately Out of MVP Scope"
+- Scope decision recorded at the time in `docs/user_stories_mvp.md` §4; the current non-goals list is
+  [chapter 1](../01-introduction-and-goals.md#non-goals)

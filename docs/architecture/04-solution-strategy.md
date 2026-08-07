@@ -68,7 +68,8 @@ was built to remove ([goal 2](01-introduction-and-goals.md#quality-goals)).
 **Consequence.** A count that contradicts the household is not expressible. Age-based reclassification
 needs no scheduled job — the derivation simply starts answering differently. In exchange, every rule
 that derives against "today" must take an injected clock, and some questions cannot be a `WHERE`
-clause: the cards-due-for-reissue comparison reads the whole register, accepted at 240 rows.
+clause: the cards-due-for-reissue comparison reads the whole register, accepted at a few hundred
+rows.
 
 → [ADR-007](adr/007-derive-anything-computable-rather-than-storing-it.md),
 [ADR-008](adr/008-treat-a-customer-number-as-a-reusable-slot-not-an-identity.md)

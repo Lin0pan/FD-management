@@ -6,7 +6,7 @@ _Last reviewed: 2026-08-07_
 them into scenarios with a stimulus, a response, a number where a number is meaningful, and a way to
 check.
 
-A note on numbers: this system serves ~240 households and four users on one laptop, so latency and
+A note on numbers: this system serves a few hundred households and a handful of users on one laptop, so latency and
 throughput targets would be theatre. The qualities that genuinely bind here are **maintainability**,
 **correctness** and **confidentiality**, and their scenarios are checked by tests and by measured
 change effort rather than by load tests.
@@ -48,7 +48,7 @@ is the point of writing them down:
 
 Performance has no scenario on purpose. If one is ever needed, the first candidate is the
 cards-due-for-reissue list, which reads the whole register because its comparison cannot be a `WHERE`
-clause — accepted at ~240 rows and documented as such in
+clause — accepted at a few hundred rows and documented as such in
 [ADR-007](adr/007-derive-anything-computable-rather-than-storing-it.md).
 
 ---

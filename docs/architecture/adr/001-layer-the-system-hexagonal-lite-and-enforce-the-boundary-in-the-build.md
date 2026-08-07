@@ -27,7 +27,8 @@ exactly what is absent from those. A convention nobody is present to enforce is 
 - **The same layering as a documented convention** — rejected. It was tried for one day. It holds
   only while a reviewer reads every diff, which is not the case here.
 - **Full DDD with aggregates, domain events and CQRS** — rejected as more machinery than the problem
-  has. ~240 customers, one distribution a week, one writer at a time. This is layering, not ceremony;
+  has. A few hundred customers, one distribution a week, one writer at a time. This is layering, not
+  ceremony;
   the pattern is deliberately called _hexagonal-lite_ to say so.
 - **No layering — a conventional Next.js application with logic in server actions** — rejected. It
   makes the rules untestable without a running framework and ties FD's domain to the release cadence

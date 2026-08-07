@@ -50,7 +50,7 @@ cannot smuggle an invalid policy in.
   so each version is displayed as a diff against its predecessor (`src/domain/policy/settings-diff.ts`).
 - `updateSettings` can refuse a save: the quota may not drop below the number of active customers.
 - Two saves in the same millisecond are a concurrency accident, not a business error; the later row
-  wins by array position. Acceptable at four users, and worth knowing.
+  wins by array position. Acceptable at this many users, and worth knowing.
 - The **reminder escalation is deliberately not configurable**. Whether an expired certificate ends
   in archiving is a per-case staff judgement; three reminders is a habit, not a rule, so there is no
   threshold to configure and none was added.

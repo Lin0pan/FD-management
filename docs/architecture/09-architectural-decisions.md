@@ -64,9 +64,10 @@ same idea being proposed again.
 | Week-colour lookup at the counter         | A date picker for any week's colour → withdrawn                       | FD, asked explicitly, need no week's colour but this one                                                              |
 | Finding the next household at the counter | Typing a guessed number → a Zurück/Weiter walk of the week's group    | Guessing was the actual workflow being replaced                                                                       |
 
-Withdrawn requirements are struck through and marked `[withdrawn]` in
-[`docs/user_stories_mvp.md`](../user_stories_mvp.md) rather than deleted, so the next person to
-propose one finds FD's answer instead of a gap.
+The project's convention for a withdrawn requirement is to **strike it through and mark it
+`[withdrawn]` rather than delete it**, so the next person to propose it finds FD's answer instead of
+a gap — and a PRD whose rule a later story superseded gets a note saying so rather than being
+rewritten, because a PRD is the record of what was asked for.
 
 ---
 

@@ -6,8 +6,9 @@
 
 ## Context
 
-FD is a charity with no IT staff and no server. The register holds roughly 240 households, four
-people use it, and one distribution happens per week — so throughput plays no part in the choice.
+FD is a charity with no IT staff and no server. The register holds a few hundred households, a
+handful of people use it, and one distribution happens per week — so throughput plays no part in the
+choice.
 What does play a part is that whoever operates this in three years must be able to back it up,
 restore it and move it to a new machine without help, and that the data is sensitive personal
 information about vulnerable people, which argues against putting it anywhere it does not have to be
@@ -44,7 +45,7 @@ columns are `Int` cents, because SQLite has no decimal type.
 - Prisma cannot express a partial unique index, so the one the slot rule needs is hand-written at the
   end of the init migration and must be re-added whenever the migration is regenerated
   ([ADR-009](009-regenerate-migration-history-until-fd-holds-real-data.md)).
-- Concurrent writers are limited, which is invisible at four users and would not be at four hundred.
+- Concurrent writers are limited, which is invisible at this many users and would not be at hundreds.
 - No backup schedule exists yet. That is the single most important operational gap and is tracked in
   [chapter 11](../11-risks-and-technical-debt.md).
 - Moving to PostgreSQL later is a provider change in `schema.prisma` plus new migrations — the

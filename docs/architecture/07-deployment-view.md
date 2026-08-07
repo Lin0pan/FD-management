@@ -69,18 +69,23 @@ service to authenticate to.
 
 ## Operations
 
-| Task                     | Command / procedure                             | Notes                                                                                                                                                                                             |
-| ------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Start                    | `npm run build && npm start`                    | Bookmarked at `http://localhost:3000`                                                                                                                                                             |
-| Apply migrations         | `npx prisma migrate deploy`                     | Run after every update                                                                                                                                                                            |
-| Seed policy values       | `npm run db:seed`                               | Idempotent; writes no audit entry. Provisional values: quota 240, 2 portions per grown-up and 1 per child, €2.00 and €1.00 per head, a €5.00 cap, Thursday, anchored at `2026-W02` RED            |
-| Reset the local database | `npm run db:reset`                              | Deletes `data/fd.db`, re-applies migrations, re-seeds. **Required after any migration-history rewrite** — the first symptom of skipping it is the settings screen reporting nothing is configured |
-| Demo data                | `npm run db:demo`                               | 20 synthetic households written _through the real use cases_ with a wound clock, so the result is a database the application could have produced                                                  |
-| **Backup**               | Copy `data/fd.db` after a SQLite WAL checkpoint | The single most important operational task                                                                                                                                                        |
+| Task                     | Command / procedure                             | Notes                                                                                                                                                                                                                                                                                |
+| ------------------------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Start                    | `npm run build && npm start`                    | Bookmarked at `http://localhost:3000`                                                                                                                                                                                                                                                |
+| Apply migrations         | `npx prisma migrate deploy`                     | Run after every update                                                                                                                                                                                                                                                               |
+| Seed policy values       | `npm run db:seed`                               | Idempotent; writes no audit entry. Provisional values: quota 240, 2 portions per grown-up and 1 per child, €2.00 and €1.00 per head, a €5.00 cap, Thursday, anchored at `2026-W02` RED. FD overwrite them on `/einstellungen`; the seeded quota is **not** FD's real one (see below) |
+| Reset the local database | `npm run db:reset`                              | Deletes `data/fd.db`, re-applies migrations, re-seeds. **Required after any migration-history rewrite** — the first symptom of skipping it is the settings screen reporting nothing is configured                                                                                    |
+| Demo data                | `npm run db:demo`                               | 20 synthetic households written _through the real use cases_ with a wound clock, so the result is a database the application could have produced                                                                                                                                     |
+| **Backup**               | Copy `data/fd.db` after a SQLite WAL checkpoint | The single most important operational task                                                                                                                                                                                                                                           |
 
 > **TODO:** No backup schedule, destination or restore drill exists yet — who runs it, where the copy
 > goes, and how often. This is the whole disaster-recovery story and is tracked as the top risk in
 > [chapter 11](11-risks-and-technical-debt.md).
+
+> **TODO:** FD's real customer quota. The seed's 240 is a placeholder and FD serves roughly 250
+> households, so it is wrong in the direction that matters — `updateSettings` refuses a quota below
+> the active count, so a fresh install seeded too low cannot take the register it is meant to hold.
+> Confirm the number with FD and set the seed to it before go-live.
 
 ## Build pipeline
 

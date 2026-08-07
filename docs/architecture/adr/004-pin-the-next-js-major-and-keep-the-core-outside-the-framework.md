@@ -23,7 +23,7 @@ maintainability gain at this size.
 - **Next.js used conventionally, logic in server actions and components** — rejected: it converts a
   framework upgrade into a rewrite of the rules.
 - **A plain React SPA plus a separate API (Express/Fastify)** — rejected. Two build setups, two
-  deployment units and a hand-written API layer, all to serve four users on one machine.
+  deployment units and a hand-written API layer, all to serve a handful of users on one machine.
 - **Server-rendered templates with no client framework** — rejected. The registration screen derives
   household counts live as staff type, and the counter needs interactive controls; that is a real
   client-side requirement, not a preference.

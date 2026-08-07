@@ -101,7 +101,7 @@ correctly.
 
 ```mermaid
 sequenceDiagram
-    actor Lead as FD leadership
+    actor Lead as FD's manager
     participant Action as saveSettings
     participant Update as updateSettings
     participant Factory as createSettings
@@ -134,7 +134,7 @@ refuses with `QuotaBelowActiveCustomers` and nothing is appended; the screen nam
 
 **A note on races.** `recordedAt` is indexed and deliberately _not_ unique. Two saves in the same
 millisecond are a concurrency accident, not a business error, and the later row wins by position.
-Acceptable at four users.
+Acceptable at this many users.
 
 ## Scenario 4 — a birthday moves a child to grown-up
 
@@ -172,7 +172,8 @@ and that is correct: the list is a prompt for staff, not a queue the system drai
 threshold and no automatic action, here or anywhere else.
 
 **Cost.** The comparison has a rule over birthdates on one side, so it cannot be a `WHERE` clause.
-The list reads the whole register — accepted at ~240 rows, and documented rather than worked around.
+The list reads the whole register — accepted at a few hundred rows, and documented rather than worked
+around.
 
 ---
 

@@ -10,24 +10,21 @@ by hand. Everything in this chapter treats FD-Management as a black box; the lid
 ## Business context
 
 ```mermaid
-flowchart TB
-    staff["FD counter staff<br/><i>~4 volunteers, no accounts</i>"]
-    lead["FD leadership<br/><i>sets quota, prices, portions</i>"]
-    customer["Household<br/><i>~240, holds a card</i>"]
+flowchart LR
     jobcenter["Jobcenter / issuing body<br/><i>issues the proof of need</i>"]
+    customer["Household<br/><i>a few hundred, holds a card</i>"]
+    staff["FD counter staff<br/><i>volunteers, no accounts</i>"]
+    fd[["<b>FD-Management</b><br/>register · eligibility<br/>distribution"]]
+    manager["FD's manager<br/><i>sets the policy values</i>"]
     printer["Card printing<br/><i>separate existing system</i>"]
     excel["The current Excel sheet<br/><i>the register today</i>"]
 
-    fd[["<b>FD-Management</b><br/>register · eligibility · distribution"]]
-
-    customer -- "shows card, hands over paper certificate" --> staff
-    staff -- "registers, looks up, records the hand-out" --> fd
-    fd -- "one verdict, portions, price to charge" --> staff
-    staff -- "collects payment, hands out food" --> customer
-    lead -- "sets the policy values" --> fd
-    jobcenter -. "paper certificate, out of band" .-> customer
-    fd -- "customer number + card number to print" --> printer
-    excel -. "one-off migration, still unanswered" .-> fd
+    jobcenter -. "paper certificate,<br/>out of band" .-> customer
+    customer <== "card and certificate;<br/>food and payment" ==> staff
+    staff <== "registers, looks up, records;<br/>one verdict, portions, price" ==> fd
+    manager -- "quota, prices, portions" --> fd
+    fd -- "customer and card number" --> printer
+    excel -. "one-off migration,<br/>still unanswered" .-> fd
 
     classDef system fill:#1e293b,stroke:#0f172a,color:#f8fafc
     class fd system
@@ -70,13 +67,13 @@ day.
 | Neighbour                            | Responsibility                                                    | Direction                           | Exchanged                                                                          | Format / protocol                  | Owner                                                                             |
 | ------------------------------------ | ----------------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------- |
 | Counter staff                        | Operate the system; make every judgement call it declines to make | Both                                | Registrations, lookups, hand-outs, reminders, renewals; verdicts, portions, prices | HTML over HTTP on `localhost:3000` | FD                                                                                |
-| FD leadership                        | Set the policy values                                             | Inbound                             | Quota, portions per head, prices, price cap, distribution weekday, week anchor     | The `/einstellungen` screen        | FD                                                                                |
+| FD's manager                         | Set the policy values                                             | Inbound                             | Quota, portions per head, prices, price cap, distribution weekday, week anchor     | The `/einstellungen` screen        | FD                                                                                |
 | Household (customer)                 | Present a card; bring a valid certificate                         | Indirect — never touches the system | Card number, proof of need                                                         | Spoken and on paper                | —                                                                                 |
 | Jobcenter / issuing body             | Issue the proof of need                                           | Out of band                         | Certificate type and validity date, typed in by staff                              | Paper                              | External                                                                          |
 | Card printing system                 | Print the physical cards                                          | Outbound, manual                    | Customer number and card number, read off `/kunden/[id]/karte`                     | Read from screen                   | FD (existing system)                                                              |
 | `data/fd.db`                         | Hold the entire register                                          | Both                                | Everything                                                                         | SQLite file on the local disk      | FD                                                                                |
 | Backup target                        | Hold a restorable copy of the register                            | Outbound                            | A copy of `data/fd.db`                                                             | File copy plus a WAL checkpoint    | FD — **no schedule exists yet**, see [chapter 11](11-risks-and-technical-debt.md) |
-| The current Excel sheet              | The register as it is kept today                                  | Inbound, one-off                    | ~240 households                                                                    | Undecided                          | FD — **migration route still unanswered**                                         |
+| The current Excel sheet              | The register as it is kept today                                  | Inbound, one-off                    | A few hundred households                                                           | Undecided                          | FD — **migration route still unanswered**                                         |
 | GitHub Actions / CodeQL / Dependabot | Gate every change before it lands                                 | Build side only                     | Source, test results, advisories                                                   | GitHub                             | The maintainer                                                                    |
 
 ## Explicitly not neighbours

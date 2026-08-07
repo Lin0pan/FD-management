@@ -8,20 +8,23 @@ _Last reviewed: 2026-08-07_
 Delbrück. It supports what FD actually does: keep a register of the households they supply, check
 that each one is still entitled to collect, and record who collected what on a distribution day.
 
-It replaces a spreadsheet. The spreadsheet works, but it keeps facts that ought to be computed —
-above all the number of grown-ups and children in a household, typed in once and wrong from the next
-birthday onwards. Nothing notices, and the portion allowance and the price that follow from those
-counts quietly go wrong with them. **Removing that class of drift is the point of this software**,
-and it is why "derive, don't store" runs through every chapter that follows.
+It replaces a spreadsheet, for four reasons: **correctness** — the sheet stores counts that ought to
+be computed, so they are wrong from the next birthday onwards and nothing notices; **consistency** —
+the same fact can be recorded two ways in two places; **usability** — a form that asks the right
+questions beats a wide grid at a counter with a queue waiting; and **robustness** — a spreadsheet is
+easy to break by accident, a dragged formula or an overwritten column at a time, and hardest to use
+safely for exactly the people who use it most, who are volunteers rather than spreadsheet
+specialists.
 
-The system is small and will stay small: roughly 240 households, about four staff, one distribution
-per week, one machine. It is expected to run for five years or more with little maintenance, possibly
-in the hands of a different developer.
+The system is small and will stay small: a few hundred households — roughly 250 today, and a number
+that moves — a handful of staff, one distribution per week, one machine. It is expected to run for
+five years or more with little maintenance, possibly in the hands of a different developer.
 
 ## Requirements overview
 
-The full catalogue is [`docs/user_stories_mvp.md`](../user_stories_mvp.md) and the per-story PRDs in
-[`tasks/`](../../tasks/). What matters architecturally:
+The story-by-story record is [`tasks/`](../../tasks/), one PRD per user story, US-01 to US-26.
+(`docs/user_stories_mvp.md` describes an early MVP scope the system has since moved past; it is not
+current — see [chapter 11](11-risks-and-technical-debt.md).) What matters architecturally:
 
 - **Register a household** onto a free customer number within the quota, with its members, address
   and proof of need, and issue its first card.
@@ -46,19 +49,20 @@ The full catalogue is [`docs/user_stories_mvp.md`](../user_stories_mvp.md) and t
 
 ### Non-goals
 
-Deliberately out of scope, each because FD said so or because it is someone else's job:
+Deliberately out of scope, each because FD said so or because it is someone else's job. Confirmed
+still current on 2026-08-07:
 
-| Not built                                    | Why                                                                                                                                         |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Login, accounts, roles                       | FD are three or four trusted colleagues on one machine — see [ADR-003](adr/003-ship-without-login-and-bind-the-application-to-localhost.md) |
-| Printing the physical card                   | A separate existing system does it; this app produces the numbers on it                                                                     |
-| Portion adjustments for supply or occasions  | They happen — at the counter, not in the software                                                                                           |
-| Reporting and statistics                     | Not asked for; the data is there when it is                                                                                                 |
-| A full field-level change history            | The audit log records the state changes that matter, not every edit                                                                         |
-| Retention or deletion rules                  | Archived records are kept indefinitely; FD has no rule today                                                                                |
-| Contact details, letters, e-mail reminders   | FD does not hold phone numbers or addresses for this purpose                                                                                |
-| Importing the existing Excel sheet           | A migration question, still unanswered — see [chapter 11](11-risks-and-technical-debt.md)                                                   |
-| Multi-user, multi-machine or cloud operation | One machine, by design                                                                                                                      |
+| Not built                                    | Why                                                                                                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Login, accounts, roles                       | FD are a handful of trusted colleagues on one machine — see [ADR-003](adr/003-ship-without-login-and-bind-the-application-to-localhost.md) |
+| Printing the physical card                   | A separate existing system does it; this app produces the numbers on it                                                                    |
+| Portion adjustments for supply or occasions  | They happen — at the counter, not in the software                                                                                          |
+| Reporting and statistics                     | Not asked for; the data is there when it is                                                                                                |
+| A full field-level change history            | The audit log records the state changes that matter, not every edit                                                                        |
+| Retention or deletion rules                  | Archived records are kept indefinitely; FD has no rule today                                                                               |
+| Contact details, letters, e-mail reminders   | FD does not hold phone numbers or addresses for this purpose                                                                               |
+| Importing the existing Excel sheet           | A migration question, still unanswered — see [chapter 11](11-risks-and-technical-debt.md)                                                  |
+| Multi-user, multi-machine or cloud operation | One machine, by design                                                                                                                     |
 
 ## Quality goals
 
@@ -78,13 +82,13 @@ as [scenario Q3](10-quality-requirements.md).
 
 ## Stakeholders
 
-| Role                  | Who                                                                 | What they expect                                                                                                                                                                                                     |
-| --------------------- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Counter staff         | ~4 FD volunteers, sharing one machine, no accounts                  | To type a number and get one unambiguous answer while a queue waits; to be trusted with judgement calls rather than blocked by the software                                                                          |
-| FD as an organisation | The food bank's leadership                                          | To change the quota, prices and portions themselves, without a developer; to be able to say later what was decided and why                                                                                           |
-| Customers             | ~240 households                                                     | That their entitlement is judged consistently, and that their data does not leave the building                                                                                                                       |
-| Maintaining developer | Today one person; in future possibly someone else entirely          | To find the rule, change it and know what it touched — the reason quality goal 1 is first                                                                                                                            |
-| Autonomous agent runs | The Ralph loop (`scripts/ralph/`) writes production code unattended | Rules that hold without a reviewer present. This is why the layer boundary is a build failure and not a convention — see [ADR-001](adr/001-layer-the-system-hexagonal-lite-and-enforce-the-boundary-in-the-build.md) |
+| Role                  | Who                                                                                                     | What they expect                                                                                                                                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Counter staff         | FD volunteers, sharing one machine, no accounts                                                         | To type a number and get one unambiguous answer while a queue waits; to be trusted with judgement calls rather than blocked by the software                                                                          |
+| FD's manager          | The person who runs the food bank's operation                                                           | To change the quota, prices and portions themselves, without a developer; to be able to say later what was decided and why                                                                                           |
+| Customers             | A few hundred households, roughly 250 today                                                             | That their entitlement is judged consistently, and that their data does not leave the building                                                                                                                       |
+| Maintaining developer | Today one person; in future possibly someone else entirely                                              | To find the rule, change it and know what it touched — the reason quality goal 1 is first                                                                                                                            |
+| Autonomous agent runs | The Ralph loop (`scripts/ralph/`), and other AI coding agents besides, write production code unattended | Rules that hold without a reviewer present. This is why the layer boundary is a build failure and not a convention — see [ADR-001](adr/001-layer-the-system-hexagonal-lite-and-enforce-the-boundary-in-the-build.md) |
 
 ---
 

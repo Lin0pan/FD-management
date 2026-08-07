@@ -48,7 +48,7 @@ derivable fact needs an argument of its own kind, and there are exactly four:
 - Every rule that derives against "today" must take an injected `Clock`, which is why the clock is a
   port and a wall-clock read is a lint error outside `infrastructure/`.
 - Some questions cannot be a `WHERE` clause. The cards-due-for-reissue comparison has a rule over
-  birthdates on one side, so it reads the whole register — accepted at ~240 rows, documented rather
+  birthdates on one side, so it reads the whole register — accepted at a few hundred rows, documented rather
   than worked around.
 - The exceptions carry their argument in the schema comments, so a later reader does not remove the
   duplication as a violation.

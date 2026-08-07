@@ -11,7 +11,7 @@ everyone pays get changed. Those are consequential acts on records about vulnera
 without a trail there is nothing to look back at when someone asks why a family was archived in
 March.
 
-The system has no login and cannot tell its three or four staff apart
+The system has no login and cannot tell its staff apart
 ([ADR-003](003-ship-without-login-and-bind-the-application-to-localhost.md)). So the question is not
 whether to log — it is what an honest log can claim.
 

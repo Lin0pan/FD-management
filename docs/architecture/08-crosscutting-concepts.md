@@ -150,7 +150,7 @@ Policy is `SettingsVersion` rows, not constants — [ADR-005](adr/005-keep-busin
 ## Audit
 
 Append-only entries recording _what_, _when_ and _why_ — **never who**, because there is no login to
-tell four volunteers apart — [ADR-006](adr/006-record-what-when-and-why-in-the-audit-log-never-who.md).
+tell its volunteers apart — [ADR-006](adr/006-record-what-when-and-why-in-the-audit-log-never-who.md).
 
 - Required on every state change: archive, block, unblock, group move, card reissue, note edit,
   policy edit. Skipping one is a defect, not an omission.
@@ -161,7 +161,7 @@ tell four volunteers apart — [ADR-006](adr/006-record-what-when-and-why-in-the
 
 ## Concurrency and consistency
 
-At four users the interesting concurrency is not load — it is two people doing the same thing at
+At this many users the interesting concurrency is not load — it is two people doing the same thing at
 once, and the answer is always the same: **the database settles it, not a read-then-write guard.**
 
 | Invariant                                      | Constraint                                                                                |
