@@ -1,5 +1,12 @@
 # FD-Management — Technical Documentation
 
+> **Legacy — being retired.** The architecture record is now
+> [`docs/architecture/`](./architecture/README.md), twelve arc42 chapters plus the decision records.
+> This file is kept for a short while as an as-built reference while the new set is read against the
+> running application. **Where the two disagree, `docs/architecture/` is the one to trust**, and a
+> change to the architecture updates that tree, not this file. Note that §14 "Roadmap / deferred"
+> below is already stale — it lists as to-do several things §4 documents as built.
+
 Developer-facing reference for the **code as it is actually built**. It complements the other docs
 rather than repeating them:
 

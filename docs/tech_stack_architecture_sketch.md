@@ -1,5 +1,11 @@
 # Tech-Stack & Architecture Sketch — Füllhorn Delbrück (FD)
 
+> **Legacy — being retired.** This was a _proposal_ written before implementation, and the build has
+> overtaken parts of it. Its reasoning now lives in
+> [`docs/architecture/`](./architecture/README.md) — chapter 4 for the strategy and the decision
+> records in `adr/` for the individual choices, each recorded with the alternatives it rejected.
+> Read this file as history; read `docs/architecture/` for what is true.
+
 ## 1. Context
 
 Füllhorn Delbrück (FD) is a small charity (3–4 staff) that currently keeps its customer list in

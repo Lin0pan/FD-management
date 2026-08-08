@@ -1,0 +1,56 @@
+# 10. Quality requirements
+
+_Last reviewed: 2026-08-07_
+
+[Chapter 1](01-introduction-and-goals.md#quality-goals) names four quality goals. This chapter turns
+them into scenarios with a stimulus, a response, a number where a number is meaningful, and a way to
+check.
+
+A note on numbers: this system serves a few hundred households and a handful of users on one laptop, so latency and
+throughput targets would be theatre. The qualities that genuinely bind here are **maintainability**,
+**correctness** and **confidentiality**, and their scenarios are checked by tests and by measured
+change effort rather than by load tests.
+
+## Overview by characteristic
+
+Grouped along ISO/IEC 25010.
+
+| Characteristic         | Relevance here                                                                    | Where it is delivered                                                                                                                                                                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Maintainability        | **Highest.** Goal 1 — the system must survive a handover                          | [ADR-001](adr/001-layer-the-system-hexagonal-lite-and-enforce-the-boundary-in-the-build.md), [ADR-005](adr/005-keep-business-rules-as-dated-append-only-settings-data.md), [ADR-007](adr/007-derive-anything-computable-rather-than-storing-it.md) |
+| Functional correctness | **High.** Goal 2 — a handful of invariants must be impossible to break            | [Chapter 8 — concurrency](08-crosscutting-concepts.md#concurrency-and-consistency)                                                                                                                                                                 |
+| Confidentiality        | **High.** Goal 3 — sensitive data on vulnerable people                            | [ADR-002](adr/002-store-the-register-in-a-single-sqlite-file.md), [ADR-003](adr/003-ship-without-login-and-bind-the-application-to-localhost.md)                                                                                                   |
+| Testability            | **High.** Goal 4 — and the enabler of goal 1                                      | [Chapter 8 — testing strategy](08-crosscutting-concepts.md#testing-strategy)                                                                                                                                                                       |
+| Recoverability         | High — the register has no second copy                                            | [Chapter 7 — operations](07-deployment-view.md#operations)                                                                                                                                                                                         |
+| Usability              | High at the counter, though governed by the UI guide rather than the architecture | [`docs/ui_styling_guide.md`](../ui_styling_guide.md)                                                                                                                                                                                               |
+| Performance efficiency | **Low.** Deliberately never a design driver at this scale                         | —                                                                                                                                                                                                                                                  |
+
+## Scenarios
+
+| #      | Quality                         | Stimulus                                                                             | Response                                                                                                                 | Metric / target                                                                                                                | How verified                                                                                                                                                                                                        |
+| ------ | ------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Q1** | Maintainability (goal 1)        | FD ask for a new policy value — a cap on what one household pays                     | It is added as configuration; nothing about how a price is _derived_ changes                                             | One nullable column, one form field, one dictionary entry, one domain function extended. No change to any use case's shape     | **Already measured**: US-26 (`9edf13d`) is exactly that diff. The next such change is the next measurement                                                                                                          |
+| **Q2** | Functional correctness (goal 2) | Two staff members register onto the same free customer number within the same second | One registration succeeds; the other is refused on screen with the number named, and the free-slot pool is re-read       | Zero duplicate non-archived customer numbers, ever                                                                             | The partial unique index in the init migration, plus an integration test that attempts the duplicate insert; `src/infrastructure/prisma/schema.test.ts` greps the generated SQL so the index cannot silently vanish |
+| **Q3** | Usability (counter)             | A staff member types a card number with a queue waiting                              | Exactly one verdict is shown, in words as well as colour, legible standing at the counter                                | One banner, never a list of hints; no meaning carried by colour alone                                                          | The `never`-typed default branch in `statementFor` makes an unrendered verdict a compile error; the `playwright-cli` accessibility snapshot is read at three widths before a screen is called done                  |
+| **Q4** | Testability (goal 4)            | A developer changes a business rule                                                  | The affected rule fails a unit test before anything is rendered, and the whole unit suite runs before the push completes | 100 % lines, branches, functions and statements on `src/domain` and `src/application`; suite fast enough for the pre-push hook | `npm run test:coverage`, gated in `vitest.config.ts` and blocking the `unit-tests` CI job                                                                                                                           |
+| **Q5** | Confidentiality (goal 3)        | The application is running on FD's machine during a distribution                     | No customer datum leaves the machine, and nothing is reachable from the network                                          | Zero outbound requests at runtime; the only listener is on `localhost`                                                         | No HTTP client and no third-party SDK in `package.json`; the font is self-hosted; CodeQL and Dependabot run weekly on the repository. **Not** currently asserted by an automated test — see the note below          |
+| **Q6** | Recoverability                  | FD's machine fails and the register must be restored on another one                  | A copy of `data/fd.db` is put in place, migrations are applied, and the register is whole                                | Restore is a file copy plus `npx prisma migrate deploy` — no database expertise required                                       | **Not yet verified.** No backup schedule and no restore drill exist. Tracked as the top risk in [chapter 11](11-risks-and-technical-debt.md)                                                                        |
+| **Q7** | Maintainability (goal 1)        | A developer, or an unattended agent run, puts a Prisma call into a domain module     | The change fails before review                                                                                           | `npm run lint` fails, so CI fails; no reviewer is required for the rule to hold                                                | `fd/domain-boundary` and `fd/application-boundary` in `eslint.config.mjs`, themselves proved by `src/architecture.test.ts`, which lints code samples through the real config                                        |
+
+## Honest gaps
+
+Two of the seven scenarios above are **not** currently checked by anything automated, and saying so
+is the point of writing them down:
+
+- **Q5** rests on the absence of a dependency rather than on an assertion. A test that fails when an
+  HTTP client enters `package.json` would close it cheaply.
+- **Q6** has never been rehearsed. A restore that has not been performed is a hypothesis.
+
+Performance has no scenario on purpose. If one is ever needed, the first candidate is the
+cards-due-for-reissue list, which reads the whole register because its comparison cannot be a `WHERE`
+clause — accepted at a few hundred rows and documented as such in
+[ADR-007](adr/007-derive-anything-computable-rather-than-storing-it.md).
+
+---
+
+Previous: [9. Architectural decisions](09-architectural-decisions.md) · Next: [11. Risks and technical debt](11-risks-and-technical-debt.md)
