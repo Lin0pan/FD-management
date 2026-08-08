@@ -216,7 +216,7 @@ standing rulebook for building screens rather than architecture documentation, a
 would recreate exactly the duplication that guide was consolidated to remove. What is architectural
 about it:
 
-- **Colour never carries meaning alone.** FD share one machine under variable hall lighting, so a
+- **Colour never carries meaning alone.** DF share one machine under variable hall lighting, so a
   colour-only distinction is one only some staff can make. A meaning gets one colour application-wide,
   registered once in `src/app/accents.ts`, and the word always accompanies the tint.
 - **UI work is driven with the `playwright-cli` skill**, not only tested with it — the accessibility

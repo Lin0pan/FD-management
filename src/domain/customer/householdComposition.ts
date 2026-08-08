@@ -1,7 +1,7 @@
 /**
  * Household composition — how many grown-ups and how many children live in a household.
  *
- * The counts drive the portion allowance and the price (US-07), and the Excel sheet FD is replacing
+ * The counts drive the portion allowance and the price (US-07), and the Excel sheet DF is replacing
  * kept them as typed-in numbers that drifted out of date with every birthday. Here they are
  * **derived** from the birthdates on file and never stored (CLAUDE.md, "Derive, don't store"), so a
  * count that contradicts the household is not something the system can express.

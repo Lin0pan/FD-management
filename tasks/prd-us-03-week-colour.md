@@ -5,7 +5,7 @@
 
 ## 1. Introduction
 
-FD splits its customers into a Red and a Blue group to spread the load: Red customers collect in a
+DF splits its customers into a Red and a Blue group to spread the load: Red customers collect in a
 Red week, Blue customers in a Blue week, and the two strictly alternate. Two consecutive weeks of the
 same colour would be considered unfair and must be impossible by construction.
 
@@ -13,7 +13,7 @@ The colour is therefore **derived from the calendar** by alternation from a conf
 never typed in per week. This feature makes today's colour unmissable on the distribution screen.
 
 > **Withdrawn by US-22:** this PRD also shipped a date control on `/ausgabe` that answered for any
-> past or future week. FD say they never needed it — the counter asks about **now** — so it was
+> past or future week. DF say they never needed it — the counter asks about **now** — so it was
 > removed, along with its strings and its specs
 > (`tasks/prd-us-22-drop-week-colour-lookup.md`). The three places it was asked for below are marked
 > `[withdrawn by US-22]` rather than deleted. **The capability itself is not withdrawn:**
@@ -82,7 +82,7 @@ prominently.
 
 - [ ] The distribution screen shows a German banner: on a distribution day today's colour, and on a
       non-distribution day "Heute ist keine Ausgabe — nächste Ausgabe: <date>, <colour>"
-- [ ] ~~The banner is large~~ `[superseded]` — FD, after US-21 put the group walk in the counter row:
+- [ ] ~~The banner is large~~ `[superseded]` — DF, after US-21 put the group walk in the counter row:
       the group headline said "Gruppe Rot" at 72px on the four days out of five when nobody can
       collect, and repeated on the fifth what the walk hint under the number field already carries.
       The banner is now compact, and the group is named and painted **only on a distribution day**;
@@ -92,7 +92,7 @@ prominently.
 - [ ] The colour is conveyed by **text plus** colour, never colour alone (accessibility; several
       staff, one shared screen, variable lighting)
 - [ ] ~~A date picker lets staff look up the colour of any past or future week, showing the ISO week
-      number alongside~~ `[withdrawn by US-22]` — built, then removed: FD do not need any week but
+      number alongside~~ `[withdrawn by US-22]` — built, then removed: DF do not need any week but
       this one, and the card sat on the busiest screen in the product pushing the counter's own
       results down. The ISO week number stays on the banner, which is where staff check it against a
       wall calendar.
@@ -125,8 +125,8 @@ prominently.
   week; it must never be entered per week.
 - FR-3: Two consecutive weeks must never share a colour.
 - ~~FR-4: A staff member must be able to look up the colour of any past or future week.~~
-  **Withdrawn by US-22** (`tasks/prd-us-22-drop-week-colour-lookup.md`). FD's answer, asked
-  explicitly, is that nobody at FD needs a past or future week's colour anywhere — so this is a
+  **Withdrawn by US-22** (`tasks/prd-us-22-drop-week-colour-lookup.md`). DF's answer, asked
+  explicitly, is that nobody at DF needs a past or future week's colour anywhere — so this is a
   retraction, not a relocation. `/ausgabe` must now offer **no** control for any day but the one it
   is showing, and the `datum` search parameter must be ignored entirely rather than refused. FR-6
   is unaffected: the colour of any date is still computed, only never asked for by a human.
@@ -158,5 +158,5 @@ prominently.
 ## 8. Open Questions
 
 - If a distribution is cancelled (holiday, weather), does the alternation continue by calendar as
-  assumed here, or does FD shift it? **Confirm with FD** — the assumption is calendar-driven.
+  assumed here, or does DF shift it? **Confirm with DF** — the assumption is calendar-driven.
 - Is the distribution weekday ever different in a given week (e.g. moved for a public holiday)?

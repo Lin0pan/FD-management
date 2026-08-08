@@ -1,4 +1,4 @@
-# ADR-009 — Regenerate migration history until FD holds real data
+# ADR-009 — Regenerate migration history until DF holds real data
 
 - **Status:** Accepted
 - **Date:** 2026-07-22
@@ -14,8 +14,8 @@ reach for by default.
 
 But none of those migrations had ever run outside a developer's machine. Stacking an add-then-drop
 pair onto a schema nobody has ever executed leaves a history that describes a system that never
-existed: the next reader finds a migration saying FD once priced by household, and takes it for a
-decision FD once made.
+existed: the next reader finds a migration saying DF once priced by household, and takes it for a
+decision DF once made.
 
 ## Considered options
 
@@ -26,14 +26,14 @@ decision FD once made.
   future reader.
 - **No migrations at all pre-release; `db push` until go-live** — rejected. The migration mechanism
   itself needs to be exercised and in CI before it matters.
-- **Tie the switch to a version tag or a deploy** — rejected as the wrong trigger. A build FD click
+- **Tie the switch to a version tag or a deploy** — rejected as the wrong trigger. A build DF click
   around in with seeded data is still pre-release; what makes data irreplaceable is that it is real.
 
 ## Decision
 
-While FD holds no real data, a schema change that contradicts an earlier migration **replaces** it:
+While DF holds no real data, a schema change that contradicts an earlier migration **replaces** it:
 delete `prisma/migrations/`, regenerate with `npx prisma migrate dev --name init`, then
-`npm run db:reset`. **The moment FD enters their first real customer this reverses** and migrations
+`npm run db:reset`. **The moment DF enters their first real customer this reverses** and migrations
 become append-only — never edited, never deleted. That record, not a tag and not a deploy, is the
 boundary.
 
@@ -52,7 +52,7 @@ boundary.
 - The reversal is a judgement call that has to be _noticed_, not automated. If it is missed, real
   customer data is destroyed by the next regeneration. This is the sharpest edge in the project and
   is recorded as a risk in [chapter 11](../11-risks-and-technical-debt.md).
-- Revisit — that is, execute the reversal — on the day FD registers their first real household.
+- Revisit — that is, execute the reversal — on the day DF registers their first real household.
 
 ## More information
 

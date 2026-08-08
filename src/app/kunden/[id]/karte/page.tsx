@@ -2,7 +2,7 @@
  * The digital customer card.
  *
  * This is what staff read across the desk while they transcribe a card by hand or type it into the
- * printing system FD already owns — so it is laid out card-shaped and large, and deliberately
+ * printing system DF already owns — so it is laid out card-shaped and large, and deliberately
  * produces no PDF and carries no print stylesheet
  * (tasks/prd-us-02-issue-customer-card.md §US-02.4).
  *
@@ -153,7 +153,7 @@ function Superseded({ view }: { view: CardView }): React.ReactElement {
  * birthday overtook the printed counts (US-13) is not a loss, and reading them as one number would
  * count the software's own reissue against the household. Both are stated and nothing more: there is
  * no threshold here, no colour that changes and no sentence that appears at a high count, because
- * whether a number means anything is FD's judgement (§FR-4, §FR-5).
+ * whether a number means anything is DF's judgement (§FR-4, §FR-5).
  */
 function Issued({ view }: { view: CardView }): React.ReactElement {
   return (

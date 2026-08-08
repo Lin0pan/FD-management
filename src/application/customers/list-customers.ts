@@ -51,7 +51,7 @@ export interface ListCustomersInput {
   readonly certificate?: CertificateState;
   /**
    * Whether households that have left the register are shown. **Defaults to false**: the list is a
-   * working view of who FD serves, and an archived household turning up in it invites a second
+   * working view of who DF serves, and an archived household turning up in it invites a second
    * registration of someone who is no longer there (US-11, FR-6). Naming `ARCHIVED` in `status` says
    * the same thing more precisely, and is honoured on its own.
    */
@@ -134,7 +134,7 @@ function statusesFor(input: ListCustomersInput): ReadonlyArray<CustomerStatus> {
  * The customers matching what staff asked for, lowest customer number first, with the group balance.
  *
  * @throws {NoSettingsInForce} if no settings version had taken effect by today — a register cannot be
- *   priced before FD has said what a portion costs (US-14).
+ *   priced before DF has said what a portion costs (US-14).
  */
 export async function listCustomers(
   deps: ListCustomersDeps,

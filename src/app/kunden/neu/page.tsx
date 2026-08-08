@@ -13,7 +13,7 @@
  * It also reads the waiting list, for one purpose: this is the screen on which the next customer
  * number is actually handed out, so it is the screen on which somebody who has been waiting for that
  * number has to be named (tasks/prd-us-18-waiting-list-signals.md §US-18.3). The banner states a
- * fact and gates nothing — a walk-in may still be registered, because who is served is FD's decision
+ * fact and gates nothing — a walk-in may still be registered, because who is served is DF's decision
  * and not the software's.
  */
 

@@ -61,7 +61,7 @@
         "waitingListDeps is imported from src/app/warteliste/deps.ts — the same cross-route import /kunden already makes",
         "showListLink is TRUE here: the waiting list is not on view on this screen, so the banner offers the way to it",
         "FreeSlotBanner itself is NOT modified — it already takes head, customerNumber and showListLink",
-        "The banner does not block, disable or pre-empt the registration form. It states a fact; FD decide who is served, not the software",
+        "The banner does not block, disable or pre-empt the registration form. It states a fact; DF decide who is served, not the software",
         "/kunden/neu still renders normally with an empty waiting list, and its existing NoSettingsInForce branch is untouched",
         "/warteliste is untouched: same banner, same conditions, same content",
         "No new German strings are needed",

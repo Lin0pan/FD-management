@@ -143,9 +143,9 @@ served" is a property, not a query detail.
 ## 9. Open Questions
 
 - **How should an expired certificate at promotion be handled — skip to the next applicant, hold the
-  slot, or ask the applicant for a renewal?** The story explicitly asks FD to decide. This PRD
+  slot, or ask the applicant for a renewal?** The story explicitly asks DF to decide. This PRD
   implements "flag and let staff choose", which supports all three, but the intended default should be
   confirmed.
-- Should `contactNote` exist at all, or does FD genuinely never contact applicants between visits?
+- Should `contactNote` exist at all, or does DF genuinely never contact applicants between visits?
 - Should the waiting list be visible on the counter screen during a distribution day, or only away
   from the counter?

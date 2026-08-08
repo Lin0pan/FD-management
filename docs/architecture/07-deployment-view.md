@@ -10,7 +10,7 @@ something else — see [ADR-002](adr/002-store-the-register-in-a-single-sqlite-f
 
 ```mermaid
 flowchart TB
-    subgraph node["FD's machine — the only production node"]
+    subgraph node["DF's machine — the only production node"]
         direction TB
         browser["Browser<br/><i>bookmark to localhost:3000</i>"]
         subgraph proc["Node 26 process — npm start"]
@@ -43,7 +43,7 @@ is an ordinary day.
 
 | Environment                    | How it starts                                     | Database                                                                   | Clock                                  |
 | ------------------------------ | ------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------- |
-| **FD's machine** (production)  | `npm run build && npm start`                      | `data/fd.db`, persistent                                                   | The wall clock                         |
+| **DF's machine** (production)  | `npm run build && npm start`                      | `data/fd.db`, persistent                                                   | The wall clock                         |
 | **Local development**          | `npm run dev`                                     | `data/fd.db`, reset with `npm run db:reset`, seeded with `npm run db:demo` | The wall clock                         |
 | **CI — e2e, default project**  | Playwright starts a built server on **port 3000** | `data/e2e.db`, deleted and re-migrated per run                             | Pinned via `data/e2e-now.txt`          |
 | **CI — e2e, isolated project** | A second built server on **port 3001**            | `data/e2e-isolated.db`, empty                                              | Pinned via `data/e2e-isolated-now.txt` |
@@ -74,7 +74,7 @@ service to authenticate to.
 | Install or update        | `npm run setup`                                 | Dependencies, `.env`, client, migrations and seed in the one order that works — `prisma generate` must follow `.env` or the client cannot resolve `DATABASE_URL`. Idempotent, and never overwrites an existing `.env` or seeds over existing settings                                |
 | Start                    | `npm run build && npm start`                    | Bookmarked at `http://localhost:3000`                                                                                                                                                                                                                                                |
 | Apply migrations         | `npx prisma migrate deploy`                     | Run after every update; `npm run setup` already includes it                                                                                                                                                                                                                          |
-| Seed policy values       | `npm run db:seed`                               | Idempotent; writes no audit entry. Provisional values: quota 240, 2 portions per grown-up and 1 per child, €2.00 and €1.00 per head, a €5.00 cap, Thursday, anchored at `2026-W02` RED. FD overwrite them on `/einstellungen`; the seeded quota is **not** FD's real one (see below) |
+| Seed policy values       | `npm run db:seed`                               | Idempotent; writes no audit entry. Provisional values: quota 240, 2 portions per grown-up and 1 per child, €2.00 and €1.00 per head, a €5.00 cap, Thursday, anchored at `2026-W02` RED. DF overwrite them on `/einstellungen`; the seeded quota is **not** DF's real one (see below) |
 | Reset the local database | `npm run db:reset`                              | Deletes `data/fd.db`, re-applies migrations, re-seeds. **Required after any migration-history rewrite** — the first symptom of skipping it is the settings screen reporting nothing is configured                                                                                    |
 | Demo data                | `npm run db:demo`                               | 20 synthetic households written _through the real use cases_ with a wound clock, so the result is a database the application could have produced                                                                                                                                     |
 | **Backup**               | Copy `data/fd.db` after a SQLite WAL checkpoint | The single most important operational task                                                                                                                                                                                                                                           |
@@ -83,10 +83,10 @@ service to authenticate to.
 > goes, and how often. This is the whole disaster-recovery story and is tracked as the top risk in
 > [chapter 11](11-risks-and-technical-debt.md).
 
-> **TODO:** FD's real customer quota. The seed's 240 is a placeholder and FD serves roughly 250
+> **TODO:** DF's real customer quota. The seed's 240 is a placeholder and DF serves roughly 250
 > households, so it is wrong in the direction that matters — `updateSettings` refuses a quota below
 > the active count, so a fresh install seeded too low cannot take the register it is meant to hold.
-> Confirm the number with FD and set the seed to it before go-live.
+> Confirm the number with DF and set the seed to it before go-live.
 
 ## Build pipeline
 
@@ -104,7 +104,7 @@ A workflow-level dummy `DATABASE_URL` exists only so `prisma validate` and `next
 `env("DATABASE_URL")`. `codeql.yml` runs on the same triggers plus a weekly cron, and Dependabot is
 configured. Locally, Husky runs lint-staged pre-commit and the unit suite pre-push.
 
-## If FD ever outgrows one machine
+## If DF ever outgrows one machine
 
 The path is a provider change in `schema.prisma` from `sqlite` to `postgresql`, new migrations, and
 TLS in front. The application and domain layers do not move, because they only ever see the ports.

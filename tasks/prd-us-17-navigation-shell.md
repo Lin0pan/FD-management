@@ -111,7 +111,7 @@ distribution is and which group collects, so opening the app answers the questio
       component and no ticking state (see §7).
 - [ ] It shows the next distribution: its date and the collecting group, as **text plus** colour,
       never colour alone
-- [ ] The line is shown on **every** day, however far off the next distribution is. FD distributes
+- [ ] The line is shown on **every** day, however far off the next distribution is. DF distributes
       weekly, so it is never more than six days out, and "when is the next Ausgabe" is the question
       this screen exists to answer — it is not hidden or muted on the quiet days (§6).
 - [ ] On a distribution day it says **today** — "Heute ist Ausgabe" and today's group — and must not
@@ -210,7 +210,7 @@ distribution is and which group collects, so opening the app answers the questio
 
 - **No new business logic.** No domain file, no use case, no port, no Prisma model, no migration.
   If this PRD sends you into `src/domain` or `src/application`, something has been misread.
-- No user menu, login or "who am I" indicator — FD has no login, and none is being added here.
+- No user menu, login or "who am I" indicator — DF has no login, and none is being added here.
 - No breadcrumbs, no nested second-level nav, no sidebar.
 - No search box in the navigation bar; the list's own filters stay where they are.
 - No holiday or cancellation calendar on the dashboard — the next distribution is calendar parity
@@ -282,7 +282,7 @@ distribution is and which group collects, so opening the app answers the questio
 
 ## 9. Open Questions
 
-None outstanding. The three questions this PRD was drafted with have all been answered by FD and the
+None outstanding. The three questions this PRD was drafted with have all been answered by DF and the
 answers are written into the requirements above:
 
 1. The dashboard shows the date but **no clock time** (FR-7).

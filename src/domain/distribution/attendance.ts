@@ -9,7 +9,7 @@
  * re-deriving "the same day" (US-05.3 repeats it as a unique constraint; the UI must not be the only
  * guard, US-05.2).
  *
- * **The day is a calendar day in Europe/Berlin, not a 24-hour window and not the UTC day.** FD
+ * **The day is a calendar day in Europe/Berlin, not a 24-hour window and not the UTC day.** DF
  * distributes in Germany, so "today" is the wall-clock day the staff live in: a hand-out at 09:00 and
  * a correction at 16:00 are the same day, and a record entered at 23:59 is yesterday's by 00:01. The
  * rest of this module family compares *UTC* days (weekColour, distributionDay) because a week colour

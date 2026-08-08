@@ -1,10 +1,10 @@
 /**
  * The colour of a distribution week.
  *
- * FD splits its customers into a RED and a BLUE group and the two collect in alternating weeks. The
+ * DF splits its customers into a RED and a BLUE group and the two collect in alternating weeks. The
  * colour is **derived from the calendar** by strict alternation from one configured anchor week, not
  * typed in per week (tasks/prd-us-03-week-colour.md §FR-2): a per-week table could hold two RED weeks
- * in a row, and FD considers that unfair. Here it is impossible by construction — two dates seven
+ * in a row, and DF considers that unfair. Here it is impossible by construction — two dates seven
  * days apart always land on opposite parities of the same count.
  *
  * All arithmetic uses **ISO-8601 week numbering**: a week runs Monday (ISO weekday 1) to Sunday (7),
@@ -36,7 +36,7 @@ export function startOfUtcDay(date: Date): Date {
 
 /**
  * The ISO weekday of the day a date falls on: Monday = 1 … Sunday = 7. `Date` numbers its weekdays
- * from Sunday = 0, which is the other convention and one FD never uses.
+ * from Sunday = 0, which is the other convention and one DF never uses.
  */
 export function isoWeekdayOf(date: Date): number {
   return ((date.getUTCDay() + 6) % 7) + 1;
@@ -118,7 +118,7 @@ function otherColour(colour: WeekColour): WeekColour {
  * The colour of the week `date` falls in, counting alternately out from `anchor`.
  *
  * Total in both directions: the week difference is negative for a date before the anchor, and the
- * parity is taken with a modulo that stays non-negative — a lookup for a week before FD configured
+ * parity is taken with a modulo that stays non-negative — a lookup for a week before DF configured
  * the anchor answers rather than failing.
  *
  * @throws {InvalidSettings} if the anchor does not name a week of the ISO calendar.

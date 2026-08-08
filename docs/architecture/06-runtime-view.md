@@ -96,12 +96,12 @@ picked the number, a silent retry was defensible; now it is not.
 
 ## Scenario 3 — saving a settings change
 
-**Intention:** FD raises the price per grown-up, and last March's distributions must still price
+**Intention:** DF raises the price per grown-up, and last March's distributions must still price
 correctly.
 
 ```mermaid
 sequenceDiagram
-    actor Lead as FD's manager
+    actor Lead as DF's manager
     participant Action as saveSettings
     participant Update as updateSettings
     participant Factory as createSettings

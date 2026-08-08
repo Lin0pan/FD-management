@@ -13,7 +13,7 @@ import { germanDate } from "@/i18n/format";
  * Every piece is already proved in isolation: `transition` refuses a reason-less archive in the domain
  * gate, `archiveCustomer` stamps the row and keeps the children against fakes, `takenActiveNumbers`
  * skips archived rows against a throwaway SQLite file, and `findByCustomerNumber` prefers the active
- * holder. What none of them can see is the sentence FD actually cares about — *the number is free
+ * holder. What none of them can see is the sentence DF actually cares about — *the number is free
  * again, and the household is still on file*. Those are two claims about two different customers on
  * three different screens, so this spec drives the whole mechanic end to end: register a household,
  * serve them so the archive has something to keep, archive them with a reason, and then watch the very

@@ -6,7 +6,7 @@
     {
       "id": "US-001",
       "title": "Archive search by name and date of birth",
-      "description": "As a staff member, I want to find a returning applicant's archived record, so I do not retype a household FD already knows. Source: tasks/prd-us-11-reuse-archived-record.md §US-11.1",
+      "description": "As a staff member, I want to find a returning applicant's archived record, so I do not retype a household DF already knows. Source: tasks/prd-us-11-reuse-archived-record.md §US-11.1",
       "acceptanceCriteria": [
         "searchArchivedCustomers(deps, {lastName?, firstName?, birthDate?}) requires at least one criterion and rejects an all-empty query with a typed error",
         "Name matching is case-insensitive and diacritic-tolerant (Müller/Mueller); the chosen approach is documented — a normalised search column is acceptable",

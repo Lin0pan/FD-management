@@ -6,9 +6,9 @@
 ## 1. Introduction
 
 Eligibility rests on a needs certificate (Bescheinigung), typically from the Jobcenter, with a
-validity period. When it expires, FD does not turn the customer away — they are served anyway, given
+validity period. When it expires, DF does not turn the customer away — they are served anyway, given
 a verbal reminder to bring a renewed certificate, and the reminder is logged. The count of reminders
-is what staff read when deciding what to do next: FD reminds about three times as a habit, but every
+is what staff read when deciding what to do next: DF reminds about three times as a habit, but every
 case is judged individually, so the system holds no threshold, never prompts and never archives on
 its own (archiving is US-10).
 
@@ -112,7 +112,7 @@ and let me log the reminder without leaving the screen.
 - No written, e-mailed or posted reminders; reminders are verbal and only logged here.
 - No upload or scan of the certificate document.
 - No proactive "expiring soon" alerting at the counter (the expiry list is part of US-15's filters).
-- No threshold at all — not configured, not hard-coded, not overridable per customer. FD's "about
+- No threshold at all — not configured, not hard-coded, not overridable per customer. DF's "about
   three reminders" is a habit staff apply themselves, and encoding it would misrepresent a judgement
   as a rule.
 
@@ -120,7 +120,7 @@ and let me log the reminder without leaving the screen.
 
 - "One reminder per distribution day" is enforced per calendar day, which is stricter and simpler than
   per distribution event. Document that a special hand-out on a second day in the same week could
-  therefore consume two reminders — flag for FD if that ever matters.
+  therefore consume two reminders — flag for DF if that ever matters.
 - The reminder count is a plain running total on the customer record. Because no rule consumes it,
   there is nothing to recompute retroactively when a past distribution is reviewed.
 

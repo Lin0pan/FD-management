@@ -55,7 +55,7 @@ export interface ChangeGroupInput {
  * Move the customer, write the audit trail and report where the register now stands.
  *
  * A **blocked** customer may be moved: a block pauses them at the counter and does not freeze their
- * record, and balancing the two groups is FD's business rather than the household's. An **archived**
+ * record, and balancing the two groups is DF's business rather than the household's. An **archived**
  * one may not — their record is read-only (PRD §FR-8) and they hold no place in either group, so
  * moving them would change a balance they are not part of.
  *

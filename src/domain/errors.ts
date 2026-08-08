@@ -143,7 +143,7 @@ export class BirthDateInFuture extends DomainError {
 
 /**
  * Every customer number up to the quota is held by an active customer. Carries the quota so the UI
- * can say which limit was reached rather than reporting a bare failure — FD's answer is either to
+ * can say which limit was reached rather than reporting a bare failure — DF's answer is either to
  * archive a household or to raise `quotaN` in settings.
  */
 export class NoFreeCustomerNumber extends DomainError {
@@ -219,7 +219,7 @@ export class CustomerNotFound extends DomainError {
  *
  * An archived customer keeps their row and their history — data is never hard-deleted (US-10) — but
  * they hold no slot, so nothing may be issued to them. Their card number would name a slot that a
- * different household may already have taken (FR-6). Reactivating them is FD's answer, and it is a
+ * different household may already have taken (FR-6). Reactivating them is DF's answer, and it is a
  * deliberate act rather than something a card issue may do quietly on their behalf.
  */
 export class CustomerArchived extends DomainError {
@@ -574,7 +574,7 @@ export class EmptySearchQuery extends DomainError {
  * The limit is not a business rule about what staff may write — notes are free text and an empty one
  * is perfectly ordinary. It is a bound on a column that would otherwise accept a pasted document,
  * which is why the number lives beside the field it guards (`NOTES_MAX_LENGTH`) rather than in
- * settings with the prices and portions FD edits.
+ * settings with the prices and portions DF edits.
  */
 export class NotesTooLong extends DomainError {
   readonly code = "NotesTooLong";

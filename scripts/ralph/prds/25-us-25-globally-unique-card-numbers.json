@@ -35,7 +35,7 @@
         "@@unique([customerNumber, index]) is added. @@unique([customerId, index]) STAYS: it still settles a race between two reissues on one record, which is a different fact and gets a different error (US-001)",
         "NO separate @@index([customerNumber]) is added — the new unique index already serves MAX(index) WHERE customerNumber = ? as its leading column. Say so in the schema comment rather than adding one to be safe",
         "The column's doc comment makes the argument for storing it. It is NOT a snapshot in the sense grownUpsAtIssue and groupAtIssue are — those capture a value that goes on changing, and this one cannot change at all, since a customer's number is fixed at registration and released only by archiving (US-24 Non-Goals). It is the same kind of thing as firstNameFolded: a KEY the constraint needs, written by the adapter from the customer row in the same transaction, never read as the card's number. What a card number IS remains formatCardNumber(customer.customerNumber, card.index), derived at every read",
-        "Migration history is REGENERATED, not stacked on: rm -rf prisma/migrations/, npx prisma migrate dev --name init, then npm run db:reset. FD hold no real data, so a corrective migration would describe a system nobody ever ran (CLAUDE.md, Database migrations)",
+        "Migration history is REGENERATED, not stacked on: rm -rf prisma/migrations/, npx prisma migrate dev --name init, then npm run db:reset. DF hold no real data, so a corrective migration would describe a system nobody ever ran (CLAUDE.md, Database migrations)",
         "THE HAND-WRITTEN PARTIAL UNIQUE INDEX IS RE-ADDED to the regenerated prisma/migrations/*_init/migration.sql, verbatim, comment included: CREATE UNIQUE INDEX \"Customer_customerNumber_onRegister_key\" ON \"Customer\"(\"customerNumber\") WHERE \"status\" <> 'ARCHIVED'; — regenerating DROPS it, and without it the slot rule is enforced by application code alone",
         "src/infrastructure/prisma/schema.test.ts still passes: no relation gained onDelete: Cascade, and every nullable relation still says onDelete: Restrict out loud (the test also greps the generated migration SQL)",
         "npm run db:reset completes and the settings screen reports settings in force — the symptom CLAUDE.md names for a schema that drifted from the database",
@@ -135,7 +135,7 @@
     {
       "id": "US-007",
       "title": "The documents say the new rule (documentation)",
-      "description": "As the next developer, I want the places that state the old rule to state the new one, because three of them argue for it explicitly and would otherwise read as a decision FD once made. Source: tasks/prd-us-25-globally-unique-card-numbers.md §US-025.7",
+      "description": "As the next developer, I want the places that state the old rule to state the new one, because three of them argue for it explicitly and would otherwise read as a decision DF once made. Source: tasks/prd-us-25-globally-unique-card-numbers.md §US-025.7",
       "acceptanceCriteria": [
         "CLAUDE.md, 'Derive, don't store': the exception list gains Card.customerNumber with its own argument — a key the (customerNumber, index) constraint needs, written by the adapter from the customer row, never read as the card's number — and says that UNLIKE the three AtIssue fields it snapshots nothing, because a customer number cannot change",
         "docs/technical_documentation.md describes the counting rule as the SLOT'S rather than the record's, and names the counter consequence it exists for",

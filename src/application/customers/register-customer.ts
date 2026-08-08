@@ -150,7 +150,7 @@ export async function registerCustomer(
   // the record itself still carries no count.
   const countsAtIssue = composition(details.householdMembers, now);
   // Absent is stored as null rather than left off, so the record always states whether these people
-  // are known to FD — see `NewCustomer.previousCustomerId`.
+  // are known to DF — see `NewCustomer.previousCustomerId`.
   const previousCustomerId = input.previousCustomerId ?? null;
   const changedFields =
     previousCustomerId === null

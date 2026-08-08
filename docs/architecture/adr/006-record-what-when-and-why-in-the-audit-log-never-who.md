@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-07-22
-- **Deciders:** the maintainer, following FD's decision on login
+- **Deciders:** the maintainer, following DF's decision on login
 
 ## Context
 

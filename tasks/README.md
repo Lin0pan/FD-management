@@ -1,7 +1,7 @@
 # PRDs — FD-Management MVP
 
 One PRD per user story from [`docs/archiv/user_stories_mvp.md`](../docs/archiv/user_stories_mvp.md). The `docs/`
-folder is the source of truth for _what FD needs_ and is never edited by this folder; these documents
+folder is the source of truth for _what DF needs_ and is never edited by this folder; these documents
 are the implementation-facing translation of it.
 
 ## Conventions shared by every PRD
@@ -34,7 +34,7 @@ order the layering implies ([chapter 5](../docs/architecture/05-building-block-v
 - Time comes from the **`Clock` port**, never `new Date()` in domain or application code.
 - Grown-up/children counts are **derived from birthdates on every read**, never stored.
 - Policy values are **data**, not constants — a change applies immediately and is kept as history.
-- No actor is ever recorded — FD has no login, so records say _what / when / why_, never _who_.
+- No actor is ever recorded — DF has no login, so records say _what / when / why_, never _who_.
 - `Customer.id` (surrogate int) is identity and the target of every FK; the `1..N` customer number
   is a **reusable slot attribute**, not an identity.
 - German UI, English code.
@@ -44,7 +44,7 @@ order the layering implies ([chapter 5](../docs/architecture/05-building-block-v
 The concrete policy numbers are **open question 1** in `docs/archiv/domain_analysis.md`. To unblock
 implementation and tests, the PRDs assume the following seeds. They are configuration rows
 (US-14), so replacing them is a data edit, not a code change. **All are provisional and must be
-confirmed with FD before go-live.**
+confirmed with DF before go-live.**
 
 | Value                 | Provisional seed              |
 | --------------------- | ----------------------------- |

@@ -502,7 +502,7 @@ function CustomerRecord({
          * The previous order — who this is, where they live, who lives with them, what they may
          * collect — was documented as deliberate, and for a paper record it is right. On screen it
          * put the least-read section, the address, 480px above the most-read one, and it put the
-         * certificate and the note — which both exist for the counter — below 2 100px. FD were asked
+         * certificate and the note — which both exist for the counter — below 2 100px. DF were asked
          * and chose the reading order. Nothing is removed and nothing is renamed; only the order
          * changes, and it is trivially reversible.
          */}
@@ -583,7 +583,7 @@ function CustomerRecord({
           )}
         </Section>
 
-        {/* A disclosure, per FD: on a two-year-old record this is fifty rows of something consulted
+        {/* A disclosure, per DF: on a two-year-old record this is fifty rows of something consulted
           only when a visit is disputed, and nothing in the suite reaches it (§3.12), so unlike the
           archive search it can genuinely be closed. */}
         <Card>

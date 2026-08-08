@@ -6,7 +6,7 @@ import { Nav } from "./nav";
 
 /**
  * Inter is self-hosted by `next/font` at build time — no request to Google at runtime, which keeps
- * the app usable on the day FD's internet is down. It is published as `--font-sans`, the variable
+ * the app usable on the day DF's internet is down. It is published as `--font-sans`, the variable
  * `globals.css` maps onto Tailwind's `font-sans`, so every shadcn component picks it up.
  */
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });

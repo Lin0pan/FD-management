@@ -6,7 +6,7 @@
 
 ## 1. Introduction
 
-Every number in FD's process — the customer quota, the portions per head, the price per head, the
+Every number in DF's process — the customer quota, the portions per head, the price per head, the
 week-cycle anchor — is currently unknown, and all of them will change over
 the years. Hard-coding any of them guarantees a developer call-out for a price rise. This feature
 stores them as **configuration data** and gives staff a screen to edit them. A saved change is in
@@ -18,7 +18,7 @@ answer "what did that customer owe last March" is to look up the version that wa
 
 ## 2. Goals
 
-- Every policy value FD might change is editable in the app, with no code deploy.
+- Every policy value DF might change is editable in the app, with no code deploy.
 - Historic distribution records remain interpretable with the values that applied at the time.
 - Lowering the quota below reality is impossible.
 - Prices are entered and stored in whole cents; nothing touches floating point.
@@ -92,7 +92,7 @@ seeded with provisional defaults so a fresh install boots into a working app.
 ### US-14.4: Settings screen (presentation)
 
 **Description:** As a staff member, I want to edit the quota, portions, prices and week-cycle
-settings in the app so FD can adapt without calling a developer.
+settings in the app so DF can adapt without calling a developer.
 
 **Acceptance Criteria:**
 
@@ -124,7 +124,7 @@ settings in the app so FD can adapt without calling a developer.
   other feature.
 - FR-3: Editable values are: quota `N`, portions per grown-up, portions per child, price per
   grown-up, price per child, the week-cycle anchor, and the distribution weekday. The reminder
-  escalation is **not** configurable — FD judges each expired certificate individually (US-06).
+  escalation is **not** configurable — DF judges each expired certificate individually (US-06).
 - FR-4: The system must refuse a `quotaN` lower than the current number of active customers, and
   explain why, naming both numbers.
 - FR-5: The system must store all money as whole cents in integer columns.
@@ -156,4 +156,4 @@ settings in the app so FD can adapt without calling a developer.
 ## 8. Open Questions
 
 - **Provisional values.** Quota 240, 2 portions/grown-up, 1 portion/child, price
-  200c/grown-up + 100c/child, anchor `2026-W02 = Red`, Thursday. **All must be confirmed with FD.**
+  200c/grown-up + 100c/child, anchor `2026-W02 = Red`, Thursday. **All must be confirmed with DF.**

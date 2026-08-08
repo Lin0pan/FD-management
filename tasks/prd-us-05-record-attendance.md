@@ -142,6 +142,6 @@ the counter screen.
 ## 8. Open Questions
 
 - Should a record be creatable on a **non**-distribution day (e.g. a special hand-out)? Assumed yes —
-  the use case checks eligibility, not the calendar — but **confirm with FD**.
+  the use case checks eligibility, not the calendar — but **confirm with DF**.
 - Should correcting a record be limited to the same day, or the same distribution week? The story says
   "same day"; this PRD follows it literally.

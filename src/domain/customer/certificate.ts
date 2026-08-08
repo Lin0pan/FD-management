@@ -3,7 +3,7 @@
  *
  * Expiry is the trigger for the reminder trail (US-06): an expired certificate never blocks a
  * hand-out, it starts a conversation at the counter. Deliberately absent is any escalation rule or
- * reminder threshold — FD reminds "about three times" as a habit, but every case is a staff
+ * reminder threshold — DF reminds "about three times" as a habit, but every case is a staff
  * judgement, so the domain exposes only the expiry and the count and encodes no rule on top.
  *
  * The module is pure: `today` is a parameter, never `new Date()`, and there is no settings lookup.
@@ -41,7 +41,7 @@ export type CertificateState = "VALID" | "EXPIRING_SOON" | "EXPIRED";
 /**
  * How many days ahead a certificate counts as expiring soon.
  *
- * Thirty days is FD's habit rather than a rule anyone wrote down: it is roughly the notice a
+ * Thirty days is DF's habit rather than a rule anyone wrote down: it is roughly the notice a
  * Jobcenter renewal needs, and it puts the household on the list about two distributions before the
  * date. It is a constant and not a setting because nobody has yet asked to change it — see
  * tasks/prd-us-15-customer-list.md §9, which leaves making it configurable (US-14) open.

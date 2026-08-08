@@ -485,7 +485,7 @@ describe("readGroupRoster", () => {
     expect(settings.appended).toBe(0);
   });
 
-  it("refuses to walk before FD has settings in force", async () => {
+  it("refuses to walk before DF has settings in force", async () => {
     settings = new FakeSettingsRepository();
 
     await expect(readGroupRoster(deps(), "10")).rejects.toThrow(NoSettingsInForce);

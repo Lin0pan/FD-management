@@ -24,7 +24,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// One immutable set of the policy values FD can change without a deploy: the customer quota, the
+/// One immutable set of the policy values DF can change without a deploy: the customer quota, the
 /// portions per head, the price per head and the week-cycle anchor.
 ///
 /// Versions are **append-only**. A distribution record stores only a `paid` flag and never an
@@ -38,7 +38,7 @@ model SettingsVersion {
   /// same millisecond are a concurrency accident, not a business error, and the later row wins.
   recordedAt DateTime
 
-  /// The maximum number of customer slots FD hands out.
+  /// The maximum number of customer slots DF hands out.
   quotaN             Int
   /// Food portions allowed per grown-up (13 and older) and per child.
   portionsPerGrownUp Int
@@ -53,13 +53,13 @@ model SettingsVersion {
   /// Distribution day as an ISO weekday, Monday = 1 … Sunday = 7.
   distributionWeekday Int
 
-  /// What one grown-up and one child each pay, in whole euro cents. FD charges per head, so what a
+  /// What one grown-up and one child each pay, in whole euro cents. DF charges per head, so what a
   /// household owes is derived — `grownUps × pricePerGrownUpCents + children × pricePerChildCents`,
   /// capped by `priceCapCents` below — and never stored on this row.
   pricePerGrownUpCents Int
   pricePerChildCents   Int
 
-  /// The most one household pays for one distribution, whatever its size — FD's *Maximalpreis*.
+  /// The most one household pays for one distribution, whatever its size — DF's *Maximalpreis*.
   ///
   /// **Nullable because absent is a real configuration, not a missing value:** NULL means there is
   /// no cap and every household pays the per-head sum. It is deliberately not a `0` sentinel,
@@ -70,7 +70,7 @@ model SettingsVersion {
   @@index([recordedAt])
 }
 
-/// A household FD serves.
+/// A household DF serves.
 ///
 /// `id` is the surrogate key and the **only identity** there is. `customerNumber` is a *slot*: it is
 /// what staff and the customer's card say, but an archived household releases it and the next
@@ -114,7 +114,7 @@ model Customer {
   firstNameFolded String
   lastNameFolded  String
 
-  /// The address in flat fields, never a formatted blob: FD sorts and searches by them.
+  /// The address in flat fields, never a formatted blob: DF sorts and searches by them.
   street      String
   houseNumber String
   zip         String
@@ -371,7 +371,7 @@ model DistributionRecord {
 ///
 /// **Rows are retained, never deleted** (FR-7). Whether an applicant was registered or withdrew,
 /// `removedOn` and `removalReason` say so and the row stays: "first come, first served" is a claim
-/// FD must still be able to defend a year later, and it can only be checked against a history that
+/// DF must still be able to defend a year later, and it can only be checked against a history that
 /// still contains the people who left it. The active list is therefore every row with
 /// `removedOn IS NULL` — a filter, never a delete.
 ///
@@ -392,7 +392,7 @@ model WaitingListEntry {
   zip         String
   city        String
 
-  /// How staff would reach this applicant, in free text, or null when none was given. FD agreed no
+  /// How staff would reach this applicant, in free text, or null when none was given. DF agreed no
   /// phone or e-mail fields (docs/domain_analysis.md, open question 2), and nullable rather than
   /// defaulted because "we have no way of reaching them" is a fact about the entry worth seeing.
   contactNote String?
@@ -447,7 +447,7 @@ model ReminderLog {
 
 /// One append-only record of a state change: *what* changed, *when* and *why* — never *who*.
 ///
-/// FD has ruled out login, so the system cannot tell its three or four staff apart and there is
+/// DF has ruled out login, so the system cannot tell its three or four staff apart and there is
 /// deliberately no actor column (docs/tech_stack_architecture_sketch.md §5.2). With no login the log
 /// is the only accountability the system has, so rows are never amended or deleted.
 model AuditEntry {

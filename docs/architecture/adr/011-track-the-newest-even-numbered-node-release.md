@@ -19,7 +19,7 @@ On the day of the decision the options were awkwardly timed. Node 26 had been ou
 but was still **Current** — it becomes Active LTS on 2026-10-28. Node 24 was Active LTS that week,
 but only until 2026-10-20, when it drops to maintenance.
 
-The one thing making this cheap is that FD holds no real data yet. They have the test version and the
+The one thing making this cheap is that DF holds no real data yet. They have the test version and the
 Betriebsanleitung; the register is seeded, not live. The same reasoning that lets migration history be
 regenerated ([ADR-009](009-regenerate-migration-history-until-fd-holds-real-data.md)) applies to the
 runtime: a bad runtime bump discovered now costs an afternoon, and the same bump discovered in year
@@ -35,9 +35,9 @@ three costs a weekend of someone's life.
   cost does not halve for being paid twice.
 - **Prepare now, merge on 2026-10-28** — rejected. It leaves a verified branch rotting against a
   moving `main` for eleven weeks to buy a status change that arrives on its own.
-- **Stay on Node 22 until it expires** — rejected. It defers the work to a point where FD does hold
+- **Stay on Node 22 until it expires** — rejected. It defers the work to a point where DF does hold
   real data, which is exactly when we would least want to be moving the runtime.
-- **Stop pinning; track whatever the developer has installed** — rejected. The pin exists so FD's
+- **Stop pinning; track whatever the developer has installed** — rejected. The pin exists so DF's
   machine and CI are the same runtime; that is the whole value of it.
 
 ## Decision

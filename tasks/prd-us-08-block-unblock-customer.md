@@ -6,7 +6,7 @@
 ## 1. Introduction
 
 Sometimes a customer needs to be paused without losing their place — a dispute, suspected misuse, a
-situation staff want to resolve before the next hand-out. FD handles this today as a purely manual
+situation staff want to resolve before the next hand-out. DF handles this today as a purely manual
 decision with a free-text reason, lifted manually whenever staff judge the matter settled.
 
 The block is temporary and keeps everything: the customer number, the card and the record. It does
@@ -107,7 +107,7 @@ so illegal transitions are impossible rather than merely unlikely.
 
 ## 5. Non-Goals
 
-- **No block history** — FD is explicit that nothing beyond the current reason is tracked today.
+- **No block history** — DF is explicit that nothing beyond the current reason is tracked today.
   Earlier blocks are not retained or listed.
 - No record of who blocked or when (no login; the audit log records what/when/why only).
 - No block duration, scheduled expiry or reminder to review.
@@ -137,4 +137,4 @@ so illegal transitions are impossible rather than merely unlikely.
 
 - On unblocking, should the previous reason be shown one last time as a confirmation ("lifting: …")?
   Assumed yes — it costs nothing and prevents lifting the wrong block.
-- If FD later wants block history, the audit log already carries it; surfacing it is an additive change.
+- If DF later wants block history, the audit log already carries it; surfacing it is an additive change.

@@ -3,7 +3,7 @@
  * so many per child (US-07.1).
  *
  * Like the price (see `priceFor` in `settings.ts`) the allowance is derived per head from the
- * configured per-head values, never stored — the Excel sheet FD is replacing kept a typed-in number
+ * configured per-head values, never stored — the Excel sheet DF is replacing kept a typed-in number
  * that drifted with every birthday. The per-head values are settings, so this module bakes in no
  * defaults: the configuration is a parameter (CLAUDE.md, "Policy values are data, not constants").
  *

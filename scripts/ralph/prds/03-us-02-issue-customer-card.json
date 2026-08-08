@@ -1,7 +1,7 @@
 {
   "project": "FD-Management",
   "branchName": "ralph/us-02-issue-customer-card",
-  "description": "US-02 Issue a Customer Card (Digital) — CardNumber value object, the single issueCard path, and the digital card view. Exactly one valid card per customer; no printing (FD uses a separate system).",
+  "description": "US-02 Issue a Customer Card (Digital) — CardNumber value object, the single issueCard path, and the digital card view. Exactly one valid card per customer; no printing (DF uses a separate system).",
   "userStories": [
     {
       "id": "US-001",

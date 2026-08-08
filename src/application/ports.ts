@@ -151,7 +151,7 @@ export interface CustomerRepository {
    *
    * The status is asked for rather than assumed: "which households does this concern" is a decision
    * of the use case, and a method that quietly meant one particular status would hide it (US-13.2
-   * wants active households only). At FD's ~240 customers a whole-register read is one query of a
+   * wants active households only). At DF's ~240 customers a whole-register read is one query of a
    * few hundred rows, which is why no narrower query exists — see `listCardsDueForReissue` for why
    * the filtering it feeds cannot be pushed into SQL at all.
    */
@@ -247,7 +247,7 @@ export interface CustomerRepository {
    * cards-due list derives on its next read rather than something enqueued here.
    *
    * The group is not part of {@link updateDetails} because it is not a correction of who the
-   * customer is: it is a decision about the register's balance, taken for FD's sake rather than the
+   * customer is: it is a decision about the register's balance, taken for DF's sake rather than the
    * household's, and it gets its own audit entry saying so.
    */
   setGroup(id: number, group: Group): Promise<void>;
@@ -298,7 +298,7 @@ export interface WaitingListEntry extends NewWaitingListEntry {
  * The waiting list (US-12).
  *
  * Entries are **retained, never deleted** (FR-7): a removal stamps the row so the order of past
- * promotions stays reconstructable, which is what makes "first come, first served" a claim FD can
+ * promotions stays reconstructable, which is what makes "first come, first served" a claim DF can
  * still defend a year later. The store therefore has no `delete`, and everything it hands back is the
  * *waiting* list — the removed rows are history, and no screen asks for them yet.
  *
@@ -473,7 +473,7 @@ export interface CertificateRepository {
 }
 
 /**
- * One append-only audit record: *what* changed, *when* and *why* — never *who*. FD has ruled out
+ * One append-only audit record: *what* changed, *when* and *why* — never *who*. DF has ruled out
  * login, so the system cannot tell its staff apart and the log deliberately has no actor field
  * (docs/architecture/adr/006-record-what-when-and-why-in-the-audit-log-never-who.md).
  */

@@ -2,11 +2,11 @@
 
 - **Status:** Accepted
 - **Date:** 2026-07-22
-- **Deciders:** the maintainer, with FD on how the numbers are actually used
+- **Deciders:** the maintainer, with DF on how the numbers are actually used
 
 ## Context
 
-FD hands out customer numbers `1..N`, where `N` is the quota — the number of households they can
+DF hands out customer numbers `1..N`, where `N` is the quota — the number of households they can
 supply. When a household is archived, its number goes back into the pool and the next registration
 fills the gap. That is not an accident of the paper process; it is how the quota is enforced, because
 the count of numbers in use _is_ the count of households served.

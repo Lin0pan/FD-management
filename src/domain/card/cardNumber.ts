@@ -35,7 +35,7 @@ export interface CardNumber {
  * `<customer number>k<index>`, neither part padded.
  *
  * Matched case-insensitively so an uppercase `K` is read as the same card, but
- * {@link formatCardNumber} only ever writes the lowercase one: what FD prints has to be a single
+ * {@link formatCardNumber} only ever writes the lowercase one: what DF prints has to be a single
  * form, and which case a staff member happened to hold shift for is not a property of the card.
  */
 const CARD_NUMBER_PATTERN = new RegExp(`^([1-9][0-9]*)${CARD_INDEX_MARKER}([1-9][0-9]*)$`, "i");

@@ -119,7 +119,7 @@ it onto the physical card or feed it into the printing system.
 
 ## 5. Non-Goals
 
-- **No printing** — no print stylesheet, no PDF, no printer integration. Handled by FD's existing
+- **No printing** — no print stylesheet, no PDF, no printer integration. Handled by DF's existing
   separate system.
 - No barcode or QR code.
 - No card expiry date.
@@ -140,5 +140,5 @@ it onto the physical card or feed it into the printing system.
 
 - Should the `k` be accepted case-insensitively when staff type a card number at the counter?
   (Assumed: yes on input, always lowercase on output.)
-- Does FD's printing system need a specific export format later, or is on-screen transcription
+- Does DF's printing system need a specific export format later, or is on-screen transcription
   sufficient indefinitely?

@@ -13,9 +13,9 @@ by hand. Everything in this chapter treats FD-Management as a black box; the lid
 flowchart LR
     jobcenter["Jobcenter / issuing body<br/><i>issues the proof of need</i>"]
     customer["Household<br/><i>a few hundred, holds a card</i>"]
-    staff["FD counter staff<br/><i>volunteers, no accounts</i>"]
+    staff["DF counter staff<br/><i>volunteers, no accounts</i>"]
     fd[["<b>FD-Management</b><br/>register · eligibility<br/>distribution"]]
-    manager["FD's manager<br/><i>sets the policy values</i>"]
+    manager["DF's manager<br/><i>sets the policy values</i>"]
     printer["Card printing<br/><i>separate existing system</i>"]
     excel["The current Excel sheet<br/><i>the register today</i>"]
 
@@ -38,7 +38,7 @@ system derives. The only continuous exchange is between a staff member and the s
 
 ```mermaid
 flowchart LR
-    subgraph machine["FD's machine (single node)"]
+    subgraph machine["DF's machine (single node)"]
         browser["Browser<br/><i>bookmarked</i>"]
         app["FD-Management<br/><i>Next.js, npm start</i>"]
         db[("data/fd.db<br/><i>SQLite, one file</i>")]
@@ -49,7 +49,7 @@ flowchart LR
     backup["Backup target<br/><i>external, out of scope</i>"]
     db -. "file copy, schedule not yet defined" .-> backup
 
-    subgraph build["Build side — never touches FD's machine"]
+    subgraph build["Build side — never touches DF's machine"]
         gh["GitHub Actions<br/><i>lint · unit · build · e2e</i>"]
         codeql["CodeQL + Dependabot"]
     end
@@ -66,14 +66,14 @@ day.
 
 | Neighbour                            | Responsibility                                                    | Direction                           | Exchanged                                                                          | Format / protocol                  | Owner                                                                             |
 | ------------------------------------ | ----------------------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------- |
-| Counter staff                        | Operate the system; make every judgement call it declines to make | Both                                | Registrations, lookups, hand-outs, reminders, renewals; verdicts, portions, prices | HTML over HTTP on `localhost:3000` | FD                                                                                |
-| FD's manager                         | Set the policy values                                             | Inbound                             | Quota, portions per head, prices, price cap, distribution weekday, week anchor     | The `/einstellungen` screen        | FD                                                                                |
+| Counter staff                        | Operate the system; make every judgement call it declines to make | Both                                | Registrations, lookups, hand-outs, reminders, renewals; verdicts, portions, prices | HTML over HTTP on `localhost:3000` | DF                                                                                |
+| DF's manager                         | Set the policy values                                             | Inbound                             | Quota, portions per head, prices, price cap, distribution weekday, week anchor     | The `/einstellungen` screen        | DF                                                                                |
 | Household (customer)                 | Present a card; bring a valid certificate                         | Indirect — never touches the system | Card number, proof of need                                                         | Spoken and on paper                | —                                                                                 |
 | Jobcenter / issuing body             | Issue the proof of need                                           | Out of band                         | Certificate type and validity date, typed in by staff                              | Paper                              | External                                                                          |
-| Card printing system                 | Print the physical cards                                          | Outbound, manual                    | Customer number and card number, read off `/kunden/[id]/karte`                     | Read from screen                   | FD (existing system)                                                              |
-| `data/fd.db`                         | Hold the entire register                                          | Both                                | Everything                                                                         | SQLite file on the local disk      | FD                                                                                |
-| Backup target                        | Hold a restorable copy of the register                            | Outbound                            | A copy of `data/fd.db`                                                             | File copy plus a WAL checkpoint    | FD — **no schedule exists yet**, see [chapter 11](11-risks-and-technical-debt.md) |
-| The current Excel sheet              | The register as it is kept today                                  | Inbound, one-off                    | A few hundred households                                                           | Undecided                          | FD — **migration route still unanswered**                                         |
+| Card printing system                 | Print the physical cards                                          | Outbound, manual                    | Customer number and card number, read off `/kunden/[id]/karte`                     | Read from screen                   | DF (existing system)                                                              |
+| `data/fd.db`                         | Hold the entire register                                          | Both                                | Everything                                                                         | SQLite file on the local disk      | DF                                                                                |
+| Backup target                        | Hold a restorable copy of the register                            | Outbound                            | A copy of `data/fd.db`                                                             | File copy plus a WAL checkpoint    | DF — **no schedule exists yet**, see [chapter 11](11-risks-and-technical-debt.md) |
+| The current Excel sheet              | The register as it is kept today                                  | Inbound, one-off                    | A few hundred households                                                           | Undecided                          | DF — **migration route still unanswered**                                         |
 | GitHub Actions / CodeQL / Dependabot | Gate every change before it lands                                 | Build side only                     | Source, test results, advisories                                                   | GitHub                             | The maintainer                                                                    |
 
 ## Explicitly not neighbours

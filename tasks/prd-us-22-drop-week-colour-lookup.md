@@ -6,7 +6,7 @@
 in the week of _this_ day". It was built because `docs/archiv/user_stories_mvp.md` §US-03 criterion 3 asked
 for it, and the criterion was written before anyone had used the screen.
 
-FD say they do not need it. What the counter is asked, and the only thing it is asked, is which
+DF say they do not need it. What the counter is asked, and the only thing it is asked, is which
 group collects **now** — today's, or the next distribution's on a day that is not one. The banner
 already answers that, in words and in paint, as the dominant element of the screen. The date lookup
 is a second, quieter answer to a question nobody has, sitting on the busiest screen in the product
@@ -101,7 +101,7 @@ removed, at the place where I would otherwise read that it is required.
 **Acceptance Criteria:**
 
 - [ ] `docs/archiv/user_stories_mvp.md` §US-03 acceptance criterion 3 ("A staff member can look up the
-      colour of a past or future week") is marked as **withdrawn**, with the reason — FD do not need
+      colour of a past or future week") is marked as **withdrawn**, with the reason — DF do not need
       it; the counter answers about now — and the marker style already used in that file for edits
       (`[added]`).
 - [ ] `tasks/prd-us-03-week-colour.md` is updated in three places: §US-03.4 loses the date-picker
@@ -137,7 +137,7 @@ removed, at the place where I would otherwise read that it is required.
   the worked example; this PRD removes a card and changes nothing else on the screen.
 - **Not** removing the ISO week from the banner. Staff check it against a wall calendar, which is a
   different use from looking up an arbitrary day.
-- **Not** hiding the card behind a disclosure. FD do not need the feature at all; folding it away
+- **Not** hiding the card behind a disclosure. DF do not need the feature at all; folding it away
   would keep the code, the strings and the specs for something nobody opens.
 - **Not** removing `getWeekColour`'s date parameter (see FR-5).
 - **Not** adding anything in the space that frees up — the counter simply moves up. US-21 and US-23
@@ -177,9 +177,9 @@ removed, at the place where I would otherwise read that it is required.
 
 ## Settled before this was written
 
-**Does anyone at FD ever need a past or future week's colour — anywhere, not only at the counter?**
+**Does anyone at DF ever need a past or future week's colour — anywhere, not only at the counter?**
 Asked explicitly, because the two readings of "remove the lookup" produce different work: a screen in
-the wrong place is a relocation, and a capability nobody wants is a withdrawal. **FD's answer is that
+the wrong place is a relocation, and a capability nobody wants is a withdrawal. **DF's answer is that
 it is not needed at all**, so criterion 3 is struck rather than re-homed, and this PRD is a
 withdrawal. If it ever comes back, the argument to beat is that one, and the right home would be the
 settings screen beside the anchor that decides the alternation — never the counter.

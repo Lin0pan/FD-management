@@ -139,7 +139,7 @@ describe("consecutiveNoShows", () => {
   });
 
   it("counts a distribution the customer was blocked for", () => {
-    // The documented decision (PRD §US-10.1, §9): a block is FD's own pause, but excluding it would
+    // The documented decision (PRD §US-10.1, §9): a block is DF's own pause, but excluding it would
     // hide the very pattern the count exists to show, and no block history is an input here. A
     // customer blocked across 22 January and 5 February is counted for both.
     expect(

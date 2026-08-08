@@ -172,7 +172,7 @@ describe("seedSettings", () => {
     expect(priceFor(seeded.settings, 2, 1)).toBe(500);
   });
 
-  it("seeds FD's Maximalpreis, so a large household is capped out of the box", async () => {
+  it("seeds DF's Maximalpreis, so a large household is capped out of the box", async () => {
     await seedSettings(repository);
 
     const [seeded] = await repository.listVersions();

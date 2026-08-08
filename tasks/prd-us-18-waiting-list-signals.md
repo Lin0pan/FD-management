@@ -120,7 +120,7 @@ queue.
 - [ ] `showListLink` is **true** here: the list is not on view on this screen, so the banner offers
       the way to it
 - [ ] The banner does not block, disable or pre-empt the registration form — a walk-in may still be
-      registered, this is a statement of fact, not a gate (FD decide who is served, not the software)
+      registered, this is a statement of fact, not a gate (DF decide who is served, not the software)
 - [ ] `/kunden/neu` still renders normally when the waiting list is empty, and the
       `NoSettingsInForce` path is untouched
 - [ ] No new strings needed; typecheck and lint pass
@@ -174,7 +174,7 @@ so the move is a contract and not a coincidence.
 - No count in the navigation bar — `layout.tsx` performs no data read on purpose (US-17.1), and a
   badge there would make every route in the app dynamic.
 - No badge on the Start dashboard. It carries no to-do counts today and does not start now.
-- No blocking or warning dialog on the registration form. The banner informs; FD decide.
+- No blocking or warning dialog on the registration form. The banner informs; DF decide.
 - No new audit entry — nothing here writes anything.
 - No filtering of the register by "is waiting"; the waiting list is not part of the register.
 
@@ -228,7 +228,7 @@ length of a review. Build in the order given.
 ## 9. Open Questions
 
 - **Wording of the zero state.** "niemand wartet" is proposed rather than "0 Wartende", matching how
-  `waitedValue` prefers "seit heute" to "0 Tage". Confirm with FD when the screen is next reviewed.
+  `waitedValue` prefers "seit heute" to "0 Tage". Confirm with DF when the screen is next reviewed.
 - **The accent's exact tint** is left to the implementation, constrained only by "not an alarm
   colour" — red and amber are spoken for by blocked status and expiring certificates.
 - Should `/kunden/[id]` (a single household) ever carry the badge? Out of scope here; the answer is

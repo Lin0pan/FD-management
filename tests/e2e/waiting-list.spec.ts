@@ -11,7 +11,7 @@ import { de } from "@/i18n/de";
  * Every part of the chain is already proved on its own: `inArrivalOrder` orders the queue in the
  * domain gate, `registerFromWaitingList` registers before it removes against fakes, and the adapter
  * stamps a removal rather than deleting it against a throwaway SQLite file. What none of them can
- * see is the sentence FD actually cares about — *the register filled up, an applicant was put on a
+ * see is the sentence DF actually cares about — *the register filled up, an applicant was put on a
  * list instead of being turned away, and when a slot came back it went to whoever had waited
  * longest.* That is four screens and three features (US-01, US-10, US-14) agreeing with one another,
  * so it is driven end to end.
@@ -156,7 +156,7 @@ test.describe("Warteliste", () => {
   test("a third registration into a full register is offered the waiting list", async ({
     page,
   }) => {
-    // FD's quota is a settings value like any other, so it is lowered on the screen staff would use
+    // DF's quota is a settings value like any other, so it is lowered on the screen staff would use
     // rather than in the seed — which is also the only way the number in force is proved to reach
     // the registration form at all.
     await page.goto("/einstellungen");
@@ -236,7 +236,7 @@ test.describe("Warteliste", () => {
     // And on the screen where that number is actually handed out (US-18.3): the staff member about
     // to take a walk-in on is told, before the first field is typed, that somebody has been waiting
     // for exactly this number. It states a fact and gates nothing — the proposal is on screen
-    // beneath it, so a walk-in may still be registered. FD decide who is served, not the software.
+    // beneath it, so a walk-in may still be registered. DF decide who is served, not the software.
     await page.goto("/kunden/neu");
     await expect(page.getByTestId("waiting-list-free-slot-detail")).toHaveText(names);
     await expect(page.getByTestId("customer-number-select")).toHaveValue(filler.customerNumber);

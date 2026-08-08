@@ -16,7 +16,7 @@ import { foldName } from "@/domain/customer/nameSearch";
  * that function** — the counter, the customer record, the customer list and the browser-side
  * household editor each derive the figure for themselves, and a fourth caller that multiplied the
  * per-head prices by the counts itself would be invisible to ESLint, to the type system and to both
- * gates. So this spec seeds FD's own example — four grown-ups and three children, owing 11,00 € per
+ * gates. So this spec seeds DF's own example — four grown-ups and three children, owing 11,00 € per
  * head under a Maximalpreis of 5,00 € — and reads the number off all four.
  *
  * The other half is that the cap is a *setting* and not a constant. The same household is priced
@@ -71,8 +71,8 @@ const CERTIFICATE_VALID_UNTIL = "2027-06-30";
  * and 100c per child, Maximalpreis 500c.
  *
  * `4·2 + 3·1 = 11` portions and `4·200 + 3·100 = 1100` cents per head. The cap is what stands
- * between those 11,00 € and what FD actually collects, and the two figures share the digits `11` on
- * purpose — that is FD's own arithmetic, not a coincidence to be tidied away.
+ * between those 11,00 € and what DF actually collects, and the two figures share the digits `11` on
+ * purpose — that is DF's own arithmetic, not a coincidence to be tidied away.
  */
 const PORTIONS = "11";
 const CAPPED_PRICE = "5,00 €";
@@ -278,7 +278,7 @@ test.describe("Maximalpreis", () => {
 
     // The stored figure, read straight out of SQLite: the record keeps the price that was owed, and
     // what was owed was the cap. A per-head sum here would be the counter quoting one number and
-    // FD's books holding another.
+    // DF's books holding another.
     const records = await prisma.distributionRecord.findMany({
       where: { customerId: id },
       select: { priceCents: true, paid: true },

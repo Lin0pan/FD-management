@@ -124,7 +124,7 @@ guarantee does not rest on every future caller remembering to ask the right ques
       as a rule the file cannot state on its own — is unchanged in substance: this constraint **can**
       be expressed in Prisma and needs no hand-written SQL.
 - [ ] Migration history is regenerated, not stacked on: `rm -rf prisma/migrations/`,
-      `npx prisma migrate dev --name init`, then `npm run db:reset`. FD hold no real data, so the
+      `npx prisma migrate dev --name init`, then `npm run db:reset`. DF hold no real data, so the
       corrective migration would describe a system nobody ever ran (CLAUDE.md, _Database migrations_).
 - [ ] **The hand-written partial unique index is re-added to the regenerated
       `prisma/migrations/*_init/migration.sql`**, verbatim, comment included:
@@ -280,7 +280,7 @@ the built app, because it is the one bug a green unit suite already allowed.
 ### US-025.7: The documents say the new rule (documentation)
 
 **Description:** As the next developer, I want the places that state the old rule to state the new one,
-because three of them argue for it explicitly and would otherwise read as a decision FD once made.
+because three of them argue for it explicitly and would otherwise read as a decision DF once made.
 
 **Acceptance Criteria:**
 
@@ -340,13 +340,13 @@ because three of them argue for it explicitly and would otherwise read as a deci
   discriminator — `66k2` is what a card says, and the parser is untouched.
 - **Not** a way to reclaim or re-issue a retired card number. There is no administrative override, and
   none is wanted: the guarantee is only worth something if it has no exceptions.
-- **Not** collecting physical cards back at archiving. FD have no way to compel it, which is exactly
+- **Not** collecting physical cards back at archiving. DF have no way to compel it, which is exactly
   the premise this PRD works from.
 - **Not** a check that the presented index is not **above** the current one. `66k9` typed for a
   household holding `66k2` still falls through to `CLEAR_TO_SERVE` today. It is a pre-existing gap, it
   is a typo rather than a forged card, and fixing it is a change to `evaluateAtCounter` with its own
   tests — see Open Questions.
-- **Not** a migration of existing data. FD hold none; the history is regenerated (CLAUDE.md).
+- **Not** a migration of existing data. DF hold none; the history is regenerated (CLAUDE.md).
 - **Not** a change to the household counts, the group, the certificate or the allowance on the card.
 
 ## Design Considerations
@@ -392,7 +392,7 @@ because three of them argue for it explicitly and would otherwise read as a deci
   stringified `meta` contains `"index"`, which is true of both constraints — `(customerId, index)` and
   `(customerNumber, index)`. Left as it is, a global duplicate would be reported as a per-record race
   and retried into failing again.
-- Indices stay small. FD archive a handful of households a year against a quota of a few hundred, and
+- Indices stay small. DF archive a handful of households a year against a quota of a few hundred, and
   a slot reused twice with a loss apiece reaches `k4`. There is no realistic path to a card number
   that is awkward to read out.
 - `parseCardNumber`'s leading-zero strictness and its case-insensitive `k` are untouched, and the
@@ -421,7 +421,7 @@ because three of them argue for it explicitly and would otherwise read as a deci
 - **Should the card view name the household that previously held the slot?** A record whose first card
   is `66k4` invites the question. `previousCustomerId` already links a re-registration to its
   predecessor, but a slot reused by _unrelated_ people has no such link and would need one. Left out
-  until FD ask what a gap in a card run means.
+  until DF ask what a gap in a card run means.
 - **Should archiving record which card numbers the household kept?** The audit entry says a household
   was archived; it does not say `66k1` is out there on a card nobody collected. It is not actionable —
   which is the argument for leaving it out — but it is the sort of thing an auditor asks for.

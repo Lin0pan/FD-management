@@ -5,7 +5,7 @@
  * screen and the two use cases behind it (US-11.4).
  *
  * Both actions are **reads**. Nothing here writes, nothing is reserved and no audit entry is due:
- * finding a household FD used to know is not a decision, and the decision — registering them again —
+ * finding a household DF used to know is not a decision, and the decision — registering them again —
  * is taken by the ordinary `submitRegistration` action once staff press Aufnehmen.
  *
  * As everywhere in `app/`, the rules live behind the use cases: which records may be searched, how

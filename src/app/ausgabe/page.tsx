@@ -14,7 +14,7 @@
  * again, ready for the next customer in the queue.
  *
  * The screen answers about *now* and about nothing else. It once carried a second card that looked
- * up the colour of any day; FD said they do not need it, so US-22 withdrew the requirement
+ * up the colour of any day; DF said they do not need it, so US-22 withdrew the requirement
  * (tasks/prd-us-22-drop-week-colour-lookup.md). A `?datum=` still in someone's history is read by
  * nobody now — deliberately inert rather than an error. `getWeekColour`'s date parameter stays: it
  * is what `lookupCustomer` and `recordAttendance` pass their instant to.
@@ -68,7 +68,7 @@ export const dynamic = "force-dynamic";
  * The group's colour, matching the customer card so the two are recognisably the same thing.
  *
  * Deliberately literal palette values rather than theme tokens: RED and BLUE are the printed cards
- * FD hands out, not a semantic role the theme could re-map. Everything else on this screen is styled
+ * DF hands out, not a semantic role the theme could re-map. Everything else on this screen is styled
  * from the design tokens.
  */
 const COLOUR_STYLES = {

@@ -1,12 +1,12 @@
 /**
- * Customer numbers — the slot a customer occupies in FD's register.
+ * Customer numbers — the slot a customer occupies in DF's register.
  *
- * A customer number is a **slot, not an identity**: FD may only serve `quotaN` households at a time
+ * A customer number is a **slot, not an identity**: DF may only serve `quotaN` households at a time
  * (US-14), and when one is archived their number returns to the pool for the next applicant. So the
  * number says "the 37th of the 240 places we have", while the row's surrogate id is what identity
  * means — see `docs/archiv/domain_analysis.md` and the schema rule in US-01.5.
  *
- * Allocation is the lowest free slot rather than the next-highest, because FD's paper cards are
+ * Allocation is the lowest free slot rather than the next-highest, because DF's paper cards are
  * numbered and reusing a freed number keeps the range dense: with a quota of 240, always counting
  * upwards would exhaust the numbering long before the places ran out. Picking the *lowest* also
  * makes registration reproducible — the same register plus the same quota always yields the same
@@ -66,7 +66,7 @@ export function findLowestFreeNumber(
 /**
  * The lowest free number, insisting there is one.
  *
- * @throws {NoFreeCustomerNumber} when every slot up to `quotaN` is taken. FD then has to archive a
+ * @throws {NoFreeCustomerNumber} when every slot up to `quotaN` is taken. DF then has to archive a
  *   customer or raise the quota; guessing a number beyond it would silently break the promise the
  *   quota makes.
  */

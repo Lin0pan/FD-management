@@ -14,7 +14,7 @@
  * certificate's state from today's date. This page lays them out and computes nothing.
  *
  * It is a **read**, entirely: a plain GET form carries the filters, which is what puts them in the
- * URL (FR-5). That is not a technicality — FD share one machine, and "the list I was looking at" has
+ * URL (FR-5). That is not a technicality — DF share one machine, and "the list I was looking at" has
  * to survive a reload and be passable to a colleague as a link.
  *
  * The group balance stands above the table and deliberately does not move with the filters: it is
@@ -341,7 +341,7 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Ticked deliberately, never by default (FR-4). Unticked it submits nothing at all, so the
-            plain /kunden URL is the working view of who FD serves. Native, because the action reads
+            plain /kunden URL is the working view of who DF serves. Native, because the action reads
             it as presence in the FormData and Radix's Checkbox submits nothing of its own. */}
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
@@ -469,7 +469,7 @@ function Overview({
  * itself in `overflow-x-auto`, and either one on its own makes *itself* the scrollport the header
  * sticks to — so the header parks at the top of a box as tall as the table and leaves the window
  * with the rows. Below `xl` the container keeps its horizontal scroll and the header gives up
- * sticking, which is the right way round: FD work at desktop width, and a table that cannot be
+ * sticking, which is the right way round: DF work at desktop width, and a table that cannot be
  * scrolled sideways on a narrow screen is worse than one whose header scrolls away.
  *
  * `xl` and not `lg`, measured rather than guessed: ten columns need about 1000px, which a `lg`
@@ -506,7 +506,7 @@ function CustomerTable({ rows }: { rows: ReadonlyArray<CustomerListRow> }): Reac
 }
 
 /**
- * What the screen says when FD has not configured anything yet: the list cannot price a household
+ * What the screen says when DF has not configured anything yet: the list cannot price a household
  * before a portion has a price (US-14). The register is not broken, the installation is unfinished,
  * so the page says so and points at the settings rather than being an error screen.
  */

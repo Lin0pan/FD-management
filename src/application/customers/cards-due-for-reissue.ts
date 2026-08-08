@@ -62,7 +62,7 @@ export interface CardDueForReissue {
  * The whole active register is read and compared here rather than filtered in SQL, because the
  * comparison is not expressible as a query: one side of it is `composition(members, today)`, a rule
  * over birthdates that lives in the domain and changes answer as the clock moves without any row
- * changing. At FD's ~240 customers that is one query and a few hundred date comparisons — the
+ * changing. At DF's ~240 customers that is one query and a few hundred date comparisons — the
  * deliberate choice US-13.3 asks to be documented rather than a limitation to work around.
  *
  * @throws {EmptyHousehold} if a stored household has no members — a record that cannot be counted.

@@ -140,7 +140,7 @@ class FakeReminderLogRepository implements ReminderLogRepository {
   }
 }
 
-/** The policy in force throughout: FD's own numbers, anchored so that `2026-07-29` is a RED week. */
+/** The policy in force throughout: DF's own numbers, anchored so that `2026-07-29` is a RED week. */
 const SETTINGS: SettingsVersion = {
   recordedAt: new Date("2026-01-01T00:00:00.000Z"),
   settings: createSettings({
@@ -966,7 +966,7 @@ describe("changeGroup", () => {
     expect(audit.entries).toEqual([]);
   });
 
-  it("moves a blocked household — balancing the groups is FD's business, not theirs", async () => {
+  it("moves a blocked household — balancing the groups is DF's business, not theirs", async () => {
     customers.holders.push(household({ id: 4, customerNumber: 53, status: "BLOCKED" }));
 
     await changeGroup(deps(), { customerId: 4, group: "BLUE" });

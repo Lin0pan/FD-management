@@ -2,7 +2,7 @@
  * How many of their **own** distributions in a row a customer has missed (US-10.1).
  *
  * Archiving is always a human decision, but it has two triggers, and this is one of them: a household
- * that has quietly stopped coming. FD cannot see that in the Excel sheet today — it would mean
+ * that has quietly stopped coming. DF cannot see that in the Excel sheet today — it would mean
  * scanning a row of week columns by eye — so the count is derived here and simply *displayed*. There
  * is no threshold in this module and no action follows from any value it returns (PRD §5): three is
  * emphasis on a screen, never an automatic archive.
@@ -21,10 +21,10 @@
  *   day's hand-out had already finished is nowhere on record. Counting it would produce a miss staff
  *   cannot check against anything.
  *
- * A **block** is *not* excluded (PRD §9, still to be confirmed with FD): weeks in which the customer
+ * A **block** is *not* excluded (PRD §9, still to be confirmed with DF): weeks in which the customer
  * was blocked are counted like any other. Excluding them would hide the pattern the count exists to
  * show, and it would need a block *history* — which the customer record does not keep, only the
- * current reason. If FD decides otherwise, the periods have to come in as a parameter; nothing here
+ * current reason. If DF decides otherwise, the periods have to come in as a parameter; nothing here
  * may reach for them.
  *
  * The module is pure: `today`, `settings` and `registeredOn` are parameters, never the wall clock, and

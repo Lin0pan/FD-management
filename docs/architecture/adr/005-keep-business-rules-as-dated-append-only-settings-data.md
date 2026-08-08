@@ -2,14 +2,14 @@
 
 - **Status:** Accepted
 - **Date:** 2026-07-22
-- **Deciders:** the maintainer, with FD on which values are theirs to change
+- **Deciders:** the maintainer, with DF on which values are theirs to change
 
 ## Context
 
-Every number in FD's process is a policy they set and change: the customer quota `N`, the portions
+Every number in DF's process is a policy they set and change: the customer quota `N`, the portions
 allowed per grown-up and per child, the price per head, the cap on what one household pays, which
 weekday the distribution runs and which week of the two-week cycle is which colour. None of them is
-a fact about the world; all of them are decisions FD revisits when reality changes — a price rises,
+a fact about the world; all of them are decisions DF revisits when reality changes — a price rises,
 supply tightens.
 
 A hard-coded constant would put each of those behind a developer and a deploy, which for a charity
@@ -20,14 +20,14 @@ know which policy was in force then.
 ## Considered options
 
 - **Append-only, clock-stamped versions of the whole settings set** — chosen.
-- **Hard-coded constants** — rejected: FD cannot change them, and the values were not even fully
+- **Hard-coded constants** — rejected: DF cannot change them, and the values were not even fully
   known when the system was designed.
 - **A single mutable settings row, updated in place** — rejected. Overwriting the old price destroys
   the only record of what a past distribution cost.
 - **A price table per household size** — tried and reversed on 2026-07-22 (`d3ecc88`). It made staff
   enumerate every household size they might meet, and an unmet one — nine people — reached the
   counter as an error. Price per head has no such gap.
-- **A staff-entered "effective from" date on each change** — tried and reversed (`8552752`). FD
+- **A staff-entered "effective from" date on each change** — tried and reversed (`8552752`). DF
   adjust the numbers when reality changes; dating a change forwards or backwards was a field to get
   wrong rather than a requirement.
 
@@ -42,7 +42,7 @@ cannot smuggle an invalid policy in.
 
 ## Consequences
 
-- FD change their own rules in the UI, and the change is live for the next customer at the counter.
+- DF change their own rules in the UI, and the change is live for the next customer at the counter.
 - A past distribution can still be priced, because the version in force that day is still there.
 - Nothing in the codebase may hard-code a price, a portion count or a threshold — that is a standing
   rule, not a one-off.

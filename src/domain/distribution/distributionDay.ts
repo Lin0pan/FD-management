@@ -1,7 +1,7 @@
 /**
- * When FD hands out food, and in which colour week.
+ * When DF hands out food, and in which colour week.
  *
- * FD distributes on one configured weekday (`distributionWeekday`, ISO-numbered Monday = 1 … Sunday
+ * DF distributes on one configured weekday (`distributionWeekday`, ISO-numbered Monday = 1 … Sunday
  * = 7). The screen has to answer two questions from that one setting: is today a distribution day,
  * and — when it is not — when is the next one and which group does it belong to
  * (tasks/prd-us-03-week-colour.md §US-03.2, FR-5).
@@ -26,7 +26,7 @@ export interface Distribution {
   readonly colour: WeekColour;
 }
 
-/** Whether `date` falls on the weekday FD distributes on. The time of day is irrelevant. */
+/** Whether `date` falls on the weekday DF distributes on. The time of day is irrelevant. */
 export function isDistributionDay(date: Date, weekday: IsoWeekday): boolean {
   return isoWeekdayOf(date) === weekday;
 }

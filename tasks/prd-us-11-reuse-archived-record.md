@@ -15,7 +15,7 @@
 ## 1. Introduction
 
 People come back. Circumstances change, a certificate lapses and is renewed months later, someone
-moves away and returns. FD already knows their household — retyping it wastes time and introduces
+moves away and returns. DF already knows their household — retyping it wastes time and introduces
 errors. This feature lets staff search the archive during registration and pre-fill the form from a
 matching record.
 

@@ -19,7 +19,7 @@
  *   household looked up on a Blau day still positions the walk between the Blau numbers around it
  *   (§FR-5) rather than stranding the controls.
  * - **The membership query is the existing `CustomerRepository.list`**, which already filters by group
- *   and status and already answers lowest customer number first. No port method was added: at FD's
+ *   and status and already answers lowest customer number first. No port method was added: at DF's
  *   ~240 customers this is the same read `/kunden` performs on every visit.
  *
  * US-23 gave the same read a second job: how far through the group the afternoon is, and who is still

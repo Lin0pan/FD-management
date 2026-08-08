@@ -9,9 +9,9 @@
  *
  * The applicant is named by id rather than taken from the head of the queue. The order is stated by
  * `listWaiting` and by the banner, which names the longest waiting applicant and no one else; what is
- * left open here is the one case FD has not yet decided — an expired certificate at the head, where
+ * left open here is the one case DF has not yet decided — an expired certificate at the head, where
  * skipping to the next applicant is one of the answers on the table (PRD §9). Deciding it in code
- * would close it off before FD has chosen.
+ * would close it off before DF has chosen.
  */
 
 import type { NeedsCertificate } from "@/domain/customer/customer";
@@ -45,9 +45,9 @@ export interface PromoteFromWaitingListInput {
  * reason in each case: the **certificate**, because it was seen when the applicant joined and is
  * checked again here rather than being a lapsed copy of one nobody has looked at in years; and the
  * **contact note** as the record's notes, because it was written about these people while they waited
- * and is the most current thing FD knows about them. Both stay editable, like every other field.
+ * and is the most current thing DF knows about them. Both stay editable, like every other field.
  *
- * The household holds the applicant alone. FD does not ask who someone lives with until they are
+ * The household holds the applicant alone. DF does not ask who someone lives with until they are
  * registered (PRD §7), and the applicant is by definition a member of their own household — so the
  * form opens with the row it can fill in honestly and staff add the rest.
  */

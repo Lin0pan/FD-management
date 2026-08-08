@@ -42,7 +42,7 @@ export const de = {
        * Today and a coming day are two sentences rather than one sentence styled two ways: on the
        * day itself the line reads differently, not louder (PRD §6).
        *
-       * The group is a note in brackets rather than a clause of its own — FD's wording, once they
+       * The group is a note in brackets rather than a clause of its own — DF's wording, once they
        * had seen it as `– Gruppe Rot holt ab.` Nothing is lost by it: the screen is no longer
        * tinted, so the word in brackets is now the *only* thing saying which group collects, which
        * is the way round US-03.4 asks for anyway (never colour alone).
@@ -103,7 +103,7 @@ export const de = {
        * Shown on the record the registration lands on, not on the form — a successful registration
        * redirects, so the form itself never has good news to report.
        *
-       * One sentence, and only the fact. It once went on to say the card could now be printed; FD
+       * One sentence, and only the fact. It once went on to say the card could now be printed; DF
        * asked for that dropped, and they are right that the screen does not need it — the button
        * that prints the card is in the header, a hand's width above this line.
        */
@@ -434,7 +434,7 @@ export const de = {
       issuedHeading: "Ausgestellte Karten",
       issuedCount: "Karten insgesamt",
       lossCount: "davon nach Verlust",
-      // Stated as plainly as the numbers themselves: FD decides case by case whether a household
+      // Stated as plainly as the numbers themselves: DF decides case by case whether a household
       // loses cards too often, and the software must not tilt that judgement with a warning
       // (tasks/prd-us-09-reissue-card-after-loss.md §FR-4).
       issuedHint:
@@ -866,7 +866,7 @@ export const de = {
        *
        * It names nobody. The applicant was named in `confirm`, one click earlier, and a name in a
        * banner would have to come from the URL the removal redirects through — which is where the
-       * one place FD's data must not end up is a browser history. What is left to say is that the
+       * one place DF's data must not end up is a browser history. What is left to say is that the
        * entry was kept, which is the thing the shortened list does not say.
        */
       saved:
@@ -883,7 +883,7 @@ export const de = {
       /**
        * Shown *before* the form when the certificate lapsed during the wait. It is a step, not a
        * dialog: staff read it, then decide to go on — and the applicant is never sent away, because
-       * FD has not decided how such a case is handled (PRD §9).
+       * DF has not decided how such a case is handled (PRD §9).
        */
       expiredHeading: "Der Bedarfsnachweis ist abgelaufen",
       expiredDetail: (validUntil: string): string =>

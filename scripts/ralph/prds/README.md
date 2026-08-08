@@ -116,7 +116,7 @@ the MVP rather than in build order with it. Those four touch only `src/app/**`, 
 `tests/e2e/**`. If an iteration of any of them finds itself editing `src/domain` or
 `src/application`, it has misread the story.
 
-**Batches 21 to 23 are the three changes FD asked for after using the counter**, and they are the
+**Batches 21 to 23 are the three changes DF asked for after using the counter**, and they are the
 first post-MVP batches that are _not_ presentation-only:
 
 - **21 (US-22)** removes the week-colour date lookup from `/ausgabe` — a **withdrawn requirement**,
@@ -127,7 +127,7 @@ first post-MVP batches that are _not_ presentation-only:
 - **23 (US-23)** adds the "x von y abgeholt" tally and the group list behind it. Domain +
   **one new port method** (`listForDay`) + application + presentation + e2e; still no schema change.
 
-**Batch 24 (US-24)** is the fourth post-counter change FD asked for: the registration screen stops
+**Batch 24 (US-24)** is the fourth post-counter change DF asked for: the registration screen stops
 handing out the lowest free customer number as a read-only figure and offers the whole free pool as a
 dropdown, still preselected to the lowest. Domain + application + presentation + e2e; **no schema
 change and no new port method** — `takenActiveNumbers()` already answers the query. It touches
@@ -143,15 +143,15 @@ record's, so Customer2 starts at `66k2` and the existing `OUTDATED_CARD` verdict
 Domain + schema + infrastructure + application + one German string + e2e + docs. It **must run after
 24**, which is what made choosing a reused number easy in the first place.
 
-Two things about 25 that no earlier batch has needed: it **regenerates `prisma/migrations/`** (FD hold
+Two things about 25 that no earlier batch has needed: it **regenerates `prisma/migrations/`** (DF hold
 no real data, so history is disposable — CLAUDE.md), which drops the hand-written partial unique index
 on `Customer.customerNumber` unless US-002 puts it back; and it adds a **new port method**
 (`highestIndexForNumber`), so every hand-written fake `CardRepository` in the application tests has to
 gain it before the suite compiles.
 
-**Batch 26 (US-26)** is a new requirement rather than a correction: FD caps what any one household
+**Batch 26 (US-26)** is a new requirement rather than a correction: DF caps what any one household
 pays for a distribution at a **Maximalpreis** — 5,00 € today — which the software has never known
-about, so it quotes 11,00 € for four grown-ups and three children where FD collects 5,00 €. The
+about, so it quotes 11,00 € for four grown-ups and three children where DF collects 5,00 €. The
 behavioural change is one line in `priceFor`, because every screen that shows a price already derives
 it there; the other six stories exist because the cap must be **configurable, versioned and
 auditable** like every other policy value. Domain + schema + infrastructure + application-free

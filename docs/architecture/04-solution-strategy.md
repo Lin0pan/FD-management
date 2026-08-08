@@ -10,7 +10,7 @@ easier and what it makes harder, and where the full reasoning lives.
 **Approach.** Four layers — `domain`, `application`, `infrastructure`, `app` — with dependencies
 pointing inwards only, and the rule enforced by two ESLint rule blocks rather than by review.
 
-**Rationale.** FD's rules are the part of this system worth protecting for five years
+**Rationale.** DF's rules are the part of this system worth protecting for five years
 ([goal 1](01-introduction-and-goals.md#quality-goals)), and part of the code is written by unattended
 agent runs, where no reviewer exists to notice a violation.
 
@@ -26,9 +26,9 @@ indirection: a new field is touched in four places even when it is a plain strin
 **Approach.** SQLite in `data/fd.db`, the app started with `npm start` and bound to
 `localhost:3000`, no authentication.
 
-**Rationale.** FD has no IT staff to administer anything and holds sensitive data about vulnerable
+**Rationale.** DF has no IT staff to administer anything and holds sensitive data about vulnerable
 people ([constraints](02-architecture-constraints.md), [goal 3](01-introduction-and-goals.md#quality-goals)).
-Physical control of the machine is a form of access control FD already has and understands.
+Physical control of the machine is a form of access control DF already has and understands.
 
 **Consequence.** Backup is a file copy and restore is a copy back — operations a non-technical person
 can perform. Nothing to patch, nothing exposed. Against that: an unlocked machine is an open
@@ -39,16 +39,16 @@ both decisions.
 [ADR-003](adr/003-ship-without-login-and-bind-the-application-to-localhost.md),
 [chapter 7](07-deployment-view.md)
 
-## 3. Policy is data FD owns, not constants a developer owns
+## 3. Policy is data DF owns, not constants a developer owns
 
 **Approach.** Quota, portions, prices, the price cap, the distribution weekday and the week anchor
 live in append-only, clock-stamped `SettingsVersion` rows, editable in the UI and in force
 immediately.
 
-**Rationale.** Every number in FD's process is a decision they revisit. Behind a deploy, "changeable"
+**Rationale.** Every number in DF's process is a decision they revisit. Behind a deploy, "changeable"
 means "not changeable" for an organisation with no developer on call.
 
-**Consequence.** FD change their own rules, and a past distribution can still be priced because the
+**Consequence.** DF change their own rules, and a past distribution can still be priced because the
 version in force that day survives. It also means nothing in the codebase may hard-code a price, a
 portion or a threshold — a standing rule, and the reason there is no configurable reminder
 escalation: whether an expired certificate ends in archiving is a judgement, not a number.
@@ -62,7 +62,7 @@ escalation: whether an expired certificate ends in archiving is a judgement, not
 colour are computed at the point of use. Four stored duplicates exist and each carries its
 justification in the schema.
 
-**Rationale.** The drifting typed-in counts in FD's spreadsheet are the specific failure this system
+**Rationale.** The drifting typed-in counts in DF's spreadsheet are the specific failure this system
 was built to remove ([goal 2](01-introduction-and-goals.md#quality-goals)).
 
 **Consequence.** A count that contradicts the household is not expressible. Age-based reclassification

@@ -93,7 +93,7 @@ test.describe("Einstellungen", () => {
     await page.reload();
     await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("2,75");
 
-    // Counted with the fold still shut, which is how FD will meet this list.
+    // Counted with the fold still shut, which is how DF will meet this list.
     const versions = page.getByTestId("settings-version");
     await expect(versions).toHaveCount(before + 1);
 
@@ -255,7 +255,7 @@ test.describe("Einstellungen", () => {
     await page.reload();
     await expect(page.getByLabel(CAP_LABEL, { exact: true })).toHaveValue("4,00");
 
-    // And the version in force states it beside the two per-head prices, which is where FD reads
+    // And the version in force states it beside the two per-head prices, which is where DF reads
     // back what the software will charge.
     await openHistory(page);
     await expect(page.getByTestId("settings-version").first()).toContainText(
