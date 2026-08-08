@@ -10,18 +10,29 @@ An early version, for FD to test with — it does not replace the spreadsheet ye
 
 **Prerequisites**
 
-- **Node 22** (`.nvmrc`) and npm. Nothing else — no database server, no Docker, no account.
+- **Node 22.** Install it from [nodejs.org](https://nodejs.org/en/download) — npm comes with it —
+  or through a version manager such as [nvm](https://github.com/nvm-sh/nvm) or
+  [fnm](https://github.com/Schniz/fnm), which read the version from `.nvmrc`. The version is pinned
+  (`engines` in `package.json`); nothing else is tested.
+- No database server, no Docker, no account. Running the E2E suite additionally needs Playwright's
+  browser — see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 - The app runs on one machine, bound to localhost, without a login.
 - `data/fd.db` is the entire state of the system and there is **no backup yet**.
 
 **Install**
 
 ```bash
-npm install
-cp .env.example .env
-npx prisma migrate deploy   # creates data/fd.db
-npm run db:seed             # provisional policy values, so the app boots usable
+npm run setup
 ```
+
+Dependencies, `.env`, the Prisma client, migrations and the seed — in the one order that works. Safe
+to repeat, so it is also the command to run after pulling: it never overwrites an existing `.env`
+and never seeds over existing settings.
+[Why a script](./CONTRIBUTING.md#getting-started) · [`scripts/setup.mjs`](./scripts/setup.mjs)
+
+> **Not supported on Windows yet.** The script is untested there and expected to fail on the first
+> step. macOS and Linux are fine; on Windows run the steps by hand for now — they are listed in
+> [`CONTRIBUTING.md`](./CONTRIBUTING.md#getting-started). A Windows-capable version will follow.
 
 **Run in development**
 
@@ -32,9 +43,13 @@ npm run dev                 # http://localhost:3000
 **Run in production**
 
 ```bash
-npm run build
+npm run build               # only after pulling new code — see below
 npm start                   # http://localhost:3000
 ```
+
+`npm start` serves the last build, so rebuild after every update and only then: a build is a
+snapshot of the code, not of the data. Nothing FD does — customers, settings, hand-outs — needs one.
+`npm run dev` needs no build at all.
 
 Either way you get a working app with an **empty register**. To click around with something to look
 at, add the demo data below.

@@ -15,15 +15,60 @@ humans and agents alike; this file does not restate it.
 
 ## Getting started
 
-Requires **Node 22** (see `.nvmrc`; `nvm use` picks it up).
+Requires **Node 22** — from [nodejs.org](https://nodejs.org/en/download), or through a version
+manager such as [nvm](https://github.com/nvm-sh/nvm) or [fnm](https://github.com/Schniz/fnm), which
+pick the version up from `.nvmrc` (`nvm use`). npm ships with Node; nothing else is needed to run
+the app.
 
 ```bash
-npm install                 # also installs Husky git hooks via the "prepare" script
-cp .env.example .env        # sets DATABASE_URL to the local SQLite file
-npx prisma migrate deploy   # creates data/fd.db from the committed migrations
-npm run db:seed             # seeds the provisional settings version (no-op if one exists)
+npm run setup               # everything below, in the order that works
 npm run dev                 # http://localhost:3000
 ```
+
+`npm run setup` ([`scripts/setup.mjs`](./scripts/setup.mjs)) runs five steps, each idempotent, so it
+is safe on a fresh clone and on a checkout you have had for months:
+
+| Step                        | Notes                                                        |
+| --------------------------- | ------------------------------------------------------------ |
+| `npm install`               | also installs the Husky git hooks via the `prepare` script   |
+| create `.env`               | copied from `.env.example`; an existing `.env` is left alone |
+| `npx prisma generate`       | **after** `.env` — see below                                 |
+| `npx prisma migrate deploy` | creates `data/fd.db` from the committed migrations           |
+| `npm run db:seed`           | seeds the provisional settings version, no-op if one exists  |
+
+The third step is why this is a script and not a list here. `prisma generate` records where to read
+`DATABASE_URL` from at the moment it runs, so it has to follow `.env` — and the client `npm install`
+generates for itself, before `.env` exists, cannot resolve it. The resulting failure is confusing
+rather than obvious: `migrate deploy` succeeds, because the Prisma **CLI** loads `.env` by itself,
+and then `db:seed` dies with `Environment variable not found: DATABASE_URL` against a database that
+was migrated correctly a second earlier. CI never hits it — every job runs `npx prisma generate`
+explicitly after `npm ci` ([`ci.yml`](./.github/workflows/ci.yml)).
+
+**Windows is not supported yet, and a Windows-capable version of the script will follow.**
+`npm run setup` is untested there and expected to fail at the first step: since the 2024 fix for
+CVE-2024-27980, Node refuses to spawn `npm.cmd` without `shell: true`, and the script does not pass
+it. The fix has to be proved on a real Windows machine before it is claimed, so until then run the
+five steps by hand in this order — the ordering constraint below is the whole point, so do not
+reorder them:
+
+```powershell
+npm install
+Copy-Item .env.example .env
+npx prisma generate
+npx prisma migrate deploy
+npm run db:seed
+```
+
+The E2E suite needs one thing more, once, before the first `npm run test:e2e`:
+
+```bash
+npx playwright install --with-deps chromium
+```
+
+That is a browser binary, not an npm package, which is why `npm install` does not fetch it and why
+`npm run setup` deliberately leaves it out — it is a large download that nobody needs in order to
+run the app. The devcontainer ([`devcontainer.json`](./.devcontainer/devcontainer.json)) and CI
+([`ci.yml`](./.github/workflows/ci.yml)) each run it themselves.
 
 To click around with something to look at, add the demo register — twenty synthetic households with
 a hand-out history, blocks, archives and lapsed certificates:
@@ -38,18 +83,19 @@ database**: it is a development fixture and `--reset` deletes customer data outr
 
 ## Everyday commands
 
-| Command                 | What it does                                            |
-| ----------------------- | ------------------------------------------------------- |
-| `npm run dev`           | Next.js dev server                                      |
-| `npm run build`         | Production build                                        |
-| `npm start`             | Serve the production build                              |
-| `npm run lint`          | ESLint                                                  |
-| `npm run typecheck`     | `tsc --noEmit`                                          |
-| `npm test`              | Vitest unit suite (domain + application)                |
-| `npm run test:coverage` | Vitest with coverage (thresholds enforced)              |
-| `npm run test:e2e`      | Playwright against the built app + throwaway SQLite dbs |
-| `npm run format`        | Prettier write                                          |
-| `npm run db:demo`       | Seed twenty synthetic households to click around with   |
+| Command                 | What it does                                                                |
+| ----------------------- | --------------------------------------------------------------------------- |
+| `npm run setup`         | Install, `.env`, generate, migrate, seed — idempotent                       |
+| `npm run dev`           | Next.js dev server — needs no build                                         |
+| `npm run build`         | Production build; only needed after the code changes                        |
+| `npm start`             | Serves the **last** build, so rebuild first if the code moved               |
+| `npm run lint`          | ESLint                                                                      |
+| `npm run typecheck`     | `tsc --noEmit`                                                              |
+| `npm test`              | Vitest unit suite (domain + application)                                    |
+| `npm run test:coverage` | Vitest with coverage (thresholds enforced)                                  |
+| `npm run test:e2e`      | Playwright vs. the built app + throwaway SQLite dbs (browser install first) |
+| `npm run format`        | Prettier write                                                              |
+| `npm run db:demo`       | Seed twenty synthetic households to click around with                       |
 
 ## Architecture in one paragraph
 
