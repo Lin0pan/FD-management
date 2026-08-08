@@ -15,7 +15,7 @@ humans and agents alike; this file does not restate it.
 
 ## Getting started
 
-Requires **Node 22** — from [nodejs.org](https://nodejs.org/en/download), or through a version
+Requires **Node 26** — from [nodejs.org](https://nodejs.org/en/download), or through a version
 manager such as [nvm](https://github.com/nvm-sh/nvm) or [fnm](https://github.com/Schniz/fnm), which
 pick the version up from `.nvmrc` (`nvm use`). npm ships with Node; nothing else is needed to run
 the app.

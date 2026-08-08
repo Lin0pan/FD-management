@@ -10,7 +10,7 @@ An early version, for FD to test with — it does not replace the spreadsheet ye
 
 **Prerequisites**
 
-- **Node 22.** Install it from [nodejs.org](https://nodejs.org/en/download) — npm comes with it —
+- **Node 26.** Install it from [nodejs.org](https://nodejs.org/en/download) — npm comes with it —
   or through a version manager such as [nvm](https://github.com/nvm-sh/nvm) or
   [fnm](https://github.com/Schniz/fnm), which read the version from `.nvmrc`. The version is pinned
   (`engines` in `package.json`); nothing else is tested.

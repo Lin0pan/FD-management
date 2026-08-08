@@ -1,8 +1,8 @@
 # 9. Architectural decisions
 
-_Last reviewed: 2026-08-07_
+_Last reviewed: 2026-08-08_
 
-A timeline. The ten decisions that constrain future work and are hard to reverse have an ADR of their
+A timeline. The eleven decisions that constrain future work and are hard to reverse have an ADR of their
 own in [`adr/`](adr/); the smaller ones below them are recorded as a row and nothing more, because a
 decision log full of trivia teaches people to skim it.
 
@@ -20,6 +20,7 @@ decision log full of trivia teaches people to skim it.
 | [008](adr/008-treat-a-customer-number-as-a-reusable-slot-not-an-identity.md)            | Treat a customer number as a reusable slot, not an identity           | Accepted | 2026-07-22 |
 | [009](adr/009-regenerate-migration-history-until-fd-holds-real-data.md)                 | Regenerate migration history until FD holds real data                 | Accepted | 2026-07-22 |
 | [010](adr/010-never-hard-delete-a-record-archive-and-let-the-database-refuse.md)        | Never hard-delete a record: archive, and let the database refuse      | Accepted | 2026-07-27 |
+| [011](adr/011-track-the-newest-even-numbered-node-release.md)                           | Track the newest even-numbered Node release                           | Accepted | 2026-08-08 |
 
 ## Smaller decisions, recorded without an ADR
 
