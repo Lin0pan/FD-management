@@ -19,6 +19,7 @@ are stated. `CONTRIBUTING.md` covers human onboarding (setup, commands, why each
 | How is the dev setup and pipeline built?         | `docs/architecture/07-deployment-view.md`     |
 | What am I building next, story by story?         | `tasks/`                                      |
 | How do I style a screen?                         | `docs/guideline/ui_styling_guide.md`          |
+| What does FD themselves get handed?              | `docs/handout/` (German, printable)           |
 
 `docs/architecture/` is the architecture record: a change that makes a chapter wrong updates that
 chapter in the same PR, and a hard-to-reverse choice gets an ADR.
