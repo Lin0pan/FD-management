@@ -56,6 +56,7 @@ This tree is the **architecture record**. The other documents each keep a distin
 | [`docs/guideline/ui_styling_guide.md`](../guideline/ui_styling_guide.md) | How to build a screen. Still the whole UI standard                                           |
 | [`CLAUDE.md`](../../CLAUDE.md)                                           | The binding engineering standard for anyone, human or agent, writing code here               |
 | [`docs/archiv/user_stories_mvp.md`](../archiv/user_stories_mvp.md)       | **Not current.** An early MVP scope the system has moved past; `tasks/` is the record        |
+| [`docs/handout/`](../handout/README.md)                                  | What FD themselves receive — German, printable, one page each                                |
 
 The three legacy documents this tree replaced — `technical_documentation.md`,
 `tech_stack_architecture_sketch.md` and `fd_dev_setup_overview.md` — were deleted once these
