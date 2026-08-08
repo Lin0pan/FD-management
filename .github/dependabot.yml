@@ -5,6 +5,12 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    ignore:
+      # The Node runtime is pinned by .nvmrc and `engines`; @types/node describes that
+      # runtime and must never lead it, or typecheck would green-light APIs the runtime
+      # does not have. Majors land as part of a deliberate runtime bump instead.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       # Batch low-risk updates into single PRs to keep review load small for a tiny team.
       minor-and-patch:
