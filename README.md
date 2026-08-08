@@ -19,9 +19,17 @@ An early version, for FD to test with — it does not replace the spreadsheet ye
 ```bash
 npm install
 cp .env.example .env
+npx prisma generate         # must follow .env — see the note below
 npx prisma migrate deploy   # creates data/fd.db
 npm run db:seed             # provisional policy values, so the app boots usable
 ```
+
+> The `prisma generate` step is not optional and its position matters. The client records where to
+> read `DATABASE_URL` from at the moment it is generated, so the copy that `npm install` generates
+> for itself — before `.env` exists — cannot find it, and `db:seed` fails with
+> `Environment variable not found: DATABASE_URL` against a database that migrated perfectly. The
+> Prisma CLI loads `.env` on its own, which is why `migrate deploy` succeeds either way and hides
+> the problem.
 
 **Run in development**
 

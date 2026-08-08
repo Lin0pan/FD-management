@@ -20,10 +20,19 @@ Requires **Node 22** (see `.nvmrc`; `nvm use` picks it up).
 ```bash
 npm install                 # also installs Husky git hooks via the "prepare" script
 cp .env.example .env        # sets DATABASE_URL to the local SQLite file
+npx prisma generate         # must come after .env exists — see below
 npx prisma migrate deploy   # creates data/fd.db from the committed migrations
 npm run db:seed             # seeds the provisional settings version (no-op if one exists)
 npm run dev                 # http://localhost:3000
 ```
+
+`prisma generate` has to run **after** `.env` is in place. The generated client records where to
+read `DATABASE_URL` from when it is generated, so the copy `npm install` makes for itself — at a
+point when `.env` does not exist yet — cannot resolve it. The failure is confusing rather than
+obvious: `migrate deploy` succeeds, because the Prisma **CLI** loads `.env` by itself, and then
+`db:seed` dies with `Environment variable not found: DATABASE_URL` against a database that was
+migrated correctly a second earlier. CI never hits this — every job runs `npx prisma generate`
+explicitly after `npm ci` ([`ci.yml`](./.github/workflows/ci.yml)).
 
 To click around with something to look at, add the demo register — twenty synthetic households with
 a hand-out history, blocks, archives and lapsed certificates:
