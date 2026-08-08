@@ -30,6 +30,10 @@ to repeat, so it is also the command to run after pulling: it never overwrites a
 and never seeds over existing settings.
 [Why a script](./CONTRIBUTING.md#getting-started) · [`scripts/setup.mjs`](./scripts/setup.mjs)
 
+> **Not supported on Windows yet.** The script is untested there and expected to fail on the first
+> step. macOS and Linux are fine; on Windows run the steps by hand for now — they are listed in
+> [`CONTRIBUTING.md`](./CONTRIBUTING.md#getting-started). A Windows-capable version will follow.
+
 **Run in development**
 
 ```bash

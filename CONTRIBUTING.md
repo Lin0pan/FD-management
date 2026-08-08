@@ -44,6 +44,21 @@ and then `db:seed` dies with `Environment variable not found: DATABASE_URL` agai
 was migrated correctly a second earlier. CI never hits it — every job runs `npx prisma generate`
 explicitly after `npm ci` ([`ci.yml`](./.github/workflows/ci.yml)).
 
+**Windows is not supported yet, and a Windows-capable version of the script will follow.**
+`npm run setup` is untested there and expected to fail at the first step: since the 2024 fix for
+CVE-2024-27980, Node refuses to spawn `npm.cmd` without `shell: true`, and the script does not pass
+it. The fix has to be proved on a real Windows machine before it is claimed, so until then run the
+five steps by hand in this order — the ordering constraint below is the whole point, so do not
+reorder them:
+
+```powershell
+npm install
+Copy-Item .env.example .env
+npx prisma generate
+npx prisma migrate deploy
+npm run db:seed
+```
+
 The E2E suite needs one thing more, once, before the first `npm run test:e2e`:
 
 ```bash

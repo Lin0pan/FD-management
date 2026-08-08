@@ -30,6 +30,11 @@ import { fileURLToPath } from "node:url";
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 
 // npm and npx are batch files on Windows, which execFileSync will not resolve without the suffix.
+// The suffix alone is not enough and this branch has never run: since the fix for CVE-2024-27980,
+// Node refuses to spawn a .cmd without `shell: true`, which is not passed here. Windows is
+// therefore documented as unsupported for now (CONTRIBUTING.md) rather than half-claimed, and a
+// Windows-capable version is planned. `shell: true` is the likely fix, but it changes how arguments
+// are quoted, so it needs proving on a real Windows machine before this note comes out.
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 
