@@ -1,6 +1,6 @@
 # PRD: US-11 — Find and Reuse an Archived Record on Re-registration
 
-> Source story: `docs/user_stories_mvp.md` §US-11 (Tier 2). Depends on **US-01** (registration) and
+> Source story: `docs/archiv/user_stories_mvp.md` §US-11 (Tier 2). Depends on **US-01** (registration) and
 > **US-10** (archived records).
 
 > **Superseded in part by US-25 — "a fresh card index starting at `k1`".** A re-registration still

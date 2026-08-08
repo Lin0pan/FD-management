@@ -1,6 +1,6 @@
 # PRD: US-08 — Block and Unblock a Customer
 
-> Source story: `docs/user_stories_mvp.md` §US-08 (Tier 2). Depends on **US-01**. Surfaces on the
+> Source story: `docs/archiv/user_stories_mvp.md` §US-08 (Tier 2). Depends on **US-01**. Surfaces on the
 > counter screen via **US-04**.
 
 ## 1. Introduction

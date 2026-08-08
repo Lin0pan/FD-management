@@ -40,7 +40,7 @@ const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
  * Without this the row is ragged, because a German label is as long as it is and a narrow column
  * wraps it: measured at 1440, `Höchstzahl der Kunden (N)` takes two lines in its 163px slot and
  * `Portionen je Kind` one, so the five inputs of the first card would start at y=286 and y=296.
- * That is the rag `docs/ui_styling_guide.md` §3 exists to prevent, and it turns up on every form
+ * That is the rag `docs/guideline/ui_styling_guide.md` §3 exists to prevent, and it turns up on every form
  * where the twelve columns are actually spent.
  *
  * `grid-rows-subgrid` is the fix rather than a `min-h-` guess: each field spans two of the parent's

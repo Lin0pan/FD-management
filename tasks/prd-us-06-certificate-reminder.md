@@ -1,6 +1,6 @@
 # PRD: US-06 — Check the Certificate and Log a Reminder
 
-> Source story: `docs/user_stories_mvp.md` §US-06 (Tier 1). Depends on **US-04** (counter screen).
+> Source story: `docs/archiv/user_stories_mvp.md` §US-06 (Tier 1). Depends on **US-04** (counter screen).
 > Feeds **US-10** (archiving, which stays a staff decision).
 
 ## 1. Introduction

@@ -54,4 +54,4 @@ the other side. A major-version bump is a deliberate, argued change, never a rou
 ## More information
 
 - [Chapter 4 — solution strategy](../04-solution-strategy.md)
-- `package.json`, `docs/tech_stack_architecture_sketch.md` §3.2
+- `package.json`

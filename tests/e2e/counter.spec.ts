@@ -224,7 +224,7 @@ async function expectVerdict(
  * Open the note editor the way a staff member does — a real click on the `<summary>`.
  *
  * Never `evaluate(d => d.open = true)`: a fold that silently stopped opening has to turn the suite
- * red rather than be nudged past (`docs/ui_styling_guide.md` §10). The wait is not decoration —
+ * red rather than be nudged past (`docs/guideline/ui_styling_guide.md` §10). The wait is not decoration —
  * `fill()` needs visibility, and a closed `<details>` has none.
  */
 async function openNoteEditor(page: Page): Promise<void> {

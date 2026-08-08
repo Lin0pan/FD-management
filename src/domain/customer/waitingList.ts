@@ -142,7 +142,7 @@ export interface WaitingListDetails {
   readonly address: Address;
   /**
    * How staff would reach this applicant, in free text, or `""`. FD agreed no phone or e-mail fields
-   * (docs/domain_analysis.md, open question 2), and this is the note that stands in for them without
+   * (docs/archiv/domain_analysis.md, open question 2), and this is the note that stands in for them without
    * committing to a contact-data model.
    */
   readonly contactNote: string;

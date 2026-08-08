@@ -5,9 +5,9 @@ administration, eligibility checks, and food-distribution tracking. It is small,
 one day be maintained by a different developer — so the priorities are **maintainability, high test
 coverage, and reliability** over cleverness or breadth.
 
-Read `docs/` first — especially `tech_stack_architecture_sketch.md` (stack + architecture) and
-`fd_dev_setup_overview.md` (dev process). This file explains the day-to-day workflow and, more
-importantly, **why each quality gate exists**.
+Read [`docs/architecture/`](./docs/architecture/README.md) first — twelve arc42 chapters plus the
+decision records, covering what the system is for, how it is built and why. This file explains the
+day-to-day workflow and, more importantly, **why each quality gate exists**.
 
 The coding standard itself — architecture rules, style, testing approach, git conventions, the
 definition of done — lives in the repository-root `CLAUDE.md`. It is stated once there and binds
@@ -53,7 +53,7 @@ database**: it is a development fixture and `--reset` deletes customer data outr
 
 ## Architecture in one paragraph
 
-Hexagonal-lite (`docs/tech_stack_architecture_sketch.md` §4). The **domain layer imports nothing
+Hexagonal-lite ([chapter 5](./docs/architecture/05-building-block-view.md)). The **domain layer imports nothing
 from Next.js, React or Prisma** — it is pure TypeScript, unit-tested in milliseconds. `application/`
 holds use cases and the repository interfaces (`ports.ts`) they need; `infrastructure/` is the only
 place that touches Prisma, the filesystem, or the wall clock; `app/` is a thin Next.js adapter. Push

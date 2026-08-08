@@ -34,7 +34,7 @@ const GROUP_CHANGED = "customer.groupChanged";
  *
  * One field, and no `why`: the group is the whole of what moved, and unlike a block or an archive
  * it turns on no judgement about the household — it is arithmetic about the register's balance
- * (docs/tech_stack_architecture_sketch.md §5.2, and the root CLAUDE.md rule that a reason is
+ * (docs/architecture/adr/006-record-what-when-and-why-in-the-audit-log-never-who.md, and the root CLAUDE.md rule that a reason is
  * required only where it is the record).
  */
 const GROUP_FIELDS = ["group"] as const;

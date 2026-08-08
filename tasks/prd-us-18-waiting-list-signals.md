@@ -1,6 +1,6 @@
 # PRD: US-18 — Where the Waiting List Speaks
 
-> Not a story from `docs/user_stories_mvp.md`: this is a **placement** change to signals that already
+> Not a story from `docs/archiv/user_stories_mvp.md`: this is a **placement** change to signals that already
 > exist. It adds no business rule, no domain code, no application code and no schema change. It
 > depends on **US-12** (waiting list), **US-15** (customer list) and **US-17** (the Kunden hub) — all
 > already built.

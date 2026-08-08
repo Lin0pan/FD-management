@@ -1,6 +1,6 @@
 # PRD: US-13 — Reclassify Children Automatically at Age 13
 
-> Source story: `docs/user_stories_mvp.md` §US-13 (Tier 2). Depends on **US-02** (cards), **US-07**
+> Source story: `docs/archiv/user_stories_mvp.md` §US-13 (Tier 2). Depends on **US-02** (cards), **US-07**
 > (portions and price) and **US-09** (reissue mechanics).
 >
 > This is the one place the domain analysis describes a **future** behaviour rather than today's

@@ -211,7 +211,7 @@ with its reminder-count reset, a reminder entry with the incremented count.
 
 ## UI conventions
 
-The UI standard is [`docs/ui_styling_guide.md`](../ui_styling_guide.md), and it stays there: it is a
+The UI standard is [`docs/guideline/ui_styling_guide.md`](../guideline/ui_styling_guide.md), and it stays there: it is a
 standing rulebook for building screens rather than architecture documentation, and a second copy here
 would recreate exactly the duplication that guide was consolidated to remove. What is architectural
 about it:

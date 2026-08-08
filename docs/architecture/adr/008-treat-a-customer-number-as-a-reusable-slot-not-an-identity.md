@@ -57,4 +57,4 @@ rather than being assigned the lowest free slot.
 - [Chapter 12 — glossary](../12-glossary.md)
 - `src/domain/customer/customerNumber.ts`, `src/domain/card/cardNumber.ts`,
   `prisma/migrations/20260807065541_init/migration.sql`
-- `docs/tech_stack_architecture_sketch.md` §5.3; commits `5beb708`, `57ee3d9`, `3f9da6d`
+- Commits `5beb708`, `57ee3d9`, `3f9da6d`

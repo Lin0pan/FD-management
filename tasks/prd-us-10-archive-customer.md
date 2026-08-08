@@ -1,6 +1,6 @@
 # PRD: US-10 — Archive a Customer
 
-> Source story: `docs/user_stories_mvp.md` §US-10 (Tier 2). Depends on **US-05** (attendance history)
+> Source story: `docs/archiv/user_stories_mvp.md` §US-10 (Tier 2). Depends on **US-05** (attendance history)
 > and **US-06** (reminder count). Frees the slot consumed by **US-01** and **US-12**.
 
 ## 1. Introduction

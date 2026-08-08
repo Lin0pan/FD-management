@@ -465,7 +465,7 @@ function Overview({
  * The register itself.
  *
  * The header sticks, which took three separate overflow overrides and had never once worked before
- * (see `docs/ui_styling_guide.md` §3): `Card` ships `overflow-hidden`, the `Table` primitive wraps
+ * (see `docs/guideline/ui_styling_guide.md` §3): `Card` ships `overflow-hidden`, the `Table` primitive wraps
  * itself in `overflow-x-auto`, and either one on its own makes *itself* the scrollport the header
  * sticks to — so the header parks at the top of a box as tall as the table and leaves the window
  * with the rows. Below `xl` the container keeps its horizontal scroll and the header gives up

@@ -220,12 +220,14 @@ the price the counter will charge.
 
 **Acceptance Criteria:**
 
-- [ ] `docs/domain_analysis.md` — the `Price` row of the vocabulary table states the cap as part of
+- [ ] `docs/archiv/domain_analysis.md` — the `Price` row of the vocabulary table states the cap as part of
       the definition, and the distribution-day walkthrough step 7 mentions it
-- [ ] `docs/user_stories_mvp.md` — US-07's derivation and US-14's list of editable values both name
+- [ ] `docs/archiv/user_stories_mvp.md` — US-07's derivation and US-14's list of editable values both name
       the Maximalpreis
-- [ ] `docs/technical_documentation.md` — §on the settings model and the `priceFor` derivation state
-      the cap, including why it is nullable
+- [ ] ~~`docs/technical_documentation.md` — §on the settings model and the `priceFor` derivation
+      state the cap, including why it is nullable~~ `[obsolete]` — that file has since been deleted;
+      the settings model is recorded in
+      [chapter 8](../docs/architecture/08-crosscutting-concepts.md#configuration-as-data).
 - [ ] No document still claims the price is _only_ the per-head sum
 
 ## Functional Requirements

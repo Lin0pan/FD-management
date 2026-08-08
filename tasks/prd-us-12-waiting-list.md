@@ -1,6 +1,6 @@
 # PRD: US-12 — Manage the Waiting List
 
-> Source story: `docs/user_stories_mvp.md` §US-12 (Tier 2). Depends on **US-01** (registration),
+> Source story: `docs/archiv/user_stories_mvp.md` §US-12 (Tier 2). Depends on **US-01** (registration),
 > **US-10** (freed slots) and **US-14** (quota `N`).
 
 ## 1. Introduction

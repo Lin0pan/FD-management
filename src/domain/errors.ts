@@ -2,7 +2,7 @@
  * Typed domain errors for FD-Management.
  *
  * The pure domain layer raises typed errors so the application and UI layers can react to a closed
- * set of failure modes rather than parsing strings — see docs/tech_stack_architecture_sketch.md §4.
+ * set of failure modes rather than parsing strings — see docs/architecture/08-crosscutting-concepts.md §Errors.
  * Every error carries the values that made it fail, so a caller can render a German message naming
  * concrete numbers without re-deriving them.
  */

@@ -1,13 +1,13 @@
 # PRDs — FD-Management MVP
 
-One PRD per user story from [`docs/user_stories_mvp.md`](../docs/user_stories_mvp.md). The `docs/`
+One PRD per user story from [`docs/archiv/user_stories_mvp.md`](../docs/archiv/user_stories_mvp.md). The `docs/`
 folder is the source of truth for _what FD needs_ and is never edited by this folder; these documents
 are the implementation-facing translation of it.
 
 ## Conventions shared by every PRD
 
 **Layered vertical slice.** Each PRD decomposes its story into sub-stories that follow the build
-order in `docs/technical_documentation.md` §12:
+order the layering implies ([chapter 5](../docs/architecture/05-building-block-view.md)):
 
 1. **Domain** (`src/domain/**`) — pure TypeScript, zero I/O, strict TDD, invariant-breaking test
    first. Covered by the 100% Vitest coverage gate.
@@ -28,7 +28,7 @@ order in `docs/technical_documentation.md` §12:
 - [ ] New behaviour is covered by a test written **before** the implementation
 - [ ] UI sub-stories additionally: verify in the browser using the dev-browser skill
 
-**Non-negotiable project rules** (from `docs/technical_documentation.md` §11):
+**Non-negotiable project rules** (from `CLAUDE.md`):
 
 - Money is **integer cents**, formatted via `src/domain/money.ts`. Never a float.
 - Time comes from the **`Clock` port**, never `new Date()` in domain or application code.
@@ -41,7 +41,7 @@ order in `docs/technical_documentation.md` §12:
 
 ## Provisional seed values
 
-The concrete policy numbers are **open question 1** in `docs/domain_analysis.md`. To unblock
+The concrete policy numbers are **open question 1** in `docs/archiv/domain_analysis.md`. To unblock
 implementation and tests, the PRDs assume the following seeds. They are configuration rows
 (US-14), so replacing them is a data edit, not a code change. **All are provisional and must be
 confirmed with FD before go-live.**

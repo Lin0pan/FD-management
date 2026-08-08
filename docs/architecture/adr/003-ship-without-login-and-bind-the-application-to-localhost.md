@@ -53,5 +53,5 @@ on the network. Physical control of the machine is the access control.
 
 - [Chapter 3 — context and scope](../03-context-and-scope.md)
 - [Chapter 7 — deployment view](../07-deployment-view.md)
-- Scope decision recorded at the time in `docs/user_stories_mvp.md` §4; the current non-goals list is
+- Scope decision recorded at the time in `docs/archiv/user_stories_mvp.md` §4; the current non-goals list is
   [chapter 1](../01-introduction-and-goals.md#non-goals)

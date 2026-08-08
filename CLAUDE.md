@@ -14,19 +14,18 @@ are stated. `CONTRIBUTING.md` covers human onboarding (setup, commands, why each
 | ------------------------------------------------ | --------------------------------------------- |
 | Why is the architecture the way it is?           | `docs/architecture/` — arc42 chapters + ADRs  |
 | How is the code organised, and what lives where? | `docs/architecture/05-building-block-view.md` |
-| What must the software do?                       | `docs/user_stories_mvp.md`                    |
-| What is the domain?                              | `docs/domain_analysis.md`                     |
+| What must the software do?                       | `tasks/` (one PRD per user story)             |
+| What is the domain?                              | `docs/archiv/domain_analysis.md`              |
 | How is the dev setup and pipeline built?         | `docs/architecture/07-deployment-view.md`     |
-| What am I building next, story by story?         | `tasks/` (one PRD per user story)             |
-| How do I style a screen?                         | `docs/ui_styling_guide.md`                    |
+| What am I building next, story by story?         | `tasks/`                                      |
+| How do I style a screen?                         | `docs/guideline/ui_styling_guide.md`          |
 
 `docs/architecture/` is the architecture record: a change that makes a chapter wrong updates that
-chapter in the same PR, and a hard-to-reverse choice gets an ADR. `docs/technical_documentation.md`
-and `docs/tech_stack_architecture_sketch.md` are **legacy**, kept briefly and retiring into it — read
-them as history and do not extend them.
+chapter in the same PR, and a hard-to-reverse choice gets an ADR.
 
-The rest of `docs/` is the source of truth for _what FD needs_ — treat it as given unless a decision
-changed, in which case update it. `tasks/` is the implementation-facing translation of it.
+`docs/archiv/` holds the early material the build has overtaken — `domain_analysis.md` is still the
+best statement of FD's process, `user_stories_mvp.md` is an early MVP scope and **not current**.
+Read them as background, do not extend them, and treat `tasks/` as the record of what is required.
 
 ## What this project optimises for
 
@@ -110,7 +109,7 @@ deliberately and say why in the commit; do not add an inline disable.
 - **UI work is always driven with the `playwright-cli` skill** — building a screen and reviewing it, not
   only when asked to test one. The e2e suite proves the contracts still hold; `playwright-cli` is how you
   find out whether the screen is any good, because its accessibility snapshot shows what the markup
-  _means_ and a screenshot does not. `docs/ui_styling_guide.md` §11 has the workflow.
+  _means_ and a screenshot does not. `docs/guideline/ui_styling_guide.md` §11 has the workflow.
 
 ## Database migrations
 

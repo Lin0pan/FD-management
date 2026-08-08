@@ -272,7 +272,7 @@ function History({ records }: { records: ReadonlyArray<DistributionRecord> }): R
        * The scrollport is the `Table` primitive's *own* container, which is what `containerProps`
        * exists for. A second wrapper around it would nest two overflow contexts, and that is exactly
        * what made the sticky header on /kunden take three attempts
-       * (`docs/ui_styling_guide.md` §3).
+       * (`docs/guideline/ui_styling_guide.md` §3).
        *
        * `tabIndex` is a requirement rather than a polish item: a scrollable region that cannot take
        * focus cannot be scrolled by keyboard at all (WCAG 2.1.1). It therefore needs a name, hence
@@ -355,7 +355,7 @@ function CustomerRecord({
          * as /kunden.
          *
          * The heading row carries the name and nothing else, and stays *outside* a card, as the
-         * heading row does on all seven screens (`docs/ui_styling_guide.md` §2). A
+         * heading row does on all seven screens (`docs/guideline/ui_styling_guide.md` §2). A
          * heading needs no boundary; the facts under it do — which is why they have their own, below.
          *
          * `customer-status` keeps its exact text in a span of its own, and the badge wraps that span
@@ -401,7 +401,7 @@ function CustomerRecord({
           work?", so it answers before the screen starts stating numbers.
 
           It is deliberately not a heading, so the record still announces as `h1` → the sections'
-          `h2`s (`docs/ui_styling_guide.md` §9); the `role="status"` inside `Confirmation` is
+          `h2`s (`docs/guideline/ui_styling_guide.md` §9); the `role="status"` inside `Confirmation` is
           what carries it to a screen reader. */}
         {justRegistered ? (
           <Confirmation text={de.customers.new.saved} testId="registration-confirmation" />

@@ -5,7 +5,7 @@ import { defineConfig, devices } from "@playwright/test";
  *
  * Playwright runs against the **built** app (`next start`) over a throwaway SQLite file that is
  * migrated and seeded fresh before the server boots — mirroring the CI `e2e-tests` job
- * (docs/fd_dev_setup_overview.md).
+ * (docs/architecture/07-deployment-view.md).
  *
  * There are **two** such servers, because there are two kinds of spec. Almost every spec shares one
  * register and only ever adds to it, which keeps the run short and the setup honest. A spec that has

@@ -4,7 +4,7 @@
  * A customer number is a **slot, not an identity**: FD may only serve `quotaN` households at a time
  * (US-14), and when one is archived their number returns to the pool for the next applicant. So the
  * number says "the 37th of the 240 places we have", while the row's surrogate id is what identity
- * means — see `docs/domain_analysis.md` and the schema rule in US-01.5.
+ * means — see `docs/archiv/domain_analysis.md` and the schema rule in US-01.5.
  *
  * Allocation is the lowest free slot rather than the next-highest, because FD's paper cards are
  * numbered and reusing a freed number keeps the range dense: with a quota of 240, always counting

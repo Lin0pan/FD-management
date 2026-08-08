@@ -2,7 +2,7 @@
  * How a customer's state is marked, shared by the customer list and the customer record.
  *
  * It is one table rather than one per screen because a meaning gets one colour across the whole
- * application (`docs/ui_styling_guide.md` §5): before this, `/kunden` gave a blocked household a
+ * application (`docs/guideline/ui_styling_guide.md` §5): before this, `/kunden` gave a blocked household a
  * `destructive` badge and the record gave it a plain grey box, which is one fact painted two ways —
  * and the quieter one was on the screen you go to in order to find out what happened.
  *

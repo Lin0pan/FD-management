@@ -27,7 +27,7 @@ const NOTES_UPDATED = "customer.notesUpdated";
  * What the audit entry names as changed.
  *
  * The note's *text* is deliberately not in the entry, neither before nor after: the log records
- * what, when and why (docs/tech_stack_architecture_sketch.md §5.2), and a copy of every note ever
+ * what, when and why (docs/architecture/adr/006-record-what-when-and-why-in-the-audit-log-never-who.md), and a copy of every note ever
  * written would turn the audit trail into a second, undeletable customer record.
  */
 const NOTES_FIELDS = ["notes"] as const;
