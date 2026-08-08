@@ -1,23 +1,43 @@
 # FD-Management
 
 Operations software for the **Delbrücker Füllhorn** food bank: customer administration, eligibility
-checks, and food-distribution tracking. Local-first, single-machine, no login — see `docs/` for the
-domain analysis, user stories, tech-stack/architecture sketch, and dev-process overview.
+checks, and food-distribution tracking.
+
+An early version, for FD to test with — it does not replace the spreadsheet yet. See
+[`docs/`](./docs/) for the documentation that exists.
 
 ## Quick start
 
-Requires **Node 22** (`.nvmrc`).
+**Prerequisites**
+
+- **Node 22** (`.nvmrc`) and npm. Nothing else — no database server, no Docker, no account.
+- The app runs on one machine, bound to localhost, without a login.
+- `data/fd.db` is the entire state of the system and there is **no backup yet**.
+
+**Install**
 
 ```bash
 npm install
 cp .env.example .env
 npx prisma migrate deploy   # creates data/fd.db
 npm run db:seed             # provisional policy values, so the app boots usable
+```
+
+**Run in development**
+
+```bash
 npm run dev                 # http://localhost:3000
 ```
 
-That gives you a working app with an **empty register**. To click around with something to look at,
-add the demo data below.
+**Run in production**
+
+```bash
+npm run build
+npm start                   # http://localhost:3000
+```
+
+Either way you get a working app with an **empty register**. To click around with something to look
+at, add the demo data below.
 
 ## Demo data
 
@@ -26,14 +46,10 @@ npm run db:demo             # seeds twenty synthetic households
 npm run db:demo -- --reset  # wipes the register first, then re-seeds
 ```
 
-Twenty households — 12 active, 3 blocked, 5 archived, 1–6 people each — with the states that are
-tedious to reach by hand: lapsed certificates with reminder trails, two expiring within the month, a
-card reissued after a loss, a child who just turned 13 and a household moved between groups (both
-land on the cards-due list), a re-registration linked to the archived record it came from, eight
-past distribution days including no-shows and unpaid hand-outs, and three waiting-list applicants.
-The script prints a table of what it created and why each household is there.
-
-Today deliberately has no hand-outs recorded, so the counter is yours to try.
+Twenty households — active, blocked and archived — in the states that are tedious to reach by hand:
+lapsed and expiring certificates, cards due for reissue, past distribution days, and a waiting list.
+The script prints a table of what it created and why. Today deliberately has no hand-outs recorded,
+so the counter is yours to try.
 
 Worth knowing:
 
@@ -45,21 +61,38 @@ Worth knowing:
 - **Never point it at FD's database.** It is a development fixture, and `--reset` deletes customer
   data outright. It refuses to run over a non-empty register unless you pass that flag.
 
-Two customer numbers appear twice in its output. That is the slot rule, not a bug: archiving
-releases the number and a later registration takes it, while the archived record keeps the one it
-had. See `docs/technical_documentation.md` for the full description.
-
 ## Stack
 
 TypeScript (strict) · Next.js 16 (App Router) · React 19 · Tailwind CSS v4 · SQLite via Prisma · Zod
-· Vitest (unit) · Playwright (E2E). Hexagonal-lite architecture — the domain layer imports nothing
-from Next.js, React, or Prisma.
+· Vitest (unit) · Playwright (E2E).
+
+## Architecture
+
+Hexagonal-lite: four layers, `app → application → domain`, with `infrastructure` implementing the
+ports. Dependencies point inwards only, and ESLint fails the build if one points outward.
+
+- **`domain/` is pure.** The business rules are plain functions and value objects that import
+  nothing from Next.js, React or Prisma, do no I/O, and never read the wall clock — so they are
+  testable by calling them, which is what makes strict TDD and a 100 % coverage gate affordable.
+- **`application/` is one function per user intention**, reaching the outside only through the port
+  interfaces. No DI container, no class hierarchy.
+- **`infrastructure/` is the only layer that touches Prisma, the filesystem or the clock**, and
+  `app/` is thin: validate with Zod, call one use case, render.
+
+Chapters [4](./docs/architecture/04-solution-strategy.md) and
+[5](./docs/architecture/05-building-block-view.md) have the reasoning and the block-by-block
+breakdown.
 
 ## Status
 
-Walking skeleton: runnable app, hexagonal structure, test harness, and CI pipeline in place. Domain
-features follow the build order **US-14 → US-01 → US-02 → US-03 → US-04 → US-05** (see
-`docs/user_stories_mvp.md`).
+The crucial features are in place: FD can test the software and play around with it, but it is not
+ready to replace the spreadsheet. The open questions are operational —
+[chapter 11](./docs/architecture/11-risks-and-technical-debt.md) tracks them in full:
+
+- **Backup.** No schedule, destination or restore drill exists.
+- **Migration.** How the existing Excel data gets into the register is undecided.
+- **Quota.** The seeded customer quota is a placeholder, not FD's real number.
+- **Migration history** stays regenerable only until the first real customer is entered.
 
 ## Documentation
 
@@ -67,6 +100,5 @@ features follow the build order **US-14 → US-01 → US-02 → US-03 → US-04 
   plus the decision records: what the system is for, what constrains it, how it is built, and why.
   **Start here.**
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md) — workflow, TDD approach, and why each CI gate exists.
-- [`docs/ui_styling_guide.md`](./docs/ui_styling_guide.md) — the rules for every screen.
-- `docs/` — domain analysis and user stories. `technical_documentation.md` and
-  `tech_stack_architecture_sketch.md` are legacy, retiring into `docs/architecture/`.
+
+More documentation will follow.

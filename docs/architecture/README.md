@@ -49,15 +49,17 @@ request.
 
 This tree is the **architecture record**. The other documents each keep a distinct job:
 
-| Document                                                                         | Job                                                                                                |
-| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| [`docs/domain_analysis.md`](../domain_analysis.md)                               | FD's process as it is run today — the source material                                              |
-| [`tasks/`](../../tasks/)                                                         | What the software must do, story by story — one PRD each, US-01 to US-26. The current record       |
-| [`docs/ui_styling_guide.md`](../ui_styling_guide.md)                             | How to build a screen. Still the whole UI standard                                                 |
-| [`CLAUDE.md`](../../CLAUDE.md)                                                   | The binding engineering standard for anyone, human or agent, writing code here                     |
-| [`docs/user_stories_mvp.md`](../user_stories_mvp.md)                             | **Not current.** An early MVP scope the system has moved past; `tasks/` is the record              |
-| [`docs/technical_documentation.md`](../technical_documentation.md)               | **Legacy.** An as-built reference kept temporarily; superseded by this tree and due for retirement |
-| [`docs/tech_stack_architecture_sketch.md`](../tech_stack_architecture_sketch.md) | **Legacy.** The original proposal; its reasoning now lives in chapters 4 and 9                     |
+| Document                                                                 | Job                                                                                          |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| [`docs/archiv/domain_analysis.md`](../archiv/domain_analysis.md)         | FD's process as it is run today — the source material                                        |
+| [`tasks/`](../../tasks/)                                                 | What the software must do, story by story — one PRD each, US-01 to US-26. The current record |
+| [`docs/guideline/ui_styling_guide.md`](../guideline/ui_styling_guide.md) | How to build a screen. Still the whole UI standard                                           |
+| [`CLAUDE.md`](../../CLAUDE.md)                                           | The binding engineering standard for anyone, human or agent, writing code here               |
+| [`docs/archiv/user_stories_mvp.md`](../archiv/user_stories_mvp.md)       | **Not current.** An early MVP scope the system has moved past; `tasks/` is the record        |
+
+The three legacy documents this tree replaced — `technical_documentation.md`,
+`tech_stack_architecture_sketch.md` and `fd_dev_setup_overview.md` — were deleted once these
+chapters had been read against the running application. They remain in the git history.
 
 ## Keeping it current
 

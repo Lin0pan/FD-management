@@ -17,7 +17,7 @@ import type { Group } from "@/domain/customer/group";
  *
  * Literal palette values rather than theme tokens: RED and BLUE *are* the printed cards FD hands
  * out, so this is one of the two places in the application where the colour is the datum rather
- * than a decoration of it (`docs/ui_styling_guide.md` §5) — a theme may not re-map it. The
+ * than a decoration of it (`docs/guideline/ui_styling_guide.md` §5) — a theme may not re-map it. The
  * word is `de.customers.groups`.
  */
 export const GROUP_STYLES: Record<Group, string> = {

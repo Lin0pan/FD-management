@@ -1,6 +1,6 @@
 # PRD: US-16 — Maintain a Customer's Record
 
-> Source story: `docs/user_stories_mvp.md` §US-16 (Tier 3). Depends on **US-06** (certificate renewal),
+> Source story: `docs/archiv/user_stories_mvp.md` §US-16 (Tier 3). Depends on **US-06** (certificate renewal),
 > **US-13** (cards due for reissue) and **US-15** (list as entry point).
 
 ## 1. Introduction

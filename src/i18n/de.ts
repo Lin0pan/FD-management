@@ -2,7 +2,7 @@
  * German UI strings for FD-Management.
  *
  * The application is used exclusively by the Füllhorn Delbrück staff, so all user-facing
- * text is German while code identifiers stay English (see docs/tech_stack_architecture_sketch.md §3).
+ * text is German while code identifiers stay English (see docs/architecture/08-crosscutting-concepts.md §Internationalisation).
  * Keeping the strings in one dictionary module makes the surface easy to review and, if it is ever
  * needed, to translate.
  */

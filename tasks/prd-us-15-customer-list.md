@@ -1,6 +1,6 @@
 # PRD: US-15 — Browse and Search the Customer List
 
-> Source story: `docs/user_stories_mvp.md` §US-15 (Tier 3). Depends on **US-01** and **US-08**.
+> Source story: `docs/archiv/user_stories_mvp.md` §US-15 (Tier 3). Depends on **US-01** and **US-08**.
 > Gateway to **US-16**.
 >
 > Marked `[added]` in the story: the domain analysis never mentions a list view, because in Excel the

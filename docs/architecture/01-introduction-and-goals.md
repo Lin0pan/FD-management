@@ -23,7 +23,7 @@ five years or more with little maintenance, possibly in the hands of a different
 ## Requirements overview
 
 The story-by-story record is [`tasks/`](../../tasks/), one PRD per user story, US-01 to US-26.
-(`docs/user_stories_mvp.md` describes an early MVP scope the system has since moved past; it is not
+(`docs/archiv/user_stories_mvp.md` describes an early MVP scope the system has since moved past; it is not
 current — see [chapter 11](11-risks-and-technical-debt.md).) What matters architecturally:
 
 - **Register a household** onto a free customer number within the quota, with its members, address
@@ -77,7 +77,7 @@ In priority order. When two of these conflict, the one higher up wins.
 
 Usability at the counter is a real requirement and is treated as one — a single verdict, colour never
 carrying meaning alone, type legible across a desk — but it is governed by
-[`docs/ui_styling_guide.md`](../ui_styling_guide.md) rather than by the architecture. It appears here
+[`docs/guideline/ui_styling_guide.md`](../guideline/ui_styling_guide.md) rather than by the architecture. It appears here
 as [scenario Q3](10-quality-requirements.md).
 
 ## Stakeholders

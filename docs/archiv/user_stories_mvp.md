@@ -1,6 +1,6 @@
 # User Stories — Füllhorn Delbrück (FD), First MVP
 
-Derived from [`domain_information/domain_analysis.md`](domain_information/domain_analysis.md).
+Derived from [`domain_analysis.md`](domain_analysis.md).
 
 **How to read this document.** Stories are ordered by relevance: **Tier 1** is the thin slice that
 must exist before the software can replace the Excel sheet for a single distribution day; **Tier 2**

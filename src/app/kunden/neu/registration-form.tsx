@@ -198,7 +198,7 @@ const FIELD_ROWS = "grid grid-rows-subgrid row-span-2 gap-1.5";
  *
  * `/einstellungen` puts every control on `h-9`, this screen leaves `Input` at its `h-8` default, and
  * a select carrying the other screen's height is exactly the ragged baseline
- * `docs/ui_styling_guide.md` §3 warns about. The full register renders this control greyed rather
+ * `docs/guideline/ui_styling_guide.md` §3 warns about. The full register renders this control greyed rather
  * than removed, which is what the shared recipe's `disabled:` tokens are for.
  */
 const SELECT = selectClass("h-8");
@@ -608,7 +608,7 @@ export function RegistrationForm({
             <div className="flex flex-col gap-1.5">
               <details>
                 {/* `w-fit` is right here, unlike the archive search's summary: this one is a control,
-                    not a card header (`docs/ui_styling_guide.md` §6). */}
+                    not a card header (`docs/guideline/ui_styling_guide.md` §6). */}
                 <summary
                   data-testid="group-choice-open"
                   className={cn(

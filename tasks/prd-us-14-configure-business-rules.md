@@ -1,6 +1,6 @@
 # PRD: US-14 — Configure the Business Rules
 
-> Source story: `docs/user_stories_mvp.md` §US-14 (Tier 2). Build-order position: **first** — US-01
+> Source story: `docs/archiv/user_stories_mvp.md` §US-14 (Tier 2). Build-order position: **first** — US-01
 > cannot assign a customer number without the quota `N`, US-03 cannot derive a week colour without
 > the anchor, and US-07 cannot price anything without the per-head prices.
 

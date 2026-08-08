@@ -1,6 +1,6 @@
 # PRD: US-04 — Look Up a Customer by Card Number
 
-> Source story: `docs/user_stories_mvp.md` §US-04 (Tier 1). Depends on **US-01, US-02, US-03, US-07**
+> Source story: `docs/archiv/user_stories_mvp.md` §US-04 (Tier 1). Depends on **US-01, US-02, US-03, US-07**
 > and reads state produced by **US-06** (reminders) and **US-08** (blocks).
 >
 > **This is the single most valuable screen in the product.** Everything a staff member currently

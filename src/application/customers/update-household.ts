@@ -28,7 +28,7 @@ const HOUSEHOLD_UPDATED = "customer.householdUpdated";
  *
  * One field, because one thing changed: the set of members. Naming who joined or left would be a
  * second record of the household beside the record itself — and the log deliberately keeps *what,
- * when and why*, not a diff (docs/tech_stack_architecture_sketch.md §5.2).
+ * when and why*, not a diff (docs/architecture/adr/006-record-what-when-and-why-in-the-audit-log-never-who.md).
  */
 const HOUSEHOLD_FIELDS = ["householdMembers"] as const;
 

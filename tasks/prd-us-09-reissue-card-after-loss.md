@@ -1,6 +1,6 @@
 # PRD: US-09 — Reissue a Card After Loss
 
-> Source story: `docs/user_stories_mvp.md` §US-09 (Tier 2). Depends on **US-02** (`issueCard`).
+> Source story: `docs/archiv/user_stories_mvp.md` §US-09 (Tier 2). Depends on **US-02** (`issueCard`).
 > Shares its mechanics with **US-13** (reissue after a 13th birthday).
 
 > **Superseded in part by US-25 — where the next index comes from.** A reissue still hands out the

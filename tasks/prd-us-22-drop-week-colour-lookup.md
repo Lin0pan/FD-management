@@ -3,7 +3,7 @@
 ## Introduction
 
 `/ausgabe` carries a second card under the counter: a date field that answers "which group collects
-in the week of _this_ day". It was built because `docs/user_stories_mvp.md` §US-03 criterion 3 asked
+in the week of _this_ day". It was built because `docs/archiv/user_stories_mvp.md` §US-03 criterion 3 asked
 for it, and the criterion was written before anyone had used the screen.
 
 FD say they do not need it. What the counter is asked, and the only thing it is asked, is which
@@ -22,7 +22,7 @@ documents that carry the requirement are part of the change rather than an after
 - The `datum` query parameter no longer exists; a URL still carrying one is ignored, not an error.
 - Every string, type and function that existed only for the lookup is gone — no dead code kept "in
   case".
-- `docs/user_stories_mvp.md` and `tasks/prd-us-03-week-colour.md` say the requirement was withdrawn
+- `docs/archiv/user_stories_mvp.md` and `tasks/prd-us-03-week-colour.md` say the requirement was withdrawn
   and why, so nobody rebuilds it in six months.
 - The rest of US-03 — the banner, the alternation rule, the anchor, the next-distribution line — is
   untouched and stays proved.
@@ -100,7 +100,7 @@ removed, at the place where I would otherwise read that it is required.
 
 **Acceptance Criteria:**
 
-- [ ] `docs/user_stories_mvp.md` §US-03 acceptance criterion 3 ("A staff member can look up the
+- [ ] `docs/archiv/user_stories_mvp.md` §US-03 acceptance criterion 3 ("A staff member can look up the
       colour of a past or future week") is marked as **withdrawn**, with the reason — FD do not need
       it; the counter answers about now — and the marker style already used in that file for edits
       (`[added]`).

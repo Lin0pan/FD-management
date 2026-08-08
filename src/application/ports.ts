@@ -1,7 +1,7 @@
 /**
  * Ports — the repository and service interfaces the application layer depends on.
  *
- * Per the TDD approach (docs/fd_dev_setup_overview.md) these interfaces **emerge** from
+ * Per the TDD approach (docs/architecture/08-crosscutting-concepts.md §Testing strategy) these interfaces **emerge** from
  * application-layer test needs rather than being designed up front; `infrastructure/` supplies the
  * adapters and the tests supply hand-written fakes. The file stays type-only, so it carries no
  * untested runtime code.
@@ -33,7 +33,7 @@ export interface Clock {
 /**
  * The immutable policy versions, each stamped with the instant it took over. There is no `update`
  * and no `delete` by design: history is append-only because a past distribution's price can only be
- * recovered from the version that was in force then (docs/tech_stack_architecture_sketch.md §5.1).
+ * recovered from the version that was in force then (docs/architecture/adr/005-keep-business-rules-as-dated-append-only-settings-data.md).
  */
 export interface SettingsRepository {
   listVersions(): Promise<SettingsVersion[]>;
@@ -475,7 +475,7 @@ export interface CertificateRepository {
 /**
  * One append-only audit record: *what* changed, *when* and *why* — never *who*. FD has ruled out
  * login, so the system cannot tell its staff apart and the log deliberately has no actor field
- * (docs/tech_stack_architecture_sketch.md §5.2).
+ * (docs/architecture/adr/006-record-what-when-and-why-in-the-audit-log-never-who.md).
  */
 export interface AuditEntry {
   /** A stable, machine-readable event name such as `settings.updated`. */

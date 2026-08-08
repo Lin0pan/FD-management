@@ -41,7 +41,7 @@ const eslintConfig = defineConfig([
   /**
    * Architecture boundary — dependencies point inwards only: app → application → domain.
    *
-   * This was a convention guarded by review (docs/technical_documentation.md §3). Review is exactly
+   * This was a convention guarded by review (docs/architecture/adr/001-layer-the-system-hexagonal-lite-and-enforce-the-boundary-in-the-build.md). Review is exactly
    * what is absent when an autonomous agent runs unattended, so the boundary is a build failure now.
    * Covered by src/architecture.test.ts.
    */

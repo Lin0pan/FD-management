@@ -15,7 +15,7 @@
  *
  * The rule: **the screen shows the answer to the last thing that was asked, and nothing older.** A
  * control still renders its own notice, in its own place beside its own button — the viewport rule
- * (`docs/ui_styling_guide.md` §7) is not up for negotiation — it just stops rendering it once
+ * (`docs/guideline/ui_styling_guide.md` §7) is not up for negotiation — it just stops rendering it once
  * another control has been answered.
  *
  * Screens without a board behave as they always did: `useNoticeSlot` returns what it was given, so a

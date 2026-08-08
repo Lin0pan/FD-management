@@ -1,6 +1,6 @@
 # PRD: US-07 — See the Portion Allowance and Price
 
-> Source story: `docs/user_stories_mvp.md` §US-07 (Tier 1). Depends on **US-14** (portion values and
+> Source story: `docs/archiv/user_stories_mvp.md` §US-07 (Tier 1). Depends on **US-14** (portion values and
 > prices per head) and **US-01.1** (derived counts). Consumed by **US-04** and **US-05**.
 
 > **Extended by US-26 — the Maximalpreis** (`prd-us-26-price-cap.md`). The price below is the

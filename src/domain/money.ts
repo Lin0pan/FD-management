@@ -2,7 +2,7 @@
  * Money handling for FD-Management.
  *
  * Prices are money and are stored and computed as integer **cents**, never floats
- * (SQLite has no decimal type — see docs/tech_stack_architecture_sketch.md §3). This module is the
+ * (SQLite has no decimal type — see docs/architecture/08-crosscutting-concepts.md §Money). This module is the
  * pure-domain seam for that rule; it is also the walking-skeleton's proof-of-life for the TDD
  * harness. Richer policy/price-table logic arrives in a later session.
  */

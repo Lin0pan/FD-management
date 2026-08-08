@@ -107,7 +107,7 @@ const WITHOUT_HISTORY_NUMBER = 293;
  * Enough that the box has something to scroll — thirty rows are around 1 100px against a 60vh
  * scrollport on the default 720px viewport — and no more, because every row is one more insert on
  * every run. It is *not* enough to show the header sticking the way five years of records would;
- * that is measured by hand against an inflated register, per `docs/ui_styling_guide.md` §11.
+ * that is measured by hand against an inflated register, per `docs/guideline/ui_styling_guide.md` §11.
  */
 const HAND_OUTS = 30;
 
@@ -611,7 +611,7 @@ test.describe("Kundenakte pflegen", () => {
  * polish item: a scrollable box that cannot take focus cannot be scrolled by keyboard at all
  * (WCAG 2.1.1). It **cannot** meaningfully prove the header sticks — that only shows itself above
  * the row count any fixture wants to insert on every run, so it is measured by hand against an
- * inflated copy of the register (`docs/ui_styling_guide.md` §11).
+ * inflated copy of the register (`docs/guideline/ui_styling_guide.md` §11).
  */
 test.describe("Bisherige Ausgaben", () => {
   let withHistory: number;

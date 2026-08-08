@@ -93,7 +93,7 @@ starts.
 - [ ] Strict TDD, invariant-breaking test first, one named test per rule. Named cases:
       `a slot that has never held a card starts at 1`; `a slot whose last card was k3 issues k4`;
       `the next number keeps the customer number and only moves the index`; `a negative highest index
-    is refused`; `a fractional highest index is refused`.
+is refused`; `a fractional highest index is refused`.
 - [ ] Domain coverage stays at 100%.
 - [ ] `npm run lint` and `npm run typecheck` pass.
 
@@ -179,9 +179,9 @@ on a customer number is, because it is the only layer that can see the archived 
       it goes on meaning what it says.
 - [ ] Test-after integration tests against a throwaway SQLite file, using `clearRegister` from
       `test-support.ts`. Named cases: `a slot that has never held a card answers 0`; `the highest index
-    counts an archived holder's cards`; `issuing the same card number twice is refused by the
-    database`; `two customers may still not share an index on one record`; `a customer's card count
-    is the rows they hold, not their highest index`.
+counts an archived holder's cards`; `issuing the same card number twice is refused by the
+database`; `two customers may still not share an index on one record`; `a customer's card count
+is the rows they hold, not their highest index`.
 - [ ] `npm run lint` and `npm run typecheck` pass.
 
 ### US-025.4: Registration and reissue continue the slot's run (application)
@@ -221,10 +221,10 @@ as valid.
       inheriting `issueCard`'s new source for the index.
 - [ ] TDD against hand-written fakes; no mocking library. Every existing fake `CardRepository` gains
       the method. Named tests for: `a registration on a fresh slot writes card index 1`; `a
-    registration on a slot an archived household held at k1 writes k2`; `a registration on a slot an
-    archived household held at k3 writes k4`; `a reissue counts on from the slot's highest, not the
-    record's`; `a card number taken between the read and the write is not retried`; `the allocated-
-    number retry re-reads the card run for the slot it moved to`.
+registration on a slot an archived household held at k1 writes k2`; `a registration on a slot an
+archived household held at k3 writes k4`; `a reissue counts on from the slot's highest, not the
+record's`; `a card number taken between the read and the write is not retried`; `the allocated-
+number retry re-reads the card run for the slot it moved to`.
 - [ ] Application coverage stays at 100%.
 - [ ] `npm run lint` and `npm run typecheck` pass.
 
@@ -288,9 +288,11 @@ because three of them argue for it explicitly and would otherwise read as a deci
       argument — a key the `(customerNumber, index)` constraint needs, written by the adapter from the
       customer row, never read as the card's number — and says that unlike the three `AtIssue` fields
       it snapshots nothing, because a customer number cannot change.
-- [ ] `docs/technical_documentation.md` describes the counting rule as the slot's rather than the
-      record's, and names the counter consequence it exists for.
-- [ ] `docs/domain_analysis.md` — wherever it defines a card number — says a card number is issued once
+- [ ] ~~`docs/technical_documentation.md` describes the counting rule as the slot's rather than the
+      record's, and names the counter consequence it exists for.~~ `[obsolete]` — that file has since
+      been deleted; the rule is recorded in
+      [ADR-008](../docs/architecture/adr/008-treat-a-customer-number-as-a-reusable-slot-not-an-identity.md).
+- [ ] `docs/archiv/domain_analysis.md` — wherever it defines a card number — says a card number is issued once
       and never reused.
 - [ ] `tasks/prd-us-02-issue-customer-card.md`, `prd-us-09-reissue-card-after-loss.md` and
       `prd-us-11-reuse-archived-record.md` carry a short note that US-25 superseded the per-record

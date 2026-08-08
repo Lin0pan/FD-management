@@ -1,6 +1,6 @@
 # PRD: US-01 — Register a New Customer
 
-> Source story: `docs/user_stories_mvp.md` §US-01 (Tier 1). Depends on **US-14** (quota `N`).
+> Source story: `docs/archiv/user_stories_mvp.md` §US-01 (Tier 1). Depends on **US-14** (quota `N`).
 > Produces the first card via **US-02**.
 
 ## 1. Introduction

@@ -375,7 +375,7 @@ export default async function DistributionPage({
           distribution day is the group the banner paints.
 
           Keyed by the number looked up, because a `<details>` keeps `open` through any re-render and
-          only a remount closes it (`docs/ui_styling_guide.md` §6): clicking a name in the list is a
+          only a remount closes it (`docs/guideline/ui_styling_guide.md` §6): clicking a name in the list is a
           soft navigation, so without the key the household's verdict would arrive underneath a
           hundred rows the staff member has to scroll past. */}
         <GroupProgressCard

@@ -1,6 +1,6 @@
 # PRD: US-05 — Record Attendance and Payment
 
-> Source story: `docs/user_stories_mvp.md` §US-05 (Tier 1). Depends on **US-04** (lookup and verdict)
+> Source story: `docs/archiv/user_stories_mvp.md` §US-05 (Tier 1). Depends on **US-04** (lookup and verdict)
 > and **US-07** (price). Feeds **US-10** (no-show driven archiving) and the deferred reporting work.
 
 ## 1. Introduction

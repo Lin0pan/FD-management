@@ -451,7 +451,7 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
   });
 
   test("beide Karten der Seite tragen eine echte Überschrift", async ({ page }) => {
-    // The regression `docs/ui_styling_guide.md` §9 exists to prevent: `CardTitle` is a
+    // The regression `docs/guideline/ui_styling_guide.md` §9 exists to prevent: `CardTitle` is a
     // `div`, so converting `<section><h2>` to a `Card` silently deletes the heading and leaves the
     // screen with nothing between its `h1` and 240 rows. The pilot shipped that twice. Asserted here
     // so that this screen, at least, the suite can see it.

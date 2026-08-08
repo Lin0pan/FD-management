@@ -9,7 +9,7 @@ const FIELD_SEPARATOR = ",";
  *
  * Append-only by construction — there is no update and no delete. With no login, the log is the only
  * accountability the system has, so an entry that could be rewritten would be worth nothing
- * (docs/tech_stack_architecture_sketch.md §5.2). It records *what* changed, *when* and *why*, and
+ * (docs/architecture/adr/006-record-what-when-and-why-in-the-audit-log-never-who.md). It records *what* changed, *when* and *why*, and
  * deliberately never *who*.
  */
 export class PrismaAuditLog implements AuditLog {

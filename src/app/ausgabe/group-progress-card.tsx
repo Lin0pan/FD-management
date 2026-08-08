@@ -10,7 +10,7 @@
  * Three things about the shape are deliberate:
  *
  * - **A `<details>`, never a `Dialog`.** At the counter the queue is waiting, so nothing may have to
- *   be dismissed before the next customer is served (`docs/ui_styling_guide.md` §6). It is
+ *   be dismissed before the next customer is served (`docs/guideline/ui_styling_guide.md` §6). It is
  *   also what keeps this a server component: the fold is the browser's, so 120 links cross no client
  *   boundary.
  * - **No group tint.** The banner directly above already carries the group's colour, and 120 tinted
@@ -18,7 +18,7 @@
  *   the way round US-03.4 asks for anyway.
  * - **Only the served rows are marked**, and blocked ones say so in the words `/kunden` already uses.
  *   The unserved are the default state and get their name and nothing else — chrome marks the
- *   exception (`docs/ui_styling_guide.md` §5).
+ *   exception (`docs/guideline/ui_styling_guide.md` §5).
  *
  * Nothing here is a second place to serve someone: a row navigates, exactly as typing the number
  * does, and the verdict and the serve control stay where they are (§FR-7).

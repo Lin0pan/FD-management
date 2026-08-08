@@ -1,6 +1,6 @@
 # PRD: US-03 — Know Which Group Collects Today
 
-> Source story: `docs/user_stories_mvp.md` §US-03 (Tier 1). Depends on **US-14** (anchor week and
+> Source story: `docs/archiv/user_stories_mvp.md` §US-03 (Tier 1). Depends on **US-14** (anchor week and
 > distribution weekday). Feeds **US-04** (the wrong-group verdict).
 
 ## 1. Introduction

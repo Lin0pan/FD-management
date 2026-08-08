@@ -1,6 +1,6 @@
 # PRD: US-02 — Issue a Customer Card (Digital)
 
-> Source story: `docs/user_stories_mvp.md` §US-02 (Tier 1). Depends on **US-01**. Extended by
+> Source story: `docs/archiv/user_stories_mvp.md` §US-02 (Tier 1). Depends on **US-01**. Extended by
 > **US-09** (reissue after loss) and **US-13** (reissue after a 13th birthday).
 
 > **Superseded in part by US-25 — the counting rule.** This PRD counts a card index over the customer

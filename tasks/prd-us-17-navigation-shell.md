@@ -1,6 +1,6 @@
 # PRD: US-17 — Navigation Shell, Customer Hub and Start Dashboard
 
-> Not a story from `docs/user_stories_mvp.md`: this is a **structural** change to how the finished
+> Not a story from `docs/archiv/user_stories_mvp.md`: this is a **structural** change to how the finished
 > screens are reached. It adds no business rule, no domain code and no schema change. It depends on
 > **US-03** (week colour, for the dashboard), **US-12** (waiting list), **US-13** (cards due badge)
 > and **US-15** (customer list) — all already built.
