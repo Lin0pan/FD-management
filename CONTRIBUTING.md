@@ -71,9 +71,9 @@ database**: it is a development fixture and `--reset` deletes customer data outr
 | Command                 | What it does                                                                |
 | ----------------------- | --------------------------------------------------------------------------- |
 | `npm run setup`         | Install, `.env`, generate, migrate, seed — idempotent                       |
-| `npm run dev`           | Next.js dev server                                                          |
-| `npm run build`         | Production build                                                            |
-| `npm start`             | Serve the production build                                                  |
+| `npm run dev`           | Next.js dev server — needs no build                                         |
+| `npm run build`         | Production build; only needed after the code changes                        |
+| `npm start`             | Serves the **last** build, so rebuild first if the code moved               |
 | `npm run lint`          | ESLint                                                                      |
 | `npm run typecheck`     | `tsc --noEmit`                                                              |
 | `npm test`              | Vitest unit suite (domain + application)                                    |

@@ -39,9 +39,13 @@ npm run dev                 # http://localhost:3000
 **Run in production**
 
 ```bash
-npm run build
+npm run build               # only after pulling new code — see below
 npm start                   # http://localhost:3000
 ```
+
+`npm start` serves the last build, so rebuild after every update and only then: a build is a
+snapshot of the code, not of the data. Nothing FD does — customers, settings, hand-outs — needs one.
+`npm run dev` needs no build at all.
 
 Either way you get a working app with an **empty register**. To click around with something to look
 at, add the demo data below.
