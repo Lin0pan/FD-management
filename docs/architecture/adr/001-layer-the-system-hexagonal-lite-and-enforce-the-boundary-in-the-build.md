@@ -2,11 +2,11 @@
 
 - **Status:** Accepted
 - **Date:** 2026-07-21
-- **Deciders:** the maintainer, with FD on the domain questions
+- **Deciders:** the maintainer, with DF on the domain questions
 
 ## Context
 
-FD's rules are the valuable part of this software and the part most likely to outlive its
+DF's rules are the valuable part of this software and the part most likely to outlive its
 frameworks: what a household is owed, when a card goes stale, which group collects this week. The
 system's top quality goal is [legibility over five-plus years](../01-introduction-and-goals.md#quality-goals),
 possibly for a different developer, and its second is that a small set of hard invariants never
@@ -31,7 +31,7 @@ exactly what is absent from those. A convention nobody is present to enforce is 
   ceremony;
   the pattern is deliberately called _hexagonal-lite_ to say so.
 - **No layering — a conventional Next.js application with logic in server actions** — rejected. It
-  makes the rules untestable without a running framework and ties FD's domain to the release cadence
+  makes the rules untestable without a running framework and ties DF's domain to the release cadence
   of the fastest-moving dependency in the stack (see [ADR-004](004-pin-the-next-js-major-and-keep-the-core-outside-the-framework.md)).
 - **Enforce the boundary with a dependency-graph tool (dependency-cruiser, madge)** — rejected as a
   dependency added to avoid configuration the linter already in the pipeline can express.

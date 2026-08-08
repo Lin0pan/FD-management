@@ -6,7 +6,7 @@
  * Its one job is the warning: when the certificate the applicant joined with has lapsed while they
  * waited, staff read *before* the form opens that a current notice is needed (FR-5). It is a step and
  * not a dialog — nothing is dismissed, the page's own way back to the list stays below it, and the
- * applicant is never refused. FD has not decided how such a case is settled (PRD §9), so the screen
+ * applicant is never refused. DF has not decided how such a case is settled (PRD §9), so the screen
  * states the fact and leaves the judgement where it belongs.
  *
  * With a valid certificate there is nothing to warn about and the form is simply there.

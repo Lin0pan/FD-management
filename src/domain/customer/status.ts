@@ -1,7 +1,7 @@
 /**
  * The customer status state machine (US-08.1).
  *
- * FD's register knows three states and only four moves between them. Modelling those moves as a
+ * DF's register knows three states and only four moves between them. Modelling those moves as a
  * function — rather than trusting each call site to remember them — is what makes an illegal
  * transition impossible rather than merely unlikely: `transition` returns the target state for a
  * legal move and throws a typed error for anything else.

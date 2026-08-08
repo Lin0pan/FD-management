@@ -18,7 +18,7 @@ decision log full of trivia teaches people to skim it.
 | [006](adr/006-record-what-when-and-why-in-the-audit-log-never-who.md)                   | Record what, when and why in the audit log, never who                 | Accepted | 2026-07-22 |
 | [007](adr/007-derive-anything-computable-rather-than-storing-it.md)                     | Derive anything computable rather than storing it                     | Accepted | 2026-07-22 |
 | [008](adr/008-treat-a-customer-number-as-a-reusable-slot-not-an-identity.md)            | Treat a customer number as a reusable slot, not an identity           | Accepted | 2026-07-22 |
-| [009](adr/009-regenerate-migration-history-until-fd-holds-real-data.md)                 | Regenerate migration history until FD holds real data                 | Accepted | 2026-07-22 |
+| [009](adr/009-regenerate-migration-history-until-fd-holds-real-data.md)                 | Regenerate migration history until DF holds real data                 | Accepted | 2026-07-22 |
 | [010](adr/010-never-hard-delete-a-record-archive-and-let-the-database-refuse.md)        | Never hard-delete a record: archive, and let the database refuse      | Accepted | 2026-07-27 |
 | [011](adr/011-track-the-newest-even-numbered-node-release.md)                           | Track the newest even-numbered Node release                           | Accepted | 2026-08-08 |
 
@@ -34,7 +34,7 @@ Each is reversible, or binds only one corner of the system. Ordered by date.
 | 2026-07-22 | The engineering standard lives in the root `CLAUDE.md`, not in `scripts/ralph/`                        | It binds humans and agents alike; where it sat before, it bound only Ralph and contradicted the loop contract above it |
 | 2026-07-22 | No configurable reminder threshold                                                                     | Whether an expired certificate ends in archiving is a per-case judgement; three reminders is a habit, not a rule       |
 | 2026-07-22 | Group balancing breaks ties towards RED rather than at random                                          | Keeps registration reproducible under test                                                                             |
-| 2026-07-22 | Week colour is calendar parity from one anchor, not a table of weeks                                   | A table could hold two RED weeks in a row, which FD considers unfair; parity makes it impossible by construction       |
+| 2026-07-22 | Week colour is calendar parity from one anchor, not a table of weeks                                   | A table could hold two RED weeks in a row, which DF considers unfair; parity makes it impossible by construction       |
 | 2026-07-23 | Attendance uses the Europe/Berlin calendar day; the week rules use the UTC day                         | Attendance turns on the local moment someone stood at the counter, including across both DST changes                   |
 | 2026-07-23 | The counter page's dependencies hold no audit log; the actions' do                                     | The page cannot record a hand-out even by mistake                                                                      |
 | 2026-07-24 | `reissueCard` delegates to `issueCard` — one issuing path                                              | A parallel path is exactly how two valid cards would come to exist                                                     |
@@ -59,14 +59,14 @@ same idea being proposed again.
 | Reversed                                  | From → to                                                             | Why                                                                                                                   |
 | ----------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | Price model                               | Per-household price table → price per head                            | The table made staff enumerate every household size they might meet, and an unmet one reached the counter as an error |
-| Settings timing                           | Staff-entered `effectiveFrom` → immediate, clock-stamped `recordedAt` | FD adjust numbers when reality changes; dating a change was a field to get wrong rather than a requirement            |
+| Settings timing                           | Staff-entered `effectiveFrom` → immediate, clock-stamped `recordedAt` | DF adjust numbers when reality changes; dating a change was a field to get wrong rather than a requirement            |
 | Delete behaviour                          | `onDelete: Cascade` on three relations → `Restrict` everywhere        | A cascade is harmless only until something calls `delete`, which is why it was the wrong thing to leave lying about   |
 | Lost-race handling at registration        | Silent retry onto the next free slot → refusal on screen              | Defensible while the rule picked the number; a number a person chose has no substitute                                |
-| Week-colour lookup at the counter         | A date picker for any week's colour → withdrawn                       | FD, asked explicitly, need no week's colour but this one                                                              |
+| Week-colour lookup at the counter         | A date picker for any week's colour → withdrawn                       | DF, asked explicitly, need no week's colour but this one                                                              |
 | Finding the next household at the counter | Typing a guessed number → a Zurück/Weiter walk of the week's group    | Guessing was the actual workflow being replaced                                                                       |
 
 The project's convention for a withdrawn requirement is to **strike it through and mark it
-`[withdrawn]` rather than delete it**, so the next person to propose it finds FD's answer instead of
+`[withdrawn]` rather than delete it**, so the next person to propose it finds DF's answer instead of
 a gap — and a PRD whose rule a later story superseded gets a note saying so rather than being
 rewritten, because a PRD is the record of what was asked for.
 

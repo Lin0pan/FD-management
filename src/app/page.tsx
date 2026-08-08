@@ -4,7 +4,7 @@
  * It used to be a list of seven links, which is what a program looks like before it has navigation.
  * The bar carries those now, so this screen answers the question staff actually open it for: what
  * day is it, when is the next Ausgabe, and which group collects. Nothing on it needs clicking —
- * except in the one state where FD has configured no rhythm yet, and there the way to the settings
+ * except in the one state where DF has configured no rhythm yet, and there the way to the settings
  * is the only thing on the screen worth doing.
  *
  * Three lines and nothing else: the greeting, the date, the Ausgabe. The explanatory paragraph under
@@ -38,7 +38,7 @@ export const dynamic = "force-dynamic";
  * The distribution line: one sentence, set like the date above it, in no container at all.
  *
  * It was a tinted card at 40px and then at 30px, which is what §3 of the concept asked for — and
- * seeing it built, FD asked for the opposite: no banner, no tint, and the group as a small note
+ * seeing it built, DF asked for the opposite: no banner, no tint, and the group as a small note
  * rather than a clause. So the colour is now carried by the word `(Rot)` / `(Blau)` alone. That
  * loses nothing a reader depends on, because the word was always the part that had to be there
  * (US-03.4: never colour alone); it is the paint that has gone, not the fact. `GROUP_STYLES` is
@@ -70,7 +70,7 @@ function DistributionLine({ view }: { view: WeekColourView }): React.ReactElemen
 }
 
 /**
- * What stands in the line's place before FD has configured anything at all (FR-10).
+ * What stands in the line's place before DF has configured anything at all (FR-10).
  *
  * The one state in which this screen has something to do, so it keeps a `Card`: the sentence
  * explains a setup step rather than answering the daily question, and the button under it is the
@@ -116,7 +116,7 @@ async function today(): Promise<WeekColourView | null> {
 export default async function Home(): Promise<React.ReactElement> {
   const view = await today();
   // The looked-up day when there is one, and the injected clock's day when there is not — the date
-  // line is the half of this screen that does not depend on FD having configured anything.
+  // line is the half of this screen that does not depend on DF having configured anything.
   const date = view?.date ?? distributionDeps.clock.now();
 
   return (

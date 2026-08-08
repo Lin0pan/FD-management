@@ -38,7 +38,7 @@ export interface RegistrationProposal {
   readonly suggestedGroup: Group;
   /** Both group sizes, so staff can see what they are overriding when they change the suggestion. */
   readonly groupCounts: GroupCounts;
-  /** The quota in force, so a full register can name the limit FD would have to raise. */
+  /** The quota in force, so a full register can name the limit DF would have to raise. */
   readonly quotaN: number;
   /** The day the form derives its household counts against — the same clock the save will read. */
   readonly today: Date;

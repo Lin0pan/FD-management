@@ -5,7 +5,7 @@ import { createSettings, type SettingsVersion } from "@/domain/policy/settings";
  * The provisional policy values a fresh database starts with, so the app is usable on first boot
  * instead of failing with `NoSettingsInForce`.
  *
- * **Every number here is provisional and must be confirmed with FD** (tasks/README.md, "Provisional
+ * **Every number here is provisional and must be confirmed with DF** (tasks/README.md, "Provisional
  * seed values"). They are configuration rows, so correcting them is a settings edit on the
  * `/einstellungen` screen — not a code change and not a migration.
  *

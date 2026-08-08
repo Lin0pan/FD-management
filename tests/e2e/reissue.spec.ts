@@ -13,7 +13,7 @@ import { foldName } from "@/domain/customer/nameSearch";
  * Every piece of this is already proved in isolation: `issueCard` picks the next index against
  * fakes, `counterVerdict` returns `OUTDATED_CARD` for a superseded number in the domain gate, and
  * `issueCounts` aggregates a mixed history against a throwaway SQLite file. What none of them can
- * see is the sentence FD actually cares about — *the card in the customer's hand no longer works,
+ * see is the sentence DF actually cares about — *the card in the customer's hand no longer works,
  * and the one we just wrote on does*. Those are two different screens, a write between them and a
  * derived number on each side, so this spec follows one household through the whole loop: reissue on
  * the record, read the new number off the card view, present the old number at the counter and be

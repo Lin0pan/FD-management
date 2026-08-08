@@ -123,7 +123,7 @@ test.describe("Start", () => {
     await page.goto("/");
 
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(de.home.heading);
-    // The date is the half of the screen that does not depend on FD having configured anything.
+    // The date is the half of the screen that does not depend on DF having configured anything.
     await expect(page.getByTestId("today-date")).toHaveText(
       de.home.today("Mittwoch, 31. Dezember 2025"),
     );

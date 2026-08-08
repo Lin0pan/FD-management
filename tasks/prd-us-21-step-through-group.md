@@ -69,7 +69,7 @@ is in it, so that pressing them is one click and not a lookup I have to phrase.
 - [ ] The group walked is the week's own: `getWeekColour(deps)`'s `colour`. On a distribution day
       that is today's group; on any other day it is the group of the week being read in, which is
       what the banner badges beside the calendar week. The screen must never name two groups.
-      `[amended]` — this read `nextDistribution.colour` until FD walked the counter between two
+      `[amended]` — this read `nextDistribution.colour` until DF walked the counter between two
       distributions and met red households under a badge saying the week was blue.
 - [ ] Membership is every customer of that group with status `ACTIVE` **or** `BLOCKED`, read through
       the existing `CustomerRepository.list({ statuses, group })`. **No new port method**: the
@@ -224,7 +224,7 @@ value is the order it produces and no unit test can see the links.
   read, not a customer query, and the page already resolves the colour twice today; if it ever
   matters, the fix is to pass the resolved view in, not to cache.
 - `CustomerRepository.list` loads households, certificates and cards for every row it answers with —
-  roughly 120 for a group. At FD's ~240 customers that is one query of a few hundred rows and is the
+  roughly 120 for a group. At DF's ~240 customers that is one query of a few hundred rows and is the
   same read `/kunden` performs on every visit. If it ever needs narrowing, add a numbers-only port
   method then, with the measurement that justified it.
 - The `Group` union on a customer and the `WeekColour` union in settings are compared directly by

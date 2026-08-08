@@ -5,7 +5,7 @@
 
 > **Extended by US-26 — the Maximalpreis** (`prd-us-26-price-cap.md`). The price below is the
 > unqualified per-head sum; since US-26 `priceFor` returns `min(per-head sum, Maximalpreis)` where a
-> Maximalpreis is configured, so FD's four-grown-up, three-child household owes 11,00 € per head and
+> Maximalpreis is configured, so DF's four-grown-up, three-child household owes 11,00 € per head and
 > pays 5,00 €. The cap caps money only — `portionsFor` is unchanged.
 
 ## 1. Introduction
@@ -119,5 +119,5 @@ per-head prices.
 ## 8. Open Questions
 
 - **Provisional seeds:** 2 portions per grown-up, 1 per child, price 200c per grown-up + 100c per
-  child. Confirm the real values with FD.
-- Should portions be displayed as a number only, or in FD's own unit (bags, crates)?
+  child. Confirm the real values with DF.
+- Should portions be displayed as a number only, or in DF's own unit (bags, crates)?

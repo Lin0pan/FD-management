@@ -1,7 +1,7 @@
 /**
  * The balancing group a customer belongs to.
  *
- * FD distributes on a two-week cycle: RED households come one week, BLUE the next, so roughly half
+ * DF distributes on a two-week cycle: RED households come one week, BLUE the next, so roughly half
  * the register turns up on any given distribution day. The two groups therefore have to stay
  * roughly equal in size — a lopsided split means one week overwhelms the volunteers and the other
  * wastes the food that was collected for it.
@@ -9,7 +9,7 @@
  * The values match `WeekColour` in `../policy/settings` by design: a RED customer is expected
  * in a RED week. They are deliberately *not* the same type, because the two answer different
  * questions — a week's colour is a property of the calendar and follows from the anchor in
- * settings, while a group is a property of a customer that FD may override by hand (a household
+ * settings, while a group is a property of a customer that DF may override by hand (a household
  * that shares a lift with a neighbour). Aliasing them would make one editable through the other.
  *
  * This module is pure: it does no I/O and never reads the wall clock.

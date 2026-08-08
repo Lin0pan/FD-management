@@ -27,7 +27,7 @@ const ITEM =
 
 /**
  * The current section is marked three ways at once — a bottom rule, a tint and bold text — because
- * FD works from one shared screen under whatever light the hall has that day. Colour alone would be
+ * DF works from one shared screen under whatever light the hall has that day. Colour alone would be
  * a distinction only some of the staff can make (US-03.4).
  */
 const ACTIVE = "border-foreground bg-muted font-semibold text-foreground";

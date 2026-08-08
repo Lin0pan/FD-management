@@ -3,7 +3,7 @@
  *
  * This is **not** `prisma/seed.ts`. That one inserts the provisional settings a fresh install needs
  * to boot and is safe to run against production; this one invents twenty households so the screens
- * have something to show, and must never be pointed at FD's database. It refuses to run over an
+ * have something to show, and must never be pointed at DF's database. It refuses to run over an
  * existing register unless `--reset` says to wipe it first.
  *
  * Two decisions are worth stating, because they are what make the fixture trustworthy:
@@ -108,7 +108,7 @@ const tally = { handOuts: 0, unpaid: 0, noShows: 0 };
 const TODAY = startOfUtcDay(new Date());
 
 /**
- * The instant `days` from today, at `hour` UTC. Mid-morning by default: FD distributes during the
+ * The instant `days` from today, at `hour` UTC. Mid-morning by default: DF distributes during the
  * day, and an event stamped at midnight would sit on a day boundary where the Berlin day-key and
  * the UTC day disagree.
  */
@@ -397,7 +397,7 @@ const WAITING: ReadonlyArray<{
   },
 ];
 
-/** The kinds of proof of need FD sees, as staff would type them. */
+/** The kinds of proof of need DF sees, as staff would type them. */
 const CERTIFICATE_TYPES = [
   "Jobcenter-Bescheid",
   "Grundsicherung",

@@ -5,7 +5,7 @@
  * The rule itself is `consecutiveNoShows` in the domain; all this adds is the one decision the pure
  * module cannot make: *which* settings the count is read against. It is the version in force at the
  * instant asked about, because the schedule the misses are counted on — the distribution weekday and
- * the week-colour anchor — is policy FD can change (US-14).
+ * the week-colour anchor — is policy DF can change (US-14).
  *
  * The records are passed in rather than loaded here: the counter already holds the customer's
  * hand-outs from its single pass over the register (US-04.3), and fetching them a second time would

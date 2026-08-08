@@ -2,11 +2,11 @@
 
 - **Status:** Accepted
 - **Date:** 2026-07-21
-- **Deciders:** FD, on their own operating reality; the maintainer on the consequences
+- **Deciders:** DF, on their own operating reality; the maintainer on the consequences
 
 ## Context
 
-FD is a handful of trusted colleagues sharing one machine in the distribution hall. Asked directly,
+DF is a handful of trusted colleagues sharing one machine in the distribution hall. Asked directly,
 they do not want accounts, roles or a sign-in: at a counter with a queue waiting, a login screen is
 a delay and a shared password is what would actually happen. No requirement asked for since depends
 on telling one staff member from another.
@@ -16,9 +16,9 @@ the access control is somewhere else.
 
 ## Considered options
 
-- **No authentication; bind to localhost on FD's machine** — chosen. Physical access to the machine
+- **No authentication; bind to localhost on DF's machine** — chosen. Physical access to the machine
   _is_ the access control.
-- **Username and password per staff member** — rejected by FD. It adds a user-administration screen,
+- **Username and password per staff member** — rejected by DF. It adds a user-administration screen,
   a password-reset story and a lockout story to an MVP that has none of those, for an accountability
   gain that a shared password would erase anyway.
 - **One shared password on the app** — rejected as the worst of both: the friction of a login with
@@ -29,7 +29,7 @@ the access control is somewhere else.
 
 ## Decision
 
-The application ships with no authentication and no user administration. It is started on FD's
+The application ships with no authentication and no user administration. It is started on DF's
 machine with `npm run build && npm start`, reachable at `http://localhost:3000`, and is not exposed
 on the network. Physical control of the machine is the access control.
 
@@ -42,11 +42,11 @@ on the network. Physical control of the machine is the access control.
 - The app must never be bound to `0.0.0.0` or put behind a tunnel without revisiting this decision,
   because the whole security argument rests on the listener being local.
 - An unlocked, unattended machine is an open register. That is a real residual risk and is recorded
-  as one in [chapter 11](../11-risks-and-technical-debt.md); mitigating it is FD's operational
+  as one in [chapter 11](../11-risks-and-technical-debt.md); mitigating it is DF's operational
   practice (screen lock, machine location), not the software's.
 - Adding login later is additive rather than a rewrite: an actor column on `AuditEntry`, a session,
   and a gate in the layout. Nothing in `domain/` or `application/` changes.
-- Revisit if FD ever needs the register on more than one machine, or if anyone asks a question the
+- Revisit if DF ever needs the register on more than one machine, or if anyone asks a question the
   log cannot answer because it has no actor.
 
 ## More information

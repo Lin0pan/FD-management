@@ -152,4 +152,4 @@ match their household.
   nothing to notice a move against.
 - Should blocked customers appear on the list? Assumed no (they are not collecting), but they will
   need a card when unblocked.
-- Is 1 March the right convention for a 29 February birthdate, or does FD expect 28 February?
+- Is 1 March the right convention for a 29 February birthdate, or does DF expect 28 February?

@@ -104,7 +104,7 @@ export interface PrefillDraft {
    * deliberate. An **archived record** carries neither (US-11.2): its certificate is years old and
    * nobody has looked at it since, so asking for a fresh one is the point. A **waiting-list
    * promotion** carries both (US-12.2): the certificate was seen when the applicant joined and has
-   * just been re-checked, and the note is the most current thing FD knows about them.
+   * just been re-checked, and the note is the most current thing DF knows about them.
    */
   readonly certificateType?: string;
   /** `YYYY-MM-DD`, the UTC day the certificate runs to. */

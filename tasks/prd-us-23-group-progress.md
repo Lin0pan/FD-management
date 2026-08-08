@@ -199,7 +199,7 @@ their value is that they agree with what just happened at the counter.
 - **Not** a no-show list or a decision aid. The list states who has not collected _yet_, at 14:00 on
   a distribution day; it draws no conclusion, and the consecutive-no-show count that feeds archiving
   is a different, already-built figure (US-10.1) computed over past distributions.
-- **Not** a printable or exportable attendance sheet. FD asked for an overview at the counter.
+- **Not** a printable or exportable attendance sheet. DF asked for an overview at the counter.
 - **Not** a live-updating figure. The page renders per request (`dynamic = "force-dynamic"`); a staff
   member sees the tally as of the load, and every serve reloads the screen anyway. No polling, no
   websocket.
@@ -261,11 +261,11 @@ their value is that they agree with what just happened at the counter.
 - **Should the list default to open on a distribution day?** It is the day the list is for, and the
   screen has room once the week-colour lookup is gone. Left closed because the counter's field is
   what staff type into and a 120-row list between the banner and that field is a lot of screen.
-  Worth revisiting after FD have used it once.
+  Worth revisiting after DF have used it once.
 - **Do staff want the unserved filtered on their own** ("wer fehlt noch")? Late in the afternoon that
   is the only part of the list they read. Deliberately not built: it is a third control on the
   busiest screen, and scrolling a marked list may well be enough.
 - **What should the tally say on a day that is not a distribution day?** It currently describes the
   _next_ distribution's group, where nobody has collected, so it reads `0 von 61`. That is truthful
-  but possibly odd; naming the next distribution's date beside it is the cheap fix if FD find it
+  but possibly odd; naming the next distribution's date beside it is the cheap fix if DF find it
   confusing.

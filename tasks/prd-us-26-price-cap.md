@@ -8,14 +8,14 @@
 
 ## Introduction
 
-FD charges per head: a price per grown-up plus a price per child, both configurable. Today that is
-the whole rule, and it means a large household pays a large amount. With FD's current numbers —
+DF charges per head: a price per grown-up plus a price per child, both configurable. Today that is
+the whole rule, and it means a large household pays a large amount. With DF's current numbers —
 2,00 € per grown-up, 1,00 € per child — a household of four grown-ups and three children owes
 **11,00 €**.
 
-FD does not charge that. There is a **Maximalpreis**: an upper limit on what any one household pays
+DF does not charge that. There is a **Maximalpreis**: an upper limit on what any one household pays
 for one distribution, currently **5,00 €**. The household above pays 5,00 €, not 11,00 €. The
-software does not know this, so it states a price FD does not collect — on the counter screen, on the
+software does not know this, so it states a price DF does not collect — on the counter screen, on the
 customer's card, in the customer list, and in the `priceCents` written onto every distribution record
 for a large household.
 
@@ -29,7 +29,7 @@ owed     = priceCap === null ? uncapped : min(uncapped, priceCap)
 ```
 
 Everything else in this document is the consequence of that value having to be **configurable,
-versioned and auditable** like every other policy value FD can change (US-14): a settings column, a
+versioned and auditable** like every other policy value DF can change (US-14): a settings column, a
 form field, a history entry, an audit field, and a seed.
 
 **The cap is optional.** It is a `Cents | null`, and an empty Maximalpreis field means there is no
@@ -91,7 +91,7 @@ that the number on screen is the number I take at the counter.
 - [ ] The result is integer cents in every case — both inputs are whole cents, so the minimum of two
       of them is too; no rounding is introduced anywhere
 - [ ] Tests written first, named after the rule: - `charges the per-head sum when there is no cap` - `charges the per-head sum when it stays below the cap` — 1 grown-up, 1 child at
-      2,00 €/1,00 € with a cap of 5,00 € owes **300**, the sum, because the cap is never reached - `stops at the cap for a large household` — FD's own numbers: 4 grown-ups, 3 children,
+      2,00 €/1,00 € with a cap of 5,00 € owes **300**, the sum, because the cap is never reached - `stops at the cap for a large household` — DF's own numbers: 4 grown-ups, 3 children,
       2,00 €/1,00 €, cap 5,00 € → **500**, not 1100 - `charges the cap exactly when the sum equals it` (boundary: sum 500, cap 500 → 500) - `charges nothing when the cap is zero`, whatever the household size - `caps a single-grown-up household too` — a cap below `pricePerGrownUp` applies to everyone,
       there is no minimum-household exemption - `caps an empty household at nothing` — 0 heads owe 0, never the cap
 - [ ] The doc comment states why the cap is `null`-able and not `0`-flagged, so the next reader does
@@ -100,7 +100,7 @@ that the number on screen is the number I take at the counter.
 ### US-26.3: A changed cap is named in the history and the audit entry (domain)
 
 **Description:** As a staff member, I want a change to the Maximalpreis to appear in the
-Änderungsverlauf like every other setting, so the record of what FD charges is complete.
+Änderungsverlauf like every other setting, so the record of what DF charges is complete.
 
 **Acceptance Criteria:**
 
@@ -136,13 +136,13 @@ distribution is priced by the cap that was in force on its day.
       hand-edited database cannot smuggle a fractional cap into the domain
 - [ ] Integration test against a throwaway SQLite file: append a version with a cap and one without,
       read both back, assert `500` and `null` respectively survive the round trip
-- [ ] The seed (`src/infrastructure/prisma/seed.ts`) sets `priceCap: 500` — FD's real cap, so seeded
+- [ ] The seed (`src/infrastructure/prisma/seed.ts`) sets `priceCap: 500` — DF's real cap, so seeded
       data exercises the capped path for larger households out of the box
 
 ### US-26.5: Maximalpreis is editable on the settings screen (presentation)
 
 **Description:** As a staff member, I want to set or clear the Maximalpreis on the Einstellungen
-screen, so a change to what FD charges does not need a developer.
+screen, so a change to what DF charges does not need a developer.
 
 **Acceptance Criteria:**
 
@@ -216,7 +216,7 @@ the price the counter will charge.
       (historical pricing intact)
 - [ ] Run with the dev server stopped — a live port 3000 fails the suite for the wrong reason
 
-### US-26.9: The documents say what FD charges
+### US-26.9: The documents say what DF charges
 
 **Acceptance Criteria:**
 
@@ -257,7 +257,7 @@ the price the counter will charge.
 
 ## Non-Goals
 
-- **No per-household or per-group cap.** One cap applies to everyone. A household that FD wants to
+- **No per-household or per-group cap.** One cap applies to everyone. A household that DF wants to
   charge differently is a conversation at the counter, not a data model.
 - **No cap on the portion allowance.** Portions already flex physically at the counter and are
   deliberately outside the software (US-07).
@@ -311,7 +311,7 @@ end to end avoids an `?? null` in every adapter.
 **`Math.min` is safe here.** Both operands are validated non-negative integers, so no rounding, no
 `NaN`, no float. The domain must not use `Math.max` anywhere near this — a cap is a ceiling.
 
-**The migration is a regeneration, not an addition.** FD holds no real data, so `CLAUDE.md`'s
+**The migration is a regeneration, not an addition.** DF holds no real data, so `CLAUDE.md`'s
 pre-release rule applies and the init migration is rewritten. The two things that do not survive
 `prisma migrate dev` on their own are the hand-written partial unique index and the audit that
 `schema.test.ts` performs over the generated SQL; both are checked by tests, so a lost line fails CI
@@ -322,8 +322,8 @@ rather than production.
 
 ## Success Metrics
 
-- A household of 4 grown-ups and 3 children, under FD's seeded policy, is quoted **5,00 €** on every
-  screen that names a price — the number FD actually collects.
+- A household of 4 grown-ups and 3 children, under DF's seeded policy, is quoted **5,00 €** on every
+  screen that names a price — the number DF actually collects.
 - Changing the cap takes one field and one save, with no deploy, and the previous cap remains
   readable in the Änderungsverlauf.
 - A distribution recorded under a 5,00 € cap still reports 5,00 € after the cap changes.
@@ -331,10 +331,10 @@ rather than production.
 
 ## Open Questions
 
-- Is 5,00 € the cap for both groups and every distribution, or does FD ever suspend it (e.g. a
+- Is 5,00 € the cap for both groups and every distribution, or does DF ever suspend it (e.g. a
   Christmas distribution)? Assumed **always in force** here; a suspension would be a settings edit on
   the day, which the versioning already supports.
-- Does the cap apply to the price at all, or also to anything else FD charges for (deposits, bags)?
+- Does the cap apply to the price at all, or also to anything else DF charges for (deposits, bags)?
   Assumed price only — the software knows of no other charge.
 - Should the counter ever surface that the cap applied? Deliberately not, per the decision recorded
   under Non-Goals. Worth revisiting only if staff report distrusting the figure.

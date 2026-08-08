@@ -81,7 +81,7 @@ Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
   `priceFor` now returns `Math.min(perHead, priceCap)` when a cap is set. `portionsFor` untouched —
   the cap caps money, not food.
 - 16 new named tests written first, red before green (10 failing on the first run): the six
-  validation rules and the seven pricing rules the PRD names, including FD's own case
+  validation rules and the seven pricing rules the PRD names, including DF's own case
   (4 grown-ups + 3 children at 200/100 with a cap of 500 → 500, not 1100).
 - Files: `src/domain/policy/settings.ts`, `src/domain/policy/settings.test.ts`,
   `src/app/kunden/[id]/page.tsx` (the `AllowanceValues` object gains the cap),
@@ -151,7 +151,7 @@ Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
 - `PrismaSettingsRepository.append` writes `settings.priceCap`; `toDomain` reads
   `row.priceCapCents ?? null` back through `createSettings`. Both `FOR NOW` placeholders from
   US-001 are gone (repository and seed); `einstellungen/actions.ts` still holds its, as US-004 owns it.
-- `seed.ts` now sets `priceCap: 500` — FD's real cap — so seeded data exercises the capped path.
+- `seed.ts` now sets `priceCap: 500` — DF's real cap — so seeded data exercises the capped path.
 - Four integration tests added (test-after, throwaway SQLite file): the 500/`null` round trip with
   `priceFor` on both sides, a cap of `0` surviving as `0`, a hand-edited `-1` refused naming
   `priceCap`, and the seeded cap capping 4 grown-ups + 3 children at 500.
@@ -272,7 +272,7 @@ Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
 ---
 
 ## Fri Aug 7 2026 — US-006 (E2E — the cap holds from the settings screen to the counter)
-- New spec `tests/e2e/price-cap.spec.ts`: FD's own household — four grown-ups and three children on
+- New spec `tests/e2e/price-cap.spec.ts`: DF's own household — four grown-ups and three children on
   customer number 321, owing 11,00 € per head under the seeded Maximalpreis of 5,00 €. Six specs,
   serial, against the shared register:
   - the counter, the customer record and the customer list all state **5,00 €** and none of them
@@ -323,15 +323,15 @@ Started: Fri Aug  7 2026 (batch 26 — US-26 price cap)
     reads a list it did not put a row on.
 ---
 
-## Fri Aug 7 2026 — US-007 (The documents say what FD charges)
+## Fri Aug 7 2026 — US-007 (The documents say what DF charges)
 - Documentation only, no code. Every document that described what a household owes as the
   unqualified per-head sum now states the Maximalpreis with it.
 - `docs/domain_analysis.md`: the `Price` row of the vocabulary table names the cap as part of the
-  definition; distribution-day walkthrough step 7 states it with FD's own case (11,00 € per head,
-  5,00 € paid) and says the portion allowance is unaffected; open question 1 records that FD have
+  definition; distribution-day walkthrough step 7 states it with DF's own case (11,00 € per head,
+  5,00 € paid) and says the portion allowance is unaffected; open question 1 records that DF have
   since named three of the values and that they are seeded, not coded.
 - `docs/user_stories_mvp.md`: US-07.2 now derives `min(per-head sum, Maximalpreis)`, marked
-  `[changed]` with the reason (FD stated the cap after the story was written); US-14's role line and
+  `[changed]` with the reason (DF stated the cap after the story was written); US-14's role line and
   criterion 1 name it, and a new criterion 5 states that an empty field and a cap of 0,00 € are
   different claims — `[added]`, because the two are one lost branch apart.
 - `docs/technical_documentation.md`: the settings enumeration, the `priceFor` section (plus a

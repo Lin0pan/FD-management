@@ -127,4 +127,4 @@ practically indispensable once the app is in daily use.
 - Is 30 days the right "expiring soon" window, or should it be configurable (US-14)?
 - Should the list show the consecutive-no-show count (US-10.1) as a column, to make that archiving
   trigger visible outside the individual record?
-- Does FD need a printable or exportable version of this list for offline use during a distribution?
+- Does DF need a printable or exportable version of this list for offline use during a distribution?

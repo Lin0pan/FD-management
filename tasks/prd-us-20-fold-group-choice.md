@@ -3,7 +3,7 @@
 ## Introduction
 
 The registration form proposes a group — RED or BLUE — from the two current group sizes, and offers
-two radios to override it. FD say they accept the proposal, so the radios are a permanently visible
+two radios to override it. DF say they accept the proposal, so the radios are a permanently visible
 control for a decision almost nobody makes, and they take a `Zuordnung` card that could be two lines
 and make it five.
 
@@ -140,9 +140,9 @@ disclosure before checking a radio, so the suite exercises the control staff use
 
 ## Open Questions
 
-- **Does anyone actually override the group?** FD said no, which is what motivates this. If the
+- **Does anyone actually override the group?** DF said no, which is what motivates this. If the
   answer turns out to be "rarely, but it matters when we do", the summary wording is what carries
   that weight and should be reviewed on the live screen.
 - **Should the record's group control fold the same way?** Deliberately not in scope: there the
-  choice is why you opened the card. Worth revisiting only if FD say the record's `Gruppe` section is
+  choice is why you opened the card. Worth revisiting only if DF say the record's `Gruppe` section is
   also noise.

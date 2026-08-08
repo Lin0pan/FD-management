@@ -1,8 +1,8 @@
 /**
- * The policy values FD can change without a deploy, and the rule that decides which of them apply
+ * The policy values DF can change without a deploy, and the rule that decides which of them apply
  * at a point in time.
  *
- * Every number in FD's process — the quota, the portions per head, the price per head, the
+ * Every number in DF's process — the quota, the portions per head, the price per head, the
  * week-cycle anchor — is configuration, not a constant (tasks/prd-us-14-configure-
  * business-rules.md). A saved change is in force immediately; superseded versions are kept rather
  * than overwritten, because a distribution record stores only a `paid` flag and the only way to
@@ -80,7 +80,7 @@ export interface SettingsInput extends Omit<Settings, "distributionWeekday"> {
 /**
  * A set of policy values together with the instant they took over.
  *
- * `recordedAt` is stamped from the clock when the change is saved, never chosen by staff: FD adjusts
+ * `recordedAt` is stamped from the clock when the change is saved, never chosen by staff: DF adjusts
  * the numbers when reality changes, so a change applies at once and cannot be dated forwards or
  * backwards.
  */
@@ -220,8 +220,8 @@ export type PriceValues = Pick<Settings, "pricePerGrownUp" | "pricePerChild" | "
  * What a household pays for one distribution: one grown-up price per grown-up plus one child price
  * per child, and never more than the {@link Settings.priceCap} when one is configured.
  *
- * FD charges per head, so the total is derived rather than stored or looked up — every household
- * size is priceable and there is no table to keep in step with reality. The cap is what FD actually
+ * DF charges per head, so the total is derived rather than stored or looked up — every household
+ * size is priceable and there is no table to keep in step with reality. The cap is what DF actually
  * collects at the counter: with 2,00 € per grown-up and 1,00 € per child, a household of four
  * grown-ups and three children owes 11,00 € per head but pays the 5,00 € cap (US-26).
  *

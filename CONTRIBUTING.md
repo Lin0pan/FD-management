@@ -78,7 +78,7 @@ npm run db:demo             # refuses if the register already holds customers
 npm run db:demo -- --reset  # wipes the register, waiting list and audit log first
 ```
 
-It prints a table of what it created and why each household is there. **Never point it at FD's
+It prints a table of what it created and why each household is there. **Never point it at DF's
 database**: it is a development fixture and `--reset` deletes customer data outright.
 
 ## Everyday commands
@@ -141,7 +141,7 @@ CodeQL, Dependabot, and GitHub secret scanning run alongside.
 - **Coverage is scoped to `src/domain` + `src/application`.** Near-100% there is a _consequence_ of
   TDD on pure logic, not a number to chase across UI and infrastructure where it would only invite
   low-value tests. The threshold guards the layers that carry the business rules.
-- **The audit log records no actor.** FD has ruled out login, so the system cannot tell its 3–4
+- **The audit log records no actor.** DF has ruled out login, so the system cannot tell its 3–4
   staff apart. State-change records answer _what / when / why_, never _who_. Do not add an actor
   field unless login is introduced (it would be an additive change).
 - **The domain layer must not import Next.js / React / Prisma** ("framework insurance"): if the

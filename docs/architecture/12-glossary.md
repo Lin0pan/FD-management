@@ -23,7 +23,7 @@ two could be confused, the canonical form is the English identifier.
 | **Note**                            | A free remark on a household, editable from the record and from the counter                                                                                                      | de. _Bemerkung_                                                                                          |
 | **Portion allowance**               | How much food a household may take: portions per grown-up × grown-ups + portions per child × children, from the policy in force                                                  | de. _Portionen_                                                                                          |
 | **Price cap**                       | The most one household pays for one distribution, whatever its size. Nullable — absent means no cap, and is distinct from a cap of zero                                          | de. **Maximalpreis**                                                                                     |
-| **Quota (N)**                       | The number of customer slots FD hands out. A policy value; may not be set below the count of active households                                                                   | de. _Kontingent_                                                                                         |
+| **Quota (N)**                       | The number of customer slots DF hands out. A policy value; may not be set below the count of active households                                                                   | de. _Kontingent_                                                                                         |
 | **Reissue**                         | Issuing a replacement card. Reasons: `FIRST_ISSUE`, `LOST`, `STALE_COUNTS`, `OTHER`. A reissue **is** how a change to a printed card is recorded                                 | de. _Neuausstellung_                                                                                     |
 | **Stale card**                      | A card whose printed facts have been overtaken — by a 13th birthday, a household change or a group move                                                                          | Reasons `AGE_13`, `HOUSEHOLD_CHANGE`, `GROUP_CHANGE`                                                     |
 | **Status**                          | `ACTIVE`, `BLOCKED` or `ARCHIVED`. A blocked household is turned away but keeps its slot; only archiving releases it, and archiving is irreversible                              | de. _aktiv / gesperrt / archiviert_                                                                      |
@@ -48,7 +48,7 @@ two could be confused, the canonical form is the English identifier.
 
 | Term      | Definition                                                                                      |
 | --------- | ----------------------------------------------------------------------------------------------- |
-| **FD**    | _Delbrücker Füllhorn_, the food bank this software is for                                       |
+| **DF**    | _Delbrücker Füllhorn_, the food bank this software is for                                       |
 | **ADR**   | Architecture decision record — one decision, with the reasoning that was true when it was taken |
 | **PRD**   | Product requirements document; one per user story, in [`tasks/`](../../tasks/)                  |
 | **US-nn** | A numbered user story, e.g. US-26 (the price cap)                                               |

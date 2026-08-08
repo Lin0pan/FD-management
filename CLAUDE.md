@@ -19,13 +19,13 @@ are stated. `CONTRIBUTING.md` covers human onboarding (setup, commands, why each
 | How is the dev setup and pipeline built?         | `docs/architecture/07-deployment-view.md`     |
 | What am I building next, story by story?         | `tasks/`                                      |
 | How do I style a screen?                         | `docs/guideline/ui_styling_guide.md`          |
-| What does FD themselves get handed?              | `docs/handout/` (German, printable)           |
+| What does DF themselves get handed?              | `docs/handout/` (German, printable)           |
 
 `docs/architecture/` is the architecture record: a change that makes a chapter wrong updates that
 chapter in the same PR, and a hard-to-reverse choice gets an ADR.
 
 `docs/archiv/` holds the early material the build has overtaken — `domain_analysis.md` is still the
-best statement of FD's process, `user_stories_mvp.md` is an early MVP scope and **not current**.
+best statement of DF's process, `user_stories_mvp.md` is an early MVP scope and **not current**.
 Read them as background, do not extend them, and treat `tasks/` as the record of what is required.
 
 ## What this project optimises for
@@ -114,15 +114,15 @@ deliberately and say why in the commit; do not add an inline disable.
 
 ## Database migrations
 
-**Migration history is disposable until FD holds real data.** Pre-release, a schema change that
+**Migration history is disposable until DF holds real data.** Pre-release, a schema change that
 contradicts an earlier migration _replaces_ it: delete `prisma/migrations/`, regenerate with
 `npx prisma migrate dev --name init`, then `npm run db:reset`. Do not stack a corrective migration
 onto a schema no one has ever run — the history would describe a system that never existed, and the
-next reader would take it for a decision FD once made.
+next reader would take it for a decision DF once made.
 
-**The moment FD enters their first real customer, this reverses.** Migrations become append-only:
+**The moment DF enters their first real customer, this reverses.** Migrations become append-only:
 never edited, never deleted, because from then on they run against data that cannot be regenerated.
-That record — not a version tag or a deploy — is the boundary. A build FD clicks around in with
+That record — not a version tag or a deploy — is the boundary. A build DF clicks around in with
 seeded data is still pre-release.
 
 `npm run db:reset` deletes `data/fd.db`, re-applies the migrations and re-seeds. Reach for it after

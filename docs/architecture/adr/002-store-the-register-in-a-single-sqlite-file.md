@@ -2,11 +2,11 @@
 
 - **Status:** Accepted
 - **Date:** 2026-07-21
-- **Deciders:** the maintainer, with FD on the domain questions
+- **Deciders:** the maintainer, with DF on the domain questions
 
 ## Context
 
-FD is a charity with no IT staff and no server. The register holds a few hundred households, a
+DF is a charity with no IT staff and no server. The register holds a few hundred households, a
 handful of people use it, and one distribution happens per week — so throughput plays no part in the
 choice.
 What does play a part is that whoever operates this in three years must be able to back it up,
@@ -18,10 +18,10 @@ information about vulnerable people, which argues against putting it anywhere it
 
 - **SQLite, one file at `data/fd.db`, accessed through Prisma** — chosen.
 - **PostgreSQL, locally or hosted** — rejected. It is a service to install, patch, secure and
-  administer, and there is nobody to do that. Hosted, it would also put FD's customer data on a
+  administer, and there is nobody to do that. Hosted, it would also put DF's customer data on a
   third party's infrastructure for no operational gain at this size.
 - **A cloud application with a managed database** — rejected for the same data-protection reason,
-  plus it makes the app unusable on a day FD's internet is down, which is a real day.
+  plus it makes the app unusable on a day DF's internet is down, which is a real day.
 - **Keep the Excel sheet and build reporting on top of it** — rejected: the drifting derived columns
   in that sheet are the problem this system exists to remove.
 - **Prisma's `better-sqlite3` driver adapter rather than the native provider** — deferred, not

@@ -50,7 +50,7 @@ export function GroupControl({
       <input type="hidden" name="customerId" value={customerId} />
       <fieldset className="flex flex-col gap-2">
         <legend className="text-sm font-medium">{de.customers.fields.group}</legend>
-        {/* Each option wears the colour it names: RED and BLUE *are* the printed cards FD hands
+        {/* Each option wears the colour it names: RED and BLUE *are* the printed cards DF hands
             out, and the word stays inside the tint rather than being replaced by it (US-03.4). */}
         <div className="flex flex-wrap gap-2">
           {GROUPS.map((candidate) => (

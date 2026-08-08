@@ -11,7 +11,7 @@ is the right default: the number is a slot, not an identity, and reusing the gap
 household left keeps the range dense (`src/domain/customer/customerNumber.ts`).
 
 It is not always the right answer. A customer number is printed on a physical card that a staff
-member is holding, and FD have reasons the software cannot see for wanting a particular one — a
+member is holding, and DF have reasons the software cannot see for wanting a particular one — a
 household returning to the number their neighbours know them by, a block of numbers kept together, a
 pre-printed card in the drawer. Today the screen shows „Vorgeschlagene Kundennummer 37" as a
 read-only figure and the only way to land on 38 is to register somebody else first.
@@ -258,7 +258,7 @@ whole feature is the difference between what the form offered and what the datab
   `999` must not be a thing the form lets a staff member do in the first place.
 - **Not** a searchable combobox, a `Command` palette or a new UI dependency. A native `<select>` is
   already type-ahead searchable.
-- **Not** a reason, a note or an audit marker for choosing a number. FD have their reasons; the
+- **Not** a reason, a note or an audit marker for choosing a number. DF have their reasons; the
   software does not need to hold an opinion about them.
 - **Not** a change to how numbers are allocated when none is chosen. The lowest-free rule and its
   retry loop stay exactly as they are.
@@ -271,19 +271,19 @@ whole feature is the difference between what the form offered and what the datab
   Two controls showing one number is how they start disagreeing, and the word „vorgeschlagen" is what
   the preselection already says.
 - It is **not** folded behind a `<details>` the way the group choice is (US-20). The group choice is a
-  decision with a default that FD essentially never override; the number is one they asked to be able
+  decision with a default that DF essentially never override; the number is one they asked to be able
   to make, and it is also the field they will want to _read_ before pressing Aufnehmen — a card
   number is the thing the household walks out with. It stays visible.
 - The label is „Kundennummer", the field's own name, because it is now a field. The hint below carries
   what „vorgeschlagen" used to: how many are free, and that the lowest is already chosen.
-- The hint doubles as the answer to a question FD ask out loud — "how full are we?" — one line above
+- The hint doubles as the answer to a question DF ask out loud — "how full are we?" — one line above
   the group sizes, which answer the same kind of question about the other axis.
 - Keep the hint to one line at 1024 and above. It states two facts; it must not grow into an
   explanation of what a customer number is.
 
 ## Technical Considerations
 
-- **240 options is not a performance question.** At FD's quota the pool is at most a few hundred short
+- **240 options is not a performance question.** At DF's quota the pool is at most a few hundred short
   strings in the server-rendered HTML, which is smaller than the household table this form already
   ships. Do not add virtualisation, pagination or a search box for it.
 - `proposeRegistration` is called by four screens; only the registration form reads the new field.
@@ -322,9 +322,9 @@ whole feature is the difference between what the form offered and what the datab
 
 - **Should the dropdown say anything about a number's history** — that 37 was freed by archiving
   rather than never used? It is the kind of thing that sounds useful and turns a 240-row list into a
-  240-row list of sentences. Left out; revisit only if FD ask for a specific number's past.
+  240-row list of sentences. Left out; revisit only if DF ask for a specific number's past.
 - **Should the waiting-list promotion default to something other than the lowest free number?** The
-  free-slot banner names a number to the applicant at the head of the queue; if FD start treating that
+  free-slot banner names a number to the applicant at the head of the queue; if DF start treating that
   as a promise, the promotion form should open on the number the banner named.
 - **Should lowering the quota below a number a household already holds be prevented?** It is refused
   today by `QuotaBelowActiveCustomers` on the count, not on the numbers — a register with a gap could

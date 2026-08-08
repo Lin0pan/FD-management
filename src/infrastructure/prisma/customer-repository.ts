@@ -205,7 +205,7 @@ export class PrismaCustomerRepository implements CustomerRepository {
    * This is the one whole-register read in the product, and it exists for the cards-due-for-reissue
    * list, which compares each household's birthdates against what their card has printed on it
    * (US-13.2). That comparison cannot be a `WHERE` clause — one side of it is a rule over dates that
-   * changes answer as the clock moves — so the rows come out and the domain decides. At FD's ~240
+   * changes answer as the clock moves — so the rows come out and the domain decides. At DF's ~240
    * customers this is a few hundred rows loaded once on a screen nobody stands at.
    */
   async listWithStatus(status: CustomerStatus): Promise<ReadonlyArray<RegisteredCustomer>> {

@@ -198,7 +198,7 @@ export function ArchiveSearchPanel({
        * Nothing remembers the state: it is a `<details>` and no more, so every load starts closed.
        *
        * What makes the fold safe is that the `<summary>` asks the *question* rather than naming the
-       * feature. The cost of missing this search is a second record for a household FD already has,
+       * feature. The cost of missing this search is a second record for a household DF already has,
        * which is the whole of US-11, and a control that must be opened is one that can be forgotten
        * on the day it matters. The prompt therefore has to
        * survive the fold that hides the fields, and it is the only thing standing in for them.

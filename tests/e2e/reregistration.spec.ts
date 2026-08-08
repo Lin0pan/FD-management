@@ -14,7 +14,7 @@ import { germanDate } from "@/i18n/format";
  * fakes, `draftFromArchived` copies a household without touching it, `registerCustomer` allocates the
  * lowest free number and issues the next card due on it, and the folded search keys are matched
  * against a throwaway
- * SQLite file. What none of them can see is the sentence FD actually cares about — *these are the same
+ * SQLite file. What none of them can see is the sentence DF actually cares about — *these are the same
  * people and a different customer*. That claim spans three screens, two customer records and the
  * allocator in between, so it can only be made here.
  *

@@ -15,7 +15,7 @@ import { de } from "@/i18n/de";
  * screen — that the one search box reads a name *and* a card number, that the archived toggle is off
  * until somebody switches it on, that the group balance keeps counting the whole register while the
  * table is filtered to one row, and that the whole view survives a reload as a link. Those are the
- * four claims FD would notice if they broke, so this spec makes them against the rendered page.
+ * four claims DF would notice if they broke, so this spec makes them against the rendered page.
  *
  * It seeds five households through Prisma rather than through the form: the point is to have a
  * *spread* — both groups, all three statuses, all three certificate states — and registering five

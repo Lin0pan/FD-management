@@ -4,7 +4,7 @@
 
 `/kunden/neu` carries three things above the form staff came to fill in: the free-slot banner, the
 archive search, and the form itself. The archive search exists for a household returning after being
-archived (US-11) — which the demo register says happens twice in twenty — and FD have said they
+archived (US-11) — which the demo register says happens twice in twenty — and DF have said they
 would rather it folded away.
 
 The restyle (PR #62) built it as a `<details open>`: the fold exists, but it starts open, because a
@@ -15,12 +15,12 @@ that spec red for a reason that has nothing to do with what the spec is about.
 This PRD closes it, and edits the one spec that stands in the way.
 
 **The risk this takes on, stated plainly.** `docs/ui_redesign_kunden_neu.md` §4.2b argues against
-closing it: the cost of missing this search is a second record for a household FD already has, which
+closing it: the cost of missing this search is a second record for a household DF already has, which
 is the whole of US-11, and a control that must be opened is a control that will be forgotten on the
-day it matters. FD were asked and chose to fold it. The mitigation agreed with them is that the
+day it matters. DF were asked and chose to fold it. The mitigation agreed with them is that the
 closed summary **asks the question** rather than naming a feature — "War dieser Haushalt schon einmal
 aufgenommen?" is on screen whether or not the panel is open, so the prompt to check survives the
-fold. That is the whole of the mitigation, and it should be reviewed with FD on the live screen.
+fold. That is the whole of the mitigation, and it should be reviewed with DF on the live screen.
 
 ## Goals
 
@@ -142,9 +142,9 @@ only reason to fold anything.
 
 ## Open Questions
 
-- **Should this be reviewed with FD on the live screen before it merges?** §4.2b's argument is
+- **Should this be reviewed with DF on the live screen before it merges?** §4.2b's argument is
   strong enough that seeing the folded screen may change their answer. `playwright-cli show
 --annotate` is the way to ask.
-- **Is one line of prompt enough?** If FD do miss a returning household after this ships, the next
+- **Is one line of prompt enough?** If DF do miss a returning household after this ships, the next
   step is probably auto-opening the panel when the register holds archived households — cheap, and
   it was the runner-up option when they were asked.

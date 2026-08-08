@@ -56,7 +56,7 @@
       "acceptanceCriteria": [
         "/ shows a short welcome line and today's date in German long form (e.g. 'Donnerstag, 30. Juli 2026') via the existing germanDate formatter in src/i18n/format.ts",
         "The date only — NO clock time. The page stays server-rendered with no client component, no ticking state and no timer",
-        "The next-distribution line is shown on EVERY day, however far off it is: FD distributes weekly so it is never more than six days out, and this is the question the screen exists to answer",
+        "The next-distribution line is shown on EVERY day, however far off it is: DF distributes weekly so it is never more than six days out, and this is the question the screen exists to answer",
         "On a distribution day the line says TODAY — 'Heute ist Ausgabe' plus today's group — and must not skip to next week",
         "The two wordings are distinct strings in the dictionary (today vs. a future date), so the urgency is carried by the text and not by styling the panel differently",
         "The colour shown is ALWAYS the colour of the distribution being named: read nextDistribution.colour from getWeekColour, never the sibling colour field. The two disagree on the days after a distribution — with a Thursday weekday, on a Saturday 'this week is Red' and 'the next Ausgabe is Blue' are both true and only the second answers the question. Taking the wrong field is the likely bug in this story.",

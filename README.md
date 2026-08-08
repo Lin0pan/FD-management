@@ -1,9 +1,9 @@
 # FD-Management
 
-Operations software for the **Delbrücker Füllhorn** food bank: customer administration, eligibility
-checks, and food-distribution tracking.
+Operations software for the **Delbrücker Füllhorn** (DF) food bank: customer administration,
+eligibility checks, and food-distribution tracking.
 
-An early version, for FD to test with — it does not replace the spreadsheet yet. See
+An early version, for DF to test with — it does not replace the spreadsheet yet. See
 [`docs/`](./docs/) for the documentation that exists.
 
 ## Quick start
@@ -48,7 +48,7 @@ npm start                   # http://localhost:3000
 ```
 
 `npm start` serves the last build, so rebuild after every update and only then: a build is a
-snapshot of the code, not of the data. Nothing FD does — customers, settings, hand-outs — needs one.
+snapshot of the code, not of the data. Nothing DF does — customers, settings, hand-outs — needs one.
 `npm run dev` needs no build at all.
 
 Either way you get a working app with an **empty register**. To click around with something to look
@@ -73,7 +73,7 @@ Worth knowing:
 - **It is invisible to git.** `data/*.db` is git-ignored; seed and re-seed as often as you like.
 - **It writes through the real use cases**, never Prisma directly, so the result is a database the
   application could have produced — invariants hold and the audit log reads forwards.
-- **Never point it at FD's database.** It is a development fixture, and `--reset` deletes customer
+- **Never point it at DF's database.** It is a development fixture, and `--reset` deletes customer
   data outright. It refuses to run over a non-empty register unless you pass that flag.
 
 ## Stack
@@ -100,13 +100,13 @@ breakdown.
 
 ## Status
 
-The crucial features are in place: FD can test the software and play around with it, but it is not
+The crucial features are in place: DF can test the software and play around with it, but it is not
 ready to replace the spreadsheet. The open questions are operational —
 [chapter 11](./docs/architecture/11-risks-and-technical-debt.md) tracks them in full:
 
 - **Backup.** No schedule, destination or restore drill exists.
 - **Migration.** How the existing Excel data gets into the register is undecided.
-- **Quota.** The seeded customer quota is a placeholder, not FD's real number.
+- **Quota.** The seeded customer quota is a placeholder, not DF's real number.
 - **Migration history** stays regenerable only until the first real customer is entered.
 
 ## Documentation

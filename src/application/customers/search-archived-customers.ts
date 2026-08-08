@@ -1,7 +1,7 @@
 /**
  * Search the archive for a returning applicant (US-11.1).
  *
- * People come back. FD already knows their household, and retyping it wastes time and invents typos,
+ * People come back. DF already knows their household, and retyping it wastes time and invents typos,
  * so registration starts by asking whether this person has been here before. What comes back is a
  * *read* and nothing more: the rows it names are archived, and the registration it feeds creates a
  * new customer rather than reviving one (US-11.3). Nothing here writes, and there is deliberately no

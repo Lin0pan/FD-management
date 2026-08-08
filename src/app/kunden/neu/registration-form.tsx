@@ -579,7 +579,7 @@ export function RegistrationForm({
           </div>
 
           {/*
-           * The group choice, behind a disclosure (US-20). FD accept the proposal, so two
+           * The group choice, behind a disclosure (US-20). DF accept the proposal, so two
            * permanently visible radios were a control for a decision almost nobody makes, and they
            * made a card that can be two lines into five.
            *

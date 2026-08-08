@@ -1,5 +1,5 @@
 /**
- * Which group collects, on any day FD asks about.
+ * Which group collects, on any day DF asks about.
  *
  * The one seam the distribution screen reads: it answers for today by default and for a looked-up
  * date on request, and it carries everything the banner states — the colour, the ISO week to check
@@ -32,7 +32,7 @@ export interface WeekColourView {
   readonly isoWeek: string;
   /** The group collecting in that week. */
   readonly colour: WeekColour;
-  /** Whether FD distributes on that day. */
+  /** Whether DF distributes on that day. */
   readonly isDistributionDay: boolean;
   /** The next distribution at or after that day — the day itself when it is one. */
   readonly nextDistribution: Distribution;
@@ -41,7 +41,7 @@ export interface WeekColourView {
 /**
  * The week colour for `date`, or for the clock's today when no date is given.
  *
- * The settings are resolved **at the looked-up date**, not at today: FD may re-anchor the
+ * The settings are resolved **at the looked-up date**, not at today: DF may re-anchor the
  * alternation, and a lookup for a past week has to answer with the colour that week actually had
  * (FR-6). That is also why this reads history rather than `readCurrentSettings`.
  *
@@ -49,7 +49,7 @@ export interface WeekColourView {
  * @throws {InvalidSettings} if the week anchor does not name a week of the ISO calendar.
  */
 export async function getWeekColour(deps: GetWeekColourDeps, date?: Date): Promise<WeekColourView> {
-  // Settings are resolved at the *instant* asked about, not at the start of its day: a change FD
+  // Settings are resolved at the *instant* asked about, not at the start of its day: a change DF
   // saves this morning is in force this morning. Only the calendar arithmetic normalises to a day.
   const at = date ?? deps.clock.now();
   const day = startOfUtcDay(at);

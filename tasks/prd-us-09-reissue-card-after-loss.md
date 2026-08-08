@@ -118,6 +118,6 @@ judge whether they are losing them unusually often.
 ## 8. Open Questions
 
 - Should a reissue be possible for a **blocked** customer? Assumed yes (a block is temporary and does
-  not touch the card), but **confirm with FD**.
-- Does FD want a free-text note attached to a reissue (e.g. "left at the bus stop")? Not in the agreed
+  not touch the card), but **confirm with DF**.
+- Does DF want a free-text note attached to a reissue (e.g. "left at the bus stop")? Not in the agreed
   fields; the general notes field (US-16) covers it if needed.

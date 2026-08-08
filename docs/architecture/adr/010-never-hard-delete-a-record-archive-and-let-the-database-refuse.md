@@ -2,11 +2,11 @@
 
 - **Status:** Accepted
 - **Date:** 2026-07-27
-- **Deciders:** the maintainer, with FD on what must remain answerable
+- **Deciders:** the maintainer, with DF on what must remain answerable
 
 ## Context
 
-Households leave the register and applicants leave the waiting list, and FD must still be able to
+Households leave the register and applicants leave the waiting list, and DF must still be able to
 answer questions about them afterwards: who collected last March, why a family was archived, whether
 "first come, first served" was actually honoured a year ago. A household that comes back is also
 common enough that re-registering from the archived record is its own story (US-11).
@@ -18,11 +18,11 @@ it, a household's members, certificates and cards would go with it, silently.
 ## Considered options
 
 - **Archive as a status change; every relation refuses the delete** — chosen.
-- **Hard delete with cascades** — rejected: it destroys the history FD needs and does so without a
+- **Hard delete with cascades** — rejected: it destroys the history DF needs and does so without a
   trace.
 - **Soft-delete flags with cascades left in place** — rejected. It relies on nobody ever calling
   `delete`, and leaves the trap armed for whoever does.
-- **A retention or deletion rule after N years** — deliberately out of scope. FD has no such rule
+- **A retention or deletion rule after N years** — deliberately out of scope. DF has no such rule
   today; archived records are kept indefinitely, and this may change.
 
 ## Decision
@@ -49,7 +49,7 @@ printed its counts.
 - Archiving is irreversible: `archiveReason` and `archivedAt` are written once and never cleared. A
   returning household is a new customer with a new number, a card at index 1 and a reminder count of
   zero, linked back only as display metadata.
-- The database grows monotonically. At FD's scale that is measured in kilobytes a year.
+- The database grows monotonically. At DF's scale that is measured in kilobytes a year.
 - Revisit if a legal retention obligation ever requires deletion — at which point deletion is a
   deliberate, audited operation, not a cascade.
 

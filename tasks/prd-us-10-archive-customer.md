@@ -141,8 +141,8 @@ missed, so I can notice the pattern the archiving rule depends on.
 ## 9. Open Questions
 
 - Should weeks during which the customer was **blocked** count as no-shows? Assumed yes (simplest and
-  most visible), but it arguably penalises the customer for FD's own pause. **Confirm with FD.**
+  most visible), but it arguably penalises the customer for DF's own pause. **Confirm with DF.**
 - How many consecutive no-shows should the UI treat as "worth highlighting"? Assumed 3, displayed as
   emphasis only — never as an automatic action. Should it be configurable (US-14)?
-- Does FD want a defined list of archive reasons for consistency, or is free text right? (Free text
+- Does DF want a defined list of archive reasons for consistency, or is free text right? (Free text
   assumed, matching the block reason.)

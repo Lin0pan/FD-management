@@ -48,7 +48,7 @@ export interface NextApplicant<T extends WaitingApplicant> {
   readonly entry: T;
   /**
    * Whether the certificate they joined with has lapsed by `today`. It is a flag, never a filter: the
-   * entry is still the next in line, and what happens about the renewal is FD's judgement (PRD §9).
+   * entry is still the next in line, and what happens about the renewal is DF's judgement (PRD §9).
    */
   readonly certificateExpired: boolean;
 }
@@ -141,7 +141,7 @@ export interface WaitingListDetails {
   readonly birthDate: Date;
   readonly address: Address;
   /**
-   * How staff would reach this applicant, in free text, or `""`. FD agreed no phone or e-mail fields
+   * How staff would reach this applicant, in free text, or `""`. DF agreed no phone or e-mail fields
    * (docs/archiv/domain_analysis.md, open question 2), and this is the note that stands in for them without
    * committing to a contact-data model.
    */

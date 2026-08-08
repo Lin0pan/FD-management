@@ -15,7 +15,7 @@ import type { Group } from "@/domain/customer/group";
 /**
  * The group's colour, worn wherever a screen names a household's group.
  *
- * Literal palette values rather than theme tokens: RED and BLUE *are* the printed cards FD hands
+ * Literal palette values rather than theme tokens: RED and BLUE *are* the printed cards DF hands
  * out, so this is one of the two places in the application where the colour is the datum rather
  * than a decoration of it (`docs/guideline/ui_styling_guide.md` §5) — a theme may not re-map it. The
  * word is `de.customers.groups`.

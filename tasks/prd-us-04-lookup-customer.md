@@ -97,7 +97,7 @@ queue quickly.
 - [ ] Below the verdict: name, customer number, group, counts, portion allowance, price, certificate
       expiry, status, reminder count and staff notes — all visible **without further clicks**
 - [ ] ~~The name is the heading of the record and the numbers sit beneath it as a subtitle~~
-      `[superseded]` — FD, watching the counter in use: the two numbers now lead the card at 36px and
+      `[superseded]` — DF, watching the counter in use: the two numbers now lead the card at 36px and
       the name follows at 24px. Staff **call the customer number out** to fetch the next household —
       they use it in preference to a name they may not be able to pronounce — and they **compare the
       card number** against the card handed across the table, on every hand-out. Both are read at
