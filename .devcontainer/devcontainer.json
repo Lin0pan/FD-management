@@ -1,7 +1,10 @@
 {
   "name": "FD-Management",
-  "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
+  "image": "mcr.microsoft.com/devcontainers/base:trixie",
   "features": {
+    // Keep this version in step with .nvmrc — the registry publishes no
+    // typescript-node:26 image, so the runtime is installed as a feature instead.
+    "ghcr.io/devcontainers/features/node:1": { "version": "26" },
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
   "postCreateCommand": "npm install && npx playwright install --with-deps chromium",
