@@ -10,7 +10,12 @@ An early version, for FD to test with — it does not replace the spreadsheet ye
 
 **Prerequisites**
 
-- **Node 22** (`.nvmrc`) and npm. Nothing else — no database server, no Docker, no account.
+- **Node 22.** Install it from [nodejs.org](https://nodejs.org/en/download) — npm comes with it —
+  or through a version manager such as [nvm](https://github.com/nvm-sh/nvm) or
+  [fnm](https://github.com/Schniz/fnm), which read the version from `.nvmrc`. The version is pinned
+  (`engines` in `package.json`); nothing else is tested.
+- No database server, no Docker, no account. Running the E2E suite additionally needs Playwright's
+  browser — see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 - The app runs on one machine, bound to localhost, without a login.
 - `data/fd.db` is the entire state of the system and there is **no backup yet**.
 

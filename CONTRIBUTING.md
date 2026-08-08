@@ -15,7 +15,10 @@ humans and agents alike; this file does not restate it.
 
 ## Getting started
 
-Requires **Node 22** (see `.nvmrc`; `nvm use` picks it up).
+Requires **Node 22** — from [nodejs.org](https://nodejs.org/en/download), or through a version
+manager such as [nvm](https://github.com/nvm-sh/nvm) or [fnm](https://github.com/Schniz/fnm), which
+pick the version up from `.nvmrc` (`nvm use`). npm ships with Node; nothing else is needed to run
+the app.
 
 ```bash
 npm run setup               # everything below, in the order that works
@@ -41,6 +44,17 @@ and then `db:seed` dies with `Environment variable not found: DATABASE_URL` agai
 was migrated correctly a second earlier. CI never hits it — every job runs `npx prisma generate`
 explicitly after `npm ci` ([`ci.yml`](./.github/workflows/ci.yml)).
 
+The E2E suite needs one thing more, once, before the first `npm run test:e2e`:
+
+```bash
+npx playwright install --with-deps chromium
+```
+
+That is a browser binary, not an npm package, which is why `npm install` does not fetch it and why
+`npm run setup` deliberately leaves it out — it is a large download that nobody needs in order to
+run the app. The devcontainer ([`devcontainer.json`](./.devcontainer/devcontainer.json)) and CI
+([`ci.yml`](./.github/workflows/ci.yml)) each run it themselves.
+
 To click around with something to look at, add the demo register — twenty synthetic households with
 a hand-out history, blocks, archives and lapsed certificates:
 
@@ -54,19 +68,19 @@ database**: it is a development fixture and `--reset` deletes customer data outr
 
 ## Everyday commands
 
-| Command                 | What it does                                            |
-| ----------------------- | ------------------------------------------------------- |
-| `npm run setup`         | Install, `.env`, generate, migrate, seed — idempotent   |
-| `npm run dev`           | Next.js dev server                                      |
-| `npm run build`         | Production build                                        |
-| `npm start`             | Serve the production build                              |
-| `npm run lint`          | ESLint                                                  |
-| `npm run typecheck`     | `tsc --noEmit`                                          |
-| `npm test`              | Vitest unit suite (domain + application)                |
-| `npm run test:coverage` | Vitest with coverage (thresholds enforced)              |
-| `npm run test:e2e`      | Playwright against the built app + throwaway SQLite dbs |
-| `npm run format`        | Prettier write                                          |
-| `npm run db:demo`       | Seed twenty synthetic households to click around with   |
+| Command                 | What it does                                                                |
+| ----------------------- | --------------------------------------------------------------------------- |
+| `npm run setup`         | Install, `.env`, generate, migrate, seed — idempotent                       |
+| `npm run dev`           | Next.js dev server                                                          |
+| `npm run build`         | Production build                                                            |
+| `npm start`             | Serve the production build                                                  |
+| `npm run lint`          | ESLint                                                                      |
+| `npm run typecheck`     | `tsc --noEmit`                                                              |
+| `npm test`              | Vitest unit suite (domain + application)                                    |
+| `npm run test:coverage` | Vitest with coverage (thresholds enforced)                                  |
+| `npm run test:e2e`      | Playwright vs. the built app + throwaway SQLite dbs (browser install first) |
+| `npm run format`        | Prettier write                                                              |
+| `npm run db:demo`       | Seed twenty synthetic households to click around with                       |
 
 ## Architecture in one paragraph
 
