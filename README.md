@@ -25,18 +25,10 @@ An early version, for FD to test with — it does not replace the spreadsheet ye
 npm run setup
 ```
 
-That is the whole install. It installs dependencies, creates `.env` from `.env.example` if it is
-missing, generates the Prisma client, applies the migrations and seeds the provisional policy
-values. Every step is idempotent, so it is also the right command on a checkout you already have:
-an existing `.env` is never overwritten, and the seed only fills an _empty_ settings table.
-
-> Why a script rather than five commands in this README: `prisma generate` records where to read
-> `DATABASE_URL` from at the moment it runs, so it has to come **after** `.env` exists — and the
-> client `npm install` generates for itself does not. Get that order wrong and `migrate deploy`
-> still succeeds, because the Prisma CLI loads `.env` by itself, so the failure surfaces a step
-> later as `Environment variable not found: DATABASE_URL` against a database that had just built
-> perfectly. `scripts/setup.mjs` fixes the order in one place instead of asking each reader to
-> reproduce it.
+Dependencies, `.env`, the Prisma client, migrations and the seed — in the one order that works. Safe
+to repeat, so it is also the command to run after pulling: it never overwrites an existing `.env`
+and never seeds over existing settings.
+[Why a script](./CONTRIBUTING.md#getting-started) · [`scripts/setup.mjs`](./scripts/setup.mjs)
 
 **Run in development**
 
