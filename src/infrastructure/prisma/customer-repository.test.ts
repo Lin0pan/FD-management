@@ -10,7 +10,6 @@
  * Synthetic data only (Faker), seeded so a failing run is reproducible.
  */
 
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -34,7 +33,7 @@ import {
   InvalidCustomerRecord,
 } from "@/domain/errors";
 import { PrismaCustomerCounter, PrismaCustomerRepository } from "./customer-repository";
-import { clearRegister } from "./test-support";
+import { clearRegister, migrateThrowawayDatabase } from "./test-support";
 
 faker.seed(20260722);
 
@@ -49,10 +48,7 @@ let counter: PrismaCustomerCounter;
 beforeAll(() => {
   directory = mkdtempSync(join(tmpdir(), "fd-customers-"));
   url = `file:${join(directory, "test.db")}`;
-  execFileSync("npx", ["prisma", "migrate", "deploy"], {
-    env: { ...process.env, DATABASE_URL: url },
-    stdio: "ignore",
-  });
+  migrateThrowawayDatabase(url);
   prisma = new PrismaClient({ datasourceUrl: url });
   repository = new PrismaCustomerRepository(prisma);
   counter = new PrismaCustomerCounter(prisma);

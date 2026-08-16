@@ -7,7 +7,6 @@
  * is deleted afterwards, so nothing touches data/fd.db.
  */
 
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +15,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createSettings, priceFor, type SettingsVersion } from "@/domain/policy/settings";
 import { PrismaSettingsRepository } from "./settings-repository";
 import { provisionalSettingsVersion, seedSettings } from "./seed";
+import { migrateThrowawayDatabase } from "./test-support";
 
 let directory: string;
 let prisma: PrismaClient;
@@ -24,10 +24,7 @@ let repository: PrismaSettingsRepository;
 beforeAll(() => {
   directory = mkdtempSync(join(tmpdir(), "fd-settings-"));
   const url = `file:${join(directory, "test.db")}`;
-  execFileSync("npx", ["prisma", "migrate", "deploy"], {
-    env: { ...process.env, DATABASE_URL: url },
-    stdio: "ignore",
-  });
+  migrateThrowawayDatabase(url);
   prisma = new PrismaClient({ datasourceUrl: url });
   repository = new PrismaSettingsRepository(prisma);
 }, 60_000);

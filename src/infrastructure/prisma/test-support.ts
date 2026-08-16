@@ -3,7 +3,37 @@
  * `src/application` or `src/domain` imports this module.
  */
 
+import { execFileSync } from "node:child_process";
 import type { PrismaClient } from "@prisma/client";
+
+/**
+ * Build the schema in a throwaway SQLite file, so an integration test has something to talk to.
+ *
+ * Every test here migrates its own file under `mkdtemp` and deletes it afterwards, which is what
+ * keeps `data/fd.db` out of the suite. Running the migrations rather than pointing Prisma at a
+ * hand-built schema is the point: what these tests are for is proving the adapters against the
+ * schema DF will actually run, constraints and all.
+ *
+ * On Windows `npx` is a batch file, which `execFileSync` will not resolve without the suffix and —
+ * since the fix for CVE-2024-27980 — will not start even then, because Node refuses to spawn a
+ * `.cmd` unless something is asked to interpret it. Naming `cmd.exe` supplies that interpreter and
+ * keeps the arguments a list; `shell: true` would concatenate them into one string instead and make
+ * Node 26 print a DEP0190 deprecation. `scripts/setup.mjs` spawns npm the same way for the same
+ * reason. The failure this avoids is worth knowing by sight, because it names none of the above: the
+ * migration throws inside `beforeAll`, the client is therefore never assigned, and every test in the
+ * file reports `Cannot read properties of undefined (reading '$disconnect')` from `afterAll`.
+ *
+ * `url` must be an **absolute** `file:` path — the generated client resolves a relative one against
+ * the working directory while the CLI resolves it against `prisma/`, so a relative path quietly
+ * migrates one file and then queries another.
+ */
+export function migrateThrowawayDatabase(url: string): void {
+  const args = ["prisma", "migrate", "deploy"];
+  const [file, argv]: [string, string[]] =
+    process.platform === "win32" ? ["cmd.exe", ["/d", "/c", "npx.cmd", ...args]] : ["npx", args];
+
+  execFileSync(file, argv, { env: { ...process.env, DATABASE_URL: url }, stdio: "ignore" });
+}
 
 /**
  * Empty the customer register and everything hanging off it, children first.

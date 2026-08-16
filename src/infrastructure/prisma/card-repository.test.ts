@@ -11,7 +11,6 @@
  * data/fd.db. Synthetic data only (Faker), seeded so a failing run is reproducible.
  */
 
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,7 +22,7 @@ import { foldName } from "@/domain/customer/nameSearch";
 import { composition } from "@/domain/customer/householdComposition";
 import { CardIndexTaken, CardNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
 import { PrismaCardRepository } from "./card-repository";
-import { clearRegister } from "./test-support";
+import { clearRegister, migrateThrowawayDatabase } from "./test-support";
 
 faker.seed(20260723);
 
@@ -44,10 +43,7 @@ let repository: PrismaCardRepository;
 beforeAll(() => {
   directory = mkdtempSync(join(tmpdir(), "fd-cards-"));
   const url = `file:${join(directory, "test.db")}`;
-  execFileSync("npx", ["prisma", "migrate", "deploy"], {
-    env: { ...process.env, DATABASE_URL: url },
-    stdio: "ignore",
-  });
+  migrateThrowawayDatabase(url);
   prisma = new PrismaClient({ datasourceUrl: url });
   repository = new PrismaCardRepository(prisma);
 }, 60_000);
