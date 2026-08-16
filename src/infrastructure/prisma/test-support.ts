@@ -14,14 +14,20 @@ import type { PrismaClient } from "@prisma/client";
  * hand-built schema is the point: what these tests are for is proving the adapters against the
  * schema DF will actually run, constraints and all.
  *
- * On Windows `npx` is a batch file, which `execFileSync` will not resolve without the suffix and —
- * since the fix for CVE-2024-27980 — will not start even then, because Node refuses to spawn a
- * `.cmd` unless something is asked to interpret it. Naming `cmd.exe` supplies that interpreter and
- * keeps the arguments a list; `shell: true` would concatenate them into one string instead and make
- * Node 26 print a DEP0190 deprecation. `scripts/setup.mjs` spawns npm the same way for the same
- * reason. The failure this avoids is worth knowing by sight, because it names none of the above: the
- * migration throws inside `beforeAll`, the client is therefore never assigned, and every test in the
- * file reports `Cannot read properties of undefined (reading '$disconnect')` from `afterAll`.
+ * On Windows this takes two hurdles rather than one. Spawning `npx` fails with `spawnSync npx
+ * ENOENT` even though the file is right there next to node.exe, because `execFileSync` resolves a
+ * bare name through `PATHEXT` and npm's extensionless shim has no extension to match. Asking for
+ * `npx.cmd` clears that and hits the second: since the fix for CVE-2024-27980 Node refuses to spawn
+ * a `.cmd` at all unless something is named to interpret it, and fails with `EINVAL`. `cmd.exe` is
+ * that interpreter, and passing it `/d /c` keeps the arguments a list — `shell: true` would clear
+ * both hurdles too, but by concatenating them into one string, which Node 26 then deprecates
+ * (DEP0190) on every run. `scripts/setup.mjs` spawns npm the same way for the same reason.
+ *
+ * Worth knowing by sight, because half of what it prints is a decoy: `beforeAll` throws, so the
+ * client is never assigned and `afterAll` piles a second failure — `Cannot read properties of
+ * undefined (reading '$disconnect')` — on top of the real one. Vitest also counts the tests
+ * themselves as *skipped* rather than failed, so the summary line reads `898 passed | 176 skipped`
+ * and invites the eye straight past it.
  *
  * `url` must be an **absolute** `file:` path — the generated client resolves a relative one against
  * the working directory while the CLI resolves it against `prisma/`, so a relative path quietly
