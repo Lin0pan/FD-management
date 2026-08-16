@@ -29,14 +29,13 @@ import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 
-// npm and npx are batch files on Windows, which execFileSync will not resolve without the suffix.
-// The suffix alone is not enough and this branch has never run: since the fix for CVE-2024-27980,
-// Node refuses to spawn a .cmd without `shell: true`, which is not passed here. Windows is
-// therefore documented as unsupported for now (CONTRIBUTING.md) rather than half-claimed, and a
-// Windows-capable version is planned. `shell: true` is the likely fix, but it changes how arguments
-// are quoted, so it needs proving on a real Windows machine before this note comes out.
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-const npx = process.platform === "win32" ? "npx.cmd" : "npx";
+// On Windows npm and npx are batch files, which `execFileSync` will not resolve without the suffix
+// — and since the fix for CVE-2024-27980 will not start even then, because Node now refuses to
+// spawn a `.cmd` unless something is asked to interpret it. The failure is `spawn EINVAL`, which
+// names neither npm nor the reason.
+const isWindows = process.platform === "win32";
+const npm = isWindows ? "npm.cmd" : "npm";
+const npx = isWindows ? "npx.cmd" : "npx";
 
 const TOTAL_STEPS = 5;
 let currentStep = 0;
@@ -48,8 +47,15 @@ function step(label) {
   console.log(`\n[${currentStep}/${TOTAL_STEPS}] ${label}`);
 }
 
+// The interpreter a `.cmd` needs is `cmd.exe`, named here rather than reached through `shell: true`.
+// The shell option would also work, but it stops passing the arguments as a list and concatenates
+// them into one string instead — which Node 26 deprecates loudly (DEP0190) on every run, and which
+// would silently need escaping the first time an argument here stopped being a literal. Spelling
+// out `cmd.exe /d /c` keeps the argument list a list: `/d` skips any AutoRun command the machine
+// has configured, `/c` runs the rest and exits, and the exit code still reaches `execFileSync`.
 function run(command, args) {
-  execFileSync(command, args, { cwd: root, stdio: "inherit" });
+  const [file, argv] = isWindows ? ["cmd.exe", ["/d", "/c", command, ...args]] : [command, args];
+  execFileSync(file, argv, { cwd: root, stdio: "inherit" });
 }
 
 function ensureEnvFile() {
