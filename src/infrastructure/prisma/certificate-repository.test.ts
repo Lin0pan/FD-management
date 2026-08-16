@@ -12,7 +12,6 @@
  * data/fd.db. Synthetic data only (Faker), seeded so a failing run is reproducible.
  */
 
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,7 +20,7 @@ import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { PrismaCertificateRepository } from "./certificate-repository";
 import { PrismaCustomerRepository } from "./customer-repository";
-import { clearRegister } from "./test-support";
+import { clearRegister, migrateThrowawayDatabase } from "./test-support";
 import { foldName } from "@/domain/customer/nameSearch";
 
 faker.seed(20260724);
@@ -37,10 +36,7 @@ let customers: PrismaCustomerRepository;
 beforeAll(() => {
   directory = mkdtempSync(join(tmpdir(), "fd-certificates-"));
   const url = `file:${join(directory, "test.db")}`;
-  execFileSync("npx", ["prisma", "migrate", "deploy"], {
-    env: { ...process.env, DATABASE_URL: url },
-    stdio: "ignore",
-  });
+  migrateThrowawayDatabase(url);
   prisma = new PrismaClient({ datasourceUrl: url });
   repository = new PrismaCertificateRepository(prisma);
   customers = new PrismaCustomerRepository(prisma);

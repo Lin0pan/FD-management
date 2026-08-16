@@ -44,20 +44,19 @@ and then `db:seed` dies with `Environment variable not found: DATABASE_URL` agai
 was migrated correctly a second earlier. CI never hits it — every job runs `npx prisma generate`
 explicitly after `npm ci` ([`ci.yml`](./.github/workflows/ci.yml)).
 
-**Windows is not supported yet, and a Windows-capable version of the script will follow.**
-`npm run setup` is untested there and expected to fail at the first step: since the 2024 fix for
-CVE-2024-27980, Node refuses to spawn `npm.cmd` without `shell: true`, and the script does not pass
-it. The fix has to be proved on a real Windows machine before it is claimed, so until then run the
-five steps by hand in this order — the ordering constraint below is the whole point, so do not
-reorder them:
+**On Windows** `npm run setup` works the same way, with one thing to clear first. A stock Windows
+install has PowerShell's execution policy at `Restricted`, and npm ships its entry points as
+PowerShell scripts, so `npm` fails before the project is ever reached — _"npm.ps1 cannot be loaded
+because running scripts is disabled on this system"_, in the system language. Allow local scripts
+once, per user, no administrator needed:
 
 ```powershell
-npm install
-Copy-Item .env.example .env
-npx prisma generate
-npx prisma migrate deploy
-npm run db:seed
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
+
+`RemoteSigned` runs scripts written locally and still demands a signature on anything downloaded.
+Nothing else about the setup differs; `npm.cmd` and `npx.cmd` sidestep the policy if you would
+rather not change it.
 
 The E2E suite needs one thing more, once, before the first `npm run test:e2e`:
 

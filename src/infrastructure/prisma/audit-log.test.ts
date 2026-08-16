@@ -6,13 +6,13 @@
  * Each run migrates a throwaway database file that is deleted afterwards.
  */
 
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, expect, it } from "vitest";
 import { PrismaAuditLog } from "./audit-log";
+import { migrateThrowawayDatabase } from "./test-support";
 
 let directory: string;
 let prisma: PrismaClient;
@@ -21,10 +21,7 @@ let log: PrismaAuditLog;
 beforeAll(() => {
   directory = mkdtempSync(join(tmpdir(), "fd-audit-"));
   const url = `file:${join(directory, "test.db")}`;
-  execFileSync("npx", ["prisma", "migrate", "deploy"], {
-    env: { ...process.env, DATABASE_URL: url },
-    stdio: "ignore",
-  });
+  migrateThrowawayDatabase(url);
   prisma = new PrismaClient({ datasourceUrl: url });
   log = new PrismaAuditLog(prisma);
 }, 60_000);

@@ -12,7 +12,6 @@
  * data/fd.db. Synthetic data only (Faker), seeded so a failing run is reproducible.
  */
 
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,7 +21,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ReminderAlreadyLoggedToday } from "@/domain/errors";
 import { foldName } from "@/domain/customer/nameSearch";
 import { PrismaReminderLogRepository } from "./reminder-log-repository";
-import { clearRegister } from "./test-support";
+import { clearRegister, migrateThrowawayDatabase } from "./test-support";
 
 faker.seed(20260724);
 
@@ -36,10 +35,7 @@ let repository: PrismaReminderLogRepository;
 beforeAll(() => {
   directory = mkdtempSync(join(tmpdir(), "fd-reminders-"));
   const url = `file:${join(directory, "test.db")}`;
-  execFileSync("npx", ["prisma", "migrate", "deploy"], {
-    env: { ...process.env, DATABASE_URL: url },
-    stdio: "ignore",
-  });
+  migrateThrowawayDatabase(url);
   prisma = new PrismaClient({ datasourceUrl: url });
   repository = new PrismaReminderLogRepository(prisma);
 }, 60_000);

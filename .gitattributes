@@ -1,0 +1,13 @@
+# Line endings are LF in the repository and LF in the working tree, on every platform.
+#
+# Without this file the working tree is left to each machine's `core.autocrlf`, which Git for
+# Windows sets to `true` on install. The checkout is then CRLF while everything reading it expects
+# LF: Prettier's `endOfLine` defaults to "lf", so `npm run format:check` fails on *every* tracked
+# file — around 420 of them, none of which the developer touched. CI never sees it, because a Linux
+# checkout is LF either way, so the report is both alarming and unreproducible by the person asked
+# to explain it.
+#
+# `text=auto` still lets Git decide what is text, so the one binary here (src/app/favicon.ico) is
+# left alone; `eol=lf` fixes what the text files are written as. The shell files this repository
+# runs — the Husky hooks — need LF for their own sake as well.
+* text=auto eol=lf

@@ -12,7 +12,6 @@
  * data/fd.db. Synthetic data only (Faker), seeded so a failing run is reproducible.
  */
 
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,6 +21,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { NewWaitingListEntry } from "@/application/ports";
 import { inArrivalOrder } from "@/domain/customer/waitingList";
 import { PrismaWaitingListRepository } from "./waiting-list-repository";
+import { migrateThrowawayDatabase } from "./test-support";
 
 faker.seed(20260727);
 
@@ -38,10 +38,7 @@ let repository: PrismaWaitingListRepository;
 beforeAll(() => {
   directory = mkdtempSync(join(tmpdir(), "fd-waiting-list-"));
   const url = `file:${join(directory, "test.db")}`;
-  execFileSync("npx", ["prisma", "migrate", "deploy"], {
-    env: { ...process.env, DATABASE_URL: url },
-    stdio: "ignore",
-  });
+  migrateThrowawayDatabase(url);
   prisma = new PrismaClient({ datasourceUrl: url });
   repository = new PrismaWaitingListRepository(prisma);
 }, 60_000);

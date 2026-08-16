@@ -13,7 +13,6 @@
  * data/fd.db. Synthetic data only (Faker), seeded so a failing run is reproducible.
  */
 
-import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -24,7 +23,7 @@ import type { NewDistributionRecord } from "@/domain/distribution/distributionRe
 import { AlreadyServedToday, DistributionRecordNotFound } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 import { PrismaDistributionRecordRepository } from "./distribution-record-repository";
-import { clearRegister } from "./test-support";
+import { clearRegister, migrateThrowawayDatabase } from "./test-support";
 import { foldName } from "@/domain/customer/nameSearch";
 
 faker.seed(20260724);
@@ -45,10 +44,7 @@ let repository: PrismaDistributionRecordRepository;
 beforeAll(() => {
   directory = mkdtempSync(join(tmpdir(), "fd-distribution-"));
   const url = `file:${join(directory, "test.db")}`;
-  execFileSync("npx", ["prisma", "migrate", "deploy"], {
-    env: { ...process.env, DATABASE_URL: url },
-    stdio: "ignore",
-  });
+  migrateThrowawayDatabase(url);
   prisma = new PrismaClient({ datasourceUrl: url });
   repository = new PrismaDistributionRecordRepository(prisma);
 }, 60_000);
