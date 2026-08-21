@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
-import { fillDay } from "./day";
+import { fillDay, fillSticky } from "./day";
 
 /**
  * The reminder trail, end to end: an expired certificate through to the third reminder and the
@@ -287,7 +287,7 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
   }) => {
     await lookUp(page);
 
-    await page.getByTestId("renewal-type").fill("Wohngeldbescheid");
+    await fillSticky(page.getByTestId("renewal-type"), "Wohngeldbescheid");
     await fillDay(page.getByTestId("renewal-valid-until"), RENEWED_CERTIFICATE);
     await page.getByTestId("renewal-save").click();
 

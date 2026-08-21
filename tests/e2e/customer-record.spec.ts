@@ -7,7 +7,7 @@ import { de } from "@/i18n/de";
 import { berlinDayKey } from "@/domain/distribution/attendance";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
-import { fillDay, typedDay } from "./day";
+import { fillDay, fillSticky, typedDay } from "./day";
 
 /**
  * A household changes and the whole application follows, driven through the built app
@@ -391,7 +391,7 @@ test.describe("Kundenakte pflegen", () => {
     await page.goto(`/kunden/${id}`);
     await expect(page.getByTestId("reminder-count")).toHaveText(String(REMINDERS_SENT));
 
-    await page.getByTestId("renewal-type").fill("Wohngeldbescheid");
+    await fillSticky(page.getByTestId("renewal-type"), "Wohngeldbescheid");
     await fillDay(page.getByTestId("renewal-valid-until"), RENEWED_CERTIFICATE);
     await page.getByTestId("renewal-save").click();
 
@@ -415,7 +415,7 @@ test.describe("Kundenakte pflegen", () => {
     // date are not. Uncontrolled, React's post-action reset emptied *both* fields on the way back, so
     // correcting a typo meant retyping the certificate as well — the same finding as on the
     // settings screen.
-    await page.getByTestId("renewal-type").fill("Rentenbescheid");
+    await fillSticky(page.getByTestId("renewal-type"), "Rentenbescheid");
     await fillDay(page.getByTestId("renewal-valid-until"), "2025-06-30");
     await page.getByTestId("renewal-save").click();
 
