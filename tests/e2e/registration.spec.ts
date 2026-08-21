@@ -5,7 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { foldName } from "@/domain/customer/nameSearch";
 import { de } from "@/i18n/de";
 import { SHARED } from "./registers";
-import { typedDay } from "./day";
+import { fillDay } from "./day";
 
 /**
  * Registering a customer, driven through the built app
@@ -89,13 +89,13 @@ function person(lastName: string): Person {
 async function fillPersonalData(page: Page, applicant: Person): Promise<void> {
   await page.locator("#firstName").fill(applicant.firstName);
   await page.locator("#lastName").fill(applicant.lastName);
-  await page.locator("#birthDate").fill(typedDay(GROWN_UP_BIRTH_DATE));
+  await fillDay(page.locator("#birthDate"), GROWN_UP_BIRTH_DATE);
   await page.locator("#street").fill(faker.location.street());
   await page.locator("#houseNumber").fill(faker.location.buildingNumber());
   await page.locator("#zip").fill(faker.location.zipCode("#####"));
   await page.locator("#city").fill(faker.location.city());
   await page.locator("#certificateType").fill("Jobcenter-Bescheid");
-  await page.locator("#certificateValidUntil").fill(typedDay(CERTIFICATE_VALID_UNTIL));
+  await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
 }
 
 /**
@@ -306,7 +306,7 @@ test.describe("Kundenaufnahme", () => {
     await page.getByTestId("add-member").click();
     await page.locator("#memberFirstName-1").fill(child.firstName);
     await page.locator("#memberLastName-1").fill(child.lastName);
-    await page.locator("#memberBirthDate-1").fill(typedDay(CHILD_BIRTH_DATE));
+    await fillDay(page.locator("#memberBirthDate-1"), CHILD_BIRTH_DATE);
 
     // The counts are derived as staff type — there is no input for them.
     await expect(page.getByTestId("grown-ups")).toHaveText("1");

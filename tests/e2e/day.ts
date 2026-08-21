@@ -1,3 +1,4 @@
+import { expect, type Locator } from "@playwright/test";
 import { formatCalendarDay } from "@/domain/calendarDay";
 
 /**
@@ -13,4 +14,27 @@ import { formatCalendarDay } from "@/domain/calendarDay";
  */
 export function typedDay(isoDay: string): string {
   return formatCalendarDay(new Date(`${isoDay}T00:00:00.000Z`));
+}
+
+/**
+ * Put a day into a field and make sure it stayed there.
+ *
+ * Every day field is a **controlled** React input, so there is a window between the server's HTML
+ * arriving and the component hydrating in which `fill()` writes straight to the DOM and no React
+ * state hears about it. Hydration then re-renders the field from state and the typed value
+ * disappears. What follows is worse than an empty box: the field is `required`, so the browser
+ * silently refuses to submit the form, no request is made, and the spec fails several assertions
+ * later on an error element that was never going to appear — which is exactly how this was found, on
+ * a loaded CI runner where the gap is wide enough to hit.
+ *
+ * So the fill is retried until the value sticks, which is what a person would do on seeing a box
+ * empty itself. `toPass` re-runs the whole block, so a wipe costs one more `fill` rather than the
+ * run. On an already-hydrated page — every local run — it passes first time and costs nothing.
+ */
+export async function fillDay(field: Locator, isoDay: string): Promise<void> {
+  const value = typedDay(isoDay);
+  await expect(async () => {
+    await field.fill(value);
+    await expect(field).toHaveValue(value, { timeout: 500 });
+  }).toPass({ timeout: 10_000 });
 }

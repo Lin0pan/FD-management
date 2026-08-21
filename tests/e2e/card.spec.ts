@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { faker } from "@faker-js/faker";
 import { de } from "@/i18n/de";
-import { typedDay } from "./day";
+import { fillDay } from "./day";
 
 /**
  * The card a registration issues, driven through the built app
@@ -44,13 +44,13 @@ test("a registration on an untouched number issues card k1 and the card view sho
 
   await page.locator("#firstName").fill(applicant.firstName);
   await page.locator("#lastName").fill(applicant.lastName);
-  await page.locator("#birthDate").fill(typedDay(FIRST_GROWN_UP_BIRTH_DATE));
+  await fillDay(page.locator("#birthDate"), FIRST_GROWN_UP_BIRTH_DATE);
   await page.locator("#street").fill(faker.location.street());
   await page.locator("#houseNumber").fill(faker.location.buildingNumber());
   await page.locator("#zip").fill(faker.location.zipCode("#####"));
   await page.locator("#city").fill(faker.location.city());
   await page.locator("#certificateType").fill("Jobcenter-Bescheid");
-  await page.locator("#certificateValidUntil").fill(typedDay(CERTIFICATE_VALID_UNTIL));
+  await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
 
   // Chosen by hand rather than accepted from the suggestion, so the card is asserted against the
   // registration input and not against whichever group happened to be smaller. The choice sits
@@ -64,12 +64,12 @@ test("a registration on an untouched number issues card k1 and the card view sho
   await page.getByTestId("add-member").click();
   await page.locator("#memberFirstName-1").fill(partner.firstName);
   await page.locator("#memberLastName-1").fill(partner.lastName);
-  await page.locator("#memberBirthDate-1").fill(typedDay(SECOND_GROWN_UP_BIRTH_DATE));
+  await fillDay(page.locator("#memberBirthDate-1"), SECOND_GROWN_UP_BIRTH_DATE);
 
   await page.getByTestId("add-member").click();
   await page.locator("#memberFirstName-2").fill(child.firstName);
   await page.locator("#memberLastName-2").fill(child.lastName);
-  await page.locator("#memberBirthDate-2").fill(typedDay(CHILD_BIRTH_DATE));
+  await fillDay(page.locator("#memberBirthDate-2"), CHILD_BIRTH_DATE);
 
   await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
   await page.waitForURL(/\/kunden\/\d+(\?|$)/);

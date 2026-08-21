@@ -6,7 +6,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { SHARED } from "./registers";
-import { typedDay } from "./day";
+import { fillDay, typedDay } from "./day";
 
 /**
  * A household that was archived coming back and being registered again, driven through the built app
@@ -123,13 +123,13 @@ async function register(page: Page, lastName: string): Promise<Household> {
 
   await page.locator("#firstName").fill(applicant.firstName);
   await page.locator("#lastName").fill(applicant.lastName);
-  await page.locator("#birthDate").fill(typedDay(GROWN_UP_BIRTH_DATE));
+  await fillDay(page.locator("#birthDate"), GROWN_UP_BIRTH_DATE);
   await page.locator("#street").fill(address.street);
   await page.locator("#houseNumber").fill(address.houseNumber);
   await page.locator("#zip").fill(address.zip);
   await page.locator("#city").fill(address.city);
   await page.locator("#certificateType").fill("Jobcenter-Bescheid");
-  await page.locator("#certificateValidUntil").fill(typedDay(CERTIFICATE_VALID_UNTIL));
+  await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
 
   // Both disclosures on this screen start closed. This one is the group choice (US-20.2): clicked
   // for real, once per page load, because a radio inside a closed `<details>` has no bounding box —
@@ -141,7 +141,7 @@ async function register(page: Page, lastName: string): Promise<Household> {
   await page.getByTestId("add-member").click();
   await page.locator("#memberFirstName-1").fill(child.firstName);
   await page.locator("#memberLastName-1").fill(child.lastName);
-  await page.locator("#memberBirthDate-1").fill(typedDay(CHILD_BIRTH_DATE));
+  await fillDay(page.locator("#memberBirthDate-1"), CHILD_BIRTH_DATE);
 
   await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
   await page.waitForURL(/\/kunden\/\d+(\?|$)/);
@@ -411,7 +411,7 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
 
     // The one thing that has to be typed: the certificate they present today.
     await page.locator("#certificateType").fill(RETURNING_CERTIFICATE_TYPE);
-    await page.locator("#certificateValidUntil").fill(typedDay(CERTIFICATE_VALID_UNTIL));
+    await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
 
     await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
     await page.waitForURL(/\/kunden\/\d+(\?|$)/);
