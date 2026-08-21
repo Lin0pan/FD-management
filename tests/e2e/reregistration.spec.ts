@@ -6,7 +6,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { SHARED } from "./registers";
-import { fillDay, typedDay } from "./day";
+import { fillDay, fillSticky, typedDay } from "./day";
 
 /**
  * A household that was archived coming back and being registered again, driven through the built app
@@ -121,14 +121,14 @@ async function register(page: Page, lastName: string): Promise<Household> {
   await page.goto("/kunden/neu");
   const customerNumber = await page.getByTestId("customer-number-select").inputValue();
 
-  await page.locator("#firstName").fill(applicant.firstName);
-  await page.locator("#lastName").fill(applicant.lastName);
+  await fillSticky(page.locator("#firstName"), applicant.firstName);
+  await fillSticky(page.locator("#lastName"), applicant.lastName);
   await fillDay(page.locator("#birthDate"), GROWN_UP_BIRTH_DATE);
-  await page.locator("#street").fill(address.street);
-  await page.locator("#houseNumber").fill(address.houseNumber);
-  await page.locator("#zip").fill(address.zip);
-  await page.locator("#city").fill(address.city);
-  await page.locator("#certificateType").fill("Jobcenter-Bescheid");
+  await fillSticky(page.locator("#street"), address.street);
+  await fillSticky(page.locator("#houseNumber"), address.houseNumber);
+  await fillSticky(page.locator("#zip"), address.zip);
+  await fillSticky(page.locator("#city"), address.city);
+  await fillSticky(page.locator("#certificateType"), "Jobcenter-Bescheid");
   await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
 
   // Both disclosures on this screen start closed. This one is the group choice (US-20.2): clicked
@@ -387,7 +387,7 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     await expect(page.getByTestId("customer-number-select")).toHaveValue(offered);
 
     // Every pre-filled field is a field, not a display: a household that has moved is typed over.
-    await page.locator("#city").fill("Delbrück");
+    await fillSticky(page.locator("#city"), "Delbrück");
     await expect(page.locator("#city")).toHaveValue("Delbrück");
 
     // And the whole pre-fill can be dropped — including the edit just made, because half a household
@@ -410,7 +410,7 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     await selectMatch(page, returning.id);
 
     // The one thing that has to be typed: the certificate they present today.
-    await page.locator("#certificateType").fill(RETURNING_CERTIFICATE_TYPE);
+    await fillSticky(page.locator("#certificateType"), RETURNING_CERTIFICATE_TYPE);
     await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
 
     await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();

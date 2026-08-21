@@ -401,7 +401,7 @@ test.describe("Kundenakte pflegen", () => {
     // Two rows wrong for two different reasons, and row 0 left correct. Both mistakes are ones DF
     // actually make: a day cleared while retyping it, and a day that no reading of TT.MM.JJJJ can
     // rescue.
-    await page.getByTestId("member-birth-date-1").fill("");
+    await fillSticky(page.getByTestId("member-birth-date-1"), "");
     await fillSticky(page.getByTestId("member-birth-date-2"), "99.99.9999");
 
     await page.getByTestId("household-submit").click();
@@ -453,8 +453,8 @@ test.describe("Kundenakte pflegen", () => {
     await page.goto(`/kunden/${id}`);
 
     const street = faker.location.street();
-    await page.getByTestId("details-street").fill(street);
-    await page.getByTestId("details-zip").fill("");
+    await fillSticky(page.getByTestId("details-street"), street);
+    await fillSticky(page.getByTestId("details-zip"), "");
 
     await page.getByTestId("details-submit").click();
 

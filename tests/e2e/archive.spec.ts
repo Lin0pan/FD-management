@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { SHARED } from "./registers";
-import { fillDay } from "./day";
+import { fillDay, fillSticky } from "./day";
 
 /**
  * Archiving a household and watching their customer number come back into circulation, driven through
@@ -99,14 +99,14 @@ async function register(page: Page): Promise<Household> {
   await page.goto("/kunden/neu");
   const customerNumber = await page.getByTestId("customer-number-select").inputValue();
 
-  await page.locator("#firstName").fill(firstName);
-  await page.locator("#lastName").fill(lastName);
+  await fillSticky(page.locator("#firstName"), firstName);
+  await fillSticky(page.locator("#lastName"), lastName);
   await fillDay(page.locator("#birthDate"), GROWN_UP_BIRTH_DATE);
-  await page.locator("#street").fill(faker.location.street());
-  await page.locator("#houseNumber").fill(faker.location.buildingNumber());
-  await page.locator("#zip").fill(faker.location.zipCode("#####"));
-  await page.locator("#city").fill(faker.location.city());
-  await page.locator("#certificateType").fill("Jobcenter-Bescheid");
+  await fillSticky(page.locator("#street"), faker.location.street());
+  await fillSticky(page.locator("#houseNumber"), faker.location.buildingNumber());
+  await fillSticky(page.locator("#zip"), faker.location.zipCode("#####"));
+  await fillSticky(page.locator("#city"), faker.location.city());
+  await fillSticky(page.locator("#certificateType"), "Jobcenter-Bescheid");
   await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
 
   // The group choice is a `<details>` that starts closed (US-20.2), so the summary is clicked the
@@ -118,8 +118,8 @@ async function register(page: Page): Promise<Household> {
 
   // The applicant mirrors into the first household row; only the child is added by hand.
   await page.getByTestId("add-member").click();
-  await page.locator("#memberFirstName-1").fill(childFirstName);
-  await page.locator("#memberLastName-1").fill(lastName);
+  await fillSticky(page.locator("#memberFirstName-1"), childFirstName);
+  await fillSticky(page.locator("#memberLastName-1"), lastName);
   await fillDay(page.locator("#memberBirthDate-1"), CHILD_BIRTH_DATE);
 
   await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
