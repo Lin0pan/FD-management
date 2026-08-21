@@ -21,6 +21,7 @@ import { formatCalendarDay, isBlankDay, parseCalendarDay } from "@/domain/calend
 import { parseGroup } from "@/domain/customer/group";
 import {
   BirthDateInFuture,
+  CertificateValidUntilInPast,
   CustomerNumberOutOfRange,
   CustomerNumberTaken,
   EmptyHousehold,
@@ -29,9 +30,9 @@ import {
   NoFreeCustomerNumber,
 } from "@/domain/errors";
 import { customerFieldLabel, customerFormFieldLabel, de } from "@/i18n/de";
-import { type NoticeTier, tierOf } from "../../notice-tier";
+import { summarise, type FieldRefusal, type FormRefusal } from "../../field-refusal";
+import { tierOf } from "../../notice-tier";
 import type { PrefillDraft, PrefillMember } from "./archive-search-state";
-import type { FieldRefusal } from "./register-customer-state";
 
 /**
  * A calendar day as DF type it — `TT.MM.JJJJ` — read as the UTC day it names.
@@ -193,15 +194,8 @@ const DOMAIN_FIELD_PATH: Record<string, string | undefined> = {
   "certificate.validUntil": "certificateValidUntil",
 };
 
-/**
- * A refusal as both registration screens report it: the sentence by the button, the tier it is said
- * in, and the fields to mark.
- */
-export interface RegistrationRefusal {
-  readonly message: string;
-  readonly tier: NoticeTier;
-  readonly fields?: ReadonlyArray<FieldRefusal>;
-}
+/** A refusal as a screen that saves customer data reports it. */
+export type RegistrationRefusal = FormRefusal;
 
 /** A field to mark, or `null` where nothing on screen carries that path. */
 function fieldRefusal(path: string, problem: string): FieldRefusal | null {
@@ -217,41 +211,44 @@ function fieldRefusal(path: string, problem: string): FieldRefusal | null {
  * domain still refuses one rule at a time — it stops at the first broken — and that asymmetry is
  * honest: the schema checks every field independently, a use case checks a household.
  *
- * An issue on a field nobody can see is dropped, and if that is *all* of them the answer becomes the
- * screen's last word at the `error` tier. The only such field is `previousCustomerId`, which the
- * screen writes and nobody types: a value that is not a surrogate id there is a tampered request,
- * not a mistyped one, and „Bitte das Feld „previousCustomerId“ prüfen“ would send staff looking for
- * a box that does not exist (`docs/guideline/ui_styling_guide.md` §7).
+ * An issue on a field nobody can see is dropped, and if that is *all* of them the answer becomes
+ * `lastWord` at the `error` tier. The only such field on the registration is `previousCustomerId`,
+ * which the screen writes and nobody types: a value that is not a surrogate id there is a tampered
+ * request, not a mistyped one, and „Bitte das Feld „previousCustomerId“ prüfen“ would send staff
+ * looking for a box that does not exist (`docs/guideline/ui_styling_guide.md` §7).
+ *
+ * `lastWord` is the caller's for the same reason {@link customerErrorMessage} has no fallback: the
+ * rules are shared between the screens that read this form, but what to say when *nothing* matched
+ * is not. The registration says the intake could not be saved, the record says the change could not
+ * be, the waiting list says the applicant could not be added.
  */
-export function fieldRefusals(error: z.ZodError): RegistrationRefusal {
+export function fieldRefusals(
+  error: z.ZodError,
+  lastWord: string = de.customers.errors.unknown,
+): RegistrationRefusal {
   const fields = error.issues
     .map((issue) => fieldRefusal(issue.path.join("."), issue.message))
     .filter((refusal): refusal is FieldRefusal => refusal !== null);
 
-  if (fields.length === 0) {
-    return { message: de.customers.errors.unknown, tier: "error" };
-  }
-
-  const labels = fields.map((field) => customerFormFieldLabel(field.path) ?? field.path);
-  const message =
-    fields.length === 1
-      ? de.customers.errors.fieldProblem(labels[0], fields[0].problem)
-      : de.customers.errors.severalFieldProblems(labels);
-
-  return { message, tier: "refusal", fields };
+  return summarise(fields, lastWord, customerFormFieldLabel);
 }
 
 /**
  * The field a typed domain error names, or `null` where it names none.
  *
- * Three of the errors this layer knows are about one value staff typed, and three are not:
+ * Four of the errors this layer knows are about one value staff typed, and three are not:
  * `EmptyHousehold` is a statement about the whole table, `NoFreeCustomerNumber` about the register,
  * and `BirthDateInFuture` carries only the date — it is raised for the customer's own birthdate and
  * for every household row alike, and nothing on it says which. Naming that one needs the error to
  * carry its row; until it does, it stays a summary that marks nothing rather than a mark that
  * guesses.
+ *
+ * Exported because four screens raise these errors, not one: the registration, the waiting-list
+ * promotion that shares its form, the record's editors (US-16) and the counter's renewal. The
+ * sentence has been shared since {@link customerErrorMessage}; the mark had not been, which is how
+ * a blank ZIP came to name its field on one screen and no field on the next.
  */
-function customerErrorField(error: unknown): FieldRefusal | null {
+export function customerErrorField(error: unknown): FieldRefusal | null {
   if (error instanceof MissingRequiredField) {
     const path = DOMAIN_FIELD_PATH[error.field] ?? error.field;
     return fieldRefusal(path, de.customers.errors.fieldRequired);
@@ -261,6 +258,13 @@ function customerErrorField(error: unknown): FieldRefusal | null {
   }
   if (error instanceof CustomerNumberTaken || error instanceof CustomerNumberOutOfRange) {
     return fieldRefusal("customerNumber", de.customers.errors.numberUnavailable);
+  }
+  // The one refusal of the two renewal forms that names a box: the day typed into `gültig bis` has
+  // already passed. `certificate.validUntil` is what the domain calls it, and the form calls it
+  // `certificateValidUntil` on all four screens that carry it — {@link DOMAIN_FIELD_PATH}'s job.
+  if (error instanceof CertificateValidUntilInPast) {
+    const path = DOMAIN_FIELD_PATH["certificate.validUntil"] ?? "certificateValidUntil";
+    return fieldRefusal(path, de.customers.errors.dateInPast);
   }
   return null;
 }
@@ -310,17 +314,19 @@ export function germanMessage(error: unknown): string {
 }
 
 /**
- * A thrown registration failure as the screen shows it — {@link germanMessage}, the tier decided
- * from the typed error, and the field to mark where the error names one.
+ * A thrown failure about customer data as a screen shows it — the sentence, the tier decided from
+ * the typed error, and the field to mark where the error names one.
  *
- * The three travel together because they are one answer to one refusal, and both screens that save a
- * registration need all three. Assembling them separately is how the sentence and the mark come to
- * disagree about which field failed.
+ * `lastWord` for the same reason {@link fieldRefusals} takes one: the rules are shared, the sentence
+ * for an error nobody has words for is not.
  */
-export function germanRefusal(error: unknown): RegistrationRefusal {
+export function germanRefusal(
+  error: unknown,
+  lastWord: string = de.customers.errors.unknown,
+): RegistrationRefusal {
   const field = customerErrorField(error);
   return {
-    message: germanMessage(error),
+    message: customerErrorMessage(error) ?? lastWord,
     tier: tierOf(error),
     ...(field === null ? {} : { fields: [field] }),
   };

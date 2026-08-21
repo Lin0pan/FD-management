@@ -25,6 +25,13 @@ export function selectClass(height: "h-8" | "h-9"): string {
     `${height} w-full rounded-lg border border-input bg-transparent px-2.5 text-sm ` +
     "transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 " +
     "focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 " +
-    "disabled:opacity-50 dark:bg-input/30"
+    "disabled:opacity-50 dark:bg-input/30 " +
+    // The `aria-invalid:` half of `Input`'s tokens, copied rather than shared because there is no
+    // string to share — `Input` writes its class list inline. Without them a refused `<select>`
+    // reddened its label and grew the words underneath while the control itself stayed unmarked:
+    // the customer-number dropdown on /kunden/neu and both of /einstellungen's, all three already
+    // setting `aria-invalid` and none of them showing it.
+    "aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 " +
+    "dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
   );
 }

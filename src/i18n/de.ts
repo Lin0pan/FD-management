@@ -22,6 +22,34 @@ export const de = {
     placeholder: "TT.MM.JJJJ",
   },
   /**
+   * The grammar every form on the app uses to summarise a refusal by its button, once the fields it
+   * names are known (`src/app/field-refusal.ts`).
+   *
+   * Its own group rather than a corner of `customers.errors`, where it started: the settings screen
+   * refuses fields too, and reaching into the customer dictionary for a sentence about a price per
+   * head would say these words belong to a screen when they belong to a *shape* — a summary that
+   * names fields, with the marks doing the rest.
+   */
+  forms: {
+    /**
+     * The summary for a refusal the *form* raised — a day that cannot be read, a field left blank —
+     * where the schema's own message says only what is wrong and the field has to be named around
+     * it.
+     *
+     * The label is quoted because a household field is itself „Haushaltsmitglied 2: Geburtsdatum“,
+     * and „Haushaltsmitglied 2: Geburtsdatum: Datum fehlt.“ is three colons deep.
+     */
+    fieldProblem: (field: string, problem: string): string => `„${field}“: ${problem}`,
+    /**
+     * The same summary when more than one field was refused at once, which a form with a day field
+     * per household member makes ordinary. It names them rather than counting them: the marks are
+     * at the fields, but a staff member scrolled to the button has to know how far up to look and
+     * how many times.
+     */
+    severalFieldProblems: (fields: ReadonlyArray<string>): string =>
+      `Bitte ${fields.length} Felder prüfen: ${fields.map((field) => `„${field}“`).join(", ")}.`,
+  },
+  /**
    * The navigation bar (US-17.1). Four words, and each is the *only* name that area has: the label
    * here and the heading on the page it leads to are deliberately identical, so a staff member
    * following "Kunden verwalten" lands on a page that says it back to them.
@@ -245,23 +273,8 @@ export const de = {
       fieldRequired: "Pflichtfeld.",
       valueTooLong: "Zu lang.",
       numberUnavailable: "Nicht mehr verfügbar.",
-      /**
-       * The summary for a refusal the *form* raised — a day that cannot be read, a field left
-       * blank — where the schema's own message says only what is wrong and the field has to be
-       * named around it.
-       *
-       * The label is quoted because a household field is itself „Haushaltsmitglied 2:
-       * Geburtsdatum“, and „Haushaltsmitglied 2: Geburtsdatum: Datum fehlt.“ is three colons deep.
-       */
-      fieldProblem: (field: string, problem: string): string => `„${field}“: ${problem}`,
-      /**
-       * The same summary when more than one field was refused at once, which a form with a day
-       * field per household member makes ordinary. It names them rather than counting them: the
-       * marks are at the fields, but a staff member scrolled to the button has to know how far up
-       * to look and how many times.
-       */
-      severalFieldProblems: (fields: ReadonlyArray<string>): string =>
-        `Bitte ${fields.length} Felder prüfen: ${fields.map((field) => `„${field}“`).join(", ")}.`,
+      /** The mark for a `gültig bis` that has already passed — {@link fieldRequired}'s register. */
+      dateInPast: "Liegt in der Vergangenheit.",
       notesTooLong: (maxLength: number, length: number): string =>
         `Die Notiz ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
         `möglich — bitte kürzen.`,
@@ -1401,4 +1414,21 @@ const FORM_FIELDS = de.customers.fields as Record<string, string | undefined>;
  */
 export function customerFormFieldLabel(path: string): string | null {
   return householdFieldLabel(path) ?? FORM_FIELDS[path] ?? null;
+}
+
+/** The names of the fields the settings form submits, as `de.settings.fields` keys them. */
+const SETTINGS_FORM_FIELDS = de.settings.fields as Record<string, string | undefined>;
+
+/**
+ * {@link customerFormFieldLabel} for the settings screen, and it misses for the same reason.
+ *
+ * `de.settings.fields` is already keyed by the `name` each input carries, so nine of the ten need no
+ * translation; the tenth is `reason`, which is named separately because it is not one of the values
+ * being set. It is listed here anyway — it is a box on the screen, and a summary that skipped it
+ * would fall through to „nichts gespeichert“ for a field staff can see. Nothing refuses it today
+ * (`z.string()` accepts everything, and an empty reason is allowed), which is exactly why it would
+ * go unnoticed if it ever did.
+ */
+export function settingsFormFieldLabel(name: string): string | null {
+  return name === "reason" ? de.settings.reason : (SETTINGS_FORM_FIELDS[name] ?? null);
 }
