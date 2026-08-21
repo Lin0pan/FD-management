@@ -289,6 +289,43 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     ]);
   });
 
+  /**
+   * The counter's renewal names the field it refuses, like every other form in the app.
+   *
+   * It is the same two boxes as the record's renewal, refused by the same rules, and it answered
+   * with one unnamed sentence beside the button. `CertificateValidUntilInPast` is the refusal DF
+   * actually meet — a wrong year in a date typed at a counter with somebody standing there — and the
+   * mark is what says it is the date rather than the type that needs the four characters changed.
+   *
+   * It runs before the successful renewal below, because that one makes the certificate valid and
+   * takes this whole card off the screen. A refusal writes nothing, so it leaves the count at 3.
+   */
+  test("a renewal refused for a past date marks the date, not the type", async ({ page }) => {
+    await lookUp(page);
+
+    await fillSticky(page.getByTestId("renewal-type"), "Rentenbescheid");
+    await fillDay(page.getByTestId("renewal-valid-until"), "2025-06-30");
+    await page.getByTestId("renewal-save").click();
+
+    const refusal = page.getByTestId("renewal-error");
+    await expect(refusal).toHaveText(words.renewal.errors.validUntilInPast);
+    await expect(refusal).toHaveAttribute("data-tier", "refusal");
+
+    await expect(page.getByTestId("counter-field-error")).toHaveText(
+      de.customers.errors.dateInPast,
+    );
+    await expect(page.getByTestId("renewal-valid-until")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId("renewal-type")).not.toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId("renewal-valid-until")).toBeFocused();
+
+    // Both fields still hold what was typed, so only the year is retyped.
+    await expect(page.getByTestId("renewal-type")).toHaveValue("Rentenbescheid");
+
+    // And nothing was written: the count is untouched and no certificate was appended.
+    const { reminderCount } = await householdRow();
+    expect(reminderCount).toBe(3);
+  });
+
   test("resets the displayed count to 0 when the renewed certificate is recorded", async ({
     page,
   }) => {

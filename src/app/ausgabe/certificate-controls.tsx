@@ -23,7 +23,7 @@
  * on a different screen.
  */
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateInput } from "@/components/ui/date-input";
@@ -32,6 +32,8 @@ import { Label } from "@/components/ui/label";
 import { de } from "@/i18n/de";
 import { logReminder, recordRenewal } from "./actions";
 import { initialReminderState, initialRenewalState } from "./serve-state";
+import { FieldRejection, useFocusFirstRefusal } from "../field-mark";
+import { marking, problemAt, type FieldRefusal } from "../field-refusal";
 import { Confirmation, Notice } from "../notice";
 import { useNoticeSlot } from "../notice-board";
 
@@ -48,50 +50,94 @@ import { useNoticeSlot } from "../notice-board";
 function RenewalFields({
   submit,
   pending,
+  fields,
 }: {
   submit: string;
   pending: boolean;
+  /** The fields the last refusal named, so each can mark itself. */
+  fields: ReadonlyArray<FieldRefusal> | undefined;
 }): React.ReactElement {
   const [type, setType] = useState("");
   const [validUntil, setValidUntil] = useState("");
 
+  const typeProblem = problemAt(fields, "certificateType");
+  const validUntilProblem = problemAt(fields, "certificateValidUntil");
+
+  // The controls sit on one wrapped row, so a mark has to ride *under* its own field rather than
+  // pushing the row apart: `items-end` would otherwise align the button to the bottom of the tallest
+  // box and leave it floating below the one that was not refused.
   return (
-    <div className="flex flex-wrap items-end gap-3">
+    <div className="flex flex-wrap items-start gap-3">
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="renewal-type">{de.customers.fields.certificateType}</Label>
+        <Label
+          htmlFor="renewal-type"
+          className={typeProblem === null ? undefined : "text-destructive"}
+        >
+          {de.customers.fields.certificateType}
+        </Label>
         <Input
           type="text"
           id="renewal-type"
-          name="type"
+          name="certificateType"
           required
           value={type}
           onChange={(event) => setType(event.target.value)}
           data-testid="renewal-type"
           className="h-9 w-64"
+          {...marking("certificateType", "renewal-type", typeProblem)}
         />
+        {typeProblem === null ? null : (
+          <FieldRejection id="renewal-type" problem={typeProblem} testId="counter-field-error" />
+        )}
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="renewal-valid-until">{de.customers.fields.certificateValidUntil}</Label>
+        <Label
+          htmlFor="renewal-valid-until"
+          className={validUntilProblem === null ? undefined : "text-destructive"}
+        >
+          {de.customers.fields.certificateValidUntil}
+        </Label>
         <DateInput
           id="renewal-valid-until"
-          name="validUntil"
+          name="certificateValidUntil"
           required
           placeholder={de.day.placeholder}
           value={validUntil}
           onChange={setValidUntil}
           data-testid="renewal-valid-until"
           className="h-9 w-44"
+          {...marking("certificateValidUntil", "renewal-valid-until", validUntilProblem)}
         />
+        {validUntilProblem === null ? null : (
+          <FieldRejection
+            id="renewal-valid-until"
+            problem={validUntilProblem}
+            testId="counter-field-error"
+          />
+        )}
       </div>
-      <Button
-        type="submit"
-        variant="outline"
-        disabled={pending}
-        data-testid="renewal-save"
-        className="h-9"
-      >
-        {submit}
-      </Button>
+      {/* The button's column has no label, so it is given an empty one.
+
+          The row was `items-end` while a refused field could not change its own height. Now it can —
+          the mark rides under the control — and bottom-aligning would drop the button and the
+          untouched box to the foot of the mark. `items-start` fixes that and moves the problem to
+          the top: without this spacer the button would sit on the *labels'* line, 20px above the
+          controls it submits. The spacer is a real `Label` rather than a margin or a span imitating
+          one — `Label` is `leading-none`, so an imitation was 6px too tall and put the button 6px
+          low, which is exactly the class of error a measured margin makes. `aria-hidden` because
+          there is nothing to announce. */}
+      <div className="flex flex-col gap-1.5">
+        <Label aria-hidden>&nbsp;</Label>
+        <Button
+          type="submit"
+          variant="outline"
+          disabled={pending}
+          data-testid="renewal-save"
+          className="h-9"
+        >
+          {submit}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -109,6 +155,9 @@ export function CertificateControls({
 }): React.ReactElement | null {
   const [reminderState, remind, reminding] = useActionState(logReminder, initialReminderState);
   const [renewalState, renew, renewing] = useActionState(recordRenewal, initialRenewalState);
+  // Scoped to the renewal's own form: this card carries the reminder's beside it, and the counter
+  // renders the serve and correction controls around them both.
+  const renewalForm = useRef<HTMLFormElement>(null);
 
   const showingReminder = useNoticeSlot(
     "reminder",
@@ -121,6 +170,9 @@ export function CertificateControls({
 
   const words = de.distribution.certificate;
   const renewalSaved = renewalState.status === "saved";
+
+  const renewalFields = renewalState.status === "error" ? renewalState.fields : undefined;
+  useFocusFirstRefusal(renewalFields, renewalForm);
 
   // After a successful renewal the revalidated page reports the certificate valid again; staying
   // mounted for that render keeps the confirmation — with its reset count of 0 — on screen.
@@ -176,11 +228,15 @@ export function CertificateControls({
               ) : null}
             </form>
 
-            <form action={renew} className="flex flex-col gap-3 border-t pt-6">
+            <form ref={renewalForm} action={renew} className="flex flex-col gap-3 border-t pt-6">
               <input type="hidden" name="customerId" value={customerId} />
               <h3 className="font-heading text-base font-medium">{words.renewal.heading}</h3>
               <p className="max-w-prose text-sm text-muted-foreground">{words.renewal.hint}</p>
-              <RenewalFields submit={words.renewal.submit} pending={renewing} />
+              <RenewalFields
+                submit={words.renewal.submit}
+                pending={renewing}
+                fields={renewalFields}
+              />
               {showingRenewal && renewalState.status === "error" ? (
                 <Notice
                   tone={renewalState.tier}

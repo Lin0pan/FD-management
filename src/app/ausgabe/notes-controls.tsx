@@ -34,6 +34,8 @@ import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { updateNotesAction } from "../kunden/[id]/actions";
 import { initialRecordFormState } from "../kunden/[id]/record-state";
+import { FieldRejection } from "../field-mark";
+import { marking, problemAt } from "../field-refusal";
 import { Confirmation, Notice } from "../notice";
 import { useNoticeSlot } from "../notice-board";
 
@@ -62,6 +64,10 @@ export function NotesControls({
   // under the note the staff member has just saved instead (`notice-board.tsx`).
   const showing = useNoticeSlot("counter-notes", state.status === "idle" ? null : state);
 
+  // The one refusal this field can get is a note past the domain's length, and it marks the box the
+  // same way the record's own note editor does — it is the same action behind both.
+  const problem = problemAt(state.status === "error" ? state.fields : undefined, "notes");
+
   return (
     <details>
       <summary
@@ -76,7 +82,10 @@ export function NotesControls({
           {/* „(optional)" is true here in a way it is not on the paragraph above: an empty note is a
               legitimate save, and clearing the field is how a note that no longer applies is
               removed. */}
-          <label htmlFor={fieldId} className="text-sm font-medium">
+          <label
+            htmlFor={fieldId}
+            className={`text-sm font-medium ${problem === null ? "" : "text-destructive"}`.trimEnd()}
+          >
             {de.customers.fields.notes}
           </label>
           <Textarea
@@ -86,7 +95,11 @@ export function NotesControls({
             data-testid="counter-notes-field"
             value={text}
             onChange={(event) => setText(event.target.value)}
+            {...marking("notes", fieldId, problem)}
           />
+          {problem === null ? null : (
+            <FieldRejection id={fieldId} problem={problem} testId="counter-field-error" />
+          )}
         </div>
         {/* `outline`, not the default fill: the one filled button on this screen is the hand-out,
             and a note must never compete with it. */}

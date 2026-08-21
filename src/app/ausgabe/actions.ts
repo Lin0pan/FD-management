@@ -34,6 +34,7 @@ import {
   ReminderAlreadyLoggedToday,
 } from "@/domain/errors";
 import { customerFieldLabel, de } from "@/i18n/de";
+import { customerErrorField, fieldRefusals } from "../kunden/neu/registration-input";
 import { germanTime } from "@/i18n/format";
 import { tierOf } from "../notice-tier";
 import { counterActionDeps } from "./deps";
@@ -72,6 +73,16 @@ const dayInput = z.string().transform((value, ctx): Date => {
     return z.NEVER;
   }
 });
+
+/**
+ * The renewal's one typed field, in an object so its refusal carries a path.
+ *
+ * A bare `dayInput.safeParse(text)` raises an issue whose `path` is empty, and a path is how a mark
+ * finds its box — so the field would have gone unmarked while the message read as if it named one.
+ * The name is the registration's, which the record's renewal form now spells too: one box, one
+ * spelling, on all four screens that carry it.
+ */
+const renewalForm = z.object({ certificateValidUntil: dayInput });
 
 /** Turn a typed domain error from the serve path into the German sentence the counter shows. */
 function serveMessage(error: unknown): string {
@@ -182,6 +193,24 @@ function renewalMessage(error: unknown): string {
 }
 
 /**
+ * A thrown renewal failure as the counter shows it — {@link renewalMessage}, the tier, and the field
+ * to mark where the error names one.
+ *
+ * The sentence is the counter's dictionary and the mark is the shared `customerErrorField`, which is
+ * the same division the record's renewal makes: the two forms are the same two boxes refused by the
+ * same rules, so a past `gültig bis` reddens `certificateValidUntil` on both.
+ */
+function renewalRefusal(error: unknown): RenewalState & { status: "error" } {
+  const field = customerErrorField(error);
+  return {
+    status: "error",
+    message: renewalMessage(error),
+    tier: tierOf(error),
+    ...(field === null ? {} : { fields: [field] }),
+  };
+}
+
+/**
  * Log today's certificate reminder for the customer named by the hidden `customerId`. The rules —
  * something to remind about, at most one per day — live in `recordReminder` and, as the backstop a
  * race cannot pass, in the database's unique day constraint; this action only relays the resulting
@@ -227,27 +256,29 @@ export async function recordRenewal(
       tier: "error",
     };
   }
-  const validUntil = dayInput.safeParse(String(formData.get("validUntil") ?? ""));
+  const validUntil = renewalForm.safeParse({
+    certificateValidUntil: String(formData.get("certificateValidUntil") ?? ""),
+  });
   if (!validUntil.success) {
+    // The schema already decided whether the field was blank or unreadable; repeating a blanket
+    // "not a date" here would throw that away and tell half of DF the wrong thing. It says so *at
+    // the field* now as well as by the button — this is the only box the parse can be about, and
+    // saying which one is what every other form on the app does.
     return {
       status: "error",
-      // The schema already decided whether the field was blank or unreadable; repeating a blanket
-      // "not a date" here would throw that away and tell half of DF the wrong thing.
-      message:
-        validUntil.error.issues[0]?.message ?? de.distribution.certificate.renewal.errors.notADate,
-      tier: "refusal",
+      ...fieldRefusals(validUntil.error, de.distribution.certificate.renewal.errors.unknown),
     };
   }
 
   try {
     await renewCertificate(counterActionDeps, {
       customerId: customerId.data,
-      type: String(formData.get("type") ?? ""),
-      validUntil: validUntil.data,
+      type: String(formData.get("certificateType") ?? ""),
+      validUntil: validUntil.data.certificateValidUntil,
     });
     revalidatePath("/ausgabe");
     return { status: "saved" };
   } catch (error: unknown) {
-    return { status: "error", message: renewalMessage(error), tier: tierOf(error) };
+    return renewalRefusal(error);
   }
 }

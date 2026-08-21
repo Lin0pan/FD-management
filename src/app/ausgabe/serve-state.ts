@@ -9,6 +9,7 @@
  * re-derived from the German (`notice-tier.ts`).
  */
 
+import type { FieldRefusal } from "../field-refusal";
 import type { NoticeTier } from "../notice-tier";
 
 /**
@@ -52,6 +53,19 @@ export const initialReminderState: ReminderState = { status: "idle" };
 export type RenewalState =
   | { readonly status: "idle" }
   | { readonly status: "saved" }
-  | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
+  | {
+      readonly status: "error";
+      readonly message: string;
+      readonly tier: NoticeTier;
+      /**
+       * The fields the refusal names, so the form can mark them (§7). The counter's renewal is the
+       * same two boxes as the record's, refused by the same rules, and it marks them the same way.
+       *
+       * Only one can fail at a time here — the day is read before the type reaches the domain — but
+       * it is a list because the shape is shared, and a shape that differed per screen is what let
+       * this one go unmarked while the intake next door named every field it refused.
+       */
+      readonly fields?: ReadonlyArray<FieldRefusal>;
+    };
 
 export const initialRenewalState: RenewalState = { status: "idle" };
