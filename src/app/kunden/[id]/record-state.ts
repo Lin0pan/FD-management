@@ -17,12 +17,31 @@
  * registration screen counts rather than compares).
  */
 
+import type { FieldRefusal } from "../../field-refusal";
 import type { NoticeTier } from "../../notice-tier";
 
 export type RecordFormState =
   | { readonly status: "idle" }
   | { readonly status: "saved"; readonly saves: number }
-  | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
+  | {
+      readonly status: "error";
+      readonly message: string;
+      readonly tier: NoticeTier;
+      /**
+       * The fields the refusal names, where it names any, so the form can mark each one and put the
+       * words beside it (`docs/guideline/ui_styling_guide.md` §7).
+       *
+       * The household editor is why this is a list. It carries a day field per member, so a form
+       * filled in a hurry fails in three rows at once, and „Kein gültiges Datum.“ under the button
+       * named none of them — on the one screen in the app where the same three fields repeat down a
+       * table and the summary is the length of the household away from the row it means.
+       *
+       * Absent on the refusals that name no field: a stale hidden `customerId`, an archived record,
+       * a group that was already the household's. Those stay a summary by the button and mark
+       * nothing.
+       */
+      readonly fields?: ReadonlyArray<FieldRefusal>;
+    };
 
 export const initialRecordFormState: RecordFormState = { status: "idle" };
 

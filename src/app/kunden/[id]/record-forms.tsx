@@ -4,9 +4,10 @@
  * The pieces every editing form on the customer record is built from (US-16.5).
  *
  * The record carries five independent forms — household, personal data, notes, group and a renewed
- * certificate — and each needs the same three things: a labelled field, a save button that says it
- * is saving, and one line beneath it reporting what the server answered. Repeating those five times
- * is how five forms end up confirming a save in four different words.
+ * certificate — and each needs the same three things: a labelled field that can mark itself when the
+ * server refuses it, a save button that says it is saving, and one line beneath it reporting what
+ * the server answered. Repeating those five times is how five forms end up confirming a save in four
+ * different words.
  *
  * Nothing here decides anything, and nothing here holds state: each form owns its own
  * `useActionState` and hands the result down.
@@ -18,6 +19,8 @@ import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import type { RecordFormState } from "./record-state";
 import { de } from "@/i18n/de";
+import { FieldRejection } from "../../field-mark";
+import { marking } from "../../field-refusal";
 import { useNoticeSlot } from "../../notice-board";
 import { Notice } from "../../notice";
 
@@ -47,6 +50,7 @@ export function TextField({
   type = "text",
   testId,
   span = "sm:col-span-2 lg:col-span-4",
+  problem = null,
 }: {
   name: string;
   label: string;
@@ -56,13 +60,21 @@ export function TextField({
   testId?: string;
   /** Columns of twelve at `lg` — a field's width is what it promises about its contents. */
   span?: string;
+  /** The words to show under the control, or `null` while nothing is wrong with it. */
+  problem?: string | null;
 }): React.ReactElement {
   // Generated rather than taken from `name`: two forms on this record both hold a `firstName`, and
-  // duplicate ids would point every label at whichever came first.
+  // duplicate ids would point every label at whichever came first. Which is exactly why the mark is
+  // addressed by `data-field` and not by this id — the path is the one name the action and the
+  // control agree on, and the action cannot know what `useId` produced.
   const id = useId();
+  const marks = marking(name, id, problem);
   return (
     <div className={`flex flex-col gap-1.5 ${span}`}>
-      <label htmlFor={id} className="text-sm font-medium">
+      <label
+        htmlFor={id}
+        className={`text-sm font-medium ${problem === null ? "" : "text-destructive"}`.trimEnd()}
+      >
         {label}
       </label>
       {type === "date" ? (
@@ -73,6 +85,7 @@ export function TextField({
           placeholder={de.day.placeholder}
           value={value}
           onChange={onChange}
+          {...marks}
         />
       ) : (
         <Input
@@ -82,10 +95,35 @@ export function TextField({
           data-testid={testId}
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          {...marks}
         />
       )}
+      {problem === null ? null : <RecordRejection id={id} problem={problem} />}
     </div>
   );
+}
+
+/**
+ * The words under a refused control on this record, at this screen's test id.
+ *
+ * Shared by all five of its forms — there is one `record-field-error` vocabulary, not one per form,
+ * because a spec that counts the marks on this page is asking about the page.
+ *
+ * The marks are **not** governed by the `NoticeBoard` above them, and that asymmetry is deliberate.
+ * The board exists so that eight write controls do not leave eight stale confirmations on screen at
+ * once; a mark is not a confirmation. If the household is refused and the note is then saved, the
+ * board hands the slot to the note and the household's rows stay red — which is right, because the
+ * birthdate in row three is still unreadable. The mark clears when the field that carries it is
+ * submitted again.
+ */
+export function RecordRejection({
+  id,
+  problem,
+}: {
+  id: string;
+  problem: string;
+}): React.ReactElement {
+  return <FieldRejection id={id} problem={problem} testId="record-field-error" />;
 }
 
 /**

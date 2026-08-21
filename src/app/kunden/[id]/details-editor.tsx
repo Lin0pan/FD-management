@@ -17,8 +17,10 @@
  * is the one that produces two people where there was one.
  */
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { de } from "@/i18n/de";
+import { useFocusFirstRefusal } from "../../field-mark";
+import { problemAt } from "../../field-refusal";
 import { updateDetailsAction } from "./actions";
 import { FormFooter, GRID, SaveButton, SaveFeedback, TextField } from "./record-forms";
 import { initialRecordFormState } from "./record-state";
@@ -43,13 +45,22 @@ export function DetailsEditor({
 }): React.ReactElement {
   const [state, formAction, pending] = useActionState(updateDetailsAction, initialRecordFormState);
   const [draft, setDraft] = useState<DetailsDraft>(details);
+  const form = useRef<HTMLFormElement>(null);
+
+  const fields = state.status === "error" ? state.fields : undefined;
+  const problem = (name: string): string | null => problemAt(fields, name);
+  // Scoped to this form, because the record renders eight of them and this one holds a `firstName`
+  // that the household table below also spells — as `householdMembers.0.firstName`, so the two do
+  // not in fact collide today. The ref is what keeps that a fact about the paths rather than a thing
+  // to remember when a ninth form arrives.
+  useFocusFirstRefusal(fields, form);
 
   function set(patch: Partial<DetailsDraft>): void {
     setDraft({ ...draft, ...patch });
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form ref={form} action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="customerId" value={customerId} />
       <p className="max-w-prose text-sm text-muted-foreground">{de.customers.record.detailsHint}</p>
 
@@ -60,6 +71,7 @@ export function DetailsEditor({
           label={de.customers.fields.firstName}
           value={draft.firstName}
           onChange={(firstName) => set({ firstName })}
+          problem={problem("firstName")}
         />
         <TextField
           name="lastName"
@@ -67,6 +79,7 @@ export function DetailsEditor({
           label={de.customers.fields.lastName}
           value={draft.lastName}
           onChange={(lastName) => set({ lastName })}
+          problem={problem("lastName")}
         />
         <TextField
           name="birthDate"
@@ -75,6 +88,7 @@ export function DetailsEditor({
           label={de.customers.fields.birthDate}
           value={draft.birthDate}
           onChange={(birthDate) => set({ birthDate })}
+          problem={problem("birthDate")}
         />
       </div>
 
@@ -87,6 +101,7 @@ export function DetailsEditor({
           label={de.customers.fields.street}
           value={draft.street}
           onChange={(street) => set({ street })}
+          problem={problem("street")}
         />
         <TextField
           name="houseNumber"
@@ -95,6 +110,7 @@ export function DetailsEditor({
           label={de.customers.fields.houseNumber}
           value={draft.houseNumber}
           onChange={(houseNumber) => set({ houseNumber })}
+          problem={problem("houseNumber")}
         />
         <TextField
           name="zip"
@@ -103,6 +119,7 @@ export function DetailsEditor({
           label={de.customers.fields.zip}
           value={draft.zip}
           onChange={(zip) => set({ zip })}
+          problem={problem("zip")}
         />
         <TextField
           name="city"
@@ -110,6 +127,7 @@ export function DetailsEditor({
           label={de.customers.fields.city}
           value={draft.city}
           onChange={(city) => set({ city })}
+          problem={problem("city")}
         />
       </div>
 

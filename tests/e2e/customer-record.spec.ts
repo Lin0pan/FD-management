@@ -383,6 +383,97 @@ test.describe("Kundenakte pflegen", () => {
     await expect(page.getByTestId("household-member")).toHaveCount(3);
   });
 
+  /**
+   * The record's forms name the fields they refuse (§7).
+   *
+   * They did not, and the household editor is where that cost the most: a table with a day field
+   * per member answered „Kein gültiges Datum.“ under a button that could be four rows below the row
+   * it meant, and reported only the first issue, so a household typed in a hurry took one save per
+   * bad row. Everything about this is a fact about a browser — which control carries `aria-invalid`,
+   * where the cursor is, whether the two other rows were left alone — so this is the only place it
+   * can be proved.
+   *
+   * A refusal writes nothing, so these tests leave the household exactly as the save above left it.
+   */
+  test("a refused household marks the rows it means, and only those", async ({ page }) => {
+    await page.goto(`/kunden/${id}`);
+
+    // Two rows wrong for two different reasons, and row 0 left correct. Both mistakes are ones DF
+    // actually make: a day cleared while retyping it, and a day that no reading of TT.MM.JJJJ can
+    // rescue.
+    await page.getByTestId("member-birth-date-1").fill("");
+    await fillSticky(page.getByTestId("member-birth-date-2"), "99.99.9999");
+
+    await page.getByTestId("household-submit").click();
+
+    // Both rows named, in the order the form reads them, and numbered from 1 as they are on screen.
+    await expect(page.getByTestId("household-error")).toHaveText(
+      de.forms.severalFieldProblems([
+        `${de.customers.new.memberRow(2)}: ${de.customers.fields.birthDate}`,
+        `${de.customers.new.memberRow(3)}: ${de.customers.fields.birthDate}`,
+      ]),
+    );
+
+    // A blank day and an unreadable one are different mistakes, and each row says which it is —
+    // the whole of ADR-013, on the screen where the same three fields repeat.
+    await expect(page.getByTestId("record-field-error")).toHaveText([
+      de.customers.errors.dateMissing,
+      de.customers.errors.notADate,
+    ]);
+    await expect(page.getByTestId("member-birth-date-1")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId("member-birth-date-2")).toHaveAttribute("aria-invalid", "true");
+
+    // The row that is fine is untouched. „Alle Geburtsdaten prüfen“ would be the alternative, and it
+    // would send staff back through rows that were right.
+    await expect(page.getByTestId("member-birth-date-0")).not.toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
+
+    // The cursor lands in the first refused row, which is what makes a mark findable on a table.
+    await expect(page.getByTestId("member-birth-date-1")).toBeFocused();
+
+    // And nothing was saved: a fresh request still finds the three members from the edit above.
+    await page.goto(`/kunden/${id}`);
+    await expect(page.getByTestId("household-member")).toHaveCount(3);
+    await expectDerived(page, AFTER);
+  });
+
+  /**
+   * The other half of the naming, on the personal-data form: a refusal the **domain** raised.
+   *
+   * A blank ZIP is a well-formed submission — `z.string()` accepts it — so it reaches
+   * `createPersonalDetails` and comes back as `MissingRequiredField("address.zip")`. The domain
+   * nests what the form spells flat, and the mark can only land if the action translates one into
+   * the other. Nothing below the browser can tell whether it did.
+   */
+  test("a refused correction marks the field and keeps the six edits beside it", async ({
+    page,
+  }) => {
+    await page.goto(`/kunden/${id}`);
+
+    const street = faker.location.street();
+    await page.getByTestId("details-street").fill(street);
+    await page.getByTestId("details-zip").fill("");
+
+    await page.getByTestId("details-submit").click();
+
+    // The domain's own sentence, which already names the field, so the mark under it stays short.
+    await expect(page.getByTestId("details-error")).toHaveText(
+      de.customers.errors.missingField(de.customers.errorFields["address.zip"] ?? ""),
+    );
+    await expect(page.getByTestId("record-field-error")).toHaveText(
+      de.customers.errors.fieldRequired,
+    );
+    await expect(page.getByTestId("details-zip")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId("details-street")).not.toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId("details-zip")).toBeFocused();
+
+    // The edit that rode along with the refused one is still on screen. It is not a `defaultValue`
+    // here, but the marking must not be what throws it away either.
+    await expect(page.getByTestId("details-street")).toHaveValue(street);
+  });
+
   test("the card in the customer's hand is now behind the household", async ({ page }) => {
     await page.goto("/karten-neuausstellung");
 
@@ -435,6 +526,13 @@ test.describe("Kundenakte pflegen", () => {
     const refusal = page.getByTestId("renewal-error");
     await expect(refusal).toHaveText(de.distribution.certificate.renewal.errors.validUntilInPast);
     await expect(refusal).toHaveAttribute("data-tier", "refusal");
+
+    // And it says *which* of the two boxes, which the sentence alone does not: the mark is at the
+    // date, and the type beside it is left alone.
+    await expect(page.getByTestId("record-field-error")).toHaveText(de.customers.errors.dateInPast);
+    await expect(page.getByTestId("renewal-valid-until")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId("renewal-type")).not.toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId("renewal-valid-until")).toBeFocused();
 
     await expect(page.getByTestId("renewal-type")).toHaveValue("Rentenbescheid");
     await expect(page.getByTestId("renewal-valid-until")).toHaveValue(typedDay("2025-06-30"));
