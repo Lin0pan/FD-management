@@ -6,6 +6,13 @@ There is one production node and it is a laptop. That is the design, not a stage
 something else — see [ADR-002](adr/002-store-the-register-in-a-single-sqlite-file.md) and
 [ADR-003](adr/003-ship-without-login-and-bind-the-application-to-localhost.md).
 
+Today that laptop is a **MacBook belonging to a member of DF's staff**, so the browser in front of
+the application is **Safari**. Because it is one person's own machine, a replacement could as easily
+run Windows or Linux — so the software is supported on **Safari and Chromium-based browsers**, both
+gated end-to-end, rather than on whichever browser is current. See
+[ADR-012](adr/012-support-safari-and-chromium-based-browsers-and-gate-both-in-ci.md). The operating
+system itself constrains nothing: the process is Node and the state is one file.
+
 ## Production
 
 ```mermaid
@@ -41,16 +48,26 @@ is an ordinary day.
 
 ## Environments
 
-| Environment                    | How it starts                                     | Database                                                                   | Clock                                  |
-| ------------------------------ | ------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------- |
-| **DF's machine** (production)  | `npm run build && npm start`                      | `data/fd.db`, persistent                                                   | The wall clock                         |
-| **Local development**          | `npm run dev`                                     | `data/fd.db`, reset with `npm run db:reset`, seeded with `npm run db:demo` | The wall clock                         |
-| **CI — e2e, default project**  | Playwright starts a built server on **port 3000** | `data/e2e.db`, deleted and re-migrated per run                             | Pinned via `data/e2e-now.txt`          |
-| **CI — e2e, isolated project** | A second built server on **port 3001**            | `data/e2e-isolated.db`, empty                                              | Pinned via `data/e2e-isolated-now.txt` |
+| Environment                      | Browser  | How it starts                                     | Database                                                                   | Clock                                         |
+| -------------------------------- | -------- | ------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------- |
+| **DF's machine** (production)    | Safari   | `npm run build && npm start`                      | `data/fd.db`, persistent                                                   | The wall clock                                |
+| **Local development**            | Either   | `npm run dev`                                     | `data/fd.db`, reset with `npm run db:reset`, seeded with `npm run db:demo` | The wall clock                                |
+| **CI — e2e, shared, Chromium**   | Chromium | Playwright starts a built server on **port 3000** | `data/e2e.db`, deleted and re-migrated per run                             | Pinned via `data/e2e-now.txt`                 |
+| **CI — e2e, isolated, Chromium** | Chromium | A second built server on **port 3001**            | `data/e2e-isolated.db`, empty                                              | Pinned via `data/e2e-isolated-now.txt`        |
+| **CI — e2e, shared, WebKit**     | WebKit   | A built server on **port 3002**                   | `data/e2e-webkit.db`, deleted and re-migrated per run                      | Pinned via `data/e2e-webkit-now.txt`          |
+| **CI — e2e, isolated, WebKit**   | WebKit   | A built server on **port 3003**                   | `data/e2e-webkit-isolated.db`, empty                                       | Pinned via `data/e2e-webkit-isolated-now.txt` |
 
-The second e2e server exists for one reason: the waiting-list spec has to make the register _full_,
-and the quota may not fall below the active customer count — so on a shared database holding
-customers on numbers in the hundreds, no quota could ever leave it full.
+The isolated server exists for one reason: the waiting-list spec has to make the register _full_, and
+the quota may not fall below the active customer count — so on a shared database holding customers on
+numbers in the hundreds, no quota could ever leave it full.
+
+The engine is chosen **per invocation**, not per Playwright project: `npm run test:e2e` drives
+Chromium and `npm run test:e2e:webkit` drives WebKit, each over registers of its own, so neither can
+move the other's customer numbers. `tests/e2e/registers.ts` is the one place that maps an engine to
+those ports and files — the specs seed the same databases the config serves, and a path spelled out
+in two places is a run that seeds one register and asserts against another. See
+[ADR-012](adr/012-support-safari-and-chromium-based-browsers-and-gate-both-in-ci.md) for why a second
+project could not have carried it.
 
 ## Configuration
 
@@ -90,15 +107,16 @@ service to authenticate to.
 
 ## Build pipeline
 
-`.github/workflows/ci.yml`, on every push to `main` and every PR into it. Four jobs, all on
-`ubuntu-latest`, all doing `npm ci` then `npx prisma generate`:
+`.github/workflows/ci.yml`, on every push to `main` and every PR into it. Four jobs — five checks,
+since `e2e-tests` is a matrix with one leg per engine — all on `ubuntu-latest`, all doing `npm ci`
+then `npx prisma generate`:
 
-| Job                         | Gates                                                                                                      |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `lint-and-typecheck`        | `npm run lint` (**including the architecture boundary rules**), `npm run typecheck`, `npx prisma validate` |
-| `unit-tests`                | `npm run test:coverage` — the 100 % gate on `src/domain` and `src/application`                             |
-| `build`                     | `npm run build`                                                                                            |
-| `e2e-tests` (needs `build`) | Playwright against the built app on a fresh SQLite file; the report is uploaded as an artifact for 7 days  |
+| Job                         | Gates                                                                                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lint-and-typecheck`        | `npm run lint` (**including the architecture boundary rules**), `npm run typecheck`, `npx prisma validate`                                                                                                   |
+| `unit-tests`                | `npm run test:coverage` — the 100 % gate on `src/domain` and `src/application`                                                                                                                               |
+| `build`                     | `npm run build`                                                                                                                                                                                              |
+| `e2e-tests` (needs `build`) | Playwright against the built app on fresh SQLite files, **once per supported engine** (Chromium, WebKit) in parallel legs with `fail-fast: false`; each leg uploads its own report as an artifact for 7 days |
 
 A workflow-level dummy `DATABASE_URL` exists only so `prisma validate` and `next build` can resolve
 `env("DATABASE_URL")`. `codeql.yml` runs on the same triggers plus a weekly cron, and Dependabot is

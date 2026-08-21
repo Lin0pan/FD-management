@@ -11,11 +11,11 @@ auf **einem einzigen Rechner**, ohne Internet und ohne Anmeldung.
 
 ## Starten und beenden
 
-1. Das Programm starten: _(Verknüpfung auf dem Desktop — vor der Übergabe einzurichten)_. Es öffnet
-   sich zuerst ein schwarzes Fenster mit Textzeilen — das gehört dazu und muss **offen bleiben**,
+1. Das Programm starten: _(Verknüpfung im Dock — vor der Übergabe einzurichten)_. Es öffnet sich
+   zuerst ein Fenster mit Textzeilen („Terminal“) — das gehört dazu und muss **offen bleiben**,
    solange Sie arbeiten.
-2. Den Browser öffnen und das Lesezeichen **FD-Management** anklicken (`http://localhost:3000`).
-3. Zum Beenden den Browser-Tab schließen und danach das schwarze Fenster schließen.
+2. **Safari** öffnen und das Lesezeichen **FD-Management** anklicken (`http://localhost:3000`).
+3. Zum Beenden den Safari-Tab schließen und danach das Terminal-Fenster schließen.
 
 Es kann immer nur **ein Rechner** das Programm betreiben. Zwei Personen können nicht gleichzeitig von
 zwei Geräten aus arbeiten.
@@ -53,12 +53,12 @@ selbst versuchen.
 
 ## Wenn etwas nicht funktioniert
 
-| Beobachtung                                            | Was zu tun ist                                                                                    |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| Die Seite lädt nicht                                   | Prüfen, ob das schwarze Fenster noch offen ist. Wenn nicht: Programm neu starten.                 |
-| Eine Meldung erscheint, die Sie nicht kennen           | Bildschirmfoto machen und melden. Nichts weiter anklicken.                                        |
-| Eine Karte wird abgewiesen, obwohl sie gültig aussieht | Nicht überschreiben, sondern melden — dafür ist die Testphase da.                                 |
-| Das Programm reagiert nicht mehr                       | Schwarzes Fenster schließen, Programm neu starten. Gespeicherte Daten gehen dabei nicht verloren. |
+| Beobachtung                                            | Was zu tun ist                                                                                   |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Die Seite lädt nicht                                   | Prüfen, ob das Terminal-Fenster noch offen ist. Wenn nicht: Programm neu starten.                |
+| Eine Meldung erscheint, die Sie nicht kennen           | Bildschirmfoto machen und melden. Nichts weiter anklicken.                                       |
+| Eine Karte wird abgewiesen, obwohl sie gültig aussieht | Nicht überschreiben, sondern melden — dafür ist die Testphase da.                                |
+| Das Programm reagiert nicht mehr                       | Terminal-Fenster schließen, Programm neu starten. Gespeicherte Daten gehen dabei nicht verloren. |
 
 ## Was Sie wissen sollten
 

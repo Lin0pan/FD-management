@@ -344,7 +344,15 @@ it. Playwright is the only thing that will tell you.
 - Driving real flows writes to `data/fd.db`. That is fine — say so, and `npm run db:demo -- --reset`
   puts the demo register back.
 - **Done is** `npm run lint && npm run typecheck && npm run test:coverage && npm run build`, then
-  `npm run test:e2e` with no test edited, then the `playwright-cli` pass above.
+  `npm run test:e2e` **and** `npm run test:e2e:webkit` with no test edited, then the `playwright-cli`
+  pass above.
+- **And one look in real Safari, on a Mac.** DF run the application in Safari
+  ([ADR-012](../architecture/adr/012-support-safari-and-chromium-based-browsers-and-gate-both-in-ci.md)),
+  and the WebKit gate is not the same thing: Playwright ships the engine without Apple's shell, so
+  the macOS `<input type="date">` picker — the most common field in this application — is not
+  something CI can see. Open the screen you built in Safari and use its date fields before calling it
+  done. An engine-conditional branch in `src/` is not the answer to what you find there; if the two
+  disagree, the markup is usually the thing that is wrong.
 
 **One standing exception.** `/kunden/[id]/karte` is the single screen not converted to the primitives.
 Its outsized type is US-02.4's "legible across a desk", not a style choice — do not normalise it.

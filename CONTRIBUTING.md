@@ -61,13 +61,31 @@ rather not change it.
 The E2E suite needs one thing more, once, before the first `npm run test:e2e`:
 
 ```bash
-npx playwright install --with-deps chromium
+npx playwright install --with-deps chromium webkit
 ```
 
-That is a browser binary, not an npm package, which is why `npm install` does not fetch it and why
-`npm run setup` deliberately leaves it out — it is a large download that nobody needs in order to
-run the app. The devcontainer ([`devcontainer.json`](./.devcontainer/devcontainer.json)) and CI
+Those are browser binaries, not npm packages, which is why `npm install` does not fetch them and why
+`npm run setup` deliberately leaves them out — they are a large download that nobody needs in order
+to run the app. The devcontainer ([`devcontainer.json`](./.devcontainer/devcontainer.json)) and CI
 ([`ci.yml`](./.github/workflows/ci.yml)) each run it themselves.
+
+**Two engines, because DF is supported on two** ([ADR-012](./docs/architecture/adr/012-support-safari-and-chromium-based-browsers.md)):
+WebKit stands in for the Safari they use today, Chromium for the browser a replacement machine would
+bring. They run as **separate invocations**, not as two projects in one run:
+
+```bash
+npm run test:e2e            # Chromium
+npm run test:e2e:webkit     # WebKit — Safari's engine
+```
+
+Each invocation drives registers of its own — its own ports, its own SQLite files — so the two can
+never move each other's customer numbers. [`tests/e2e/registers.ts`](./tests/e2e/registers.ts) is the
+single place that decides which, and explains why a second Playwright _project_ could not have done
+the job.
+
+> **WebKit is not Safari.** It is the same engine without Apple's shell, so it catches rendering and
+> scripting differences but cannot show you the real macOS date picker — and `<input type="date">`
+> is this app's most common field. Before calling UI work done, look at it in Safari on a Mac.
 
 To click around with something to look at, add the demo register — twenty synthetic households with
 a hand-out history, blocks, archives and lapsed certificates:
@@ -82,19 +100,20 @@ database**: it is a development fixture and `--reset` deletes customer data outr
 
 ## Everyday commands
 
-| Command                 | What it does                                                                |
-| ----------------------- | --------------------------------------------------------------------------- |
-| `npm run setup`         | Install, `.env`, generate, migrate, seed — idempotent                       |
-| `npm run dev`           | Next.js dev server — needs no build                                         |
-| `npm run build`         | Production build; only needed after the code changes                        |
-| `npm start`             | Serves the **last** build, so rebuild first if the code moved               |
-| `npm run lint`          | ESLint                                                                      |
-| `npm run typecheck`     | `tsc --noEmit`                                                              |
-| `npm test`              | Vitest unit suite (domain + application)                                    |
-| `npm run test:coverage` | Vitest with coverage (thresholds enforced)                                  |
-| `npm run test:e2e`      | Playwright vs. the built app + throwaway SQLite dbs (browser install first) |
-| `npm run format`        | Prettier write                                                              |
-| `npm run db:demo`       | Seed twenty synthetic households to click around with                       |
+| Command                   | What it does                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------- |
+| `npm run setup`           | Install, `.env`, generate, migrate, seed — idempotent                                       |
+| `npm run dev`             | Next.js dev server — needs no build                                                         |
+| `npm run build`           | Production build; only needed after the code changes                                        |
+| `npm start`               | Serves the **last** build, so rebuild first if the code moved                               |
+| `npm run lint`            | ESLint                                                                                      |
+| `npm run typecheck`       | `tsc --noEmit`                                                                              |
+| `npm test`                | Vitest unit suite (domain + application)                                                    |
+| `npm run test:coverage`   | Vitest with coverage (thresholds enforced)                                                  |
+| `npm run test:e2e`        | Playwright on **Chromium** vs. the built app + throwaway SQLite dbs (browser install first) |
+| `npm run test:e2e:webkit` | The same suite on **WebKit** (Safari's engine), on registers of its own                     |
+| `npm run format`          | Prettier write                                                                              |
+| `npm run db:demo`         | Seed twenty synthetic households to click around with                                       |
 
 ## Architecture in one paragraph
 
@@ -124,14 +143,15 @@ logic _down_ — logic in `app/` is a smell.
 
 ## CI pipeline (`.github/workflows/ci.yml`)
 
-Four jobs run on every PR to `main`; wire them as required branch-protection checks:
+Four jobs run on every PR to `main` — five checks, since `e2e-tests` is a matrix with one leg per
+engine. Wire them as required branch-protection checks:
 
-| Job                  | Gate                                                           |
-| -------------------- | -------------------------------------------------------------- |
-| `lint-and-typecheck` | ESLint + `tsc --noEmit` + `prisma validate`                    |
-| `unit-tests`         | `vitest --coverage`, thresholds scoped to domain + application |
-| `build`              | `next build`                                                   |
-| `e2e-tests`          | Playwright vs. the built app + fresh seeded SQLite files       |
+| Job                  | Gate                                                                                                              |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `lint-and-typecheck` | ESLint + `tsc --noEmit` + `prisma validate`                                                                       |
+| `unit-tests`         | `vitest --coverage`, thresholds scoped to domain + application                                                    |
+| `build`              | `next build`                                                                                                      |
+| `e2e-tests`          | Playwright vs. the built app + fresh seeded SQLite files — **one leg per engine** (Chromium, WebKit), in parallel |
 
 CodeQL, Dependabot, and GitHub secret scanning run alongside.
 
@@ -158,5 +178,6 @@ CodeQL, Dependabot, and GitHub secret scanning run alongside.
 1. Branch off `main`.
 2. Write the failing test first for domain/application work.
 3. Keep the change small and the layers clean.
-4. `npm run lint && npm run typecheck && npm run test:coverage && npm run build` locally.
-5. Open a PR; ensure all four CI checks are green before merge.
+4. `npm run lint && npm run typecheck && npm run test:coverage && npm run build` locally. If the
+   change touched the UI, run `npm run test:e2e` **and** `npm run test:e2e:webkit`.
+5. Open a PR; ensure every CI check is green before merge — both `e2e-tests` legs included.

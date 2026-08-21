@@ -21,6 +21,7 @@ decision log full of trivia teaches people to skim it.
 | [009](adr/009-regenerate-migration-history-until-fd-holds-real-data.md)                 | Regenerate migration history until DF holds real data                 | Accepted | 2026-07-22 |
 | [010](adr/010-never-hard-delete-a-record-archive-and-let-the-database-refuse.md)        | Never hard-delete a record: archive, and let the database refuse      | Accepted | 2026-07-27 |
 | [011](adr/011-track-the-newest-even-numbered-node-release.md)                           | Track the newest even-numbered Node release                           | Accepted | 2026-08-08 |
+| [012](adr/012-support-safari-and-chromium-based-browsers-and-gate-both-in-ci.md)        | Support Safari and Chromium-based browsers, and gate both in CI       | Pending  | 2026-08-21 |
 
 ## Smaller decisions, recorded without an ADR
 
