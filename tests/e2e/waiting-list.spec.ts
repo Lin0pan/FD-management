@@ -4,7 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { ISOLATED } from "./registers";
-import { fillDay } from "./day";
+import { fillDay, fillSticky } from "./day";
 
 /**
  * The waiting list from a full register to a promoted applicant, driven through the built app
@@ -140,6 +140,16 @@ async function addToWaitingList(page: Page, person: Applicant): Promise<void> {
   await expect(page.getByTestId("waiting-list-add-saved")).toHaveText(
     de.waitingList.add.saved(fullName(person)),
   );
+
+  // The other half of the retention rule, asserted on the way past rather than in a test of its own,
+  // because a test would need an applicant of its own and this spec counts the queue. *A save
+  // clears everything, a refusal keeps everything* (§7): the fields are React state under the
+  // `savedCount` key, so the remount is what empties them. Making them controlled is what stopped a
+  // refusal emptying them too — and if that had been done by moving the state *above* the key, this
+  // is the assertion that would have caught it, with the saved applicant still in the boxes.
+  await expect(page.locator("#firstName")).toHaveValue("");
+  await expect(page.locator("#certificateType")).toHaveValue("");
+  await expect(page.locator("#certificateValidUntil")).toHaveValue("");
 }
 
 test.describe.configure({ mode: "serial" });
@@ -218,6 +228,68 @@ test.describe("Warteliste", () => {
     const badge = page.getByTestId("waiting-list-badge");
     await expect(badge).toHaveText(de.customerList.actions.waitingListBadge(2, false));
     await expect(badge).toHaveAttribute("data-free-slot", "false");
+  });
+
+  /**
+   * A refused application names the fields and keeps every one of the ten.
+   *
+   * This form was the worst case of both halves the registration screen had already fixed. It holds
+   * **two** day fields and the shared `calendarDay` names neither, so „Datum fehlt.“ by the button
+   * was the answer to whichever came first in the schema — and only ever to one of them. Worse, its
+   * eight text inputs were `defaultValue`s under a remount key that changes only on a *save*, so
+   * React's post-action reset emptied them on every refusal: a mistyped day cost a retyped address,
+   * a certificate type and a contact note.
+   *
+   * Both halves are facts about a browser. Whether the action named two fields is a value a unit
+   * test could read; whether the eight boxes still hold what was typed after React has reset the
+   * form is not.
+   *
+   * It runs before the archive, so the register is still full and nothing here can be saved by
+   * accident — a refusal writes nothing, and the correction at the end is deliberately not made.
+   */
+  test("a refused application marks every field it names and keeps all ten", async ({ page }) => {
+    await page.goto("/warteliste");
+
+    const person = applicant();
+    await fillPersonalData(page, person);
+    const note = "Ruft dienstags an, kein Anrufbeantworter.";
+    await page.locator("#contactNote").fill(note);
+
+    // Two days wrong for two different reasons, in two different halves of the form.
+    await page.locator("#birthDate").fill("");
+    await fillSticky(page.locator("#certificateValidUntil"), "99.99.9999");
+
+    await page.getByTestId("waiting-list-add-submit").click();
+
+    // Both named, rather than the first of them. One round trip per day field is how an intake with
+    // an applicant standing at the counter takes three submissions.
+    await expect(page.getByTestId("waiting-list-add-error")).toHaveText(
+      de.forms.severalFieldProblems([
+        de.customers.fields.birthDate,
+        de.customers.fields.certificateValidUntil,
+      ]),
+    );
+    await expect(page.getByTestId("waiting-list-field-error")).toHaveText([
+      de.customers.errors.dateMissing,
+      de.customers.errors.notADate,
+    ]);
+    await expect(page.locator("#birthDate")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator("#certificateValidUntil")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator("#firstName")).not.toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator("#birthDate")).toBeFocused();
+
+    // And the eight that were not refused are still exactly as they were typed. This is the half
+    // that used to be lost outright.
+    await expect(page.locator("#firstName")).toHaveValue(person.firstName);
+    await expect(page.locator("#lastName")).toHaveValue(person.lastName);
+    await expect(page.locator("#certificateType")).toHaveValue(CERTIFICATE_TYPE);
+    await expect(page.locator("#contactNote")).toHaveValue(note);
+    for (const name of ["street", "houseNumber", "zip", "city"]) {
+      await expect(page.locator(`#${name}`)).not.toHaveValue("");
+    }
+
+    // Nothing was written. The two applicants above are still the whole list.
+    await expect(page.getByTestId("waiting-list-row")).toHaveCount(2);
   });
 
   test("archiving a household frees a number and the banner names the longest wait", async ({

@@ -41,7 +41,13 @@ import {
 import { customerFieldLabel, de } from "@/i18n/de";
 import { tierOf } from "../../notice-tier";
 import { customerDeps } from "../deps";
-import { calendarDay, customerErrorMessage, householdRows } from "../neu/registration-input";
+import {
+  calendarDay,
+  customerErrorField,
+  customerErrorMessage,
+  fieldRefusals,
+  householdRows,
+} from "../neu/registration-input";
 import { type ReissueState } from "./reissue-state";
 import { savedAfter, type RecordFormState } from "./record-state";
 
@@ -73,8 +79,18 @@ const detailsForm = z.object({
   city: z.string(),
 });
 
-/** The renewed certificate: what kind of notice it is and the day it runs to. */
-const renewalForm = z.object({ type: z.string(), validUntil: calendarDay });
+/**
+ * The renewed certificate: what kind of notice it is and the day it runs to.
+ *
+ * The two fields are named as the registration names them rather than `type` and `validUntil`,
+ * which is what they were called until a refusal had to mark them. A mark is addressed by the
+ * input's own `name` (§7), and a name is only markable if the dictionary has a German label for it
+ * — `de.customers.fields` has had `certificateType` and `certificateValidUntil` since the
+ * registration form, and `DOMAIN_FIELD_PATH` already translates `certificate.type` into the first
+ * of them. Two spellings for one field would have meant two entries and a translation between them,
+ * for the same box on four screens.
+ */
+const renewalForm = z.object({ certificateType: z.string(), certificateValidUntil: calendarDay });
 
 /**
  * The German sentence for a domain error one of the record's edits can raise.
@@ -89,6 +105,29 @@ function recordMessage(error: unknown): string {
     return de.customers.record.errors.archived;
   }
   return customerErrorMessage(error) ?? de.customers.record.errors.unknown;
+}
+
+/**
+ * A thrown edit failure as the record shows it — the sentence, the tier, and the field to mark where
+ * the error names one.
+ *
+ * The mark comes from the registration's `customerErrorField`, so a blank ZIP marks the ZIP box and
+ * an over-long note marks the note on this screen exactly as it does on the intake. Only the
+ * sentence differs, and only because a correction and an intake fail at different things when
+ * nothing matched: {@link recordMessage} is what says so.
+ *
+ * `CustomerArchived` names no field on purpose. It is a statement about the whole record — every
+ * form on the screen is refused, not one box — and the sentence tells staff to reload rather than to
+ * fix anything.
+ */
+function recordRefusal(error: unknown): RecordFormState & { status: "error" } {
+  const field = customerErrorField(error);
+  return {
+    status: "error",
+    message: recordMessage(error),
+    tier: tierOf(error),
+    ...(field === null ? {} : { fields: [field] }),
+  };
 }
 
 /** The record and everything derived from it downstream: the counter's verdict, and the card view. */
@@ -166,10 +205,12 @@ export async function updateHouseholdAction(
     return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
   }
   if (!members.success) {
-    // The row schema already said whether a birthdate was blank or unreadable; a blanket sentence
-    // here would tell somebody who left a field empty that their format is wrong.
-    const message = members.error.issues[0]?.message ?? de.customers.errors.notADate;
-    return { status: "error", message, tier: "refusal" };
+    // Every refused row, not the first. This form has a day field per household member, so a
+    // household corrected in a hurry fails in three places at once, and one round trip per row is
+    // how an edit takes five saves. The row schema already said whether each birthdate was blank or
+    // unreadable, and `fieldRefusals` is what turns the issue's path into the row it belongs to —
+    // the summary used to be „Kein gültiges Datum.“ under the button, naming no row at all.
+    return { ...fieldRefusals(members.error, de.customers.record.errors.unknown), status: "error" };
   }
 
   try {
@@ -178,7 +219,7 @@ export async function updateHouseholdAction(
       members: members.data.householdMembers,
     });
   } catch (error: unknown) {
-    return { status: "error", message: recordMessage(error), tier: tierOf(error) };
+    return recordRefusal(error);
   }
 
   revalidateRecord(customerId.data);
@@ -209,8 +250,7 @@ export async function updateDetailsAction(
     return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
   }
   if (!fields.success) {
-    const message = fields.error.issues[0]?.message ?? de.customers.errors.notADate;
-    return { status: "error", message, tier: "refusal" };
+    return { ...fieldRefusals(fields.error, de.customers.record.errors.unknown), status: "error" };
   }
 
   const { firstName, lastName, birthDate, street, houseNumber, zip, city } = fields.data;
@@ -223,7 +263,7 @@ export async function updateDetailsAction(
       address: { street, houseNumber, zip, city },
     });
   } catch (error: unknown) {
-    return { status: "error", message: recordMessage(error), tier: tierOf(error) };
+    return recordRefusal(error);
   }
 
   revalidateRecord(customerId.data);
@@ -249,7 +289,7 @@ export async function updateNotesAction(
       notes: String(formData.get("notes") ?? ""),
     });
   } catch (error: unknown) {
-    return { status: "error", message: recordMessage(error), tier: tierOf(error) };
+    return recordRefusal(error);
   }
 
   revalidateRecord(customerId.data);
@@ -294,7 +334,7 @@ export async function changeGroupAction(
         tier: tierOf(error),
       };
     }
-    return { status: "error", message: recordMessage(error), tier: tierOf(error) };
+    return recordRefusal(error);
   }
 
   revalidateRecord(customerId.data);
@@ -314,32 +354,42 @@ export async function renewCertificateAction(
 ): Promise<RecordFormState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
   const fields = renewalForm.safeParse({
-    type: String(formData.get("type") ?? ""),
-    validUntil: String(formData.get("validUntil") ?? ""),
+    certificateType: String(formData.get("certificateType") ?? ""),
+    certificateValidUntil: String(formData.get("certificateValidUntil") ?? ""),
   });
   if (!customerId.success) {
     return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
   }
   if (!fields.success) {
+    // The schema's own answer, not the blanket „Kein gültiges Datum.“ this used to return whatever
+    // `calendarDay` had actually said — telling somebody who typed nothing that their *format* is
+    // wrong is the mistake ADR-013 is about. Both fields are `required`, so the browser stops a
+    // blank one before it gets here and only the unreadable branch is reachable through the UI; the
+    // distinction is kept because it costs nothing and the guard is the browser's, not a rule.
     return {
+      ...fieldRefusals(fields.error, de.distribution.certificate.renewal.errors.unknown),
       status: "error",
-      message: de.distribution.certificate.renewal.errors.notADate,
-      tier: "refusal",
     };
   }
 
   try {
     await renewCertificate(customerDeps, {
       customerId: customerId.data,
-      type: fields.data.type,
-      validUntil: fields.data.validUntil,
+      type: fields.data.certificateType,
+      validUntil: fields.data.certificateValidUntil,
     });
   } catch (error: unknown) {
+    // Two refusals with words of their own — the renewal speaks the counter's dictionary, not the
+    // record's — but the *fields* they name are the shared ones, so the mark comes from the same
+    // place every other screen's does.
+    const field = customerErrorField(error);
+    const marks = field === null ? {} : { fields: [field] };
     if (error instanceof CertificateValidUntilInPast) {
       return {
         status: "error",
         message: de.distribution.certificate.renewal.errors.validUntilInPast,
         tier: tierOf(error),
+        ...marks,
       };
     }
     if (error instanceof MissingRequiredField) {
@@ -347,6 +397,7 @@ export async function renewCertificateAction(
         status: "error",
         message: de.customers.errors.missingField(customerFieldLabel(error.field)),
         tier: tierOf(error),
+        ...marks,
       };
     }
     return {

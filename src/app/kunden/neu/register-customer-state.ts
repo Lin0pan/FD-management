@@ -9,26 +9,8 @@
  * only thing the form ever gets back is a rejection.
  */
 
+import type { FieldRefusal } from "../../field-refusal";
 import type { NoticeTier } from "../../notice-tier";
-
-/**
- * One field a refusal names, and what is wrong with it.
- *
- * The **form's** path, not the domain's: the domain says `address.street` and
- * `certificate.validUntil`, an HTML form calls those `street` and `certificateValidUntil`, and what
- * the browser can mark is an input. Translating one into the other is the action's job
- * (`registration-input.ts`), exactly as it already is for the sentence. Household rows keep the
- * spelling both sides share — `householdMembers.1.birthDate`.
- */
-export interface FieldRefusal {
-  readonly path: string;
-  /**
-   * The few words shown under the control. Short on purpose: the field it belongs to is directly
-   * above it, so it says what is wrong and not which field — that is the summary's job, which is
-   * read by the button, far from the field it names.
-   */
-  readonly problem: string;
-}
 
 /** What the form shows after a submission. `idle` is the state before anything was sent. */
 export interface RegisterCustomerState {
@@ -46,11 +28,12 @@ export interface RegisterCustomerState {
    * The fields the refusal names, where it names any, so the form can mark each one and put the
    * words beside it.
    *
-   * **Plural**, unlike `/einstellungen`'s single `field`, because the two forms fail differently:
-   * this one carries a day field per household member, so „drei Geburtsdaten fehlen“ is the
-   * ordinary case and correcting it one round trip per field is not. The schema reports every field
-   * it refuses at once; a domain refusal still names at most one, because the use case stops at the
-   * first rule broken.
+   * **Plural**, because this form carries a day field per household member: „drei Geburtsdaten
+   * fehlen“ is the ordinary case and correcting it one round trip per field is not. The schema
+   * reports every field it refuses at once; a domain refusal still names at most one, because the
+   * use case stops at the first rule broken. Every screen in the app now carries the list — the
+   * settings form used to carry a single `field` and report only the first issue with it, which was
+   * the same shortcut on a form where several fields can be wrong at once.
    *
    * Absent on the refusals that name no field — an empty household is a statement about the whole
    * table, and a full register about none of it. Those stay a summary by the button, and mark

@@ -20,7 +20,7 @@
  * carries the change into their household row in the same write (`replaceHouseholdMember`).
  */
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { parseCalendarDay } from "@/domain/calendarDay";
 import { DateInput } from "@/components/ui/date-input";
@@ -38,9 +38,12 @@ import { formatEuros } from "@/domain/money";
 import { portionsFor, type PortionValues } from "@/domain/policy/portions";
 import { priceFor, type PriceValues } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
+import { useFocusFirstRefusal } from "../../field-mark";
+import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
 import { Stat } from "../../stat";
+import { ROW_TEXT } from "../household-row";
 import { updateHouseholdAction } from "./actions";
-import { FormFooter, SaveButton, SaveFeedback } from "./record-forms";
+import { FormFooter, RecordRejection, SaveButton, SaveFeedback } from "./record-forms";
 import { initialRecordFormState } from "./record-state";
 
 /** A household row as the form holds it: the raw strings, exactly as they were typed. */
@@ -99,6 +102,77 @@ function derived(
   }
 }
 
+/**
+ * One cell of the household table: the control, and the mark under it when that field was refused.
+ *
+ * Three fields repeating per member is tabular data, so the field names are said once in the column
+ * headings — but a column heading names a column and not a cell, so each input keeps the string its
+ * visible label used to carry as `aria-label` and nothing a screen reader hears is lost.
+ *
+ * The cells are top-aligned: a mark makes one cell taller than its neighbours, and without it the
+ * controls in a refused row would sit at three different heights. That is why the row number and the
+ * age beside them wear `ROW_TEXT` — top-aligning takes away the centring a `TableCell` does for
+ * itself, and static text has to be given the control's box back to stay on its line.
+ *
+ * `name` and the path both come from `field-refusal.ts` rather than being spelled here, because the
+ * registration's household table submits the same three repeated inputs through the same
+ * `householdRows`. A second spelling is how a refusal starts marking the right row on one screen and
+ * no row on the other, with nothing failing.
+ */
+function MemberCell({
+  index,
+  part,
+  testId,
+  value,
+  onChange,
+  problem,
+}: {
+  index: number;
+  part: MemberPart;
+  testId: string;
+  value: string;
+  onChange: (value: string) => void;
+  problem: string | null;
+}): React.ReactElement {
+  const name = MEMBER_INPUT[part];
+  // Not `useId`: the mark's `aria-describedby` has to name an element, and a stable id per row and
+  // part is both readable in a snapshot and unique on a page that carries only one of these tables.
+  const id = `record-${name}-${index}`;
+  const label = `${de.customers.new.memberRow(index + 1)} — ${de.customers.fields[part]}`;
+  const marks = marking(memberPath(index, part), id, problem);
+
+  return (
+    <TableCell className="align-top">
+      <div className="flex flex-col gap-1">
+        {part === "birthDate" ? (
+          <DateInput
+            name={name}
+            id={id}
+            data-testid={testId}
+            aria-label={label}
+            placeholder={de.day.placeholder}
+            value={value}
+            onChange={onChange}
+            {...marks}
+          />
+        ) : (
+          <Input
+            type="text"
+            name={name}
+            id={id}
+            data-testid={testId}
+            aria-label={label}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            {...marks}
+          />
+        )}
+        {problem === null ? null : <RecordRejection id={id} problem={problem} />}
+      </div>
+    </TableCell>
+  );
+}
+
 export function HouseholdEditor({
   customerId,
   members,
@@ -117,16 +191,23 @@ export function HouseholdEditor({
     initialRecordFormState,
   );
   const [rows, setRows] = useState<ReadonlyArray<MemberRow>>(members);
+  const form = useRef<HTMLFormElement>(null);
 
   const figures = derived(rows, today, policy);
   const unknown = de.customers.derived.unknown;
+
+  const fields = state.status === "error" ? state.fields : undefined;
+  const problem = (path: string): string | null => problemAt(fields, path);
+  // Scoped to this form: the record renders eight of them on one page, and a refusal here must not
+  // be able to put the cursor in another form's control.
+  useFocusFirstRefusal(fields, form);
 
   function updateRow(index: number, patch: Partial<MemberRow>): void {
     setRows(rows.map((row, position) => (position === index ? { ...row, ...patch } : row)));
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-4">
+    <form ref={form} action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="customerId" value={customerId} />
 
       {/* The four figures the household section exists to produce, at the rank the counter gives
@@ -179,45 +260,41 @@ export function HouseholdEditor({
               // Rows are addressed by position: two members can share a name and a birthdate, and a
               // row has no identity of its own.
               <TableRow key={index} data-testid="household-member" className="hover:bg-transparent">
-                <TableCell className="text-muted-foreground tabular-nums">{index + 1}</TableCell>
-                {/* Each input keeps the string its visible label used to carry as `aria-label`: a
-                    column heading names a column, not a cell. */}
-                <TableCell>
-                  <Input
-                    type="text"
-                    name="memberFirstName"
-                    data-testid={`member-first-name-${index}`}
-                    aria-label={`${de.customers.new.memberRow(index + 1)} — ${de.customers.fields.firstName}`}
-                    value={row.firstName}
-                    onChange={(event) => updateRow(index, { firstName: event.target.value })}
-                  />
+                <TableCell className="align-top text-muted-foreground tabular-nums">
+                  <div className={ROW_TEXT}>{index + 1}</div>
                 </TableCell>
-                <TableCell>
-                  <Input
-                    type="text"
-                    name="memberLastName"
-                    data-testid={`member-last-name-${index}`}
-                    aria-label={`${de.customers.new.memberRow(index + 1)} — ${de.customers.fields.lastName}`}
-                    value={row.lastName}
-                    onChange={(event) => updateRow(index, { lastName: event.target.value })}
-                  />
-                </TableCell>
-                <TableCell>
-                  <DateInput
-                    name="memberBirthDate"
-                    data-testid={`member-birth-date-${index}`}
-                    aria-label={`${de.customers.new.memberRow(index + 1)} — ${de.customers.fields.birthDate}`}
-                    placeholder={de.day.placeholder}
-                    value={row.birthDate}
-                    onChange={(birthDate) => updateRow(index, { birthDate })}
-                  />
-                </TableCell>
+                <MemberCell
+                  index={index}
+                  part="firstName"
+                  testId={`member-first-name-${index}`}
+                  value={row.firstName}
+                  onChange={(firstName) => updateRow(index, { firstName })}
+                  problem={problem(memberPath(index, "firstName"))}
+                />
+                <MemberCell
+                  index={index}
+                  part="lastName"
+                  testId={`member-last-name-${index}`}
+                  value={row.lastName}
+                  onChange={(lastName) => updateRow(index, { lastName })}
+                  problem={problem(memberPath(index, "lastName"))}
+                />
+                <MemberCell
+                  index={index}
+                  part="birthDate"
+                  testId={`member-birth-date-${index}`}
+                  value={row.birthDate}
+                  onChange={(birthDate) => updateRow(index, { birthDate })}
+                  problem={problem(memberPath(index, "birthDate"))}
+                />
                 {/* Derived from the date in the field beside it, so the 13-year boundary follows a
                     correction immediately and a reissue can be anticipated (PRD §6). */}
-                <TableCell className="whitespace-nowrap tabular-nums">
-                  {day === null ? "—" : de.customers.card.memberAge(ageInYears(day, today))}
+                <TableCell className="align-top whitespace-nowrap tabular-nums">
+                  <div className={ROW_TEXT}>
+                    {day === null ? "—" : de.customers.card.memberAge(ageInYears(day, today))}
+                  </div>
                 </TableCell>
-                <TableCell>
+                <TableCell className="align-top">
                   <Button
                     type="button"
                     variant="ghost"

@@ -27,7 +27,7 @@ import {
 } from "@/domain/errors";
 import { customerFieldLabel, de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
-import { calendarDay } from "../kunden/neu/registration-input";
+import { calendarDay, customerErrorField, fieldRefusals } from "../kunden/neu/registration-input";
 import { tierOf } from "../notice-tier";
 import { waitingListDeps } from "./deps";
 import { REMOVED } from "./removed-flag";
@@ -84,13 +84,22 @@ export async function addApplicantAction(
   previous: AddApplicantState,
   formData: FormData,
 ): Promise<AddApplicantState> {
+  // The one thing a refusal carries over from the last submission, and it is carried by name rather
+  // than by spreading `previous`. A spread looks equivalent and is not: a refusal that names no
+  // field sets no `fields`, so the marks from the *previous* refusal would ride through it and go on
+  // reddening boxes the current answer says nothing about.
+  const saved = { savedCount: previous.savedCount };
+
   const parsed = applicationForm.safeParse(applicationValues(formData));
   if (!parsed.success) {
+    // Every refused field, not the first. This form asks for two days — the applicant's birthdate
+    // and the day their certificate runs to — and `calendarDay` names neither, because the same
+    // three lines read both. „Datum fehlt.“ by the button was the answer to whichever came first in
+    // the schema, and staff had no way to tell which box it meant.
     return {
-      ...previous,
+      ...saved,
+      ...fieldRefusals(parsed.error, de.waitingList.errors.unknown),
       status: "error",
-      message: parsed.error.issues[0].message,
-      tier: "refusal",
     };
   }
   const form = parsed.data;
@@ -112,30 +121,34 @@ export async function addApplicantAction(
   } catch (error: unknown) {
     if (error instanceof CertificateExpired) {
       return {
-        ...previous,
+        ...saved,
         status: "error",
         message: de.waitingList.errors.certificateExpired(germanDate(error.validUntil)),
         tier: tierOf(error),
       };
     }
     if (error instanceof MissingRequiredField) {
+      // The sentence is this screen's, the mark is the shared one: nine of the ten inputs here are
+      // spelled exactly as the registration spells them, so a blank ZIP names the same box on both.
+      const field = customerErrorField(error);
       return {
-        ...previous,
+        ...saved,
         status: "error",
         message: de.customers.errors.missingField(customerFieldLabel(error.field)),
         tier: tierOf(error),
+        ...(field === null ? {} : { fields: [field] }),
       };
     }
     if (error instanceof BirthDateInFuture) {
       return {
-        ...previous,
+        ...saved,
         status: "error",
         message: de.customers.errors.birthDateInFuture,
         tier: tierOf(error),
       };
     }
     return {
-      ...previous,
+      ...saved,
       status: "error",
       message: de.waitingList.errors.unknown,
       tier: tierOf(error),

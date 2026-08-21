@@ -24,7 +24,7 @@
  */
 
 import Link from "next/link";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useState } from "react";
 import type { RegistrationProposal } from "@/application/customers/propose-registration";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -53,8 +53,11 @@ import { GROUPS } from "@/domain/customer/group";
 import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { GROUP_STYLES } from "../../accents";
+import { FieldRejection, useFocusFirstRefusal } from "../../field-mark";
+import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
 import { selectClass } from "../../select";
 import { Stat } from "../../stat";
+import { ROW_TEXT } from "../household-row";
 import { Notice } from "../../notice";
 import { submitRegistration } from "./actions";
 import type { PrefillDraft } from "./archive-search-state";
@@ -153,56 +156,13 @@ function derivedCounts(
 }
 
 /**
- * The words under a refused control — „Datum fehlt.“, „Pflichtfeld.“ — and the id that ties them to
- * it.
+ * The words under a refused control on this screen, at this screen's test id.
  *
- * The summary by the button is 1 600px from the first field it can name, measured, which is what
- * made a refused registration a hunt for the box. This is the other end of that: the words at the
- * field, with the reddened label and the `aria-invalid` border pointing at it, and
- * `aria-describedby` so a screen reader reads the two together rather than leaving the sentence to
- * be found by eye.
- *
- * Unlike `/einstellungen`'s equivalent it renders the refusal's **own** sentence rather than one
- * generic „Ungültiger Wert.“: on this screen the distinction between a day left blank and a day
- * nobody can read is the thing worth saying, and saying it is what ADR-013 is about.
- *
- * The test id stays off the summary, which keeps `registration-error` — several specs assert that
+ * The id stays off the summary, which keeps `registration-error` — several specs assert that
  * element's exact text, and one of them per screen is what keeps the assertion unambiguous.
  */
-function FieldRejection({ id, problem }: { id: string; problem: string }): React.ReactElement {
-  return (
-    <p
-      id={`${id}-error`}
-      data-testid="registration-field-error"
-      className="text-sm text-destructive"
-    >
-      {problem}
-    </p>
-  );
-}
-
-/**
- * What a refused control carries: the mark's id to be described by, the invalid state, and the path
- * the action named it with.
- *
- * `data-field` is that path — `street`, `householdMembers.1.birthDate` — and it is on the control so
- * that the form can find the first refused field again without rebuilding an id from a path. The
- * household's three inputs share a `name` and are told apart by `id`, so a path is the only name
- * both sides of the round trip agree on.
- */
-function marking(
-  path: string,
-  id: string,
-  problem: string | null,
-): {
-  "data-field": string;
-  "aria-invalid"?: true;
-  "aria-describedby"?: string;
-} {
-  return {
-    "data-field": path,
-    ...(problem === null ? {} : { "aria-invalid": true, "aria-describedby": `${id}-error` }),
-  };
+function Rejection({ id, problem }: { id: string; problem: string }): React.ReactElement {
+  return <FieldRejection id={id} problem={problem} testId="registration-field-error" />;
 }
 
 /**
@@ -263,23 +223,9 @@ function Field({
           {...marks}
         />
       )}
-      {problem === null ? null : <FieldRejection id={name} problem={problem} />}
+      {problem === null ? null : <Rejection id={name} problem={problem} />}
     </div>
   );
-}
-
-/** The three parts of a household row, and the `name` each of their inputs carries. */
-const MEMBER_INPUT = {
-  firstName: "memberFirstName",
-  lastName: "memberLastName",
-  birthDate: "memberBirthDate",
-} as const;
-
-type MemberPart = keyof typeof MEMBER_INPUT;
-
-/** How a household field is named on the wire — the spelling the domain and the schema share. */
-function memberPath(index: number, part: MemberPart): string {
-  return `householdMembers.${index}.${part}`;
 }
 
 /**
@@ -334,7 +280,7 @@ function MemberCell({
             {...marks}
           />
         )}
-        {problem === null ? null : <FieldRejection id={id} problem={problem} />}
+        {problem === null ? null : <Rejection id={id} problem={problem} />}
       </div>
     </TableCell>
   );
@@ -398,18 +344,6 @@ const SELECT = selectClass("h-8");
 /** The household as the form starts out: the archived one if there is a draft, otherwise one blank row. */
 function initialRows(draft: PrefillDraft | null): ReadonlyArray<MemberRow> {
   return draft === null ? [EMPTY_ROW] : draft.householdMembers.map((member) => ({ ...member }));
-}
-
-/**
- * The words to show under one field, or `null` while the last submission said nothing about it.
- *
- * Matched on the path the action named, never on the sentence: a tier read back out of German is
- * a tier that changes when somebody fixes a comma (`notice-tier.ts`), and a *field* read back out
- * of one is worse — it would unmark a field the first time a label was reworded, with nothing
- * failing anywhere.
- */
-function problemAt(state: RegisterCustomerState, path: string): string | null {
-  return state.fields?.find((field) => field.path === path)?.problem ?? null;
 }
 
 export function RegistrationForm({
@@ -479,28 +413,11 @@ export function RegistrationForm({
   // fresh pool arrives in and there is no effect that could show a dead number for a frame.
   const chosen = picked !== null && freeNumbers.includes(picked) ? picked : (freeNumbers[0] ?? "");
 
-  /**
-   * Put the cursor in the first field the refusal named.
-   *
-   * The summary sits by the button and the field it names may be the whole form above it, so
-   * without this a refusal is read and then hunted for. Focusing scrolls it into view and says
-   * „hier“ in one gesture — the same move the screen makes after an archive pre-fill
-   * (`registration-screen.tsx`), for the same reason.
-   *
-   * Keyed on the whole state, because `useActionState` hands back a fresh object per submission:
-   * refusing the same field twice in a row still moves the cursor, which is what says the second
-   * attempt was read at all. The control is found by the path the action named it with rather than
-   * by a rebuilt id — see {@link marking}.
-   */
-  useEffect(() => {
-    const first = state.fields?.[0];
-    if (first === undefined) {
-      return;
-    }
-    document.querySelector<HTMLElement>(`[data-field="${first.path}"]`)?.focus();
-  }, [state]);
+  // One form on this screen, so the whole document is the right place to look for the control the
+  // refusal named — see `useFocusFirstRefusal` for the screens where it is not.
+  useFocusFirstRefusal(state.fields);
 
-  const problem = (path: string): string | null => problemAt(state, path);
+  const problem = (path: string): string | null => problemAt(state.fields, path);
   // Read once rather than three times: the number's control, its label and its mark are written out
   // by hand here — it is a `<select>` in a two-row subgrid rather than one of `Field`'s boxes.
   const numberProblem = problem("customerNumber");
@@ -688,7 +605,7 @@ export function RegistrationForm({
               // row has no identity of its own until it is saved.
               <TableRow key={index} data-testid="household-row" className="hover:bg-transparent">
                 <TableCell className="align-top text-muted-foreground tabular-nums">
-                  {index + 1}
+                  <div className={ROW_TEXT}>{index + 1}</div>
                 </TableCell>
                 <MemberCell
                   index={index}
@@ -826,7 +743,7 @@ export function RegistrationForm({
                 ))}
               </select>
               {numberProblem === null ? null : (
-                <FieldRejection id="customerNumber" problem={numberProblem} />
+                <Rejection id="customerNumber" problem={numberProblem} />
               )}
               {/* No hint on a full register: „0 freie Nummern — die niedrigste ist vorausgewählt“
                   would be a sentence about a preselection that does not exist. The `Alert` at the

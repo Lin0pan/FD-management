@@ -255,6 +255,19 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   that names **no** field carries none, and marks nothing: a quota below the active customer count is
   a collision between two numbers, and marking one of them would call a value malformed that is only
   too small.
+  - **The mechanism is `src/app/field-refusal.ts` and `src/app/field-mark.tsx`** — `FieldRefusal`,
+    `marking()`, `problemAt()`, `summarise()`, `FieldRejection` and `useFocusFirstRefusal`. Do not
+    write a second one. It existed twice, in two shapes, and that is precisely why three further
+    screens shipped with no marks at all: there was nothing to reuse and nowhere obvious to look.
+  - **Report every field the schema refused, not the first.** A form with a day per household
+    member fails in three places at once, and one round trip per field is how an intake takes five
+    submissions. A _domain_ refusal still names at most one, because a use case stops at the first
+    rule broken — that asymmetry is honest, not a gap.
+  - **The summary names the fields; the marks carry the problems.** Never the other way round: on a
+    screen with three money boxes, „Kein gültiger Betrag." by the button names none of them, while
+    the mark that knows which box it sits under would be saying nothing worth reading.
+  - **Put the cursor in the first field named.** The summary is by the button and the field may be
+    the whole form above it — 442px on `/einstellungen`, 1 600px on the registration, measured.
 - Server action shape: `"use server"` actions in `*-actions.ts`, the state as a discriminated union
   (`idle | <success> | error` with a `tier`) in a sibling `*-state.ts`, the form a plain
   `<form action={…}>` with `useActionState`. Actions validate with Zod, call **one** use case, and

@@ -535,7 +535,7 @@ test.describe("Kundenaufnahme", () => {
     await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
 
     await expect(page.getByTestId("registration-error")).toHaveText(
-      de.customers.errors.fieldProblem(
+      de.forms.fieldProblem(
         de.customers.fields.certificateValidUntil,
         de.customers.errors.dateMissing,
       ),
@@ -601,7 +601,7 @@ test.describe("Kundenaufnahme", () => {
     // Both, in the order the form reads them. Reporting only the first would have staff correct one
     // field per submission — five round trips for a household of three.
     await expect(page.getByTestId("registration-error")).toHaveText(
-      de.customers.errors.severalFieldProblems([
+      de.forms.severalFieldProblems([
         de.customers.fields.certificateValidUntil,
         `${de.customers.new.memberRow(2)}: ${de.customers.fields.birthDate}`,
       ]),

@@ -8,7 +8,7 @@
  * shows come from the server, and every constraint on them is checked in the domain.
  */
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,8 @@ import { de } from "@/i18n/de";
 import { saveSettings } from "./actions";
 import { initialSaveSettingsState } from "./save-settings-state";
 import type { SaveSettingsState, SubmittedSettings } from "./save-settings-state";
+import { FieldRejection, useFocusFirstRefusal } from "../field-mark";
+import { marking, problemAt, type FieldRefusal } from "../field-refusal";
 import { Notice } from "../notice";
 import { selectClass } from "../select";
 
@@ -57,17 +59,9 @@ const CONTROL_HEIGHT = "h-9";
 /** The three selects, at this screen's control height. */
 const SELECT = selectClass(CONTROL_HEIGHT);
 
-/**
- * Whether a rejection names this field.
- *
- * `state.field` is the input's own `name`, put there by the action from the typed error
- * (`actions.ts`). This used to read the field back out of the finished German sentence, by comparing
- * `state.message` against `invalidSettings(<label>)` — its own comment called that deliberately
- * temporary, and it was: the match held only while the eight labels stayed distinct, so the first
- * reworded label would have quietly stopped marking a field with nothing failing anywhere.
- */
-function rejects(state: SaveSettingsState, name: string): boolean {
-  return state.status === "error" && state.field === name;
+/** The fields the last submission refused, or nothing while it refused none. */
+function refusedFields(state: SaveSettingsState): ReadonlyArray<FieldRefusal> | undefined {
+  return state.status === "error" ? state.fields : undefined;
 }
 
 /**
@@ -75,7 +69,7 @@ function rejects(state: SaveSettingsState, name: string): boolean {
  *
  * `<label htmlFor>` + `id` rather than the old nested `<label><span>`, which worked only by nesting
  * and left the accessibility snapshot with unnamed textboxes. The ids are the field names: four of
- * them are load-bearing (§7.2) and there is one form on this page, so there is nothing for `useId`
+ * them are load-bearing (§7) and there is one form on this page, so there is nothing for `useId`
  * to disambiguate.
  *
  * Exactly two children, always — the label and one control — because the two rows of `FIELD_ROWS`
@@ -86,55 +80,42 @@ function Field({
   name,
   label,
   span,
-  invalid,
+  problem,
   children,
 }: {
   name: string;
   label: string;
   /** Columns of twelve at `lg`. Below that the grid collapses and the span stops applying. */
   span: string;
-  invalid: boolean;
+  /** The words to show under the control, or `null` while nothing is wrong with it. */
+  problem: string | null;
   children: React.ReactNode;
 }): React.ReactElement {
   return (
     <div className={`${FIELD_ROWS} ${span}`}>
       <label
         htmlFor={name}
-        className={`self-start text-sm font-medium ${invalid ? "text-destructive" : ""}`.trimEnd()}
+        className={`self-start text-sm font-medium ${problem === null ? "" : "text-destructive"}`.trimEnd()}
       >
         {label}
       </label>
-      {invalid ? (
+      {problem === null ? (
+        children
+      ) : (
         // One grid row, two elements: the mark rides under the control rather than beside it, so
         // the subgrid still sees a single row and the labels above stay on one baseline.
+        //
+        // The mark carries the refusal's **own** words — „Keine ganze Zahl.“, „Kein gültiger
+        // Betrag.“ — where it used to carry one generic „Ungültiger Wert.“ while the summary
+        // carried the specific sentence. That was the two facts the wrong way round: with three
+        // money boxes on this screen, „Kein gültiger Betrag.“ by the button named none of them,
+        // and the mark that did know which box it sat under said nothing worth reading.
         <div className="flex flex-col gap-1">
           {children}
-          <FieldRejection name={name} />
+          <FieldRejection id={name} problem={problem} testId="settings-field-error" />
         </div>
-      ) : (
-        children
       )}
     </div>
-  );
-}
-
-/**
- * The mark under a rejected input.
- *
- * The summary notice by the button is 442px from the field it names, measured, which is what made a
- * rejected save a hunt. This is the other end of that: the words at the field, the
- * `aria-invalid` border and the reddened label pointing at it, and `aria-describedby` so a screen
- * reader reads the two together instead of leaving the sentence to be found by eye.
- *
- * It carries no `settings-error` test id. That one stays on the summary, which is the element
- * holding the sentence naming the field — `settings.spec.ts` asserts its exact text, and one
- * `settings-error` per screen is what keeps that assertion unambiguous (§7.5).
- */
-function FieldRejection({ name }: { name: string }): React.ReactElement {
-  return (
-    <p id={`${name}-error`} data-testid="settings-field-error" className="text-sm text-destructive">
-      {de.settings.errors.invalidValue}
-    </p>
   );
 }
 
@@ -163,17 +144,17 @@ function NumberField({
   label,
   span,
   value,
-  invalid,
+  problem,
 }: {
   name: string;
   label: string;
   span: string;
   /** Already a string, because a refused save shows back what was typed — see {@link shownValue}. */
   value: string;
-  invalid: boolean;
+  problem: string | null;
 }): React.ReactElement {
   return (
-    <Field name={name} label={label} span={span} invalid={invalid}>
+    <Field name={name} label={label} span={span} problem={problem}>
       <Input
         className={`${CONTROL_HEIGHT} tabular-nums`}
         type="number"
@@ -182,8 +163,7 @@ function NumberField({
         name={name}
         id={name}
         defaultValue={value}
-        aria-invalid={invalid ? true : undefined}
-        aria-describedby={invalid ? `${name}-error` : undefined}
+        {...marking(name, name, problem)}
       />
     </Field>
   );
@@ -195,7 +175,7 @@ function EuroField({
   label,
   span,
   value,
-  invalid,
+  problem,
   describedBy,
 }: {
   name: string;
@@ -203,18 +183,20 @@ function EuroField({
   span: string;
   /** Already formatted, or the text that was refused — see {@link shownValue}. */
   value: string;
-  invalid: boolean;
+  problem: string | null;
   /** The id of a hint this field is explained by, where one explains this field in particular. */
   describedBy?: string;
 }): React.ReactElement {
   // A rejected field's mark and its hint are both read out, in that order, and neither replaces the
-  // other: the mark says the value is wrong, the hint says what the field means.
-  const described = [describedBy, invalid ? `${name}-error` : undefined]
+  // other: the mark says the value is wrong, the hint says what the field means. `marking` writes
+  // the mark's id, so the hint is prepended to whatever it produced rather than replacing it.
+  const marks = marking(name, name, problem);
+  const described = [describedBy, marks["aria-describedby"]]
     .filter((id): id is string => id !== undefined)
     .join(" ");
 
   return (
-    <Field name={name} label={label} span={span} invalid={invalid}>
+    <Field name={name} label={label} span={span} problem={problem}>
       <Input
         className={`${CONTROL_HEIGHT} tabular-nums`}
         // Stays text, not `type=number`: a German decimal comma is what staff type, and a number
@@ -224,7 +206,7 @@ function EuroField({
         name={name}
         id={name}
         defaultValue={value}
-        aria-invalid={invalid ? true : undefined}
+        {...marks}
         aria-describedby={described === "" ? undefined : described}
       />
     </Field>
@@ -275,12 +257,18 @@ function shownValue(
 
 export function SettingsForm({ settings }: { settings: Settings }): React.ReactElement {
   const [state, formAction, pending] = useActionState(saveSettings, initialSaveSettingsState);
-  const invalid = (name: string): boolean => rejects(state, name);
+  const form = useRef<HTMLFormElement>(null);
+
+  const fields = refusedFields(state);
+  const problem = (name: string): string | null => problemAt(fields, name);
+  // New here: a refusal used to be stated by the button and left to be found. The first field it
+  // names is 442px above that sentence, measured — further once several are named at once.
+  useFocusFirstRefusal(fields, form);
   const shown = (name: keyof SubmittedSettings, stored: string): string =>
     shownValue(state, name, stored);
 
   return (
-    <form action={formAction} className="flex flex-col gap-6">
+    <form ref={form} action={formAction} className="flex flex-col gap-6">
       <Section heading={de.settings.amountsHeading}>
         <div className={GRID}>
           <NumberField
@@ -288,35 +276,35 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
             label={de.settings.fields.quotaN}
             span="lg:col-span-2"
             value={shown("quotaN", String(settings.quotaN))}
-            invalid={invalid("quotaN")}
+            problem={problem("quotaN")}
           />
           <NumberField
             name="portionsPerGrownUp"
             label={de.settings.fields.portionsPerGrownUp}
             span="lg:col-span-2"
             value={shown("portionsPerGrownUp", String(settings.portionsPerGrownUp))}
-            invalid={invalid("portionsPerGrownUp")}
+            problem={problem("portionsPerGrownUp")}
           />
           <NumberField
             name="portionsPerChild"
             label={de.settings.fields.portionsPerChild}
             span="lg:col-span-2"
             value={shown("portionsPerChild", String(settings.portionsPerChild))}
-            invalid={invalid("portionsPerChild")}
+            problem={problem("portionsPerChild")}
           />
           <EuroField
             name="pricePerGrownUp"
             label={de.settings.fields.pricePerGrownUp}
             span="lg:col-span-2"
             value={shown("pricePerGrownUp", formatEuroAmount(settings.pricePerGrownUp))}
-            invalid={invalid("pricePerGrownUp")}
+            problem={problem("pricePerGrownUp")}
           />
           <EuroField
             name="pricePerChild"
             label={de.settings.fields.pricePerChild}
             span="lg:col-span-2"
             value={shown("pricePerChild", formatEuroAmount(settings.pricePerChild))}
-            invalid={invalid("pricePerChild")}
+            problem={problem("pricePerChild")}
           />
           <EuroField
             name="priceCap"
@@ -324,7 +312,7 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
             span="lg:col-span-2"
             // Empty is a configuration here, not an unfilled field — see {@link capValue}.
             value={shown("priceCap", capValue(settings.priceCap))}
-            invalid={invalid("priceCap")}
+            problem={problem("priceCap")}
             // The one field on the screen whose *empty* state means something, so the sentence
             // saying what that is has to reach it. A sibling paragraph with `aria-describedby`
             // rather than a `<span>` inside the label: nested, it is concatenated into the
@@ -343,7 +331,7 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
             name="weekAnchorIsoWeek"
             label={de.settings.fields.weekAnchorIsoWeek}
             span="lg:col-span-3"
-            invalid={invalid("weekAnchorIsoWeek")}
+            problem={problem("weekAnchorIsoWeek")}
           >
             <Input
               className={`${CONTROL_HEIGHT} tabular-nums`}
@@ -351,17 +339,14 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
               name="weekAnchorIsoWeek"
               id="weekAnchorIsoWeek"
               defaultValue={shown("weekAnchorIsoWeek", settings.weekAnchor.isoWeek)}
-              aria-invalid={invalid("weekAnchorIsoWeek") ? true : undefined}
-              aria-describedby={
-                invalid("weekAnchorIsoWeek") ? "weekAnchorIsoWeek-error" : undefined
-              }
+              {...marking("weekAnchorIsoWeek", "weekAnchorIsoWeek", problem("weekAnchorIsoWeek"))}
             />
           </Field>
           <Field
             name="weekAnchorColour"
             label={de.settings.fields.weekAnchorColour}
             span="lg:col-span-3"
-            invalid={invalid("weekAnchorColour")}
+            problem={problem("weekAnchorColour")}
           >
             {/*
               No red or blue on this control. Here the group is a value being chosen, not a
@@ -373,8 +358,7 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
               name="weekAnchorColour"
               id="weekAnchorColour"
               defaultValue={shown("weekAnchorColour", settings.weekAnchor.colour)}
-              aria-invalid={invalid("weekAnchorColour") ? true : undefined}
-              aria-describedby={invalid("weekAnchorColour") ? "weekAnchorColour-error" : undefined}
+              {...marking("weekAnchorColour", "weekAnchorColour", problem("weekAnchorColour"))}
             >
               {COLOURS.map((colour) => (
                 <option key={colour} value={colour}>
@@ -387,17 +371,18 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
             name="distributionWeekday"
             label={de.settings.fields.distributionWeekday}
             span="lg:col-span-3"
-            invalid={invalid("distributionWeekday")}
+            problem={problem("distributionWeekday")}
           >
             <select
               className={SELECT}
               name="distributionWeekday"
               id="distributionWeekday"
               defaultValue={shown("distributionWeekday", String(settings.distributionWeekday))}
-              aria-invalid={invalid("distributionWeekday") ? true : undefined}
-              aria-describedby={
-                invalid("distributionWeekday") ? "distributionWeekday-error" : undefined
-              }
+              {...marking(
+                "distributionWeekday",
+                "distributionWeekday",
+                problem("distributionWeekday"),
+              )}
             >
               {WEEKDAYS.map((weekday) => (
                 <option key={weekday} value={weekday}>
@@ -411,7 +396,7 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
 
       <Section heading={de.settings.changeHeading}>
         <div className={GRID}>
-          <Field name="reason" label={de.settings.reason} span="lg:col-span-12" invalid={false}>
+          <Field name="reason" label={de.settings.reason} span="lg:col-span-12" problem={null}>
             <div className="flex flex-col gap-1.5">
               <Input
                 className={CONTROL_HEIGHT}
