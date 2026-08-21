@@ -28,16 +28,22 @@ import {
   NotesTooLong,
   NoFreeCustomerNumber,
 } from "@/domain/errors";
-import { customerFieldLabel, de } from "@/i18n/de";
+import { customerFieldLabel, customerFormFieldLabel, de } from "@/i18n/de";
+import { type NoticeTier, tierOf } from "../../notice-tier";
 import type { PrefillDraft, PrefillMember } from "./archive-search-state";
+import type { FieldRefusal } from "./register-customer-state";
 
 /**
  * A calendar day as DF type it — `TT.MM.JJJJ` — read as the UTC day it names.
  *
- * The reading itself is `src/domain/calendarDay.ts`'s; this only turns its refusal into the sentence
- * the form shows. Two sentences, not one: a field left blank and a field nobody can read are
+ * The reading itself is `src/domain/calendarDay.ts`'s; this only turns its refusal into the words
+ * shown under the field. Two answers, not one: a field left blank and a field nobody can read are
  * different mistakes, and calling the first a *format* problem is what sent DF looking for a typo
  * that was never there (ADR-013).
+ *
+ * Like every message in this schema it names no field — it cannot, because the same three lines
+ * validate the customer's birthdate, the certificate's date and every household row's. The field is
+ * named once, from the issue's own path, in {@link fieldRefusals}.
  */
 export const calendarDay = z.string().transform((value, ctx): Date => {
   if (isBlankDay(value)) {
@@ -56,10 +62,7 @@ const group = z.string().transform((value, ctx) => {
   try {
     return parseGroup(value);
   } catch {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: de.customers.errors.missingField(de.customers.fields.group),
-    });
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: de.customers.errors.fieldRequired });
     return z.NEVER;
   }
 });
@@ -95,10 +98,7 @@ const previousCustomerId = z.string().transform((value, ctx): number | undefined
  */
 const customerNumber = z.string().transform((value, ctx): number => {
   if (!/^[1-9]\d*$/.test(value)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: de.customers.errors.missingField(de.customers.fields.customerNumber),
-    });
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: de.customers.errors.fieldRequired });
     return z.NEVER;
   }
   return Number(value);
@@ -176,6 +176,96 @@ export function registrationValues(formData: FormData): Record<string, unknown> 
 }
 
 /**
+ * The two fields the domain and the form spell differently, plus the four the domain nests.
+ *
+ * `CustomerDetails` groups the address and the certificate; an HTML form is flat and `<input name>`
+ * cannot be a path, so the form calls them `street` and `certificateType`. Household rows and the
+ * three personal fields are spelled the same on both sides and are not listed — the same shape
+ * `einstellungen/actions.ts` uses for the settings screen's two nested names, and for the same
+ * reason: what the browser can mark is an input.
+ */
+const DOMAIN_FIELD_PATH: Record<string, string | undefined> = {
+  "address.street": "street",
+  "address.houseNumber": "houseNumber",
+  "address.zip": "zip",
+  "address.city": "city",
+  "certificate.type": "certificateType",
+  "certificate.validUntil": "certificateValidUntil",
+};
+
+/**
+ * A refusal as both registration screens report it: the sentence by the button, the tier it is said
+ * in, and the fields to mark.
+ */
+export interface RegistrationRefusal {
+  readonly message: string;
+  readonly tier: NoticeTier;
+  readonly fields?: ReadonlyArray<FieldRefusal>;
+}
+
+/** A field to mark, or `null` where nothing on screen carries that path. */
+function fieldRefusal(path: string, problem: string): FieldRefusal | null {
+  return customerFormFieldLabel(path) === null ? null : { path, problem };
+}
+
+/**
+ * Everything the schema refused, in one answer.
+ *
+ * **Every** issue, not the first: the schema reads a day per household member alongside the
+ * customer's own and the certificate's, so a form filled in a hurry fails in three places at once
+ * and correcting it one round trip per field is how a registration takes five submissions. The
+ * domain still refuses one rule at a time — it stops at the first broken — and that asymmetry is
+ * honest: the schema checks every field independently, a use case checks a household.
+ *
+ * An issue on a field nobody can see is dropped, and if that is *all* of them the answer becomes the
+ * screen's last word at the `error` tier. The only such field is `previousCustomerId`, which the
+ * screen writes and nobody types: a value that is not a surrogate id there is a tampered request,
+ * not a mistyped one, and „Bitte das Feld „previousCustomerId“ prüfen“ would send staff looking for
+ * a box that does not exist (`docs/guideline/ui_styling_guide.md` §7).
+ */
+export function fieldRefusals(error: z.ZodError): RegistrationRefusal {
+  const fields = error.issues
+    .map((issue) => fieldRefusal(issue.path.join("."), issue.message))
+    .filter((refusal): refusal is FieldRefusal => refusal !== null);
+
+  if (fields.length === 0) {
+    return { message: de.customers.errors.unknown, tier: "error" };
+  }
+
+  const labels = fields.map((field) => customerFormFieldLabel(field.path) ?? field.path);
+  const message =
+    fields.length === 1
+      ? de.customers.errors.fieldProblem(labels[0], fields[0].problem)
+      : de.customers.errors.severalFieldProblems(labels);
+
+  return { message, tier: "refusal", fields };
+}
+
+/**
+ * The field a typed domain error names, or `null` where it names none.
+ *
+ * Three of the errors this layer knows are about one value staff typed, and three are not:
+ * `EmptyHousehold` is a statement about the whole table, `NoFreeCustomerNumber` about the register,
+ * and `BirthDateInFuture` carries only the date — it is raised for the customer's own birthdate and
+ * for every household row alike, and nothing on it says which. Naming that one needs the error to
+ * carry its row; until it does, it stays a summary that marks nothing rather than a mark that
+ * guesses.
+ */
+function customerErrorField(error: unknown): FieldRefusal | null {
+  if (error instanceof MissingRequiredField) {
+    const path = DOMAIN_FIELD_PATH[error.field] ?? error.field;
+    return fieldRefusal(path, de.customers.errors.fieldRequired);
+  }
+  if (error instanceof NotesTooLong) {
+    return fieldRefusal("notes", de.customers.errors.valueTooLong);
+  }
+  if (error instanceof CustomerNumberTaken || error instanceof CustomerNumberOutOfRange) {
+    return fieldRefusal("customerNumber", de.customers.errors.numberUnavailable);
+  }
+  return null;
+}
+
+/**
  * The German sentence for a typed domain error about *customer data*, or `null` for anything this
  * layer has no words for.
  *
@@ -217,6 +307,23 @@ export function customerErrorMessage(error: unknown): string | null {
 /** {@link customerErrorMessage} with the registration's own last word for anything unrecognised. */
 export function germanMessage(error: unknown): string {
   return customerErrorMessage(error) ?? de.customers.errors.unknown;
+}
+
+/**
+ * A thrown registration failure as the screen shows it — {@link germanMessage}, the tier decided
+ * from the typed error, and the field to mark where the error names one.
+ *
+ * The three travel together because they are one answer to one refusal, and both screens that save a
+ * registration need all three. Assembling them separately is how the sentence and the mark come to
+ * disagree about which field failed.
+ */
+export function germanRefusal(error: unknown): RegistrationRefusal {
+  const field = customerErrorField(error);
+  return {
+    message: germanMessage(error),
+    tier: tierOf(error),
+    ...(field === null ? {} : { fields: [field] }),
+  };
 }
 
 function toPrefillMember(member: RegistrationDraft["householdMembers"][number]): PrefillMember {

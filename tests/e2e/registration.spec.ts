@@ -3,9 +3,9 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { foldName } from "@/domain/customer/nameSearch";
-import { de } from "@/i18n/de";
+import { customerFieldLabel, de } from "@/i18n/de";
 import { SHARED } from "./registers";
-import { fillDay } from "./day";
+import { fillDay, fillSticky } from "./day";
 import { releaseNumbers } from "./seeding";
 
 /**
@@ -86,17 +86,44 @@ function person(lastName: string): Person {
   return { firstName: faker.person.firstName(), lastName };
 }
 
-/** Fill everything except the household — the part every spec here needs the same way. */
+/**
+ * Fill everything except the household — the part every spec here needs the same way.
+ *
+ * Every field on this form is controlled, so every fill goes through `fillSticky`: a `fill()` in the
+ * window between the server's HTML and hydration is written straight to the DOM, and the first
+ * render from state deletes it again. The fields are controlled because a refused save must not
+ * empty them (`registration-form.tsx`, `DetailsDraft`).
+ */
 async function fillPersonalData(page: Page, applicant: Person): Promise<void> {
-  await page.locator("#firstName").fill(applicant.firstName);
-  await page.locator("#lastName").fill(applicant.lastName);
+  await fillSticky(page.locator("#firstName"), applicant.firstName);
+  await fillSticky(page.locator("#lastName"), applicant.lastName);
   await fillDay(page.locator("#birthDate"), GROWN_UP_BIRTH_DATE);
-  await page.locator("#street").fill(faker.location.street());
-  await page.locator("#houseNumber").fill(faker.location.buildingNumber());
-  await page.locator("#zip").fill(faker.location.zipCode("#####"));
-  await page.locator("#city").fill(faker.location.city());
-  await page.locator("#certificateType").fill("Jobcenter-Bescheid");
+  await fillSticky(page.locator("#street"), faker.location.street());
+  await fillSticky(page.locator("#houseNumber"), faker.location.buildingNumber());
+  await fillSticky(page.locator("#zip"), faker.location.zipCode("#####"));
+  await fillSticky(page.locator("#city"), faker.location.city());
+  await fillSticky(page.locator("#certificateType"), "Jobcenter-Bescheid");
   await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
+}
+
+/** Every field of the intake that holds text, as it stands on screen right now. */
+async function typedValues(page: Page): Promise<Record<string, string>> {
+  const names = [
+    "firstName",
+    "lastName",
+    "birthDate",
+    "street",
+    "houseNumber",
+    "zip",
+    "city",
+    "certificateType",
+    "notes",
+  ];
+  const values: Record<string, string> = {};
+  for (const name of names) {
+    values[name] = await page.locator(`#${name}`).inputValue();
+  }
+  return values;
 }
 
 /**
@@ -479,5 +506,158 @@ test.describe("Kundenaufnahme", () => {
     // a household member, a certificate or an audit entry on its way to failing would leave the
     // count of customers untouched and still be a bug.
     expect(await registerSnapshot()).toBe(before);
+  });
+
+  /**
+   * What a refusal says, and what it leaves standing.
+   *
+   * Both halves are one complaint DF made of the intake: a mistyped day was answered with „Datum
+   * fehlt.“ on a screen holding three or more day fields — so it named none of them — and the
+   * refusal *deleted* the address on the way back, because React resets an uncontrolled form once
+   * its action resolves, refusal as well as save. A typo in one box cost a retyped household.
+   *
+   * These two specs are the only place either half can be proved. The action's answer is a value an
+   * adapter test could read, but whether the seven boxes still hold what was typed after React has
+   * reset the form is a fact about a browser.
+   */
+  test("a refusal names the field and leaves every other one as it was typed", async ({ page }) => {
+    await page.goto("/kunden/neu");
+
+    const applicant = person(faker.person.lastName());
+    await fillPersonalData(page, applicant);
+    await fillSticky(page.locator("#notes"), "Kommt immer mit dem Bus.");
+
+    // One field broken, and deliberately the *second* day field: the sentence has to tell it apart
+    // from the birthdate above it, which is exactly what „Datum fehlt.“ on its own could not.
+    await page.locator("#certificateValidUntil").fill("");
+
+    const typed = await typedValues(page);
+    await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
+
+    await expect(page.getByTestId("registration-error")).toHaveText(
+      de.customers.errors.fieldProblem(
+        de.customers.fields.certificateValidUntil,
+        de.customers.errors.dateMissing,
+      ),
+    );
+
+    // The mark at the field, so the sentence by the button does not have to be carried 1 600px up
+    // the page by hand. One field named, one field marked.
+    await expect(page.getByTestId("registration-field-error")).toHaveText(
+      de.customers.errors.dateMissing,
+    );
+    await expect(page.locator("#certificateValidUntil")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator("#birthDate")).not.toHaveAttribute("aria-invalid", "true");
+
+    // And the cursor is in it, which is what makes the mark findable on a form this tall.
+    await expect(page.locator("#certificateValidUntil")).toBeFocused();
+
+    // Nothing else was thrown away. The address and the note used to be the casualties here —
+    // `defaultValue`s that React's post-action reset rewound to blank.
+    expect(await typedValues(page)).toEqual(typed);
+    // The household kept its mirrored row, with the applicant's own name and day still in it.
+    await expect(page.locator("#memberFirstName-0")).toHaveValue(applicant.firstName);
+    await expect(page.locator("#memberBirthDate-0")).toHaveValue(typed.birthDate);
+
+    // Correcting only the refused field saves the eight edits that rode with it — the point of
+    // keeping them. This is the one spec here that completes a registration after a refusal, so it
+    // is last in the file: it consumes a customer number.
+    await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
+    await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
+    await page.waitForURL(/\/kunden\/\d+(\?|$)/);
+
+    const saved = await prisma.customer.findFirstOrThrow({
+      where: { lastName: applicant.lastName, status: { not: "ARCHIVED" } },
+      select: { street: true, houseNumber: true, zip: true, city: true, notes: true },
+    });
+    expect(saved).toEqual({
+      street: typed.street,
+      houseNumber: typed.houseNumber,
+      zip: typed.zip,
+      city: typed.city,
+      notes: typed.notes,
+    });
+  });
+
+  test("every field a refusal names is marked, not only the first", async ({ page }) => {
+    await page.goto("/kunden/neu");
+
+    await fillPersonalData(page, person(faker.person.lastName()));
+    await page.locator("#certificateValidUntil").fill("");
+
+    // A second household member, dated with something no reading of TT.MM.JJJJ can rescue. Two
+    // fields are now wrong for two different reasons, in two different sections of the form.
+    await page.getByTestId("add-member").click();
+    await fillSticky(page.locator("#memberBirthDate-1"), "99.99.9999");
+
+    // The group is overridden on the way, because a refusal used to rewind that too: the radios
+    // carried `defaultChecked`, and React's post-action reset put the proposal back.
+    await page.getByTestId("group-choice-open").click();
+    const override = page.locator("#group-BLUE");
+    await override.check();
+
+    await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
+
+    // Both, in the order the form reads them. Reporting only the first would have staff correct one
+    // field per submission — five round trips for a household of three.
+    await expect(page.getByTestId("registration-error")).toHaveText(
+      de.customers.errors.severalFieldProblems([
+        de.customers.fields.certificateValidUntil,
+        `${de.customers.new.memberRow(2)}: ${de.customers.fields.birthDate}`,
+      ]),
+    );
+    await expect(page.getByTestId("registration-field-error")).toHaveText([
+      de.customers.errors.dateMissing,
+      de.customers.errors.notADate,
+    ]);
+    await expect(page.locator("#certificateValidUntil")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator("#memberBirthDate-1")).toHaveAttribute("aria-invalid", "true");
+
+    // Each mark is read out with the control it belongs to rather than left to be found by eye.
+    await expect(page.locator("#memberBirthDate-1")).toHaveAttribute(
+      "aria-describedby",
+      "memberBirthDate-1-error",
+    );
+
+    // The row that is fine is not marked: „alle Geburtsdaten prüfen“ would be the alternative, and
+    // it would send staff back through rows that were right.
+    await expect(page.locator("#memberBirthDate-0")).not.toHaveAttribute("aria-invalid", "true");
+    await expect(page).toHaveURL(/\/kunden\/neu$/);
+
+    // The override stands. Correcting a date must not quietly move the household back to the group
+    // the software proposed.
+    await expect(override).toBeChecked();
+  });
+
+  /**
+   * The other half of the naming: a refusal the **domain** raised, not the schema.
+   *
+   * A blank street is a well-formed submission — `z.string()` accepts it — so it reaches
+   * `createPersonalDetails` and comes back as `MissingRequiredField("address.street")`. The domain
+   * nests what the form spells flat, and the mark can only land if the action translates one into
+   * the other (`DOMAIN_FIELD_PATH`). Nothing below the browser can tell whether it did: the
+   * translation exists precisely to be read by an `<input>`.
+   */
+  test("a field the domain refuses is marked too, under the name the form gives it", async ({
+    page,
+  }) => {
+    await page.goto("/kunden/neu");
+
+    await fillPersonalData(page, person(faker.person.lastName()));
+    await page.locator("#street").fill("");
+
+    await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
+
+    // The summary is the domain's own sentence, which already names the field — this one is not
+    // composed from the path, and it stays as it was.
+    await expect(page.getByTestId("registration-error")).toHaveText(
+      de.customers.errors.missingField(customerFieldLabel("address.street")),
+    );
+    await expect(page.getByTestId("registration-field-error")).toHaveText(
+      de.customers.errors.fieldRequired,
+    );
+    await expect(page.locator("#street")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator("#street")).toBeFocused();
+    await expect(page).toHaveURL(/\/kunden\/neu$/);
   });
 });
