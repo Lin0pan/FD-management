@@ -1337,8 +1337,29 @@ export const de = {
       change: (label: string, from: string, to: string): string => `${label}: ${from} → ${to}`,
     },
     errors: {
-      notAnInteger: "Bitte eine ganze Zahl ab 0 eingeben.",
-      notAnAmount: "Bitte einen Betrag wie 2,50 eingeben.",
+      /**
+       * The two marks that sit **under** a refused control, in the same register as
+       * {@link invalidValue} and as `customers.errors.dateMissing`: a short clause, no „Bitte“ and
+       * no example, because the field they name is directly above them and the summary by the
+       * button says the rest.
+       *
+       * They were finished sentences — „Bitte einen Betrag wie 2,50 eingeben.“ — and read correctly
+       * while they were only ever the *summary*. Once the summary started naming the field and the
+       * mark started carrying the problem, they were the only long things in a slot whose whole job
+       * is to point, and „Preis je Erwachsenem“: Bitte einen Betrag wie 2,50 eingeben.“ says in a
+       * dozen words what „Kein gültiger Betrag.“ says in three.
+       *
+       * The example goes with them, and is not missed: the two money fields beside the refused one
+       * still show `2,00` and `1,00`, so the format staff are being asked for is demonstrated on the
+       * same row. That is the same argument the day fields make from their placeholder.
+       *
+       * `ab 0` stays, short as this is, because it is not a hint but the other half of the rule:
+       * `wholeNumber` refuses `-1` on the same regex it refuses `1,5` on, and „Keine ganze Zahl.“
+       * would call a negative something it is not. The `min={0}` on the control makes that
+       * unreachable from a browser, which is a fact about the control and not about the message.
+       */
+      notAnInteger: "Keine ganze Zahl ab 0.",
+      notAnAmount: "Kein gültiger Betrag.",
       noSettings:
         "Es sind noch keine Einstellungen hinterlegt. Bitte die Grundeinstellungen einspielen.",
       unknown: "Die Änderung konnte nicht gespeichert werden.",
