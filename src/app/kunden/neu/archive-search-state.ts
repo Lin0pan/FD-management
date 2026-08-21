@@ -45,7 +45,7 @@ export interface ArchiveSearchState {
 export interface ArchiveSearchCriteria {
   readonly lastName: string;
   readonly firstName: string;
-  /** `YYYY-MM-DD`, or `""`. Kept as the field submitted it, malformed values included. */
+  /** `TT.MM.JJJJ`, or `""`. Kept as the field submitted it, malformed values included. */
   readonly birthDate: string;
 }
 
@@ -82,7 +82,7 @@ export interface ArchiveDraftRefusal {
 
 /**
  * A registration draft as it crosses to the browser: the same values `draftFromArchived` returns,
- * with the calendar days already written the way `<input type="date">` reads them.
+ * with the calendar days already written the way a day field shows them (`TT.MM.JJJJ`).
  *
  * The conversion happens on the server so that a `Date` never has to survive the round trip and be
  * re-read in the browser's own zone, which is how a birthdate lands on the day before.
@@ -90,7 +90,7 @@ export interface ArchiveDraftRefusal {
 export interface PrefillDraft {
   readonly firstName: string;
   readonly lastName: string;
-  /** `YYYY-MM-DD`, the UTC day the record names. */
+  /** `TT.MM.JJJJ`, the UTC day the record names, written the way it is typed. */
   readonly birthDate: string;
   readonly street: string;
   readonly houseNumber: string;
@@ -107,7 +107,7 @@ export interface PrefillDraft {
    * just been re-checked, and the note is the most current thing DF knows about them.
    */
   readonly certificateType?: string;
-  /** `YYYY-MM-DD`, the UTC day the certificate runs to. */
+  /** `TT.MM.JJJJ`, the UTC day the certificate runs to. */
   readonly certificateValidUntil?: string;
   readonly notes?: string;
 }
@@ -115,6 +115,6 @@ export interface PrefillDraft {
 export interface PrefillMember {
   readonly firstName: string;
   readonly lastName: string;
-  /** `YYYY-MM-DD`, the UTC day the record names. */
+  /** `TT.MM.JJJJ`, the UTC day the record names, written the way it is typed. */
   readonly birthDate: string;
 }

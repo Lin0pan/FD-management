@@ -40,9 +40,10 @@ npm-debug.log*
 /data/*.db-wal
 /data/*.db-shm
 
-# FD-Management: the instant the end-to-end suite pins the app's clock to (tests/e2e/distribution.spec.ts)
-/data/e2e-now.txt
-/data/e2e-isolated-now.txt
+# FD-Management: the instant the end-to-end suite pins the app's clock to (tests/e2e/distribution.spec.ts).
+# A glob rather than a list: there is one of these per register per engine, and tests/e2e/registers.ts
+# names them, so a new engine must not need a line here to stay untracked.
+/data/e2e*-now.txt
 
 # playwright-cli: per-session page snapshots, console logs and browser config, regenerated on every
 # UI verification. Every UI change is driven through it (docs/guideline/ui_styling_guide.md §11), so

@@ -38,8 +38,8 @@ system derives. The only continuous exchange is between a staff member and the s
 
 ```mermaid
 flowchart LR
-    subgraph machine["DF's machine (single node)"]
-        browser["Browser<br/><i>bookmarked</i>"]
+    subgraph machine["DF's machine (single node, a MacBook today)"]
+        browser["Browser<br/><i>bookmarked — Safari today;<br/>Chromium-based also supported</i>"]
         app["FD-Management<br/><i>Next.js, npm start</i>"]
         db[("data/fd.db<br/><i>SQLite, one file</i>")]
         browser <-- "HTTP, localhost:3000 only" --> app

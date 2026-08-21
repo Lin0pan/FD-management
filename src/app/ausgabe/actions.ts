@@ -18,6 +18,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { isBlankDay, parseCalendarDay } from "@/domain/calendarDay";
 import { recordReminder } from "@/application/customers/record-reminder";
 import { renewCertificate } from "@/application/customers/renew-certificate";
 import { correctAttendance } from "@/application/distribution/correct-attendance";
@@ -46,16 +47,31 @@ const surrogateId = z
   .transform((value): number => Number(value));
 
 /**
- * A calendar day as `<input type="date">` submits it, read as the UTC day it names.
+ * A calendar day as DF type it — `TT.MM.JJJJ` — read as the UTC day it names.
  *
- * The shape check alone is not enough: `2026-13-45` matches it and parses to an Invalid Date, whose
- * NaN would flow on into the certificate's validity arithmetic. The day itself has to be a day.
+ * The reading is `src/domain/calendarDay.ts`'s, which is the point: this used to be a second,
+ * separate date schema, and its own note admitted the shape check let `2026-13-45` through to an
+ * Invalid Date whose NaN then flowed into the certificate arithmetic. One parser, one answer, and a
+ * day that is not a day is refused here rather than downstream (ADR-013).
  */
-const dayInput = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .transform((value): Date => new Date(`${value}T00:00:00.000Z`))
-  .refine((date): boolean => !Number.isNaN(date.getTime()));
+const dayInput = z.string().transform((value, ctx): Date => {
+  if (isBlankDay(value)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: de.distribution.certificate.renewal.errors.dateMissing,
+    });
+    return z.NEVER;
+  }
+  try {
+    return parseCalendarDay(value);
+  } catch {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: de.distribution.certificate.renewal.errors.notADate,
+    });
+    return z.NEVER;
+  }
+});
 
 /** Turn a typed domain error from the serve path into the German sentence the counter shows. */
 function serveMessage(error: unknown): string {
@@ -215,7 +231,10 @@ export async function recordRenewal(
   if (!validUntil.success) {
     return {
       status: "error",
-      message: de.distribution.certificate.renewal.errors.notADate,
+      // The schema already decided whether the field was blank or unreadable; repeating a blanket
+      // "not a date" here would throw that away and tell half of DF the wrong thing.
+      message:
+        validUntil.error.issues[0]?.message ?? de.distribution.certificate.renewal.errors.notADate,
       tier: "refusal",
     };
   }

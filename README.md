@@ -15,8 +15,10 @@ An early version, for DF to test with — it does not replace the spreadsheet ye
   [fnm](https://github.com/Schniz/fnm), which read the version from `.nvmrc`. The version is pinned
   (`engines` in `package.json`); nothing else is tested.
 - No database server, no Docker, no account. Running the E2E suite additionally needs Playwright's
-  browser — see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
-- The app runs on one machine, bound to localhost, without a login.
+  browsers — see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+- The app runs on one machine, bound to localhost, without a login. DF use a MacBook, so it is
+  supported — and gated — on **Safari and Chromium-based browsers**
+  ([ADR-012](./docs/architecture/adr/012-support-safari-and-chromium-based-browsers-and-gate-both-in-ci.md)).
 - `data/fd.db` is the entire state of the system and there is **no backup yet**.
 
 **Install**

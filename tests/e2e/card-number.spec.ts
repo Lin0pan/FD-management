@@ -4,6 +4,8 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { SHARED } from "./registers";
+import { fillDay } from "./day";
 
 /**
  * A card number is handed out once and never again, driven through the built app
@@ -35,7 +37,7 @@ import { de } from "@/i18n/de";
 faker.seed(20260806);
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
-const NOW_FILE = "data/e2e-now.txt";
+const NOW_FILE = SHARED.now;
 
 /**
  * The day this spec is judged on: Thursday 08.01.2026, 09:00 UTC.
@@ -74,10 +76,11 @@ const ARCHIVE_REASON = "Weggezogen, Karte nicht zurückgegeben.";
  * The database the built app is running against — the same file, opened a second time.
  *
  * `playwright.config.ts` sets `DATABASE_URL` for the *server*; this process never had one, so the
- * path is spelled out. It is absolute because a relative SQLite url resolves against the schema
- * directory, not the working directory.
+ * path is taken from `registers.ts` — the one place that knows which engine this run drives, and
+ * therefore which register is behind it. It is resolved to an absolute path because a relative
+ * SQLite url resolves against the schema directory, not the working directory.
  */
-const prisma = new PrismaClient({ datasourceUrl: `file:${resolve("data/e2e.db")}` });
+const prisma = new PrismaClient({ datasourceUrl: `file:${resolve(SHARED.database)}` });
 
 /** Make the app believe it is {@link TODAY}, for every request until the file is removed. */
 function pinToday(): void {
@@ -116,13 +119,13 @@ async function register(page: Page): Promise<Household> {
 
   await page.locator("#firstName").fill(firstName);
   await page.locator("#lastName").fill(lastName);
-  await page.locator("#birthDate").fill(GROWN_UP_BIRTH_DATE);
+  await fillDay(page.locator("#birthDate"), GROWN_UP_BIRTH_DATE);
   await page.locator("#street").fill(faker.location.street());
   await page.locator("#houseNumber").fill(faker.location.buildingNumber());
   await page.locator("#zip").fill(faker.location.zipCode("#####"));
   await page.locator("#city").fill(faker.location.city());
   await page.locator("#certificateType").fill("Jobcenter-Bescheid");
-  await page.locator("#certificateValidUntil").fill(CERTIFICATE_VALID_UNTIL);
+  await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
 
   // The group choice is a `<details>` that starts closed (US-20.2), so the summary is really
   // clicked: a radio inside a closed disclosure has no bounding box and `check()` would time out.

@@ -17,6 +17,7 @@
 
 import { z } from "zod";
 import type { RegistrationDraft } from "@/application/customers/draft-from-archived";
+import { formatCalendarDay, isBlankDay, parseCalendarDay } from "@/domain/calendarDay";
 import { parseGroup } from "@/domain/customer/group";
 import {
   BirthDateInFuture,
@@ -31,17 +32,24 @@ import { customerFieldLabel, de } from "@/i18n/de";
 import type { PrefillDraft, PrefillMember } from "./archive-search-state";
 
 /**
- * A calendar day as `<input type="date">` submits it, read as the UTC day it names.
+ * A calendar day as DF type it — `TT.MM.JJJJ` — read as the UTC day it names.
  *
- * The domain compares birthdates as UTC calendar days, so pinning midnight UTC here keeps a date
- * typed in Germany from landing on the day before.
+ * The reading itself is `src/domain/calendarDay.ts`'s; this only turns its refusal into the sentence
+ * the form shows. Two sentences, not one: a field left blank and a field nobody can read are
+ * different mistakes, and calling the first a *format* problem is what sent DF looking for a typo
+ * that was never there (ADR-013).
  */
 export const calendarDay = z.string().transform((value, ctx): Date => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+  if (isBlankDay(value)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: de.customers.errors.dateMissing });
+    return z.NEVER;
+  }
+  try {
+    return parseCalendarDay(value);
+  } catch {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: de.customers.errors.notADate });
     return z.NEVER;
   }
-  return new Date(`${value}T00:00:00.000Z`);
 });
 
 const group = z.string().transform((value, ctx) => {
@@ -211,32 +219,20 @@ export function germanMessage(error: unknown): string {
   return customerErrorMessage(error) ?? de.customers.errors.unknown;
 }
 
-/**
- * A calendar day written the way `<input type="date">` reads it.
- *
- * The conversion happens on the server so that a `Date` never has to survive the round trip and be
- * re-read in the browser's own zone, which is how a birthdate lands on the day before.
- */
-export function isoDay(date: Date): string {
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  return `${date.getUTCFullYear()}-${month}-${day}`;
-}
-
 function toPrefillMember(member: RegistrationDraft["householdMembers"][number]): PrefillMember {
   return {
     firstName: member.firstName,
     lastName: member.lastName,
-    birthDate: isoDay(member.birthDate),
+    birthDate: formatCalendarDay(member.birthDate),
   };
 }
 
-/** A registration draft as it crosses to the browser, with every day already written as ISO. */
+/** A registration draft as it crosses to the browser, with every day already written as DF read it. */
 export function toPrefillDraft(draft: RegistrationDraft): PrefillDraft {
   return {
     firstName: draft.firstName,
     lastName: draft.lastName,
-    birthDate: isoDay(draft.birthDate),
+    birthDate: formatCalendarDay(draft.birthDate),
     street: draft.address.street,
     houseNumber: draft.address.houseNumber,
     zip: draft.address.zip,

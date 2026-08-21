@@ -30,6 +30,7 @@
 
 import { useActionState, useState } from "react";
 import { de } from "@/i18n/de";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { renewCertificateAction } from "./actions";
 import { FormFooter, GRID, SaveButton, SaveFeedback } from "./record-forms";
@@ -60,13 +61,13 @@ function RenewalFields(): React.ReactElement {
         <label htmlFor="renewal-valid-until-field" className="text-sm font-medium">
           {de.customers.fields.certificateValidUntil}
         </label>
-        <Input
+        <DateInput
           id="renewal-valid-until-field"
-          type="date"
           name="validUntil"
           required
+          placeholder={de.day.placeholder}
           value={validUntil}
-          onChange={(event) => setValidUntil(event.target.value)}
+          onChange={setValidUntil}
           data-testid="renewal-valid-until"
         />
       </div>

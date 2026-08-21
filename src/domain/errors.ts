@@ -41,6 +41,7 @@ export type DomainErrorCode =
   | "IllegalStatusTransition"
   | "EmptySearchQuery"
   | "InvalidEuroAmount"
+  | "InvalidCalendarDay"
   | "NotesTooLong"
   | "GroupUnchanged";
 
@@ -618,6 +619,23 @@ export class InvalidEuroAmount extends DomainError {
 
   constructor(text: string) {
     super(`"${text}" is not a euro amount such as 2,50`);
+    this.text = text;
+  }
+}
+
+/**
+ * The text in a date field is not a calendar day.
+ *
+ * Carries the text it refused so the field can say what it read back. A blank field throws this too,
+ * but the caller is expected to have asked `isBlankDay` first: "you typed nothing" and "you typed
+ * something I cannot read" are different things to tell somebody at a counter.
+ */
+export class InvalidCalendarDay extends DomainError {
+  readonly code = "InvalidCalendarDay";
+  readonly text: string;
+
+  constructor(text: string) {
+    super(`"${text}" is not a calendar day such as 11.02.1985`);
     this.text = text;
   }
 }

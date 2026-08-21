@@ -21,8 +21,9 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   reading standing up.
 - `.dark` tokens exist and nothing toggles them. Do not build a theme switcher without being asked.
 - **Do not add**: a form library (`react-hook-form` fights `useActionState`), a toast library (an
-  answer renders beside its own button, §7), a date picker (native inputs are better for keyboard
-  entry), or a chart library.
+  answer renders beside its own button, §7), a date picker, or a chart library. A day is a **typed**
+  `TT.MM.JJJJ` text field — `DateInput` in §11, not `<input type="date">` and not a calendar
+  ([ADR-013](../architecture/adr/013-type-calendar-days-as-tt-mm-jjjj-instead-of-using-the-native-date-input.md)).
 
 ## 2. Page skeleton
 
@@ -344,7 +345,22 @@ it. Playwright is the only thing that will tell you.
 - Driving real flows writes to `data/fd.db`. That is fine — say so, and `npm run db:demo -- --reset`
   puts the demo register back.
 - **Done is** `npm run lint && npm run typecheck && npm run test:coverage && npm run build`, then
-  `npm run test:e2e` with no test edited, then the `playwright-cli` pass above.
+  `npm run test:e2e` **and** `npm run test:e2e:webkit` with no test edited, then the `playwright-cli`
+  pass above.
+- **A day is typed, never picked.** Every calendar day uses `DateInput` (`components/ui/date-input.tsx`)
+  with the placeholder from `de.day.placeholder` — never `<input type="date">`. The native control
+  lets the _operating system_ decide which segment is typed first and, in Chromium, silently clamps
+  an impossible month into a valid one; both reached DF before
+  [ADR-013](../architecture/adr/013-type-calendar-days-as-tt-mm-jjjj-instead-of-using-the-native-date-input.md).
+  When you drive a date in a spec, **type it** (`pressSequentially`) at least once: `fill()` assigns
+  the value and proves nothing about entry.
+- **And one look in real Safari, on a Mac.** DF run the application in Safari
+  ([ADR-012](../architecture/adr/012-support-safari-and-chromium-based-browsers-and-gate-both-in-ci.md)),
+  and the WebKit gate is not the same thing: Playwright ships the engine without Apple's shell, so
+  the macOS `<input type="date">` picker — the most common field in this application — is not
+  something CI can see. Open the screen you built in Safari and use its date fields before calling it
+  done. An engine-conditional branch in `src/` is not the answer to what you find there; if the two
+  disagree, the markup is usually the thing that is wrong.
 
 **One standing exception.** `/kunden/[id]/karte` is the single screen not converted to the primitives.
 Its outsized type is US-02.4's "legible across a desk", not a style choice — do not normalise it.

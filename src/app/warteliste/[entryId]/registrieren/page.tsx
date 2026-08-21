@@ -22,7 +22,8 @@ import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import type { PrefillDraft } from "@/app/kunden/neu/archive-search-state";
-import { isoDay, toPrefillDraft } from "@/app/kunden/neu/registration-input";
+import { toPrefillDraft } from "@/app/kunden/neu/registration-input";
+import { formatCalendarDay } from "@/domain/calendarDay";
 import { waitingListDeps } from "../../deps";
 import { PromotionScreen } from "./promotion-screen";
 import { SHELL } from "../../../shell";
@@ -105,7 +106,7 @@ export default async function PromoteApplicantPage({
   const draft: PrefillDraft = {
     ...toPrefillDraft(promotion.draft),
     certificateType: promotion.draft.certificate.type,
-    certificateValidUntil: isoDay(promotion.draft.certificate.validUntil),
+    certificateValidUntil: formatCalendarDay(promotion.draft.certificate.validUntil),
     notes: promotion.draft.notes,
   };
   const applicant = `${promotion.draft.firstName} ${promotion.draft.lastName}`;

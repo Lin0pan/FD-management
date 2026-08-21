@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { expect, test } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
+import { SHARED } from "./registers";
 
 /**
  * Portions and price follow the household, driven through the built app
@@ -42,10 +43,11 @@ const CERTIFICATE_VALID_UNTIL = "2027-06-30";
  * The database the built app is running against — the same file, opened a second time.
  *
  * `playwright.config.ts` sets `DATABASE_URL` for the *server*; this process never had one, so the
- * path is spelled out. It is absolute because a relative SQLite url resolves against the schema
- * directory, not the working directory.
+ * path is taken from `registers.ts` — the one place that knows which engine this run drives, and
+ * therefore which register is behind it. It is resolved to an absolute path because a relative
+ * SQLite url resolves against the schema directory, not the working directory.
  */
-const prisma = new PrismaClient({ datasourceUrl: `file:${resolve("data/e2e.db")}` });
+const prisma = new PrismaClient({ datasourceUrl: `file:${resolve(SHARED.database)}` });
 
 function utcMidnight(date: string): Date {
   return new Date(`${date}T00:00:00.000Z`);

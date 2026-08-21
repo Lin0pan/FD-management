@@ -14,6 +14,7 @@
 
 import { useId } from "react";
 import { Button } from "@/components/ui/button";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import type { RecordFormState } from "./record-state";
 import { de } from "@/i18n/de";
@@ -64,14 +65,25 @@ export function TextField({
       <label htmlFor={id} className="text-sm font-medium">
         {label}
       </label>
-      <Input
-        id={id}
-        type={type}
-        name={name}
-        data-testid={testId}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
+      {type === "date" ? (
+        <DateInput
+          id={id}
+          name={name}
+          data-testid={testId}
+          placeholder={de.day.placeholder}
+          value={value}
+          onChange={onChange}
+        />
+      ) : (
+        <Input
+          id={id}
+          type="text"
+          name={name}
+          data-testid={testId}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )}
     </div>
   );
 }

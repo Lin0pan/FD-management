@@ -166,7 +166,10 @@ export async function updateHouseholdAction(
     return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
   }
   if (!members.success) {
-    return { status: "error", message: de.customers.errors.notADate, tier: "refusal" };
+    // The row schema already said whether a birthdate was blank or unreadable; a blanket sentence
+    // here would tell somebody who left a field empty that their format is wrong.
+    const message = members.error.issues[0]?.message ?? de.customers.errors.notADate;
+    return { status: "error", message, tier: "refusal" };
   }
 
   try {
@@ -206,7 +209,8 @@ export async function updateDetailsAction(
     return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
   }
   if (!fields.success) {
-    return { status: "error", message: de.customers.errors.notADate, tier: "refusal" };
+    const message = fields.error.issues[0]?.message ?? de.customers.errors.notADate;
+    return { status: "error", message, tier: "refusal" };
   }
 
   const { firstName, lastName, birthDate, street, houseNumber, zip, city } = fields.data;

@@ -111,6 +111,11 @@ deliberately and say why in the commit; do not add an inline disable.
   only when asked to test one. The e2e suite proves the contracts still hold; `playwright-cli` is how you
   find out whether the screen is any good, because its accessibility snapshot shows what the markup
   _means_ and a screenshot does not. `docs/guideline/ui_styling_guide.md` §11 has the workflow.
+- **Two engines, both gated.** DF run Safari, and a replacement machine would bring a Chromium-based
+  browser, so the suite runs on both: `npm run test:e2e` and `npm run test:e2e:webkit`, each over
+  registers of its own (`tests/e2e/registers.ts`, ADR-012). Never branch on `browserName` in `src/`
+  — if the engines disagree, the markup is what is wrong. WebKit is **not** Safari, so UI work also
+  needs one look in real Safari on a Mac; the macOS date picker is beyond what CI can see.
 
 ## Database migrations
 

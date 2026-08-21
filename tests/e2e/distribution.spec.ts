@@ -1,6 +1,7 @@
 import { rmSync, writeFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { SHARED } from "./registers";
 
 /**
  * The week-colour banner against a fixed clock
@@ -37,7 +38,7 @@ import { de } from "@/i18n/de";
  */
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
-const NOW_FILE = "data/e2e-now.txt";
+const NOW_FILE = SHARED.now;
 
 /** Make the app believe it is this instant, for every request until the next call. */
 function pinNow(instant: string): void {

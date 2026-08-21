@@ -1,6 +1,7 @@
 import { rmSync, writeFileSync } from "node:fs";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { SHARED } from "./registers";
 
 /**
  * The Start dashboard against a fixed clock (tasks/prd-us-17-navigation-shell.md §US-17.5).
@@ -28,7 +29,7 @@ import { de } from "@/i18n/de";
  */
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
-const NOW_FILE = "data/e2e-now.txt";
+const NOW_FILE = SHARED.now;
 
 /**
  * The sentence the distribution panel states, without the heading standing above it.

@@ -37,6 +37,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { parseCalendarDay } from "@/domain/calendarDay";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -77,9 +79,16 @@ const EMPTY_ROW: MemberRow = { firstName: "", lastName: "", birthDate: "" };
  * display flicker between wrong answers, so it simply does not count until a date is there.
  */
 function datedMembers(rows: ReadonlyArray<MemberRow>): Array<{ birthDate: Date }> {
-  return rows
-    .filter((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.birthDate))
-    .map((row) => ({ birthDate: new Date(`${row.birthDate}T00:00:00.000Z`) }));
+  return rows.flatMap((row) => {
+    // Half-typed days reach here on every keystroke — `11.0` is not a day yet — so the parser's
+    // refusal is the ordinary case, not an error. The same reading as the server's, so the panel
+    // cannot disagree with what the save will make of the same text (ADR-013).
+    try {
+      return [{ birthDate: parseCalendarDay(row.birthDate) }];
+    } catch {
+      return [];
+    }
+  });
 }
 
 /**
@@ -136,14 +145,25 @@ function Field({
       <label htmlFor={name} className="text-sm font-medium">
         {label}
       </label>
-      <Input
-        type={type}
-        name={name}
-        id={name}
-        {...(onChange === undefined
-          ? { defaultValue: defaultValue ?? "" }
-          : { value: value ?? "", onChange: (event) => onChange(event.target.value) })}
-      />
+      {type === "date" ? (
+        <DateInput
+          name={name}
+          id={name}
+          placeholder={de.day.placeholder}
+          {...(onChange === undefined
+            ? { defaultValue: defaultValue ?? "" }
+            : { value: value ?? "", onChange })}
+        />
+      ) : (
+        <Input
+          type="text"
+          name={name}
+          id={name}
+          {...(onChange === undefined
+            ? { defaultValue: defaultValue ?? "" }
+            : { value: value ?? "", onChange: (event) => onChange(event.target.value) })}
+        />
+      )}
     </div>
   );
 }
@@ -452,13 +472,13 @@ export function RegistrationForm({
                   />
                 </TableCell>
                 <TableCell>
-                  <Input
-                    type="date"
+                  <DateInput
                     name="memberBirthDate"
                     id={`memberBirthDate-${index}`}
                     aria-label={`${de.customers.new.memberRow(index + 1)} — ${de.customers.fields.birthDate}`}
+                    placeholder={de.day.placeholder}
                     value={row.birthDate}
-                    onChange={(event) => updateRow(index, { birthDate: event.target.value })}
+                    onChange={(birthDate) => updateRow(index, { birthDate })}
                   />
                 </TableCell>
                 <TableCell>

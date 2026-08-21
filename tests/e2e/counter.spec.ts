@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
+import { SHARED } from "./registers";
 
 /**
  * Every verdict the counter can hand down, driven through the built app
@@ -38,7 +39,7 @@ import { foldName } from "@/domain/customer/nameSearch";
 faker.seed(20260724);
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
-const NOW_FILE = "data/e2e-now.txt";
+const NOW_FILE = SHARED.now;
 
 /**
  * The day this spec is judged on: Thursday 08.01.2026.
@@ -83,10 +84,11 @@ const REMINDERS_SENT = 2;
  * The database the built app is running against — the same file, opened a second time.
  *
  * `playwright.config.ts` sets `DATABASE_URL` for the *server*; this process never had one, so the
- * path is spelled out. It is absolute because a relative SQLite url resolves against the schema
- * directory, not the working directory.
+ * path is taken from `registers.ts` — the one place that knows which engine this run drives, and
+ * therefore which register is behind it. It is resolved to an absolute path because a relative
+ * SQLite url resolves against the schema directory, not the working directory.
  */
-const prisma = new PrismaClient({ datasourceUrl: `file:${resolve("data/e2e.db")}` });
+const prisma = new PrismaClient({ datasourceUrl: `file:${resolve(SHARED.database)}` });
 
 /** Make the app believe it is {@link TODAY}, for every request until the file is removed. */
 function pinToday(): void {

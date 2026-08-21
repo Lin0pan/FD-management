@@ -5,6 +5,8 @@ import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
+import { SHARED } from "./registers";
+import { fillDay } from "./day";
 
 /**
  * The Maximalpreis from the settings screen to the counter
@@ -38,7 +40,7 @@ import { foldName } from "@/domain/customer/nameSearch";
 faker.seed(20260807);
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
-const NOW_FILE = "data/e2e-now.txt";
+const NOW_FILE = SHARED.now;
 
 /**
  * The day the hand-out is recorded on: Thursday 08.01.2026.
@@ -90,10 +92,11 @@ const SEEDED_CAP = "5,00";
  * The database the built app is running against — the same file, opened a second time.
  *
  * `playwright.config.ts` sets `DATABASE_URL` for the *server*; this process never had one, so the
- * path is spelled out. It is absolute because a relative SQLite url resolves against the schema
- * directory, not the working directory.
+ * path is taken from `registers.ts` — the one place that knows which engine this run drives, and
+ * therefore which register is behind it. It is resolved to an absolute path because a relative
+ * SQLite url resolves against the schema directory, not the working directory.
  */
-const prisma = new PrismaClient({ datasourceUrl: `file:${resolve("data/e2e.db")}` });
+const prisma = new PrismaClient({ datasourceUrl: `file:${resolve(SHARED.database)}` });
 
 function utcMidnight(date: string): Date {
   return new Date(`${date}T00:00:00.000Z`);
@@ -251,7 +254,7 @@ test.describe("Maximalpreis", () => {
     await page.getByTestId("add-member").click();
     await page.getByTestId("member-first-name-7").fill(faker.person.firstName());
     await page.getByTestId("member-last-name-7").fill(faker.person.lastName());
-    await page.getByTestId("member-birth-date-7").fill(EXTRA_CHILD_BIRTH_DATE);
+    await fillDay(page.getByTestId("member-birth-date-7"), EXTRA_CHILD_BIRTH_DATE);
 
     await expect(page.getByTestId("children")).toHaveText("4");
     await expect(page.getByTestId("portions")).toHaveText(PORTIONS_WITH_EXTRA_CHILD);
