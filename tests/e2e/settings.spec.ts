@@ -339,16 +339,26 @@ test.describe("Einstellungen", () => {
 
     const refusal = page.getByTestId("settings-error");
     // An optional amount that is not empty goes through the same parser as a required one, so the
-    // refusal is Zod's and its sentence is the one the PRD prescribes (§US-26.5). It does **not**
-    // name the field — the parser knows the text, not which of the three money fields held it — and
-    // the mark below is what names it. That is the summary/mark division this screen already uses
-    // for `Ungültiger Wert.`, seen from the other side.
-    await expect(refusal).toHaveText(de.settings.errors.notAnAmount);
+    // refusal is Zod's and the words are the ones the PRD prescribes (§US-26.5) — but they are said
+    // at the field now, with the summary naming the field around them. It was the other way round:
+    // the summary carried „Kein gültiger Betrag.“ and the mark a generic „Ungültiger Wert.“, so on
+    // a screen with three money boxes the sentence by the button named none of them and the mark
+    // that knew which box it sat under said nothing worth reading.
+    await expect(refusal).toHaveText(
+      de.forms.fieldProblem(CAP_LABEL, de.settings.errors.notAnAmount),
+    );
     await expect(refusal).toHaveAttribute("data-tier", "refusal");
 
     await expect(page.locator("#priceCap")).toHaveAttribute("aria-invalid", "true");
     await expect(page.getByTestId("settings-field-error")).toHaveCount(1);
+    await expect(page.getByTestId("settings-field-error")).toHaveText(
+      de.settings.errors.notAnAmount,
+    );
     await expect(page.locator("#pricePerChild")).not.toHaveAttribute("aria-invalid", "true");
+
+    // And the cursor is in it, which this screen never did before: the field it names is 442px above
+    // the sentence, measured, and further once several are named at once.
+    await expect(page.locator("#priceCap")).toBeFocused();
 
     // The §4.2d rule for the new field: the edit that rode along with the refused one is still on
     // screen, and so is the refused text itself — rewinding it to the stored 5,00 € would hide what
@@ -365,6 +375,57 @@ test.describe("Einstellungen", () => {
     await expect(page.getByLabel(de.settings.fields.pricePerChild, { exact: true })).toHaveValue(
       "1,00",
     );
+  });
+
+  /**
+   * Two fields refused together, which this screen used to report one at a time.
+   *
+   * The action stopped at `issues[0]`, so mistyping two of the three money boxes marked one of them;
+   * the staff member corrected it, saved, and was refused again for the other. The schema checks
+   * every field independently — a use case checks a settings version — and reporting every issue is
+   * what makes that asymmetry honest rather than a shortcut.
+   *
+   * The two per-head prices, not a price and the quota: `quotaN` is a `type=number` box, so a value
+   * the *schema* would refuse is one the **browser** refuses first and the form never submits at
+   * all. The three fields that can carry unreadable text are the money ones, which is also where
+   * this actually bites — three boxes that all want `2,50`.
+   *
+   * Nothing is written, so this leaves the settings exactly as the test above found them.
+   */
+  test("two fields refused at once are both named and both marked", async ({ page }) => {
+    await page.goto("/einstellungen");
+
+    await page.getByLabel(PRICE_LABEL, { exact: true }).fill("2,5o");
+    await page.getByLabel(de.settings.fields.pricePerChild, { exact: true }).fill("1,2o");
+    await page.getByRole("button", { name: de.settings.save, exact: true }).click();
+
+    // Named rather than counted: the marks are at the fields, but somebody scrolled to the button
+    // has to know how far up to look and how many times. In the order the schema reads them.
+    await expect(page.getByTestId("settings-error")).toHaveText(
+      de.forms.severalFieldProblems([PRICE_LABEL, de.settings.fields.pricePerChild]),
+    );
+
+    // Both marked, where only the first used to be — and the second was left for the next save.
+    await expect(page.getByTestId("settings-field-error")).toHaveText([
+      de.settings.errors.notAnAmount,
+      de.settings.errors.notAnAmount,
+    ]);
+    await expect(page.locator("#pricePerGrownUp")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator("#pricePerChild")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator("#priceCap")).not.toHaveAttribute("aria-invalid", "true");
+
+    // The cursor lands in the first of them, not the last one marked.
+    await expect(page.locator("#pricePerGrownUp")).toBeFocused();
+
+    // And both texts are still there to be corrected — a refusal that rewound them to the stored
+    // amounts would hide what was wrong with them.
+    await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("2,5o");
+    await expect(page.getByLabel(de.settings.fields.pricePerChild, { exact: true })).toHaveValue(
+      "1,2o",
+    );
+
+    await page.reload();
+    await expect(page.getByLabel(PRICE_LABEL, { exact: true })).not.toHaveValue("2,5o");
   });
 
   // The quota-below-*active-customers* rule (FR-4) is reachable from the browser as of US-01.6 —

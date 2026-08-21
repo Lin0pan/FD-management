@@ -20,7 +20,8 @@ import {
 } from "@/domain/errors";
 import { parseEuros } from "@/domain/money";
 import { parseWeekColour } from "@/domain/policy/settings";
-import { de } from "@/i18n/de";
+import { de, settingsFormFieldLabel } from "@/i18n/de";
+import { summarise, type FormRefusal } from "../field-refusal";
 import { tierOf } from "../notice-tier";
 import { settingsDeps } from "./deps";
 import type { SaveSettingsState, SubmittedSettings } from "./save-settings-state";
@@ -128,6 +129,23 @@ const INPUT_NAME: Record<string, string | undefined> = {
 };
 
 /**
+ * Everything the schema refused, in one answer.
+ *
+ * A settings path is already the input's own `name`, so there is nothing to translate — but a path
+ * with no label is still dropped, and that is the same test every screen applies: a field nobody can
+ * see is a tampered hidden input rather than a mistyped value, an error and not a refusal (§7). None
+ * of the ten inputs is hidden, so today it drops nothing; it is the check that keeps that a fact
+ * rather than an assumption when an eleventh arrives.
+ */
+function settingsRefusals(error: z.ZodError): FormRefusal {
+  const fields = error.issues
+    .map((issue) => ({ path: issue.path.join("."), problem: issue.message }))
+    .filter((field) => settingsFormFieldLabel(field.path) !== null);
+
+  return summarise(fields, de.settings.errors.unknown, settingsFormFieldLabel);
+}
+
+/**
  * Turn a typed domain error into the answer the screen shows: the German sentence, the tier it is
  * said in, and — where the error names one — the field to mark.
  *
@@ -148,7 +166,7 @@ const INPUT_NAME: Record<string, string | undefined> = {
  * and the register's actual size, so marking `quotaN` alone would say the number is malformed when
  * it is merely too small. That refusal stays a summary by the button.
  */
-function refusal(error: unknown): Pick<SaveSettingsState, "message" | "tier" | "field"> {
+function refusal(error: unknown): Pick<SaveSettingsState, "message" | "tier" | "fields"> {
   const tier = tierOf(error);
   if (error instanceof QuotaBelowActiveCustomers) {
     return {
@@ -160,12 +178,17 @@ function refusal(error: unknown): Pick<SaveSettingsState, "message" | "tier" | "
     return { message: de.settings.errors.invalidAmount(error.text), tier };
   }
   if (error instanceof InvalidSettings) {
+    // The summary already names the field, so the mark under it stays the short generic words — the
+    // same division `de.customers.errors.fieldRequired` keeps beside `missingField`. A mark that
+    // named its own field would say it twice in one eyeful.
     return {
       message: de.settings.errors.invalidSettings(
         de.settings.errorFields[error.field] ?? error.field,
       ),
       tier,
-      field: INPUT_NAME[error.field] ?? error.field,
+      fields: [
+        { path: INPUT_NAME[error.field] ?? error.field, problem: de.settings.errors.invalidValue },
+      ],
     };
   }
   if (error instanceof DomainError && error.code === "NoSettingsInForce") {
@@ -192,14 +215,12 @@ export async function saveSettings(
     // A refusal, not an error: every issue this schema raises is a value somebody typed into a field
     // that is still on screen — a quota that is not a whole number, a price that is not an amount.
     // The path is already the input's own name, so it marks the field without a translation.
-    const issue = parsed.error.issues[0];
-    return {
-      status: "error",
-      message: issue.message,
-      tier: "refusal",
-      field: typeof issue.path[0] === "string" ? issue.path[0] : undefined,
-      values,
-    };
+    //
+    // Every issue, not the first. This form holds three money boxes, and „Kein gültiger Betrag.“ by
+    // the button named none of them: it was the summary that carried the problem while the mark
+    // carried a generic „Ungültiger Wert.“, which is the two facts the wrong way round. The summary
+    // names the fields and the marks carry the problems, as on every other form in the app.
+    return { status: "error", ...settingsRefusals(parsed.error), values };
   }
   const form = parsed.data;
 

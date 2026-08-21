@@ -6,6 +6,7 @@
  * a build-time error rather than a style question.
  */
 
+import type { FieldRefusal } from "../field-refusal";
 import type { NoticeTier } from "../notice-tier";
 
 /** What the form shows after a submission. `idle` is the state before anything was sent. */
@@ -20,16 +21,23 @@ export interface SaveSettingsState {
    */
   readonly tier?: NoticeTier;
   /**
-   * The `name` of the input a refusal names, where it names one, so the form can mark it and put
-   * the words beside it.
+   * The fields a refusal names, where it names any, so the form can mark each and put the words
+   * beside it.
    *
-   * The **input's** name, not the domain's: `Settings` nests the anchor week and an HTML form is
-   * flat, and translating a domain fact into what the browser can use is the action's job. It is
-   * also absent on purpose for the refusals that name no single field — a quota below the active
-   * customer count is a collision between two numbers, and marking `quotaN` would say the value is
-   * malformed when it is only too small.
+   * The **inputs'** names, not the domain's: `Settings` nests the anchor week and an HTML form is
+   * flat, and translating a domain fact into what the browser can use is the action's job. Absent on
+   * purpose for the refusals that name no single field — a quota below the active customer count is
+   * a collision between two numbers, and marking `quotaN` would say the value is malformed when it
+   * is only too small.
+   *
+   * A **list**, and it was a single `field` until this screen and the rest of the app were made to
+   * answer a refusal the same way. Singular meant the action stopped at the first Zod issue, so
+   * mistyping two of the three money boxes reported one of them and the staff member corrected it,
+   * saved, and was refused again for the other. The domain still names at most one — the use case
+   * stops at the first rule broken — and that asymmetry is honest: the schema checks every field
+   * independently, a use case checks a settings version.
    */
-  readonly field?: string;
+  readonly fields?: ReadonlyArray<FieldRefusal>;
   /**
    * What was submitted, handed straight back so a refusal leaves the form as the staff member left
    * it.
