@@ -54,7 +54,7 @@ import { ArchiveControls } from "../archive-controls";
 import { BlockControls } from "../block-controls";
 import { customerDeps } from "../deps";
 import { STATUS_CHROME, StateWord } from "../state-word";
-import { isoDay } from "../neu/registration-input";
+import { formatCalendarDay } from "@/domain/calendarDay";
 import { DetailsEditor } from "./details-editor";
 import { GroupControl } from "./group-control";
 import { HouseholdEditor, type AllowanceValues } from "./household-editor";
@@ -515,7 +515,7 @@ function CustomerRecord({
               members={household.map((member) => ({
                 firstName: member.firstName,
                 lastName: member.lastName,
-                birthDate: isoDay(member.birthDate),
+                birthDate: formatCalendarDay(member.birthDate),
               }))}
               today={view.today}
               policy={policy}
@@ -565,7 +565,7 @@ function CustomerRecord({
                 lastName: details.lastName,
                 // Written as ISO on the server: read in the browser's own zone, a midnight-UTC day
                 // lands on the day before.
-                birthDate: isoDay(details.birthDate),
+                birthDate: formatCalendarDay(details.birthDate),
                 street: details.address.street,
                 houseNumber: details.address.houseNumber,
                 zip: details.address.zip,

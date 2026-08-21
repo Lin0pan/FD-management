@@ -19,6 +19,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { de } from "@/i18n/de";
@@ -45,7 +46,11 @@ function Field({
   return (
     <div className="flex flex-col gap-1">
       <Label htmlFor={name}>{label}</Label>
-      <Input type={type} name={name} id={name} defaultValue="" />
+      {type === "date" ? (
+        <DateInput name={name} id={name} placeholder={de.day.placeholder} defaultValue="" />
+      ) : (
+        <Input type="text" name={name} id={name} defaultValue="" />
+      )}
     </div>
   );
 }

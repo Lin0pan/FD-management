@@ -12,6 +12,16 @@ export const de = {
     tagline: "Kundenverwaltung und Erfassung der Lebensmittelausgabe",
   },
   /**
+   * How a day is written, everywhere it is typed or refused (ADR-013).
+   *
+   * One string rather than the literal repeated at eight fields: the placeholder in the box and the
+   * sentence a rejection uses have to agree, and they only stay agreed if they are the same value.
+   */
+  day: {
+    /** Shown in an empty day field. Also the answer to "what does this box want?". */
+    placeholder: "TT.MM.JJJJ",
+  },
+  /**
    * The navigation bar (US-17.1). Four words, and each is the *only* name that area has: the label
    * here and the heading on the page it leads to are deliberately identical, so a staff member
    * following "Kunden verwalten" lands on a page that says it back to them.
@@ -215,7 +225,14 @@ export const de = {
       customerNumberUnavailable: (customerNumber: number): string =>
         `Die Kundennummer ${customerNumber} ist nicht mehr verfügbar. Bitte eine andere Nummer ` +
         `wählen.`,
-      notADate: "Bitte ein Datum im Format TT.MM.JJJJ auswählen.",
+      /**
+       * Two answers, not one. A blank field and an unreadable one are different mistakes, and the
+       * old single sentence told somebody who had typed nothing that their *format* was wrong —
+       * which is what sent DF hunting for a typo that was never there (ADR-013). Both are kept
+       * short: they sit under the field, beside a placeholder that already shows the format.
+       */
+      dateMissing: "Datum fehlt.",
+      notADate: "Kein gültiges Datum.",
       notesTooLong: (maxLength: number, length: number): string =>
         `Die Notiz ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
         `möglich — bitte kürzen.`,
@@ -1144,7 +1161,8 @@ export const de = {
         errors: {
           validUntilInPast:
             "Das Datum „gültig bis“ liegt in der Vergangenheit. Bitte das Datum prüfen.",
-          notADate: "Bitte ein Datum im Format TT.MM.JJJJ auswählen.",
+          dateMissing: "Datum fehlt.",
+          notADate: "Kein gültiges Datum.",
           unknown: "Der Nachweis konnte nicht gespeichert werden. Bitte erneut versuchen.",
         },
       },

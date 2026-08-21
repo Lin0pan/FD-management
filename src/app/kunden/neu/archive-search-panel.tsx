@@ -20,6 +20,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
@@ -54,7 +55,11 @@ function Criterion({
       <label htmlFor={name} className="text-sm font-medium">
         {label}
       </label>
-      <Input type={type} name={name} id={name} defaultValue={value} />
+      {type === "date" ? (
+        <DateInput name={name} id={name} placeholder={de.day.placeholder} defaultValue={value} />
+      ) : (
+        <Input type="text" name={name} id={name} defaultValue={value} />
+      )}
     </div>
   );
 }

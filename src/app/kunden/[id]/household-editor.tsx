@@ -22,6 +22,8 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { parseCalendarDay } from "@/domain/calendarDay";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -53,9 +55,19 @@ const EMPTY_ROW: MemberRow = { firstName: "", lastName: "", birthDate: "" };
 /** The four per-head policy values the panel derives its figures from — nothing else is needed. */
 export type AllowanceValues = PortionValues & PriceValues;
 
-/** A row's birthdate as a `Date`, or `null` while it is still being typed. */
+/**
+ * A row's birthdate as a `Date`, or `null` while it is still being typed.
+ *
+ * The parser's refusal is the ordinary case here rather than an error: this runs on every keystroke,
+ * and `11.0` is not a day yet. Reading it the same way the server will is the point — the panel and
+ * the save must not disagree about the same text (ADR-013).
+ */
 function typedDay(value: string): Date | null {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00.000Z`) : null;
+  try {
+    return parseCalendarDay(value);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -191,13 +203,13 @@ export function HouseholdEditor({
                   />
                 </TableCell>
                 <TableCell>
-                  <Input
-                    type="date"
+                  <DateInput
                     name="memberBirthDate"
                     data-testid={`member-birth-date-${index}`}
                     aria-label={`${de.customers.new.memberRow(index + 1)} — ${de.customers.fields.birthDate}`}
+                    placeholder={de.day.placeholder}
                     value={row.birthDate}
-                    onChange={(event) => updateRow(index, { birthDate: event.target.value })}
+                    onChange={(birthDate) => updateRow(index, { birthDate })}
                   />
                 </TableCell>
                 {/* Derived from the date in the field beside it, so the 13-year boundary follows a

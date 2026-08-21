@@ -26,6 +26,7 @@
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { de } from "@/i18n/de";
@@ -71,13 +72,13 @@ function RenewalFields({
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="renewal-valid-until">{de.customers.fields.certificateValidUntil}</Label>
-        <Input
-          type="date"
+        <DateInput
           id="renewal-valid-until"
           name="validUntil"
           required
+          placeholder={de.day.placeholder}
           value={validUntil}
-          onChange={(event) => setValidUntil(event.target.value)}
+          onChange={setValidUntil}
           data-testid="renewal-valid-until"
           className="h-9 w-44"
         />

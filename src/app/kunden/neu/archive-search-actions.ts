@@ -17,20 +17,28 @@ import { draftFromArchived } from "@/application/customers/draft-from-archived";
 import { searchArchivedCustomers } from "@/application/customers/search-archived-customers";
 import { CustomerNotArchived, CustomerNotFound, EmptySearchQuery } from "@/domain/errors";
 import { de } from "@/i18n/de";
+import { isBlankDay, parseCalendarDay } from "@/domain/calendarDay";
 import { tierOf } from "../../notice-tier";
 import { customerDeps } from "../deps";
 import type { ArchiveDraftResult, ArchiveSearchState } from "./archive-search-state";
 import { toPrefillDraft } from "./registration-input";
 
 /**
- * A calendar day as `<input type="date">` submits it, read as the UTC day it names — or `undefined`
- * for a field left blank, which is not a criterion at all.
+ * A calendar day as DF type it, read as the UTC day it names — or `undefined` for a field left
+ * blank, which is not a criterion at all.
  *
- * A malformed value is treated the same way. The date field is one of three optional criteria, so
- * there is nothing to reject: what the search sees is a search that was not narrowed by a birthdate.
+ * A malformed value is treated the same way, and this is the one place that is right: the date is
+ * one of three *optional* criteria, so there is nothing to reject. What the search sees is a search
+ * that was not narrowed by a birthdate. Everywhere a day is required, it is refused out loud
+ * instead — see `calendarDay` in `registration-input.ts`.
  */
 function optionalCalendarDay(value: string): Date | undefined {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00.000Z`) : undefined;
+  if (isBlankDay(value)) return undefined;
+  try {
+    return parseCalendarDay(value);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
