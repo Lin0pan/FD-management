@@ -7,6 +7,7 @@ import { de } from "@/i18n/de";
 import { berlinDayKey } from "@/domain/distribution/attendance";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
+import { typedDay } from "./day";
 
 /**
  * A household changes and the whole application follows, driven through the built app
@@ -352,7 +353,7 @@ test.describe("Kundenakte pflegen", () => {
 
     await page.getByTestId("member-first-name-2").fill(faker.person.firstName());
     await page.getByTestId("member-last-name-2").fill(faker.person.lastName());
-    await page.getByTestId("member-birth-date-2").fill(NEW_CHILD_BIRTH_DATE);
+    await page.getByTestId("member-birth-date-2").fill(typedDay(NEW_CHILD_BIRTH_DATE));
 
     // Nothing has been saved yet, and all four figures already say what the household will come to.
     // That is the point of the screen (FR-1): staff see what an edit costs before they commit it.
@@ -391,7 +392,7 @@ test.describe("Kundenakte pflegen", () => {
     await expect(page.getByTestId("reminder-count")).toHaveText(String(REMINDERS_SENT));
 
     await page.getByTestId("renewal-type").fill("Wohngeldbescheid");
-    await page.getByTestId("renewal-valid-until").fill(RENEWED_CERTIFICATE);
+    await page.getByTestId("renewal-valid-until").fill(typedDay(RENEWED_CERTIFICATE));
     await page.getByTestId("renewal-save").click();
 
     // The confirmation names the reset, and the figure beside it comes back from the revalidated
@@ -415,7 +416,7 @@ test.describe("Kundenakte pflegen", () => {
     // correcting a typo meant retyping the certificate as well — the same finding as on the
     // settings screen.
     await page.getByTestId("renewal-type").fill("Rentenbescheid");
-    await page.getByTestId("renewal-valid-until").fill("2025-06-30");
+    await page.getByTestId("renewal-valid-until").fill(typedDay("2025-06-30"));
     await page.getByTestId("renewal-save").click();
 
     const refusal = page.getByTestId("renewal-error");
@@ -423,11 +424,11 @@ test.describe("Kundenakte pflegen", () => {
     await expect(refusal).toHaveAttribute("data-tier", "refusal");
 
     await expect(page.getByTestId("renewal-type")).toHaveValue("Rentenbescheid");
-    await expect(page.getByTestId("renewal-valid-until")).toHaveValue("2025-06-30");
+    await expect(page.getByTestId("renewal-valid-until")).toHaveValue(typedDay("2025-06-30"));
 
     // Correct only the date. If the type had been cleared the form would not submit at all — it is
     // `required` — so this save landing is itself the proof that it survived.
-    await page.getByTestId("renewal-valid-until").fill(LATER_CERTIFICATE);
+    await page.getByTestId("renewal-valid-until").fill(typedDay(LATER_CERTIFICATE));
     await page.getByTestId("renewal-save").click();
     await expect(page.getByTestId("renewal-saved")).toHaveText(
       de.distribution.certificate.renewal.saved,

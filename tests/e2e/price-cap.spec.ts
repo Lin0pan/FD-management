@@ -6,6 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
+import { typedDay } from "./day";
 
 /**
  * The Maximalpreis from the settings screen to the counter
@@ -253,7 +254,7 @@ test.describe("Maximalpreis", () => {
     await page.getByTestId("add-member").click();
     await page.getByTestId("member-first-name-7").fill(faker.person.firstName());
     await page.getByTestId("member-last-name-7").fill(faker.person.lastName());
-    await page.getByTestId("member-birth-date-7").fill(EXTRA_CHILD_BIRTH_DATE);
+    await page.getByTestId("member-birth-date-7").fill(typedDay(EXTRA_CHILD_BIRTH_DATE));
 
     await expect(page.getByTestId("children")).toHaveText("4");
     await expect(page.getByTestId("portions")).toHaveText(PORTIONS_WITH_EXTRA_CHILD);

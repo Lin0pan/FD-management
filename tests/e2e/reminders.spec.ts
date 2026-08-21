@@ -6,6 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
+import { typedDay } from "./day";
 
 /**
  * The reminder trail, end to end: an expired certificate through to the third reminder and the
@@ -287,7 +288,7 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     await lookUp(page);
 
     await page.getByTestId("renewal-type").fill("Wohngeldbescheid");
-    await page.getByTestId("renewal-valid-until").fill(RENEWED_CERTIFICATE);
+    await page.getByTestId("renewal-valid-until").fill(typedDay(RENEWED_CERTIFICATE));
     await page.getByTestId("renewal-save").click();
 
     // The confirmation names the reset count while the revalidated page around it already shows the

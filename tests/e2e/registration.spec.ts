@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { foldName } from "@/domain/customer/nameSearch";
 import { de } from "@/i18n/de";
 import { SHARED } from "./registers";
+import { typedDay } from "./day";
 
 /**
  * Registering a customer, driven through the built app
@@ -88,13 +89,13 @@ function person(lastName: string): Person {
 async function fillPersonalData(page: Page, applicant: Person): Promise<void> {
   await page.locator("#firstName").fill(applicant.firstName);
   await page.locator("#lastName").fill(applicant.lastName);
-  await page.locator("#birthDate").fill(GROWN_UP_BIRTH_DATE);
+  await page.locator("#birthDate").fill(typedDay(GROWN_UP_BIRTH_DATE));
   await page.locator("#street").fill(faker.location.street());
   await page.locator("#houseNumber").fill(faker.location.buildingNumber());
   await page.locator("#zip").fill(faker.location.zipCode("#####"));
   await page.locator("#city").fill(faker.location.city());
   await page.locator("#certificateType").fill("Jobcenter-Bescheid");
-  await page.locator("#certificateValidUntil").fill(CERTIFICATE_VALID_UNTIL);
+  await page.locator("#certificateValidUntil").fill(typedDay(CERTIFICATE_VALID_UNTIL));
 }
 
 /**
@@ -236,6 +237,51 @@ test.describe("Kundenaufnahme", () => {
     await prisma.$disconnect();
   });
 
+  /**
+   * The regression DF reported from Safari, and the reason a day is no longer `<input type="date">`
+   * (ADR-013).
+   *
+   * It is deliberately **typed**, not filled. Every other date in this suite goes in through
+   * `fill()`, which assigns the value straight onto the element — and against the native date widget
+   * that was the whole problem: it bypassed the segment editor, so 144 green specs said nothing
+   * about the path a human uses, and WebKit could not even be made to type into it. A text field has
+   * no such gap. What `pressSequentially` puts in is what DF put in, in either engine.
+   *
+   * `15.03.1985` is not an arbitrary date. Typed into a US-ordered widget it was read as month 15,
+   * which Chromium silently clamped to December — `1985-12-03`, a valid birthdate nobody entered,
+   * and one that would move a household's portions and price without anything reporting it.
+   */
+  test("a birthdate is typed as TT.MM.JJJJ, and the day DF type is the day they get", async ({
+    page,
+  }) => {
+    await page.goto("/kunden/neu");
+
+    const birthDate = page.locator("#birthDate");
+    await birthDate.click();
+    await birthDate.pressSequentially("15031985");
+
+    // The dots are the field's doing: eight digits go in, a written day comes out.
+    await expect(birthDate).toHaveValue("15.03.1985");
+
+    // And it is read as March, not clamped into December. The derived panel is the proof, because
+    // it counts the applicant only once their birthdate parses.
+    await expect(page.getByTestId("grown-ups")).toHaveText("1");
+  });
+
+  test("a day that is not a day is refused rather than guessed at", async ({ page }) => {
+    await page.goto("/kunden/neu");
+
+    const birthDate = page.locator("#birthDate");
+    await birthDate.click();
+    // Month 15 — the value the old widget invented a December from.
+    await birthDate.pressSequentially("03151985");
+    await expect(birthDate).toHaveValue("03.15.1985");
+
+    // Nothing is derived from a day that cannot be read; the panel shows its empty mark rather than
+    // a figure computed from a date nobody typed.
+    await expect(page.getByTestId("grown-ups")).toHaveText("—");
+  });
+
   test("a two-person household is registered with a number, a card and derived counts", async ({
     page,
   }) => {
@@ -260,7 +306,7 @@ test.describe("Kundenaufnahme", () => {
     await page.getByTestId("add-member").click();
     await page.locator("#memberFirstName-1").fill(child.firstName);
     await page.locator("#memberLastName-1").fill(child.lastName);
-    await page.locator("#memberBirthDate-1").fill(CHILD_BIRTH_DATE);
+    await page.locator("#memberBirthDate-1").fill(typedDay(CHILD_BIRTH_DATE));
 
     // The counts are derived as staff type — there is no input for them.
     await expect(page.getByTestId("grown-ups")).toHaveText("1");

@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { SHARED } from "./registers";
+import { typedDay } from "./day";
 
 /**
  * A card number is handed out once and never again, driven through the built app
@@ -118,13 +119,13 @@ async function register(page: Page): Promise<Household> {
 
   await page.locator("#firstName").fill(firstName);
   await page.locator("#lastName").fill(lastName);
-  await page.locator("#birthDate").fill(GROWN_UP_BIRTH_DATE);
+  await page.locator("#birthDate").fill(typedDay(GROWN_UP_BIRTH_DATE));
   await page.locator("#street").fill(faker.location.street());
   await page.locator("#houseNumber").fill(faker.location.buildingNumber());
   await page.locator("#zip").fill(faker.location.zipCode("#####"));
   await page.locator("#city").fill(faker.location.city());
   await page.locator("#certificateType").fill("Jobcenter-Bescheid");
-  await page.locator("#certificateValidUntil").fill(CERTIFICATE_VALID_UNTIL);
+  await page.locator("#certificateValidUntil").fill(typedDay(CERTIFICATE_VALID_UNTIL));
 
   // The group choice is a `<details>` that starts closed (US-20.2), so the summary is really
   // clicked: a radio inside a closed disclosure has no bounding box and `check()` would time out.

@@ -6,6 +6,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { SHARED } from "./registers";
+import { typedDay } from "./day";
 
 /**
  * A household that was archived coming back and being registered again, driven through the built app
@@ -122,13 +123,13 @@ async function register(page: Page, lastName: string): Promise<Household> {
 
   await page.locator("#firstName").fill(applicant.firstName);
   await page.locator("#lastName").fill(applicant.lastName);
-  await page.locator("#birthDate").fill(GROWN_UP_BIRTH_DATE);
+  await page.locator("#birthDate").fill(typedDay(GROWN_UP_BIRTH_DATE));
   await page.locator("#street").fill(address.street);
   await page.locator("#houseNumber").fill(address.houseNumber);
   await page.locator("#zip").fill(address.zip);
   await page.locator("#city").fill(address.city);
   await page.locator("#certificateType").fill("Jobcenter-Bescheid");
-  await page.locator("#certificateValidUntil").fill(CERTIFICATE_VALID_UNTIL);
+  await page.locator("#certificateValidUntil").fill(typedDay(CERTIFICATE_VALID_UNTIL));
 
   // Both disclosures on this screen start closed. This one is the group choice (US-20.2): clicked
   // for real, once per page load, because a radio inside a closed `<details>` has no bounding box —
@@ -140,7 +141,7 @@ async function register(page: Page, lastName: string): Promise<Household> {
   await page.getByTestId("add-member").click();
   await page.locator("#memberFirstName-1").fill(child.firstName);
   await page.locator("#memberLastName-1").fill(child.lastName);
-  await page.locator("#memberBirthDate-1").fill(CHILD_BIRTH_DATE);
+  await page.locator("#memberBirthDate-1").fill(typedDay(CHILD_BIRTH_DATE));
 
   await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
   await page.waitForURL(/\/kunden\/\d+(\?|$)/);
@@ -364,7 +365,7 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
 
     await expect(page.locator("#firstName")).toHaveValue(returning.applicant.firstName);
     await expect(page.locator("#lastName")).toHaveValue(returning.applicant.lastName);
-    await expect(page.locator("#birthDate")).toHaveValue(GROWN_UP_BIRTH_DATE);
+    await expect(page.locator("#birthDate")).toHaveValue(typedDay(GROWN_UP_BIRTH_DATE));
     await expect(page.locator("#street")).toHaveValue(returning.address.street);
     await expect(page.locator("#houseNumber")).toHaveValue(returning.address.houseNumber);
     await expect(page.locator("#zip")).toHaveValue(returning.address.zip);
@@ -373,9 +374,9 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     // The whole household, in the order the archived record listed it — nobody retyped.
     await expect(page.getByTestId("household-row")).toHaveCount(2);
     await expect(page.locator("#memberFirstName-0")).toHaveValue(returning.applicant.firstName);
-    await expect(page.locator("#memberBirthDate-0")).toHaveValue(GROWN_UP_BIRTH_DATE);
+    await expect(page.locator("#memberBirthDate-0")).toHaveValue(typedDay(GROWN_UP_BIRTH_DATE));
     await expect(page.locator("#memberFirstName-1")).toHaveValue(returning.child.firstName);
-    await expect(page.locator("#memberBirthDate-1")).toHaveValue(CHILD_BIRTH_DATE);
+    await expect(page.locator("#memberBirthDate-1")).toHaveValue(typedDay(CHILD_BIRTH_DATE));
     await expect(page.getByTestId("grown-ups")).toHaveText("1");
     await expect(page.getByTestId("children")).toHaveText("1");
 
@@ -410,7 +411,7 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
 
     // The one thing that has to be typed: the certificate they present today.
     await page.locator("#certificateType").fill(RETURNING_CERTIFICATE_TYPE);
-    await page.locator("#certificateValidUntil").fill(CERTIFICATE_VALID_UNTIL);
+    await page.locator("#certificateValidUntil").fill(typedDay(CERTIFICATE_VALID_UNTIL));
 
     await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
     await page.waitForURL(/\/kunden\/\d+(\?|$)/);

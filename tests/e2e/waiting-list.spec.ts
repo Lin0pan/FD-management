@@ -4,6 +4,7 @@ import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { ISOLATED } from "./registers";
+import { typedDay } from "./day";
 
 /**
  * The waiting list from a full register to a promoted applicant, driven through the built app
@@ -89,13 +90,13 @@ function fullName(person: Applicant): string {
 async function fillPersonalData(page: Page, person: Applicant): Promise<void> {
   await page.locator("#firstName").fill(person.firstName);
   await page.locator("#lastName").fill(person.lastName);
-  await page.locator("#birthDate").fill(GROWN_UP_BIRTH_DATE);
+  await page.locator("#birthDate").fill(typedDay(GROWN_UP_BIRTH_DATE));
   await page.locator("#street").fill(faker.location.street());
   await page.locator("#houseNumber").fill(faker.location.buildingNumber());
   await page.locator("#zip").fill(faker.location.zipCode("#####"));
   await page.locator("#city").fill(faker.location.city());
   await page.locator("#certificateType").fill(CERTIFICATE_TYPE);
-  await page.locator("#certificateValidUntil").fill(CERTIFICATE_VALID_UNTIL);
+  await page.locator("#certificateValidUntil").fill(typedDay(CERTIFICATE_VALID_UNTIL));
 }
 
 /**
