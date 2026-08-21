@@ -64,7 +64,7 @@ jobs:
   # machine is ever replaced, so both are gates rather than one being a courtesy. The legs are
   # independent jobs — each installs only its own browser and drives a register of its own
   # (tests/e2e/registers.ts), so neither can move the other's customer numbers.
-  e2e-tests:
+  e2e:
     needs: build
     runs-on: ubuntu-latest
     strategy:
@@ -97,3 +97,26 @@ jobs:
           name: playwright-report-${{ matrix.engine }}
           path: playwright-report/
           retention-days: 7
+
+  # The check `main`'s ruleset actually requires, and the reason this job exists at all.
+  #
+  # A matrix does not publish a check under its job name: it publishes one per leg, `e2e (chromium)`
+  # and `e2e (webkit)`. So the moment `e2e-tests` became a matrix, the context the ruleset waits for
+  # stopped being produced and every pull request blocked for good — not on a failure, but on a check
+  # that could never report. This fans the legs back into the single name `main` asks for.
+  #
+  # Keep it. Adding a third engine then costs a line in the matrix and no change to branch
+  # protection, which is the point: the required context must not depend on how many engines there
+  # are.
+  e2e-tests:
+    needs: e2e
+    # Without this the aggregate is skipped when a leg fails, and a skipped required check is not a
+    # failing one — the ruleset would wait for ever instead of reporting red.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every engine passed
+        if: ${{ needs.e2e.result != 'success' }}
+        run: |
+          echo "At least one engine failed: e2e = ${{ needs.e2e.result }}"
+          exit 1

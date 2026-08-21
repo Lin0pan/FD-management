@@ -107,9 +107,12 @@ service to authenticate to.
 
 ## Build pipeline
 
-`.github/workflows/ci.yml`, on every push to `main` and every PR into it. Four jobs — five checks,
-since `e2e-tests` is a matrix with one leg per engine — all on `ubuntu-latest`, all doing `npm ci`
-then `npx prisma generate`:
+`.github/workflows/ci.yml`, on every push to `main` and every PR into it. All on `ubuntu-latest`,
+all doing `npm ci` then `npx prisma generate`. The end-to-end work is a matrix job `e2e` with one leg
+per engine, plus a tiny aggregate job named **`e2e-tests`** that gates on it — because a matrix
+publishes a check per _leg_ (`e2e (chromium)`), never one under the job's own name, and
+`e2e-tests` is the context `main`'s ruleset requires. Without the aggregate the required check is
+never produced and every PR blocks on a report that cannot arrive:
 
 | Job                         | Gates                                                                                                                                                                                                        |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

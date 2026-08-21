@@ -143,15 +143,18 @@ logic _down_ — logic in `app/` is a smell.
 
 ## CI pipeline (`.github/workflows/ci.yml`)
 
-Four jobs run on every PR to `main` — five checks, since `e2e-tests` is a matrix with one leg per
-engine. Wire them as required branch-protection checks:
+Five jobs run on every PR to `main`. Wire **`lint-and-typecheck`, `unit-tests`, `build` and
+`e2e-tests`** as the required branch-protection checks — `e2e-tests` is a thin aggregate over the
+`e2e` matrix, and it exists precisely so the required context does not change when an engine is
+added:
 
 | Job                  | Gate                                                                                                              |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `lint-and-typecheck` | ESLint + `tsc --noEmit` + `prisma validate`                                                                       |
 | `unit-tests`         | `vitest --coverage`, thresholds scoped to domain + application                                                    |
 | `build`              | `next build`                                                                                                      |
-| `e2e-tests`          | Playwright vs. the built app + fresh seeded SQLite files — **one leg per engine** (Chromium, WebKit), in parallel |
+| `e2e` (matrix)       | Playwright vs. the built app + fresh seeded SQLite files — **one leg per engine** (Chromium, WebKit), in parallel |
+| `e2e-tests`          | Aggregates the two legs into the single check `main` requires                                                     |
 
 CodeQL, Dependabot, and GitHub secret scanning run alongside.
 
@@ -180,4 +183,4 @@ CodeQL, Dependabot, and GitHub secret scanning run alongside.
 3. Keep the change small and the layers clean.
 4. `npm run lint && npm run typecheck && npm run test:coverage && npm run build` locally. If the
    change touched the UI, run `npm run test:e2e` **and** `npm run test:e2e:webkit`.
-5. Open a PR; ensure every CI check is green before merge — both `e2e-tests` legs included.
+5. Open a PR; ensure every CI check is green before merge — both `e2e` legs included.
