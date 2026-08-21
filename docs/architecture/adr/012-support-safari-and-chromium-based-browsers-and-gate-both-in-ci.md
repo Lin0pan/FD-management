@@ -1,6 +1,6 @@
 # ADR-012 — Support Safari and Chromium-based browsers, and gate both in CI
 
-- **Status:** Pending
+- **Status:** Accepted
 - **Date:** 2026-08-21
 - **Deciders:** the maintainer, with DF on which machine they actually use
 
