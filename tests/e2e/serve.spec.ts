@@ -7,6 +7,7 @@ import { de } from "@/i18n/de";
 import { germanTime } from "@/i18n/format";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
+import { releaseNumbers } from "./seeding";
 
 /**
  * The distribution-day happy path, driven through the built app
@@ -79,6 +80,12 @@ async function seedHousehold(customerNumber: number): Promise<void> {
   const lastName = faker.person.lastName();
   const firstName = faker.person.firstName();
   const childFirstName = faker.person.firstName();
+
+  // Idempotent, so a CI retry can re-run this block instead of dying on the
+
+  // unique customer number (tests/e2e/seeding.ts).
+
+  await releaseNumbers(prisma, customerNumber);
 
   await prisma.customer.create({
     data: {
