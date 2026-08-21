@@ -24,7 +24,7 @@
  */
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import type { RegistrationProposal } from "@/application/customers/propose-registration";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -73,6 +73,47 @@ interface MemberRow {
 const EMPTY_ROW: MemberRow = { firstName: "", lastName: "", birthDate: "" };
 
 /**
+ * The address, the certificate and the note, as the form holds them — raw strings, keyed by the
+ * `name` each input carries.
+ *
+ * They are React state rather than `defaultValue`s, and that is the whole fix for a refusal that
+ * used to delete them. React calls `form.reset()` once a `<form action>` resolves — on a refusal as
+ * well as a save — and a reset restores each input from its `defaultValue` *attribute*, so seven
+ * fields rewound to the pre-fill or to blank while the four that happened to be controlled kept
+ * what was typed. A mistyped date cost a retyped address.
+ *
+ * `docs/guideline/ui_styling_guide.md` §7 gives three ways out, cheapest first, and the cheapest one
+ * fits here: this form never returns on a save — it redirects to the new record — so there is
+ * nothing for a reset to restore *to*, and controlled fields simply survive. The archive pre-fill
+ * still clears them, because `registration-screen.tsx` applies a selection by remounting the form.
+ *
+ * One object rather than seven `useState` calls, the shape `kunden/[id]/details-editor.tsx` holds
+ * the same fields in.
+ */
+interface DetailsDraft {
+  readonly street: string;
+  readonly houseNumber: string;
+  readonly zip: string;
+  readonly city: string;
+  readonly certificateType: string;
+  readonly certificateValidUntil: string;
+  readonly notes: string;
+}
+
+/** The address, certificate and note the form starts out with — the draft's, or blank. */
+function initialDetails(draft: PrefillDraft | null): DetailsDraft {
+  return {
+    street: draft?.street ?? "",
+    houseNumber: draft?.houseNumber ?? "",
+    zip: draft?.zip ?? "",
+    city: draft?.city ?? "",
+    certificateType: draft?.certificateType ?? "",
+    certificateValidUntil: draft?.certificateValidUntil ?? "",
+    notes: draft?.notes ?? "",
+  };
+}
+
+/**
  * The rows the counts can be derived from, as `Date`s.
  *
  * A row that is still being typed has no birthdate yet; counting it as anything would make the
@@ -112,6 +153,59 @@ function derivedCounts(
 }
 
 /**
+ * The words under a refused control — „Datum fehlt.“, „Pflichtfeld.“ — and the id that ties them to
+ * it.
+ *
+ * The summary by the button is 1 600px from the first field it can name, measured, which is what
+ * made a refused registration a hunt for the box. This is the other end of that: the words at the
+ * field, with the reddened label and the `aria-invalid` border pointing at it, and
+ * `aria-describedby` so a screen reader reads the two together rather than leaving the sentence to
+ * be found by eye.
+ *
+ * Unlike `/einstellungen`'s equivalent it renders the refusal's **own** sentence rather than one
+ * generic „Ungültiger Wert.“: on this screen the distinction between a day left blank and a day
+ * nobody can read is the thing worth saying, and saying it is what ADR-013 is about.
+ *
+ * The test id stays off the summary, which keeps `registration-error` — several specs assert that
+ * element's exact text, and one of them per screen is what keeps the assertion unambiguous.
+ */
+function FieldRejection({ id, problem }: { id: string; problem: string }): React.ReactElement {
+  return (
+    <p
+      id={`${id}-error`}
+      data-testid="registration-field-error"
+      className="text-sm text-destructive"
+    >
+      {problem}
+    </p>
+  );
+}
+
+/**
+ * What a refused control carries: the mark's id to be described by, the invalid state, and the path
+ * the action named it with.
+ *
+ * `data-field` is that path — `street`, `householdMembers.1.birthDate` — and it is on the control so
+ * that the form can find the first refused field again without rebuilding an id from a path. The
+ * household's three inputs share a `name` and are told apart by `id`, so a path is the only name
+ * both sides of the round trip agree on.
+ */
+function marking(
+  path: string,
+  id: string,
+  problem: string | null,
+): {
+  "data-field": string;
+  "aria-invalid"?: true;
+  "aria-describedby"?: string;
+} {
+  return {
+    "data-field": path,
+    ...(problem === null ? {} : { "aria-invalid": true, "aria-describedby": `${id}-error` }),
+  };
+}
+
+/**
  * One field of the form, in a slot of the twelve-column grid.
  *
  * The span is the point. Every field on this screen used to be 408px because all four sections
@@ -119,6 +213,8 @@ function derivedCounts(
  * the most reliable hint a form has about what it wants. `<label htmlFor>` + `<Input id>` rather
  * than the old nested `<label><span>`, which worked only by nesting and left the accessibility
  * snapshot with unnamed textboxes.
+ *
+ * Every field is controlled — see {@link DetailsDraft} for why none of them may be a `defaultValue`.
  */
 function Field({
   name,
@@ -127,22 +223,25 @@ function Field({
   type = "text",
   value,
   onChange,
-  defaultValue,
+  problem = null,
 }: {
   name: string;
   label: string;
   /** Columns of twelve at `lg`. Below that the grid collapses and the span stops applying. */
   span: string;
   type?: "text" | "date";
-  /** A controlled field — the three the household's first row mirrors. */
-  value?: string;
-  onChange?: (value: string) => void;
-  /** An uncontrolled field, read out of the `FormData` on submit. */
-  defaultValue?: string;
+  value: string;
+  onChange: (value: string) => void;
+  /** The words to show under the control, or `null` while nothing is wrong with it. */
+  problem?: string | null;
 }): React.ReactElement {
+  const marks = marking(name, name, problem);
   return (
     <div className={`flex flex-col gap-1.5 ${span}`}>
-      <label htmlFor={name} className="text-sm font-medium">
+      <label
+        htmlFor={name}
+        className={`text-sm font-medium ${problem === null ? "" : "text-destructive"}`.trimEnd()}
+      >
         {label}
       </label>
       {type === "date" ? (
@@ -150,21 +249,94 @@ function Field({
           name={name}
           id={name}
           placeholder={de.day.placeholder}
-          {...(onChange === undefined
-            ? { defaultValue: defaultValue ?? "" }
-            : { value: value ?? "", onChange })}
+          value={value}
+          onChange={onChange}
+          {...marks}
         />
       ) : (
         <Input
           type="text"
           name={name}
           id={name}
-          {...(onChange === undefined
-            ? { defaultValue: defaultValue ?? "" }
-            : { value: value ?? "", onChange: (event) => onChange(event.target.value) })}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          {...marks}
         />
       )}
+      {problem === null ? null : <FieldRejection id={name} problem={problem} />}
     </div>
+  );
+}
+
+/** The three parts of a household row, and the `name` each of their inputs carries. */
+const MEMBER_INPUT = {
+  firstName: "memberFirstName",
+  lastName: "memberLastName",
+  birthDate: "memberBirthDate",
+} as const;
+
+type MemberPart = keyof typeof MEMBER_INPUT;
+
+/** How a household field is named on the wire — the spelling the domain and the schema share. */
+function memberPath(index: number, part: MemberPart): string {
+  return `householdMembers.${index}.${part}`;
+}
+
+/**
+ * One cell of the household table: the control, and the mark under it when that field was refused.
+ *
+ * Three fields repeating per member is tabular data, so the field names are said once in the column
+ * headings — but a column heading names a column and not a cell, so each input keeps the string its
+ * visible label used to carry as `aria-label` and nothing a screen reader hears is lost.
+ *
+ * The cells are top-aligned: a mark makes one cell taller than its neighbours, and without it the
+ * controls in a refused row would sit at three different heights.
+ */
+function MemberCell({
+  index,
+  part,
+  value,
+  onChange,
+  problem,
+}: {
+  index: number;
+  part: MemberPart;
+  value: string;
+  onChange: (value: string) => void;
+  problem: string | null;
+}): React.ReactElement {
+  const name = MEMBER_INPUT[part];
+  const id = `${name}-${index}`;
+  const label = `${de.customers.new.memberRow(index + 1)} — ${de.customers.fields[part]}`;
+  const marks = marking(memberPath(index, part), id, problem);
+
+  return (
+    <TableCell className="align-top">
+      <div className="flex flex-col gap-1">
+        {part === "birthDate" ? (
+          <DateInput
+            name={name}
+            id={id}
+            aria-label={label}
+            placeholder={de.day.placeholder}
+            value={value}
+            onChange={onChange}
+            {...marks}
+          />
+        ) : (
+          <Input
+            type="text"
+            name={name}
+            id={id}
+            aria-label={label}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            {...marks}
+          />
+        )}
+        {problem === null ? null : <FieldRejection id={id} problem={problem} />}
+      </div>
+    </TableCell>
   );
 }
 
@@ -228,6 +400,18 @@ function initialRows(draft: PrefillDraft | null): ReadonlyArray<MemberRow> {
   return draft === null ? [EMPTY_ROW] : draft.householdMembers.map((member) => ({ ...member }));
 }
 
+/**
+ * The words to show under one field, or `null` while the last submission said nothing about it.
+ *
+ * Matched on the path the action named, never on the sentence: a tier read back out of German is
+ * a tier that changes when somebody fixes a comma (`notice-tier.ts`), and a *field* read back out
+ * of one is worse — it would unmark a field the first time a label was reworded, with nothing
+ * failing anywhere.
+ */
+function problemAt(state: RegisterCustomerState, path: string): string | null {
+  return state.fields?.find((field) => field.path === path)?.problem ?? null;
+}
+
 export function RegistrationForm({
   proposal,
   draft = null,
@@ -258,6 +442,7 @@ export function RegistrationForm({
   const [firstName, setFirstName] = useState(draft?.firstName ?? "");
   const [lastName, setLastName] = useState(draft?.lastName ?? "");
   const [birthDate, setBirthDate] = useState(draft?.birthDate ?? "");
+  const [details, setDetails] = useState<DetailsDraft>(initialDetails(draft));
   const [rows, setRows] = useState<ReadonlyArray<MemberRow>>(initialRows(draft));
   // The first row mirrors the personal data until somebody edits it by hand: the registered person
   // *is* a household member, and typing their name twice is how a household ends up with a phantom
@@ -273,6 +458,12 @@ export function RegistrationForm({
       ? [{ firstName, lastName, birthDate }, ...rows.slice(1)]
       : rows;
 
+  const [picked, setPicked] = useState<number | null>(proposal.customerNumber);
+  // Controlled for the reason the number is: `defaultChecked` is undone by React's post-action
+  // `form.reset()`, so an override to the other group was silently rewound to the proposal by the
+  // very refusal the staff member was about to correct.
+  const [chosenGroup, setChosenGroup] = useState(proposal.suggestedGroup);
+
   const counts = derivedCounts(members, proposal.today);
   const full = proposal.customerNumber === null;
 
@@ -281,6 +472,38 @@ export function RegistrationForm({
   // what stops the form going on offering a number that provably cannot be saved (US-24) — the
   // staff member's obvious next move, picking it again, would fail identically.
   const freeNumbers = state.freeNumbers ?? proposal.freeNumbers;
+
+  // The number the control shows: the staff member's own pick, unless a lost race has just taken it
+  // out of the register — then the lowest that is still free, which is where the dropdown opened in
+  // the first place. Derived rather than stored, so the correction happens in the same render the
+  // fresh pool arrives in and there is no effect that could show a dead number for a frame.
+  const chosen = picked !== null && freeNumbers.includes(picked) ? picked : (freeNumbers[0] ?? "");
+
+  /**
+   * Put the cursor in the first field the refusal named.
+   *
+   * The summary sits by the button and the field it names may be the whole form above it, so
+   * without this a refusal is read and then hunted for. Focusing scrolls it into view and says
+   * „hier“ in one gesture — the same move the screen makes after an archive pre-fill
+   * (`registration-screen.tsx`), for the same reason.
+   *
+   * Keyed on the whole state, because `useActionState` hands back a fresh object per submission:
+   * refusing the same field twice in a row still moves the cursor, which is what says the second
+   * attempt was read at all. The control is found by the path the action named it with rather than
+   * by a rebuilt id — see {@link marking}.
+   */
+  useEffect(() => {
+    const first = state.fields?.[0];
+    if (first === undefined) {
+      return;
+    }
+    document.querySelector<HTMLElement>(`[data-field="${first.path}"]`)?.focus();
+  }, [state]);
+
+  const problem = (path: string): string | null => problemAt(state, path);
+  // Read once rather than three times: the number's control, its label and its mark are written out
+  // by hand here — it is a `<select>` in a two-row subgrid rather than one of `Field`'s boxes.
+  const numberProblem = problem("customerNumber");
 
   function updateRow(index: number, patch: Partial<MemberRow>): void {
     if (index === 0) {
@@ -349,6 +572,7 @@ export function RegistrationForm({
             span="lg:col-span-4"
             value={firstName}
             onChange={setFirstName}
+            problem={problem("firstName")}
           />
           <Field
             name="lastName"
@@ -356,6 +580,7 @@ export function RegistrationForm({
             span="lg:col-span-4"
             value={lastName}
             onChange={setLastName}
+            problem={problem("lastName")}
           />
           <Field
             name="birthDate"
@@ -364,6 +589,7 @@ export function RegistrationForm({
             type="date"
             value={birthDate}
             onChange={setBirthDate}
+            problem={problem("birthDate")}
           />
         </div>
 
@@ -375,25 +601,33 @@ export function RegistrationForm({
             name="street"
             label={de.customers.fields.street}
             span="lg:col-span-5"
-            defaultValue={draft?.street ?? ""}
+            value={details.street}
+            onChange={(street) => setDetails({ ...details, street })}
+            problem={problem("street")}
           />
           <Field
             name="houseNumber"
             label={de.customers.fields.houseNumber}
             span="lg:col-span-2"
-            defaultValue={draft?.houseNumber ?? ""}
+            value={details.houseNumber}
+            onChange={(houseNumber) => setDetails({ ...details, houseNumber })}
+            problem={problem("houseNumber")}
           />
           <Field
             name="zip"
             label={de.customers.fields.zip}
             span="lg:col-span-2"
-            defaultValue={draft?.zip ?? ""}
+            value={details.zip}
+            onChange={(zip) => setDetails({ ...details, zip })}
+            problem={problem("zip")}
           />
           <Field
             name="city"
             label={de.customers.fields.city}
             span="lg:col-span-3"
-            defaultValue={draft?.city ?? ""}
+            value={details.city}
+            onChange={(city) => setDetails({ ...details, city })}
+            problem={problem("city")}
           />
         </div>
 
@@ -405,20 +639,26 @@ export function RegistrationForm({
             name="certificateType"
             label={de.customers.fields.certificateType}
             span="lg:col-span-6"
-            defaultValue={draft?.certificateType ?? ""}
+            value={details.certificateType}
+            onChange={(certificateType) => setDetails({ ...details, certificateType })}
+            problem={problem("certificateType")}
           />
           <Field
             name="certificateValidUntil"
             label={de.customers.fields.certificateValidUntil}
             span="lg:col-span-6"
             type="date"
-            defaultValue={draft?.certificateValidUntil ?? ""}
+            value={details.certificateValidUntil}
+            onChange={(certificateValidUntil) => setDetails({ ...details, certificateValidUntil })}
+            problem={problem("certificateValidUntil")}
           />
           <Field
             name="notes"
             label={de.customers.fields.notes}
             span="sm:col-span-2 lg:col-span-12"
-            defaultValue={draft?.notes ?? ""}
+            value={details.notes}
+            onChange={(notes) => setDetails({ ...details, notes })}
+            problem={problem("notes")}
           />
         </div>
       </Section>
@@ -447,41 +687,31 @@ export function RegistrationForm({
               // Rows are addressed by position: two members can share a name and a birthdate, and a
               // row has no identity of its own until it is saved.
               <TableRow key={index} data-testid="household-row" className="hover:bg-transparent">
-                <TableCell className="text-muted-foreground tabular-nums">{index + 1}</TableCell>
-                {/* Each input keeps the string its visible label used to carry as `aria-label`, so
-                    nothing a screen reader hears is lost: a column heading names a column, not a
-                    cell. */}
-                <TableCell>
-                  <Input
-                    type="text"
-                    name="memberFirstName"
-                    id={`memberFirstName-${index}`}
-                    aria-label={`${de.customers.new.memberRow(index + 1)} — ${de.customers.fields.firstName}`}
-                    value={row.firstName}
-                    onChange={(event) => updateRow(index, { firstName: event.target.value })}
-                  />
+                <TableCell className="align-top text-muted-foreground tabular-nums">
+                  {index + 1}
                 </TableCell>
-                <TableCell>
-                  <Input
-                    type="text"
-                    name="memberLastName"
-                    id={`memberLastName-${index}`}
-                    aria-label={`${de.customers.new.memberRow(index + 1)} — ${de.customers.fields.lastName}`}
-                    value={row.lastName}
-                    onChange={(event) => updateRow(index, { lastName: event.target.value })}
-                  />
-                </TableCell>
-                <TableCell>
-                  <DateInput
-                    name="memberBirthDate"
-                    id={`memberBirthDate-${index}`}
-                    aria-label={`${de.customers.new.memberRow(index + 1)} — ${de.customers.fields.birthDate}`}
-                    placeholder={de.day.placeholder}
-                    value={row.birthDate}
-                    onChange={(birthDate) => updateRow(index, { birthDate })}
-                  />
-                </TableCell>
-                <TableCell>
+                <MemberCell
+                  index={index}
+                  part="firstName"
+                  value={row.firstName}
+                  onChange={(firstName) => updateRow(index, { firstName })}
+                  problem={problem(memberPath(index, "firstName"))}
+                />
+                <MemberCell
+                  index={index}
+                  part="lastName"
+                  value={row.lastName}
+                  onChange={(lastName) => updateRow(index, { lastName })}
+                  problem={problem(memberPath(index, "lastName"))}
+                />
+                <MemberCell
+                  index={index}
+                  part="birthDate"
+                  value={row.birthDate}
+                  onChange={(birthDate) => updateRow(index, { birthDate })}
+                  problem={problem(memberPath(index, "birthDate"))}
+                />
+                <TableCell className="align-top">
                   <Button
                     type="button"
                     variant="ghost"
@@ -560,13 +790,19 @@ export function RegistrationForm({
            * of its own. A native one is also type-ahead searchable over 240 options — typing `1`
            * then `5` lands on 15 — with no JavaScript of ours.
            *
-           * Uncontrolled: `defaultValue` opens it on the lowest free slot, and a refused save then
-           * leaves the staff member's own choice standing rather than snapping back to the
-           * proposal (#91). When a lost race removes their number from the list the browser falls
-           * back to the first option, which is the lowest free one again.
+           * Controlled, opening on the lowest free slot, so that a refused save leaves the staff
+           * member's own choice standing rather than snapping back to the proposal (#91). It used
+           * to be a `defaultValue` for that, which is precisely what React's post-action
+           * `form.reset()` undoes — see {@link DetailsDraft}. When a lost race removes their number
+           * from the register, {@link chosen} falls back to the lowest that is still free.
            */}
           <div className={`${FIELD_ROWS} lg:col-span-2`}>
-            <label htmlFor="customerNumber" className="self-start text-sm font-medium">
+            <label
+              htmlFor="customerNumber"
+              className={`self-start text-sm font-medium ${
+                numberProblem === null ? "" : "text-destructive"
+              }`.trimEnd()}
+            >
               {de.customers.fields.customerNumber}
             </label>
             {/* One grid row, two elements, so the subgrid above still sees a single row. Two of
@@ -578,8 +814,10 @@ export function RegistrationForm({
                 name="customerNumber"
                 id="customerNumber"
                 data-testid="customer-number-select"
-                defaultValue={proposal.customerNumber ?? ""}
+                value={chosen}
+                onChange={(event) => setPicked(Number(event.target.value))}
                 disabled={full}
+                {...marking("customerNumber", "customerNumber", numberProblem)}
               >
                 {freeNumbers.map((number) => (
                   <option key={number} value={number}>
@@ -587,6 +825,9 @@ export function RegistrationForm({
                   </option>
                 ))}
               </select>
+              {numberProblem === null ? null : (
+                <FieldRejection id="customerNumber" problem={numberProblem} />
+              )}
               {/* No hint on a full register: „0 freie Nummern — die niedrigste ist vorausgewählt“
                   would be a sentence about a preselection that does not exist. The `Alert` at the
                   top of the form is the message there, and it offers the waiting list with it. */}
@@ -663,7 +904,8 @@ export function RegistrationForm({
                         name="group"
                         id={`group-${group}`}
                         value={group}
-                        defaultChecked={group === proposal.suggestedGroup}
+                        checked={group === chosenGroup}
+                        onChange={() => setChosenGroup(group)}
                         className="accent-current"
                       />
                       <span>{de.customers.groups[group]}</span>

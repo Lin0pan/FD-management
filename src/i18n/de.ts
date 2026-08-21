@@ -233,6 +233,35 @@ export const de = {
        */
       dateMissing: "Datum fehlt.",
       notADate: "Kein gültiges Datum.",
+      /**
+       * The rest of the marks that sit **under** a refused control, in the register
+       * {@link dateMissing} set: three or four words, because the field they name is right above
+       * them and the summary by the button says the rest.
+       *
+       * They are deliberately not the finished sentences beside them — `missingField` names its
+       * field because it is read 1 600px away from it, and a mark that named its own field would
+       * say it twice in the same eyeful.
+       */
+      fieldRequired: "Pflichtfeld.",
+      valueTooLong: "Zu lang.",
+      numberUnavailable: "Nicht mehr verfügbar.",
+      /**
+       * The summary for a refusal the *form* raised — a day that cannot be read, a field left
+       * blank — where the schema's own message says only what is wrong and the field has to be
+       * named around it.
+       *
+       * The label is quoted because a household field is itself „Haushaltsmitglied 2:
+       * Geburtsdatum“, and „Haushaltsmitglied 2: Geburtsdatum: Datum fehlt.“ is three colons deep.
+       */
+      fieldProblem: (field: string, problem: string): string => `„${field}“: ${problem}`,
+      /**
+       * The same summary when more than one field was refused at once, which a form with a day
+       * field per household member makes ordinary. It names them rather than counting them: the
+       * marks are at the fields, but a staff member scrolled to the button has to know how far up
+       * to look and how many times.
+       */
+      severalFieldProblems: (fields: ReadonlyArray<string>): string =>
+        `Bitte ${fields.length} Felder prüfen: ${fields.map((field) => `„${field}“`).join(", ")}.`,
       notesTooLong: (maxLength: number, length: number): string =>
         `Die Notiz ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
         `möglich — bitte kürzen.`,
@@ -1324,18 +1353,52 @@ export type Dictionary = typeof de;
 const HOUSEHOLD_FIELD = /^householdMembers\.(\d+)\.(firstName|lastName|birthDate)$/;
 
 /**
- * The German label for a field a customer error names.
+ * The German label for a field a customer error names, in the **domain's** vocabulary —
+ * `address.street`, `certificate.type`, `householdMembers.1.firstName`.
  *
- * Household rows are numbered rather than listed in the dictionary: the domain names them by index,
- * and there is no upper bound on how many people live in a household. Rows count from 1 on screen
- * while the domain counts from 0.
+ * It always answers: a field it has no words for is quoted as it stands, because a sentence naming
+ * an English identifier is still better than a sentence naming nothing. {@link customerFormFieldLabel}
+ * is the same question asked of a form, and deliberately does not.
  */
 export function customerFieldLabel(field: string): string {
+  return householdFieldLabel(field) ?? de.customers.errorFields[field] ?? field;
+}
+
+/**
+ * „Haushaltsmitglied 2: Geburtsdatum“ for a household row, `null` for anything else.
+ *
+ * Rows are numbered rather than listed in the dictionary: they are named by index, and there is no
+ * upper bound on how many people live in a household. Rows count from 1 on screen while both the
+ * domain and the form count from 0. The spelling is the same on both sides, which is why this one
+ * function serves {@link customerFieldLabel} and {@link customerFormFieldLabel} alike.
+ */
+function householdFieldLabel(field: string): string | null {
   const householdMatch = HOUSEHOLD_FIELD.exec(field);
-  if (householdMatch !== null) {
-    const position = Number(householdMatch[1]) + 1;
-    const part = de.customers.fields[householdMatch[2] as "firstName" | "lastName" | "birthDate"];
-    return `${de.customers.new.memberRow(position)}: ${part}`;
+  if (householdMatch === null) {
+    return null;
   }
-  return de.customers.errorFields[field] ?? field;
+  const position = Number(householdMatch[1]) + 1;
+  const part = de.customers.fields[householdMatch[2] as "firstName" | "lastName" | "birthDate"];
+  return `${de.customers.new.memberRow(position)}: ${part}`;
+}
+
+/** The names of the fields the registration form submits, as `de.customers.fields` keys them. */
+const FORM_FIELDS = de.customers.fields as Record<string, string | undefined>;
+
+/**
+ * The German label for a field of a **form**, or `null` for a path no field on screen carries.
+ *
+ * Two things separate it from {@link customerFieldLabel}. It speaks the form's vocabulary rather
+ * than the domain's — `street` and `certificateType`, the names the `<input>`s actually carry,
+ * where the domain says `address.street` and `certificate.type` — because what the browser can mark
+ * is an input, and translating one into the other is the action's job (`registration-input.ts`).
+ *
+ * And it **misses**, where `customerFieldLabel` falls back to the identifier. That is the whole
+ * point of the return type: a path with no label is a field nobody can see, so it is a tampered
+ * hidden input rather than a mistyped value — an error, not a refusal
+ * (`docs/guideline/ui_styling_guide.md` §7). Quoting `previousCustomerId` at staff would be the
+ * alternative, and it would name a field they cannot find.
+ */
+export function customerFormFieldLabel(path: string): string | null {
+  return householdFieldLabel(path) ?? FORM_FIELDS[path] ?? null;
 }

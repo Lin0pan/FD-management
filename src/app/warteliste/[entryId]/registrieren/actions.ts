@@ -18,7 +18,8 @@ import { de } from "@/i18n/de";
 import { freshPoolAfterRace } from "@/app/kunden/neu/fresh-pool";
 import type { RegisterCustomerState } from "@/app/kunden/neu/register-customer-state";
 import {
-  germanMessage,
+  fieldRefusals,
+  germanRefusal,
   registrationForm,
   registrationValues,
 } from "@/app/kunden/neu/registration-input";
@@ -49,7 +50,7 @@ export async function submitPromotedRegistration(
 
   const parsed = registrationForm.safeParse(registrationValues(formData));
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0].message, tier: "refusal" };
+    return { status: "error", ...fieldRefusals(parsed.error) };
   }
   const form = parsed.data;
 
@@ -80,8 +81,7 @@ export async function submitPromotedRegistration(
     }
     return {
       status: "error",
-      message: germanMessage(error),
-      tier: tierOf(error),
+      ...germanRefusal(error),
       ...(await freshPoolAfterRace(waitingListDeps, error)),
     };
   }

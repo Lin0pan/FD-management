@@ -5,19 +5,23 @@
  * `registerCustomer` use case.
  *
  * Its only jobs are to give the submitted strings a shape (Zod), pair the repeated household inputs
- * back into rows, and translate a typed domain error into a German sentence. All three live in
- * `registration-input.ts` so that the waiting-list promotion reads the same form the same way; every
- * rule about *what is allowed* lives in the domain and the use case, and adding one here would be a
- * bug.
+ * back into rows, and turn a refusal into what the screen shows — the German sentence, the tier, and
+ * the fields to mark. All of it lives in `registration-input.ts` so that the waiting-list promotion
+ * reads the same form the same way; every rule about *what is allowed* lives in the domain and the
+ * use case, and adding one here would be a bug.
  */
 
 import { redirect } from "next/navigation";
 import { registerCustomer } from "@/application/customers/register-customer";
-import { tierOf } from "../../notice-tier";
 import { customerDeps } from "../deps";
 import { freshPoolAfterRace } from "./fresh-pool";
 import type { RegisterCustomerState } from "./register-customer-state";
-import { germanMessage, registrationForm, registrationValues } from "./registration-input";
+import {
+  fieldRefusals,
+  germanRefusal,
+  registrationForm,
+  registrationValues,
+} from "./registration-input";
 
 /**
  * Validate the form, register the customer with their number, group and first card, and go to the
@@ -32,7 +36,7 @@ export async function submitRegistration(
 ): Promise<RegisterCustomerState> {
   const parsed = registrationForm.safeParse(registrationValues(formData));
   if (!parsed.success) {
-    return { status: "error", message: parsed.error.issues[0].message, tier: "refusal" };
+    return { status: "error", ...fieldRefusals(parsed.error) };
   }
   const form = parsed.data;
 
@@ -59,8 +63,7 @@ export async function submitRegistration(
   } catch (error: unknown) {
     return {
       status: "error",
-      message: germanMessage(error),
-      tier: tierOf(error),
+      ...germanRefusal(error),
       ...(await freshPoolAfterRace(customerDeps, error)),
     };
   }
