@@ -67,6 +67,7 @@ const TIERS: Record<DomainErrorCode, NoticeTier> = {
   NotesTooLong: "refusal",
   InvalidSettings: "refusal",
   InvalidEuroAmount: "refusal",
+  InvalidCalendarDay: "refusal",
   InvalidCustomerRecord: "refusal",
   EmptySearchQuery: "refusal",
 
