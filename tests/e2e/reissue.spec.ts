@@ -6,6 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
+import { releaseNumbers } from "./seeding";
 
 /**
  * Replacing a lost card and watching the old one stop working, driven through the built app
@@ -88,6 +89,12 @@ async function seedHousehold(): Promise<number> {
   const lastName = faker.person.lastName();
   const firstName = faker.person.firstName();
   const childFirstName = faker.person.firstName();
+
+  // Idempotent, so a CI retry can re-run this block instead of dying on the
+
+  // unique customer number (tests/e2e/seeding.ts).
+
+  await releaseNumbers(prisma, CUSTOMER_NUMBER);
 
   const customer = await prisma.customer.create({
     data: {

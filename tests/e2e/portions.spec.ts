@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
+import { releaseNumbers } from "./seeding";
 
 /**
  * Portions and price follow the household, driven through the built app
@@ -63,6 +64,9 @@ test("portions and price are derived from the household, not stored", async ({ p
 
   // Two grown-ups and one child. The applicant is the first household member row, exactly as a
   // registration mirrors it, so the derived counts read straight off the three birthdates.
+  // Idempotent, so a CI retry can re-run this block instead of dying on the
+  // unique customer number (tests/e2e/seeding.ts).
+  await releaseNumbers(prisma, CUSTOMER_NUMBER);
   const customer = await prisma.customer.create({
     data: {
       customerNumber: CUSTOMER_NUMBER,

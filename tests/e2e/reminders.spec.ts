@@ -7,6 +7,7 @@ import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { fillDay, fillSticky } from "./day";
+import { releaseNumbers } from "./seeding";
 
 /**
  * The reminder trail, end to end: an expired certificate through to the third reminder and the
@@ -75,6 +76,12 @@ async function seedHousehold(): Promise<void> {
   const lastName = faker.person.lastName();
   const firstName = faker.person.firstName();
   const childFirstName = faker.person.firstName();
+
+  // Idempotent, so a CI retry can re-run this block instead of dying on the
+
+  // unique customer number (tests/e2e/seeding.ts).
+
+  await releaseNumbers(prisma, CUSTOMER_NUMBER);
 
   await prisma.customer.create({
     data: {

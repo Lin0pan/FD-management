@@ -6,6 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
+import { releaseNumbers } from "./seeding";
 
 /**
  * Stepping through today's group at the counter, driven through the built app
@@ -106,6 +107,12 @@ async function seedHousehold(household: Household): Promise<void> {
   const firstName = faker.person.firstName();
   const lastName = faker.person.lastName();
   const birthDate = new Date(`${GROWN_UP_BIRTH_DATE}T00:00:00.000Z`);
+
+  // Idempotent, so a CI retry can re-run this block instead of dying on the
+
+  // unique customer number (tests/e2e/seeding.ts).
+
+  await releaseNumbers(prisma, household.customerNumber);
 
   await prisma.customer.create({
     data: {

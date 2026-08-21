@@ -6,6 +6,7 @@ import { foldName } from "@/domain/customer/nameSearch";
 import { de } from "@/i18n/de";
 import { SHARED } from "./registers";
 import { fillDay } from "./day";
+import { releaseNumbers } from "./seeding";
 
 /**
  * Registering a customer, driven through the built app
@@ -115,6 +116,12 @@ async function seedHousehold(customerNumber: number, status: "ACTIVE" | "ARCHIVE
   const lastName = faker.person.lastName();
   const birthDate = new Date(`${GROWN_UP_BIRTH_DATE}T00:00:00.000Z`);
   const archived = status === "ARCHIVED";
+
+  // Idempotent, so a CI retry can re-run this block instead of dying on the
+
+  // unique customer number (tests/e2e/seeding.ts).
+
+  await releaseNumbers(prisma, customerNumber);
 
   await prisma.customer.create({
     data: {
