@@ -41,16 +41,19 @@ Grouped along ISO/IEC 25010.
 ## Honest gaps
 
 Three of the eight scenarios above are **not** fully checked by anything automated, and saying so is
-the point of writing them down:
+the point of writing them down. Q8 has just moved a long way towards being one that is:
 
 - **Q5** rests on the absence of a dependency rather than on an assertion. A test that fails when an
   HTTP client enters `package.json` would close it cheaply.
 - **Q6** has never been rehearsed. A restore that has not been performed is a hypothesis.
-- **Q8** is gated, but by WebKit rather than by Safari. Playwright ships the engine without Apple's
-  shell, so the real macOS `<input type="date">` picker — this application's most common field, in
-  eight components — is out of its reach. The gate catches rendering and scripting differences; it
-  cannot catch a widget it does not have. A manual pass in Safari on a Mac closes the rest, and is
-  required for UI work by [`ui_styling_guide.md` §11](../guideline/ui_styling_guide.md).
+- **Q8** is gated by WebKit rather than by Safari, so a difference between the two engines is caught
+  but a difference between WebKit and Apple's shell is not. That gap was much larger a day ago: it
+  rested on the native `<input type="date">` picker, which CI could not reach and which DF met in
+  eight components. [ADR-013](adr/013-type-calendar-days-as-tt-mm-jjjj-instead-of-using-the-native-date-input.md)
+  withdrew that control after the first Safari pass found it entering the wrong day, so **no
+  macOS-specific widget remains in the application**. The manual pass is still required for UI work
+  by [`ui_styling_guide.md` §11](../guideline/ui_styling_guide.md) — it is how this was found — but it
+  no longer stands in for a gate that cannot exist.
 
 Performance has no scenario on purpose. If one is ever needed, the first candidate is the
 cards-due-for-reissue list, which reads the whole register because its comparison cannot be a `WHERE`
