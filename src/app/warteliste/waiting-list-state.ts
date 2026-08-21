@@ -6,6 +6,7 @@
  * interface alias there is a build-time error rather than a style question.
  */
 
+import type { FieldRefusal } from "../field-refusal";
 import type { NoticeTier } from "../notice-tier";
 
 /**
@@ -26,6 +27,20 @@ export interface AddApplicantState {
    * always sets the two together.
    */
   readonly tier?: NoticeTier;
+  /**
+   * The fields the refusal names, where it names any, so the form can mark each one and put the
+   * words beside it (`docs/guideline/ui_styling_guide.md` §7).
+   *
+   * A list, because this form carries **two** day fields — the applicant's birthdate and the day
+   * their certificate runs to — and the shared `calendarDay` schema names neither in its own
+   * message. „Datum fehlt.“ under the button was therefore the answer to two different questions,
+   * and only ever reported the first of them.
+   *
+   * Absent on the refusals that name no field: an expired certificate is a fact about the document
+   * the applicant brought, not about the box the day was typed into, and `birthDateInFuture` carries
+   * only a date.
+   */
+  readonly fields?: ReadonlyArray<FieldRefusal>;
   /**
    * How many applicants this form has saved. The form remounts its fields whenever the count goes
    * up, which is how it comes back empty for the next applicant.
