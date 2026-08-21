@@ -1,4 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
+import {
+  DEVICE,
+  ENGINE,
+  ISOLATED,
+  ISOLATED_SPECS,
+  SHARED,
+  type Register,
+} from "./tests/e2e/registers";
 
 /**
  * End-to-end configuration.
@@ -14,25 +22,11 @@ import { defineConfig, devices } from "@playwright/test";
  * set, so "every slot is taken" is unreachable there at any price short of hundreds of rows. Those
  * specs get the `isolated` project below — their own port, their own database, freshly seeded and
  * empty.
- */
-
-/** The shared register: everything except the specs listed under {@link ISOLATED_SPECS}. */
-const SHARED = { port: 3000, database: "data/e2e.db", now: "data/e2e-now.txt" } as const;
-
-/** The register a spec may own outright — empty at boot, and nobody else's assertions ride on it. */
-const ISOLATED = {
-  port: 3001,
-  database: "data/e2e-isolated.db",
-  now: "data/e2e-isolated-now.txt",
-} as const;
-
-/**
- * The specs that own their register.
  *
- * Add one here only when it must decide the quota or fill every slot — the isolated project costs a
- * second Next server for the whole run, and a spec that merely writes is fine on the shared one.
+ * **Which engine, and which registers, is `tests/e2e/registers.ts`'s to say** — the specs seed the
+ * same files this config serves, so neither may state a path the other cannot see. One engine runs
+ * per invocation; that module explains why it is not one engine per project.
  */
-const ISOLATED_SPECS = ["**/waiting-list.spec.ts"];
 
 function url(server: { port: number }): string {
   return `http://127.0.0.1:${server.port}`;
@@ -47,7 +41,7 @@ function url(server: { port: number }): string {
  * freeze the app's today for every spec, not just the distribution one. Each server has its own
  * copy of that file, so a spec pinning the clock cannot move the other server's calendar.
  */
-function webServer(server: { port: number; database: string; now: string }) {
+function webServer(server: Register) {
   // Single-quoted inside the JS, because the whole `node -e` program is itself in double quotes.
   const scratch = [server.database, server.now].map((file) => `'${file}'`).join(",");
   return {
@@ -85,14 +79,15 @@ export default defineConfig({
   },
   projects: [
     {
-      name: "chromium",
+      // Named for the engine, so a report says which of the two gates it came from.
+      name: ENGINE,
       testIgnore: ISOLATED_SPECS,
-      use: { ...devices["Desktop Chrome"], baseURL: url(SHARED) },
+      use: { ...devices[DEVICE], baseURL: url(SHARED) },
     },
     {
-      name: "isolated",
+      name: `${ENGINE}-isolated`,
       testMatch: ISOLATED_SPECS,
-      use: { ...devices["Desktop Chrome"], baseURL: url(ISOLATED) },
+      use: { ...devices[DEVICE], baseURL: url(ISOLATED) },
     },
   ],
   webServer: [webServer(SHARED), webServer(ISOLATED)],

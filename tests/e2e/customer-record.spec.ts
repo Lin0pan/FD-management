@@ -6,6 +6,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { berlinDayKey } from "@/domain/distribution/attendance";
 import { foldName } from "@/domain/customer/nameSearch";
+import { SHARED } from "./registers";
 
 /**
  * A household changes and the whole application follows, driven through the built app
@@ -48,7 +49,7 @@ import { foldName } from "@/domain/customer/nameSearch";
 faker.seed(20260730);
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
-const NOW_FILE = "data/e2e-now.txt";
+const NOW_FILE = SHARED.now;
 
 /**
  * The day this spec is judged on: Thursday 08.01.2026, 09:00 UTC.
@@ -119,10 +120,11 @@ const FORTNIGHT_MS = 14 * 24 * 60 * 60 * 1000;
  * The database the built app is running against — the same file, opened a second time.
  *
  * `playwright.config.ts` sets `DATABASE_URL` for the *server*; this process never had one, so the
- * path is spelled out. It is absolute because a relative SQLite url resolves against the schema
- * directory, not the working directory.
+ * path is taken from `registers.ts` — the one place that knows which engine this run drives, and
+ * therefore which register is behind it. It is resolved to an absolute path because a relative
+ * SQLite url resolves against the schema directory, not the working directory.
  */
-const prisma = new PrismaClient({ datasourceUrl: `file:${resolve("data/e2e.db")}` });
+const prisma = new PrismaClient({ datasourceUrl: `file:${resolve(SHARED.database)}` });
 
 /** Make the app believe it is {@link TODAY}, for every request until the file is removed. */
 function pinToday(): void {
@@ -652,7 +654,16 @@ test.describe("Bisherige Ausgaben", () => {
 
   test("the history is a named region the keyboard can reach and scroll", async ({ page }) => {
     await page.goto(`/kunden/${withHistory}`);
-    await page.getByTestId("history-open").click();
+
+    // Opened from the keyboard rather than with a click, because the tab step below is the point of
+    // the test and the two engines disagree about where a `Tab` starts from. Chromium treats a
+    // programmatic `focus()` as the sequential-navigation origin; WebKit does not, so `focus()` then
+    // `Tab` leaves focus sitting on the summary and the box is never reached. Pressing Enter on the
+    // focused summary is both how a keyboard user opens the fold and what makes the summary a real
+    // origin in either engine — so this asserts the same contract without encoding one engine's
+    // shortcut. (The box itself is tab-reachable in both; only the starting point differed.)
+    await page.getByTestId("history-open").focus();
+    await page.keyboard.press("Enter");
 
     const history = page.getByRole("region", {
       name: de.customers.record.historyRegionLabel,
@@ -662,7 +673,6 @@ test.describe("Bisherige Ausgaben", () => {
 
     // Tab from the summary that opened it: the box is the next thing focus lands on, which is what
     // makes it reachable at all without a pointer.
-    await page.getByTestId("history-open").focus();
     await page.keyboard.press("Tab");
     await expect(history).toBeFocused();
 

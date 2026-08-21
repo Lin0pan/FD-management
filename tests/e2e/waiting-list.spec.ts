@@ -3,6 +3,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { ISOLATED } from "./registers";
 
 /**
  * The waiting list from a full register to a promoted applicant, driven through the built app
@@ -47,10 +48,11 @@ const REMOVAL_REASON = "Zurückgezogen, hat andere Unterstützung gefunden.";
  * The database the isolated server is running against — the same file, opened a second time.
  *
  * `playwright.config.ts` sets `DATABASE_URL` for the *server*; this process never had one, so the
- * path is spelled out. It is absolute because a relative SQLite url resolves against the schema
- * directory, not the working directory.
+ * path is taken from `registers.ts` — the one place that knows which engine this run drives, and
+ * therefore which register is behind it. It is resolved to an absolute path because a relative
+ * SQLite url resolves against the schema directory, not the working directory.
  */
-const prisma = new PrismaClient({ datasourceUrl: `file:${resolve("data/e2e-isolated.db")}` });
+const prisma = new PrismaClient({ datasourceUrl: `file:${resolve(ISOLATED.database)}` });
 
 /**
  * The customers who hold a number right now — the same rows the quota is checked against.

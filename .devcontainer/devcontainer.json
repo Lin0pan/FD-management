@@ -7,7 +7,9 @@
     "ghcr.io/devcontainers/features/node:1": { "version": "26" },
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  "postCreateCommand": "npm install && npx playwright install --with-deps chromium",
+  // Both supported engines (ADR-012), because `npm run test:e2e:webkit` is a gate the container has
+  // to be able to run, not an optional extra.
+  "postCreateCommand": "npm install && npx playwright install --with-deps chromium webkit",
   "customizations": {
     "vscode": {
       "extensions": [
