@@ -57,6 +57,7 @@ import { FieldRejection, useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
 import { selectClass } from "../../select";
 import { Stat } from "../../stat";
+import { ROW_TEXT } from "../household-row";
 import { Notice } from "../../notice";
 import { submitRegistration } from "./actions";
 import type { PrefillDraft } from "./archive-search-state";
@@ -604,7 +605,7 @@ export function RegistrationForm({
               // row has no identity of its own until it is saved.
               <TableRow key={index} data-testid="household-row" className="hover:bg-transparent">
                 <TableCell className="align-top text-muted-foreground tabular-nums">
-                  {index + 1}
+                  <div className={ROW_TEXT}>{index + 1}</div>
                 </TableCell>
                 <MemberCell
                   index={index}

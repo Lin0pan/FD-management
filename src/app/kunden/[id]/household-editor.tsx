@@ -41,6 +41,7 @@ import { de } from "@/i18n/de";
 import { useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
 import { Stat } from "../../stat";
+import { ROW_TEXT } from "../household-row";
 import { updateHouseholdAction } from "./actions";
 import { FormFooter, RecordRejection, SaveButton, SaveFeedback } from "./record-forms";
 import { initialRecordFormState } from "./record-state";
@@ -109,8 +110,9 @@ function derived(
  * visible label used to carry as `aria-label` and nothing a screen reader hears is lost.
  *
  * The cells are top-aligned: a mark makes one cell taller than its neighbours, and without it the
- * controls in a refused row would sit at three different heights. The age column beside them is
- * aligned the same way for the same reason.
+ * controls in a refused row would sit at three different heights. That is why the row number and the
+ * age beside them wear `ROW_TEXT` — top-aligning takes away the centring a `TableCell` does for
+ * itself, and static text has to be given the control's box back to stay on its line.
  *
  * `name` and the path both come from `field-refusal.ts` rather than being spelled here, because the
  * registration's household table submits the same three repeated inputs through the same
@@ -258,8 +260,8 @@ export function HouseholdEditor({
               // Rows are addressed by position: two members can share a name and a birthdate, and a
               // row has no identity of its own.
               <TableRow key={index} data-testid="household-member" className="hover:bg-transparent">
-                <TableCell className="align-top pt-4 text-muted-foreground tabular-nums">
-                  {index + 1}
+                <TableCell className="align-top text-muted-foreground tabular-nums">
+                  <div className={ROW_TEXT}>{index + 1}</div>
                 </TableCell>
                 <MemberCell
                   index={index}
@@ -288,7 +290,9 @@ export function HouseholdEditor({
                 {/* Derived from the date in the field beside it, so the 13-year boundary follows a
                     correction immediately and a reissue can be anticipated (PRD §6). */}
                 <TableCell className="align-top whitespace-nowrap tabular-nums">
-                  {day === null ? "—" : de.customers.card.memberAge(ageInYears(day, today))}
+                  <div className={ROW_TEXT}>
+                    {day === null ? "—" : de.customers.card.memberAge(ageInYears(day, today))}
+                  </div>
                 </TableCell>
                 <TableCell className="align-top">
                   <Button
