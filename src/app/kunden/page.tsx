@@ -115,31 +115,29 @@ function certificateFilterLabel(state: CertificateState): string {
 }
 
 /**
- * The filters in force, in German, for the message that stands where an empty table would.
+ * The filters in force, in German — for the line above the table, and for the message that stands
+ * where the table would be empty. One list, so the two can never name different filters.
  *
  * Whether archived households are included is named every time, even though it is a default: "keine
  * Treffer" under a hidden-by-default filter is precisely how a staff member concludes that a
  * household was deleted (US-11, PRD §6).
  */
 function activeFilters(filters: Filters, search: string): ReadonlyArray<string> {
+  const clauses = de.customerList.filterClauses;
   const named: string[] = [];
   if (search !== "") {
-    named.push(de.customerList.empty.search(search));
+    named.push(clauses.search(search));
   }
   if (filters.status !== undefined) {
-    named.push(de.customerList.empty.status(de.customers.status[filters.status]));
+    named.push(clauses.status(de.customers.status[filters.status]));
   }
   if (filters.gruppe !== undefined) {
-    named.push(de.customerList.empty.group(de.customers.groups[filters.gruppe]));
+    named.push(clauses.group(de.customers.groups[filters.gruppe]));
   }
   if (filters.nachweis !== undefined) {
-    named.push(de.customerList.empty.certificate(certificateFilterLabel(filters.nachweis)));
+    named.push(clauses.certificate(certificateFilterLabel(filters.nachweis)));
   }
-  named.push(
-    filters.archiv === "1"
-      ? de.customerList.empty.archivedIncluded
-      : de.customerList.empty.archivedHidden,
-  );
+  named.push(filters.archiv === "1" ? clauses.archivedIncluded : clauses.archivedHidden);
   return named;
 }
 
@@ -262,6 +260,16 @@ function FilterField({
  * `Select` renders a button plus a portalled listbox, which neither `selectOption` nor `toHaveValue`
  * can drive — the same trade the conversion guide records for `Label`. The search box is given the
  * widest track of the four because it is the control the screen exists for.
+ *
+ * **„Zurücksetzen" is a plain `<a>`, not a `Link`**, and that is the whole of the fix it was: every
+ * control here is uncontrolled, and React writes `defaultValue` and `defaultChecked` on mount only.
+ * A router navigation to `/kunden` re-renders this same segment, so React reconciles the existing
+ * DOM — and a field the staff member has typed in or picked from is dirty, which means the browser
+ * keeps its value against the new default. The table came back unfiltered while these four controls
+ * went on showing filters that were no longer applied: a screen contradicting itself, and precisely
+ * the state nobody could read off a screenshot. A document navigation builds the form from scratch.
+ * Submitting is a native GET submission and therefore already one, which is why only the reset ever
+ * showed this.
  */
 function FilterForm({ filters, search }: { filters: Filters; search: string }): React.ReactElement {
   return (
@@ -343,32 +351,29 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
         {/* Ticked deliberately, never by default (FR-4). Unticked it submits nothing at all, so the
             plain /kunden URL is the working view of who DF serves. Native, because the action reads
             it as presence in the FormData and Radix's Checkbox submits nothing of its own. */}
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <input
-              id="filter-archived"
-              type="checkbox"
-              name="archiv"
-              value="1"
-              data-testid="archived-toggle"
-              defaultChecked={filters.archiv === "1"}
-              className="size-4 accent-primary"
-            />
-            <label htmlFor="filter-archived" className="text-sm">
-              {de.customerList.filters.includeArchived}
-            </label>
-          </div>
-          <p className="max-w-prose text-xs text-muted-foreground">
-            {de.customerList.filters.includeArchivedHint}
-          </p>
+        <div className="flex items-center gap-2">
+          <input
+            id="filter-archived"
+            type="checkbox"
+            name="archiv"
+            value="1"
+            data-testid="archived-toggle"
+            defaultChecked={filters.archiv === "1"}
+            className="size-4 accent-primary"
+          />
+          <label htmlFor="filter-archived" className="text-sm">
+            {de.customerList.filters.includeArchived}
+          </label>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <Button type="submit" size="lg">
             {de.customerList.filters.submit}
           </Button>
+          {/* A plain `<a>`, and the one link on the screen that is deliberately not a `Link`: see
+              the note above. */}
           <Button variant="ghost" size="lg" asChild>
-            <Link href="/kunden">{de.customerList.filters.reset}</Link>
+            <a href="/kunden">{de.customerList.filters.reset}</a>
           </Button>
         </div>
       </div>
@@ -628,7 +633,28 @@ export default async function CustomerListPage({
               </AlertDescription>
             </Alert>
           ) : (
-            <CustomerTable rows={view.rows} />
+            <>
+              {/* What the table below is showing, whenever it is not everything. Between the
+                  controls that caused it and the rows it describes, and muted rather than an
+                  alert — a filter is not a fault (guide §5).
+
+                  Absent, rather than reading "nichts gefiltert", on the plain register: the line's
+                  being there at all is what answers "was this list filtered?", which is the
+                  question a full table and a filtered one gave the same answer to. The empty branch
+                  says nothing here because it states these same clauses itself. */}
+              {unfiltered ? null : (
+                <p
+                  data-testid="customer-list-filters"
+                  // `font-medium` and not colour: the checkbox's hint sits directly above this line,
+                  // muted and one size smaller, and the two read as a stack of grey sentences at a
+                  // glance. Weight separates them without making a filter look like a fault.
+                  className="text-sm font-medium text-muted-foreground"
+                >
+                  {de.customerList.filterSummary(filtered.join(", "))}
+                </p>
+              )}
+              <CustomerTable rows={view.rows} />
+            </>
           )}
         </CardContent>
       </Card>

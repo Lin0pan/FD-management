@@ -11,6 +11,7 @@
  * use case, and adding one here would be a bug.
  */
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { registerCustomer } from "@/application/customers/register-customer";
 import { customerDeps } from "../deps";
@@ -67,6 +68,12 @@ export async function submitRegistration(
       ...(await freshPoolAfterRace(customerDeps, error)),
     };
   }
+
+  // The hub, which a registration moves three ways at once: the household is a new row in the
+  // register, the group balance has shifted, and the lowest free customer number the free-slot badge
+  // reads is no longer free. Like every other write in the codebase, this one names the screens that
+  // count what it changed — a `redirect` is a navigation, not a revalidation.
+  revalidatePath("/kunden");
 
   // Outside the try: `redirect` works by throwing, and catching it here would turn a successful
   // registration into "could not be saved".

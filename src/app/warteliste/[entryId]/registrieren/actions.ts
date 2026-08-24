@@ -10,6 +10,7 @@
  * feature rests on (FR-7), and "remember to do B after A" is exactly what a screen forgets.
  */
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { registerFromWaitingList } from "@/application/waiting-list/register-from-waiting-list";
@@ -85,6 +86,13 @@ export async function submitPromotedRegistration(
       ...(await freshPoolAfterRace(waitingListDeps, error)),
     };
   }
+
+  // Both screens this moves, because a promotion is two changes in one transaction: the applicant is
+  // off the queue, and the register has a household, a shifted group balance and one customer number
+  // fewer to give out. `removeApplicantAction` names the first of those for the removal alone; this
+  // is the same removal.
+  revalidatePath("/warteliste");
+  revalidatePath("/kunden");
 
   // Outside the try: `redirect` works by throwing, and catching it here would turn a successful
   // registration into "could not be saved".

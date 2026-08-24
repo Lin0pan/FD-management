@@ -156,9 +156,10 @@ export async function addApplicantAction(
   }
 
   revalidatePath("/warteliste");
-  // Both screens the free-slot banner stands on: the hub (US-17.2) and the home screen.
+  // The hub, which counts the queue and marks a free slot in its badge (US-17.2, US-18.2). Not the
+  // home screen any more: it carried the free-slot banner until US-18.3 took the banner off both, and
+  // `src/app/page.tsx` now renders the week colour and nothing else.
   revalidatePath("/kunden");
-  revalidatePath("/");
   return {
     status: "saved",
     message: de.waitingList.add.saved(`${form.firstName} ${form.lastName}`),
@@ -204,8 +205,9 @@ export async function removeApplicantAction(
   }
 
   revalidatePath("/warteliste");
-  // Both screens the free-slot banner stands on: the hub (US-17.2) and the home screen.
+  // The hub, which counts the queue and marks a free slot in its badge (US-17.2, US-18.2). Not the
+  // home screen any more: it carried the free-slot banner until US-18.3 took the banner off both, and
+  // `src/app/page.tsx` now renders the week colour and nothing else.
   revalidatePath("/kunden");
-  revalidatePath("/");
   redirect(`/warteliste?${REMOVED}=1`);
 }
