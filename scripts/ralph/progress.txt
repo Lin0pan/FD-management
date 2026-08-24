@@ -148,3 +148,52 @@ Started: Mon Aug 24 2026 (batch 27 — US-27 remove the portion allowance)
     them and `settings.test.ts` still has a portion-diff test. That is correct after this story —
     US-003 owns them. Do not pre-emptively strip them from fakes; nothing compiles without them.
 ---
+
+## 2026-08-24 — US-003 (batch 27): the two portion settings leave the domain and the screen
+- `Settings` loses `portionsPerGrownUp` / `portionsPerChild`, and with them the two `requireInteger`
+  calls, both `SETTINGS_FIELDS` entries, the two `SettingsChange` variants and their comparison
+  blocks, the two `case` labels in `describeChange`, the two `NumberField`s, the two dictionary
+  entries in `settings.fields` and `settings.errorFields`, the seed's two values and `toDomain`'s
+  two reads. The domain tests for them were deleted rather than rewritten.
+- The „Mengen und Preise“ card is re-spanned **3 + 3 + 3 + 3** for the four fields that remain, so
+  the row fills the twelve columns exactly; measured in the browser at 252px each, all four controls
+  at y=276 and all four labels at y=250, aligned with the three `lg:col-span-3` fields of
+  Ausgaberhythmus below. The heading stays — it still holds the customer quota.
+- `PrismaSettingsRepository.append` keeps a literal `portionsPerGrownUp: 0, portionsPerChild: 0`
+  under a comment naming US-004, because the columns are still NOT NULL with no default.
+- Files changed: `src/domain/policy/{settings,settings-diff}.ts` (+ tests),
+  `src/domain/{calendarDay,errors}.ts`, `src/domain/card/staleCard.ts`,
+  `src/domain/customer/{customer,householdComposition}.ts`,
+  `src/app/einstellungen/{page.tsx,settings-form.tsx,actions.ts,save-settings-state.ts}`,
+  `src/i18n/de.ts`, `src/infrastructure/prisma/{seed.ts,settings-repository.ts}` and the
+  application/infrastructure test fakes.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1085 tests, domain and application still 100%)
+  and `build` all pass. Verified on `npm run start` (production build) through the accessibility
+  snapshot: four named controls in the first card and no `Portionen`, the price hint still reaching
+  `priceCap` through `aria-describedby`, and a save succeeding — „Gespeichert.“ plus one more
+  Fassung in the Änderungsverlauf, whose in-force summary now prints the quota on a line of its own.
+- **Learnings for future iterations:**
+  - **A row written straight through `prisma.*.create` in a test has to name a NOT NULL column too.**
+    The story said `append` was "the ONLY thing left pointing at" the columns, but
+    `settings-repository.test.ts` builds two deliberately illegal rows by hand and those broke the
+    typecheck once the fields were stripped. They now spread a `DROPPED_IN_US_004` constant, which
+    US-004 deletes with the columns.
+  - **A test that merely *uses* a field is not a test *of* it.** Three `settings.test.ts` cases used
+    `portionsPerChild` as an arbitrary second field to prove the same-instant tie rule and the
+    audit's changed-field list. Those were re-pointed at `pricePerChild`, not deleted — deleting
+    them would have taken two rules with them and dropped application coverage below 100%.
+  - **Counts baked into prose go stale in files the story does not name.** Removing two settings
+    made "the ten fields of the settings form", "nine of the ten need no translation", "Seven of the
+    nine settings", "printed only five of the eight settings" and an assertion of
+    `toHaveLength(8)` all wrong at once. `grep -rn "nine\|ten fields\|eight" src/` after the edit —
+    the suite catches only the assertion.
+  - **A stale `next start` from an earlier iteration silently serves a mixed build.** Port 3000 was
+    already held; the new `npm run start` failed with `EADDRINUSE` in the background while the page
+    still rendered, from the old server reading the *new* chunks off disk — two console 500s were
+    the only symptom. Check `ss -ltnp | grep :3000` **before** trusting a browser check.
+  - **`npm run db:reset` does not reach a server that is already running.** It deletes `data/fd.db`,
+    and SQLite keeps serving the running process from the deleted inode, so the screen went on
+    showing the pre-reset history. Restart the server after a reset, or the verification is of the
+    old database. `db:seed` fills settings only — customers are not seeded, so a reset empties the
+    register that manual clicking built up (the e2e suite makes its own).
+---

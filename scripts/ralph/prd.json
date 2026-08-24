@@ -79,8 +79,8 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Landed as one compile unit: Settings, SETTINGS_FIELDS, SettingsChange, the exhaustive switch, FullValues, the form's two NumberFields, the server action, the dictionary, the seed and the repository. The „Mengen und Preise“ card is re-spanned 3+3+3+3 and measured in the browser at 252px per field on one baseline. `append` keeps a literal `portionsPerGrownUp: 0, portionsPerChild: 0` under a comment naming US-004, and the repository integration test needs the same for its two hand-written rows — a row written straight through Prisma has to name the NOT NULL columns too, which the story text did not anticipate. Three application tests that used portionsPerChild as an arbitrary field were rewritten onto pricePerChild rather than deleted: they are about the same-instant tie rule and the audit's changed-field list, not about portions."
     },
     {
       "id": "US-004",
