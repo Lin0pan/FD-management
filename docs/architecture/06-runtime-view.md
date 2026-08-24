@@ -29,7 +29,7 @@ sequenceDiagram
     Lookup->>Verdict: status, group vs this week's colour,<br/>card index, today's record, certificate
     Verdict-->>Lookup: exactly one verdict
     Lookup->>Allow: composition + settings in force now
-    Allow-->>Lookup: counts, price (capped)
+    Allow-->>Lookup: counts, price (capped), eggs
     Lookup-->>Page: verdict + everything beneath it
     Page-->>Staff: one banner, counts, amount to charge
 

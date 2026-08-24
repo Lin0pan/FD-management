@@ -55,6 +55,12 @@ export interface CounterCustomerView {
   readonly grownUps: number;
   readonly children: number;
   readonly priceCents: Cents;
+  /**
+   * How many eggs this household is handed today (US-28) — copied from the allowance, so the counter
+   * cannot count them differently from the customer record. Free, and never zero-as-blank: a
+   * household entitled to none shows 0.
+   */
+  readonly eggs: number;
   /** The day the needs certificate lapses — shown so staff can start the renewal conversation. */
   readonly certificateValidUntil: Date;
   readonly status: CustomerStatus;
@@ -212,6 +218,7 @@ export async function lookupCustomer(
       grownUps: allowance.grownUps,
       children: allowance.children,
       priceCents: allowance.priceCents,
+      eggs: allowance.eggs,
       certificateValidUntil: customer.details.certificate.validUntil,
       status: customer.status,
       blockReason: customer.blockReason,

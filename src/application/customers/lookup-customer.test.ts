@@ -485,6 +485,25 @@ describe("lookupCustomer", () => {
     expect(result.customer?.priceCents).toBe(500);
   });
 
+  it("states the eggs the household receives, counting every member whatever their age", async () => {
+    settings = new FakeSettingsRepository(
+      version({
+        eggRule: [
+          { minPersons: 3, eggs: 6 },
+          { minPersons: 5, eggs: 12 },
+        ],
+      }),
+    );
+    customers = new FakeCustomerRepository(
+      customerRecord({ householdMembers: [member(GROWN_UP), member(GROWN_UP), member(CHILD)] }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    // Three persons — the child counts towards the eggs, though not towards the grown-ups.
+    expect(result.customer?.eggs).toBe(6);
+  });
+
   it("counts a member who has since turned 13 as a grown-up, never a stored number", async () => {
     customers = new FakeCustomerRepository(
       customerRecord({ householdMembers: [member("2013-08-01T00:00:00.000Z")] }),
