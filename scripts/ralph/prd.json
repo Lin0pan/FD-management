@@ -100,8 +100,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The init migration was replaced rather than corrected: old directory deleted, data/fd.db deleted first (or migrate dev refuses), regenerated as 20260824183935_init, the hand-written Customer_customerNumber_onRegister_key partial unique index re-appended verbatim, then npm run db:reset. diff of the old SQL against the new one is exactly the two dropped column lines, so no relation gained a cascade and no onDelete: Restrict was lost. append and the test's DROPPED_IN_US_004 constant are gone. One documentation fix the story did not list: ADR-008 cited the migration by its old timestamped folder name, and now cites the *_init glob that chapter 02 already uses."
     },
     {
       "id": "US-005",

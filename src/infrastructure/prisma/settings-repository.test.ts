@@ -56,13 +56,6 @@ function version(
   };
 }
 
-/**
- * TEMPORARY, until US-004 drops the columns: the two portion columns are still NOT NULL with no
- * default, so a row written straight through Prisma — as the two hand-edited rows below are — has
- * to name them. Nothing reads them back.
- */
-const DROPPED_IN_US_004 = { portionsPerGrownUp: 0, portionsPerChild: 0 };
-
 describe("PrismaSettingsRepository", () => {
   it("returns a stored version unchanged, prices included", async () => {
     await repository.append(version("2026-01-01T00:00:00.000Z"));
@@ -130,7 +123,6 @@ describe("PrismaSettingsRepository", () => {
         distributionWeekday: 4,
         pricePerGrownUpCents: 200,
         pricePerChildCents: 100,
-        ...DROPPED_IN_US_004,
       },
     });
 
@@ -147,7 +139,6 @@ describe("PrismaSettingsRepository", () => {
         distributionWeekday: 4,
         pricePerGrownUpCents: 200,
         pricePerChildCents: 100,
-        ...DROPPED_IN_US_004,
         priceCapCents: -1,
       },
     });

@@ -197,3 +197,47 @@ Started: Mon Aug 24 2026 (batch 27 — US-27 remove the portion allowance)
     old database. `db:seed` fills settings only — customers are not seeded, so a reset empties the
     register that manual clicking built up (the e2e suite makes its own).
 ---
+
+## 2026-08-24 — US-004 (batch 27): the two portion columns leave the schema
+- `SettingsVersion` in `prisma/schema.prisma` loses `portionsPerGrownUp`, `portionsPerChild` and the
+  `///` comment above them; the model's own doc comment now lists the quota, the price per head and
+  the week anchor. Pre-release rules (CLAUDE.md § Database migrations, ADR-009): the init migration
+  was **replaced**, not corrected — `prisma/migrations/20260807065541_init` deleted, `data/fd.db`
+  deleted, `npx prisma migrate dev --name init` regenerated as `20260824183935_init`, the
+  hand-written `Customer_customerNumber_onRegister_key` partial unique index re-appended verbatim,
+  then `npm run db:reset`.
+- `diff` of the old migration against the regenerated one is **exactly the two dropped column
+  lines** — nothing else moved, so no relation gained a cascade and no `onDelete: Restrict` was lost.
+  `schema.test.ts` checks the same three claims and passes.
+- The TEMPORARY `portionsPerGrownUp: 0, portionsPerChild: 0` literals from US-003 are gone from
+  `PrismaSettingsRepository.append`, and `DROPPED_IN_US_004` with its two spreads is gone from
+  `settings-repository.test.ts`. The two hand-written illegal rows there still prove the colour and
+  the cap are re-validated on the way out.
+- `docs/architecture/adr/008-…md` cited the init migration by its old timestamped folder name, which
+  this regeneration invalidated. It now cites `prisma/migrations/*_init/migration.sql`, the glob
+  chapter 02 already uses — a path that survives the next regeneration.
+- Files changed: `prisma/schema.prisma`, `prisma/migrations/20260824183935_init/migration.sql` (was
+  `20260807065541_init`), `src/infrastructure/prisma/settings-repository.ts` (+ test),
+  `docs/architecture/adr/008-treat-a-customer-number-as-a-reusable-slot-not-an-identity.md`.
+- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1085 tests, domain and
+  application at 100%) and `build` all pass. `npm run db:reset` runs clean and `/einstellungen` on a
+  production build reports the seeded values through the accessibility snapshot — N 240, 2,00 €,
+  1,00 €, Maximalpreis 5,00 €, 2026-W02/Rot/Donnerstag, „1 Fassung" in the Änderungsverlauf — rather
+  than reporting that nothing is configured. Zero console messages.
+- **Learnings for future iterations:**
+  - **Verify the regeneration with `diff`, not by reading the new file.** `git show
+    HEAD:prisma/migrations/<old>/migration.sql > /tmp/old.sql && diff /tmp/old.sql <new>` states in
+    two lines what the story is allowed to have changed; anything else in that diff is a Prisma
+    version drifting the DDL under you, which no gate would attribute to this commit.
+  - **`npx prisma migrate dev` applies the migration before the hand-written index is appended**, so
+    the database it leaves behind does *not* have the partial index even though the committed SQL
+    does. `npm run db:reset` afterwards is what makes the two agree — check with
+    `SELECT sql FROM sqlite_master WHERE name='Customer_customerNumber_onRegister_key'` rather than
+    trusting that the reset ran.
+  - **`pkill -f "node.*next-server"` also kills the Bash tool's wrapper** (exit 144, no output) — the
+    same trap the `next dev` note records, because the wrapper's command line contains the pattern.
+    The server does die, so just re-check `ss -ltnp | grep :3000` in a fresh call instead of retrying.
+  - **A regenerated migration renames a directory that documents cite by name.** `grep -rn
+    "<old-timestamp>_init" docs/ src/ tests/` after every regeneration; ADR-008 held the only live
+    citation and prose is where such a path goes stale silently. Prefer the `*_init` glob.
+---
