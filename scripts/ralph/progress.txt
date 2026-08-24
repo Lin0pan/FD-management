@@ -68,6 +68,19 @@ Started: Mon Aug 24 2026 (batch 27 — US-27 remove the portion allowance)
   next `fill`, rewinding the field to the stored value; the second save then appends a version that
   changed nothing and every history index below it shifts. `selectOption` happens to survive the
   race, `fill` does not — reload and re-assert the stored value before typing again.
+- **Prettier owns every markdown table in `docs/`, and `npm run lint` does not check it.** `lint` is
+  `eslint` alone; markdown formatting is `npm run format:check` (the pre-commit hook runs it). Widen
+  one cell and Prettier re-flows every row of that table, so run `npx prettier --write` on the files
+  you touched *before* reading the diff — otherwise you are reviewing a re-alignment.
+- **Documentation has no gate.** Nothing fails CI when a chapter goes stale, so a change that
+  removes a concept finishes with an explicit sweep — `grep -rin <concept> --include="*.md" .` —
+  and the answer is not always zero: `docs/architecture/01`'s non-goals and `09`'s „Decisions that
+  were reversed“ exist precisely to keep a withdrawn idea named, with its reason.
+- **`docs/archiv/` is annotated, never rewritten** (root `CLAUDE.md`). A dated `> **Note (YYYY-MM-DD).**`
+  blockquote goes after the *block* carrying the claim, not inside the table cell or list item that
+  states it, and names which bullets it answers when it follows several. The per-story PRDs in
+  `tasks/` are the same kind of record: they say what was asked for, so a superseded one gets a
+  banner and the rest are left alone.
 - **Prior runs' patterns are in the archive**, not in this file:
   `scripts/ralph/archive/2026-08-07-us-26-price-cap/progress.txt` is the most recent,
   and `archive/2026-08-07-us-25-globally-unique-card-numbers/progress.txt` before it keeps a long
@@ -303,4 +316,52 @@ Started: Mon Aug 24 2026 (batch 27 — US-27 remove the portion allowance)
     §US-26.7 still names `tests/e2e/portions.spec.ts` as the file to extend. It is a historical PRD
     and US-006 does not list it, so it is deliberately left — but a reader following that path finds
     nothing. Flagged here for whoever next touches that PRD.
+---
+
+## 2026-08-24 — US-006 (batch 27): the documents stop describing a portion allowance
+- Documentation only, no code touched. Every live document that described the portion allowance as
+  something the software provides now describes the price alone; the two places that record the
+  *reversal* keep the word on purpose.
+- Files changed: `docs/architecture/01`, `03`, `04`, `05`, `06`, `07`, `08`, `09`, `12`,
+  `adr/005`, `adr/007`, `adr/013`, `docs/archiv/domain_analysis.md`,
+  `docs/archiv/user_stories_mvp.md`, `tasks/prd-us-07-portions-and-price.md`, `tasks/README.md`,
+  `CLAUDE.md`, `CONTRIBUTING.md`.
+- Chapter 01's out-of-scope row was rewritten rather than deleted, as the story required: it now
+  reads „A portion allowance — withdrawn 2026-08-24 (US-27)“ with DF's reason. Chapter 09 gained a
+  row in **Decisions that were reversed**. Chapter 12's glossary entry is gone; chapter 06's
+  flowchart lost its `portions` node and the birthday now flows `day → comp → price`.
+- Two files outside the story's list were fixed, and deliberately: `CLAUDE.md` used the portion
+  allowance as the lead example of „derive, don't store“ and listed „portions“ among the policy
+  values, and `CONTRIBUTING.md`'s configurable-rules bullet opened with „Portions“. Both are live
+  standards, both were made wrong by this batch, and the US-005 grep gate covers `src/ tests/
+  prisma/` only — so neither would have been caught. The three „derive, don't store“ exceptions were
+  left untouched, as specified.
+- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1085 tests, domain and
+  application still 100%), `build`. No browser verification: the story changes no UI.
+- **Learnings for future iterations:**
+  - **Prettier owns the markdown tables, so widen a cell and every row in that table re-flows.**
+    One added sentence in a `| … |` cell produced a 10-line diff in chapter 01's non-goals table.
+    Run `npx prettier --write` on the files you touched *before* reading the diff, or you review a
+    re-alignment instead of a change. `npm run lint` is `eslint` only — markdown drift is caught by
+    `format:check`, which the pre-commit hook runs.
+  - **A dated note in `docs/archiv/` cannot go where the claim is.** The claims sit inside table
+    cells and numbered-list items; a blockquote inside either is the rewrite `CLAUDE.md` forbids
+    (and between list items it splits the list). Anchor the note to the *end of the block* that
+    carries the claim instead — seven in `domain_analysis.md`, six in `user_stories_mvp.md` — and
+    where a note follows a list of several bullets, name in the note which bullets it answers, or
+    the reader cannot tell what it retracts.
+  - **A historical statement is not a stale one.** ADR-005 says the settings history is shown as a
+    diff because „a wall of eight columns turned out to be unreadable“ — that is the state at the
+    time of the decision and stays. Chapter 01's „confirmed still current on 2026-08-07“ above the
+    non-goals table was likewise *not* bumped to today: DF re-confirmed the portion row, not the
+    other eight, and moving the date would claim a confirmation that never happened.
+  - **The batch's grep gate stops at `src/ tests/ prisma/`.** Documentation has no gate at all, so
+    the sweep that finishes a deletion is `grep -rin portion --include="*.md" .` minus the entries
+    that record the reversal. After this story exactly two remain: chapter 01's non-goal row and
+    chapter 09's reversed-decisions row.
+  - **The per-story PRDs in `tasks/` are records of what was asked, not descriptions of the build.**
+    US-04, US-13, US-14, US-15, US-16, US-01 and US-26 all still describe portions and are
+    deliberately left that way; only US-07, which owned the figure, got a banner. If a future
+    reader needs the current truth they go to `docs/architecture/`, which is why that is the one
+    place this story rewrote rather than annotated.
 ---

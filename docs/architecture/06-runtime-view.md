@@ -29,9 +29,9 @@ sequenceDiagram
     Lookup->>Verdict: status, group vs this week's colour,<br/>card index, today's record, certificate
     Verdict-->>Lookup: exactly one verdict
     Lookup->>Allow: composition + settings in force now
-    Allow-->>Lookup: portions, price (capped)
+    Allow-->>Lookup: counts, price (capped)
     Lookup-->>Page: verdict + everything beneath it
-    Page-->>Staff: one banner, portions, amount to charge
+    Page-->>Staff: one banner, counts, amount to charge
 
     Staff->>Record: confirms the hand-out
     Record->>Verdict: re-evaluates — the screen is not the only caller
@@ -144,14 +144,12 @@ Acceptable at this many users.
 flowchart LR
     day["The 13th birthday<br/><i>no request, no job, no write</i>"]
     comp["composition(members, today)<br/><i>counts one more grown-up</i>"]
-    portions["portionsFor(...)<br/><i>allowance rises</i>"]
     price["priceFor(...)<br/><i>price rises, cap still applies</i>"]
     stale["staleCardReason(card, household)<br/><i>AGE_13</i>"]
     list["/karten-neuausstellung<br/><i>the card appears on the list</i>"]
     reissue["reissueCard(STALE_COUNTS)<br/><i>new card, next index, audit entry</i>"]
 
-    day --> comp --> portions
-    comp --> price
+    day --> comp --> price
     comp --> stale --> list --> reissue
 ```
 

@@ -41,16 +41,15 @@ both decisions.
 
 ## 3. Policy is data DF owns, not constants a developer owns
 
-**Approach.** Quota, portions, prices, the price cap, the distribution weekday and the week anchor
-live in append-only, clock-stamped `SettingsVersion` rows, editable in the UI and in force
-immediately.
+**Approach.** Quota, prices, the price cap, the distribution weekday and the week anchor live in
+append-only, clock-stamped `SettingsVersion` rows, editable in the UI and in force immediately.
 
 **Rationale.** Every number in DF's process is a decision they revisit. Behind a deploy, "changeable"
 means "not changeable" for an organisation with no developer on call.
 
 **Consequence.** DF change their own rules, and a past distribution can still be priced because the
-version in force that day survives. It also means nothing in the codebase may hard-code a price, a
-portion or a threshold — a standing rule, and the reason there is no configurable reminder
+version in force that day survives. It also means nothing in the codebase may hard-code a price or
+a threshold — a standing rule, and the reason there is no configurable reminder
 escalation: whether an expired certificate ends in archiving is a judgement, not a number.
 
 → [ADR-005](adr/005-keep-business-rules-as-dated-append-only-settings-data.md),
@@ -58,8 +57,8 @@ escalation: whether an expired certificate ends in archiving is a judgement, not
 
 ## 4. Derive anything computable; a stored duplicate needs an argument
 
-**Approach.** Household composition, portions, price, card validity, certificate state and week
-colour are computed at the point of use. Four stored duplicates exist and each carries its
+**Approach.** Household composition, price, card validity, certificate state and week colour are
+computed at the point of use. Four stored duplicates exist and each carries its
 justification in the schema.
 
 **Rationale.** The drifting typed-in counts in DF's spreadsheet are the specific failure this system

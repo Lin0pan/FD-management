@@ -46,21 +46,20 @@ implementation and tests, the PRDs assume the following seeds. They are configur
 (US-14), so replacing them is a data edit, not a code change. **All are provisional and must be
 confirmed with DF before go-live.**
 
-| Value                 | Provisional seed              |
-| --------------------- | ----------------------------- |
-| Customer quota `N`    | 240                           |
-| Portions per grown-up | 2                             |
-| Portions per child    | 1                             |
-| Price per grown-up    | 200 cents                     |
-| Price per child       | 100 cents                     |
-| Maximalpreis          | 500 cents                     |
-| Week-cycle anchor     | ISO week `2026-W02` = **Red** |
-| Distribution weekday  | Thursday                      |
+| Value                | Provisional seed              |
+| -------------------- | ----------------------------- |
+| Customer quota `N`   | 240                           |
+| Price per grown-up   | 200 cents                     |
+| Price per child      | 100 cents                     |
+| Maximalpreis         | 500 cents                     |
+| Week-cycle anchor    | ISO week `2026-W02` = **Red** |
+| Distribution weekday | Thursday                      |
 
 The price is charged **per head** up to the **Maximalpreis**: what a household owes is
 `min(grown-ups × price per grown-up + children × price per child, Maximalpreis)`, derived wherever
 it is shown and never stored. The Maximalpreis is optional — where none is configured the per-head
-sum stands — and it caps money only: the portion allowance keeps rising with every head (US-26).
+sum stands. There is no other derived figure for it to cap: the portion allowance US-07 once
+derived was withdrawn in US-27, because DF hand out food by judgement rather than by count.
 
 ## Index
 

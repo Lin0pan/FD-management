@@ -149,8 +149,8 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Documentation only, no code touched. Two files outside the listed scope were fixed because this change made them wrong and no gate covers them: CLAUDE.md's „derive, don't store“ lead and „policy values are data“ bullet still used the portion allowance as their example (the three stored-duplicate exceptions were left alone, as specified), and CONTRIBUTING.md's configurable-rules bullet opened with „Portions“. The archive got seven dated notes in domain_analysis.md and six in user_stories_mvp.md rather than one per sentence: each note sits after the block that carries the claim, because a note inside a table cell or between list items would have been the rewrite the story forbids. ADR-005's „a wall of eight columns“ was deliberately left — it states why the settings history is a diff, at the time that was decided, not today's column count. The only surviving „portion“ strings in docs/ are the two rows that record the reversal on purpose: chapter 01's non-goal and chapter 09's reversed-decisions row. Its „confirmed still current on 2026-08-07“ line above the non-goals table was NOT bumped — DF re-confirmed the portion row, not the other eight."
     }
   ]
 }

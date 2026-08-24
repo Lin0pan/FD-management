@@ -6,11 +6,10 @@
 
 ## Context
 
-Every number in DF's process is a policy they set and change: the customer quota `N`, the portions
-allowed per grown-up and per child, the price per head, the cap on what one household pays, which
-weekday the distribution runs and which week of the two-week cycle is which colour. None of them is
-a fact about the world; all of them are decisions DF revisits when reality changes — a price rises,
-supply tightens.
+Every number in DF's process is a policy they set and change: the customer quota `N`, the price per
+head, the cap on what one household pays, which weekday the distribution runs and which week of the
+two-week cycle is which colour. None of them is a fact about the world; all of them are decisions DF
+revisits when reality changes — a price rises, the quota moves.
 
 A hard-coded constant would put each of those behind a developer and a deploy, which for a charity
 with no IT staff means "not changeable". At the same time a distribution record stores only a `paid`
@@ -44,8 +43,8 @@ cannot smuggle an invalid policy in.
 
 - DF change their own rules in the UI, and the change is live for the next customer at the counter.
 - A past distribution can still be priced, because the version in force that day is still there.
-- Nothing in the codebase may hard-code a price, a portion count or a threshold — that is a standing
-  rule, not a one-off.
+- Nothing in the codebase may hard-code a price or a threshold — that is a standing rule, not a
+  one-off.
 - The settings screen has to show history, and a wall of eight columns turned out to be unreadable,
   so each version is displayed as a diff against its predecessor (`src/domain/policy/settings-diff.ts`).
 - `updateSettings` can refuse a save: the quota may not drop below the number of active customers.

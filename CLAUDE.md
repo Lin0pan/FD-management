@@ -57,7 +57,7 @@ deliberately and say why in the commit; do not add an inline disable.
 - **Time is injected.** Take a `Clock`; the only wall-clock read in the codebase is
   `src/infrastructure/clock.ts`. (A zero-argument `new Date()` is a lint error in domain and
   application; `new Date(someValue)` is fine — it transforms a value that was passed in.)
-- **Derive, don't store** anything computable — grown-up/children counts, portion allowance, card
+- **Derive, don't store** anything computable — grown-up/children counts, the price, card
   validity. Two sources of truth is the Excel failure we are replacing. There are exactly three
   exceptions, each with an argument of its own kind:
   - `Card.grownUpsAtIssue` / `childrenAtIssue` / `groupAtIssue` — a snapshot of what was _printed_ on
@@ -81,7 +81,7 @@ deliberately and say why in the commit; do not add an inline disable.
   Any further "just store it" needs an argument of that kind.
 
 - **Money is integer cents**, never a float. Format via `src/domain/money.ts`.
-- **Policy values are data, not constants** — the prices per head, portions and the quota `N` live
+- **Policy values are data, not constants** — the prices per head, the cap and the quota `N` live
   in settings, editable in the UI. A saved change is in force immediately; superseded versions are
   kept as read-only history.
 - Throw **typed domain errors** from `errors.ts`; no bare `throw new Error("…")`.
@@ -149,7 +149,7 @@ settings screen reporting that nothing is configured.
 ## Don'ts
 
 - ❌ Don't put business rules in a server action, React component or Prisma query.
-- ❌ Don't hard-code a price, portion count or threshold.
+- ❌ Don't hard-code a price or threshold.
 - ❌ Don't hard-delete customer data — archive (status change) and keep it queryable. **No relation
   in `schema.prisma` may carry `onDelete: Cascade`**, so the database refuses the delete rather than
   trusting that no one calls it; `src/infrastructure/prisma/schema.test.ts` fails if one reappears.

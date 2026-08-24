@@ -30,8 +30,8 @@ current — see [chapter 11](11-risks-and-technical-debt.md).) What matters arch
   and proof of need, and issue its first card.
 - **Derive the household composition** — grown-ups and children — from birthdates against today,
   never from stored counts. The boundary is the 13th birthday.
-- **Derive the portion allowance and the price** from that composition and the policy in force,
-  capped by DF's _Maximalpreis_.
+- **Derive the price** from that composition and the policy in force, capped by DF's
+  _Maximalpreis_.
 - **Answer one question at the counter**: given a card or customer number, may this household
   collect today? Exactly one verdict, never a list of hints.
 - **Record a hand-out** — at most one per household per distribution day — and allow it to be
@@ -42,8 +42,8 @@ current — see [chapter 11](11-risks-and-technical-debt.md).) What matters arch
   a row are impossible.
 - **Keep the register true over time**: block and unblock, archive (releasing the number), reuse an
   archived record for a re-registration, run a waiting list in strict arrival order.
-- **Let DF change their own rules** — quota, portions, prices, price cap, distribution weekday, week
-  anchor — in the UI, with the change in force immediately and the history kept.
+- **Let DF change their own rules** — quota, prices, price cap, distribution weekday, week anchor —
+  in the UI, with the change in force immediately and the history kept.
 - **Notice when a printed card has been overtaken** by a birthday, a household change or a group
   move, and offer a reissue.
 
@@ -52,17 +52,17 @@ current — see [chapter 11](11-risks-and-technical-debt.md).) What matters arch
 Deliberately out of scope, each because DF said so or because it is someone else's job. Confirmed
 still current on 2026-08-07:
 
-| Not built                                    | Why                                                                                                                                        |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Login, accounts, roles                       | DF are a handful of trusted colleagues on one machine — see [ADR-003](adr/003-ship-without-login-and-bind-the-application-to-localhost.md) |
-| Printing the physical card                   | A separate existing system does it; this app produces the numbers on it                                                                    |
-| Portion adjustments for supply or occasions  | They happen — at the counter, not in the software                                                                                          |
-| Reporting and statistics                     | Not asked for; the data is there when it is                                                                                                |
-| A full field-level change history            | The audit log records the state changes that matter, not every edit                                                                        |
-| Retention or deletion rules                  | Archived records are kept indefinitely; DF has no rule today                                                                               |
-| Contact details, letters, e-mail reminders   | DF does not hold phone numbers or addresses for this purpose                                                                               |
-| Importing the existing Excel sheet           | A migration question, still unanswered — see [chapter 11](11-risks-and-technical-debt.md)                                                  |
-| Multi-user, multi-machine or cloud operation | One machine, by design                                                                                                                     |
+| Not built                                    | Why                                                                                                                                                                                                       |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Login, accounts, roles                       | DF are a handful of trusted colleagues on one machine — see [ADR-003](adr/003-ship-without-login-and-bind-the-application-to-localhost.md)                                                                |
+| Printing the physical card                   | A separate existing system does it; this app produces the numbers on it                                                                                                                                   |
+| A portion allowance                          | Withdrawn 2026-08-24 (US-27): food is not handed out in portions. A staff member decides per distribution how much each head gets, from what was donated that week — so the figure named no real quantity |
+| Reporting and statistics                     | Not asked for; the data is there when it is                                                                                                                                                               |
+| A full field-level change history            | The audit log records the state changes that matter, not every edit                                                                                                                                       |
+| Retention or deletion rules                  | Archived records are kept indefinitely; DF has no rule today                                                                                                                                              |
+| Contact details, letters, e-mail reminders   | DF does not hold phone numbers or addresses for this purpose                                                                                                                                              |
+| Importing the existing Excel sheet           | A migration question, still unanswered — see [chapter 11](11-risks-and-technical-debt.md)                                                                                                                 |
+| Multi-user, multi-machine or cloud operation | One machine, by design                                                                                                                                                                                    |
 
 ## Quality goals
 
@@ -85,7 +85,7 @@ as [scenario Q3](10-quality-requirements.md).
 | Role                  | Who                                                                                                     | What they expect                                                                                                                                                                                                     |
 | --------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Counter staff         | DF volunteers, sharing one machine, no accounts                                                         | To type a number and get one unambiguous answer while a queue waits; to be trusted with judgement calls rather than blocked by the software                                                                          |
-| DF's manager          | The person who runs the food bank's operation                                                           | To change the quota, prices and portions themselves, without a developer; to be able to say later what was decided and why                                                                                           |
+| DF's manager          | The person who runs the food bank's operation                                                           | To change the quota and the prices themselves, without a developer; to be able to say later what was decided and why                                                                                                 |
 | Customers             | A few hundred households, roughly 250 today                                                             | That their entitlement is judged consistently, and that their data does not leave the building                                                                                                                       |
 | Maintaining developer | Today one person; in future possibly someone else entirely                                              | To find the rule, change it and know what it touched — the reason quality goal 1 is first                                                                                                                            |
 | Autonomous agent runs | The Ralph loop (`scripts/ralph/`), and other AI coding agents besides, write production code unattended | Rules that hold without a reviewer present. This is why the layer boundary is a build failure and not a convention — see [ADR-001](adr/001-layer-the-system-hexagonal-lite-and-enforce-the-boundary-in-the-build.md) |

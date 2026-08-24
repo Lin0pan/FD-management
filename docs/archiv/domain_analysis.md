@@ -53,6 +53,11 @@ list (not paper).
 | Current card number         | The customer's currently valid card number (see Customer Card).                                                                                                                                                                                                                                                                                                                                      |
 | Comments / notes            | Free-text field for individual staff notes about the customer.                                                                                                                                                                                                                                                                                                                                       |
 
+> **Note (2026-08-24).** The portion allowance described here was built and then withdrawn: DF
+> reported that food is not handed out in portions — a staff member decides per distribution how
+> much each head gets, from what was donated that week. The figure named no quantity that exists.
+> See [`tasks/prd-us-27-remove-portion-allowance.md`](../../tasks/prd-us-27-remove-portion-allowance.md).
+
 ### Household Member
 
 Every person in the customer's household is registered individually, children included. **The
@@ -60,6 +65,9 @@ registered customer is themselves a household member** — a single-person house
 exactly one member, and that member is counted in the grown-up count. The household composition —
 and with it the grown-up/children counts, the portion allowance and the price — is derived from this
 list rather than stored as two hand-maintained numbers.
+
+> **Note (2026-08-24).** The portion allowance is withdrawn — see
+> [`tasks/prd-us-27-remove-portion-allowance.md`](../../tasks/prd-us-27-remove-portion-allowance.md).
 
 | Attribute     | Description                                                                          |
 | ------------- | ------------------------------------------------------------------------------------ |
@@ -77,6 +85,9 @@ removed**; no history of past compositions is kept for now.
 | Name                       | Printed on the card.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Group / color              | Printed on the card (Red/Blue).                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Grown-up / children counts | Printed on the card; used to derive portion allowance and price.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+
+> **Note (2026-08-24).** The portion allowance is withdrawn — see
+> [`tasks/prd-us-27-remove-portion-allowance.md`](../../tasks/prd-us-27-remove-portion-allowance.md).
 
 ### Distribution Record
 
@@ -134,6 +145,9 @@ implied by the per-head prices in force at that point in time.
    money, not food.
 8. Staff record that the customer showed up and received food that week (date-stamped) and mark the
    record as **paid**.
+
+> **Note (2026-08-24).** The portion allowance is withdrawn — see
+> [`tasks/prd-us-27-remove-portion-allowance.md`](../../tasks/prd-us-27-remove-portion-allowance.md).
 
 ### 4.2 Eligibility & Reminder Flow (certificate check)
 
@@ -226,6 +240,9 @@ value that flips on the member's 13th birthday without any staff action.
    a reissue is due. The reissue should happen **as soon as practical, but it is not urgent** — a
    customer whose card still shows the old counts is not turned away.
 
+> **Note (2026-08-24).** The portion allowance is withdrawn — see
+> [`tasks/prd-us-27-remove-portion-allowance.md`](../../tasks/prd-us-27-remove-portion-allowance.md).
+
 ## 5. Possible Future Requirements
 
 Not needed for the first version, but flagged by FD as likely later — worth keeping in mind so the
@@ -234,6 +251,9 @@ data model does not preclude them.
 - **Reporting / statistics**, e.g. total portions distributed per week or month, attendance rates,
   customer counts per group. This is a non-blocking, lower-priority item for later scoping. It
   mainly implies that distribution records are kept over time rather than overwritten each week.
+
+> **Note (2026-08-24).** The portion allowance is withdrawn — see
+> [`tasks/prd-us-27-remove-portion-allowance.md`](../../tasks/prd-us-27-remove-portion-allowance.md).
 
 ## 6. Open Questions
 
@@ -250,3 +270,6 @@ answered by FD and are folded into the sections above. What remains open:
    certificate-expiry reminders should ever be sent rather than given verbally.
 3. **Reporting scope:** If/when reporting becomes a requirement, which figures matter and to whom
    (internal review, donors, municipality)? See §5.
+
+> **Note (2026-08-24).** The portion allowance is withdrawn — see
+> [`tasks/prd-us-27-remove-portion-allowance.md`](../../tasks/prd-us-27-remove-portion-allowance.md).

@@ -30,7 +30,7 @@ Measured while diagnosing it, and worse than the reported bug:
 | resulting value  | **`1985-12-03`**, valid, no complaint | `""`   |
 
 Chromium **clamped** month 15 to 12 and reported nothing. A birthdate decides whether a household
-member is a child, which moves the portion allowance and the price — so a silently substituted day is
+member is a child, which moves the price — so a silently substituted day is
 precisely the class of error [quality goal 2](../01-introduction-and-goals.md#quality-goals) exists to
 make impossible, and precisely the spreadsheet failure this register replaced.
 
