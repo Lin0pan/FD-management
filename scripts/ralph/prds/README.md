@@ -5,7 +5,7 @@ number). Each file is a complete, self-contained Ralph run: its own `branchName`
 starting at `US-001`, its own priorities `1..n`.
 
 [`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
-it. It currently holds **batch 27**, the next one to run. `done/` holds the finished copy of each
+it. It currently holds **batch 28**, the next one to run. `done/` holds the finished copy of each
 batch that has run — the same file with every story's `passes` flipped to `true`.
 
 ## Workflow
@@ -177,7 +177,8 @@ exhaustive — the build fails until US-003 handles the new case, which is the m
 **Batches 27 and 28 are DF's two pieces of feedback from the testing phase**, and they are a pair:
 one quantity that was never real goes away, and one that is real arrives. `local_only/new_requirements_analysis.md`
 is the analysis both PRDs were written from. **27 must be merged before 28 is cut** — 28 fills the
-tile slot 27 vacates on three screens and adds a card beside the settings grid 27 re-spans.
+tile slot 27 vacates on three screens and adds a card beside the settings grid 27 re-spans. 27 was
+merged on 2026-08-24 (PR #120), so that condition is met.
 
 - **27 (US-27)** removes the **portion allowance** entirely: the derivation, the two settings, two
   schema columns, five displays, the German strings and the documents. The price is untouched. It is
