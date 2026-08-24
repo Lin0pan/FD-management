@@ -49,8 +49,8 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Allowance is now { grownUps, children, priceCents }; portionsFor had no callers left after US-001, so src/domain/policy/portions.ts and its test were deleted. Settings still carries the two portion values (US-003 takes them). One tension noted for US-005: describe-allowance.ts still cites tasks/prd-us-07-portions-and-price.md, and US-006 forbids renaming that file, so the `grep -ri portion` gate has to tolerate the path citation."
     },
     {
       "id": "US-003",

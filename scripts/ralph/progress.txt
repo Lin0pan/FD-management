@@ -111,3 +111,40 @@ Started: Mon Aug 24 2026 (batch 27 — US-27 remove the portion allowance)
   - **The record renders two different household blocks.** `/kunden/<active>` gives the live editor,
     `/kunden/<archived>` gives `HouseholdReadOnly`. Both hold the same tiles, so a screen-level
     change has to be checked on one of each — seed customer 6 is archived.
+
+## 2026-08-24 — US-002 (batch 27): the allowance seam stops deriving portions
+- `Allowance` is now `{ grownUps, children, priceCents }`. `allowanceAt` no longer calls
+  `portionsFor`, and with US-001 having taken the screens off the figure that function had no callers
+  left — `src/domain/policy/portions.ts` and `portions.test.ts` are **deleted**, not deprecated.
+- `CounterCustomerView` (lookup-customer.ts) and `CustomerListRow` (list-customers.ts) lose the field
+  and its copy line. `describeAllowance` / `describeAllowances` keep their signatures, their date
+  handling and their single read of the settings history — this story changed *what* is derived.
+- Files changed: `src/application/allowance/describe-allowance.ts` (+ test),
+  `src/application/customers/{lookup-customer,list-customers,read-customer,read-card,update-household}.ts`,
+  `src/application/ports.ts`, `src/application/customers/{customers,list-customers,lookup-customer,maintain-customer}.test.ts`,
+  `src/domain/policy/settings.ts`, `src/infrastructure/prisma/customer-repository.ts`.
+  Deleted: `src/domain/policy/portions.{ts,test.ts}`.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1092 tests — exactly the deleted file's own
+  tests fewer; domain and application still 100%) and `build` all pass.
+- **Learnings for future iterations:**
+  - **Deleting an exported type breaks prose in a file you did not touch.** `PriceValues` in
+    `src/domain/policy/settings.ts` described itself as "the mirror of `PortionValues`" — a
+    `{@link}`-shaped reference to a type that no longer exists. `grep -rn "<TypeName>"` before
+    deleting an export, not only for imports: the dangling references are in comments and no gate
+    sees them.
+  - **Two comments outside this story's layer became false the moment `Allowance` changed**, because
+    they described the seam rather than their own file: `ports.ts`'s `updateHousehold`,
+    `update-household.ts` and `customer-repository.ts` all said "the portions and the price follow
+    from the birthdates". They are fixed here rather than left for a later story — none of US-003 to
+    US-006 lists them, so they would have survived to the US-005 grep with nothing owning them.
+  - **US-005's `grep -ri portion src/ tests/ prisma/` cannot literally return nothing.**
+    `describe-allowance.ts` and `tests/e2e/portions.spec.ts` both cite
+    `tasks/prd-us-07-portions-and-price.md`, and US-006 explicitly forbids renaming that PRD because
+    several specs and the batch index point at it. US-005 has to either exclude the path citation
+    from the grep or state the exception — decide it deliberately, do not "fix" it by mangling a
+    citation into something that no longer names a real file.
+  - **A settings *field* is not the same survivor as a portion *derivation*.** `portionsPerGrownUp` /
+    `portionsPerChild` are still required by `SettingsInput`, so every application fake still supplies
+    them and `settings.test.ts` still has a portion-diff test. That is correct after this story —
+    US-003 owns them. Do not pre-emptively strip them from fakes; nothing compiles without them.
+---
