@@ -3,6 +3,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { clearRegister } from "@/infrastructure/prisma/test-support";
 import { ISOLATED } from "./registers";
 import { fillSticky } from "./day";
 import { fillPersonalData as fillPersonalDataOn, type Person } from "./registration-form";
@@ -170,6 +171,27 @@ test.describe("Warteliste", () => {
   const first = applicant();
   /** The applicant behind them, who must still be waiting — and now at the head — at the end. */
   const second = applicant();
+
+  /**
+   * Start from an empty register on **every attempt**, not only the first.
+   *
+   * The database is deleted and re-seeded in `webServer.command` (`playwright.config.ts`), which
+   * runs once per *run*. `retries` is 2 on CI and this block is `mode: "serial"`, so a retry replays
+   * it from the first test against the register the previous attempt already filled — and the first
+   * test's whole subject is a register with **nothing left to give**. Two slots are already taken,
+   * so „Aufnehmen" is correctly `disabled={pending || full}` and the retry times out after 30
+   * seconds on a screen that is telling the truth. Both retries then fail that way and the failure
+   * that actually broke the run is buried three tests down.
+   *
+   * `clearRegister` empties everything, which no spec on the *shared* register may do (see
+   * `releaseNumbers` in `seeding.ts`). This one owns its register outright — its own server, its own
+   * database — which is the whole reason it is the isolated project, and emptying it is exactly what
+   * that ownership is for. The quota needs no undoing: the first test sets it through the screen.
+   */
+  test.beforeAll(async () => {
+    await prisma.waitingListEntry.deleteMany();
+    await clearRegister(prisma);
+  });
 
   test.afterAll(async () => {
     await prisma.$disconnect();

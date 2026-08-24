@@ -22,6 +22,18 @@ const PRICE_LABEL = de.settings.fields.pricePerGrownUp;
 const CAP_LABEL = de.settings.fields.priceCap;
 
 /**
+ * What a fresh install holds, as the fields show it — `provisionalSettingsVersion` in
+ * `src/infrastructure/prisma/seed.ts`, read back through the German number format.
+ *
+ * Spelled out rather than imported, because these are what the specs below *assert*: importing them
+ * would make the screen and the seed agree by construction, and the point of driving the real form
+ * is that they agree by fact. The three are what `beforeAll` restores between attempts.
+ */
+const SEEDED_PRICE = "2,00";
+const SEEDED_CAP = "5,00";
+const SEEDED_QUOTA = "240";
+
+/**
  * Open the version history.
  *
  * It is a `<details>` that starts closed, so every
@@ -49,11 +61,41 @@ async function versionCount(page: Page): Promise<number> {
 test.describe.configure({ mode: "serial" });
 
 test.describe("Einstellungen", () => {
+  /**
+   * Put the three values this file is a chain of back where it says they start — on **every
+   * attempt**, not only the first.
+   *
+   * The specs below walk the price from 2,00 to 2,50 to 2,75 to 9,99, each asserting where the last
+   * one left it, and the Maximalpreis from its seeded 5,00. The database is deleted and re-seeded in
+   * `webServer.command` (`playwright.config.ts`), which runs once per *run*; `retries` is 2 on CI and
+   * this block is `mode: "serial"`, so a retry replays it from the top against a register the
+   * previous attempt already walked. The first spec then reads 9,99 where it expects 2,00 and fails
+   * for a reason that has nothing to do with what broke — and does it on both retries, so the test
+   * that actually failed never runs again and never appears in the report.
+   *
+   * Done through the screen rather than through Prisma, like everything else here: this file's whole
+   * argument is that it drives the real chain, and a fixture reaching around the server action to
+   * write a settings version would be the one write in it that proves nothing. It costs one extra
+   * version at the head of the history, which no assertion counts — the counts have been relative
+   * since `price-cap.spec.ts` started saving into the same register, and `versions.last()` is still
+   * the seeded one.
+   */
+  test.beforeAll(async ({ browser }) => {
+    const page = await browser.newPage();
+    await page.goto("/einstellungen");
+    await page.getByLabel(PRICE_LABEL, { exact: true }).fill(SEEDED_PRICE);
+    await page.getByLabel(CAP_LABEL, { exact: true }).fill(SEEDED_CAP);
+    await page.locator("#quotaN").fill(SEEDED_QUOTA);
+    await page.getByRole("button", { name: de.settings.save, exact: true }).click();
+    await expect(page.getByTestId("settings-saved")).toHaveText(de.settings.saved);
+    await page.close();
+  });
+
   test("a changed price is stored and shown again after a reload", async ({ page }) => {
     await page.goto("/einstellungen");
 
     const price = page.getByLabel(PRICE_LABEL, { exact: true });
-    await expect(price).toHaveValue("2,00");
+    await expect(price).toHaveValue(SEEDED_PRICE);
     // A change applies at once, so the screen has no effective-from field to fill in.
     await expect(page.locator("#effectiveFrom")).toHaveCount(0);
     const before = await versionCount(page);
@@ -246,7 +288,7 @@ test.describe("Einstellungen", () => {
     await page.goto("/einstellungen");
 
     const cap = page.getByLabel(CAP_LABEL, { exact: true });
-    await expect(cap).toHaveValue("5,00");
+    await expect(cap).toHaveValue(SEEDED_CAP);
 
     await cap.fill("4,00");
     await page.getByRole("button", { name: de.settings.save, exact: true }).click();
