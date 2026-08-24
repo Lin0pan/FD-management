@@ -4,9 +4,10 @@
  *
  * The record is **validated on construction** (`createCustomerDetails`), so a half-filled household
  * cannot exist as a value and no caller has to re-check it. What is deliberately *absent* is as
- * important as what is here: there is no grown-up or children count and no portion allowance, because
- * both are derived from the birthdates wherever they are needed (`householdComposition.ts`). The
- * Excel sheet DF is replacing kept them as typed-in numbers, and they drifted with every birthday.
+ * important as what is here: there is no grown-up or children count and no price, because both are
+ * derived from the birthdates wherever they are needed (`householdComposition.ts` counts,
+ * `priceFor` prices). The Excel sheet DF is replacing kept them as typed-in numbers, and they
+ * drifted with every birthday.
  *
  * The module is pure: `today` is a parameter, and nothing here knows how a customer is stored.
  */
@@ -93,10 +94,10 @@ export interface CustomerDetailsInput extends PersonalDetails {
 /**
  * The longest note the record keeps for a household (US-16.3).
  *
- * Not a policy value and deliberately not in settings: the prices, portions and quota there are
- * decisions DF makes about how they serve people, while this is a bound on a text column, so that a
- * pasted document cannot become a customer record. It is stated once, here, because the use case
- * that saves a note and the form that counts characters must mean the same number.
+ * Not a policy value and deliberately not in settings: the prices and the quota there are decisions
+ * DF makes about how they serve people, while this is a bound on a text column, so that a pasted
+ * document cannot become a customer record. It is stated once, here, because the use case that
+ * saves a note and the form that counts characters must mean the same number.
  */
 export const NOTES_MAX_LENGTH = 4000;
 

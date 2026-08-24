@@ -29,10 +29,10 @@ const COLOURS = ["RED", "BLUE"] as const;
 /**
  * The field grid: twelve columns at `lg`, two at `sm`, one below — the same one `/kunden/neu` uses.
  *
- * Every field on this screen was 408px wide because all nine shared one `sm:grid-cols-2`, so a box
- * holding `1` promised as much room as one holding a sentence (§3.3). Below `lg` the spans stop
- * applying and each field takes one of two columns, which still puts a quota beside a portions
- * count at 800px.
+ * Every field on this screen was 408px wide because all of them shared one `sm:grid-cols-2`, so a
+ * box holding `1` promised as much room as one holding a sentence (§3.3). Below `lg` the spans stop
+ * applying and each field takes one of two columns, which still puts a quota beside a price at
+ * 800px.
  */
 const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
 
@@ -40,9 +40,9 @@ const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
  * A field's two rows — the label and the control — laid on the grid's own tracks.
  *
  * Without this the row is ragged, because a German label is as long as it is and a narrow column
- * wraps it: measured at 1440, `Höchstzahl der Kunden (N)` takes two lines in its 163px slot and
- * `Portionen je Kind` one, so the five inputs of the first card would start at y=286 and y=296.
- * That is the rag `docs/guideline/ui_styling_guide.md` §3 exists to prevent, and it turns up on every form
+ * wraps it: measured at 1440, `Höchstzahl der Kunden (N)` took two lines in its slot while the
+ * shorter label beside it took one, so the inputs of the first card started ten pixels apart. That
+ * is the rag `docs/guideline/ui_styling_guide.md` §3 exists to prevent, and it turns up on every form
  * where the twelve columns are actually spent.
  *
  * `grid-rows-subgrid` is the fix rather than a `min-h-` guess: each field spans two of the parent's
@@ -274,42 +274,28 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
           <NumberField
             name="quotaN"
             label={de.settings.fields.quotaN}
-            span="lg:col-span-2"
+            span="lg:col-span-3"
             value={shown("quotaN", String(settings.quotaN))}
             problem={problem("quotaN")}
-          />
-          <NumberField
-            name="portionsPerGrownUp"
-            label={de.settings.fields.portionsPerGrownUp}
-            span="lg:col-span-2"
-            value={shown("portionsPerGrownUp", String(settings.portionsPerGrownUp))}
-            problem={problem("portionsPerGrownUp")}
-          />
-          <NumberField
-            name="portionsPerChild"
-            label={de.settings.fields.portionsPerChild}
-            span="lg:col-span-2"
-            value={shown("portionsPerChild", String(settings.portionsPerChild))}
-            problem={problem("portionsPerChild")}
           />
           <EuroField
             name="pricePerGrownUp"
             label={de.settings.fields.pricePerGrownUp}
-            span="lg:col-span-2"
+            span="lg:col-span-3"
             value={shown("pricePerGrownUp", formatEuroAmount(settings.pricePerGrownUp))}
             problem={problem("pricePerGrownUp")}
           />
           <EuroField
             name="pricePerChild"
             label={de.settings.fields.pricePerChild}
-            span="lg:col-span-2"
+            span="lg:col-span-3"
             value={shown("pricePerChild", formatEuroAmount(settings.pricePerChild))}
             problem={problem("pricePerChild")}
           />
           <EuroField
             name="priceCap"
             label={de.settings.fields.priceCap}
-            span="lg:col-span-2"
+            span="lg:col-span-3"
             // Empty is a configuration here, not an unfilled field — see {@link capValue}.
             value={shown("priceCap", capValue(settings.priceCap))}
             problem={problem("priceCap")}

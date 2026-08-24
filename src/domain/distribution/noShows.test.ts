@@ -10,8 +10,6 @@ function on(isoDate: string): Date {
 /** Distribution on Thursdays, anchored on the RED week `2026-W02` (Monday 5 January 2026). */
 const THURSDAYS: Settings = createSettings({
   quotaN: 3,
-  portionsPerGrownUp: 2,
-  portionsPerChild: 1,
   weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
   distributionWeekday: 4,
   pricePerGrownUp: 200,

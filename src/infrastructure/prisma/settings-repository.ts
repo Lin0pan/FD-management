@@ -6,8 +6,6 @@ import { createSettings, parseWeekColour, type SettingsVersion } from "@/domain/
 interface StoredVersion {
   readonly recordedAt: Date;
   readonly quotaN: number;
-  readonly portionsPerGrownUp: number;
-  readonly portionsPerChild: number;
   readonly weekAnchorIsoWeek: string;
   readonly weekAnchorColour: string;
   readonly distributionWeekday: number;
@@ -27,8 +25,6 @@ function toDomain(row: StoredVersion): SettingsVersion {
     recordedAt: row.recordedAt,
     settings: createSettings({
       quotaN: row.quotaN,
-      portionsPerGrownUp: row.portionsPerGrownUp,
-      portionsPerChild: row.portionsPerChild,
       weekAnchor: {
         isoWeek: row.weekAnchorIsoWeek,
         colour: parseWeekColour(row.weekAnchorColour),
@@ -77,8 +73,11 @@ export class PrismaSettingsRepository implements SettingsRepository {
       data: {
         recordedAt: version.recordedAt,
         quotaN: settings.quotaN,
-        portionsPerGrownUp: settings.portionsPerGrownUp,
-        portionsPerChild: settings.portionsPerChild,
+        // TEMPORARY, until US-004 drops the columns: they are still NOT NULL with no default, so
+        // the insert has to name them. Nothing reads them back — `toDomain` above has already
+        // stopped — and they are the last thing in the codebase pointing at a portion allowance.
+        portionsPerGrownUp: 0,
+        portionsPerChild: 0,
         weekAnchorIsoWeek: settings.weekAnchor.isoWeek,
         weekAnchorColour: settings.weekAnchor.colour,
         distributionWeekday: settings.distributionWeekday,

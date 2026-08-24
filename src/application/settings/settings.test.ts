@@ -52,8 +52,6 @@ function fakeClock(iso: string): Clock {
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
     quotaN: 240,
-    portionsPerGrownUp: 2,
-    portionsPerChild: 1,
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday: 4,
     pricePerGrownUp: 200,
@@ -210,11 +208,11 @@ describe("updateSettings", () => {
 
   it("compares against the later of two versions recorded in the same instant", async () => {
     repository = new FakeSettingsRepository(
-      version("2026-06-01T00:00:00.000Z", { quotaN: 240, portionsPerChild: 2 }),
-      version("2026-06-01T00:00:00.000Z", { quotaN: 240, portionsPerChild: 1 }),
+      version("2026-06-01T00:00:00.000Z", { quotaN: 240, pricePerChild: 150 }),
+      version("2026-06-01T00:00:00.000Z", { quotaN: 240, pricePerChild: 100 }),
     );
 
-    await updateSettings(deps(), updateInput({ settings: settingsInput({ portionsPerChild: 1 }) }));
+    await updateSettings(deps(), updateInput({ settings: settingsInput({ pricePerChild: 100 }) }));
 
     // The second of the two is the one in force — the same tie rule `resolveSettingsAt` applies —
     // and the new values match it, so nothing is reported as changed.
@@ -223,15 +221,15 @@ describe("updateSettings", () => {
 
   it("compares against the latest version whatever order the repository returns them in", async () => {
     repository = new FakeSettingsRepository(
-      version("2026-06-01T00:00:00.000Z", { quotaN: 240, portionsPerChild: 2 }),
+      version("2026-06-01T00:00:00.000Z", { quotaN: 240, pricePerChild: 150 }),
       version("2026-01-01T00:00:00.000Z", { quotaN: 200 }),
     );
 
     await updateSettings(deps(), updateInput({ settings: settingsInput({ quotaN: 240 }) }));
 
-    // Only the portion count differs from the newest stored version; the quota matches it and so is
-    // not reported as changed, even though it differs from the older one.
-    expect(audit.entries[0].changedFields).toEqual(["portionsPerChild"]);
+    // Only the price per child differs from the newest stored version; the quota matches it and so
+    // is not reported as changed, even though it differs from the older one.
+    expect(audit.entries[0].changedFields).toEqual(["pricePerChild"]);
   });
 
   it("rejects invalid policy values before touching the repository", async () => {
@@ -252,11 +250,11 @@ describe("updateSettings", () => {
   it("writes an audit entry naming the fields that changed", async () => {
     await updateSettings(
       deps(),
-      updateInput({ settings: settingsInput({ quotaN: 250, portionsPerChild: 2 }) }),
+      updateInput({ settings: settingsInput({ quotaN: 250, pricePerChild: 150 }) }),
     );
 
     expect(audit.entries).toHaveLength(1);
-    expect(audit.entries[0].changedFields).toEqual(["quotaN", "portionsPerChild"]);
+    expect(audit.entries[0].changedFields).toEqual(["quotaN", "pricePerChild"]);
   });
 
   it("stamps the audit entry with the clock", async () => {
@@ -284,9 +282,10 @@ describe("updateSettings", () => {
     await updateSettings(deps(), updateInput());
 
     expect(audit.entries[0].changedFields).toContain("pricePerGrownUp");
-    // Eight since the Maximalpreis joined `SETTINGS_FIELDS` (US-26): the seed states every policy
-    // value, and an absent cap is one of them being stated rather than one of them missing.
-    expect(audit.entries[0].changedFields).toHaveLength(8);
+    // Six since the two portion counts left `SETTINGS_FIELDS` (US-27), the Maximalpreis among them
+    // (US-26): the seed states every policy value, and an absent cap is one of them being stated
+    // rather than one of them missing.
+    expect(audit.entries[0].changedFields).toHaveLength(6);
   });
 });
 

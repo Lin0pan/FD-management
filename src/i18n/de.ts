@@ -1242,11 +1242,11 @@ export const de = {
       "Änderungen gelten sofort. Beim Speichern wird eine neue Fassung angelegt; frühere " +
       "Fassungen bleiben erhalten, damit vergangene Ausgaben nachvollziehbar bleiben.",
     /**
-     * The three card headings, and they are the grouping: the five settings that decide *what* a
+     * The three card headings, and they are the grouping: the four settings that decide *what* a
      * household gets, the three that decide *when*, and the write itself. What stood here before
-     * was `Aktuell gültige Werte` over quota, portions and all three calendar settings — a heading
-     * that described everything on the screen and therefore distinguished nothing, with the two
-     * price fields under `Preise` next door.
+     * was `Aktuell gültige Werte` over the quota, the amounts and all three calendar settings — a
+     * heading that described everything on the screen and therefore distinguished nothing, with the
+     * two price fields under `Preise` next door.
      */
     amountsHeading: "Mengen und Preise",
     rhythmHeading: "Ausgaberhythmus",
@@ -1254,8 +1254,6 @@ export const de = {
     changeHeading: "Änderung speichern",
     fields: {
       quotaN: "Höchstzahl der Kunden (N)",
-      portionsPerGrownUp: "Portionen je Erwachsenem",
-      portionsPerChild: "Portionen je Kind",
       weekAnchorIsoWeek: "Ankerwoche (ISO, z. B. 2026-W02)",
       weekAnchorColour: "Gruppe der Ankerwoche",
       distributionWeekday: "Ausgabetag",
@@ -1303,8 +1301,6 @@ export const de = {
      */
     errorFields: {
       quotaN: "Höchstzahl der Kunden (N)",
-      portionsPerGrownUp: "Portionen je Erwachsenem",
-      portionsPerChild: "Portionen je Kind",
       distributionWeekday: "Ausgabetag",
       "weekAnchor.isoWeek": "Ankerwoche (ISO, z. B. 2026-W02)",
       "weekAnchor.colour": "Gruppe der Ankerwoche",
@@ -1455,9 +1451,9 @@ const SETTINGS_FORM_FIELDS = de.settings.fields as Record<string, string | undef
 /**
  * {@link customerFormFieldLabel} for the settings screen, and it misses for the same reason.
  *
- * `de.settings.fields` is already keyed by the `name` each input carries, so nine of the ten need no
- * translation; the tenth is `reason`, which is named separately because it is not one of the values
- * being set. It is listed here anyway — it is a box on the screen, and a summary that skipped it
+ * `de.settings.fields` is already keyed by the `name` each input carries, so seven of the eight need
+ * no translation; the eighth is `reason`, which is named separately because it is not one of the
+ * values being set. It is listed here anyway — it is a box on the screen, and a summary that skipped it
  * would fall through to „nichts gespeichert“ for a field staff can see. Nothing refuses it today
  * (`z.string()` accepts everything, and an empty reason is allowed), which is exactly why it would
  * go unnoticed if it ever did.

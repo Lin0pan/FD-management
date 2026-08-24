@@ -9,8 +9,8 @@ import { formatCalendarDay, isBlankDay, isoCalendarDay, parseCalendarDay } from 
  * to choose, not ours (ADR-013): on a Mac whose region is not German, Safari reads the first segment
  * as a month, and Chromium silently *clamps* an out-of-range month — `15.03.1985` became
  * `1985-12-03`, a valid date nobody typed. A birthdate decides whether a household member is a child,
- * so a silently wrong one moves portions and price. This module is the one place that text becomes a
- * day, and it fails loudly rather than guessing.
+ * so a silently wrong one moves the price. This module is the one place that text becomes a day,
+ * and it fails loudly rather than guessing.
  */
 describe("parseCalendarDay", () => {
   it("reads a German day as the UTC day it names", () => {

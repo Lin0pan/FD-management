@@ -55,8 +55,8 @@ function householdSize(counts: HouseholdComposition): number {
  *
  * The counts answer first and the group only when they agree. A reissue replaces the whole card at
  * once, so the reason is not a work list — it is the sentence that explains the row, and when both
- * moved the counts are the difference worth naming: they decide the portions and the price, while
- * the group decides only which week the household is expected in.
+ * moved the counts are the difference worth naming: they decide the price, while the group decides
+ * only which week the household is expected in.
  */
 export function staleCardReason(
   printedOnCard: CardFacts,

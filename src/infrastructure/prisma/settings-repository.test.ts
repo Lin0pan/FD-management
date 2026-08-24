@@ -47,8 +47,6 @@ function version(
     recordedAt: new Date(recordedAt),
     settings: createSettings({
       quotaN,
-      portionsPerGrownUp: 2,
-      portionsPerChild: 1,
       weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
       distributionWeekday: 4,
       pricePerGrownUp: 200,
@@ -57,6 +55,13 @@ function version(
     }),
   };
 }
+
+/**
+ * TEMPORARY, until US-004 drops the columns: the two portion columns are still NOT NULL with no
+ * default, so a row written straight through Prisma — as the two hand-edited rows below are — has
+ * to name them. Nothing reads them back.
+ */
+const DROPPED_IN_US_004 = { portionsPerGrownUp: 0, portionsPerChild: 0 };
 
 describe("PrismaSettingsRepository", () => {
   it("returns a stored version unchanged, prices included", async () => {
@@ -120,13 +125,12 @@ describe("PrismaSettingsRepository", () => {
       data: {
         recordedAt: new Date("2026-03-01T00:00:00.000Z"),
         quotaN: 240,
-        portionsPerGrownUp: 2,
-        portionsPerChild: 1,
         weekAnchorIsoWeek: "2026-W02",
         weekAnchorColour: "GREEN",
         distributionWeekday: 4,
         pricePerGrownUpCents: 200,
         pricePerChildCents: 100,
+        ...DROPPED_IN_US_004,
       },
     });
 
@@ -138,13 +142,12 @@ describe("PrismaSettingsRepository", () => {
       data: {
         recordedAt: new Date("2026-03-01T00:00:00.000Z"),
         quotaN: 240,
-        portionsPerGrownUp: 2,
-        portionsPerChild: 1,
         weekAnchorIsoWeek: "2026-W02",
         weekAnchorColour: "RED",
         distributionWeekday: 4,
         pricePerGrownUpCents: 200,
         pricePerChildCents: 100,
+        ...DROPPED_IN_US_004,
         priceCapCents: -1,
       },
     });
@@ -160,8 +163,6 @@ describe("seedSettings", () => {
     const [seeded] = await repository.listVersions();
     expect(seeded.recordedAt).toEqual(provisionalSettingsVersion().recordedAt);
     expect(seeded.settings.quotaN).toBe(240);
-    expect(seeded.settings.portionsPerGrownUp).toBe(2);
-    expect(seeded.settings.portionsPerChild).toBe(1);
     expect(seeded.settings.weekAnchor).toEqual({ isoWeek: "2026-W02", colour: "RED" });
     expect(seeded.settings.distributionWeekday).toBe(4);
     expect(seeded.settings.priceCap).toBe(500);

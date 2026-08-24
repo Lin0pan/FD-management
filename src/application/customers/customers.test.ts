@@ -472,8 +472,6 @@ function fakeClock(iso: string): Clock {
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
     quotaN: 240,
-    portionsPerGrownUp: 2,
-    portionsPerChild: 1,
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday: 4,
     pricePerGrownUp: 200,

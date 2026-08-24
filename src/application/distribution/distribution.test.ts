@@ -30,8 +30,6 @@ function fakeClock(iso: string): Clock {
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
     quotaN: 240,
-    portionsPerGrownUp: 2,
-    portionsPerChild: 1,
     // 2026-W02 is 5–11 January 2026; Thursday of that week is 8 January 2026.
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday: 4,

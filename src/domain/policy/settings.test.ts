@@ -14,8 +14,6 @@ import {
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
     quotaN: 240,
-    portionsPerGrownUp: 2,
-    portionsPerChild: 1,
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday: 4,
     pricePerGrownUp: 200,
@@ -36,8 +34,6 @@ describe("createSettings", () => {
   it("keeps the values it was given", () => {
     const settings = createSettings(settingsInput());
     expect(settings.quotaN).toBe(240);
-    expect(settings.portionsPerGrownUp).toBe(2);
-    expect(settings.portionsPerChild).toBe(1);
     expect(settings.weekAnchor).toEqual({ isoWeek: "2026-W02", colour: "RED" });
     expect(settings.distributionWeekday).toBe(4);
     expect(settings.pricePerGrownUp).toBe(200);
@@ -55,20 +51,6 @@ describe("createSettings", () => {
 
   it("rejects a non-integer quota", () => {
     expect(() => createSettings(settingsInput({ quotaN: 1.5 }))).toThrow(InvalidSettings);
-  });
-
-  it("accepts zero portions per grown-up", () => {
-    expect(createSettings(settingsInput({ portionsPerGrownUp: 0 })).portionsPerGrownUp).toBe(0);
-  });
-
-  it("rejects negative portions per grown-up", () => {
-    expect(() => createSettings(settingsInput({ portionsPerGrownUp: -1 }))).toThrow(
-      InvalidSettings,
-    );
-  });
-
-  it("rejects negative portions per child", () => {
-    expect(() => createSettings(settingsInput({ portionsPerChild: -1 }))).toThrow(InvalidSettings);
   });
 
   it("accepts Monday and Sunday as distribution weekdays", () => {
@@ -266,8 +248,6 @@ describe("changedSettingsFields", () => {
   it("reports every field when there is no previous version", () => {
     expect(changedSettingsFields(undefined, previous)).toEqual([
       "quotaN",
-      "portionsPerGrownUp",
-      "portionsPerChild",
       "weekAnchor",
       "distributionWeekday",
       "pricePerGrownUp",
@@ -278,8 +258,6 @@ describe("changedSettingsFields", () => {
 
   it.each([
     ["quotaN", { quotaN: 200 }],
-    ["portionsPerGrownUp", { portionsPerGrownUp: 3 }],
-    ["portionsPerChild", { portionsPerChild: 2 }],
     ["distributionWeekday", { distributionWeekday: 5 }],
     ["pricePerGrownUp", { pricePerGrownUp: 250 }],
     ["pricePerChild", { pricePerChild: 125 }],
@@ -331,8 +309,8 @@ describe("changedSettingsFields", () => {
   });
 
   it("lists several fields in declaration order when more than one changed", () => {
-    const next = createSettings(settingsInput({ quotaN: 200, portionsPerChild: 2 }));
-    expect(changedSettingsFields(previous, next)).toEqual(["quotaN", "portionsPerChild"]);
+    const next = createSettings(settingsInput({ quotaN: 200, pricePerChild: 125 }));
+    expect(changedSettingsFields(previous, next)).toEqual(["quotaN", "pricePerChild"]);
   });
 });
 

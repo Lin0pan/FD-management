@@ -145,8 +145,6 @@ const SETTINGS: SettingsVersion = {
   recordedAt: new Date("2026-01-01T00:00:00.000Z"),
   settings: createSettings({
     quotaN: 240,
-    portionsPerGrownUp: 2,
-    portionsPerChild: 1,
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday: 3,
     pricePerGrownUp: 200,

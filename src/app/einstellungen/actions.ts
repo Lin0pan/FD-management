@@ -79,8 +79,6 @@ const weekColour = z.string().transform((value, ctx) => {
 
 const settingsForm = z.object({
   quotaN: wholeNumber,
-  portionsPerGrownUp: wholeNumber,
-  portionsPerChild: wholeNumber,
   weekAnchorIsoWeek: z.string(),
   weekAnchorColour: weekColour,
   distributionWeekday: wholeNumber,
@@ -101,8 +99,6 @@ function formValues(formData: FormData): SubmittedSettings {
   const text = (name: string): string => String(formData.get(name) ?? "");
   return {
     quotaN: text("quotaN"),
-    portionsPerGrownUp: text("portionsPerGrownUp"),
-    portionsPerChild: text("portionsPerChild"),
     weekAnchorIsoWeek: text("weekAnchorIsoWeek"),
     weekAnchorColour: text("weekAnchorColour"),
     distributionWeekday: text("distributionWeekday"),
@@ -154,13 +150,12 @@ function settingsRefusals(error: z.ZodError): FormRefusal {
  *
  * `field` is the **form input's** name, which is what the form needs in order to mark one — turning a
  * domain fact into what the browser can use is this adapter's whole job, and it already does it for
- * the sentence. Seven of the nine settings are spelled the same on both sides; the two nested ones
+ * the sentence. Five of the seven settings are spelled the same on both sides; the two nested ones
  * are not, and {@link INPUT_NAME} is that translation.
  *
  * It used to be recovered in the browser instead, by comparing the finished sentence back against
- * `invalidSettings(<label>)`. That is a match on a German string: it held only while the eight
- * labels stayed distinct, and the first reworded one would have unmarked a field with nothing
- * failing. The field belongs to the error and now travels with it.
+ * `invalidSettings(<label>)`. That is a match on a German string: it held only while the labels
+ * stayed distinct, and the first reworded one would have unmarked a field with nothing failing. The field belongs to the error and now travels with it.
  *
  * `QuotaBelowActiveCustomers` deliberately names no field: it is a collision between the new maximum
  * and the register's actual size, so marking `quotaN` alone would say the number is malformed when
@@ -203,7 +198,7 @@ function refusal(error: unknown): Pick<SaveSettingsState, "message" | "tier" | "
  *
  * On any failure nothing is written — the use case checks every rule before it appends — and the
  * form comes back with a German explanation, the field to mark, and **the submission itself**, so
- * the eight valid edits made alongside the one that was refused are not thrown away with it.
+ * the valid edits made alongside the one that was refused are not thrown away with it.
  */
 export async function saveSettings(
   _previous: SaveSettingsState,
@@ -229,8 +224,6 @@ export async function saveSettings(
       reason: form.reason,
       settings: {
         quotaN: form.quotaN,
-        portionsPerGrownUp: form.portionsPerGrownUp,
-        portionsPerChild: form.portionsPerChild,
         weekAnchor: { isoWeek: form.weekAnchorIsoWeek, colour: form.weekAnchorColour },
         distributionWeekday: form.distributionWeekday,
         pricePerGrownUp: form.pricePerGrownUp,
