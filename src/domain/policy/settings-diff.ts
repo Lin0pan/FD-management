@@ -2,10 +2,10 @@
  * What changed between two consecutive policy versions.
  *
  * The settings screen used to restate every value on every row of its history, which made finding
- * the one that moved a matter of diffing two 136-character strings by eye — and printed only five
- * of the eight settings, so a change to the Ausgabetag produced a row identical to its predecessor
- * in every character. A version is therefore rendered as
- * the changes that produced it, and this is where they are derived.
+ * the one that moved a matter of diffing two 136-character strings by eye — and printed only the
+ * amounts and the prices, so a change to the Ausgabetag produced a row identical to its predecessor
+ * in every character. A version is therefore rendered as the changes that produced it, and this is
+ * where they are derived.
  *
  * Two things this deliberately does *not* do:
  *
@@ -27,8 +27,6 @@ import type { IsoWeekday, Settings, WeekColour } from "./settings";
 /** One field that differs between two versions, with the value on either side of the change. */
 export type SettingsChange =
   | { readonly field: "quotaN"; readonly from: number; readonly to: number }
-  | { readonly field: "portionsPerGrownUp"; readonly from: number; readonly to: number }
-  | { readonly field: "portionsPerChild"; readonly from: number; readonly to: number }
   | { readonly field: "weekAnchorIsoWeek"; readonly from: string; readonly to: string }
   | { readonly field: "weekAnchorColour"; readonly from: WeekColour; readonly to: WeekColour }
   | { readonly field: "distributionWeekday"; readonly from: IsoWeekday; readonly to: IsoWeekday }
@@ -50,20 +48,6 @@ export function diffSettings(previous: Settings, next: Settings): ReadonlyArray<
 
   if (previous.quotaN !== next.quotaN) {
     changes.push({ field: "quotaN", from: previous.quotaN, to: next.quotaN });
-  }
-  if (previous.portionsPerGrownUp !== next.portionsPerGrownUp) {
-    changes.push({
-      field: "portionsPerGrownUp",
-      from: previous.portionsPerGrownUp,
-      to: next.portionsPerGrownUp,
-    });
-  }
-  if (previous.portionsPerChild !== next.portionsPerChild) {
-    changes.push({
-      field: "portionsPerChild",
-      from: previous.portionsPerChild,
-      to: next.portionsPerChild,
-    });
   }
   if (previous.weekAnchor.isoWeek !== next.weekAnchor.isoWeek) {
     changes.push({

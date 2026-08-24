@@ -10,8 +10,6 @@ function on(isoDate: string): Date {
 function settings(distributionWeekday: IsoWeekday): Settings {
   return createSettings({
     quotaN: 3,
-    portionsPerGrownUp: 2,
-    portionsPerChild: 1,
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday,
     pricePerGrownUp: 200,

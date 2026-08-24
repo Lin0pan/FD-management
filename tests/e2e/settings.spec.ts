@@ -171,7 +171,7 @@ test.describe("Einstellungen", () => {
     await expect(versions.first().getByTestId("settings-version-current")).toHaveText(
       de.settings.history.current,
     );
-    // The superseded version states the *move* rather than restating all eight values — a stronger
+    // The superseded version states the *move* rather than restating all seven values — a stronger
     // claim than the old assertion, which only read the price that version happened to hold.
     await expect(versions.nth(1)).toContainText(
       de.settings.history.change(de.settings.fields.pricePerGrownUp, "2,00 €", "2,50 €"),

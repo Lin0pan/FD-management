@@ -24,7 +24,7 @@ import { releaseNumbers } from "./seeding";
  * Three households are seeded straight through Prisma: all RED, active, current certificate, one card.
  * They take numbers in the 220s so the registration and card specs, which allocate the *lowest* free
  * number in the shared `data/e2e.db`, keep the low sequence they assert against, and so they stay
- * clear of the counter spec's 201–206/239 and the portions spec's 211.
+ * clear of the counter spec's 201–206/239 and the allowance spec's 211.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date

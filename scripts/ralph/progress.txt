@@ -39,13 +39,15 @@ Started: Mon Aug 24 2026 (batch 27 — US-27 remove the portion allowance)
   `data/fd.db` before `migrate dev`**: with the old migration row still in `_prisma_migrations`,
   Prisma refuses to regenerate and writes nothing.
 - **Never `pkill -f "next dev"`** — the pattern matches the Bash tool's own wrapper command line and
-  kills the shell (exit 144, no output). Check `ss -ltnp | grep :3000` instead and, if something
-  really is listening, match on `node.*next-server`.
+  kills the shell (exit 144, no output). **And `ss` is not installed in this sandbox**, so
+  `ss -ltnp | grep :3000 || echo free` reports "free" for every port, always: the `||` fires on
+  `command not found`. Check `ps aux | grep "[n]ext-server"` — the bracket keeps the pattern out of
+  its own match — and `kill <pid>` by number.
 - **Changing a seeded policy value moves e2e expectations.** `grep -rn ',00 €' tests/e2e/` before
   editing a number in `seed.ts` — the seeded cap of 500 moved exactly one assertion and it would
   have surfaced two stories later otherwise.
 - **The e2e customer-number bands, as they now stand.** Below the quota of 240: counter 201–206 and
-  239, portions 211, serve 221–222, reminders 231, registration 232–234, card numbers 236. Above it:
+  239, allowance 211, serve 221–222, reminders 231, registration 232–234, card numbers 236. Above it:
   block 241, reissue 251, age-13 271, customer-list 281–285, customer-record 291, group-progress
   301–303, group-walk 311–315, price cap 321. A spec whose number must be **pickable in the
   /kunden/neu dropdown** has to sit below 240 — the pool is `1..quotaN` — and everything else should
@@ -66,9 +68,300 @@ Started: Mon Aug 24 2026 (batch 27 — US-27 remove the portion allowance)
   next `fill`, rewinding the field to the stored value; the second save then appends a version that
   changed nothing and every history index below it shifts. `selectOption` happens to survive the
   race, `fill` does not — reload and re-assert the stored value before typing again.
+- **Prettier owns every markdown table in `docs/`, and `npm run lint` does not check it.** `lint` is
+  `eslint` alone; markdown formatting is `npm run format:check` (the pre-commit hook runs it). Widen
+  one cell and Prettier re-flows every row of that table, so run `npx prettier --write` on the files
+  you touched *before* reading the diff — otherwise you are reviewing a re-alignment.
+- **Documentation has no gate.** Nothing fails CI when a chapter goes stale, so a change that
+  removes a concept finishes with an explicit sweep — `grep -rin <concept> --include="*.md" .` —
+  and the answer is not always zero: `docs/architecture/01`'s non-goals and `09`'s „Decisions that
+  were reversed“ exist precisely to keep a withdrawn idea named, with its reason.
+- **`docs/archiv/` is annotated, never rewritten** (root `CLAUDE.md`). A dated `> **Note (YYYY-MM-DD).**`
+  blockquote goes after the *block* carrying the claim, not inside the table cell or list item that
+  states it, and names which bullets it answers when it follows several. The per-story PRDs in
+  `tasks/` are the same kind of record: they say what was asked for, so a superseded one gets a
+  banner and the rest are left alone.
 - **Prior runs' patterns are in the archive**, not in this file:
   `scripts/ralph/archive/2026-08-07-us-26-price-cap/progress.txt` is the most recent,
   and `archive/2026-08-07-us-25-globally-unique-card-numbers/progress.txt` before it keeps a long
   consolidated list (playwright-cli usage, e2e customer-number bands, killing the dev server
   safely, testid greps). Read both before any UI or e2e story.
+---
+
+## 2026-08-24 — US-001 (batch 27): the portion figure leaves the five screens
+- Presentation-only removal of the portion figure from the counter, the customer record (both the
+  live household editor and the archived read-only block), the card view and the customer list.
+  `Settings` still carries `portionsPerGrownUp`/`portionsPerChild` and `Allowance` still carries
+  `portions` — deliberately, so the tree keeps compiling. US-002 onwards take those.
+- Files changed: `src/app/ausgabe/counter-lookup.tsx`, `src/app/kunden/page.tsx`,
+  `src/app/kunden/[id]/page.tsx`, `src/app/kunden/[id]/household-editor.tsx`,
+  `src/app/kunden/[id]/karte/page.tsx`, `src/app/kunden/[id]/actions.ts`, `src/app/stat.tsx`,
+  `src/i18n/de.ts`.
+- `AllowanceValues` in `household-editor.tsx` was `PortionValues & PriceValues`. With the portions
+  gone it would have been `PriceValues` under a second name, so the alias is **deleted** rather than
+  renamed: `page.tsx` now imports `PriceValues` from `@/domain/policy/settings` directly.
+- The customer list's freed width went to the **name** column (`min-w-56` → `min-w-64`), not spread
+  evenly — the argument `de.customerList.table.household` already makes for merging Erw. + Kinder.
+- No grid was re-spanned. The counter keeps `grid-cols-2 sm:grid-cols-4` with three tiles; the
+  screenshot confirms the figures row still lines up column-for-column with the identity pair above
+  it, which is the whole reason the tracks are shared.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (50 files, 1096 tests, domain
+  and application at 100%) and `npm run build` all pass. Browser verification was done against
+  `npm run start` (production build), not `next dev`.
+- **Learnings for future iterations:**
+  - **A deleted concept survives in prose, not in code.** `grep -rn -i portion src/` after the JSX
+    edits still found six comments — two in `[id]/actions.ts`, one in `stat.tsx`'s worked example,
+    one in `de.ts`'s counter-verdict rationale, plus tile/column *counts* baked into comments
+    ("six tiles", "ten columns", "the four figures", "the five policy values"). US-005 greps for the
+    word, so grep after **every** file, and re-read the numbers in the comments you did not grep for.
+  - **Do not name the removed thing in the comment that explains its removal.** The first draft of
+    the customer-list width comment said "the Portionen column's width came here", which would have
+    failed US-005's `grep -ri portion` on its own. Say what happened ("a column was dropped, US-27")
+    without writing the word.
+  - **Prettier does not reflow comments.** Shortening a sentence inside a `/** */` block leaves a
+    ragged short line that `prettier --check` happily accepts. Re-wrap the paragraph by hand.
+  - **`playwright-cli fill` needs a role locator, not a testid, for the counter's Nummer input**, and
+    a `cmd-a || cmd-b` shell chain hides a silent no-op: the first command exits 0 without filling
+    anything. Run the fill on its own and re-snapshot to confirm it landed.
+  - **The record renders two different household blocks.** `/kunden/<active>` gives the live editor,
+    `/kunden/<archived>` gives `HouseholdReadOnly`. Both hold the same tiles, so a screen-level
+    change has to be checked on one of each — seed customer 6 is archived.
+
+## 2026-08-24 — US-002 (batch 27): the allowance seam stops deriving portions
+- `Allowance` is now `{ grownUps, children, priceCents }`. `allowanceAt` no longer calls
+  `portionsFor`, and with US-001 having taken the screens off the figure that function had no callers
+  left — `src/domain/policy/portions.ts` and `portions.test.ts` are **deleted**, not deprecated.
+- `CounterCustomerView` (lookup-customer.ts) and `CustomerListRow` (list-customers.ts) lose the field
+  and its copy line. `describeAllowance` / `describeAllowances` keep their signatures, their date
+  handling and their single read of the settings history — this story changed *what* is derived.
+- Files changed: `src/application/allowance/describe-allowance.ts` (+ test),
+  `src/application/customers/{lookup-customer,list-customers,read-customer,read-card,update-household}.ts`,
+  `src/application/ports.ts`, `src/application/customers/{customers,list-customers,lookup-customer,maintain-customer}.test.ts`,
+  `src/domain/policy/settings.ts`, `src/infrastructure/prisma/customer-repository.ts`.
+  Deleted: `src/domain/policy/portions.{ts,test.ts}`.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1092 tests — exactly the deleted file's own
+  tests fewer; domain and application still 100%) and `build` all pass.
+- **Learnings for future iterations:**
+  - **Deleting an exported type breaks prose in a file you did not touch.** `PriceValues` in
+    `src/domain/policy/settings.ts` described itself as "the mirror of `PortionValues`" — a
+    `{@link}`-shaped reference to a type that no longer exists. `grep -rn "<TypeName>"` before
+    deleting an export, not only for imports: the dangling references are in comments and no gate
+    sees them.
+  - **Two comments outside this story's layer became false the moment `Allowance` changed**, because
+    they described the seam rather than their own file: `ports.ts`'s `updateHousehold`,
+    `update-household.ts` and `customer-repository.ts` all said "the portions and the price follow
+    from the birthdates". They are fixed here rather than left for a later story — none of US-003 to
+    US-006 lists them, so they would have survived to the US-005 grep with nothing owning them.
+  - **US-005's `grep -ri portion src/ tests/ prisma/` cannot literally return nothing.**
+    `describe-allowance.ts` and `tests/e2e/portions.spec.ts` both cite
+    `tasks/prd-us-07-portions-and-price.md`, and US-006 explicitly forbids renaming that PRD because
+    several specs and the batch index point at it. US-005 has to either exclude the path citation
+    from the grep or state the exception — decide it deliberately, do not "fix" it by mangling a
+    citation into something that no longer names a real file.
+  - **A settings *field* is not the same survivor as a portion *derivation*.** `portionsPerGrownUp` /
+    `portionsPerChild` are still required by `SettingsInput`, so every application fake still supplies
+    them and `settings.test.ts` still has a portion-diff test. That is correct after this story —
+    US-003 owns them. Do not pre-emptively strip them from fakes; nothing compiles without them.
+---
+
+## 2026-08-24 — US-003 (batch 27): the two portion settings leave the domain and the screen
+- `Settings` loses `portionsPerGrownUp` / `portionsPerChild`, and with them the two `requireInteger`
+  calls, both `SETTINGS_FIELDS` entries, the two `SettingsChange` variants and their comparison
+  blocks, the two `case` labels in `describeChange`, the two `NumberField`s, the two dictionary
+  entries in `settings.fields` and `settings.errorFields`, the seed's two values and `toDomain`'s
+  two reads. The domain tests for them were deleted rather than rewritten.
+- The „Mengen und Preise“ card is re-spanned **3 + 3 + 3 + 3** for the four fields that remain, so
+  the row fills the twelve columns exactly; measured in the browser at 252px each, all four controls
+  at y=276 and all four labels at y=250, aligned with the three `lg:col-span-3` fields of
+  Ausgaberhythmus below. The heading stays — it still holds the customer quota.
+- `PrismaSettingsRepository.append` keeps a literal `portionsPerGrownUp: 0, portionsPerChild: 0`
+  under a comment naming US-004, because the columns are still NOT NULL with no default.
+- Files changed: `src/domain/policy/{settings,settings-diff}.ts` (+ tests),
+  `src/domain/{calendarDay,errors}.ts`, `src/domain/card/staleCard.ts`,
+  `src/domain/customer/{customer,householdComposition}.ts`,
+  `src/app/einstellungen/{page.tsx,settings-form.tsx,actions.ts,save-settings-state.ts}`,
+  `src/i18n/de.ts`, `src/infrastructure/prisma/{seed.ts,settings-repository.ts}` and the
+  application/infrastructure test fakes.
+- Gates: lint, typecheck, `test:coverage` (49 files, 1085 tests, domain and application still 100%)
+  and `build` all pass. Verified on `npm run start` (production build) through the accessibility
+  snapshot: four named controls in the first card and no `Portionen`, the price hint still reaching
+  `priceCap` through `aria-describedby`, and a save succeeding — „Gespeichert.“ plus one more
+  Fassung in the Änderungsverlauf, whose in-force summary now prints the quota on a line of its own.
+- **Learnings for future iterations:**
+  - **A row written straight through `prisma.*.create` in a test has to name a NOT NULL column too.**
+    The story said `append` was "the ONLY thing left pointing at" the columns, but
+    `settings-repository.test.ts` builds two deliberately illegal rows by hand and those broke the
+    typecheck once the fields were stripped. They now spread a `DROPPED_IN_US_004` constant, which
+    US-004 deletes with the columns.
+  - **A test that merely *uses* a field is not a test *of* it.** Three `settings.test.ts` cases used
+    `portionsPerChild` as an arbitrary second field to prove the same-instant tie rule and the
+    audit's changed-field list. Those were re-pointed at `pricePerChild`, not deleted — deleting
+    them would have taken two rules with them and dropped application coverage below 100%.
+  - **Counts baked into prose go stale in files the story does not name.** Removing two settings
+    made "the ten fields of the settings form", "nine of the ten need no translation", "Seven of the
+    nine settings", "printed only five of the eight settings" and an assertion of
+    `toHaveLength(8)` all wrong at once. `grep -rn "nine\|ten fields\|eight" src/` after the edit —
+    the suite catches only the assertion.
+  - **A stale `next start` from an earlier iteration silently serves a mixed build.** Port 3000 was
+    already held; the new `npm run start` failed with `EADDRINUSE` in the background while the page
+    still rendered, from the old server reading the *new* chunks off disk — two console 500s were
+    the only symptom. Check `ss -ltnp | grep :3000` **before** trusting a browser check.
+  - **`npm run db:reset` does not reach a server that is already running.** It deletes `data/fd.db`,
+    and SQLite keeps serving the running process from the deleted inode, so the screen went on
+    showing the pre-reset history. Restart the server after a reset, or the verification is of the
+    old database. `db:seed` fills settings only — customers are not seeded, so a reset empties the
+    register that manual clicking built up (the e2e suite makes its own).
+---
+
+## 2026-08-24 — US-004 (batch 27): the two portion columns leave the schema
+- `SettingsVersion` in `prisma/schema.prisma` loses `portionsPerGrownUp`, `portionsPerChild` and the
+  `///` comment above them; the model's own doc comment now lists the quota, the price per head and
+  the week anchor. Pre-release rules (CLAUDE.md § Database migrations, ADR-009): the init migration
+  was **replaced**, not corrected — `prisma/migrations/20260807065541_init` deleted, `data/fd.db`
+  deleted, `npx prisma migrate dev --name init` regenerated as `20260824183935_init`, the
+  hand-written `Customer_customerNumber_onRegister_key` partial unique index re-appended verbatim,
+  then `npm run db:reset`.
+- `diff` of the old migration against the regenerated one is **exactly the two dropped column
+  lines** — nothing else moved, so no relation gained a cascade and no `onDelete: Restrict` was lost.
+  `schema.test.ts` checks the same three claims and passes.
+- The TEMPORARY `portionsPerGrownUp: 0, portionsPerChild: 0` literals from US-003 are gone from
+  `PrismaSettingsRepository.append`, and `DROPPED_IN_US_004` with its two spreads is gone from
+  `settings-repository.test.ts`. The two hand-written illegal rows there still prove the colour and
+  the cap are re-validated on the way out.
+- `docs/architecture/adr/008-…md` cited the init migration by its old timestamped folder name, which
+  this regeneration invalidated. It now cites `prisma/migrations/*_init/migration.sql`, the glob
+  chapter 02 already uses — a path that survives the next regeneration.
+- Files changed: `prisma/schema.prisma`, `prisma/migrations/20260824183935_init/migration.sql` (was
+  `20260807065541_init`), `src/infrastructure/prisma/settings-repository.ts` (+ test),
+  `docs/architecture/adr/008-treat-a-customer-number-as-a-reusable-slot-not-an-identity.md`.
+- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1085 tests, domain and
+  application at 100%) and `build` all pass. `npm run db:reset` runs clean and `/einstellungen` on a
+  production build reports the seeded values through the accessibility snapshot — N 240, 2,00 €,
+  1,00 €, Maximalpreis 5,00 €, 2026-W02/Rot/Donnerstag, „1 Fassung" in the Änderungsverlauf — rather
+  than reporting that nothing is configured. Zero console messages.
+- **Learnings for future iterations:**
+  - **Verify the regeneration with `diff`, not by reading the new file.** `git show
+    HEAD:prisma/migrations/<old>/migration.sql > /tmp/old.sql && diff /tmp/old.sql <new>` states in
+    two lines what the story is allowed to have changed; anything else in that diff is a Prisma
+    version drifting the DDL under you, which no gate would attribute to this commit.
+  - **`npx prisma migrate dev` applies the migration before the hand-written index is appended**, so
+    the database it leaves behind does *not* have the partial index even though the committed SQL
+    does. `npm run db:reset` afterwards is what makes the two agree — check with
+    `SELECT sql FROM sqlite_master WHERE name='Customer_customerNumber_onRegister_key'` rather than
+    trusting that the reset ran.
+  - **`pkill -f "node.*next-server"` also kills the Bash tool's wrapper** (exit 144, no output) — the
+    same trap the `next dev` note records, because the wrapper's command line contains the pattern.
+    The server does die, so just re-check `ss -ltnp | grep :3000` in a fresh call instead of retrying.
+  - **A regenerated migration renames a directory that documents cite by name.** `grep -rn
+    "<old-timestamp>_init" docs/ src/ tests/` after every regeneration; ADR-008 held the only live
+    citation and prose is where such a path goes stale silently. Prefer the `*_init` glob.
+---
+
+## 2026-08-24 — US-005 (batch 27): the e2e suite stops asserting portions and proves the figure is gone
+- `tests/e2e/portions.spec.ts` is **renamed** (`git mv`, so the history follows) to
+  `allowance.spec.ts` and keeps its job: seed a household, read its figures off the record, add a
+  member straight through Prisma, reload, watch the figures move. It now asserts the counts and the
+  price, and carries the batch's one **new** assertion — the counter screen states no accessible
+  name matching the withdrawn figure.
+- **The seeded household is now one grown-up and one child, not two and one.** At the old size the
+  household priced at exactly the seeded Maximalpreis, so adding a child left the price unmoved and
+  „asserts the price“ would have been an assertion that could not fail. Below the cap the added
+  child moves the price 3,00 € → 4,00 € as well as the child count, and the cap goes back to being
+  `price-cap.spec.ts`'s subject alone.
+- `price-cap.spec.ts` loses `PORTIONS` / `PORTIONS_WITH_EXTRA_CHILD` and their four assertions; its
+  test is now *does not raise the price when a member joins above the cap*, and the header says
+  plainly that the cap's other half lost its witness rather than faking one with another quantity.
+  `age-13.spec.ts` and `customer-record.spec.ts` drop the `portions` key from BEFORE / AFTER and the
+  `portions` / `counter-portions` reads from `expectDerived`; `counter.spec.ts`'s expired-certificate
+  test now witnesses „served, not turned away“ with the price and the verdict.
+- `settings.spec.ts` needed no assertion change — its history claims are `toContainText` on named
+  fields — but its comment „restating all eight values“ was stale after US-003: `FullValues` prints
+  **seven**. Corrected deliberately rather than loosened.
+- **The `grep -ri portion src/ tests/ prisma/` gate returns exactly two lines, both deliberate**, and
+  both say so where they stand: the `/Portion/i` guard in `allowance.spec.ts` (a test that fails if
+  the figure comes back is the opposite of a survivor) and the §US-07.3 citation in
+  `describe-allowance.ts`, whose PRD US-27.7 forbids renaming. Everything else that named the figure
+  is gone, including the band comments in nine specs and a stale comment in
+  `src/application/settings/settings.test.ts`.
+- Files changed: `tests/e2e/allowance.spec.ts` (was `portions.spec.ts`), `age-13.spec.ts`,
+  `block.spec.ts`, `card-number.spec.ts`, `counter.spec.ts`, `customer-list.spec.ts`,
+  `customer-record.spec.ts`, `price-cap.spec.ts`, `registration.spec.ts`, `reissue.spec.ts`,
+  `reminders.spec.ts`, `serve.spec.ts`, `settings.spec.ts`,
+  `src/application/settings/settings.test.ts`.
+- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1085 tests, domain and
+  application still 100%), `build`, `npm run test:e2e` (157 passed, 1 skipped) and
+  `npm run test:e2e:webkit` (157 passed, 1 skipped).
+- **Learnings for future iterations:**
+  - **`ss` does not exist in this sandbox, and `ss … || echo "port free"` lies.** The `||` fires on
+    `command not found`, so every port reads as free. A `next start` left over from the US-004
+    iteration was holding 3000, Playwright's `reuseExistingServer` (true unless `CI`) reused it, and
+    the whole `webServer.command` — the `rm` of `data/e2e.db`, `prisma migrate deploy`, `db:seed` —
+    was therefore **skipped**: 26 specs failed against a stale build over a database still carrying
+    US-004's dropped columns. `ps aux | grep "[n]ext-server"` and `kill <pid>` is the check that
+    actually answers. The tell is a *broad* failure of first-tests-in-file plus „This page couldn't
+    load“, and `PRAGMA table_info(SettingsVersion)` on `data/e2e.db` settles it in one line.
+  - **Renaming a spec moves it in the run order, and the order is the fixture.** One worker,
+    alphabetical, one shared register: `portions.spec.ts` ran fourteenth and `allowance.spec.ts`
+    runs second, so twelve specs now meet its household — and the stale card its added child leaves
+    behind — where they previously did not. Audited before renaming: the register-wide claims are
+    all relative (`versionCount`, `dueBefore`, `balanceBefore`, `snapshotRegister`) or scoped by
+    `data-customer-number`, which is why the move was safe. Check that before renaming a spec, not
+    after.
+  - **WebKit's nav-bar click is flaky at about one failure in two runs of the full suite**
+    (`navigation.spec.ts` „von Kunden verwalten aus …“, `waitForURL` timing out after the click).
+    It passed alone and on the re-run of the whole suite; nothing in this story touches navigation.
+    Worth watching rather than chasing — if it recurs, the click needs the same
+    „wait for React to own the control“ treatment `day.ts`'s `hydrated` gives the fields (#116).
+  - **A rename leaves citations behind in files no gate reads.** `tasks/prd-us-26-price-cap.md`
+    §US-26.7 still names `tests/e2e/portions.spec.ts` as the file to extend. It is a historical PRD
+    and US-006 does not list it, so it is deliberately left — but a reader following that path finds
+    nothing. Flagged here for whoever next touches that PRD.
+---
+
+## 2026-08-24 — US-006 (batch 27): the documents stop describing a portion allowance
+- Documentation only, no code touched. Every live document that described the portion allowance as
+  something the software provides now describes the price alone; the two places that record the
+  *reversal* keep the word on purpose.
+- Files changed: `docs/architecture/01`, `03`, `04`, `05`, `06`, `07`, `08`, `09`, `12`,
+  `adr/005`, `adr/007`, `adr/013`, `docs/archiv/domain_analysis.md`,
+  `docs/archiv/user_stories_mvp.md`, `tasks/prd-us-07-portions-and-price.md`, `tasks/README.md`,
+  `CLAUDE.md`, `CONTRIBUTING.md`.
+- Chapter 01's out-of-scope row was rewritten rather than deleted, as the story required: it now
+  reads „A portion allowance — withdrawn 2026-08-24 (US-27)“ with DF's reason. Chapter 09 gained a
+  row in **Decisions that were reversed**. Chapter 12's glossary entry is gone; chapter 06's
+  flowchart lost its `portions` node and the birthday now flows `day → comp → price`.
+- Two files outside the story's list were fixed, and deliberately: `CLAUDE.md` used the portion
+  allowance as the lead example of „derive, don't store“ and listed „portions“ among the policy
+  values, and `CONTRIBUTING.md`'s configurable-rules bullet opened with „Portions“. Both are live
+  standards, both were made wrong by this batch, and the US-005 grep gate covers `src/ tests/
+  prisma/` only — so neither would have been caught. The three „derive, don't store“ exceptions were
+  left untouched, as specified.
+- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1085 tests, domain and
+  application still 100%), `build`. No browser verification: the story changes no UI.
+- **Learnings for future iterations:**
+  - **Prettier owns the markdown tables, so widen a cell and every row in that table re-flows.**
+    One added sentence in a `| … |` cell produced a 10-line diff in chapter 01's non-goals table.
+    Run `npx prettier --write` on the files you touched *before* reading the diff, or you review a
+    re-alignment instead of a change. `npm run lint` is `eslint` only — markdown drift is caught by
+    `format:check`, which the pre-commit hook runs.
+  - **A dated note in `docs/archiv/` cannot go where the claim is.** The claims sit inside table
+    cells and numbered-list items; a blockquote inside either is the rewrite `CLAUDE.md` forbids
+    (and between list items it splits the list). Anchor the note to the *end of the block* that
+    carries the claim instead — seven in `domain_analysis.md`, six in `user_stories_mvp.md` — and
+    where a note follows a list of several bullets, name in the note which bullets it answers, or
+    the reader cannot tell what it retracts.
+  - **A historical statement is not a stale one.** ADR-005 says the settings history is shown as a
+    diff because „a wall of eight columns turned out to be unreadable“ — that is the state at the
+    time of the decision and stays. Chapter 01's „confirmed still current on 2026-08-07“ above the
+    non-goals table was likewise *not* bumped to today: DF re-confirmed the portion row, not the
+    other eight, and moving the date would claim a confirmation that never happened.
+  - **The batch's grep gate stops at `src/ tests/ prisma/`.** Documentation has no gate at all, so
+    the sweep that finishes a deletion is `grep -rin portion --include="*.md" .` minus the entries
+    that record the reversal. After this story exactly two remain: chapter 01's non-goal row and
+    chapter 09's reversed-decisions row.
+  - **The per-story PRDs in `tasks/` are records of what was asked, not descriptions of the build.**
+    US-04, US-13, US-14, US-15, US-16, US-01 and US-26 all still describe portions and are
+    deliberately left that way; only US-07, which owned the figure, got a banner. If a future
+    reader needs the current truth they go to `docs/architecture/`, which is why that is the one
+    place this story rewrote rather than annotated.
 ---

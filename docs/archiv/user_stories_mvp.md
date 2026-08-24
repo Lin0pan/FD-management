@@ -168,6 +168,9 @@ install (US-14).
    it is neither a block nor an archiving event.
 5. An unknown number gives a clear "not found" rather than an empty screen.
 
+> **Note (2026-08-24).** The portion allowance is withdrawn — the counts and the price stay. See
+> [`tasks/prd-us-27-remove-portion-allowance.md`](../../tasks/prd-us-27-remove-portion-allowance.md).
+
 **Related:** US-05, US-06, US-08 (blocks)
 
 > **Note.** Criterion 3 is the single most valuable screen in the product. Everything a staff member
@@ -251,6 +254,12 @@ documented rather than remembered.
    the counter and are **out of scope for the software** — the system neither captures nor records
    them.
 4. Money is displayed in euro and never computed in floating point.
+
+> **Note (2026-08-24).** The portion allowance was built and then withdrawn: DF reported that food
+> is not handed out in portions — a staff member decides per distribution how much each grown-up and
+> each child gets, from what was donated that week, so the figure named no quantity that exists. The
+> price half of this story stands unchanged. See
+> [`tasks/prd-us-27-remove-portion-allowance.md`](../../tasks/prd-us-27-remove-portion-allowance.md).
 
 **Related:** US-05, US-14
 
@@ -411,6 +420,9 @@ cards that made outdated
    it is not urgent.
 6. Reissuing from that list follows US-09's numbering and removes the customer from the list.
 
+> **Note (2026-08-24).** The portion allowance is withdrawn — the counts and the price stay. See
+> [`tasks/prd-us-27-remove-portion-allowance.md`](../../tasks/prd-us-27-remove-portion-allowance.md).
+
 **Related:** US-02, US-07, US-09
 
 > **Note.** This is the one place where the analysis explicitly describes a _future_ behaviour rather
@@ -441,6 +453,9 @@ cards that made outdated
    claim from a cap of 0,00 € (food is free for everyone). Both are configurable and the screen
    tells them apart. `[added]` — the two readings are one lost branch apart and the failure would
    be silent; see US-26.
+
+> **Note (2026-08-24).** The portion allowance is withdrawn — the counts and the price stay. See
+> [`tasks/prd-us-27-remove-portion-allowance.md`](../../tasks/prd-us-27-remove-portion-allowance.md).
 
 **Related:** US-01, US-06, US-07, US-12
 
@@ -492,6 +507,9 @@ Replacing Excel without one would be a regression.
 5. Free-text notes can be edited and are visible at the counter (US-04).
 6. A renewed certificate can be recorded, resetting the reminder count (US-06).
 
+> **Note (2026-08-24).** The portion allowance is withdrawn — the counts and the price stay. See
+> [`tasks/prd-us-27-remove-portion-allowance.md`](../../tasks/prd-us-27-remove-portion-allowance.md).
+
 **Related:** US-06, US-13, US-15
 
 ---
@@ -521,6 +539,10 @@ Replacing Excel without one would be a regression.
 - **Contact details, e-mail or letter reminders** — open question 2; reminders are verbal today.
 - **Excel import** of the existing customer list — a migration question, not a product feature, but
   it must be answered before go-live.
+
+> **Note (2026-08-24).** The two portion bullets above outlived the figure they scope: the portion
+> allowance itself is withdrawn — the counts and the price stay. See
+> [`tasks/prd-us-27-remove-portion-allowance.md`](../../tasks/prd-us-27-remove-portion-allowance.md).
 
 ---
 

@@ -1,10 +1,10 @@
 /**
  * Household composition — how many grown-ups and how many children live in a household.
  *
- * The counts drive the portion allowance and the price (US-07), and the Excel sheet DF is replacing
- * kept them as typed-in numbers that drifted out of date with every birthday. Here they are
- * **derived** from the birthdates on file and never stored (CLAUDE.md, "Derive, don't store"), so a
- * count that contradicts the household is not something the system can express.
+ * The counts drive the price (US-07), and the Excel sheet DF is replacing kept them as typed-in
+ * numbers that drifted out of date with every birthday. Here they are **derived** from the
+ * birthdates on file and never stored (CLAUDE.md, "Derive, don't store"), so a count that
+ * contradicts the household is not something the system can express.
  *
  * The module is pure: `today` is a parameter, never `new Date()`.
  */
@@ -72,8 +72,8 @@ function grownUpFrom(birthDate: Date): number {
 /**
  * Split a household into grown-ups and children as of `today`. A member counts as a grown-up **on**
  * their 13th birthday; the day before they are still a child. The day turns over at midnight in
- * Europe/Berlin, so the counts, the portion allowance and the price follow a birthday with no staff
- * action — the reclassification is a read-time derivation, not a job (US-13).
+ * Europe/Berlin, so the counts and the price follow a birthday with no staff action — the
+ * reclassification is a read-time derivation, not a job (US-13).
  *
  * @throws {EmptyHousehold} if `members` is empty — a household with nobody in it is a data-entry
  *   mistake, and answering `{ grownUps: 0, children: 0 }` would let it through as a free household.

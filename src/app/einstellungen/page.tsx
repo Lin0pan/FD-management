@@ -46,9 +46,7 @@ function describeChange(change: SettingsChange): string {
   const { change: sentence } = de.settings.history;
   switch (change.field) {
     case "quotaN":
-    case "portionsPerGrownUp":
-    case "portionsPerChild":
-      return sentence(de.settings.fields[change.field], String(change.from), String(change.to));
+      return sentence(de.settings.fields.quotaN, String(change.from), String(change.to));
     case "weekAnchorIsoWeek":
       return sentence(de.settings.fields.weekAnchorIsoWeek, change.from, change.to);
     case "weekAnchorColour":
@@ -89,14 +87,12 @@ function describeCap(cap: Cents | null): string {
   return cap === null ? de.settings.prices.noCap : formatEuros(cap);
 }
 
-/** All nine values, for the one version that is worth reading in full: the one in force. */
+/** All seven values, for the one version that is worth reading in full: the one in force. */
 function FullValues({ settings }: { settings: Settings }): React.ReactElement {
   return (
     <>
       <span className="block text-muted-foreground">
-        {de.settings.fields.quotaN}: {settings.quotaN} · {de.settings.fields.portionsPerGrownUp}:{" "}
-        {settings.portionsPerGrownUp} · {de.settings.fields.portionsPerChild}:{" "}
-        {settings.portionsPerChild}
+        {de.settings.fields.quotaN}: {settings.quotaN}
       </span>
       <span className="block text-muted-foreground">
         {de.settings.fields.pricePerGrownUp}: {formatEuros(settings.pricePerGrownUp)} ·{" "}

@@ -3,8 +3,6 @@ CREATE TABLE "SettingsVersion" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "recordedAt" DATETIME NOT NULL,
     "quotaN" INTEGER NOT NULL,
-    "portionsPerGrownUp" INTEGER NOT NULL,
-    "portionsPerChild" INTEGER NOT NULL,
     "weekAnchorIsoWeek" TEXT NOT NULL,
     "weekAnchorColour" TEXT NOT NULL,
     "distributionWeekday" INTEGER NOT NULL,

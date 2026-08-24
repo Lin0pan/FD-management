@@ -13,8 +13,8 @@
  * is a month unless that machine is set to German, and `lang="de"` has no say. Chromium is worse
  * than wrong — it *clamps*: typing `15.03.1985` produced `1985-12-03`, a valid date nobody typed and
  * nothing reported. A birthdate decides whether a household member is a child, which moves the
- * portions and the price, so a day that is silently the wrong one is the exact failure this register
- * replaced a spreadsheet to stop.
+ * price, so a day that is silently the wrong one is the exact failure this register replaced a
+ * spreadsheet to stop.
  *
  * So the format is ours: one order, every machine, and a refusal where the old control guessed.
  *

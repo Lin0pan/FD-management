@@ -163,8 +163,8 @@ export interface CustomerRepository {
    * second statement of what the list's order is.
    *
    * Each row carries the household, the certificate and the current card, because every column of
-   * the list is derived from them — the counts from the birthdates, the portions and price from the
-   * settings, the card number from the slot and the index. Nothing about a row is stored, so nothing
+   * the list is derived from them — the counts from the birthdates, the price from the settings, the
+   * card number from the slot and the index. Nothing about a row is stored, so nothing
    * about a row can have fallen behind (PRD §7).
    */
   list(query: CustomerListQuery): Promise<ReadonlyArray<RegisteredCustomer>>;
@@ -201,8 +201,8 @@ export interface CustomerRepository {
    * of past compositions is kept (tasks/prd-us-16-maintain-customer-record.md §FR-2); what a card
    * was printed with survives on the card, which is the only snapshot the system keeps.
    *
-   * Nothing derived is written with them: there is no count column to update, and the portions and
-   * the price follow from the birthdates the moment they are read.
+   * Nothing derived is written with them: there is no count column to update, and the price follows
+   * from the birthdates the moment they are read.
    */
   updateHousehold(id: number, members: ReadonlyArray<HouseholdMemberDetails>): Promise<void>;
   /**

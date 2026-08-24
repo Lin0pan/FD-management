@@ -2,11 +2,11 @@
  * The policy values DF can change without a deploy, and the rule that decides which of them apply
  * at a point in time.
  *
- * Every number in DF's process — the quota, the portions per head, the price per head, the
- * week-cycle anchor — is configuration, not a constant (tasks/prd-us-14-configure-
- * business-rules.md). A saved change is in force immediately; superseded versions are kept rather
- * than overwritten, because a distribution record stores only a `paid` flag and the only way to
- * answer "what did that customer owe last March" is to resolve the version in force then.
+ * Every number in DF's process — the quota, the price per head, the week-cycle anchor — is
+ * configuration, not a constant (tasks/prd-us-14-configure-business-rules.md). A saved change is in
+ * force immediately; superseded versions are kept rather than overwritten, because a distribution
+ * record stores only a `paid` flag and the only way to answer "what did that customer owe last
+ * March" is to resolve the version in force then.
  *
  * This module is pure: it does no I/O, never reads the wall clock, and works over an array of
  * versions that the application layer has already loaded.
@@ -53,8 +53,6 @@ export interface WeekAnchor {
 /** The complete set of policy values in force at one point in time. */
 export interface Settings {
   readonly quotaN: number;
-  readonly portionsPerGrownUp: number;
-  readonly portionsPerChild: number;
   readonly weekAnchor: WeekAnchor;
   readonly distributionWeekday: IsoWeekday;
   /** What one grown-up and one child each cost at a distribution. The total is derived. */
@@ -112,8 +110,6 @@ function isIsoWeekday(value: number): value is IsoWeekday {
  */
 export function createSettings(input: SettingsInput): Settings {
   requireInteger("quotaN", input.quotaN, 1);
-  requireInteger("portionsPerGrownUp", input.portionsPerGrownUp, 0);
-  requireInteger("portionsPerChild", input.portionsPerChild, 0);
   requireInteger("pricePerGrownUp", input.pricePerGrownUp, 0);
   requireInteger("pricePerChild", input.pricePerChild, 0);
   if (input.priceCap !== null) {
@@ -134,8 +130,6 @@ export function createSettings(input: SettingsInput): Settings {
 
   return {
     quotaN: input.quotaN,
-    portionsPerGrownUp: input.portionsPerGrownUp,
-    portionsPerChild: input.portionsPerChild,
     weekAnchor: { isoWeek: input.weekAnchor.isoWeek, colour: input.weekAnchor.colour },
     distributionWeekday: input.distributionWeekday,
     pricePerGrownUp: input.pricePerGrownUp,
@@ -171,8 +165,6 @@ export function resolveSettingsAt(versions: ReadonlyArray<SettingsVersion>, date
 /** The policy fields, in the order an audit entry lists them. */
 const SETTINGS_FIELDS = [
   "quotaN",
-  "portionsPerGrownUp",
-  "portionsPerChild",
   "weekAnchor",
   "distributionWeekday",
   "pricePerGrownUp",
@@ -207,12 +199,12 @@ export function changedSettingsFields(
 }
 
 /**
- * The three configured price values this derivation reads — the mirror of `PortionValues`.
+ * The three configured price values this derivation reads.
  *
  * It is a `Pick` rather than the whole of {@link Settings} so that a caller holding only the price
- * values can still price a household: the customer record's household editor derives the portions
- * and the price in the browser as staff type (US-16.5), and handing it the quota and the week
- * anchor to do so would say those had something to do with the answer.
+ * values can still price a household: the customer record's household editor derives the price in
+ * the browser as staff type (US-16.5), and handing it the quota and the week anchor to do so would
+ * say those had something to do with the answer.
  */
 export type PriceValues = Pick<Settings, "pricePerGrownUp" | "pricePerChild" | "priceCap">;
 

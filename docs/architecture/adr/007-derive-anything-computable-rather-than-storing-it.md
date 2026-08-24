@@ -13,8 +13,8 @@ software exists to remove, and it is the reason
 [correctness of the hard invariants](../01-introduction-and-goals.md#quality-goals) is a stated
 quality goal.
 
-The same shape recurs everywhere: portion allowance, price, card validity, certificate state, which
-group collects this week, a household's place on the waiting list. Every one of them is computable
+The same shape recurs everywhere: price, card validity, certificate state, which group collects
+this week, a household's place on the waiting list. Every one of them is computable
 from something already on file plus, in some cases, today's date.
 
 ## Considered options

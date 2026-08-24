@@ -2,9 +2,9 @@
  * The counter lookup: one input, one unmissable verdict, and everything needed to decide beneath it
  * (tasks/prd-us-04-lookup-customer.md §US-04.4).
  *
- * Nothing is decided here. `lookupCustomer` returns the verdict and the derived counts, portions and
- * price; this file only chooses the words, the colour and the icon for each case. Assembling the
- * judgement in JSX is the mistake `evaluateAtCounter` exists to prevent.
+ * Nothing is decided here. `lookupCustomer` returns the verdict and the derived counts and price;
+ * this file only chooses the words, the colour and the icon for each case. Assembling the judgement
+ * in JSX is the mistake `evaluateAtCounter` exists to prevent.
  *
  * The switch over the verdict union is exhaustive by construction: the `never`-typed default branch
  * makes a new verdict case a *compile error* until it is rendered, so no counter answer can ever be
@@ -32,7 +32,7 @@ import { NotesControls } from "./notes-controls";
  * away, and — only where somebody typed one — a sentence.
  *
  * `detail` is `null` for every verdict the screen already answers by itself. "Ausgabe frei" needed
- * no "Portionen und Preis stehen unten" when the portions and the price are two tiles below it, and
+ * no "Der Preis steht unten" when the counts and the price are three tiles below it, and
  * the expired certificate's date and reminder count are rows in the same record. A sentence that
  * restates what is already on screen is not reassurance; it is one more thing to read with a queue
  * waiting. What survives is the block reason, because that is the one line no other element holds.
@@ -184,8 +184,8 @@ function TableHeadCell({ children }: { children: string }): React.ReactElement {
  *
  * Ordered by how it is used rather than by how a record is normally written. The two numbers lead,
  * because the loop at the table is *call the number, check the card* and both of those are done at
- * arm's length; then the counts, portions and price; then the fields that are read only when
- * something is off. The name stays the heading — it is what the section is *about*, and the record
+ * arm's length; then the counts and the price; then the fields that are read only when something
+ * is off. The name stays the heading — it is what the section is *about*, and the record
  * to fall back on when there is no card — but it is no longer the largest thing on the card.
  */
 export function CustomerDetails({
@@ -252,7 +252,7 @@ export function CustomerDetails({
             and at a glance, which is a size argument, not a layout one: the screen had the name at
             24px and these two at 14px, and the name is the one thing here nobody says out loud.
 
-            Bigger than the derived figures below them, so six tiles do not read as one undivided
+            Bigger than the derived figures below them, so five tiles do not read as one undivided
             grid — the counts answer "how much", these answer "who", and the gap plus the step in
             size is what separates the questions. No colour: that budget is the verdict's.
 
@@ -288,11 +288,6 @@ export function CustomerDetails({
             testId="counter-children"
           />
           <Stat
-            label={de.customers.derived.portions}
-            value={String(customer.portions)}
-            testId="counter-portions"
-          />
-          <Stat
             label={de.customers.derived.price}
             value={formatEuros(customer.priceCents)}
             testId="counter-price"
@@ -323,7 +318,7 @@ export function CustomerDetails({
             )}
           </TableBody>
         </Table>
-        {/* No "Standard-Portionen und -Preis; am Ausgabetisch nicht anpassbar." here, though the
+        {/* No "Standardpreis; am Ausgabetisch nicht anpassbar." here, though the
             three screens that *can* edit a household still carry it. At the counter it described an
             absence: there is no control to adjust, so the sentence answered a question the screen
             had already answered by having no field to type in. */}

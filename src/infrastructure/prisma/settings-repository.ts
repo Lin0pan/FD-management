@@ -6,8 +6,6 @@ import { createSettings, parseWeekColour, type SettingsVersion } from "@/domain/
 interface StoredVersion {
   readonly recordedAt: Date;
   readonly quotaN: number;
-  readonly portionsPerGrownUp: number;
-  readonly portionsPerChild: number;
   readonly weekAnchorIsoWeek: string;
   readonly weekAnchorColour: string;
   readonly distributionWeekday: number;
@@ -27,8 +25,6 @@ function toDomain(row: StoredVersion): SettingsVersion {
     recordedAt: row.recordedAt,
     settings: createSettings({
       quotaN: row.quotaN,
-      portionsPerGrownUp: row.portionsPerGrownUp,
-      portionsPerChild: row.portionsPerChild,
       weekAnchor: {
         isoWeek: row.weekAnchorIsoWeek,
         colour: parseWeekColour(row.weekAnchorColour),
@@ -77,8 +73,6 @@ export class PrismaSettingsRepository implements SettingsRepository {
       data: {
         recordedAt: version.recordedAt,
         quotaN: settings.quotaN,
-        portionsPerGrownUp: settings.portionsPerGrownUp,
-        portionsPerChild: settings.portionsPerChild,
         weekAnchorIsoWeek: settings.weekAnchor.isoWeek,
         weekAnchorColour: settings.weekAnchor.colour,
         distributionWeekday: settings.distributionWeekday,

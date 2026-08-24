@@ -60,9 +60,9 @@ export interface ListCustomersInput {
 
 /**
  * One household as the list shows it. Every value is derived at read time — the counts from the
- * birthdates, the portions and price from the settings in force today, the card number from the slot
- * and the current index, the certificate state from today's date. There is no stored column here that
- * could have fallen behind reality, which is precisely what the sheet could not promise.
+ * birthdates, the price from the settings in force today, the card number from the slot and the
+ * current index, the certificate state from today's date. There is no stored column here that could
+ * have fallen behind reality, which is precisely what the sheet could not promise.
  */
 export interface CustomerListRow {
   /** The surrogate id the row links to (`/kunden/[id]`) — never the customer number. */
@@ -74,7 +74,6 @@ export interface CustomerListRow {
   readonly status: CustomerStatus;
   readonly grownUps: number;
   readonly children: number;
-  readonly portions: number;
   readonly priceCents: Cents;
   readonly certificateValidUntil: Date;
   /** Where that date stands today, so the screen states it in words rather than in colour alone. */
@@ -134,7 +133,7 @@ function statusesFor(input: ListCustomersInput): ReadonlyArray<CustomerStatus> {
  * The customers matching what staff asked for, lowest customer number first, with the group balance.
  *
  * @throws {NoSettingsInForce} if no settings version had taken effect by today — a register cannot be
- *   priced before DF has said what a portion costs (US-14).
+ *   priced before DF has said what a distribution costs (US-14).
  */
 export async function listCustomers(
   deps: ListCustomersDeps,
@@ -179,7 +178,6 @@ function toRow(customer: RegisteredCustomer, allowance: Allowance, today: Date):
     status: customer.status,
     grownUps: allowance.grownUps,
     children: allowance.children,
-    portions: allowance.portions,
     priceCents: allowance.priceCents,
     certificateValidUntil: customer.details.certificate.validUntil,
     certificateState: certificateState(customer.details.certificate, today),

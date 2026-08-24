@@ -145,8 +145,6 @@ const SETTINGS: SettingsVersion = {
   recordedAt: new Date("2026-01-01T00:00:00.000Z"),
   settings: createSettings({
     quotaN: 240,
-    portionsPerGrownUp: 2,
-    portionsPerChild: 1,
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday: 3,
     pricePerGrownUp: 200,
@@ -460,7 +458,7 @@ describe("updateHousehold", () => {
     expect(audit.entries).toEqual([]);
   });
 
-  it("writes no count, portion or price — the record still carries none", async () => {
+  it("writes no count and no price — the record still carries neither", async () => {
     await updateHousehold(deps(), { customerId: 1, members: [member(), member()] });
 
     const stored = customers.holders[0];

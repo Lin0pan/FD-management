@@ -575,7 +575,7 @@ export class EmptySearchQuery extends DomainError {
  * The limit is not a business rule about what staff may write — notes are free text and an empty one
  * is perfectly ordinary. It is a bound on a column that would otherwise accept a pasted document,
  * which is why the number lives beside the field it guards (`NOTES_MAX_LENGTH`) rather than in
- * settings with the prices and portions DF edits.
+ * settings with the prices and the quota DF edits.
  */
 export class NotesTooLong extends DomainError {
   readonly code = "NotesTooLong";

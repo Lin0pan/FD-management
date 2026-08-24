@@ -54,7 +54,7 @@ export interface CustomerCardView {
    */
   readonly nextCardNumber: string;
   /**
-   * The standard portions and price for this household as of today — derived through the same seam
+   * The standard price for this household as of today — derived through the same seam
    * the counter reads (`describeAllowance`), so the two screens can never disagree. The counts here
    * are a slice of it, not a second derivation.
    */

@@ -34,8 +34,6 @@ function fakeClock(iso: string): Clock {
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
     quotaN: 240,
-    portionsPerGrownUp: 2,
-    portionsPerChild: 1,
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday: 4,
     pricePerGrownUp: 200,
@@ -57,7 +55,7 @@ function member(birthDate: string): HouseholdMember {
 }
 
 describe("describeAllowance", () => {
-  it("returns counts, portions and price for a household at the clock's today", async () => {
+  it("returns the counts and the price for a household at the clock's today", async () => {
     const repository = new FakeSettingsRepository(version("2026-01-01T00:00:00.000Z"));
 
     const allowance = await describeAllowance(
@@ -68,8 +66,6 @@ describe("describeAllowance", () => {
     expect(allowance).toEqual({
       grownUps: 2,
       children: 1,
-      // 2 * portionsPerGrownUp(2) + 1 * portionsPerChild(1)
-      portions: 5,
       // 2 * pricePerGrownUp(200) + 1 * pricePerChild(100)
       priceCents: 500,
     });
@@ -77,7 +73,7 @@ describe("describeAllowance", () => {
 
   it("prices a single-person household from the per-head values, never a stored column", async () => {
     const repository = new FakeSettingsRepository(
-      version("2026-01-01T00:00:00.000Z", { pricePerGrownUp: 250, portionsPerGrownUp: 3 }),
+      version("2026-01-01T00:00:00.000Z", { pricePerGrownUp: 250 }),
     );
 
     const allowance = await describeAllowance(
@@ -85,7 +81,7 @@ describe("describeAllowance", () => {
       [member("1980-05-01")],
     );
 
-    expect(allowance).toEqual({ grownUps: 1, children: 0, portions: 3, priceCents: 250 });
+    expect(allowance).toEqual({ grownUps: 1, children: 0, priceCents: 250 });
   });
 
   it("prices a household with the settings version in force on the evaluated date, not today", async () => {
@@ -121,8 +117,8 @@ describe("describeAllowance", () => {
       new Date("2026-03-01T00:00:00.000Z"),
     );
 
-    expect(dayBefore).toMatchObject({ grownUps: 0, children: 1, portions: 1, priceCents: 100 });
-    expect(onBirthday).toMatchObject({ grownUps: 1, children: 0, portions: 2, priceCents: 200 });
+    expect(dayBefore).toMatchObject({ grownUps: 0, children: 1, priceCents: 100 });
+    expect(onBirthday).toMatchObject({ grownUps: 1, children: 0, priceCents: 200 });
   });
 
   it("throws when no settings version had taken effect by the evaluated date", async () => {

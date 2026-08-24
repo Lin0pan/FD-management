@@ -6,8 +6,6 @@ import { diffSettings } from "./settings-diff";
 function settings(overrides: Partial<SettingsInput> = {}): Settings {
   return createSettings({
     quotaN: 240,
-    portionsPerGrownUp: 2,
-    portionsPerChild: 1,
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday: 4,
     pricePerGrownUp: 200,
@@ -34,18 +32,6 @@ describe("diffSettings", () => {
   it("reports a changed quota with the number before and after", () => {
     expect(diffSettings(settings(), settings({ quotaN: 200 }))).toEqual([
       { field: "quotaN", from: 240, to: 200 },
-    ]);
-  });
-
-  it("reports a changed portion count per grown-up", () => {
-    expect(diffSettings(settings(), settings({ portionsPerGrownUp: 3 }))).toEqual([
-      { field: "portionsPerGrownUp", from: 2, to: 3 },
-    ]);
-  });
-
-  it("reports a changed portion count per child", () => {
-    expect(diffSettings(settings(), settings({ portionsPerChild: 2 }))).toEqual([
-      { field: "portionsPerChild", from: 1, to: 2 },
     ]);
   });
 
@@ -141,8 +127,6 @@ describe("diffSettings", () => {
   it("reports every field when nothing the two versions hold is the same", () => {
     const next = settings({
       quotaN: 100,
-      portionsPerGrownUp: 4,
-      portionsPerChild: 3,
       weekAnchor: { isoWeek: "2027-W01", colour: "BLUE" },
       distributionWeekday: 1,
       pricePerGrownUp: 1,
@@ -152,8 +136,6 @@ describe("diffSettings", () => {
 
     expect(diffSettings(settings(), next).map((change) => change.field)).toEqual([
       "quotaN",
-      "portionsPerGrownUp",
-      "portionsPerChild",
       "weekAnchorIsoWeek",
       "weekAnchorColour",
       "distributionWeekday",

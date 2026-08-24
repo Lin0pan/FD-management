@@ -27,8 +27,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Presentation only, as specified: Settings and Allowance still carry the portion values after this story. Five screens verified in a production build via the playwright-cli accessibility snapshot — counter, customer record (both the live editor and the archived read-only block), card view and customer list. AllowanceValues was PortionValues & PriceValues, so the alias itself was deleted rather than renamed and page.tsx now imports PriceValues from the domain."
     },
     {
       "id": "US-002",
@@ -49,8 +49,8 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Allowance is now { grownUps, children, priceCents }; portionsFor had no callers left after US-001, so src/domain/policy/portions.ts and its test were deleted. Settings still carries the two portion values (US-003 takes them). One tension noted for US-005: describe-allowance.ts still cites tasks/prd-us-07-portions-and-price.md, and US-006 forbids renaming that file, so the `grep -ri portion` gate has to tolerate the path citation."
     },
     {
       "id": "US-003",
@@ -79,8 +79,8 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Landed as one compile unit: Settings, SETTINGS_FIELDS, SettingsChange, the exhaustive switch, FullValues, the form's two NumberFields, the server action, the dictionary, the seed and the repository. The „Mengen und Preise“ card is re-spanned 3+3+3+3 and measured in the browser at 252px per field on one baseline. `append` keeps a literal `portionsPerGrownUp: 0, portionsPerChild: 0` under a comment naming US-004, and the repository integration test needs the same for its two hand-written rows — a row written straight through Prisma has to name the NOT NULL columns too, which the story text did not anticipate. Three application tests that used portionsPerChild as an arbitrary field were rewritten onto pricePerChild rather than deleted: they are about the same-instant tie rule and the audit's changed-field list, not about portions."
     },
     {
       "id": "US-004",
@@ -100,8 +100,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The init migration was replaced rather than corrected: old directory deleted, data/fd.db deleted first (or migrate dev refuses), regenerated as 20260824183935_init, the hand-written Customer_customerNumber_onRegister_key partial unique index re-appended verbatim, then npm run db:reset. diff of the old SQL against the new one is exactly the two dropped column lines, so no relation gained a cascade and no onDelete: Restrict was lost. append and the test's DROPPED_IN_US_004 constant are gone. One documentation fix the story did not list: ADR-008 cited the migration by its old timestamped folder name, and now cites the *_init glob that chapter 02 already uses."
     },
     {
       "id": "US-005",
@@ -121,8 +121,8 @@
         "BOTH engines pass: npm run test:e2e and npm run test:e2e:webkit, each after a rebuild and with the dev server stopped (`pkill -f next-server`) — a live port 3000 fails the suite for the wrong reason"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "portions.spec.ts renamed with git mv to allowance.spec.ts; it now asserts the counts and the price and carries the new /Portion/i guard on the counter. Its household was resized from 2+1 to 1+1: at the old size the per-head sum sat exactly on the seeded Maximalpreis, so the added child could not move the price and the new price assertion would have been unable to fail. The grep gate returns exactly two deliberate lines — the guard regex itself and the prd-us-07 path citation in describe-allowance.ts, whose file US-006 forbids renaming — and both are documented where they stand. settings.spec.ts needed no assertion change, only its stale „all eight values“ comment corrected to seven. Both engines pass; a stale next start on port 3000 made the first full run fail 26 specs against an old build, because ss is not installed in this sandbox and the usual port check silently reports free."
     },
     {
       "id": "US-006",
@@ -149,8 +149,8 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Documentation only, no code touched. Two files outside the listed scope were fixed because this change made them wrong and no gate covers them: CLAUDE.md's „derive, don't store“ lead and „policy values are data“ bullet still used the portion allowance as their example (the three stored-duplicate exceptions were left alone, as specified), and CONTRIBUTING.md's configurable-rules bullet opened with „Portions“. The archive got seven dated notes in domain_analysis.md and six in user_stories_mvp.md rather than one per sentence: each note sits after the block that carries the claim, because a note inside a table cell or between list items would have been the rewrite the story forbids. ADR-005's „a wall of eight columns“ was deliberately left — it states why the settings history is a diff, at the time that was decided, not today's column count. The only surviving „portion“ strings in docs/ are the two rows that record the reversal on purpose: chapter 01's non-goal and chapter 09's reversed-decisions row. Its „confirmed still current on 2026-08-07“ line above the non-goals table was NOT bumped — DF re-confirmed the portion row, not the other eight."
     }
   ]
 }

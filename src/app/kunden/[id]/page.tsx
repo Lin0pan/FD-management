@@ -41,7 +41,7 @@ import {
 import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
 import { DomainError } from "@/domain/errors";
 import { formatEuros } from "@/domain/money";
-import type { Settings } from "@/domain/policy/settings";
+import type { PriceValues, Settings } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { GROUP_STYLES } from "../../accents";
@@ -57,7 +57,7 @@ import { STATUS_CHROME, StateWord } from "../state-word";
 import { formatCalendarDay } from "@/domain/calendarDay";
 import { DetailsEditor } from "./details-editor";
 import { GroupControl } from "./group-control";
-import { HouseholdEditor, type AllowanceValues } from "./household-editor";
+import { HouseholdEditor } from "./household-editor";
 import { NotesEditor } from "./notes-editor";
 import { ReissueControls } from "./reissue-controls";
 import { RenewalForm } from "./renewal-form";
@@ -189,11 +189,6 @@ function HouseholdReadOnly({ view }: { view: CustomerCardView }): React.ReactEle
           label={de.customers.derived.children}
           value={String(composition.children)}
           testId="children"
-        />
-        <Stat
-          label={de.customers.derived.portions}
-          value={String(allowance.portions)}
-          testId="portions"
         />
         <Stat
           label={de.customers.derived.price}
@@ -331,11 +326,9 @@ function CustomerRecord({
   const { details } = customer;
   const archived = customer.status === "ARCHIVED";
   const words = de.customers.record;
-  // The five policy values the household editor derives its live figures from, and nothing more:
-  // the quota and the week anchor have no bearing on what a household receives.
-  const policy: AllowanceValues = {
-    portionsPerGrownUp: settings.portionsPerGrownUp,
-    portionsPerChild: settings.portionsPerChild,
+  // The three policy values the household editor derives its live figures from, and nothing more:
+  // the quota and the week anchor have no bearing on what a household pays.
+  const policy: PriceValues = {
     pricePerGrownUp: settings.pricePerGrownUp,
     pricePerChild: settings.pricePerChild,
     priceCap: settings.priceCap,

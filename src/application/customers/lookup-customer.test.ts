@@ -290,8 +290,6 @@ function fakeClock(iso: string): Clock {
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
     quotaN: 240,
-    portionsPerGrownUp: 2,
-    portionsPerChild: 1,
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday: 4,
     pricePerGrownUp: 200,
@@ -316,7 +314,7 @@ function member(birthDate: string): HouseholdMemberDetails {
   };
 }
 
-/** A grown-up (born well before 2013) and a child, so counts, portions and price are all non-trivial. */
+/** A grown-up (born well before 2013) and a child, so the counts and the price are both non-trivial. */
 const GROWN_UP = "1985-03-11T00:00:00.000Z";
 const CHILD = "2020-06-01T00:00:00.000Z";
 
@@ -473,17 +471,16 @@ describe("lookupCustomer", () => {
     expect(result.verdict.reminderCount).toBe(2);
   });
 
-  it("derives the counts, portions and price from the household and today's settings", async () => {
+  it("derives the counts and the price from the household and today's settings", async () => {
     customers = new FakeCustomerRepository(
       customerRecord({ householdMembers: [member(GROWN_UP), member(GROWN_UP), member(CHILD)] }),
     );
 
     const result = await lookupCustomer(deps(), "50");
 
-    // Two grown-ups and one child under portions 2/1 and price 200/100 per head.
+    // Two grown-ups and one child under a price of 200/100 per head.
     expect(result.customer?.grownUps).toBe(2);
     expect(result.customer?.children).toBe(1);
-    expect(result.customer?.portions).toBe(5);
     expect(result.customer?.priceCents).toBe(500);
   });
 

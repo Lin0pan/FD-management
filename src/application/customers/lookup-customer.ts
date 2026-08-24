@@ -8,8 +8,8 @@
  * action, `findOnDay` for whether today's reminder is already logged): the write paths live in
  * `recordAttendance` and `recordReminder`, not here, so this use case still cannot change state.
  *
- * Nothing on the screen is stored. The counts come from the birthdates, the portions and the price
- * from the settings in force today, and the card number from the slot and the current card index —
+ * Nothing on the screen is stored. The counts come from the birthdates, the price from the settings
+ * in force today, and the card number from the slot and the current card index —
  * all derived here through the same seams the card view uses (`describeAllowance`, `getWeekColour`),
  * so the counter can never disagree with the rest of the app. The day's record is read alongside
  * them, in the same pass, so the counter never issues a second query (US-04.3).
@@ -54,7 +54,6 @@ export interface CounterCustomerView {
   readonly group: Group;
   readonly grownUps: number;
   readonly children: number;
-  readonly portions: number;
   readonly priceCents: Cents;
   /** The day the needs certificate lapses — shown so staff can start the renewal conversation. */
   readonly certificateValidUntil: Date;
@@ -212,7 +211,6 @@ export async function lookupCustomer(
       group: customer.group,
       grownUps: allowance.grownUps,
       children: allowance.children,
-      portions: allowance.portions,
       priceCents: allowance.priceCents,
       certificateValidUntil: customer.details.certificate.validUntil,
       status: customer.status,

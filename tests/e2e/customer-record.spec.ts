@@ -21,7 +21,7 @@ import { releaseNumbers } from "./seeding";
  * four other screens and "immediately" is the same afternoon, so this spec follows one household
  * through the four edits and reads the consequence off the screen that would betray it:
  *
- * - a child is added, and the counts, the portions and the price move **before the save** (FR-1),
+ * - a child is added, and the counts and the price move **before the save** (FR-1),
  *   then the cards-due list says the card in the customer's hand is behind (FR-3);
  * - a renewed certificate is recorded, and the reminder count is back to 0 (FR-6);
  * - the household moves group, both sizes move with it, and the counter's verdict for *today* flips
@@ -37,7 +37,7 @@ import { releaseNumbers } from "./seeding";
  * One household is seeded straight through Prisma: BLUE, active, expired certificate, two reminders
  * sent, one card printed with the counts and the group it really had. It takes number 291, clear of
  * the low sequence the registration, card, archive and re-registration specs allocate against, and
- * of the counter (201–206/239), portions (211), serve (221–222), reminders (231), block (241),
+ * of the counter (201–206/239), allowance (211), serve (221–222), reminders (231), block (241),
  * reissue (251), age-13 (271) and customer-list (281–285) specs in the shared `data/e2e.db`.
  *
  * The hand-out history at the foot of the record is a second subject with a second pair of
@@ -92,13 +92,13 @@ const NOTE = "Bringt den verlängerten Nachweis nächste Woche mit.";
 /**
  * What the seeded settings make of each composition, before and after the baby is added.
  *
- * 2 portions and 200c per grown-up, 1 portion and 100c per child. One grown-up and one child is
- * therefore 3 portions at 3,00 €; a second child takes it to 4 at 4,00 €. All four figures move on
- * one edit, which is what makes the panel's live reading worth asserting: a screen that derived the
- * counts and stored the money would pass on the first two and fail on the last two.
+ * 200c per grown-up and 100c per child. One grown-up and one child is therefore 3,00 €; a second
+ * child takes it to 4,00 €. Both the child count and the price move on one edit, which is what
+ * makes the panel's live reading worth asserting: a screen that derived the counts and stored the
+ * money would pass on the first figure and fail on the last.
  */
-const BEFORE = { grownUps: "1", children: "1", portions: "3", price: "3,00 €" };
-const AFTER = { grownUps: "1", children: "2", portions: "4", price: "4,00 €" };
+const BEFORE = { grownUps: "1", children: "1", price: "3,00 €" };
+const AFTER = { grownUps: "1", children: "2", price: "4,00 €" };
 
 /** The two numbers the hand-out history is proved on: one long history, one household with none. */
 const WITH_HISTORY_NUMBER = 292;
@@ -290,11 +290,10 @@ async function seedHouseholdWithHistory(customerNumber: number, handOuts: number
   return customer.id;
 }
 
-/** Read the record's four derived figures and check them against one of the two expectations. */
+/** Read the record's three derived figures and check them against one of the two expectations. */
 async function expectDerived(page: Page, expected: typeof BEFORE): Promise<void> {
   await expect(page.getByTestId("grown-ups")).toHaveText(expected.grownUps);
   await expect(page.getByTestId("children")).toHaveText(expected.children);
-  await expect(page.getByTestId("portions")).toHaveText(expected.portions);
   await expect(page.getByTestId("price")).toHaveText(expected.price);
 }
 
@@ -360,7 +359,7 @@ test.describe("Kundenakte pflegen", () => {
     await expect(dueRow(page)).toHaveCount(0);
   });
 
-  test("a baby moves the counts, the portions and the price before the save", async ({ page }) => {
+  test("a baby moves the counts and the price before the save", async ({ page }) => {
     await page.goto(`/kunden/${id}`);
     await page.getByTestId("add-member").click();
 
@@ -368,7 +367,7 @@ test.describe("Kundenakte pflegen", () => {
     await page.getByTestId("member-last-name-2").fill(faker.person.lastName());
     await fillDay(page.getByTestId("member-birth-date-2"), NEW_CHILD_BIRTH_DATE);
 
-    // Nothing has been saved yet, and all four figures already say what the household will come to.
+    // Nothing has been saved yet, and all three figures already say what the household will come to.
     // That is the point of the screen (FR-1): staff see what an edit costs before they commit it.
     await expectDerived(page, AFTER);
 
@@ -376,7 +375,7 @@ test.describe("Kundenakte pflegen", () => {
     await expect(page.getByTestId("household-saved")).toBeVisible();
     await expect(page.getByTestId("household-error")).toHaveCount(0);
 
-    // And the same four figures come back from the server on a fresh request, derived from the three
+    // And the same three figures come back from the server on a fresh request, derived from the three
     // birthdates now on file rather than from anything the save wrote.
     await page.goto(`/kunden/${id}`);
     await expectDerived(page, AFTER);

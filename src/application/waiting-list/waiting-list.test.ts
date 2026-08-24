@@ -234,8 +234,6 @@ class FakeCardRepository implements CardRepository {
 function settingsInput(quotaN: number): SettingsInput {
   return {
     quotaN,
-    portionsPerGrownUp: 2,
-    portionsPerChild: 1,
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday: 4,
     pricePerGrownUp: 200,

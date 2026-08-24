@@ -3,6 +3,16 @@
 > Source story: `docs/archiv/user_stories_mvp.md` §US-07 (Tier 1). Depends on **US-14** (portion values and
 > prices per head) and **US-01.1** (derived counts). Consumed by **US-04** and **US-05**.
 
+> **Portion half WITHDRAWN, 2026-08-24 — see
+> [`prd-us-27-remove-portion-allowance.md`](prd-us-27-remove-portion-allowance.md).** DF used the
+> counter during the testing phase and reported that food is not handed out in portions: a staff
+> member decides per distribution how much each grown-up and each child gets, from what was donated
+> that week. The figure named a quantity that does not exist, so it was removed rather than
+> corrected — `portionsFor`, the two settings, the two columns and every display of them are gone.
+> **Everything below about the price stands**: still per head, still capped by the Maximalpreis,
+> still derived through `priceFor`. Read the portion paragraphs and the `PortionPolicy` criteria as
+> the record of what was asked for in 2026, not as a description of the software.
+
 > **Extended by US-26 — the Maximalpreis** (`prd-us-26-price-cap.md`). The price below is the
 > unqualified per-head sum; since US-26 `priceFor` returns `min(per-head sum, Maximalpreis)` where a
 > Maximalpreis is configured, so DF's four-grown-up, three-child household owes 11,00 € per head and

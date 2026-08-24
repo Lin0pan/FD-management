@@ -472,8 +472,6 @@ function fakeClock(iso: string): Clock {
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
     quotaN: 240,
-    portionsPerGrownUp: 2,
-    portionsPerChild: 1,
     weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
     distributionWeekday: 4,
     pricePerGrownUp: 200,
@@ -1400,7 +1398,7 @@ describe("readCustomer", () => {
     expect(view.composition).toEqual({ grownUps: 1, children: 0 });
   });
 
-  it("derives the standard portions and price from the counts and the settings in force", async () => {
+  it("derives the standard price from the counts and the settings in force", async () => {
     const registered = await registerCustomer(
       deps(),
       registerInput({
@@ -1413,8 +1411,7 @@ describe("readCustomer", () => {
 
     const view = await readCustomer(deps(), registered.id);
 
-    // 1 grown-up + 1 child under the seeded 2/1 portions and 200c/100c prices.
-    expect(view.allowance.portions).toBe(3);
+    // 1 grown-up + 1 child under the seeded 200c/100c prices.
     expect(view.allowance.priceCents).toBe(300);
   });
 
@@ -1623,7 +1620,7 @@ describe("readCard", () => {
     expect(view.group).toBe("BLUE");
   });
 
-  it("derives the standard portions and price for the card's household", async () => {
+  it("derives the standard price for the card's household", async () => {
     const customer = await registered({
       householdMembers: [
         member({ birthDate: new Date("1990-04-05T00:00:00.000Z") }),
@@ -1633,8 +1630,7 @@ describe("readCard", () => {
 
     const view = await readCard(deps(), customer.id);
 
-    // 1 grown-up + 1 child under the seeded 2/1 portions and 200c/100c prices.
-    expect(view.allowance.portions).toBe(3);
+    // 1 grown-up + 1 child under the seeded 200c/100c prices.
     expect(view.allowance.priceCents).toBe(300);
   });
 

@@ -507,8 +507,8 @@ export class PrismaCustomerRepository implements CustomerRepository {
    * the system: no history of past compositions is kept (PRD §FR-2), and the counts the household
    * *had* survive on the card that printed them.
    *
-   * Nothing derived is written: there is no count column, and the portions and the price follow from
-   * the birthdates the moment they are read.
+   * Nothing derived is written: there is no count column, and the price follows from the birthdates
+   * the moment they are read.
    */
   async updateHousehold(id: number, members: ReadonlyArray<HouseholdMemberDetails>): Promise<void> {
     await this.prisma.$transaction([

@@ -22,8 +22,6 @@ erDiagram
     SettingsVersion {
         datetime recordedAt "indexed, NOT unique"
         int quotaN
-        int portionsPerGrownUp
-        int portionsPerChild
         string weekAnchorIsoWeek
         string weekAnchorColour
         int distributionWeekday
@@ -116,7 +114,7 @@ Policy is `SettingsVersion` rows, not constants — [ADR-005](adr/005-keep-busin
   not after that instant. `readCurrentSettings` is the single read seam.
 - Rows re-enter the domain through `createSettings`, so a hand-edited database cannot bypass an
   invariant.
-- **Nothing may hard-code a price, a portion count or a threshold.** And there are no thresholds to
+- **Nothing may hard-code a price or a threshold.** And there are no thresholds to
   configure: reminders, no-shows and card losses are counted and never acted on, because what a count
   means is a staff judgement.
 - `priceCapCents` is nullable rather than a `0` sentinel, because `0` is a coherent cap meaning every

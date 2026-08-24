@@ -172,7 +172,6 @@ export const de = {
     derived: {
       grownUps: "Erwachsene (ab 13 Jahren)",
       children: "Kinder (unter 13 Jahren)",
-      portions: "Portionen",
       price: "Preis",
       /**
        * The consecutive-no-show count (US-10.4). Shown only when it is greater than zero, and
@@ -189,7 +188,7 @@ export const de = {
       countsValue: (grownUps: number, children: number): string =>
         `Erwachsene: ${grownUps}, Kinder: ${children}`,
       hint: "Berechnet aus den Geburtsdaten — nicht eingebbar.",
-      standardValues: "Standard-Portionen und -Preis; am Ausgabetisch nicht anpassbar.",
+      standardValues: "Standardpreis; am Ausgabetisch nicht anpassbar.",
       unknown: "—",
     },
     assignment: {
@@ -530,7 +529,7 @@ export const de = {
         "dieser Person im Haushalt. Die Kundennummer lässt sich nicht ändern.",
       detailsSubmit: "Person und Anschrift speichern",
       householdHint:
-        "Erwachsene, Kinder, Portionen und Preis werden aus den Geburtsdaten berechnet und gelten " +
+        "Erwachsene, Kinder und Preis werden aus den Geburtsdaten berechnet und gelten " +
         "sofort. Ändert sich dabei die Zahl der Köpfe, steht der Haushalt danach auf der Liste " +
         "„Karten neu ausstellen“ — die Karte nennt die alten Zahlen.",
       householdSubmit: "Haushalt speichern",
@@ -749,7 +748,6 @@ export const de = {
        * digit each, and the name — the thing staff actually scan — was the column that paid for it.
        */
       household: "Erw. + Kinder",
-      portions: "Portionen",
       price: "Preis",
       /**
        * "Nachweis gültig bis" set the column's floor at 217px — a fifth of the table — to show a
@@ -822,7 +820,7 @@ export const de = {
      */
     listTitle: "Karten",
     notUrgent:
-      "Das hat keine Eile. Erwachsene, Kinder, Portionen und Preis berechnet die Anwendung bei " +
+      "Das hat keine Eile. Erwachsene, Kinder und Preis berechnet die Anwendung bei " +
       "jedem Aufruf neu; die Karte ist nur ein Ausdruck. Eine veraltete Karte ist nie ein Grund, " +
       "jemanden an der Ausgabe wegzuschicken.",
     empty: "Zurzeit ist keine Karte neu auszustellen.",
@@ -1016,7 +1014,7 @@ export const de = {
       /**
        * A verdict is its headline. The sentence that used to sit under each one restated what the
        * record below already prints — the certificate's date and the reminder count are rows in it,
-       * the portions and the price are tiles, the group and the status are badges — so it was one
+       * the counts and the price are tiles, the group and the status are badges — so it was one
        * more thing to read with a queue waiting, not help.
        *
        * `blocked.noReason` is the exception that proves the shape: the block reason is the only
@@ -1244,11 +1242,11 @@ export const de = {
       "Änderungen gelten sofort. Beim Speichern wird eine neue Fassung angelegt; frühere " +
       "Fassungen bleiben erhalten, damit vergangene Ausgaben nachvollziehbar bleiben.",
     /**
-     * The three card headings, and they are the grouping: the five settings that decide *what* a
+     * The three card headings, and they are the grouping: the four settings that decide *what* a
      * household gets, the three that decide *when*, and the write itself. What stood here before
-     * was `Aktuell gültige Werte` over quota, portions and all three calendar settings — a heading
-     * that described everything on the screen and therefore distinguished nothing, with the two
-     * price fields under `Preise` next door.
+     * was `Aktuell gültige Werte` over the quota, the amounts and all three calendar settings — a
+     * heading that described everything on the screen and therefore distinguished nothing, with the
+     * two price fields under `Preise` next door.
      */
     amountsHeading: "Mengen und Preise",
     rhythmHeading: "Ausgaberhythmus",
@@ -1256,8 +1254,6 @@ export const de = {
     changeHeading: "Änderung speichern",
     fields: {
       quotaN: "Höchstzahl der Kunden (N)",
-      portionsPerGrownUp: "Portionen je Erwachsenem",
-      portionsPerChild: "Portionen je Kind",
       weekAnchorIsoWeek: "Ankerwoche (ISO, z. B. 2026-W02)",
       weekAnchorColour: "Gruppe der Ankerwoche",
       distributionWeekday: "Ausgabetag",
@@ -1305,8 +1301,6 @@ export const de = {
      */
     errorFields: {
       quotaN: "Höchstzahl der Kunden (N)",
-      portionsPerGrownUp: "Portionen je Erwachsenem",
-      portionsPerChild: "Portionen je Kind",
       distributionWeekday: "Ausgabetag",
       "weekAnchor.isoWeek": "Ankerwoche (ISO, z. B. 2026-W02)",
       "weekAnchor.colour": "Gruppe der Ankerwoche",
@@ -1457,9 +1451,9 @@ const SETTINGS_FORM_FIELDS = de.settings.fields as Record<string, string | undef
 /**
  * {@link customerFormFieldLabel} for the settings screen, and it misses for the same reason.
  *
- * `de.settings.fields` is already keyed by the `name` each input carries, so nine of the ten need no
- * translation; the tenth is `reason`, which is named separately because it is not one of the values
- * being set. It is listed here anyway — it is a box on the screen, and a summary that skipped it
+ * `de.settings.fields` is already keyed by the `name` each input carries, so seven of the eight need
+ * no translation; the eighth is `reason`, which is named separately because it is not one of the
+ * values being set. It is listed here anyway — it is a box on the screen, and a summary that skipped it
  * would fall through to „nichts gespeichert“ for a field staff can see. Nothing refuses it today
  * (`z.string()` accepts everything, and an empty reason is allowed), which is exactly why it would
  * go unnoticed if it ever did.

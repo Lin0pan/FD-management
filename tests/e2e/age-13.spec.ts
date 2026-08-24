@@ -13,13 +13,13 @@ import { releaseNumbers } from "./seeding";
  * (tasks/prd-us-13-age-13-reclassification.md §US-13.5).
  *
  * Each piece is already proved in isolation: `composition` flips at Berlin midnight in the domain
- * gate, `describeAllowance` resolves portions and price from the counts, `listCardsDueForReissue`
+ * gate, `describeAllowance` resolves the price from the counts, `listCardsDueForReissue`
  * compares what a card printed against the record today, and `staleCardReason` names the
  * difference. What none of them can see is the claim the story actually makes — *nobody did
  * anything, and the numbers changed anyway*. That claim spans three screens and a clock, so this
- * spec follows one household across a birthday: read the counts, the portions and the price off the
- * record, move the app's today past the 13th birthday, reload the very same screen, and watch all
- * four move with no request in between having written a thing.
+ * spec follows one household across a birthday: read the counts and the price off the record, move
+ * the app's today past the 13th birthday, reload the very same screen, and watch all three move
+ * with no request in between having written a thing.
  *
  * The absence is the substance, so it is asserted the way the reissue spec asserts a refusal: one
  * Prisma snapshot of everything the household owns, taken either side of the clock change. If the
@@ -32,7 +32,7 @@ import { releaseNumbers } from "./seeding";
  *
  * One household is seeded straight through Prisma: RED, active, current certificate, one card printed
  * with the counts it really had. It takes number 271, clear of the low sequence the registration and
- * card specs allocate against and of the counter (201–206/239), portions (211), serve (221–222),
+ * card specs allocate against and of the counter (201–206/239), allowance (211), serve (221–222),
  * reminders (231), block (241) and reissue (251) specs in the shared `data/e2e.db`.
  */
 
@@ -71,13 +71,13 @@ const CERTIFICATE_VALID_UNTIL = "2027-06-30";
 /**
  * What the seeded settings make of each household composition.
  *
- * 2 portions and 200c per grown-up, 1 portion and 100c per child. One grown-up and one child is
- * therefore 3 portions at 3,00 €; two grown-ups and no child is 4 at 4,00 €. Both figures move on
- * the birthday, which is the point — a spec where only the counts changed would pass against an app
- * that derived the counts and stored the money.
+ * 200c per grown-up and 100c per child. One grown-up and one child is therefore 3,00 €; two
+ * grown-ups and no child is 4,00 €. The price moves on the birthday and not only the counts, which
+ * is the point — a spec where only the counts changed would pass against an app that derived the
+ * counts and stored the money.
  */
-const BEFORE = { grownUps: "1", children: "1", portions: "3", price: "3,00 €" };
-const AFTER = { grownUps: "2", children: "0", portions: "4", price: "4,00 €" };
+const BEFORE = { grownUps: "1", children: "1", price: "3,00 €" };
+const AFTER = { grownUps: "2", children: "0", price: "4,00 €" };
 
 /**
  * The database the built app is running against — the same file, opened a second time.
@@ -170,8 +170,8 @@ async function seedHousehold(): Promise<number> {
 /**
  * Everything the household owns, as one string.
  *
- * Taken either side of the clock change and compared: the counts, the portions and the price are
- * supposed to move because they are worked out on the request, so *nothing at all* may differ here.
+ * Taken either side of the clock change and compared: the counts and the price are supposed to move
+ * because they are worked out on the request, so *nothing at all* may differ here.
  * Comparing one snapshot rather than field by field means a write nobody thought to check for — a
  * cached count quietly persisted, an audit entry for a reclassification that is not an event — still
  * fails the spec.
@@ -198,11 +198,10 @@ async function snapshotHousehold(id: number): Promise<string> {
   return JSON.stringify({ customer, members, cards, records, auditEntries });
 }
 
-/** Read the record's four derived figures and check them against one of the two expectations. */
+/** Read the record's three derived figures and check them against one of the two expectations. */
 async function expectDerived(page: Page, expected: typeof BEFORE): Promise<void> {
   await expect(page.getByTestId("grown-ups")).toHaveText(expected.grownUps);
   await expect(page.getByTestId("children")).toHaveText(expected.children);
-  await expect(page.getByTestId("portions")).toHaveText(expected.portions);
   await expect(page.getByTestId("price")).toHaveText(expected.price);
 }
 
@@ -280,7 +279,7 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
     await page.goto(`/kunden/${id}`);
     await expectDerived(page, AFTER);
 
-    // And the register is byte-for-byte as it was: the four figures above were worked out from the
+    // And the register is byte-for-byte as it was: the three figures above were worked out from the
     // two birthdates on the request, not read from anything a reclassification wrote.
     expect(await snapshotHousehold(id)).toBe(beforeSnapshot);
   });
@@ -322,7 +321,6 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
     // card still carries — a remark, not a verdict.
     await expect(page.getByTestId("counter-grown-ups")).toHaveText(AFTER.grownUps);
     await expect(page.getByTestId("counter-children")).toHaveText(AFTER.children);
-    await expect(page.getByTestId("counter-portions")).toHaveText(AFTER.portions);
     await expect(page.getByTestId("counter-price")).toHaveText(AFTER.price);
     await expect(page.getByTestId("counter-stale-card")).toHaveText(
       de.distribution.counter.staleCard(
@@ -363,7 +361,6 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
       "CLEAR_TO_SERVE",
     );
     await expect(page.getByTestId("counter-stale-card")).toHaveCount(0);
-    await expect(page.getByTestId("counter-portions")).toHaveText(AFTER.portions);
     await expect(page.getByTestId("counter-price")).toHaveText(AFTER.price);
   });
 });

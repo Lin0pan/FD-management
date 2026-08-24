@@ -6,9 +6,8 @@
  * and because no history of past compositions is kept (PRD §FR-2). What the household *was* survives
  * in exactly one place, and only as a physical fact: the counts printed on the card they hold.
  *
- * Nothing derived is written here, and there is nothing to write: the counts, the portion allowance
- * and the price are read off the birthdates wherever they are needed, so they are already right the
- * instant this returns. The cards-due-for-reissue list (US-13.2) follows the same way — a change
+ * Nothing derived is written here, and there is nothing to write: the counts and the price are read
+ * off the birthdates wherever they are needed, so they are already right the instant this returns. The cards-due-for-reissue list (US-13.2) follows the same way — a change
  * that alters the counts puts the household on it with reason `HOUSEHOLD_CHANGE`, derived on the
  * next read, with nothing to enqueue and nothing that can be forgotten.
  *
