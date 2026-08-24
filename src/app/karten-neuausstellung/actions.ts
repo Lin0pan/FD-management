@@ -82,8 +82,9 @@ export async function reissueStaleCardAction(
   revalidatePath("/karten-neuausstellung");
   revalidatePath(`/kunden/${customerId.data}`);
   revalidatePath(`/kunden/${customerId.data}/karte`);
-  // Both screens that count this list: the hub (US-17.2) and the home screen.
+  // The hub, which counts this list in a badge of its own (US-17.2). Not the home screen any more:
+  // it counted nothing once US-18.3 moved the signals onto the hub, and `src/app/page.tsx` now
+  // renders the week colour and nothing else.
   revalidatePath("/kunden");
-  revalidatePath("/");
   redirect(`/karten-neuausstellung?${ISSUED_CARD}=${encodeURIComponent(cardNumber)}`);
 }
