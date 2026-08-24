@@ -4,12 +4,12 @@
  * The household editor on the customer record (tasks/prd-us-16-maintain-customer-record.md §US-16.1,
  * §US-16.5) — where a baby is added and somebody who moved out is taken off the list.
  *
- * A client component for the reason the registration form is one: the counts, the portions and the
- * price have to update *as staff type*, because the whole point of the screen is that the
- * consequences of an edit are visible before it is saved (FR-1). None of the four is computed here —
- * the panel calls the same domain rules the save will apply (`composition`, `portionsFor`,
- * `priceFor`) against the day and the policy values the server handed it, so what is on screen is
- * what the save derives. There is no input for any of them by design.
+ * A client component for the reason the registration form is one: the counts and the price have to
+ * update *as staff type*, because the whole point of the screen is that the consequences of an edit
+ * are visible before it is saved (FR-1). None of the three is computed here — the panel calls the
+ * same domain rules the save will apply (`composition`, `priceFor`) against the day and the policy
+ * values the server handed it, so what is on screen is what the save derives. There is no input for
+ * any of them by design.
  *
  * The edit is a **replacement of the whole set**, not an add-and-remove pair: staff correct the list
  * in front of them and press save. Two members can share a name and a birthdate, so a row has no
@@ -35,7 +35,6 @@ import {
 } from "@/components/ui/table";
 import { ageInYears, composition } from "@/domain/customer/householdComposition";
 import { formatEuros } from "@/domain/money";
-import { portionsFor, type PortionValues } from "@/domain/policy/portions";
 import { priceFor, type PriceValues } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { useFocusFirstRefusal } from "../../field-mark";
@@ -54,9 +53,6 @@ export interface MemberRow {
 }
 
 const EMPTY_ROW: MemberRow = { firstName: "", lastName: "", birthDate: "" };
-
-/** The four per-head policy values the panel derives its figures from — nothing else is needed. */
-export type AllowanceValues = PortionValues & PriceValues;
 
 /**
  * A row's birthdate as a `Date`, or `null` while it is still being typed.
@@ -81,8 +77,8 @@ function typedDay(value: string): Date | null {
 function derived(
   rows: ReadonlyArray<MemberRow>,
   today: Date,
-  policy: AllowanceValues,
-): { grownUps: number; children: number; portions: number; priceCents: number } | null {
+  policy: PriceValues,
+): { grownUps: number; children: number; priceCents: number } | null {
   const members = rows
     .map((row) => typedDay(row.birthDate))
     .filter((day): day is Date => day !== null)
@@ -94,7 +90,6 @@ function derived(
     const counts = composition(members, today);
     return {
       ...counts,
-      portions: portionsFor(counts, policy),
       priceCents: priceFor(policy, counts.grownUps, counts.children),
     };
   } catch {
@@ -184,7 +179,7 @@ export function HouseholdEditor({
   members: ReadonlyArray<MemberRow>;
   /** The day the counts are judged against — the server's, never the browser's clock. */
   today: Date;
-  policy: AllowanceValues;
+  policy: PriceValues;
 }): React.ReactElement {
   const [state, formAction, pending] = useActionState(
     updateHouseholdAction,
@@ -210,8 +205,8 @@ export function HouseholdEditor({
     <form ref={form} action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="customerId" value={customerId} />
 
-      {/* The four figures the household section exists to produce, at the rank the counter gives
-          them: FR-1 is that the consequences of an edit are visible before it is saved, and as four
+      {/* The three figures the household section exists to produce, at the rank the counter gives
+          them: FR-1 is that the consequences of an edit are visible before it is saved, and as
           408px bordered boxes holding one digit each they were the least emphatic thing in the
           section. Above the table, so an edit and its consequence are read in that order. */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -224,11 +219,6 @@ export function HouseholdEditor({
           label={de.customers.derived.children}
           value={figures === null ? unknown : String(figures.children)}
           testId="children"
-        />
-        <Stat
-          label={de.customers.derived.portions}
-          value={figures === null ? unknown : String(figures.portions)}
-          testId="portions"
         />
         <Stat
           label={de.customers.derived.price}

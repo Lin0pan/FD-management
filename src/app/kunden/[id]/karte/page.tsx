@@ -94,11 +94,6 @@ function Card({ view }: { view: CardView }): React.ReactElement {
           value={view.composition.children}
           testId="children"
         />
-        <Count
-          label={de.customers.derived.portions}
-          value={view.allowance.portions}
-          testId="portions"
-        />
         <div className="flex flex-col gap-1">
           <span className="text-sm text-foreground/70">{de.customers.derived.price}</span>
           <span data-testid="price" className="text-4xl font-semibold tabular-nums">

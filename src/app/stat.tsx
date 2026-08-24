@@ -6,7 +6,7 @@
  * Two properties are the point rather than the box:
  *
  * - **The label and the value stay inside one `<p>`.** Split into two stacked `<div>`s they are
- *   announced as two unrelated facts — "Portionen", then "4" — with only the layout joining them
+ *   announced as two unrelated facts — "Erwachsene", then "4" — with only the layout joining them
  *   (`docs/guideline/ui_styling_guide.md` §9).
  * - **`tabular-nums`, and a caller-supplied width floor where the tiles are compared.** Where two
  *   tiles exist to be diffed, pass `min-w-56` and `whitespace-nowrap` so both keep their value on

@@ -10,8 +10,8 @@
  * This is the screen that replaces the spreadsheet, so it is built the way the sheet was read: one
  * dense table, sorted by customer number, with the filters above it and nothing between the rows.
  * Every value in it is already worked out — `listCustomers` derives the counts from the birthdates,
- * the portions and price from the settings in force today, the card number from the slot and the
- * certificate's state from today's date. This page lays them out and computes nothing.
+ * the price from the settings in force today, the card number from the slot and the certificate's
+ * state from today's date. This page lays them out and computes nothing.
  *
  * It is a **read**, entirely: a plain GET form carries the filters, which is what puts them in the
  * URL (FR-5). That is not a technicality — DF share one machine, and "the list I was looking at" has
@@ -157,7 +157,10 @@ function CustomerRow({ row }: { row: CustomerListRow }): React.ReactElement {
       <TableCell data-testid="customer-row-number" className="text-right tabular-nums">
         {row.customerNumber}
       </TableCell>
-      <TableCell className="min-w-56">
+      {/* `min-w-64` and not `min-w-56`: when a column was dropped from this table (US-27), the
+          width it paid back came here rather than being spread evenly over the rest. This is the
+          column staff scan, and the only one holding text that can wrap. */}
+      <TableCell className="min-w-64">
         {/* Underlined on hover rather than always: 240 permanent underlines is 240 pieces of noise,
             and the whole row lights up under the cursor anyway. */}
         <Link
@@ -193,9 +196,6 @@ function CustomerRow({ row }: { row: CustomerListRow }): React.ReactElement {
         <span data-testid="customer-row-grown-ups">{row.grownUps}</span>
         {" + "}
         <span data-testid="customer-row-children">{row.children}</span>
-      </TableCell>
-      <TableCell data-testid="customer-row-portions" className="text-right tabular-nums">
-        {row.portions}
       </TableCell>
       <TableCell data-testid="customer-row-price" className="text-right tabular-nums">
         {formatEuros(row.priceCents)}
@@ -477,9 +477,10 @@ function Overview({
  * sticking, which is the right way round: DF work at desktop width, and a table that cannot be
  * scrolled sideways on a narrow screen is worse than one whose header scrolls away.
  *
- * `xl` and not `lg`, measured rather than guessed: ten columns need about 1000px, which a `lg`
- * viewport's content box does not have, so turning the scroll container off there pushed the whole
- * *page* sideways by 26px. The width the concept names as the target is 1280 anyway.
+ * `xl` and not `lg`, measured rather than guessed: nine columns and the wider name column still
+ * need about 1000px, which a `lg` viewport's content box does not have, so turning the scroll
+ * container off there pushed the whole *page* sideways by 26px. The width the concept names as the
+ * target is 1280 anyway.
  *
  * `top-12` is the height of the sticky nav above it, and the background is `bg-card` and opaque —
  * the nav is translucent, and a header that copied that would have rows reading through it.
@@ -495,7 +496,6 @@ function CustomerTable({ rows }: { rows: ReadonlyArray<CustomerListRow> }): Reac
           <TableHead>{de.customerList.table.group}</TableHead>
           <TableHead>{de.customerList.table.status}</TableHead>
           <TableHead className="text-right">{de.customerList.table.household}</TableHead>
-          <TableHead className="text-right">{de.customerList.table.portions}</TableHead>
           <TableHead className="text-right">{de.customerList.table.price}</TableHead>
           <TableHead>{de.customerList.table.certificate}</TableHead>
           <TableHead className="text-right">{de.customerList.table.reminders}</TableHead>
@@ -512,8 +512,8 @@ function CustomerTable({ rows }: { rows: ReadonlyArray<CustomerListRow> }): Reac
 
 /**
  * What the screen says when DF has not configured anything yet: the list cannot price a household
- * before a portion has a price (US-14). The register is not broken, the installation is unfinished,
- * so the page says so and points at the settings rather than being an error screen.
+ * before a head has a price (US-14). The register is not broken, the installation is unfinished, so
+ * the page says so and points at the settings rather than being an error screen.
  */
 function NoSettings(): React.ReactElement {
   return (

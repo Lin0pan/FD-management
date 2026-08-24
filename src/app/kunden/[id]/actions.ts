@@ -18,8 +18,8 @@
  * error into a German sentence. Every rule lives in the domain and the use cases; a disabled save
  * button is a courtesy, never the guard. On success the affected screens are revalidated, so what
  * they show comes back from the store rather than from client memory — which is also how the record
- * proves a change is in force: the counts, the portions, the price and the counter's verdict are all
- * derived on the next read.
+ * proves a change is in force: the counts, the price and the counter's verdict are all derived on
+ * the next read.
  */
 
 import { revalidatePath } from "next/cache";
@@ -191,9 +191,9 @@ export async function reissueCardAction(
 /**
  * Replace the household with the rows now on the screen (US-16.1).
  *
- * Nothing derived is submitted and there is no field for it: the counts, the portions and the price
- * the editor shows while staff type are the browser's arithmetic over the same domain rule the save
- * will apply, not values on their way to the database.
+ * Nothing derived is submitted and there is no field for it: the counts and the price the editor
+ * shows while staff type are the browser's arithmetic over the same domain rule the save will
+ * apply, not values on their way to the database.
  */
 export async function updateHouseholdAction(
   previous: RecordFormState,

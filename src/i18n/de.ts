@@ -172,7 +172,6 @@ export const de = {
     derived: {
       grownUps: "Erwachsene (ab 13 Jahren)",
       children: "Kinder (unter 13 Jahren)",
-      portions: "Portionen",
       price: "Preis",
       /**
        * The consecutive-no-show count (US-10.4). Shown only when it is greater than zero, and
@@ -189,7 +188,7 @@ export const de = {
       countsValue: (grownUps: number, children: number): string =>
         `Erwachsene: ${grownUps}, Kinder: ${children}`,
       hint: "Berechnet aus den Geburtsdaten — nicht eingebbar.",
-      standardValues: "Standard-Portionen und -Preis; am Ausgabetisch nicht anpassbar.",
+      standardValues: "Standardpreis; am Ausgabetisch nicht anpassbar.",
       unknown: "—",
     },
     assignment: {
@@ -530,7 +529,7 @@ export const de = {
         "dieser Person im Haushalt. Die Kundennummer lässt sich nicht ändern.",
       detailsSubmit: "Person und Anschrift speichern",
       householdHint:
-        "Erwachsene, Kinder, Portionen und Preis werden aus den Geburtsdaten berechnet und gelten " +
+        "Erwachsene, Kinder und Preis werden aus den Geburtsdaten berechnet und gelten " +
         "sofort. Ändert sich dabei die Zahl der Köpfe, steht der Haushalt danach auf der Liste " +
         "„Karten neu ausstellen“ — die Karte nennt die alten Zahlen.",
       householdSubmit: "Haushalt speichern",
@@ -749,7 +748,6 @@ export const de = {
        * digit each, and the name — the thing staff actually scan — was the column that paid for it.
        */
       household: "Erw. + Kinder",
-      portions: "Portionen",
       price: "Preis",
       /**
        * "Nachweis gültig bis" set the column's floor at 217px — a fifth of the table — to show a
@@ -822,7 +820,7 @@ export const de = {
      */
     listTitle: "Karten",
     notUrgent:
-      "Das hat keine Eile. Erwachsene, Kinder, Portionen und Preis berechnet die Anwendung bei " +
+      "Das hat keine Eile. Erwachsene, Kinder und Preis berechnet die Anwendung bei " +
       "jedem Aufruf neu; die Karte ist nur ein Ausdruck. Eine veraltete Karte ist nie ein Grund, " +
       "jemanden an der Ausgabe wegzuschicken.",
     empty: "Zurzeit ist keine Karte neu auszustellen.",
@@ -1016,7 +1014,7 @@ export const de = {
       /**
        * A verdict is its headline. The sentence that used to sit under each one restated what the
        * record below already prints — the certificate's date and the reminder count are rows in it,
-       * the portions and the price are tiles, the group and the status are badges — so it was one
+       * the counts and the price are tiles, the group and the status are badges — so it was one
        * more thing to read with a queue waiting, not help.
        *
        * `blocked.noReason` is the exception that proves the shape: the block reason is the only
