@@ -72,3 +72,42 @@ Started: Mon Aug 24 2026 (batch 27 — US-27 remove the portion allowance)
   consolidated list (playwright-cli usage, e2e customer-number bands, killing the dev server
   safely, testid greps). Read both before any UI or e2e story.
 ---
+
+## 2026-08-24 — US-001 (batch 27): the portion figure leaves the five screens
+- Presentation-only removal of the portion figure from the counter, the customer record (both the
+  live household editor and the archived read-only block), the card view and the customer list.
+  `Settings` still carries `portionsPerGrownUp`/`portionsPerChild` and `Allowance` still carries
+  `portions` — deliberately, so the tree keeps compiling. US-002 onwards take those.
+- Files changed: `src/app/ausgabe/counter-lookup.tsx`, `src/app/kunden/page.tsx`,
+  `src/app/kunden/[id]/page.tsx`, `src/app/kunden/[id]/household-editor.tsx`,
+  `src/app/kunden/[id]/karte/page.tsx`, `src/app/kunden/[id]/actions.ts`, `src/app/stat.tsx`,
+  `src/i18n/de.ts`.
+- `AllowanceValues` in `household-editor.tsx` was `PortionValues & PriceValues`. With the portions
+  gone it would have been `PriceValues` under a second name, so the alias is **deleted** rather than
+  renamed: `page.tsx` now imports `PriceValues` from `@/domain/policy/settings` directly.
+- The customer list's freed width went to the **name** column (`min-w-56` → `min-w-64`), not spread
+  evenly — the argument `de.customerList.table.household` already makes for merging Erw. + Kinder.
+- No grid was re-spanned. The counter keeps `grid-cols-2 sm:grid-cols-4` with three tiles; the
+  screenshot confirms the figures row still lines up column-for-column with the identity pair above
+  it, which is the whole reason the tracks are shared.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (50 files, 1096 tests, domain
+  and application at 100%) and `npm run build` all pass. Browser verification was done against
+  `npm run start` (production build), not `next dev`.
+- **Learnings for future iterations:**
+  - **A deleted concept survives in prose, not in code.** `grep -rn -i portion src/` after the JSX
+    edits still found six comments — two in `[id]/actions.ts`, one in `stat.tsx`'s worked example,
+    one in `de.ts`'s counter-verdict rationale, plus tile/column *counts* baked into comments
+    ("six tiles", "ten columns", "the four figures", "the five policy values"). US-005 greps for the
+    word, so grep after **every** file, and re-read the numbers in the comments you did not grep for.
+  - **Do not name the removed thing in the comment that explains its removal.** The first draft of
+    the customer-list width comment said "the Portionen column's width came here", which would have
+    failed US-005's `grep -ri portion` on its own. Say what happened ("a column was dropped, US-27")
+    without writing the word.
+  - **Prettier does not reflow comments.** Shortening a sentence inside a `/** */` block leaves a
+    ragged short line that `prettier --check` happily accepts. Re-wrap the paragraph by hand.
+  - **`playwright-cli fill` needs a role locator, not a testid, for the counter's Nummer input**, and
+    a `cmd-a || cmd-b` shell chain hides a silent no-op: the first command exits 0 without filling
+    anything. Run the fill on its own and re-snapshot to confirm it landed.
+  - **The record renders two different household blocks.** `/kunden/<active>` gives the live editor,
+    `/kunden/<archived>` gives `HouseholdReadOnly`. Both hold the same tiles, so a screen-level
+    change has to be checked on one of each — seed customer 6 is archived.

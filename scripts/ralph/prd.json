@@ -27,8 +27,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Presentation only, as specified: Settings and Allowance still carry the portion values after this story. Five screens verified in a production build via the playwright-cli accessibility snapshot — counter, customer record (both the live editor and the archived read-only block), card view and customer list. AllowanceValues was PortionValues & PriceValues, so the alias itself was deleted rather than renamed and page.tsx now imports PriceValues from the domain."
     },
     {
       "id": "US-002",
