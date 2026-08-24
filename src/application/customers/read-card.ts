@@ -59,7 +59,7 @@ export interface CardView {
   /** Derived from the birthdates as of today; there is no stored count to fall behind them. */
   readonly composition: HouseholdComposition;
   /**
-   * The standard portions and price for this household as of today — derived through the same seam
+   * The standard price for this household as of today — derived through the same seam
    * the counter reads (`describeAllowance`), so the card and the counter can never disagree. The
    * counts above are a slice of it.
    */

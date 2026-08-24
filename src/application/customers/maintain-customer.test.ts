@@ -460,7 +460,7 @@ describe("updateHousehold", () => {
     expect(audit.entries).toEqual([]);
   });
 
-  it("writes no count, portion or price — the record still carries none", async () => {
+  it("writes no count and no price — the record still carries neither", async () => {
     await updateHousehold(deps(), { customerId: 1, members: [member(), member()] });
 
     const stored = customers.holders[0];

@@ -207,12 +207,12 @@ export function changedSettingsFields(
 }
 
 /**
- * The three configured price values this derivation reads — the mirror of `PortionValues`.
+ * The three configured price values this derivation reads.
  *
  * It is a `Pick` rather than the whole of {@link Settings} so that a caller holding only the price
- * values can still price a household: the customer record's household editor derives the portions
- * and the price in the browser as staff type (US-16.5), and handing it the quota and the week
- * anchor to do so would say those had something to do with the answer.
+ * values can still price a household: the customer record's household editor derives the price in
+ * the browser as staff type (US-16.5), and handing it the quota and the week anchor to do so would
+ * say those had something to do with the answer.
  */
 export type PriceValues = Pick<Settings, "pricePerGrownUp" | "pricePerChild" | "priceCap">;
 

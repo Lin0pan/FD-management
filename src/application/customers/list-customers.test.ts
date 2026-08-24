@@ -564,7 +564,6 @@ describe("listCustomers", () => {
       status: "ACTIVE",
       grownUps: 2,
       children: 1,
-      portions: 5,
       priceCents: 500,
       certificateValidUntil: new Date("2026-08-20T00:00:00.000Z"),
       certificateState: "EXPIRING_SOON",
