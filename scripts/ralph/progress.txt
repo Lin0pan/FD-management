@@ -213,3 +213,31 @@ Two hazards this batch carries, both stated in `prd.json` and worth reading twic
     `eggCount`), above the dictionary, because „ab 1 Person“ and „1 Ei“ are both reachable
     configurations and three phrasings share the grammar. First helpers of their kind in that file.
 ---
+
+## 2026-08-24 — US-003 (The allowance seam states the egg count, application)
+- `Allowance` gains `readonly eggs: number`, derived in `allowanceAt` as
+  `eggsFor(settings.eggRule, grownUps + children)` — the composition's own total, never a second
+  count of the members array. `CounterCustomerView` copies it; `read-customer.ts`, `read-card.ts`
+  and `list-customers.ts` needed no change at all.
+- Files: `src/application/allowance/describe-allowance.ts` + test,
+  `src/application/customers/lookup-customer.ts` + test, `docs/architecture/06-runtime-view.md`.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1139 tests, domain+application 100%) and
+  `build` all green. No UI in this story, so no browser check.
+- **Learnings for future iterations:**
+  - **Typecheck is the census of `Allowance` constructors.** Adding a required field to `Allowance`
+    and to `CounterCustomerView` broke *nothing* — no fixture, fake or app route builds either shape
+    by hand, they all read what the seam returns. That is the seam working, and it means a future
+    field on either type is a one-file change plus its tests. Contrast `Settings` (batch 28's
+    US-002 notes), where the same move touched 20 call sites.
+  - **`describeAllowances` had no test file of its own** before this story — its coverage came
+    entirely through `list-customers.test.ts`. The new "one read of the settings history" test adds
+    a `reads` counter to the local `FakeSettingsRepository`; that counter is the only way to assert
+    the no-query-per-row promise, since the result alone cannot show how often the port was called.
+  - **The two exhaustive `toEqual` assertions in `describe-allowance.test.ts` are the tripwire** for
+    a new derived figure: they compare the whole object, so a field added to `Allowance` fails them
+    until it is stated. Keep them exhaustive — the `toMatchObject` cases elsewhere would not notice.
+  - **`docs/architecture/06-runtime-view.md` names the seam's return value** in the counter sequence
+    diagram (`Allow-->>Lookup: counts, price (capped), eggs`). Any story that adds or removes a
+    derived figure makes that line wrong; the docs story at the end of a batch is too late, so fix
+    it in the same commit.
+---
