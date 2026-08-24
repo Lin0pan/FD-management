@@ -197,6 +197,13 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 
 - A `<details>` keeps `open` through any re-render, including a soft navigation to the same route.
   Put a `key` on the card so it remounts closed.
+- **A control that resets a form navigates the document** — a plain `<a href>` inside the ghost
+  `Button`, never a `Link`. Same family of bug as the one above: a soft navigation to the same route
+  reconciles the DOM that is already there, and React writes `defaultValue`/`defaultChecked` on mount
+  only, so every field the staff member has touched keeps its value against the new default. „Filter
+  zurücksetzen" cleared the table and left all four filter controls reading the filters it had just
+  dropped. Submitting a `method="get"` form is a document navigation already, which is why the apply
+  path never showed it.
 - A summary can label its own state with no client component: `group` on the `<details>`, then
   `group-open:hidden` on one word and `hidden group-open:inline` on the other.
 - **A folded control still needs its label where every other column keeps it.** What the summary says

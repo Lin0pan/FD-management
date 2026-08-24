@@ -102,6 +102,26 @@ const eslintConfig = defineConfig([
       "no-restricted-syntax": ["error", ...noWallClock],
     },
   },
+
+  /**
+   * The one screen where a full page load is the point.
+   *
+   * `no-html-link-for-pages` exists to catch an `<a>` written where a `Link` was meant — a soft
+   * navigation lost by accident. „Filter zurücksetzen" on /kunden is the opposite: the filter form is
+   * uncontrolled, React writes `defaultValue` on mount alone, and a soft navigation back to the bare
+   * URL reconciles the DOM that is already there — so the table came back unfiltered while every
+   * control the staff member had touched went on showing the filters it had dropped. Only a fresh
+   * document rebuilds the form (docs/guideline/ui_styling_guide.md §6).
+   *
+   * Named per file rather than turned off wholesale, so the next `<a>` written anywhere else is still
+   * the mistake the rule is for, and adding one here stays a decision somebody has to make.
+   */
+  {
+    name: "fd/reset-reloads-the-document",
+    files: ["src/app/kunden/page.tsx"],
+    rules: { "@next/next/no-html-link-for-pages": "off" },
+  },
+
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",

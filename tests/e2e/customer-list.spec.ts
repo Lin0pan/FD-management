@@ -575,4 +575,26 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
     await expect(page.getByTestId("group-filter")).toHaveValue("BLUE");
     await expect(page.getByTestId("archived-toggle")).toBeChecked();
   });
+
+  test("„Zurücksetzen“ leert die Filterfelder, nicht nur die Liste", async ({ page }) => {
+    await page.goto("/kunden");
+    await page.getByTestId("customer-search").fill(SEARCH_PREFIX);
+    await page.getByTestId("status-filter").selectOption("BLOCKED");
+    await page.getByTestId("archived-toggle").check();
+    await applyFilters(page);
+
+    await Promise.all([
+      page.waitForURL((url) => url.pathname === "/kunden" && url.search === ""),
+      page.getByRole("link", { name: de.customerList.filters.reset }).click(),
+    ]);
+
+    // The controls, not only the table: as a router navigation this reset re-rendered the same DOM,
+    // where React writes `defaultValue` on mount alone — so the boxes went on showing filters the
+    // list had already dropped, and a screenshot of the register could not be told from a screenshot
+    // of a filtered one. Every field the staff member touched is asserted, because "dirty" is what
+    // decides it and only a touched field is dirty.
+    await expect(page.getByTestId("customer-search")).toHaveValue("");
+    await expect(page.getByTestId("status-filter")).toHaveValue("");
+    await expect(page.getByTestId("archived-toggle")).not.toBeChecked();
+  });
 });

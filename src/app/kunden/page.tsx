@@ -262,6 +262,16 @@ function FilterField({
  * `Select` renders a button plus a portalled listbox, which neither `selectOption` nor `toHaveValue`
  * can drive — the same trade the conversion guide records for `Label`. The search box is given the
  * widest track of the four because it is the control the screen exists for.
+ *
+ * **„Zurücksetzen" is a plain `<a>`, not a `Link`**, and that is the whole of the fix it was: every
+ * control here is uncontrolled, and React writes `defaultValue` and `defaultChecked` on mount only.
+ * A router navigation to `/kunden` re-renders this same segment, so React reconciles the existing
+ * DOM — and a field the staff member has typed in or picked from is dirty, which means the browser
+ * keeps its value against the new default. The table came back unfiltered while these four controls
+ * went on showing filters that were no longer applied: a screen contradicting itself, and precisely
+ * the state nobody could read off a screenshot. A document navigation builds the form from scratch.
+ * Submitting is a native GET submission and therefore already one, which is why only the reset ever
+ * showed this.
  */
 function FilterForm({ filters, search }: { filters: Filters; search: string }): React.ReactElement {
   return (
@@ -367,8 +377,10 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
           <Button type="submit" size="lg">
             {de.customerList.filters.submit}
           </Button>
+          {/* A plain `<a>`, and the one link on the screen that is deliberately not a `Link`: see
+              the note above. */}
           <Button variant="ghost" size="lg" asChild>
-            <Link href="/kunden">{de.customerList.filters.reset}</Link>
+            <a href="/kunden">{de.customerList.filters.reset}</a>
           </Button>
         </div>
       </div>
