@@ -14,6 +14,7 @@
 
 import { InvalidSettings, NoSettingsInForce } from "../errors";
 import type { Cents } from "../money";
+import { requireInteger } from "./require-integer";
 
 /** The two-week distribution cycle alternates between these two groups. */
 export type WeekColour = "RED" | "BLUE";
@@ -89,15 +90,6 @@ export interface SettingsVersion {
 
 /** `2026-W02` — a four-digit ISO year, `W`, and a two-digit week between 01 and 53. */
 const ISO_WEEK = /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/;
-
-function requireInteger(field: string, value: number, minimum: number): void {
-  if (!Number.isInteger(value) || value < minimum) {
-    throw new InvalidSettings(
-      field,
-      `must be an integer of at least ${minimum}, received ${value}`,
-    );
-  }
-}
 
 function isIsoWeekday(value: number): value is IsoWeekday {
   return Number.isInteger(value) && value >= 1 && value <= 7;
