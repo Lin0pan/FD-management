@@ -394,6 +394,29 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
     expect(await shownSeeded(page)).toEqual([String(NUMBERS.blocked)]);
   });
 
+  test("über einer gefilterten Liste stehen die Filter, die sie gefiltert haben", async ({
+    page,
+  }) => {
+    // The unfiltered register says nothing: the line's being there at all is what marks a list as
+    // filtered, which is the whole of what it is for.
+    await page.goto("/kunden");
+    await expect(page.getByTestId("customer-list-filters")).toHaveCount(0);
+
+    await page.getByTestId("customer-search").fill(SEARCH_PREFIX);
+    await page.getByTestId("archived-toggle").check();
+    await applyFilters(page);
+
+    // Rows, deliberately: the filters used to be named only where the table was empty, so a list
+    // with hits was the one that could not be told from the whole register.
+    expect(await shownNumbers(page)).toEqual([String(NUMBERS.searched), String(NUMBERS.archived)]);
+    const clauses = de.customerList.filterClauses;
+    await expect(page.getByTestId("customer-list-filters")).toHaveText(
+      de.customerList.filterSummary(
+        [clauses.search(SEARCH_PREFIX), clauses.archivedIncluded].join(", "),
+      ),
+    );
+  });
+
   test("archivierte Haushalte erscheinen erst, wenn der Schalter gesetzt ist", async ({ page }) => {
     await page.goto(`/kunden?suche=${SEARCH_PREFIX}`);
     expect(await shownNumbers(page)).toEqual([String(NUMBERS.searched)]);

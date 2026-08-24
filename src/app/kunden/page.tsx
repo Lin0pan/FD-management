@@ -115,31 +115,29 @@ function certificateFilterLabel(state: CertificateState): string {
 }
 
 /**
- * The filters in force, in German, for the message that stands where an empty table would.
+ * The filters in force, in German — for the line above the table, and for the message that stands
+ * where the table would be empty. One list, so the two can never name different filters.
  *
  * Whether archived households are included is named every time, even though it is a default: "keine
  * Treffer" under a hidden-by-default filter is precisely how a staff member concludes that a
  * household was deleted (US-11, PRD §6).
  */
 function activeFilters(filters: Filters, search: string): ReadonlyArray<string> {
+  const clauses = de.customerList.filterClauses;
   const named: string[] = [];
   if (search !== "") {
-    named.push(de.customerList.empty.search(search));
+    named.push(clauses.search(search));
   }
   if (filters.status !== undefined) {
-    named.push(de.customerList.empty.status(de.customers.status[filters.status]));
+    named.push(clauses.status(de.customers.status[filters.status]));
   }
   if (filters.gruppe !== undefined) {
-    named.push(de.customerList.empty.group(de.customers.groups[filters.gruppe]));
+    named.push(clauses.group(de.customers.groups[filters.gruppe]));
   }
   if (filters.nachweis !== undefined) {
-    named.push(de.customerList.empty.certificate(certificateFilterLabel(filters.nachweis)));
+    named.push(clauses.certificate(certificateFilterLabel(filters.nachweis)));
   }
-  named.push(
-    filters.archiv === "1"
-      ? de.customerList.empty.archivedIncluded
-      : de.customerList.empty.archivedHidden,
-  );
+  named.push(filters.archiv === "1" ? clauses.archivedIncluded : clauses.archivedHidden);
   return named;
 }
 
@@ -640,7 +638,28 @@ export default async function CustomerListPage({
               </AlertDescription>
             </Alert>
           ) : (
-            <CustomerTable rows={view.rows} />
+            <>
+              {/* What the table below is showing, whenever it is not everything. Between the
+                  controls that caused it and the rows it describes, and muted rather than an
+                  alert — a filter is not a fault (guide §5).
+
+                  Absent, rather than reading "nichts gefiltert", on the plain register: the line's
+                  being there at all is what answers "was this list filtered?", which is the
+                  question a full table and a filtered one gave the same answer to. The empty branch
+                  says nothing here because it states these same clauses itself. */}
+              {unfiltered ? null : (
+                <p
+                  data-testid="customer-list-filters"
+                  // `font-medium` and not colour: the checkbox's hint sits directly above this line,
+                  // muted and one size smaller, and the two read as a stack of grey sentences at a
+                  // glance. Weight separates them without making a filter look like a fault.
+                  className="text-sm font-medium text-muted-foreground"
+                >
+                  {de.customerList.filterSummary(filtered.join(", "))}
+                </p>
+              )}
+              <CustomerTable rows={view.rows} />
+            </>
           )}
         </CardContent>
       </Card>

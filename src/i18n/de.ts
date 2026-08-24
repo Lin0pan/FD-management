@@ -774,21 +774,41 @@ export const de = {
       noReminders: "–",
     },
     /**
-     * What stands where the table would be empty. It names the filters that are in force, because
-     * "keine Treffer" under a filter somebody set three screens ago is how staff conclude that a
-     * household was deleted.
+     * The filters in force, one clause each, joined into a list by whichever message states them.
+     *
+     * They sit here rather than under `empty` because two messages read them: the empty table's, and
+     * `filterSummary` above a table that has rows. Whether archived households are included is a
+     * clause like any other, and is named even when it is the default — "keine Treffer" under a
+     * hidden-by-default filter is precisely how a staff member concludes that a household was
+     * deleted.
      */
-    empty: {
-      unfiltered: "Es ist noch niemand aufgenommen.",
-      filtered: (filters: string): string =>
-        `Kein Haushalt entspricht den gewählten Filtern (${filters}). Bitte die Suche oder die ` +
-        `Filter ändern.`,
+    filterClauses: {
       search: (text: string): string => `Suche „${text}“`,
       status: (label: string): string => `Status: ${label}`,
       group: (label: string): string => `Gruppe: ${label}`,
       certificate: (label: string): string => `Bedarfsnachweis: ${label}`,
       archivedIncluded: "einschließlich archivierter Haushalte",
       archivedHidden: "ohne archivierte Haushalte",
+    },
+    /**
+     * What stands over a table that **has** rows, whenever anything is filtered.
+     *
+     * The same clauses as `empty.filtered`, deliberately — a filtered list and the whole register
+     * were indistinguishable, so neither the staff member looking at it nor anyone they showed it to
+     * could say which one it was. Only the presence of this line answers that, which is why it is
+     * absent on the unfiltered register rather than saying so.
+     */
+    filterSummary: (filters: string): string => `Gefiltert: ${filters}`,
+    /**
+     * What stands where the table would be empty. It names the same filters as `filterSummary`,
+     * because "keine Treffer" under a filter somebody set three screens ago is how staff conclude
+     * that a household was deleted.
+     */
+    empty: {
+      unfiltered: "Es ist noch niemand aufgenommen.",
+      filtered: (filters: string): string =>
+        `Kein Haushalt entspricht den gewählten Filtern (${filters}). Bitte die Suche oder die ` +
+        `Filter ändern.`,
     },
   },
   /**
