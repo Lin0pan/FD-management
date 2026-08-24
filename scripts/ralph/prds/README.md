@@ -5,7 +5,7 @@ number). Each file is a complete, self-contained Ralph run: its own `branchName`
 starting at `US-001`, its own priorities `1..n`.
 
 [`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
-it. It currently holds **batch 22**, the next one to run. `done/` holds the finished copy of each
+it. It currently holds **batch 27**, the next one to run. `done/` holds the finished copy of each
 batch that has run — the same file with every story's `passes` flipped to `true`.
 
 ## Workflow
@@ -105,8 +105,10 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 24  | `24-us-24-choose-customer-number.json`       | 5       | `ralph/us-24-choose-customer-number`       |
 | 25  | `25-us-25-globally-unique-card-numbers.json` | 7       | `ralph/us-25-globally-unique-card-numbers` |
 | 26  | `26-us-26-price-cap.json`                    | 7       | `ralph/us-26-price-cap`                    |
+| 27  | `27-us-27-remove-portion-allowance.json`     | 6       | `ralph/us-27-remove-portion-allowance`     |
+| 28  | `28-us-28-egg-allowance.json`                | 9       | `ralph/us-28-egg-allowance`                |
 
-129 stories total — the rows sum to it. Every story cites its source PRD section in its
+144 stories total — the rows sum to it. Every story cites its source PRD section in its
 `description`, so an iteration can read the full context when a criterion is ambiguous.
 
 Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 onwards are not
@@ -171,6 +173,36 @@ Three things about 26 to hold on to. It is the **second batch with a schema chan
 spec asserts the empty field precisely because losing that branch would be silent. And it adds a
 member to the `SettingsChange` union, whose `switch` in `src/app/einstellungen/page.tsx` is
 exhaustive — the build fails until US-003 handles the new case, which is the mechanism working.
+
+**Batches 27 and 28 are DF's two pieces of feedback from the testing phase**, and they are a pair:
+one quantity that was never real goes away, and one that is real arrives. `local_only/new_requirements_analysis.md`
+is the analysis both PRDs were written from. **27 must be merged before 28 is cut** — 28 fills the
+tile slot 27 vacates on three screens and adds a card beside the settings grid 27 re-spans.
+
+- **27 (US-27)** removes the **portion allowance** entirely: the derivation, the two settings, two
+  schema columns, five displays, the German strings and the documents. The price is untouched. It is
+  a **deletion**, and its stories run **outside-in — the inverse of every other batch here**: the
+  screens stop reading the figure, then the seam stops deriving it, then the two values leave the
+  domain and the form together, then the columns leave the schema. Built inside-out the first story
+  would break every call site at once. Between story 3 and story 4 the repository writes a literal
+  `0` into columns that still exist; that is deliberate and flagged in both stories. The failure mode
+  is a **survivor** — one `Stat`, one dictionary key, one comment — so story 5 makes
+  `grep -ri portion src/ tests/ prisma/` returning nothing an acceptance criterion.
+- **28 (US-28)** adds the **egg allowance**: a count derived from the number of persons in the
+  household, shown at the counter, on the customer record and in the live household editor, under a
+  rule DF edit themselves. It is the **first list-valued policy value**, and that is where the work
+  is: a validated staircase (sorted, no duplicate thresholds, strictly rising), a **child table**
+  `EggAllowanceRow` on `SettingsVersion` (ADR in story 9), a repeating add/remove table on the
+  settings screen, and a **row-by-row** diff in the Änderungsverlauf. Two things to hold on to. Its
+  `SettingsChange` variant is **the only one without `from`/`to`** — a list's change is a set of row
+  changes, and printing two whole rules side by side is the restatement the history was rewritten to
+  stop doing. And between story 2 and story 6 the settings action passes an **empty rule**, so saving
+  the form on that branch erases the rule mid-batch; that is why story 6 is in this batch and not a
+  follow-up.
+
+Batches 27 and 28 both **regenerate `prisma/migrations/`** — the third and fourth batches to do so —
+so the hand-written partial unique index on `Customer.customerNumber` has to be re-added each time,
+and `schema.test.ts` is what catches it if it is not.
 
 Batches 21 to 23 all edit `src/app/ausgabe/page.tsx`, so the "merge before starting the next batch"
 rule is load-bearing here for the same reason it was for 19 and 20. **Run them in this order**: 21 frees the

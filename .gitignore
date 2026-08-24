@@ -52,6 +52,9 @@ npm-debug.log*
 /.playwright/
 /.playwright-cli/
 
+# Personal scratch space: notes, exports, anything not meant for the repository.
+/local_only/
+
 # Claude Code: personal, machine-local settings (shared config lives in .claude/settings.json)
 .claude/settings.local.json
 .claude/**/*.local.json
