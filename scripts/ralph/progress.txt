@@ -149,3 +149,29 @@ Two hazards this batch carries, both stated in `prd.json` and worth reading twic
   that branch erases the rule mid-batch. That is why story 6 is in this batch and not a follow-up —
   do not leave the tree in that state.
 ---
+
+## 2026-08-24 — US-001 (The egg rule and the count it yields, domain)
+- New pure module `src/domain/policy/eggs.ts`: `EggRuleRow`, `EggRule`, `createEggRule` (sorts, then
+  validates the staircase) and `eggsFor` (highest threshold reached, else 0). Strict TDD — the whole
+  test file was written and run red before a line of the module existed.
+- Two new domain errors, `DuplicateEggThreshold` and `EggsNotIncreasing`, both tiered `refusal`.
+- Files: `src/domain/policy/eggs.ts` (new), `src/domain/policy/eggs.test.ts` (new),
+  `src/domain/policy/require-integer.ts` (new, see below), `src/domain/policy/settings.ts`,
+  `src/domain/errors.ts`, `src/app/notice-tier.ts`.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1108 tests, domain+application 100%) and
+  `build` all green.
+- **Learnings for future iterations:**
+  - **`requireInteger` now lives in `src/domain/policy/require-integer.ts`**, not in `settings.ts`.
+    It had to move before story 1 could reuse it: story 2 puts `eggRule` on `Settings`, so
+    `settings.ts` imports `eggs.ts`, and leaving the helper where it was would have made the two
+    modules import each other. Landed as its own `refactor(domain):` commit before the feature.
+  - **The `notice-tier.ts` header counts the codes and went stale on its own**: it claimed a *33rd*
+    code would fail the build when there were already 33. Recount rather than increment —
+    `python3 -c` over the `DomainErrorCode` union is two lines — and it now says 36th for 35 codes.
+  - **A `try`/`catch` with an `instanceof` narrow is how these tests read an error's fields**, since
+    `expect(fn).toThrow(new SomeError(...))` only compares the message. `toThrow(new InvalidSettings(
+    field, requirement))` *is* worth using where the whole point is the exact field name and
+    requirement sentence — it asserts both in one line.
+  - Deriving from a sorted list needs no `findLast`: `eggsFor` walks the rule and keeps overwriting,
+    so the last row the household reaches is the answer. One branch, one loop, 100% covered.
+---

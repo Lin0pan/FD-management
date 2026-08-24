@@ -43,7 +43,9 @@ export type DomainErrorCode =
   | "InvalidEuroAmount"
   | "InvalidCalendarDay"
   | "NotesTooLong"
-  | "GroupUnchanged";
+  | "GroupUnchanged"
+  | "DuplicateEggThreshold"
+  | "EggsNotIncreasing";
 
 /** Base class of every domain error. `code` lets callers switch over the closed set above. */
 export abstract class DomainError extends Error {
@@ -637,5 +639,47 @@ export class InvalidCalendarDay extends DomainError {
   constructor(text: string) {
     super(`"${text}" is not a calendar day such as 11.02.1985`);
     this.text = text;
+  }
+}
+
+/**
+ * Two rows of the egg rule name the same household size, so the number of eggs a household of that
+ * size receives would depend on which row was read first (US-28.1).
+ *
+ * Carries the threshold both rows claim, so the settings form can say which row to fix rather than
+ * reporting that the rule as a whole is wrong.
+ */
+export class DuplicateEggThreshold extends DomainError {
+  readonly code = "DuplicateEggThreshold";
+  readonly minPersons: number;
+
+  constructor(minPersons: number) {
+    super(`Two egg-rule rows both start at ${minPersons} persons`);
+    this.minPersons = minPersons;
+  }
+}
+
+/**
+ * A row of the egg rule awards a larger household no more eggs than the row below it (US-28.1).
+ *
+ * The rule is a staircase: a household that grows never comes away with fewer eggs than it had.
+ * Carries both rows' numbers, so the German sentence can name the two thresholds that collide
+ * without re-deriving which neighbour was meant.
+ */
+export class EggsNotIncreasing extends DomainError {
+  readonly code = "EggsNotIncreasing";
+  readonly minPersons: number;
+  readonly eggs: number;
+  readonly lowerMinPersons: number;
+  readonly lowerEggs: number;
+
+  constructor(minPersons: number, eggs: number, lowerMinPersons: number, lowerEggs: number) {
+    super(
+      `${minPersons} persons award ${eggs} eggs, which is not more than the ${lowerEggs} awarded from ${lowerMinPersons} persons`,
+    );
+    this.minPersons = minPersons;
+    this.eggs = eggs;
+    this.lowerMinPersons = lowerMinPersons;
+    this.lowerEggs = lowerEggs;
   }
 }
