@@ -175,3 +175,41 @@ Two hazards this batch carries, both stated in `prd.json` and worth reading twic
   - Deriving from a sorted list needs no `findLast`: `eggsFor` walks the rule and keeps overwriting,
     so the last row the household reaches is the answer. One branch, one loop, 100% covered.
 ---
+
+## 2026-08-24 — US-002 (The rule becomes a setting, and a change to it is named, domain)
+- `Settings.eggRule` built through `createEggRule` in `createSettings`, `SettingsInput` taking the
+  unsorted `ReadonlyArray<EggRuleRow>`, `"eggRule"` last in `SETTINGS_FIELDS`, and an `eggRule` case
+  in `isUnchanged` that asks `diffEggRule` rather than comparing two array references.
+- `diffEggRule` + `EggRuleRowChange` in `eggs.ts` (matched by threshold, reported ascending), the
+  `{ field: "eggRule"; rows }` variant of `SettingsChange`, and `diffSettings` emitting it only when
+  a row moved.
+- `describeChange` in the settings page renders it through `de.settings.history.rowChanges` and one
+  dictionary function per kind; `de.settings.fields.eggRule = "Eierregel"`.
+- Every `createSettings` call site updated: 13 test builders with `eggRule: []`, and the repository's
+  `toDomain`, the seed and the settings action with an empty rule and a comment naming the story
+  that replaces it (US-004, US-004, US-006).
+- Files: `src/domain/policy/{eggs,settings,settings-diff}.ts` + their tests, `src/i18n/de.ts`,
+  `src/app/einstellungen/{page.tsx,actions.ts}`, `src/infrastructure/prisma/{seed,settings-repository}.ts`,
+  11 further application/domain test builders.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1133 tests, domain+application 100%) and
+  `build` all green.
+- **Learnings for future iterations:**
+  - **The Änderungsverlauf's rows are ascending, not the PRD example's order.** `prd.json`'s
+    illustrative string reads „ab 8 … · ab 5 … · ab 3 …“ (descending), but FR-6 says a rule "must
+    always be displayed in that order" — the ascending order `createEggRule` sorts to. Ascending is
+    what `diffEggRule` returns and what US-007's `FullValues` should match; the example is phrasing,
+    not order.
+  - **`eggRule` is the third `SETTINGS_FIELDS` entry needing a case in `isUnchanged`.** The default
+    `previous[field] === next[field]` works only for primitives; `weekAnchor` was the first
+    exception and any future object- or list-valued setting is the next one.
+  - **The audit's changed-field count is asserted as a literal** in
+    `src/application/settings/settings.test.ts` ("treats every field as changed when there is no
+    previous version"). It moved 6 → 7. Any story adding or removing a settings field must re-point
+    it and its comment, which recounts the history of the number.
+  - **A regex insert after `priceCap` hits the *parameter list* too.** `settings-repository.test.ts`
+    builds its version with `version(recordedAt, quotaN = 240, priceCap = null)`, so the first
+    `priceCap,` in the file is a parameter, not an object key. Typecheck caught it; check the hunk.
+  - **German plurals for the rule live in two module-level helpers in `de.ts`** (`fromPersons`,
+    `eggCount`), above the dictionary, because „ab 1 Person“ and „1 Ei“ are both reachable
+    configurations and three phrasings share the grammar. First helpers of their kind in that file.
+---
