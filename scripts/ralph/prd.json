@@ -121,8 +121,8 @@
         "BOTH engines pass: npm run test:e2e and npm run test:e2e:webkit, each after a rebuild and with the dev server stopped (`pkill -f next-server`) — a live port 3000 fails the suite for the wrong reason"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "portions.spec.ts renamed with git mv to allowance.spec.ts; it now asserts the counts and the price and carries the new /Portion/i guard on the counter. Its household was resized from 2+1 to 1+1: at the old size the per-head sum sat exactly on the seeded Maximalpreis, so the added child could not move the price and the new price assertion would have been unable to fail. The grep gate returns exactly two deliberate lines — the guard regex itself and the prd-us-07 path citation in describe-allowance.ts, whose file US-006 forbids renaming — and both are documented where they stand. settings.spec.ts needed no assertion change, only its stale „all eight values“ comment corrected to seven. Both engines pass; a stale next start on port 3000 made the first full run fail 26 specs against an old build, because ss is not installed in this sandbox and the usual port check silently reports free."
     },
     {
       "id": "US-006",

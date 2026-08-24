@@ -282,9 +282,9 @@ describe("updateSettings", () => {
     await updateSettings(deps(), updateInput());
 
     expect(audit.entries[0].changedFields).toContain("pricePerGrownUp");
-    // Six since the two portion counts left `SETTINGS_FIELDS` (US-27), the Maximalpreis among them
-    // (US-26): the seed states every policy value, and an absent cap is one of them being stated
-    // rather than one of them missing.
+    // Six since US-27 withdrew two of them, the Maximalpreis among them (US-26): the seed states
+    // every policy value, and an absent cap is one of them being stated rather than one of them
+    // missing.
     expect(audit.entries[0].changedFields).toHaveLength(6);
   });
 });

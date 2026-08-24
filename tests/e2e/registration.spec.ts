@@ -50,7 +50,7 @@ const CERTIFICATE_VALID_UNTIL = "2027-03-31";
  * the other specs took (241 upwards). The pool the control offers is `1..quotaN`, so a household
  * seeded above the quota is invisible to it: a number nobody may pick could not prove that a taken
  * number is kept out of the list, because it was never in it. 232–234 are free of every band listed
- * in `scripts/ralph/progress.txt` — counter (201–206, 239), portions (211), serve (221–222) and
+ * in `scripts/ralph/progress.txt` — counter (201–206, 239), allowance (211), serve (221–222) and
  * reminders (231) are the only ones below 240.
  */
 const NUMBERS = {
@@ -271,7 +271,7 @@ test.describe("Kundenaufnahme", () => {
    *
    * `15.03.1985` is not an arbitrary date. Typed into a US-ordered widget it was read as month 15,
    * which Chromium silently clamped to December — `1985-12-03`, a valid birthdate nobody entered,
-   * and one that would move a household's portions and price without anything reporting it.
+   * and one that would move a household's counts and price without anything reporting it.
    */
   test("a birthdate is typed as TT.MM.JJJJ, and the day DF type is the day they get", async ({
     page,

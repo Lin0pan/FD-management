@@ -23,8 +23,10 @@ import { releaseNumbers } from "./seeding";
  * head under a Maximalpreis of 5,00 € — and reads the number off all four.
  *
  * The other half is that the cap is a *setting* and not a constant. The same household is priced
- * again with the cap cleared and states 11,00 € everywhere, which no hard-coded 5,00 € could do,
- * and the portions are asserted unmoved across both: the cap caps money, not food.
+ * again with the cap cleared and states 11,00 € everywhere, which no hard-coded 5,00 € could do.
+ * That the cap limits money and nothing else no longer has a witness on the screen — US-27 withdrew
+ * the one quantity of food the software used to state — and it is deliberately not faked with a
+ * different figure: what is left to assert is that the counts keep rising while the price does not.
  *
  * And the third: a hand-out recorded under one cap keeps its price when the cap later changes. The
  * `priceCents` on the distribution record is asserted **in the database**, because the row is what
@@ -65,25 +67,21 @@ const CUSTOMER_NUMBER = 321;
  */
 const GROWN_UP_BIRTH_DATES = ["1985-02-11", "1987-09-30", "1990-03-04", "1992-11-22"] as const;
 const CHILD_BIRTH_DATES = ["2018-04-05", "2020-06-15", "2022-01-20"] as const;
-/** The child added in the household editor to prove the portions still rise above the cap. */
+/** The child added in the household editor to prove an extra head above the cap costs nothing. */
 const EXTRA_CHILD_BIRTH_DATE = "2024-03-08";
 const CERTIFICATE_VALID_UNTIL = "2027-06-30";
 
 /**
- * What the household comes to under the seeded policy — 2 portions and 200c per grown-up, 1 portion
- * and 100c per child, Maximalpreis 500c.
+ * What the household comes to under the seeded policy — 200c per grown-up, 100c per child,
+ * Maximalpreis 500c.
  *
- * `4·2 + 3·1 = 11` portions and `4·200 + 3·100 = 1100` cents per head. The cap is what stands
- * between those 11,00 € and what DF actually collects, and the two figures share the digits `11` on
- * purpose — that is DF's own arithmetic, not a coincidence to be tidied away.
+ * `4·200 + 3·100 = 1100` cents per head. The cap is what stands between those 11,00 € and what DF
+ * actually collects — that is DF's own arithmetic, not a coincidence to be tidied away.
  */
-const PORTIONS = "11";
 const CAPPED_PRICE = "5,00 €";
 const UNCAPPED_PRICE = "11,00 €";
 /** The cap in cents, as the distribution record must store it. */
 const CAPPED_PRICE_CENTS = 500;
-/** The portions after the extra child joins in the editor — one more, while the price does not move. */
-const PORTIONS_WITH_EXTRA_CHILD = "12";
 
 /** The Maximalpreis field on the settings screen, and the value the register is handed back at. */
 const CAP_LABEL = de.settings.fields.priceCap;
@@ -193,12 +191,10 @@ async function lookUp(page: Page): Promise<void> {
  */
 async function expectQuoted(page: Page, id: number, price: string, absent: string): Promise<void> {
   await lookUp(page);
-  await expect(page.getByTestId("counter-portions")).toHaveText(PORTIONS);
   await expect(page.getByTestId("counter-price")).toHaveText(price);
   await expect(page.getByTestId("counter-customer")).not.toContainText(absent);
 
   await page.goto(`/kunden/${id}`);
-  await expect(page.getByTestId("portions")).toHaveText(PORTIONS);
   await expect(page.getByTestId("price")).toHaveText(price);
 
   // The list row is addressed by its number rather than found by a search: the surname comes from
@@ -207,7 +203,6 @@ async function expectQuoted(page: Page, id: number, price: string, absent: strin
   await page.goto("/kunden");
   const row = page.locator(`[data-customer-number="${CUSTOMER_NUMBER}"]`);
   await expect(row).toHaveCount(1);
-  await expect(row.getByTestId("customer-row-portions")).toHaveText(PORTIONS);
   await expect(row.getByTestId("customer-row-price")).toHaveText(price);
   await expect(row).not.toContainText(absent);
 }
@@ -250,9 +245,7 @@ test.describe("Maximalpreis", () => {
     await expectQuoted(page, id, CAPPED_PRICE, UNCAPPED_PRICE);
   });
 
-  test("raises the portions and not the price when a member joins above the cap", async ({
-    page,
-  }) => {
+  test("does not raise the price when a member joins above the cap", async ({ page }) => {
     await page.goto(`/kunden/${id}`);
     await expect(page.getByTestId("household-member")).toHaveCount(7);
 
@@ -264,9 +257,8 @@ test.describe("Maximalpreis", () => {
     await fillDay(page.getByTestId("member-birth-date-7"), EXTRA_CHILD_BIRTH_DATE);
 
     await expect(page.getByTestId("children")).toHaveText("4");
-    await expect(page.getByTestId("portions")).toHaveText(PORTIONS_WITH_EXTRA_CHILD);
-    // Unchanged, and that is the rule: the household was already above the cap, so an extra head
-    // earns food and costs nothing.
+    // The count moves and the price does not, and that is the rule: the household was already above
+    // the cap, so an extra head earns food and costs nothing.
     await expect(page.getByTestId("price")).toHaveText(CAPPED_PRICE);
 
     // Nothing is saved — the edit was a question, and the household stays as it was for the
@@ -325,11 +317,8 @@ test.describe("Maximalpreis", () => {
     // arithmetic — no hard-coded cap could produce both answers.
     await expectQuoted(page, id, UNCAPPED_PRICE, CAPPED_PRICE);
 
-    // The portions are the same `11` they were under the cap: a cap is a limit on money and has
-    // nothing to say about food.
-    await page.goto(`/kunden/${id}`);
-    await expect(page.getByTestId("portions")).toHaveText(PORTIONS);
     // And the hand-out recorded two caps ago still reads what it cost.
+    await page.goto(`/kunden/${id}`);
     await expect(page.getByTestId("history-price")).toHaveText(CAPPED_PRICE);
   });
 

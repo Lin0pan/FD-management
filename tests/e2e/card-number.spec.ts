@@ -54,8 +54,8 @@ const TODAY = "2026-01-08T09:00:00.000Z";
  *
  * It has to be **inside the quota of 240**, unlike the bands the seeding specs took (241 upwards):
  * the control offers `1..quotaN`, and a number nobody may pick could not be chosen twice. 235–238
- * are free of every band named in `scripts/ralph/progress.txt` — counter (201–206, 239), portions
- * (211), serve (221–222), reminders (231) and registration (232–234) are the only ones below 240 —
+ * are free of every band named in `scripts/ralph/progress.txt` — counter (201–206, 239),
+ * allowance (211), serve (221–222), reminders (231) and registration (232–234) are the only ones below 240 —
  * and the low sequence the allocating specs consume is nowhere near it.
  */
 const SLOT = 236;

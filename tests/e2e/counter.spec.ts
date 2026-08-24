@@ -110,8 +110,8 @@ interface Household {
 /**
  * Insert one household with a grown-up, a child, a certificate and its cards.
  *
- * Every household is shaped the same on purpose — one grown-up and one child, so the derived
- * portions and price are the same everywhere and any difference on screen is the verdict's doing.
+ * Every household is shaped the same on purpose — one grown-up and one child, so the derived counts
+ * and price are the same everywhere and any difference on screen is the verdict's doing.
  *
  * @returns the name the screen should show for it.
  */
@@ -332,10 +332,9 @@ test.describe("Verdikt am Tresen", () => {
     await expect(page.getByTestId("counter-group")).toHaveText(de.customers.groups.RED);
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.ACTIVE);
     await expect(page.getByTestId("counter-notes")).toHaveText("Kommt immer früh.");
-    // One grown-up and one child against the seeded settings: 2 + 1 portions, 2,00 € + 1,00 €.
+    // One grown-up and one child against the seeded settings: 2,00 € + 1,00 €.
     await expect(page.getByTestId("counter-grown-ups")).toHaveText("1");
     await expect(page.getByTestId("counter-children")).toHaveText("1");
-    await expect(page.getByTestId("counter-portions")).toHaveText("3");
     await expect(page.getByTestId("counter-price")).toHaveText("3,00 €");
   });
 
@@ -349,8 +348,9 @@ test.describe("Verdikt am Tresen", () => {
       "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED",
       verdicts.certificateExpired.headline,
     );
-    // An expired certificate never withholds food — the household is served and reminded.
-    await expect(page.getByTestId("counter-portions")).toHaveText("3");
+    // An expired certificate never withholds food: the verdict above is a clear-to-serve one, and
+    // the household is priced exactly as any other — reminded, not turned away.
+    await expect(page.getByTestId("counter-price")).toHaveText("3,00 €");
     // The date and the count the headline no longer spells out, in the record it sends staff to.
     // This is what makes dropping the banner's sentence safe rather than a loss of information.
     await expect(page.getByTestId("counter-certificate-valid-until")).toHaveText("31.12.2025");

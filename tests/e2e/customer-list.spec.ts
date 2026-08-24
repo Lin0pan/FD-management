@@ -45,7 +45,7 @@ const TODAY = "2026-01-08T09:00:00.000Z";
 
 /**
  * The numbers this spec owns — clear of the low sequence the registration, card, archive and
- * re-registration specs allocate against, and of the counter (201–206/239), portions (211), serve
+ * re-registration specs allocate against, and of the counter (201–206/239), allowance (211), serve
  * (221–222), reminders (231), block (241), reissue (251) and age-13 (271) specs in the shared
  * `data/e2e.db`.
  */
