@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { hydrated } from "./day";
 
 /**
  * The settings round-trip against the built app
@@ -32,6 +33,31 @@ const CAP_LABEL = de.settings.fields.priceCap;
 const SEEDED_PRICE = "2,00";
 const SEEDED_CAP = "5,00";
 const SEEDED_QUOTA = "240";
+
+/**
+ * Open the settings screen and wait until React owns it.
+ *
+ * Not a nicety. The form is `useActionState`, so the confirmation this file asserts after every save
+ * is *state* — and a save button pressed before the component hydrates submits the form natively
+ * instead, which stores the settings and comes back on a page that holds no state to have put
+ * „Gespeichert." anywhere. The spec then fails five seconds later on `settings-saved` with
+ * "element(s) not found", which names the notice and not the window it fell into.
+ *
+ * That is the same window `fillSticky` closes for a controlled *field* (`day.ts`); here nothing is
+ * typed before the first click, so the wait is all that is needed.
+ *
+ * Added as a precaution, not as a demonstrated fix: it is the mechanism that matches the failure
+ * WebKit shows on a loaded runner — `settings-saved`, "element(s) not found" (CI run 32708233902) —
+ * but that failure has never been reproduced with the wait in place *or* pinned down without it, so
+ * it is honest to say only that this closes a window the file did have open.
+ *
+ * `#pricePerGrownUp` stands in for the form: hydration is per component, and every control on this
+ * screen belongs to the one that owns that input.
+ */
+async function openSettings(page: Page): Promise<void> {
+  await page.goto("/einstellungen");
+  await hydrated(page.locator("#pricePerGrownUp"));
+}
 
 /**
  * Open the version history.
@@ -82,7 +108,7 @@ test.describe("Einstellungen", () => {
    */
   test.beforeAll(async ({ browser }) => {
     const page = await browser.newPage();
-    await page.goto("/einstellungen");
+    await openSettings(page);
     await page.getByLabel(PRICE_LABEL, { exact: true }).fill(SEEDED_PRICE);
     await page.getByLabel(CAP_LABEL, { exact: true }).fill(SEEDED_CAP);
     await page.locator("#quotaN").fill(SEEDED_QUOTA);
@@ -92,7 +118,7 @@ test.describe("Einstellungen", () => {
   });
 
   test("a changed price is stored and shown again after a reload", async ({ page }) => {
-    await page.goto("/einstellungen");
+    await openSettings(page);
 
     const price = page.getByLabel(PRICE_LABEL, { exact: true });
     await expect(price).toHaveValue(SEEDED_PRICE);
@@ -122,7 +148,7 @@ test.describe("Einstellungen", () => {
   });
 
   test("a second save on the same day is applied too, and both are listed", async ({ page }) => {
-    await page.goto("/einstellungen");
+    await openSettings(page);
 
     const before = await versionCount(page);
 
@@ -157,7 +183,7 @@ test.describe("Einstellungen", () => {
   });
 
   test("a rejected quota shows a German error and saves nothing", async ({ page }) => {
-    await page.goto("/einstellungen");
+    await openSettings(page);
 
     await page.getByLabel(PRICE_LABEL, { exact: true }).fill("9,99");
     await page.locator("#quotaN").fill("0");
@@ -195,7 +221,7 @@ test.describe("Einstellungen", () => {
   });
 
   test("correcting the refused field saves the edits that rode with it", async ({ page }) => {
-    await page.goto("/einstellungen");
+    await openSettings(page);
     const before = await versionCount(page);
 
     await page.getByLabel(PRICE_LABEL, { exact: true }).fill("9,99");
@@ -244,7 +270,7 @@ test.describe("Einstellungen", () => {
     // never printed, so moving it — the setting with the most visible downstream effect, since the
     // Start dashboard and /ausgabe both read it — produced a row identical to its predecessor in
     // every character.
-    await page.goto("/einstellungen");
+    await openSettings(page);
     await page.locator("#distributionWeekday").selectOption("5");
     await page.getByRole("button", { name: de.settings.save, exact: true }).click();
     await expect(page.getByTestId("settings-saved")).toHaveText(de.settings.saved);
@@ -285,7 +311,7 @@ test.describe("Einstellungen", () => {
    */
 
   test("a Maximalpreis is stored and shown again after a reload", async ({ page }) => {
-    await page.goto("/einstellungen");
+    await openSettings(page);
 
     const cap = page.getByLabel(CAP_LABEL, { exact: true });
     await expect(cap).toHaveValue(SEEDED_CAP);
@@ -306,7 +332,7 @@ test.describe("Einstellungen", () => {
   });
 
   test("clearing the Maximalpreis leaves the field empty, not 0,00", async ({ page }) => {
-    await page.goto("/einstellungen");
+    await openSettings(page);
 
     // Emptying the field is how a cap is removed — there is no toggle beside it, because a toggle
     // could contradict the amount (US-26.5).
@@ -331,7 +357,7 @@ test.describe("Einstellungen", () => {
   test("the history names the Maximalpreis being changed, removed and introduced", async ({
     page,
   }) => {
-    await page.goto("/einstellungen");
+    await openSettings(page);
 
     // Introducing a cap again, and then moving it back to the seeded 5,00 €: the second save is
     // what supersedes the introduction, and a superseded version is where a diff is shown. It also
@@ -372,7 +398,7 @@ test.describe("Einstellungen", () => {
   test("a Maximalpreis that is not an amount is refused and nothing else is lost", async ({
     page,
   }) => {
-    await page.goto("/einstellungen");
+    await openSettings(page);
 
     await page.getByLabel(CAP_LABEL, { exact: true }).fill("5,0o");
     await page.getByLabel(de.settings.fields.pricePerChild, { exact: true }).fill("1,20");
@@ -435,7 +461,7 @@ test.describe("Einstellungen", () => {
    * Nothing is written, so this leaves the settings exactly as the test above found them.
    */
   test("two fields refused at once are both named and both marked", async ({ page }) => {
-    await page.goto("/einstellungen");
+    await openSettings(page);
 
     await page.getByLabel(PRICE_LABEL, { exact: true }).fill("2,5o");
     await page.getByLabel(de.settings.fields.pricePerChild, { exact: true }).fill("1,2o");
@@ -479,6 +505,6 @@ test.describe("Einstellungen", () => {
   // `src/application/settings/settings.test.ts`; the specs above prove the surrounding path — a
   // rejected quota is explained in German and nothing is written.
   test.skip("a quota below the active customer count is refused", async ({ page }) => {
-    await page.goto("/einstellungen");
+    await openSettings(page);
   });
 });
