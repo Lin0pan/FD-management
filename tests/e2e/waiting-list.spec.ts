@@ -3,8 +3,10 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { clearRegister } from "@/infrastructure/prisma/test-support";
 import { ISOLATED } from "./registers";
-import { fillDay, fillSticky } from "./day";
+import { fillSticky } from "./day";
+import { fillPersonalData as fillPersonalDataOn, type Person } from "./registration-form";
 
 /**
  * The waiting list from a full register to a promoted applicant, driven through the built app
@@ -72,11 +74,13 @@ interface Household {
   readonly customerNumber: string;
 }
 
-/** An applicant as they were typed into the waiting-list form. */
-interface Applicant {
-  readonly firstName: string;
-  readonly lastName: string;
-}
+/**
+ * An applicant as they were typed into the waiting-list form.
+ *
+ * The same two fields the intake takes, and deliberately the same type: the waiting-list form asks
+ * for the personal half of a registration, which is why both are filled by one helper.
+ */
+type Applicant = Person;
 
 function applicant(): Applicant {
   return { firstName: faker.person.firstName(), lastName: faker.person.lastName() };
@@ -86,17 +90,23 @@ function fullName(person: Applicant): string {
   return `${person.firstName} ${person.lastName}`;
 }
 
-/** Fill the personal half of a registration or an application — the two forms ask for it alike. */
+/** What this spec's applicants are eligible on — passed to the shared filler on every call. */
+const ELIGIBILITY = {
+  birthDate: GROWN_UP_BIRTH_DATE,
+  certificateType: CERTIFICATE_TYPE,
+  certificateValidUntil: CERTIFICATE_VALID_UNTIL,
+} as const;
+
+/**
+ * Fill the personal half of a registration or an application — the two forms ask for it alike.
+ *
+ * This used to be a copy of the intake filler, and a copy that had been left behind: every field on
+ * the form is controlled, `registration.spec.ts` was moved onto `fillSticky` when the hydration
+ * window was diagnosed, and this one — private to this file, so nothing pointed at it — went on
+ * calling a bare `fill()`. Now there is one filler and no second place to forget.
+ */
 async function fillPersonalData(page: Page, person: Applicant): Promise<void> {
-  await page.locator("#firstName").fill(person.firstName);
-  await page.locator("#lastName").fill(person.lastName);
-  await fillDay(page.locator("#birthDate"), GROWN_UP_BIRTH_DATE);
-  await page.locator("#street").fill(faker.location.street());
-  await page.locator("#houseNumber").fill(faker.location.buildingNumber());
-  await page.locator("#zip").fill(faker.location.zipCode("#####"));
-  await page.locator("#city").fill(faker.location.city());
-  await page.locator("#certificateType").fill(CERTIFICATE_TYPE);
-  await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
+  await fillPersonalDataOn(page, person, ELIGIBILITY);
 }
 
 /**
@@ -161,6 +171,27 @@ test.describe("Warteliste", () => {
   const first = applicant();
   /** The applicant behind them, who must still be waiting — and now at the head — at the end. */
   const second = applicant();
+
+  /**
+   * Start from an empty register on **every attempt**, not only the first.
+   *
+   * The database is deleted and re-seeded in `webServer.command` (`playwright.config.ts`), which
+   * runs once per *run*. `retries` is 2 on CI and this block is `mode: "serial"`, so a retry replays
+   * it from the first test against the register the previous attempt already filled — and the first
+   * test's whole subject is a register with **nothing left to give**. Two slots are already taken,
+   * so „Aufnehmen" is correctly `disabled={pending || full}` and the retry times out after 30
+   * seconds on a screen that is telling the truth. Both retries then fail that way and the failure
+   * that actually broke the run is buried three tests down.
+   *
+   * `clearRegister` empties everything, which no spec on the *shared* register may do (see
+   * `releaseNumbers` in `seeding.ts`). This one owns its register outright — its own server, its own
+   * database — which is the whole reason it is the isolated project, and emptying it is exactly what
+   * that ownership is for. The quota needs no undoing: the first test sets it through the screen.
+   */
+  test.beforeAll(async () => {
+    await prisma.waitingListEntry.deleteMany();
+    await clearRegister(prisma);
+  });
 
   test.afterAll(async () => {
     await prisma.$disconnect();

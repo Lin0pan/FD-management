@@ -6,6 +6,7 @@ import { foldName } from "@/domain/customer/nameSearch";
 import { customerFieldLabel, de } from "@/i18n/de";
 import { SHARED } from "./registers";
 import { fillDay, fillSticky } from "./day";
+import { fillPersonalData as fillPersonalDataOn, type Person } from "./registration-form";
 import { releaseNumbers } from "./seeding";
 
 /**
@@ -77,33 +78,20 @@ const SEEDED_ARCHIVED_AT = "2025-11-03T10:00:00.000Z";
  */
 const prisma = new PrismaClient({ datasourceUrl: `file:${resolve(SHARED.database)}` });
 
-interface Person {
-  readonly firstName: string;
-  readonly lastName: string;
-}
-
 function person(lastName: string): Person {
   return { firstName: faker.person.firstName(), lastName };
 }
 
-/**
- * Fill everything except the household — the part every spec here needs the same way.
- *
- * Every field on this form is controlled, so every fill goes through `fillSticky`: a `fill()` in the
- * window between the server's HTML and hydration is written straight to the DOM, and the first
- * render from state deletes it again. The fields are controlled because a refused save must not
- * empty them (`registration-form.tsx`, `DetailsDraft`).
- */
+/** What this spec's applicants are eligible on — passed to the shared filler on every call. */
+const ELIGIBILITY = {
+  birthDate: GROWN_UP_BIRTH_DATE,
+  certificateType: "Jobcenter-Bescheid",
+  certificateValidUntil: CERTIFICATE_VALID_UNTIL,
+} as const;
+
+/** Fill everything except the household, through the filler both intake specs share. */
 async function fillPersonalData(page: Page, applicant: Person): Promise<void> {
-  await fillSticky(page.locator("#firstName"), applicant.firstName);
-  await fillSticky(page.locator("#lastName"), applicant.lastName);
-  await fillDay(page.locator("#birthDate"), GROWN_UP_BIRTH_DATE);
-  await fillSticky(page.locator("#street"), faker.location.street());
-  await fillSticky(page.locator("#houseNumber"), faker.location.buildingNumber());
-  await fillSticky(page.locator("#zip"), faker.location.zipCode("#####"));
-  await fillSticky(page.locator("#city"), faker.location.city());
-  await fillSticky(page.locator("#certificateType"), "Jobcenter-Bescheid");
-  await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
+  await fillPersonalDataOn(page, applicant, ELIGIBILITY);
 }
 
 /** Every field of the intake that holds text, as it stands on screen right now. */
