@@ -351,24 +351,19 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
         {/* Ticked deliberately, never by default (FR-4). Unticked it submits nothing at all, so the
             plain /kunden URL is the working view of who DF serves. Native, because the action reads
             it as presence in the FormData and Radix's Checkbox submits nothing of its own. */}
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <input
-              id="filter-archived"
-              type="checkbox"
-              name="archiv"
-              value="1"
-              data-testid="archived-toggle"
-              defaultChecked={filters.archiv === "1"}
-              className="size-4 accent-primary"
-            />
-            <label htmlFor="filter-archived" className="text-sm">
-              {de.customerList.filters.includeArchived}
-            </label>
-          </div>
-          <p className="max-w-prose text-xs text-muted-foreground">
-            {de.customerList.filters.includeArchivedHint}
-          </p>
+        <div className="flex items-center gap-2">
+          <input
+            id="filter-archived"
+            type="checkbox"
+            name="archiv"
+            value="1"
+            data-testid="archived-toggle"
+            defaultChecked={filters.archiv === "1"}
+            className="size-4 accent-primary"
+          />
+          <label htmlFor="filter-archived" className="text-sm">
+            {de.customerList.filters.includeArchived}
+          </label>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

@@ -711,12 +711,6 @@ export const de = {
       /** The unset option of every filter — "no filter", never "no results". */
       all: "Alle",
       includeArchived: "Archivierte Haushalte anzeigen",
-      /**
-       * One clause, on the checkbox it is about. It used to be two sentences standing in a band of
-       * their own below the form, which is a lot of prose to explain a tick-box — and the half of it
-       * that mattered is the half staff cannot infer: the number has been given to somebody else.
-       */
-      includeArchivedHint: "Nicht mehr bezugsberechtigt; die Kundennummer ist wieder vergeben.",
       submit: "Filtern",
       reset: "Filter zurücksetzen",
     },
