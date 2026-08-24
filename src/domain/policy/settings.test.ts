@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { InvalidSettings, NoSettingsInForce } from "../errors";
+import {
+  DuplicateEggThreshold,
+  EggsNotIncreasing,
+  InvalidSettings,
+  NoSettingsInForce,
+} from "../errors";
+import type { EggRuleRow } from "./eggs";
 import {
   changedSettingsFields,
   createSettings,
@@ -10,6 +16,13 @@ import {
   type SettingsVersion,
 } from "./settings";
 
+/** What DF hand out today, typed in the order the rule is displayed in. */
+const DF_EGG_ROWS: ReadonlyArray<EggRuleRow> = [
+  { minPersons: 3, eggs: 6 },
+  { minPersons: 5, eggs: 12 },
+  { minPersons: 8, eggs: 18 },
+];
+
 /** A valid baseline; each test overrides only the field whose rule it is about. */
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
@@ -19,6 +32,7 @@ function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
     pricePerGrownUp: 200,
     pricePerChild: 100,
     priceCap: null,
+    eggRule: DF_EGG_ROWS,
     ...overrides,
   };
 }
@@ -39,6 +53,59 @@ describe("createSettings", () => {
     expect(settings.pricePerGrownUp).toBe(200);
     expect(settings.pricePerChild).toBe(100);
     expect(settings.priceCap).toBeNull();
+    expect(settings.eggRule).toEqual(DF_EGG_ROWS);
+  });
+
+  it("sorts an egg rule typed out of order", () => {
+    // The rule reaches `Settings` through `createEggRule`, so everything downstream — the counter,
+    // the history, the form — reads one order whatever order staff typed.
+    const settings = createSettings(
+      settingsInput({
+        eggRule: [
+          { minPersons: 8, eggs: 18 },
+          { minPersons: 3, eggs: 6 },
+          { minPersons: 5, eggs: 12 },
+        ],
+      }),
+    );
+    expect(settings.eggRule).toEqual(DF_EGG_ROWS);
+  });
+
+  it("accepts an empty egg rule", () => {
+    // No rows is a configuration, not a missing value: nobody receives eggs.
+    expect(createSettings(settingsInput({ eggRule: [] })).eggRule).toEqual([]);
+  });
+
+  it("rejects an egg rule naming the same threshold twice", () => {
+    expect(() =>
+      createSettings(
+        settingsInput({
+          eggRule: [
+            { minPersons: 3, eggs: 6 },
+            { minPersons: 3, eggs: 12 },
+          ],
+        }),
+      ),
+    ).toThrow(DuplicateEggThreshold);
+  });
+
+  it("rejects an egg rule whose larger household is awarded no more eggs", () => {
+    expect(() =>
+      createSettings(
+        settingsInput({
+          eggRule: [
+            { minPersons: 3, eggs: 12 },
+            { minPersons: 5, eggs: 6 },
+          ],
+        }),
+      ),
+    ).toThrow(EggsNotIncreasing);
+  });
+
+  it("rejects an egg rule with a fractional egg count", () => {
+    expect(() =>
+      createSettings(settingsInput({ eggRule: [{ minPersons: 3, eggs: 6.5 }] })),
+    ).toThrow(InvalidSettings);
   });
 
   it("accepts a quota of exactly one", () => {
@@ -253,6 +320,7 @@ describe("changedSettingsFields", () => {
       "pricePerGrownUp",
       "pricePerChild",
       "priceCap",
+      "eggRule",
     ]);
   });
 
@@ -286,6 +354,46 @@ describe("changedSettingsFields", () => {
   it("reports nothing when neither version has a cap", () => {
     // `null === null`, so the absent cap needs no special case in `isUnchanged`.
     const next = createSettings(settingsInput({ priceCap: null }));
+    expect(changedSettingsFields(previous, next)).toEqual([]);
+  });
+
+  it("reports eggRule when a row's egg count changes", () => {
+    const next = createSettings(
+      settingsInput({
+        eggRule: [
+          { minPersons: 3, eggs: 6 },
+          { minPersons: 5, eggs: 14 },
+          { minPersons: 8, eggs: 18 },
+        ],
+      }),
+    );
+    expect(changedSettingsFields(previous, next)).toEqual(["eggRule"]);
+  });
+
+  it("reports eggRule when a row is added", () => {
+    const next = createSettings(
+      settingsInput({ eggRule: [...DF_EGG_ROWS, { minPersons: 12, eggs: 24 }] }),
+    );
+    expect(changedSettingsFields(previous, next)).toEqual(["eggRule"]);
+  });
+
+  it("reports eggRule when the rule is emptied", () => {
+    const next = createSettings(settingsInput({ eggRule: [] }));
+    expect(changedSettingsFields(previous, next)).toEqual(["eggRule"]);
+  });
+
+  it("reports nothing when the egg rule's rows were merely retyped in another order", () => {
+    // The rule is an array, so the field comparison every other value uses is a comparison of two
+    // references — it would call every single save a change to the Eierregel.
+    const next = createSettings(
+      settingsInput({
+        eggRule: [
+          { minPersons: 5, eggs: 12 },
+          { minPersons: 8, eggs: 18 },
+          { minPersons: 3, eggs: 6 },
+        ],
+      }),
+    );
     expect(changedSettingsFields(previous, next)).toEqual([]);
   });
 

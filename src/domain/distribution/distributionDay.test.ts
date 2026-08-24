@@ -15,6 +15,7 @@ function settings(distributionWeekday: IsoWeekday): Settings {
     pricePerGrownUp: 200,
     pricePerChild: 100,
     priceCap: null,
+    eggRule: [],
   });
 }
 

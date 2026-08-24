@@ -15,6 +15,7 @@ const THURSDAYS: Settings = createSettings({
   pricePerGrownUp: 200,
   pricePerChild: 100,
   priceCap: null,
+  eggRule: [],
 });
 
 /**

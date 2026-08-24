@@ -52,6 +52,7 @@ function version(
       pricePerGrownUp: 200,
       pricePerChild: 100,
       priceCap,
+      eggRule: [],
     }),
   };
 }

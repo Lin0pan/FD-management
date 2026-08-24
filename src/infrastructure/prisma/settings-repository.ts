@@ -36,6 +36,9 @@ function toDomain(row: StoredVersion): SettingsVersion {
       // domain spells "no cap" exactly one way, and `undefined` would slip past `createSettings`
       // as a missing field instead of a configured one.
       priceCap: row.priceCapCents ?? null,
+      // Empty until US-28.5 (batch 28, US-004) adds the `EggAllowanceRow` child table and reads the
+      // version's rows back here. Until then every stored version resolves to "no eggs for anyone".
+      eggRule: [],
     }),
   };
 }

@@ -86,3 +86,50 @@ export function eggsFor(rule: EggRule, persons: number): number {
   }
   return eggs;
 }
+
+/**
+ * One row's fate between two versions of the rule: it appeared, it went away, or its egg count
+ * moved.
+ *
+ * A `changed` row keeps `from` and `to` because that is the whole of what moved — a threshold
+ * cannot change, since the threshold is what identifies the row. Retyping „ab 5“ as „ab 6“ is a row
+ * removed and a row added, which is what it is: the household of five stopped receiving anything.
+ */
+export type EggRuleRowChange =
+  | { readonly kind: "added"; readonly minPersons: number; readonly eggs: number }
+  | { readonly kind: "removed"; readonly minPersons: number; readonly eggs: number }
+  | {
+      readonly kind: "changed";
+      readonly minPersons: number;
+      readonly from: number;
+      readonly to: number;
+    };
+
+/**
+ * What changed between two egg rules, row by row and in threshold order.
+ *
+ * Rows are matched **by threshold**, never by position: a rule is a set of steps identified by the
+ * household size they start at, and removing the lowest row would otherwise read as a change to
+ * every row below it. An unchanged row is not reported, so an empty list means the two rules are the
+ * same rule — the order they were typed in is not part of the value (FR-6).
+ */
+export function diffEggRule(previous: EggRule, next: EggRule): ReadonlyArray<EggRuleRowChange> {
+  const before = new Map(previous.map((row) => [row.minPersons, row.eggs]));
+  const after = new Map(next.map((row) => [row.minPersons, row.eggs]));
+
+  const thresholds = [...new Set([...before.keys(), ...after.keys()])].sort((a, b) => a - b);
+
+  const changes: EggRuleRowChange[] = [];
+  for (const minPersons of thresholds) {
+    const from = before.get(minPersons);
+    const to = after.get(minPersons);
+    if (from === undefined && to !== undefined) {
+      changes.push({ kind: "added", minPersons, eggs: to });
+    } else if (from !== undefined && to === undefined) {
+      changes.push({ kind: "removed", minPersons, eggs: from });
+    } else if (from !== undefined && to !== undefined && from !== to) {
+      changes.push({ kind: "changed", minPersons, from, to });
+    }
+  }
+  return changes;
+}

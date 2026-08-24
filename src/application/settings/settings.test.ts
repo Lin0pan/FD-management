@@ -57,6 +57,7 @@ function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
     pricePerGrownUp: 200,
     pricePerChild: 100,
     priceCap: null,
+    eggRule: [],
     ...overrides,
   };
 }
@@ -282,10 +283,10 @@ describe("updateSettings", () => {
     await updateSettings(deps(), updateInput());
 
     expect(audit.entries[0].changedFields).toContain("pricePerGrownUp");
-    // Six since US-27 withdrew two of them, the Maximalpreis among them (US-26): the seed states
-    // every policy value, and an absent cap is one of them being stated rather than one of them
-    // missing.
-    expect(audit.entries[0].changedFields).toHaveLength(6);
+    // Seven since US-28 added the Eierregel to the six US-27 left: the seed states every policy
+    // value, and an absent cap — or an empty egg rule — is one of them being stated rather than one
+    // of them missing.
+    expect(audit.entries[0].changedFields).toHaveLength(7);
   });
 });
 

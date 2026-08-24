@@ -14,6 +14,7 @@
 
 import { InvalidSettings, NoSettingsInForce } from "../errors";
 import type { Cents } from "../money";
+import { createEggRule, diffEggRule, type EggRule, type EggRuleRow } from "./eggs";
 import { requireInteger } from "./require-integer";
 
 /** The two-week distribution cycle alternates between these two groups. */
@@ -69,11 +70,20 @@ export interface Settings {
    * apart from the settings form down to the nullable column, so there is one spelling end to end.
    */
   readonly priceCap: Cents | null;
+  /**
+   * How many eggs a household receives, as a staircase of thresholds (US-28). The only list-valued
+   * policy value, and the only one that may legitimately be empty: no rows means no eggs for anyone.
+   */
+  readonly eggRule: EggRule;
 }
 
-/** The unvalidated shape `createSettings` accepts — the weekday is narrowed during validation. */
-export interface SettingsInput extends Omit<Settings, "distributionWeekday"> {
+/**
+ * The unvalidated shape `createSettings` accepts — the weekday is narrowed and the egg rule is
+ * sorted and checked during validation, exactly as the weekday arrives here as a plain number.
+ */
+export interface SettingsInput extends Omit<Settings, "distributionWeekday" | "eggRule"> {
   readonly distributionWeekday: number;
+  readonly eggRule: ReadonlyArray<EggRuleRow>;
 }
 
 /**
@@ -120,6 +130,10 @@ export function createSettings(input: SettingsInput): Settings {
     );
   }
 
+  // Through `createEggRule`, so an invalid rule can never reach a `Settings` value: sorting and the
+  // staircase check are that constructor's, and repeating either here would be a second answer.
+  const eggRule = createEggRule(input.eggRule);
+
   return {
     quotaN: input.quotaN,
     weekAnchor: { isoWeek: input.weekAnchor.isoWeek, colour: input.weekAnchor.colour },
@@ -127,6 +141,7 @@ export function createSettings(input: SettingsInput): Settings {
     pricePerGrownUp: input.pricePerGrownUp,
     pricePerChild: input.pricePerChild,
     priceCap: input.priceCap,
+    eggRule,
   };
 }
 
@@ -162,6 +177,7 @@ const SETTINGS_FIELDS = [
   "pricePerGrownUp",
   "pricePerChild",
   "priceCap",
+  "eggRule",
 ] as const;
 
 /** The name of one editable policy field, as it appears in an audit entry. */
@@ -174,6 +190,11 @@ function sameWeekAnchor(a: WeekAnchor, b: WeekAnchor): boolean {
 function isUnchanged(field: SettingsField, previous: Settings, next: Settings): boolean {
   if (field === "weekAnchor") {
     return sameWeekAnchor(previous.weekAnchor, next.weekAnchor);
+  }
+  // The rule is an array, so the comparison below is a comparison of two references and would report
+  // every single save as a change to it. Two rules are the same rule when no row differs.
+  if (field === "eggRule") {
+    return diffEggRule(previous.eggRule, next.eggRule).length === 0;
   }
   return previous[field] === next[field];
 }

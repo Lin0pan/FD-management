@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DuplicateEggThreshold, EggsNotIncreasing, InvalidSettings } from "../errors";
-import { createEggRule, eggsFor, type EggRuleRow } from "./eggs";
+import { createEggRule, diffEggRule, eggsFor, type EggRuleRow } from "./eggs";
 
 /** What DF hand out today: 3 persons → 6 eggs, 5 → 12, 8 → 18, and nothing below three. */
 const DF_ROWS: ReadonlyArray<EggRuleRow> = [
@@ -171,5 +171,86 @@ describe("eggsFor", () => {
 
   it("awards nothing to a household of nobody", () => {
     expect(eggsFor(rule, 0)).toBe(0);
+  });
+});
+
+describe("diffEggRule", () => {
+  const rule = createEggRule(DF_ROWS);
+
+  it("reports nothing when the rule did not move", () => {
+    expect(diffEggRule(rule, createEggRule(DF_ROWS))).toEqual([]);
+  });
+
+  it("reports nothing when the same rows were merely retyped in another order", () => {
+    // The value is sorted, so the order staff typed the rows in is not part of it. A comparison
+    // that walked the two arrays in step would call this a change to every row.
+    const retyped = createEggRule([
+      { minPersons: 8, eggs: 18 },
+      { minPersons: 3, eggs: 6 },
+      { minPersons: 5, eggs: 12 },
+    ]);
+
+    expect(diffEggRule(rule, retyped)).toEqual([]);
+  });
+
+  it("reports a row that was added", () => {
+    const next = createEggRule([...DF_ROWS, { minPersons: 12, eggs: 24 }]);
+
+    expect(diffEggRule(rule, next)).toEqual([{ kind: "added", minPersons: 12, eggs: 24 }]);
+  });
+
+  it("reports a row that was removed", () => {
+    const next = createEggRule([
+      { minPersons: 3, eggs: 6 },
+      { minPersons: 8, eggs: 18 },
+    ]);
+
+    expect(diffEggRule(rule, next)).toEqual([{ kind: "removed", minPersons: 5, eggs: 12 }]);
+  });
+
+  it("reports a row whose egg count changed, from and to", () => {
+    const next = createEggRule([
+      { minPersons: 3, eggs: 6 },
+      { minPersons: 5, eggs: 14 },
+      { minPersons: 8, eggs: 18 },
+    ]);
+
+    expect(diffEggRule(rule, next)).toEqual([{ kind: "changed", minPersons: 5, from: 12, to: 14 }]);
+  });
+
+  it("reports several row changes at once, in threshold order", () => {
+    // Rows are matched by threshold, never by position: removing the lowest row and adding a
+    // higher one would look like three changed rows to a walk down two arrays in step.
+    const next = createEggRule([
+      { minPersons: 5, eggs: 14 },
+      { minPersons: 8, eggs: 18 },
+      { minPersons: 12, eggs: 24 },
+    ]);
+
+    expect(diffEggRule(rule, next)).toEqual([
+      { kind: "removed", minPersons: 3, eggs: 6 },
+      { kind: "changed", minPersons: 5, from: 12, to: 14 },
+      { kind: "added", minPersons: 12, eggs: 24 },
+    ]);
+  });
+
+  it("reports every row as removed when the rule was emptied", () => {
+    expect(diffEggRule(rule, createEggRule([]))).toEqual([
+      { kind: "removed", minPersons: 3, eggs: 6 },
+      { kind: "removed", minPersons: 5, eggs: 12 },
+      { kind: "removed", minPersons: 8, eggs: 18 },
+    ]);
+  });
+
+  it("reports every row as added when the rule was filled from empty", () => {
+    expect(diffEggRule(createEggRule([]), rule)).toEqual([
+      { kind: "added", minPersons: 3, eggs: 6 },
+      { kind: "added", minPersons: 5, eggs: 12 },
+      { kind: "added", minPersons: 8, eggs: 18 },
+    ]);
+  });
+
+  it("reports nothing when both rules are empty", () => {
+    expect(diffEggRule(createEggRule([]), createEggRule([]))).toEqual([]);
   });
 });

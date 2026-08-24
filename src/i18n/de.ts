@@ -6,6 +6,21 @@
  * Keeping the strings in one dictionary module makes the surface easy to review and, if it is ever
  * needed, to translate.
  */
+/**
+ * „ab 3 Personen“, and „ab 1 Person“ for the threshold of one the egg rule allows (US-28).
+ *
+ * A module-level helper rather than a dictionary entry: it is a fragment of grammar the three row
+ * phrasings below share, never a string a screen asks for on its own.
+ */
+function fromPersons(minPersons: number): string {
+  return `ab ${minPersons === 1 ? "1 Person" : `${minPersons} Personen`}`;
+}
+
+/** „6 Eier“, and „1 Ei“ for the single egg nothing in the rule forbids. */
+function eggCount(eggs: number): string {
+  return eggs === 1 ? "1 Ei" : `${eggs} Eier`;
+}
+
 export const de = {
   app: {
     name: "Füllhorn Delbrück – Verwaltung",
@@ -1264,6 +1279,30 @@ export const de = {
        * this one apart is that it is a limit per household per distribution.
        */
       priceCap: "Maximalpreis je Ausgabe",
+      /**
+       * „Eierregel“ and not the bare „Eier“: the figure a household receives is announced as „Eier“
+       * on the counter and on the record, and a change to the *rule* that decides it must not
+       * arrive in the history under the same word as the figure it changes.
+       */
+      eggRule: "Eierregel",
+    },
+    /**
+     * The egg allowance (US-28), the one policy value that is a list of rows. Its words are here
+     * rather than in `history` because the same phrasings state a rule and state a change to it.
+     */
+    eggs: {
+      /** A row that was not in the previous rule: „ab 8 Personen: 18 Eier (neu)“. */
+      rowAdded: (minPersons: number, eggs: number): string =>
+        `${fromPersons(minPersons)}: ${eggCount(eggs)} (neu)`,
+      /** A row the new rule no longer has: „ab 3 Personen: 6 Eier (entfernt)“. */
+      rowRemoved: (minPersons: number, eggs: number): string =>
+        `${fromPersons(minPersons)}: ${eggCount(eggs)} (entfernt)`,
+      /**
+       * A row whose count moved: „ab 5 Personen: 12 → 14 Eier“. The unit is stated once, at the
+       * end — a threshold cannot change, because the threshold is what identifies the row.
+       */
+      rowChanged: (minPersons: number, from: number, to: number): string =>
+        `${fromPersons(minPersons)}: ${from} → ${eggCount(to)}`,
     },
     colours: {
       RED: "Rot",
@@ -1343,6 +1382,16 @@ export const de = {
       noChange: "Keine Änderung an den Werten",
       /** One changed field, both sides of it: `Preis je Erwachsenem: 1,80 € → 2,00 €`. */
       change: (label: string, from: string, to: string): string => `${label}: ${from} → ${to}`,
+      /**
+       * A list-valued setting's change, stated as the rows that moved rather than as two values:
+       * `Eierregel: ab 8 Personen: 18 Eier (neu) · ab 5 Personen: 12 → 14 Eier`.
+       *
+       * The rows arrive in threshold order and already carry their own words, so this only joins
+       * them under the label — printing the whole rule on either side of an arrow is the
+       * restatement this history exists to avoid.
+       */
+      rowChanges: (label: string, rows: ReadonlyArray<string>): string =>
+        `${label}: ${rows.join(" · ")}`,
     },
     errors: {
       /**

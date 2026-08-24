@@ -26,6 +26,9 @@ export function provisionalSettingsVersion(): SettingsVersion {
       pricePerGrownUp: 200,
       pricePerChild: 100,
       priceCap: 500,
+      // Empty until US-28.5 (batch 28, US-004) gives the version its own rows: DF's own rule is
+      // seeded there, with the child table that stores it.
+      eggRule: [],
     }),
   };
 }

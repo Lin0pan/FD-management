@@ -229,6 +229,10 @@ export async function saveSettings(
         pricePerGrownUp: form.pricePerGrownUp,
         pricePerChild: form.pricePerChild,
         priceCap: form.priceCap,
+        // Empty until US-28.7 (batch 28, US-006) puts the rule's rows on the form. Saving on this
+        // branch therefore erases the rule, which is why that story is in this batch and not a
+        // follow-up.
+        eggRule: [],
       },
     });
   } catch (error: unknown) {

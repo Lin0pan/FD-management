@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/card";
 import { DomainError } from "@/domain/errors";
 import { type Cents, formatEuros } from "@/domain/money";
+import type { EggRuleRowChange } from "@/domain/policy/eggs";
 import type { Settings } from "@/domain/policy/settings";
 import type { SettingsChange } from "@/domain/policy/settings-diff";
 import { de } from "@/i18n/de";
@@ -74,6 +75,27 @@ function describeChange(change: SettingsChange): string {
         describeCap(change.from),
         describeCap(change.to),
       );
+    case "eggRule":
+      // The one change without a `from` and a `to`: a rule is a list, and stating it as one value
+      // arrowing into another would print both rules in full — the restatement this history was
+      // rewritten to stop doing. The rows arrive in threshold order and are joined as they are.
+      return de.settings.history.rowChanges(
+        de.settings.fields.eggRule,
+        change.rows.map(describeEggRuleRow),
+      );
+  }
+}
+
+/** One row of an egg-rule change, in the words of the kind of change it is. */
+function describeEggRuleRow(row: EggRuleRowChange): string {
+  const words = de.settings.eggs;
+  switch (row.kind) {
+    case "added":
+      return words.rowAdded(row.minPersons, row.eggs);
+    case "removed":
+      return words.rowRemoved(row.minPersons, row.eggs);
+    case "changed":
+      return words.rowChanged(row.minPersons, row.from, row.to);
   }
 }
 
