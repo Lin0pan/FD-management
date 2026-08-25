@@ -277,6 +277,14 @@ export const de = {
       emptyHousehold:
         "Der Haushalt hat kein Mitglied. Die aufgenommene Person zählt selbst dazu — bitte " +
         "mindestens eine Zeile ausfüllen.",
+      /**
+       * Names the person the household is missing rather than the rule it broke: on the record the
+       * customer's row is locked, so a household without them is one that was written before the
+       * rule — and the answer is to type that row back in.
+       */
+      customerNotInHousehold: (name: string): string =>
+        `${name} zählt selbst zum Haushalt und fehlt in der Liste. Bitte eine Zeile mit Namen ` +
+        `und Geburtsdatum ergänzen.`,
       birthDateInFuture: "Ein Geburtsdatum liegt in der Zukunft. Bitte das Datum prüfen.",
       noFreeCustomerNumber: (quotaN: number): string =>
         `Alle ${quotaN} Kundennummern sind vergeben. Bitte einen Haushalt archivieren oder die ` +

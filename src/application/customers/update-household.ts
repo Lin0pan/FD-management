@@ -12,7 +12,8 @@
  * next read, with nothing to enqueue and nothing that can be forgotten.
  *
  * The rows are judged by `createHouseholdMembers`, the same domain rule a registration is judged by,
- * so an edit can never let through a household a registration would refuse.
+ * so an edit can never let through a household a registration would refuse — including the one an
+ * edit is uniquely able to attempt: a household the customer themselves has been taken out of.
  */
 
 import { createHouseholdMembers, type HouseholdMemberDetails } from "@/domain/customer/customer";
@@ -55,6 +56,7 @@ export interface UpdateHouseholdInput {
  * @throws {MissingRequiredField} naming the row whose first or last name is blank.
  * @throws {EmptyHousehold} if the new household has no members.
  * @throws {BirthDateInFuture} if a member was born after today.
+ * @throws {CustomerNotInHousehold} if the new household no longer lists the customer themselves.
  */
 export async function updateHousehold(
   deps: UpdateHouseholdDeps,
@@ -71,7 +73,18 @@ export async function updateHousehold(
     throw new CustomerArchived(customerId);
   }
 
-  const householdMembers = createHouseholdMembers(members, now);
+  // Judged as *this customer's* household: the registered person is one of the rows, and a set that
+  // no longer lists them is refused rather than saved. Everything the counter charges and hands out
+  // is derived from these rows, so a household without them would price somebody else's family.
+  const householdMembers = createHouseholdMembers(
+    members,
+    {
+      firstName: customer.details.firstName,
+      lastName: customer.details.lastName,
+      birthDate: customer.details.birthDate,
+    },
+    now,
+  );
 
   await deps.customers.updateHousehold(customerId, householdMembers);
   await deps.audit.append({

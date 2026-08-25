@@ -177,11 +177,14 @@ function household({
   group = "RED",
   printedGroup,
 }: HouseholdOptions): RegisteredCustomer {
+  // The customer is the first of their own household's rows, the way the register always holds
+  // them — the domain refuses a household that does not list the person it belongs to.
+  const [self] = members;
   const details = createCustomerDetails(
     {
-      firstName: faker.person.firstName(),
-      lastName: faker.person.lastName(),
-      birthDate: GROWN_UP_BIRTH_DATE,
+      firstName: self.firstName,
+      lastName: self.lastName,
+      birthDate: self.birthDate,
       address: {
         street: faker.location.street(),
         houseNumber: faker.location.buildingNumber(),

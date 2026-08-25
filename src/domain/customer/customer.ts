@@ -13,7 +13,12 @@
  */
 
 import type { IssuedCard } from "../card/card";
-import { InvalidCustomerRecord, MissingRequiredField, NotesTooLong } from "../errors";
+import {
+  CustomerNotInHousehold,
+  InvalidCustomerRecord,
+  MissingRequiredField,
+  NotesTooLong,
+} from "../errors";
 import type { Group } from "./group";
 import { composition, type HouseholdMember } from "./householdComposition";
 
@@ -185,12 +190,19 @@ function requireText(field: string, value: string): string {
 }
 
 /**
- * Validate a household — the rows themselves, independent of whose record they hang on.
+ * Validate a household — the rows, and that they are the household of the customer they belong to.
  *
  * It is its own function because a household is edited long after it is first typed (US-16.1), and
  * the edit must be judged by exactly the rules the registration was: a second implementation would
  * be free to let a member through that registration refuses, and the two would drift apart with the
  * first rule that changed.
+ *
+ * `customer` is a required parameter for that same reason. The registered person *is* one of these
+ * rows — everything the counter charges and hands out is derived from them — so a household that
+ * does not list them is not their household, and a caller cannot validate one without saying whose
+ * it is. Their row is found by what it says, the way {@link replaceHouseholdMember} finds it, and
+ * both sides are compared trimmed: the rows are trimmed here, and the customer arrives as they were
+ * typed on a form or as they are stored.
  *
  * The rows come back trimmed and **copied**, so a caller that keeps editing the array it passed in
  * cannot reach into the validated household afterwards.
@@ -198,9 +210,11 @@ function requireText(field: string, value: string): string {
  * @throws {MissingRequiredField} naming the row whose first or last name is blank.
  * @throws {EmptyHousehold} if no member was given.
  * @throws {BirthDateInFuture} if a member was born after `today`.
+ * @throws {CustomerNotInHousehold} if no row is the customer themselves.
  */
 export function createHouseholdMembers(
   members: ReadonlyArray<HouseholdMemberDetails>,
+  customer: HouseholdMemberDetails,
   today: Date,
 ): ReadonlyArray<HouseholdMemberDetails> {
   const householdMembers = members.map((member, index) => ({
@@ -212,7 +226,19 @@ export function createHouseholdMembers(
   // Deriving the composition is how the household is validated: it rejects an empty household and a
   // birthdate that lies after today. The counts themselves are discarded on purpose — they are
   // derived again wherever they are needed and are never part of the record.
+  //
+  // Before the customer's own row is looked for, deliberately: an empty table is missing them too,
+  // and "der Haushalt hat kein Mitglied" is the more useful of the two answers.
   composition(householdMembers, today);
+
+  const self = {
+    firstName: customer.firstName.trim(),
+    lastName: customer.lastName.trim(),
+    birthDate: customer.birthDate,
+  };
+  if (!householdMembers.some((row) => isSameMember(row, self))) {
+    throw new CustomerNotInHousehold(self.firstName, self.lastName, self.birthDate);
+  }
 
   return householdMembers;
 }
@@ -286,7 +312,10 @@ function isSameMember(row: HouseholdMemberDetails, other: HouseholdMemberDetails
  * edit, the customer's row is the one holding exactly their old name and birthdate — so that is what
  * is matched, and only the first such row, since one person cannot live in a household twice. When
  * no row says it, the household is returned unchanged: nothing there claims to be the customer, and
- * guessing which row meant them is how an edit rewrites somebody else.
+ * guessing which row meant them is how an edit rewrites somebody else. Since
+ * {@link createHouseholdMembers} refuses a household without the customer in it, that can only be a
+ * record written before the rule existed — and repairing it belongs to the household editor, where
+ * the missing row can be typed, rather than to a correction of a name.
  */
 export function replaceHouseholdMember(
   members: ReadonlyArray<HouseholdMemberDetails>,
@@ -303,13 +332,14 @@ export function replaceHouseholdMember(
  * @throws {MissingRequiredField} for a name, address part or certificate type left blank.
  * @throws {EmptyHousehold} if no household member was given.
  * @throws {BirthDateInFuture} if the customer or a member was born after `today`.
+ * @throws {CustomerNotInHousehold} if the household does not list the applicant themselves.
  * @throws {NotesTooLong} if the note is longer than {@link NOTES_MAX_LENGTH}.
  */
 export function createCustomerDetails(input: CustomerDetailsInput, today: Date): CustomerDetails {
-  const householdMembers = createHouseholdMembers(input.householdMembers, today);
-  // The customer is normally one of those rows, but nothing forces staff to have added them first,
-  // so their own data is checked in its own right — by the same rule a later correction is judged by.
+  // The applicant's own data first, and by the same rule a later correction is judged by — because
+  // the household is then judged as *theirs*, and it takes their trimmed name to say which row is.
   const personal = createPersonalDetails(input, today);
+  const householdMembers = createHouseholdMembers(input.householdMembers, personal, today);
 
   return {
     ...personal,

@@ -20,6 +20,7 @@ export type DomainErrorCode =
   | "InvalidCustomerRecord"
   | "MissingRequiredField"
   | "EmptyHousehold"
+  | "CustomerNotInHousehold"
   | "BirthDateInFuture"
   | "WrongGroupForWeek"
   | "InvalidCardNumber"
@@ -125,6 +126,32 @@ export class EmptyHousehold extends DomainError {
 
   constructor() {
     super("A household must have at least one member");
+  }
+}
+
+/**
+ * A household was submitted without the customer it belongs to among its rows. The registered person
+ * *is* a household member — their name and birthdate are on the record twice, once as the person the
+ * customer number belongs to and once as a row among the people they live with — and everything the
+ * counter charges and hands out is derived from those rows. A household the customer is not in would
+ * price and feed somebody else's family.
+ *
+ * Carries the person who is missing, so the UI can name them rather than reporting that "somebody"
+ * is absent.
+ */
+export class CustomerNotInHousehold extends DomainError {
+  readonly code = "CustomerNotInHousehold";
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly birthDate: Date;
+
+  constructor(firstName: string, lastName: string, birthDate: Date) {
+    super(
+      `The household does not list ${firstName} ${lastName}, born ${birthDate.toISOString()}, who it belongs to`,
+    );
+    this.firstName = firstName;
+    this.lastName = lastName;
+    this.birthDate = birthDate;
   }
 }
 
