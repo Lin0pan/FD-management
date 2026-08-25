@@ -22,6 +22,7 @@ import { parseGroup } from "@/domain/customer/group";
 import {
   BirthDateInFuture,
   CertificateValidUntilInPast,
+  CustomerNotInHousehold,
   CustomerNumberOutOfRange,
   CustomerNumberTaken,
   EmptyHousehold,
@@ -236,9 +237,10 @@ export function fieldRefusals(
 /**
  * The field a typed domain error names, or `null` where it names none.
  *
- * Four of the errors this layer knows are about one value staff typed, and three are not:
- * `EmptyHousehold` is a statement about the whole table, `NoFreeCustomerNumber` about the register,
- * and `BirthDateInFuture` carries only the date — it is raised for the customer's own birthdate and
+ * Four of the errors this layer knows are about one value staff typed, and four are not:
+ * `EmptyHousehold` and `CustomerNotInHousehold` are statements about the whole table — the second
+ * names a person, and the row it wants is the one that is *not* there — `NoFreeCustomerNumber` is
+ * about the register, and `BirthDateInFuture` carries only the date — it is raised for the customer's own birthdate and
  * for every household row alike, and nothing on it says which. Naming that one needs the error to
  * carry its row; until it does, it stays a summary that marks nothing rather than a mark that
  * guesses.
@@ -288,6 +290,9 @@ export function customerErrorMessage(error: unknown): string | null {
   }
   if (error instanceof EmptyHousehold) {
     return de.customers.errors.emptyHousehold;
+  }
+  if (error instanceof CustomerNotInHousehold) {
+    return de.customers.errors.customerNotInHousehold(`${error.firstName} ${error.lastName}`);
   }
   if (error instanceof BirthDateInFuture) {
     return de.customers.errors.birthDateInFuture;

@@ -159,9 +159,15 @@ export const de = {
       addressHeading: "Anschrift",
       certificateHeading: "Bedarfsnachweis",
       householdHeading: "Haushalt",
+      /**
+       * Says which row is the applicant's and why it cannot be typed in, rather than promising it
+       * is the first: a form filled from an archived record or a waiting-list entry carries the
+       * household as that record listed it, and the applicant may stand anywhere in it.
+       */
       householdHint:
-        "Die aufgenommene Person zählt selbst zum Haushalt und steht in der ersten Zeile. " +
-        "Weitere Mitglieder bitte ergänzen.",
+        "Die aufgenommene Person zählt selbst zum Haushalt. Ihre Zeile wird oben aus Name und " +
+        "Geburtsdatum übernommen und lässt sich hier nicht ändern oder entfernen. Weitere " +
+        "Mitglieder bitte ergänzen.",
       assignmentHeading: "Zuordnung",
       addMember: "Weiteres Haushaltsmitglied",
       removeMember: "Zeile entfernen",
@@ -277,6 +283,14 @@ export const de = {
       emptyHousehold:
         "Der Haushalt hat kein Mitglied. Die aufgenommene Person zählt selbst dazu — bitte " +
         "mindestens eine Zeile ausfüllen.",
+      /**
+       * Names the person the household is missing rather than the rule it broke: on the record the
+       * customer's row is locked, so a household without them is one that was written before the
+       * rule — and the answer is to type that row back in.
+       */
+      customerNotInHousehold: (name: string): string =>
+        `${name} zählt selbst zum Haushalt und fehlt in der Liste. Bitte eine Zeile mit Namen ` +
+        `und Geburtsdatum ergänzen.`,
       birthDateInFuture: "Ein Geburtsdatum liegt in der Zukunft. Bitte das Datum prüfen.",
       noFreeCustomerNumber: (quotaN: number): string =>
         `Alle ${quotaN} Kundennummern sind vergeben. Bitte einen Haushalt archivieren oder die ` +
@@ -582,6 +596,15 @@ export const de = {
         "sofort. Ändert sich dabei die Zahl der Köpfe, steht der Haushalt danach auf der Liste " +
         "„Karten neu ausstellen“ — die Karte nennt die alten Zahlen.",
       householdSubmit: "Haushalt speichern",
+      /**
+       * Why one row's „Zeile entfernen“ is greyed out and its Felder nicht beschreibbar sind. It
+       * says where the correction *does* belong, because the form that owns it is on the same page,
+       * directly above.
+       */
+      customerRowHint:
+        "Die aufgenommene Person zählt selbst zum Haushalt: Ihre Zeile lässt sich hier weder " +
+        "entfernen noch ändern. Name und Geburtsdatum werden oben unter „Person und Anschrift“ " +
+        "korrigiert.",
       notesHeading: "Bemerkung",
       notesHint:
         "Die Bemerkung wird an der Ausgabe angezeigt, sobald die Kundennummer eingegeben wird. " +

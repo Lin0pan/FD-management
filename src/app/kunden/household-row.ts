@@ -1,4 +1,48 @@
 /**
+ * What both household tables — the registration's (`neu/registration-form.tsx`) and the record's
+ * (`[id]/household-editor.tsx`) — agree about a row: the shape it is held in while it is being
+ * typed, and the box its static text sits in.
+ *
+ * One module for both for the reason `MEMBER_INPUT` and `memberPath` are shared
+ * (`src/app/field-refusal.ts`): two spellings of one household-row decision is how the two tables
+ * come to behave differently, with nothing failing anywhere.
+ */
+
+/** A household row as a form holds it: the raw strings, exactly as they were typed. */
+export interface MemberRow {
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly birthDate: string;
+}
+
+/** The row an empty "add a member" button appends. */
+export const EMPTY_ROW: MemberRow = { firstName: "", lastName: "", birthDate: "" };
+
+/**
+ * Whether this row is the customer themselves — the person the record is about, who is one of the
+ * people they live with.
+ *
+ * The screens' reading of the rule `createHouseholdMembers` enforces, and it is read the same way:
+ * a row is theirs when it *says* what they do, trimmed, because a household row has no identity of
+ * its own. It is what the two tables lock, so that the row the domain requires cannot be removed or
+ * typed over — the refusal is the guard, this is the courtesy.
+ *
+ * A customer with a field still blank matches nothing. On a registration form every row starts
+ * empty, and an empty customer that matched them would lock the whole table on the way in.
+ */
+export function isCustomerRow(row: MemberRow, customer: MemberRow): boolean {
+  const first = customer.firstName.trim();
+  const last = customer.lastName.trim();
+  const born = customer.birthDate.trim();
+  if (first === "" || last === "" || born === "") {
+    return false;
+  }
+  return (
+    row.firstName.trim() === first && row.lastName.trim() === last && row.birthDate.trim() === born
+  );
+}
+
+/**
  * The box that puts a household row's static text on the line of the row's controls.
  *
  * Both household tables — the registration's (`neu/registration-form.tsx`) and the record's

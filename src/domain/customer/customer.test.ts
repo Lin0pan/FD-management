@@ -2,6 +2,7 @@ import { faker } from "@faker-js/faker";
 import { describe, expect, it } from "vitest";
 import {
   BirthDateInFuture,
+  CustomerNotInHousehold,
   EmptyHousehold,
   InvalidCustomerRecord,
   MissingRequiredField,
@@ -37,8 +38,13 @@ function member(overrides: Partial<HouseholdMemberDetails> = {}): HouseholdMembe
   };
 }
 
+/** The household row the customer themselves is — what every legitimate household has to contain. */
+function self(person: PersonalDetails): HouseholdMemberDetails {
+  return { firstName: person.firstName, lastName: person.lastName, birthDate: person.birthDate };
+}
+
 function detailsInput(overrides: Partial<CustomerDetailsInput> = {}): CustomerDetailsInput {
-  return {
+  const input: CustomerDetailsInput = {
     firstName: faker.person.firstName(),
     lastName: faker.person.lastName(),
     birthDate: new Date("1985-03-11T00:00:00.000Z"),
@@ -49,10 +55,15 @@ function detailsInput(overrides: Partial<CustomerDetailsInput> = {}): CustomerDe
       city: faker.location.city(),
     },
     certificate: { type: "Jobcenter", validUntil: new Date("2027-01-31T00:00:00.000Z") },
-    householdMembers: [member()],
+    householdMembers: [],
     notes: "",
     ...overrides,
   };
+
+  // The applicant is themselves a household member, so a fixture that says nothing about the
+  // household gets the one household every registration has: them. A test that overrides the rows
+  // is saying something about who lives there, and says who the customer is among them itself.
+  return { ...input, householdMembers: overrides.householdMembers ?? [self(input)] };
 }
 
 describe("createCustomerDetails", () => {
@@ -74,7 +85,7 @@ describe("createCustomerDetails", () => {
     const details = createCustomerDetails(
       detailsInput({
         firstName: "  Anna  ",
-        householdMembers: [member({ lastName: "  Meier " })],
+        lastName: "  Meier ",
         notes: "  bringt Korb mit  ",
       }),
       TODAY,
@@ -164,9 +175,18 @@ describe("createCustomerDetails", () => {
   });
 
   it("rejects a customer born after today, even when the household rows are all in the past", () => {
-    const input = detailsInput({ birthDate: new Date("2026-07-23T00:00:00.000Z") });
+    const input = detailsInput({
+      birthDate: new Date("2026-07-23T00:00:00.000Z"),
+      householdMembers: [member()],
+    });
 
     expect(() => createCustomerDetails(input, TODAY)).toThrow(BirthDateInFuture);
+  });
+
+  it("rejects a registration whose household does not list the applicant themselves", () => {
+    const input = detailsInput({ householdMembers: [member(), member()] });
+
+    expect(() => createCustomerDetails(input, TODAY)).toThrow(CustomerNotInHousehold);
   });
 
   it("accepts a customer born today", () => {
@@ -178,8 +198,9 @@ describe("createCustomerDetails", () => {
   });
 
   it("copies the household rows, so a later change to the input cannot alter the record", () => {
-    const rows = [member()];
-    const details = createCustomerDetails(detailsInput({ householdMembers: rows }), TODAY);
+    const input = detailsInput();
+    const rows = [...input.householdMembers];
+    const details = createCustomerDetails({ ...input, householdMembers: rows }, TODAY);
 
     rows.push(member());
 
@@ -188,20 +209,24 @@ describe("createCustomerDetails", () => {
 });
 
 describe("createHouseholdMembers", () => {
+  /** The customer the household belongs to. Every household here is judged as being theirs. */
+  const customer = member({ firstName: "Peter", lastName: "Parker" });
+
   it("keeps the rows it was given, trimmed, so a stray space cannot pass as a name", () => {
     const members = createHouseholdMembers(
-      [member({ firstName: "  Anna  ", lastName: " Meier " })],
+      [{ ...customer, firstName: "  Peter  ", lastName: " Parker " }],
+      customer,
       TODAY,
     );
 
     expect(members).toEqual([
-      { firstName: "Anna", lastName: "Meier", birthDate: new Date("1990-04-05T00:00:00.000Z") },
+      { firstName: "Peter", lastName: "Parker", birthDate: customer.birthDate },
     ]);
   });
 
   it("names the household row whose name is missing, not the household as a whole", () => {
     try {
-      createHouseholdMembers([member(), member({ firstName: "   " })], TODAY);
+      createHouseholdMembers([customer, member({ firstName: "   " })], customer, TODAY);
       expect.unreachable("createHouseholdMembers should have rejected the blank name");
     } catch (error: unknown) {
       expect((error as MissingRequiredField).field).toBe("householdMembers.1.firstName");
@@ -209,28 +234,70 @@ describe("createHouseholdMembers", () => {
   });
 
   it("rejects a household with no members at all", () => {
-    expect(() => createHouseholdMembers([], TODAY)).toThrow(EmptyHousehold);
+    expect(() => createHouseholdMembers([], customer, TODAY)).toThrow(EmptyHousehold);
   });
 
   it("rejects a member born after today", () => {
-    const rows = [member({ birthDate: new Date("2026-07-23T00:00:00.000Z") })];
+    const rows = [customer, member({ birthDate: new Date("2026-07-23T00:00:00.000Z") })];
 
-    expect(() => createHouseholdMembers(rows, TODAY)).toThrow(BirthDateInFuture);
+    expect(() => createHouseholdMembers(rows, customer, TODAY)).toThrow(BirthDateInFuture);
   });
 
   it("accepts a member born today — a newborn belongs to the household at once", () => {
-    const rows = [member({ birthDate: new Date("2026-07-22T00:00:00.000Z") })];
+    const rows = [customer, member({ birthDate: new Date("2026-07-22T00:00:00.000Z") })];
 
-    expect(createHouseholdMembers(rows, TODAY)).toHaveLength(1);
+    expect(createHouseholdMembers(rows, customer, TODAY)).toHaveLength(2);
   });
 
   it("copies the rows, so a later change to the input cannot alter the household", () => {
-    const rows = [member()];
+    const rows = [customer];
 
-    const members = createHouseholdMembers(rows, TODAY);
+    const members = createHouseholdMembers(rows, customer, TODAY);
     rows.push(member());
 
     expect(members).toHaveLength(1);
+  });
+
+  it("rejects a household the customer themselves is not in", () => {
+    expect(() => createHouseholdMembers([member(), member()], customer, TODAY)).toThrow(
+      CustomerNotInHousehold,
+    );
+  });
+
+  it("names the customer the household is missing, so the refusal can say who", () => {
+    try {
+      createHouseholdMembers([member()], customer, TODAY);
+      expect.unreachable("createHouseholdMembers should have rejected the household");
+    } catch (error: unknown) {
+      expect((error as CustomerNotInHousehold).firstName).toBe("Peter");
+      expect((error as CustomerNotInHousehold).lastName).toBe("Parker");
+      expect((error as CustomerNotInHousehold).birthDate).toEqual(customer.birthDate);
+    }
+  });
+
+  it("accepts a household where the customer's row is not the first", () => {
+    const members = createHouseholdMembers([member(), customer], customer, TODAY);
+
+    expect(members).toHaveLength(2);
+  });
+
+  it("finds the customer's row through the spaces around it", () => {
+    const rows = [{ ...customer, firstName: " Peter ", lastName: "Parker  " }];
+
+    expect(createHouseholdMembers(rows, customer, TODAY)).toHaveLength(1);
+  });
+
+  it("tells a namesake apart from the customer by their birthdate", () => {
+    const namesake = { ...customer, birthDate: new Date("2014-04-05T00:00:00.000Z") };
+
+    expect(() => createHouseholdMembers([namesake], customer, TODAY)).toThrow(
+      CustomerNotInHousehold,
+    );
+  });
+
+  it("reports the empty household before the customer missing from it", () => {
+    // Both are true of an empty table, and „kein Mitglied" is the sentence staff already know.
+    expect(() => createHouseholdMembers([], customer, TODAY)).toThrow(EmptyHousehold);
   });
 });
 

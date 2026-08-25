@@ -57,7 +57,7 @@ import { FieldRejection, useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
 import { selectClass } from "../../select";
 import { Stat } from "../../stat";
-import { ROW_TEXT } from "../household-row";
+import { EMPTY_ROW, isCustomerRow, type MemberRow, ROW_TEXT } from "../household-row";
 import { Notice } from "../../notice";
 import { submitRegistration } from "./actions";
 import type { PrefillDraft } from "./archive-search-state";
@@ -65,15 +65,6 @@ import {
   initialRegisterCustomerState,
   type RegisterCustomerState,
 } from "./register-customer-state";
-
-/** A household row as the form holds it: the raw strings, exactly as they were typed. */
-interface MemberRow {
-  readonly firstName: string;
-  readonly lastName: string;
-  readonly birthDate: string;
-}
-
-const EMPTY_ROW: MemberRow = { firstName: "", lastName: "", birthDate: "" };
 
 /**
  * The address, the certificate and the note, as the form holds them — raw strings, keyed by the
@@ -244,17 +235,25 @@ function MemberCell({
   value,
   onChange,
   problem,
+  readOnly = false,
 }: {
   index: number;
   part: MemberPart;
   value: string;
   onChange: (value: string) => void;
   problem: string | null;
+  /**
+   * `readOnly`, never `disabled`: a disabled input submits nothing, and the three columns are read
+   * back as parallel lists paired by position (`householdRows`) — a dropped value would shift every
+   * row below it onto somebody else's name.
+   */
+  readOnly?: boolean;
 }): React.ReactElement {
   const name = MEMBER_INPUT[part];
   const id = `${name}-${index}`;
   const label = `${de.customers.new.memberRow(index + 1)} — ${de.customers.fields[part]}`;
   const marks = marking(memberPath(index, part), id, problem);
+  const quiet = readOnly ? "bg-muted text-muted-foreground" : undefined;
 
   return (
     <TableCell className="align-top">
@@ -267,6 +266,8 @@ function MemberCell({
             placeholder={de.day.placeholder}
             value={value}
             onChange={onChange}
+            readOnly={readOnly}
+            className={quiet}
             {...marks}
           />
         ) : (
@@ -277,6 +278,8 @@ function MemberCell({
             aria-label={label}
             value={value}
             onChange={(event) => onChange(event.target.value)}
+            readOnly={readOnly}
+            className={quiet}
             {...marks}
           />
         )}
@@ -346,6 +349,26 @@ function initialRows(draft: PrefillDraft | null): ReadonlyArray<MemberRow> {
   return draft === null ? [EMPTY_ROW] : draft.householdMembers.map((member) => ({ ...member }));
 }
 
+/**
+ * Which row is the applicant themselves, when the form opens.
+ *
+ * A walk-in starts on the blank first row: it is the applicant's, and it fills itself in as their
+ * name is typed. A **draft** is the household as an archived record or a waiting-list entry listed
+ * it, and there is no promise the applicant is first — or there at all — so the row is looked for by
+ * what it says. `null` means none of them is theirs yet, and the form locks nothing: the household
+ * is then one the save refuses until a row for them is typed.
+ */
+function initialCustomerRow(
+  draft: PrefillDraft | null,
+  rows: ReadonlyArray<MemberRow>,
+): number | null {
+  if (draft === null) {
+    return 0;
+  }
+  const at = rows.findIndex((row) => isCustomerRow(row, draft));
+  return at === -1 ? null : at;
+}
+
 export function RegistrationForm({
   proposal,
   draft = null,
@@ -378,19 +401,18 @@ export function RegistrationForm({
   const [birthDate, setBirthDate] = useState(draft?.birthDate ?? "");
   const [details, setDetails] = useState<DetailsDraft>(initialDetails(draft));
   const [rows, setRows] = useState<ReadonlyArray<MemberRow>>(initialRows(draft));
-  // The first row mirrors the personal data until somebody edits it by hand: the registered person
-  // *is* a household member, and typing their name twice is how a household ends up with a phantom
-  // extra head. Once the row has been touched, it is theirs to keep.
-  //
-  // A pre-filled form never mirrors: the rows are the household as the archived record listed it,
-  // and there is no promise that the applicant is the first of them. Overwriting row one with the
-  // personal data would then drop a member and duplicate another.
-  const [mirrorFirstRow, setMirrorFirstRow] = useState(draft === null);
+  // Which row is the applicant's own. It mirrors the personal data above and is not editable here:
+  // the registered person *is* a household member, typing their name twice is how a household ends
+  // up with a phantom extra head, and a household they are not in is one the save refuses
+  // (`createHouseholdMembers`). A correction to their name therefore moves the row with it, which
+  // is what `replaceHouseholdMember` does on the record once they are registered.
+  const [customerRow, setCustomerRow] = useState(() =>
+    initialCustomerRow(draft, initialRows(draft)),
+  );
 
-  const members: ReadonlyArray<MemberRow> =
-    mirrorFirstRow && rows.length > 0
-      ? [{ firstName, lastName, birthDate }, ...rows.slice(1)]
-      : rows;
+  const members: ReadonlyArray<MemberRow> = rows.map((row, index) =>
+    index === customerRow ? { firstName, lastName, birthDate } : row,
+  );
 
   const [picked, setPicked] = useState<number | null>(proposal.customerNumber);
   // Controlled for the reason the number is: `defaultChecked` is undone by React's post-action
@@ -423,17 +445,20 @@ export function RegistrationForm({
   const numberProblem = problem("customerNumber");
 
   function updateRow(index: number, patch: Partial<MemberRow>): void {
-    if (index === 0) {
-      setMirrorFirstRow(false);
-    }
     setRows(
       members.map((row, position) => (position === index ? { ...row, ...patch } : { ...row })),
     );
   }
 
   function removeRow(index: number): void {
-    setMirrorFirstRow(false);
+    if (index === customerRow) {
+      return;
+    }
     setRows(members.filter((_row, position) => position !== index));
+    // The rows below have moved up one, so the applicant's row is one lower than it was.
+    if (customerRow !== null && index < customerRow) {
+      setCustomerRow(customerRow - 1);
+    }
   }
 
   return (
@@ -613,6 +638,7 @@ export function RegistrationForm({
                   value={row.firstName}
                   onChange={(firstName) => updateRow(index, { firstName })}
                   problem={problem(memberPath(index, "firstName"))}
+                  readOnly={index === customerRow}
                 />
                 <MemberCell
                   index={index}
@@ -620,6 +646,7 @@ export function RegistrationForm({
                   value={row.lastName}
                   onChange={(lastName) => updateRow(index, { lastName })}
                   problem={problem(memberPath(index, "lastName"))}
+                  readOnly={index === customerRow}
                 />
                 <MemberCell
                   index={index}
@@ -627,6 +654,7 @@ export function RegistrationForm({
                   value={row.birthDate}
                   onChange={(birthDate) => updateRow(index, { birthDate })}
                   problem={problem(memberPath(index, "birthDate"))}
+                  readOnly={index === customerRow}
                 />
                 <TableCell className="align-top">
                   <Button
@@ -634,6 +662,7 @@ export function RegistrationForm({
                     variant="ghost"
                     size="sm"
                     data-testid={`remove-member-${index}`}
+                    disabled={index === customerRow}
                     onClick={() => removeRow(index)}
                   >
                     {de.customers.new.removeMember}

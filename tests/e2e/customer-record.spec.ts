@@ -383,6 +383,44 @@ test.describe("Kundenakte pflegen", () => {
   });
 
   /**
+   * The customer is one of the people they live with, and the row that says so is the one staff
+   * could take off the list — leaving a record whose counts, eggs and price describe a household its
+   * customer is not in. `createHouseholdMembers` refuses that save; this is the screen saying so
+   * before the click, and it is only provable in a browser: whether a control is greyed, whether a
+   * field can be typed in, and whether the values of a locked row still reach the server at all.
+   */
+  test("the customer's own row cannot be removed or typed over, and still saves", async ({
+    page,
+  }) => {
+    await page.goto(`/kunden/${id}`);
+
+    const ownName = page.getByTestId("member-first-name-0");
+    const customer = await ownName.inputValue();
+
+    await expect(page.getByTestId("remove-member-0")).toBeDisabled();
+    // The property, not the attribute: React sets `readOnly` on the node, and what stops a keystroke
+    // is the property either way.
+    await expect(ownName).toHaveJSProperty("readOnly", true);
+    await expect(page.getByTestId("member-last-name-0")).toHaveJSProperty("readOnly", true);
+    await expect(page.getByTestId("member-birth-date-0")).toHaveJSProperty("readOnly", true);
+
+    // Only that row. Everybody else in the household is an ordinary row that can still go.
+    await expect(page.getByTestId("remove-member-1")).toBeEnabled();
+    await expect(page.getByTestId("member-first-name-1")).toHaveJSProperty("readOnly", false);
+
+    // A read-only field still submits — the three columns are read back as lists paired by
+    // position, so a row that sent nothing would put the whole household one name out of step.
+    await page.getByTestId("household-submit").click();
+    await expect(page.getByTestId("household-saved")).toBeVisible();
+    await expect(page.getByTestId("household-error")).toHaveCount(0);
+
+    await page.goto(`/kunden/${id}`);
+    await expect(page.getByTestId("household-member")).toHaveCount(3);
+    await expect(page.getByTestId("member-first-name-0")).toHaveValue(customer);
+    await expectDerived(page, AFTER);
+  });
+
+  /**
    * The record's forms name the fields they refuse (§7).
    *
    * They did not, and the household editor is where that cost the most: a table with a day field
@@ -471,6 +509,34 @@ test.describe("Kundenakte pflegen", () => {
     // The edit that rode along with the refused one is still on screen. It is not a `defaultValue`
     // here, but the marking must not be what throws it away either.
     await expect(page.getByTestId("details-street")).toHaveValue(street);
+  });
+
+  /**
+   * The record can be rewritten *under* the household table, and the table has to follow.
+   *
+   * A name correction carries into the customer's own household row in the same write
+   * (`replaceHouseholdMember`), so the rows this editor was rendered with are stale the moment the
+   * form above it saves. They are editable state seeded from those props, and state does not follow
+   * a prop: the table went on showing the name from before the correction, its locked row stopped
+   * looking like the customer's and unlocked itself, and a save from there posted a household the
+   * record no longer describes. Whether the table catches up without a reload is a fact about a
+   * browser, so it can only be asked here.
+   */
+  test("a corrected name reaches the household row without a reload", async ({ page }) => {
+    await page.goto(`/kunden/${id}`);
+
+    const corrected = `${await page.getByTestId("details-last-name").inputValue()}-Meier`;
+    await fillSticky(page.getByTestId("details-last-name"), corrected);
+    await page.getByTestId("details-submit").click();
+    await expect(page.getByTestId("details-saved")).toBeVisible();
+
+    // Not a reload: the same table, revalidated where it stands.
+    await expect(page.getByTestId("member-last-name-0")).toHaveValue(corrected);
+    await expect(page.getByTestId("remove-member-0")).toBeDisabled();
+    await expect(page.getByTestId("member-last-name-0")).toHaveJSProperty("readOnly", true);
+
+    // And only their row: the correction names a person, not a household.
+    await expect(page.getByTestId("member-last-name-1")).not.toHaveValue(corrected);
   });
 
   test("the card in the customer's hand is now behind the household", async ({ page }) => {

@@ -204,12 +204,32 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   zurücksetzen" cleared the table and left all four filter controls reading the filters it had just
   dropped. Submitting a `method="get"` form is a document navigation already, which is why the apply
   path never showed it.
+- **State seeded from a server prop does not follow it.** `useState(props.x)` reads the prop once, on
+  mount; every later render leaves the state where it was. The same family again — and the one that
+  bites on a page of several forms, because **any** write revalidates the route and hands every panel
+  fresh props. Ask it of every client component that holds server data: _can another form's save
+  change this component's props?_ Where the answer is yes, reseed it, one of two ways:
+  - **A `key` on the component**, which resets it by remounting. Simplest, and wrong wherever the
+    component owns a `useActionState`: the remount throws away the „Gespeichert." the staff member
+    is reading. `renewal-form.tsx` gets away with it because the key is on a _child_.
+  - **A value-keyed resync during render** — `household-editor.tsx`. Compare what the props _say_,
+    never their identity: a mapped array is a new object on every render and would reset the form on
+    every keystroke elsewhere on the page. Keeps the action state, so the confirmation survives.
+
+  It was `updateCustomerDetails` writing the customer's name into their household row that made the
+  household table stale: it went on showing the name from before the correction, and its locked row
+  stopped recognising the customer and unlocked itself.
+
 - A summary can label its own state with no client component: `group` on the `<details>`, then
   `group-open:hidden` on one word and `hidden group-open:inline` on the other.
 - **A folded control still needs its label where every other column keeps it.** What the summary says
   about itself is not the label. A `<summary>` is not labelable — use a `<span>` plus
   `aria-labelledby`.
-- **A control that must be absent stays absent.** `return null`, not `disabled`.
+- **A control that must be absent stays absent.** `return null`, not `disabled`. The exception is a
+  control that **repeats down a table**: on the one row where it may not act, a cell that empties
+  itself reads as a rendering fault rather than as a rule, and the rows below shift under the hand
+  reaching for them. It stays, `disabled`, and the reason is stated once under the table — the
+  household tables' „Zeile entfernen" on the customer's own row.
 - **Destructive writes**: a closed `<details>`, a warning `Alert` inside it, a required reason
   `Textarea`, and a `destructive` submit disabled until a reason is typed. The disabled button is a
   courtesy; the use case is the guard.
@@ -363,6 +383,12 @@ it. Playwright is the only thing that will tell you.
   > the old screen. Kill and restart after every build, and prove which build you are looking at
   > before measuring anything.
 
+- **Never end the pass on a fresh load.** After the write you came to look at, make a **second write
+  from a neighbouring form** and read the first panel again — without reloading. A reload reseeds
+  every client component from the server, which is exactly what hides a panel that has stopped
+  following the record (§6, state seeded from a server prop). One save then one look is the whole
+  difference between a review that finds this and one that does not; it is how the household table
+  came to be shipped showing a name the record had already corrected.
 - What to check beyond "it looks right": every section title is a `heading` and every field a named
   `textbox` in the snapshot; the writes are **exercised**, not only rendered; the viewport still holds
   the confirmation after the click (measure the button's own rect either side, not just

@@ -62,6 +62,7 @@ const TIERS: Record<DomainErrorCode, NoticeTier> = {
   MissingAuditReason: "refusal",
   MissingRequiredField: "refusal",
   EmptyHousehold: "refusal",
+  CustomerNotInHousehold: "refusal",
   BirthDateInFuture: "refusal",
   CertificateValidUntilInPast: "refusal",
   NotesTooLong: "refusal",

@@ -16,6 +16,7 @@ import {
   BirthDateInFuture,
   CustomerArchived,
   CustomerNotFound,
+  CustomerNotInHousehold,
   EmptyHousehold,
   GroupUnchanged,
   MissingRequiredField,
@@ -394,13 +395,21 @@ describe("updateHousehold", () => {
     return stored === undefined ? [] : stored.details.householdMembers;
   }
 
+  /**
+   * The customer's own row, which `household` writes first. Every edit that is meant to succeed
+   * carries it: a household is refused unless the customer it belongs to is one of its rows.
+   */
+  function self(id = 1): HouseholdMemberDetails {
+    return storedMembers(id)[0];
+  }
+
   beforeEach(() => {
     customers = new FakeCustomerRepository(household({ id: 1, customerNumber: 50 }));
     audit = new FakeAuditLog();
   });
 
   it("replaces the household with the members it was given", async () => {
-    const members = [member(), member(), member({ birthDate: CHILD_BIRTH_DATE })];
+    const members = [self(), member(), member({ birthDate: CHILD_BIRTH_DATE })];
 
     await updateHousehold(deps(), { customerId: 1, members });
 
@@ -410,7 +419,7 @@ describe("updateHousehold", () => {
   it("keeps no history of the composition it replaced", async () => {
     const before = storedMembers();
 
-    await updateHousehold(deps(), { customerId: 1, members: [member()] });
+    await updateHousehold(deps(), { customerId: 1, members: [self()] });
 
     expect(storedMembers()).toHaveLength(1);
     expect(storedMembers()).not.toContainEqual(before[1]);
@@ -419,11 +428,11 @@ describe("updateHousehold", () => {
   it("stores the members trimmed, by registration's rules rather than a second set", async () => {
     await updateHousehold(deps(), {
       customerId: 1,
-      members: [member({ firstName: "  Anna  ", lastName: " Meier " })],
+      members: [self(), member({ firstName: "  Anna  ", lastName: " Meier " })],
     });
 
-    expect(storedMembers()[0].firstName).toBe("Anna");
-    expect(storedMembers()[0].lastName).toBe("Meier");
+    expect(storedMembers()[1].firstName).toBe("Anna");
+    expect(storedMembers()[1].lastName).toBe("Meier");
   });
 
   it("rejects an empty household, exactly as a registration would", async () => {
@@ -433,7 +442,7 @@ describe("updateHousehold", () => {
   });
 
   it("rejects a member born after today, exactly as a registration would", async () => {
-    const members = [member({ birthDate: new Date("2026-07-30T00:00:00.000Z") })];
+    const members = [self(), member({ birthDate: new Date("2026-07-30T00:00:00.000Z") })];
 
     await expect(updateHousehold(deps(), { customerId: 1, members })).rejects.toThrow(
       BirthDateInFuture,
@@ -441,10 +450,49 @@ describe("updateHousehold", () => {
   });
 
   it("rejects a member whose name was left blank", async () => {
-    const members = [member({ firstName: "   " })];
+    const members = [self(), member({ firstName: "   " })];
 
     await expect(updateHousehold(deps(), { customerId: 1, members })).rejects.toThrow(
       MissingRequiredField,
+    );
+  });
+
+  it("rejects a household the customer themselves is no longer in", async () => {
+    // What the screen would otherwise let staff do: take the person the record is about off the
+    // list of the people they live with, leaving a household nobody in it is the customer of.
+    const members = [member({ birthDate: CHILD_BIRTH_DATE })];
+
+    await expect(updateHousehold(deps(), { customerId: 1, members })).rejects.toThrow(
+      CustomerNotInHousehold,
+    );
+  });
+
+  it("leaves the household and the log untouched when the customer's row was removed", async () => {
+    const before = storedMembers();
+
+    await expect(updateHousehold(deps(), { customerId: 1, members: [member()] })).rejects.toThrow(
+      CustomerNotInHousehold,
+    );
+
+    expect(storedMembers()).toEqual(before);
+    expect(audit.entries).toEqual([]);
+  });
+
+  it("keeps a household whose customer stands somewhere other than the first row", async () => {
+    const members = [member({ birthDate: CHILD_BIRTH_DATE }), self()];
+
+    await updateHousehold(deps(), { customerId: 1, members });
+
+    expect(storedMembers()).toEqual(members);
+  });
+
+  it("rejects a household that renames the customer's row — that is a correction, not an edit", async () => {
+    // Their name is on the record twice, and the personal-data form is what moves both at once
+    // (`replaceHouseholdMember`). Renaming the row alone would leave the two disagreeing.
+    const members = [{ ...self(), lastName: "Meier" }];
+
+    await expect(updateHousehold(deps(), { customerId: 1, members })).rejects.toThrow(
+      CustomerNotInHousehold,
     );
   });
 
@@ -460,7 +508,7 @@ describe("updateHousehold", () => {
   });
 
   it("writes no count and no price — the record still carries neither", async () => {
-    await updateHousehold(deps(), { customerId: 1, members: [member(), member()] });
+    await updateHousehold(deps(), { customerId: 1, members: [self(), member()] });
 
     const stored = customers.holders[0];
     expect(Object.keys(stored)).not.toContain("grownUps");
@@ -473,7 +521,7 @@ describe("updateHousehold", () => {
   it("puts the household on the cards-due list when the edit changed the counts", async () => {
     await updateHousehold(deps(), {
       customerId: 1,
-      members: [member(), member({ birthDate: CHILD_BIRTH_DATE }), member()],
+      members: [self(), member({ birthDate: CHILD_BIRTH_DATE }), member()],
     });
 
     const due = await listCardsDueForReissue({ customers, clock: fakeClock(TODAY) });
@@ -489,14 +537,14 @@ describe("updateHousehold", () => {
 
     await updateHousehold(deps(), {
       customerId: 1,
-      members: [{ ...grownUp, lastName: "Meier" }, child],
+      members: [grownUp, { ...child, lastName: "Meier" }],
     });
 
     expect(await listCardsDueForReissue({ customers, clock: fakeClock(TODAY) })).toEqual([]);
   });
 
   it("records the change under a stable event name, with no actor", async () => {
-    await updateHousehold(deps(), { customerId: 1, members: [member()] });
+    await updateHousehold(deps(), { customerId: 1, members: [self()] });
 
     expect(audit.entries).toEqual([
       {
@@ -511,7 +559,7 @@ describe("updateHousehold", () => {
   it("edits a blocked household — a block pauses the counter, not the record", async () => {
     customers.holders.push(household({ id: 2, customerNumber: 51, status: "BLOCKED" }));
 
-    await updateHousehold(deps(), { customerId: 2, members: [member()] });
+    await updateHousehold(deps(), { customerId: 2, members: [self(2)] });
 
     expect(storedMembers(2)).toHaveLength(1);
   });
@@ -625,15 +673,17 @@ describe("updateCustomerDetails", () => {
   });
 
   it("leaves the household alone when no row was ever the customer", async () => {
-    customers.holders.push(
-      household({
-        id: 2,
-        customerNumber: 51,
-        firstName: "Bert",
-        lastName: "Kranz",
-        members: [member(), member({ birthDate: CHILD_BIRTH_DATE })],
-      }),
-    );
+    // A record from before the rule that a household lists its own customer: the domain refuses to
+    // build one now, so it is assembled by hand. Repairing it belongs to the household editor,
+    // where the missing row can be typed — a correction of a name must not guess at which row.
+    const drifted = household({ id: 2, customerNumber: 51, firstName: "Bert", lastName: "Kranz" });
+    customers.holders.push({
+      ...drifted,
+      details: {
+        ...drifted.details,
+        householdMembers: [member(), member({ birthDate: CHILD_BIRTH_DATE })],
+      },
+    });
     const before = stored(2).details.householdMembers;
 
     await updateCustomerDetails(deps(), correction({ customerId: 2 }));

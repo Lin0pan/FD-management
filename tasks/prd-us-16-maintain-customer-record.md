@@ -142,6 +142,15 @@ customer.
 - The customer-as-household-member duplication (US-16.2) is a genuine modelling question. Preferred
   resolution: the customer's own row **is** their household member row, referenced rather than copied,
   so a name change cannot desynchronise. Decide this before implementing, and record the decision.
+- **Decided:** the customer is always one of their household's rows, and the rule is enforced rather
+  than assumed. `createHouseholdMembers` takes the customer the household belongs to and refuses a
+  set that does not list them (`CustomerNotInHousehold`), so a registration and a later edit are
+  judged alike; both household tables lock that row, greyed and read-only, so the refusal is what
+  guards and the screen is the courtesy. The row stays a **copy** rather than a reference — the
+  duplication is what a card printed and what a re-registration draft carries — and the two are kept
+  from disagreeing at both ends: a name correction moves the row with it
+  (`replaceHouseholdMember`), and no other screen can rewrite it. A customer who moves out of their
+  own household is therefore an archive-and-re-register, not a household edit.
 
 ## 8. Success Metrics
 
@@ -152,6 +161,4 @@ customer.
 ## 9. Open Questions
 
 - Should removing a household member require a reason for the audit log? (Not required today.)
-- If the registered customer themselves moves out of the household, is that a household edit or an
-  archive-and-re-register? The current model assumes the customer is always a member.
 - Should the distribution history be limited to the last N entries with a "show all", or fully listed?

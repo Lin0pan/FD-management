@@ -511,6 +511,13 @@ function CustomerRecord({
           ) : (
             <HouseholdEditor
               customerId={customer.id}
+              // Who the record is about, in a row's shape: the editor locks the household row that
+              // says this, because that is the row the save requires (`createHouseholdMembers`).
+              customer={{
+                firstName: details.firstName,
+                lastName: details.lastName,
+                birthDate: formatCalendarDay(details.birthDate),
+              }}
               members={household.map((member) => ({
                 firstName: member.firstName,
                 lastName: member.lastName,

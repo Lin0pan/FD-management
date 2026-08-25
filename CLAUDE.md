@@ -111,6 +111,12 @@ deliberately and say why in the commit; do not add an inline disable.
   only when asked to test one. The e2e suite proves the contracts still hold; `playwright-cli` is how you
   find out whether the screen is any good, because its accessibility snapshot shows what the markup
   _means_ and a screenshot does not. `docs/guideline/ui_styling_guide.md` §11 has the workflow.
+- **A write that another panel displays is proved on that panel, without navigating.** Every e2e test
+  opens with a `page.goto`, which reseeds every client component from the server — so a suite of
+  per-form tests cannot see a panel that has stopped following the record, however many of them there
+  are. Where a use case writes something a _second_ panel on the same page shows — a name correction
+  reaching the household row is the one we have — the spec saves the first form and then asserts the
+  second, in the same page load. It is the only way that coupling is ever checked.
 - **Two engines, both gated.** DF run Safari, and a replacement machine would bring a Chromium-based
   browser, so the suite runs on both: `npm run test:e2e` and `npm run test:e2e:webkit`, each over
   registers of its own (`tests/e2e/registers.ts`, ADR-012). Never branch on `browserName` in `src/`

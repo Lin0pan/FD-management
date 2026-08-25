@@ -498,8 +498,17 @@ function member(overrides: Partial<HouseholdMemberDetails> = {}): HouseholdMembe
   };
 }
 
+/** The household row the customer themselves is — the one every legitimate household contains. */
+function self(person: {
+  firstName: string;
+  lastName: string;
+  birthDate: Date;
+}): HouseholdMemberDetails {
+  return { firstName: person.firstName, lastName: person.lastName, birthDate: person.birthDate };
+}
+
 function registerInput(overrides: Partial<RegisterCustomerInput> = {}): RegisterCustomerInput {
-  return {
+  const input: RegisterCustomerInput = {
     firstName: faker.person.firstName(),
     lastName: faker.person.lastName(),
     birthDate: new Date("1985-03-11T00:00:00.000Z"),
@@ -510,25 +519,46 @@ function registerInput(overrides: Partial<RegisterCustomerInput> = {}): Register
       city: faker.location.city(),
     },
     certificate: { type: "Jobcenter", validUntil: new Date("2027-01-31T00:00:00.000Z") },
-    householdMembers: [member(), member({ birthDate: new Date("2020-06-01T00:00:00.000Z") })],
+    householdMembers: [],
     notes: "",
     ...overrides,
   };
+
+  // The applicant is themselves a household member, so the default household is them and one child.
+  // A test that overrides the rows is saying who lives there, and puts the applicant among them.
+  return {
+    ...input,
+    householdMembers: overrides.householdMembers ?? [
+      self(input),
+      member({ birthDate: new Date("2020-06-01T00:00:00.000Z") }),
+    ],
+  };
+}
+
+/** A registration whose household is the applicant themselves and whoever else is named here. */
+function registerInputWith(
+  others: ReadonlyArray<HouseholdMemberDetails>,
+  overrides: Partial<RegisterCustomerInput> = {},
+): RegisterCustomerInput {
+  const input = registerInput(overrides);
+  return { ...input, householdMembers: [self(input), ...others] };
 }
 
 /**
  * A customer as the register already holds them, built without going through registration — the
  * status is the point of these, and registration only ever produces `ACTIVE`.
  *
- * `members` replaces the household where a test turns on who lives in it; the default is
- * `registerInput`'s one grown-up and one child.
+ * `members` are the people who live *with* the customer, where a test turns on who they are — the
+ * customer's own row is always the first and is added here, because a household without it is one
+ * the domain refuses. The default is `registerInput`'s: the customer and one child.
  */
 function storedCustomer(
   status: CustomerStatus,
   members?: ReadonlyArray<HouseholdMemberDetails>,
 ): NewCustomer {
+  const input = registerInput();
   const details = createCustomerDetails(
-    members === undefined ? registerInput() : registerInput({ householdMembers: members }),
+    members === undefined ? input : { ...input, householdMembers: [self(input), ...members] },
     new Date(TODAY),
   );
   return {
@@ -963,7 +993,6 @@ describe("issueCard", () => {
   it("prints the counts of the day it was issued, not of the day the household was registered", async () => {
     // Born 1 August 2013: a child on 22 July 2026, a grown-up from 1 August 2026.
     const customerId = await customerWith("ACTIVE", [
-      member(),
       member({ birthDate: new Date("2013-08-01T00:00:00.000Z") }),
     ]);
 
@@ -979,7 +1008,6 @@ describe("issueCard", () => {
 
   it("leaves the counts printed on a superseded card exactly as they were", async () => {
     const customerId = await customerWith("ACTIVE", [
-      member(),
       member({ birthDate: new Date("2013-08-01T00:00:00.000Z") }),
     ]);
     await issueCard(deps(), { customerId, reason: "FIRST_ISSUE" });
@@ -1373,12 +1401,7 @@ describe("readCustomer", () => {
   it("derives the household counts from the birthdates as of today", async () => {
     const registered = await registerCustomer(
       deps(),
-      registerInput({
-        householdMembers: [
-          member({ birthDate: new Date("1990-04-05T00:00:00.000Z") }),
-          member({ birthDate: new Date("2020-06-01T00:00:00.000Z") }),
-        ],
-      }),
+      registerInputWith([member({ birthDate: new Date("2020-06-01T00:00:00.000Z") })]),
     );
 
     const view = await readCustomer(deps(), registered.id);
@@ -1389,9 +1412,7 @@ describe("readCustomer", () => {
   it("counts a member who turned 13 since the registration as a grown-up", async () => {
     const registered = await registerCustomer(
       deps(),
-      registerInput({
-        householdMembers: [member({ birthDate: new Date("2013-08-01T00:00:00.000Z") })],
-      }),
+      registerInputWith([], { birthDate: new Date("2013-08-01T00:00:00.000Z") }),
     );
 
     const view = await readCustomer(deps("2026-08-01T09:00:00.000Z"), registered.id);
@@ -1402,12 +1423,7 @@ describe("readCustomer", () => {
   it("derives the standard price from the counts and the settings in force", async () => {
     const registered = await registerCustomer(
       deps(),
-      registerInput({
-        householdMembers: [
-          member({ birthDate: new Date("1990-04-05T00:00:00.000Z") }),
-          member({ birthDate: new Date("2020-06-01T00:00:00.000Z") }),
-        ],
-      }),
+      registerInputWith([member({ birthDate: new Date("2020-06-01T00:00:00.000Z") })]),
     );
 
     const view = await readCustomer(deps(), registered.id);
@@ -1419,12 +1435,13 @@ describe("readCustomer", () => {
   it("gives each household member their current age as of today", async () => {
     const registered = await registerCustomer(
       deps(),
-      registerInput({
-        householdMembers: [
-          member({ firstName: "Ada", birthDate: new Date("1990-04-05T00:00:00.000Z") }),
-          member({ firstName: "Bo", birthDate: new Date("2020-06-01T00:00:00.000Z") }),
-        ],
-      }),
+      registerInputWith(
+        [member({ firstName: "Bo", birthDate: new Date("2020-06-01T00:00:00.000Z") })],
+        {
+          firstName: "Ada",
+          birthDate: new Date("1990-04-05T00:00:00.000Z"),
+        },
+      ),
     );
 
     const view = await readCustomer(deps(), registered.id);
@@ -1536,6 +1553,16 @@ describe("readCard", () => {
     return customer;
   }
 
+  /** The same, for a test that turns on who lives with the customer. */
+  async function registeredWith(
+    others: ReadonlyArray<HouseholdMemberDetails>,
+    overrides: Partial<RegisterCustomerInput> = {},
+  ): Promise<RegisteredCustomer> {
+    const customer = await registerCustomer(registerDeps(), registerInputWith(others, overrides));
+    cards.place(customer.id, customer.card.index);
+    return customer;
+  }
+
   beforeEach(() => {
     customers = new FakeCustomerRepository();
     cards = new FakeCardRepository(customers);
@@ -1589,12 +1616,9 @@ describe("readCard", () => {
   });
 
   it("derives the household counts from the birthdates rather than a stored number", async () => {
-    const customer = await registered({
-      householdMembers: [
-        member({ birthDate: new Date("1990-04-05T00:00:00.000Z") }),
-        member({ birthDate: new Date("2020-06-01T00:00:00.000Z") }),
-      ],
-    });
+    const customer = await registeredWith([
+      member({ birthDate: new Date("2020-06-01T00:00:00.000Z") }),
+    ]);
 
     const view = await readCard(deps(), customer.id);
 
@@ -1602,8 +1626,8 @@ describe("readCard", () => {
   });
 
   it("counts a member who turned 13 since the card was issued as a grown-up", async () => {
-    const customer = await registered({
-      householdMembers: [member({ birthDate: new Date("2013-08-01T00:00:00.000Z") })],
+    const customer = await registeredWith([], {
+      birthDate: new Date("2013-08-01T00:00:00.000Z"),
     });
 
     const view = await readCard(deps("2026-08-01T09:00:00.000Z"), customer.id);
@@ -1622,12 +1646,9 @@ describe("readCard", () => {
   });
 
   it("derives the standard price for the card's household", async () => {
-    const customer = await registered({
-      householdMembers: [
-        member({ birthDate: new Date("1990-04-05T00:00:00.000Z") }),
-        member({ birthDate: new Date("2020-06-01T00:00:00.000Z") }),
-      ],
-    });
+    const customer = await registeredWith([
+      member({ birthDate: new Date("2020-06-01T00:00:00.000Z") }),
+    ]);
 
     const view = await readCard(deps(), customer.id);
 
@@ -2105,14 +2126,20 @@ describe("searchArchivedCustomers", () => {
     customerNumber?: number;
     archivedAt?: string;
     reason?: string;
+    /** Who lives *with* them: the customer's own row is added, as every household has one. */
     members?: ReadonlyArray<HouseholdMemberDetails>;
   }): Promise<number> {
+    const personal = {
+      firstName: seed.firstName,
+      lastName: seed.lastName,
+      birthDate: new Date(seed.birthDate ?? "1985-03-11T00:00:00.000Z"),
+    };
     const details = createCustomerDetails(
       registerInput({
-        firstName: seed.firstName,
-        lastName: seed.lastName,
-        birthDate: new Date(seed.birthDate ?? "1985-03-11T00:00:00.000Z"),
-        ...(seed.members === undefined ? {} : { householdMembers: seed.members }),
+        ...personal,
+        ...(seed.members === undefined
+          ? {}
+          : { householdMembers: [self(personal), ...seed.members] }),
       }),
       new Date(TODAY),
     );
@@ -2243,7 +2270,7 @@ describe("searchArchivedCustomers", () => {
     await archivedHousehold({
       firstName: "Anke",
       lastName: "Schneider",
-      members: [member(), member(), member({ birthDate: new Date("2020-06-01T00:00:00.000Z") })],
+      members: [member(), member({ birthDate: new Date("2020-06-01T00:00:00.000Z") })],
     });
 
     const [match] = (await searchArchivedCustomers(deps(), { lastName: "Schneider" })).matches;
@@ -2261,7 +2288,8 @@ describe("searchArchivedCustomers", () => {
 
     const [match] = (await searchArchivedCustomers(deps(), { lastName: "Schneider" })).matches;
 
-    expect(match.householdSize).toBe(1);
+    // Two people, one of them a child — a size, not a pair of counts.
+    expect(match.householdSize).toBe(2);
   });
 
   it("names the archived record by its own id, never by the number it once held", async () => {
@@ -2399,6 +2427,9 @@ describe("draftFromArchived", () => {
 
   it("pre-fills every household member with their name and birthdate", async () => {
     const customerId = await archivedHousehold({
+      firstName: "Anke",
+      lastName: "Schneider",
+      birthDate: new Date("1990-04-05T00:00:00.000Z"),
       householdMembers: [
         member({ firstName: "Anke", lastName: "Schneider" }),
         member({
@@ -2459,10 +2490,15 @@ describe("draftFromArchived", () => {
   it("copies the household as new values, so editing the draft cannot reach the archived record", async () => {
     const customerId = await archivedHousehold({
       firstName: "Anke",
+      lastName: "Schneider",
       birthDate: new Date("1985-03-11T00:00:00.000Z"),
       address: { street: "Lange Straße", houseNumber: "7a", zip: "33129", city: "Delbrück" },
       householdMembers: [
-        member({ firstName: "Anke", birthDate: new Date("1985-03-11T00:00:00.000Z") }),
+        member({
+          firstName: "Anke",
+          lastName: "Schneider",
+          birthDate: new Date("1985-03-11T00:00:00.000Z"),
+        }),
       ],
     });
     const draft = await draftFromArchived(deps(), { archivedCustomerId: customerId });
@@ -2576,6 +2612,7 @@ describe("re-registering a household from an archived record", () => {
     const archivedId = await archivedHousehold(1, {
       firstName: "Anke",
       lastName: "Schneider",
+      birthDate: new Date("1990-04-05T00:00:00.000Z"),
       householdMembers: [
         member({ firstName: "Anke", lastName: "Schneider" }),
         member({

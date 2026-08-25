@@ -21,6 +21,8 @@ import type { CustomerListQuery } from "@/application/ports";
 import { validUntilRangeFor } from "@/domain/customer/certificate";
 import {
   createCustomerDetails,
+  replaceHouseholdMember,
+  type CustomerDetails,
   type CustomerStatus,
   type NewCustomer,
 } from "@/domain/customer/customer";
@@ -62,6 +64,31 @@ afterAll(async () => {
 beforeEach(async () => {
   await clearRegister(prisma);
 });
+
+/**
+ * The same registration under another name, with the customer's own household row moved with them —
+ * the way `updateCustomerDetails` moves it, and what keeps the household one the customer is in.
+ */
+function renamed(
+  base: NewCustomer,
+  personal: Partial<Pick<CustomerDetails, "firstName" | "lastName" | "birthDate">>,
+  rest: Partial<CustomerDetails> = {},
+): CustomerDetails {
+  const was = base.details;
+  const now = { ...was, ...personal };
+  return createCustomerDetails(
+    {
+      ...now,
+      ...rest,
+      householdMembers: replaceHouseholdMember(
+        was.householdMembers,
+        { firstName: was.firstName, lastName: was.lastName, birthDate: was.birthDate },
+        { firstName: now.firstName, lastName: now.lastName, birthDate: now.birthDate },
+      ),
+    },
+    TODAY,
+  );
+}
 
 /**
  * The same registration as {@link newCustomer}, on a slot a household has already been through: its
@@ -986,15 +1013,11 @@ describe("PrismaCustomerRepository.searchArchived", () => {
     const base = newCustomer({ customerNumber: seed.customerNumber ?? 50 });
     const created = await repository.create({
       ...base,
-      details: createCustomerDetails(
-        {
-          ...base.details,
-          firstName: seed.firstName,
-          lastName: seed.lastName,
-          birthDate: new Date(seed.birthDate ?? "1985-04-11T00:00:00.000Z"),
-        },
-        TODAY,
-      ),
+      details: renamed(base, {
+        firstName: seed.firstName,
+        lastName: seed.lastName,
+        birthDate: new Date(seed.birthDate ?? "1985-04-11T00:00:00.000Z"),
+      }),
     });
     await repository.archive(created.id, seed.reason ?? "verzogen", new Date(seed.archivedAt));
     return created.id;
@@ -1005,7 +1028,7 @@ describe("PrismaCustomerRepository.searchArchived", () => {
     const base = newCustomer({ customerNumber });
     await repository.create({
       ...base,
-      details: createCustomerDetails({ ...base.details, lastName }, TODAY),
+      details: renamed(base, { lastName }),
     });
   }
 
@@ -1202,17 +1225,12 @@ describe("PrismaCustomerRepository.list over a register of fifty households", ()
       });
       await repository.create({
         ...base,
-        details: createCustomerDetails(
-          {
-            ...base.details,
-            ...named,
-            certificate: {
-              type: "Jobcenter-Bescheid",
-              validUntil: new Date(CERTIFICATES.get(customerNumber) ?? DEFAULT_VALID_UNTIL),
-            },
+        details: renamed(base, named ?? {}, {
+          certificate: {
+            type: "Jobcenter-Bescheid",
+            validUntil: new Date(CERTIFICATES.get(customerNumber) ?? DEFAULT_VALID_UNTIL),
           },
-          TODAY,
-        ),
+        }),
       });
     }
     // Household 6 brought a new notice after the old one lapsed. The renewal stacks on top rather
