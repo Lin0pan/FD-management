@@ -57,7 +57,7 @@ import { FieldRejection, useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
 import { selectClass } from "../../select";
 import { Stat } from "../../stat";
-import { ROW_TEXT } from "../household-row";
+import { EMPTY_ROW, type MemberRow, ROW_TEXT } from "../household-row";
 import { Notice } from "../../notice";
 import { submitRegistration } from "./actions";
 import type { PrefillDraft } from "./archive-search-state";
@@ -65,15 +65,6 @@ import {
   initialRegisterCustomerState,
   type RegisterCustomerState,
 } from "./register-customer-state";
-
-/** A household row as the form holds it: the raw strings, exactly as they were typed. */
-interface MemberRow {
-  readonly firstName: string;
-  readonly lastName: string;
-  readonly birthDate: string;
-}
-
-const EMPTY_ROW: MemberRow = { firstName: "", lastName: "", birthDate: "" };
 
 /**
  * The address, the certificate and the note, as the form holds them — raw strings, keyed by the

@@ -41,19 +41,10 @@ import { de } from "@/i18n/de";
 import { useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
 import { Stat } from "../../stat";
-import { ROW_TEXT } from "../household-row";
+import { EMPTY_ROW, type MemberRow, ROW_TEXT } from "../household-row";
 import { updateHouseholdAction } from "./actions";
 import { FormFooter, RecordRejection, SaveButton, SaveFeedback } from "./record-forms";
 import { initialRecordFormState } from "./record-state";
-
-/** A household row as the form holds it: the raw strings, exactly as they were typed. */
-export interface MemberRow {
-  readonly firstName: string;
-  readonly lastName: string;
-  readonly birthDate: string;
-}
-
-const EMPTY_ROW: MemberRow = { firstName: "", lastName: "", birthDate: "" };
 
 /**
  * A row's birthdate as a `Date`, or `null` while it is still being typed.
