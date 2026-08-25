@@ -349,28 +349,45 @@ test.describe("Kundenaufnahme", () => {
     await expect(page.getByTestId("household-member")).toHaveCount(2);
   });
 
-  test("an empty household is refused in German and nothing is written", async ({ page }) => {
+  /**
+   * The applicant is themselves a household member, so the household can never be emptied and can
+   * never be one they are not in — `createHouseholdMembers` refuses both. This is the form saying so
+   * first: their row is written from the personal data above and neither removable nor typeable.
+   *
+   * It replaces a test that reached an empty household by deleting that row, which is exactly the
+   * gesture this closes. The two sentences it proved — `EmptyHousehold` and now
+   * `CustomerNotInHousehold` — are covered where the rules live, in src/domain and src/application.
+   */
+  test("the applicant's own row is theirs and cannot be taken off the household", async ({
+    page,
+  }) => {
     await page.goto("/kunden/neu");
 
     // The number the previous registration left free — its successor, because that one is now
-    // taken. It has to still be free after the rejection.
+    // taken. Nothing here registers anybody, so it has to still be free at the end.
     const proposedNumber = await page.getByTestId("customer-number-select").inputValue();
     expect(proposedNumber).toBe(String(Number(registeredNumber) + 1));
 
-    await fillPersonalData(page, person(faker.person.lastName()));
+    const applicant = person(faker.person.lastName());
+    await fillPersonalData(page, applicant);
 
-    // Removing the mirrored row leaves a household with nobody in it — the one thing a customer
-    // record cannot be, since the applicant themselves is always a member.
-    await page.getByTestId("remove-member-0").click();
-    await expect(page.getByTestId("household-row")).toHaveCount(0);
+    // Typed once, above, and mirrored into the household — typing a name twice is how a household
+    // grows a head nobody lives with.
+    await expect(page.locator("#memberFirstName-0")).toHaveValue(applicant.firstName);
+    // The property, not the attribute: React sets `readOnly` on the node, and what stops a keystroke
+    // is the property either way.
+    await expect(page.locator("#memberFirstName-0")).toHaveJSProperty("readOnly", true);
+    await expect(page.locator("#memberBirthDate-0")).toHaveJSProperty("readOnly", true);
+    await expect(page.getByTestId("remove-member-0")).toBeDisabled();
 
-    await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
+    // Everybody else is an ordinary row: added, removed, and gone without taking the applicant.
+    await page.getByTestId("add-member").click();
+    await expect(page.getByTestId("household-row")).toHaveCount(2);
+    await expect(page.getByTestId("remove-member-1")).toBeEnabled();
+    await page.getByTestId("remove-member-1").click();
 
-    await expect(page.getByTestId("registration-error")).toHaveText(
-      de.customers.errors.emptyHousehold,
-    );
-    // Still on the form: no customer was created, so there is no card to redirect to.
-    await expect(page).toHaveURL(/\/kunden\/neu$/);
+    await expect(page.getByTestId("household-row")).toHaveCount(1);
+    await expect(page.locator("#memberFirstName-0")).toHaveValue(applicant.firstName);
 
     // Nothing was written, and no customer number was consumed on the way.
     await page.goto("/kunden/neu");
