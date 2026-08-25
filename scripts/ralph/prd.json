@@ -102,8 +102,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Migration replaced as 20260825000027_init (delete data/fd.db first, or migrate dev refuses); the hand-written Customer_customerNumber_onRegister_key partial unique index re-appended and the diff against the old SQL is exactly the EggAllowanceRow table plus its two indexes. clearRegister did NOT need extending — the egg rows hang off SettingsVersion, not Customer — so a clearSettings sibling was added to test-support instead, because settingsVersion.deleteMany() is now a foreign-key error. schema.test.ts gained two checks: the relation says onDelete: Restrict out loud, and the migration keeps the per-version unique index. The remaining eggRule: [] placeholder is the settings action's, which US-006 replaces."
     },
     {
       "id": "US-005",

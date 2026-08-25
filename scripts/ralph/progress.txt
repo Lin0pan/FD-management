@@ -241,3 +241,56 @@ Two hazards this batch carries, both stated in `prd.json` and worth reading twic
     derived figure makes that line wrong; the docs story at the end of a batch is too late, so fix
     it in the same commit.
 ---
+
+## 2026-08-25 — US-004 (The rule is stored and versioned, infrastructure)
+- New `EggAllowanceRow` model: a child table of `SettingsVersion` with `minPersons`, `eggs`,
+  `onDelete: Restrict` spelled out, `@@unique([settingsVersionId, minPersons])` and
+  `@@index([settingsVersionId])`. Its `///` comment carries the argument for rows over a JSON column
+  or three fixed columns.
+- Migration history regenerated as `20260825000027_init` (pre-release rules), the hand-written
+  `Customer_customerNumber_onRegister_key` partial index re-appended, `npm run db:reset` run.
+- `PrismaSettingsRepository.append` writes the rows as a **nested create** inside
+  `settingsVersion.create`; `listVersions` includes them ordered by `minPersons` and `toDomain`
+  passes them through `createSettings`.
+- The seed carries DF's real rule (3 → 6, 5 → 12, 8 → 18) and its comment says that this is the one
+  seeded value that is *not* provisional. US-002's temporary empty rule is gone from the repository
+  and the seed.
+- Files: `prisma/schema.prisma`, `prisma/migrations/20260825000027_init/migration.sql` (replacing
+  `20260824183935_init`), `src/infrastructure/prisma/{settings-repository,seed,test-support}.ts`,
+  `src/infrastructure/prisma/{settings-repository,schema}.test.ts`,
+  `docs/architecture/08-crosscutting-concepts.md`.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1146 tests, domain+application 100%), `build`
+  and `format:check` all green. `/einstellungen` checked against the reset database on
+  `npm run start`: 240, 5,00 € and „Maximalpreis“ render, no „Noch nicht konfiguriert“.
+- **Learnings for future iterations:**
+  - **`clearRegister` was the wrong place, and the PRD's hint to extend it is a trap.** The egg rows
+    hang off `SettingsVersion`, not off `Customer`, so the register helper never touches them. What
+    broke was `settings-repository.test.ts`'s `beforeEach`: `settingsVersion.deleteMany()` is a
+    foreign-key error the moment a version carries a rule, and every version does now that the seed
+    does. There is a `clearSettings(prisma)` sibling in `test-support.ts` for it — **use it rather
+    than deleting the two tables inline**, and extend it when the next child table of a version
+    arrives.
+  - **`tail -N old.sql >> new.sql` re-appended one line too many.** The hand-written index block is
+    the last 15 lines of the old migration, not 17; the extra two duplicated
+    `CREATE INDEX "AuditEntry_when_idx"`. SQLite would have failed the reset on it, but the reset ran
+    *before* the check — always finish with `diff /tmp/old.sql prisma/migrations/*_init/migration.sql`
+    and read the whole diff, not just that the new table is in it.
+  - **Verify the regenerated database by asking `sqlite_master` for the index names**, from a script
+    at the repo root: `npx tsx /tmp/x.ts` fails with `Cannot find module '@prisma/client'` because
+    tsx resolves from the *script's* directory, and `npx tsx -e` cannot take `$queryRaw` (the shell
+    eats the `$`, esbuild then reports `Syntax error "$"`). Write the file into the repo, run it,
+    delete it. Top-level `await` is out too — tsx transforms to CJS here, so wrap it in `main()`.
+  - **A required Prisma relation defaults to `Restrict` already**, so writing it out changes nothing
+    the database does — it changes what the file says, and `schema.test.ts` now asserts the words are
+    there. Note that **most existing relations do *not* spell it out** (`HouseholdMember`,
+    `Certificate`, `Card`, `DistributionRecord`, `ReminderLog` all rely on the default), so a
+    general "every relation states its action" test fails today. If that is wanted it is a
+    deliberate refactor of its own, not a line in a feature story.
+  - **Chapter 8's „Nine tables“ was made wrong by this commit**, so it and the ER diagram were fixed
+    here rather than left to the batch's documentation story (US-009). The rest of that story's
+    sweep — the configuration-as-data prose, chapter 7's seed row, `tasks/README.md`'s provisional
+    table, the ADR — is untouched and still owed.
+  - **The last `eggRule: []` placeholder is `src/app/einstellungen/actions.ts:235`**, which US-006
+    replaces. Until then, saving the settings form erases the rule — the hazard the batch header
+    warns about is still live.
+---
