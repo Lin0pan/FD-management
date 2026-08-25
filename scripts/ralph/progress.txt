@@ -294,3 +294,45 @@ Two hazards this batch carries, both stated in `prd.json` and worth reading twic
     replaces. Until then, saving the settings form erases the rule — the hazard the batch header
     warns about is still live.
 ---
+
+## 2026-08-25 — US-005 (The counter, the record and the live preview state the eggs, presentation)
+- An „Eier“ `Stat` in the **third** slot of the four-track figures row on all three screens, ahead of
+  the price: `counter-eggs` on the counter, `eggs` in `HouseholdReadOnly` and `eggs` in the live
+  editor. The customer list and the card view were not touched.
+- `AllowanceValues = PriceValues & Pick<Settings, "eggRule">` in `settings.ts` is what carries the
+  rule to the browser; the editor's `derived()` calls `eggsFor(policy.eggRule, grownUps + children)`
+  and re-implements no lookup. `priceFor` keeps the narrower `PriceValues`.
+- `de.customers.derived.eggs = "Eier"`, and `de.customers.record.householdHint` now names all four
+  figures.
+- Files: `src/app/ausgabe/counter-lookup.tsx`, `src/app/kunden/[id]/{page.tsx,household-editor.tsx}`,
+  `src/domain/policy/settings.ts`, `src/i18n/de.ts`.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1146 tests), `build` and `format:check` green.
+- Browser-checked against `npm run start` with two hand-seeded households (901: two grown-ups and a
+  child; 902: two grown-ups, archived afterwards for the read-only block). Accessibility snapshots
+  read „Eier 6“, „Eier 12“ and „Eier 0“ as one `<p>` each; the editor moved 6 → 6 → 12 as a fourth
+  and then a fifth member was added, and emptying the household turned it to „—“ beside the counts'
+  own „—“.
+- **Learnings for future iterations:**
+  - **The PRD names `AllowanceValues` as if it already existed** — the type on `main` is
+    `PriceValues`. It was **added beside** `PriceValues` rather than renamed over it: `priceFor`
+    still takes only the three price values, and widening its parameter would have said the eggs
+    were part of the sum and forced an `eggRule` into every price test. A PRD naming a type it
+    expects to find is a design hint, not a fact about the tree.
+  - **`de.customers.record.householdHint` enumerates the derived figures** („Erwachsene, Kinder und
+    Preis …“) and no gate sees it. It now says „aus dem Haushalt“ rather than „aus den
+    Geburtsdaten“, because the eggs follow heads and not ages. Any story adding or removing a tile
+    on that screen has to re-read that sentence — `de.customers.new.intro` is the same shape for the
+    registration form.
+  - **`playwright-cli fill` on a `DateInput` works through `getByTestId`** — the date fields take a
+    testid per row (`member-birth-date-<n>`), unlike the counter's Nummer input, which still needs a
+    role locator. `add-member` and `remove-member-<n>` are testids too, so the whole editor can be
+    driven without a snapshot between steps.
+  - **Seeding a household by hand for a browser check needs two fields the e2e specs' snippets do
+    not show you**: `Certificate.recordedAt` is required, and the archive pair is
+    `archiveReason` + `archivedAt` (not `archivedReason`). Write the script into the repo root, run
+    `npx tsx ./x.ts`, delete it — and finish with `npm run db:reset` so the next iteration does not
+    inherit customers 901/902.
+  - **Still owed to US-009:** `docs/architecture/05-building-block-view.md:73` says the `allowance/`
+    seam turns a household plus a date "into the counts and the price". US-003 made that wrong; the
+    runtime view was fixed then and this cell was not.
+---
