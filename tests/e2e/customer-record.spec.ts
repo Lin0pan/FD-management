@@ -511,6 +511,34 @@ test.describe("Kundenakte pflegen", () => {
     await expect(page.getByTestId("details-street")).toHaveValue(street);
   });
 
+  /**
+   * The record can be rewritten *under* the household table, and the table has to follow.
+   *
+   * A name correction carries into the customer's own household row in the same write
+   * (`replaceHouseholdMember`), so the rows this editor was rendered with are stale the moment the
+   * form above it saves. They are editable state seeded from those props, and state does not follow
+   * a prop: the table went on showing the name from before the correction, its locked row stopped
+   * looking like the customer's and unlocked itself, and a save from there posted a household the
+   * record no longer describes. Whether the table catches up without a reload is a fact about a
+   * browser, so it can only be asked here.
+   */
+  test("a corrected name reaches the household row without a reload", async ({ page }) => {
+    await page.goto(`/kunden/${id}`);
+
+    const corrected = `${await page.getByTestId("details-last-name").inputValue()}-Meier`;
+    await fillSticky(page.getByTestId("details-last-name"), corrected);
+    await page.getByTestId("details-submit").click();
+    await expect(page.getByTestId("details-saved")).toBeVisible();
+
+    // Not a reload: the same table, revalidated where it stands.
+    await expect(page.getByTestId("member-last-name-0")).toHaveValue(corrected);
+    await expect(page.getByTestId("remove-member-0")).toBeDisabled();
+    await expect(page.getByTestId("member-last-name-0")).toHaveJSProperty("readOnly", true);
+
+    // And only their row: the correction names a person, not a household.
+    await expect(page.getByTestId("member-last-name-1")).not.toHaveValue(corrected);
+  });
+
   test("the card in the customer's hand is now behind the household", async ({ page }) => {
     await page.goto("/karten-neuausstellung");
 

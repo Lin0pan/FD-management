@@ -179,6 +179,16 @@ function MemberCell({
   );
 }
 
+/**
+ * The household as a value, so a new one can be told from a re-render of the same one.
+ *
+ * `members` arrives freshly mapped on every server render, so its identity says nothing; only what
+ * the rows *say* can answer "did the record change underneath us?".
+ */
+function householdKey(members: ReadonlyArray<MemberRow>): string {
+  return JSON.stringify(members.map((row) => [row.firstName, row.lastName, row.birthDate]));
+}
+
 export function HouseholdEditor({
   customerId,
   customer,
@@ -203,7 +213,21 @@ export function HouseholdEditor({
     initialRecordFormState,
   );
   const [rows, setRows] = useState<ReadonlyArray<MemberRow>>(members);
+  const [shown, setShown] = useState(() => householdKey(members));
   const form = useRef<HTMLFormElement>(null);
+
+  // The record can be rewritten *under* this table while it stands there: correcting the customer's
+  // name on the form above carries into their household row in the same write
+  // (`replaceHouseholdMember`), and the page is revalidated. The rows are editable state seeded from
+  // the props, so without this they would go on showing the name from before the correction — the
+  // customer's row would stop looking like theirs, unlock itself, and a save would post a household
+  // the record no longer describes. Any in-flight typing goes with it, and that is the right way
+  // round: what the record says now beats what somebody had started to type against what it said.
+  const stored = householdKey(members);
+  if (stored !== shown) {
+    setShown(stored);
+    setRows(members);
+  }
 
   const figures = derived(rows, today, policy);
   const unknown = de.customers.derived.unknown;
