@@ -21,6 +21,16 @@ function eggCount(eggs: number): string {
   return eggs === 1 ? "1 Ei" : `${eggs} Eier`;
 }
 
+/**
+ * The two column headings of the egg-rule table, module-level because they are said twice: once over
+ * the column and once inside the name of every control in it ({@link de.settings.eggs.fieldLabel}).
+ *
+ * „Ab wie vielen Personen“ rather than „Personenzahl“, because the column holds a **floor** and not
+ * a count — the distinction the whole rule turns on (US-28).
+ */
+const EGG_THRESHOLD_COLUMN = "Ab wie vielen Personen";
+const EGG_COUNT_COLUMN = "Eier";
+
 export const de = {
   app: {
     name: "Füllhorn Delbrück – Verwaltung",
@@ -1304,6 +1314,52 @@ export const de = {
      * rather than in `history` because the same phrasings state a rule and state a change to it.
      */
     eggs: {
+      /** The card the rule is edited in, between „Mengen und Preise“ und „Ausgaberhythmus“. */
+      heading: "Eier",
+      thresholdColumn: EGG_THRESHOLD_COLUMN,
+      eggsColumn: EGG_COUNT_COLUMN,
+      addRow: "Zeile hinzufügen",
+      /** The same words the household table's remove control carries — it is the same gesture. */
+      removeRow: "Zeile entfernen",
+      /**
+       * What names one control of the table, wherever it is named: the `aria-label` on the input and
+       * the field a refusal points at from the summary („Eier, Zeile 2: Eier“).
+       *
+       * One function for both, because they have to be the same string — the summary sits by the
+       * button and names a field the staff member then has to find in the table. Rows count from 1
+       * on screen while the domain and the form count from 0, as they already do for household
+       * members.
+       */
+      fieldLabel: (position: number, part: "minPersons" | "eggs"): string =>
+        `Eier, Zeile ${position}: ${part === "minPersons" ? EGG_THRESHOLD_COLUMN : EGG_COUNT_COLUMN}`,
+      /** The rule in one sentence, under the table — both halves of it, including the bottom. */
+      hint:
+        "Ein Haushalt erhält die Eier der höchsten Stufe, die er erreicht. Ein Haushalt, der keine " +
+        "Stufe erreicht, erhält keine Eier.",
+      /**
+       * What an empty table says. No rows is a legitimate setting, and an empty area on a screen
+       * cannot be told apart from one that failed to render — so it is stated in words.
+       */
+      empty: "Keine Stufen hinterlegt. Kein Haushalt erhält Eier.",
+      /**
+       * The two collisions between rows, said by the button and naming **no** field.
+       *
+       * Marking one of the two rows would say that row is malformed when the two are merely
+       * inconsistent — the division `quotaBelowActiveCustomers` already keeps. So the sentence has
+       * to name the thresholds itself: with no mark, that is the only way the rows are findable.
+       */
+      duplicateThreshold: (minPersons: number): string =>
+        `Es gibt zwei Zeilen ${fromPersons(minPersons)}. Jede Stufe darf nur einmal vorkommen. ` +
+        `Es wurde nichts gespeichert.`,
+      eggsNotIncreasing: (
+        minPersons: number,
+        eggs: number,
+        lowerMinPersons: number,
+        lowerEggs: number,
+      ): string =>
+        `Die Zeile ${fromPersons(minPersons)} gibt ${eggCount(eggs)} und damit nicht mehr als die ` +
+        `${eggCount(lowerEggs)} ${fromPersons(lowerMinPersons)}. Größere Haushalte müssen mehr ` +
+        `Eier erhalten als kleinere. Es wurde nichts gespeichert.`,
       /** A row that was not in the previous rule: „ab 8 Personen: 18 Eier (neu)“. */
       rowAdded: (minPersons: number, eggs: number): string =>
         `${fromPersons(minPersons)}: ${eggCount(eggs)} (neu)`,
@@ -1510,6 +1566,26 @@ export function customerFormFieldLabel(path: string): string | null {
 /** The names of the fields the settings form submits, as `de.settings.fields` keys them. */
 const SETTINGS_FORM_FIELDS = de.settings.fields as Record<string, string | undefined>;
 
+/** A row of the egg rule as the domain and the form both name it, e.g. `eggRule.1.eggs`. */
+const EGG_RULE_FIELD = /^eggRule\.(\d+)\.(minPersons|eggs)$/;
+
+/**
+ * „Eier, Zeile 2: Eier“ for one control of the egg-rule table, `null` for anything else.
+ *
+ * {@link householdFieldLabel} for the one list-valued policy value (US-28), and it exists for that
+ * function's reason: rows are named by index and there is no upper bound on how many of them a rule
+ * has, so they cannot be listed in the dictionary. Without it a refused row would be a path with no
+ * label — dropped as a field nobody can see (§7) — and the summary would fall through to „nichts
+ * gespeichert“ for a box that is right there on the screen.
+ */
+function eggRuleFieldLabel(field: string): string | null {
+  const match = EGG_RULE_FIELD.exec(field);
+  if (match === null) {
+    return null;
+  }
+  return de.settings.eggs.fieldLabel(Number(match[1]) + 1, match[2] as "minPersons" | "eggs");
+}
+
 /**
  * {@link customerFormFieldLabel} for the settings screen, and it misses for the same reason.
  *
@@ -1519,7 +1595,13 @@ const SETTINGS_FORM_FIELDS = de.settings.fields as Record<string, string | undef
  * would fall through to „nichts gespeichert“ for a field staff can see. Nothing refuses it today
  * (`z.string()` accepts everything, and an empty reason is allowed), which is exactly why it would
  * go unnoticed if it ever did.
+ *
+ * The egg rule is the one setting that is not a field but a table of them, so its paths are answered
+ * by {@link eggRuleFieldLabel} rather than by a key.
  */
 export function settingsFormFieldLabel(name: string): string | null {
-  return name === "reason" ? de.settings.reason : (SETTINGS_FORM_FIELDS[name] ?? null);
+  if (name === "reason") {
+    return de.settings.reason;
+  }
+  return eggRuleFieldLabel(name) ?? SETTINGS_FORM_FIELDS[name] ?? null;
 }
