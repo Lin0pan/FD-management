@@ -8,7 +8,7 @@ over that" is [chapter 9](09-architectural-decisions.md); this chapter is "how d
 
 ## Domain model and persistence
 
-Nine tables. The schema doubles as domain documentation and carries the argument for every unusual
+Ten tables. The schema doubles as domain documentation and carries the argument for every unusual
 decision in its comments.
 
 ```mermaid
@@ -19,6 +19,7 @@ erDiagram
     Customer ||--o{ DistributionRecord : "collected"
     Customer ||--o{ ReminderLog : "was reminded"
     Customer ||--o| Customer : "re-registered from"
+    SettingsVersion ||--o{ EggAllowanceRow : "awards (US-28)"
     SettingsVersion {
         datetime recordedAt "indexed, NOT unique"
         int quotaN
@@ -28,6 +29,10 @@ erDiagram
         int pricePerGrownUpCents
         int pricePerChildCents
         int priceCapCents "nullable = no cap"
+    }
+    EggAllowanceRow {
+        int minPersons "people of any age, unique per version"
+        int eggs "whole eggs, free"
     }
     Customer {
         int id PK "the only identity"

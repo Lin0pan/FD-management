@@ -64,7 +64,56 @@ model SettingsVersion {
   /// makes every distribution free — and the two must stay distinguishable on the settings screen.
   priceCapCents Int?
 
+  /// The egg allowance in force with these values — the staircase of household sizes and the eggs
+  /// each one receives (US-28). A version with no rows is a legitimate configuration and means no
+  /// eggs for anyone, so an empty list is never read as "not configured".
+  eggRule EggAllowanceRow[]
+
   @@index([recordedAt])
+}
+
+/// One step of the egg staircase: from `minPersons` people in the household, `eggs` eggs
+/// (tasks/prd-us-28-egg-allowance.md §US-28.5). A household receives the eggs of the highest
+/// threshold it reaches, and none when it reaches none.
+///
+/// **Why rows and not a JSON column or three fixed columns.** This is the first list-valued policy
+/// value, and the shape it takes is the precedent for the next one. A JSON blob would be one opaque
+/// string the schema could not document and the database could not constrain — the thresholds and
+/// the counts are typed integers, and they are worth keeping typed. Three columns would be worse
+/// still: DF's rule today has three steps (3 → 6, 5 → 12, 8 → 18), and pinning that into the schema
+/// would make *their current configuration* part of the software, which is the whole thing US-14
+/// and ADR-005 exist to avoid. Rows are added and removed on the settings screen; the table has to
+/// let them be.
+///
+/// Belongs to exactly one `SettingsVersion` and is written with it. Versions are append-only, so
+/// these rows are too: a change to the rule is a new version carrying a new set of rows, never an
+/// edit to these.
+model EggAllowanceRow {
+  id Int @id @default(autoincrement())
+
+  /// `onDelete: Restrict` is stated out loud even though the relation is required and Prisma would
+  /// default to it. Every relation in this file says which action it takes, so a reader never has
+  /// to know Prisma's defaults to see that nothing here is destructive — and the nullable relations,
+  /// where the default *is* destructive, look no different from the required ones.
+  settingsVersionId Int
+  settingsVersion   SettingsVersion @relation(fields: [settingsVersionId], references: [id], onDelete: Restrict)
+
+  /// The household size this step starts at, counted in **people of any age**: an infant is a
+  /// person, so two grown-ups and one baby is three. Never a count of grown-ups or of children —
+  /// a 13th birthday moves those and the price, and leaves the eggs where they were.
+  minPersons Int
+
+  /// How many eggs a household reaching `minPersons` receives. Whole eggs, because eggs are handed
+  /// over one at a time; nothing requires a multiple of six, and zero is a legal step.
+  eggs Int
+
+  /// Not decoration: this is the no-duplicate-threshold rule (FR-4) enforced a second time, by the
+  /// database. `createEggRule` refuses a rule naming one household size twice, and this index is
+  /// what makes that hold for a row inserted by anything other than the domain — the same division
+  /// of labour as `Card`'s unique indexes.
+  @@unique([settingsVersionId, minPersons])
+  /// A version's rule is read whole, every time the settings history is resolved.
+  @@index([settingsVersionId])
 }
 
 /// A household DF serves.

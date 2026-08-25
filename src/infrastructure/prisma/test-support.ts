@@ -63,3 +63,17 @@ export async function clearRegister(prisma: PrismaClient): Promise<void> {
   await prisma.customer.updateMany({ data: { previousCustomerId: null } });
   await prisma.customer.deleteMany();
 }
+
+/**
+ * Empty the settings history and everything hanging off it, children first — the same "children
+ * first" `clearRegister` above exists for, on the other half of the schema.
+ *
+ * A settings version owns its egg rule's rows (US-28.5) and the relation is `onDelete: Restrict`
+ * like every other one, so `settingsVersion.deleteMany()` on its own is a foreign-key error the
+ * moment a version carries a rule — which, since the seed carries DF's, is every version worth
+ * testing against.
+ */
+export async function clearSettings(prisma: PrismaClient): Promise<void> {
+  await prisma.eggAllowanceRow.deleteMany();
+  await prisma.settingsVersion.deleteMany();
+}

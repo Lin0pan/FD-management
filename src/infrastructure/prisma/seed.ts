@@ -6,8 +6,9 @@ import { createSettings, type SettingsVersion } from "@/domain/policy/settings";
  * instead of failing with `NoSettingsInForce`.
  *
  * **Every number here is provisional and must be confirmed with DF** (tasks/README.md, "Provisional
- * seed values"). They are configuration rows, so correcting them is a settings edit on the
- * `/einstellungen` screen — not a code change and not a migration.
+ * seed values") — *except the egg rule*, which DF stated themselves and which is seeded as they
+ * hand it out. They are configuration rows either way, so correcting any of them is a settings edit
+ * on the `/einstellungen` screen — not a code change and not a migration.
  *
  * The stamp is a fixed instant rather than the clock, so seeding is deterministic and re-running it
  * can never produce a different history. It predates any change staff can make, so the seeded
@@ -26,9 +27,16 @@ export function provisionalSettingsVersion(): SettingsVersion {
       pricePerGrownUp: 200,
       pricePerChild: 100,
       priceCap: 500,
-      // Empty until US-28.5 (batch 28, US-004) gives the version its own rows: DF's own rule is
-      // seeded there, with the child table that stores it.
-      eggRule: [],
+      // **The one value here that is not provisional.** DF confirmed the egg rule as it stands —
+      // 8+ persons 18 eggs, 5–7 twelve, 3–4 six, 1–2 none — so a fresh database starts with the
+      // rule they actually hand out rather than a placeholder to be corrected. Written as the
+      // staircase the domain reads it as: each row is the size the step *starts* at, and a
+      // household below the lowest row receives nothing without a row having to say so.
+      eggRule: [
+        { minPersons: 3, eggs: 6 },
+        { minPersons: 5, eggs: 12 },
+        { minPersons: 8, eggs: 18 },
+      ],
     }),
   };
 }

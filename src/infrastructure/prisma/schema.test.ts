@@ -43,6 +43,19 @@ describe("schema.prisma referential actions", () => {
     expect(DECLARATIONS).not.toContain("onDelete: SetNull");
     expect(DECLARATIONS).not.toContain("onDelete: SetDefault");
   });
+
+  /**
+   * The egg rule's rows hang off a settings version (US-28.5), and the relation says `Restrict`
+   * out loud even though Prisma defaults a *required* relation to exactly that. The line changes
+   * nothing the database does; it changes what the file says. A settings version is append-only,
+   * so its rows are the one thing in this schema a well-meaning clean-up would try to tidy — and
+   * a version that lost its rule would silently start pricing a past distribution as "no eggs".
+   */
+  it("makes the egg rule's link to its settings version refuse a delete, in so many words", () => {
+    expect(DECLARATIONS).toMatch(
+      /settingsVersion\s+SettingsVersion @relation\([^)]*onDelete: Restrict\)/,
+    );
+  });
 });
 
 describe("the committed migrations", () => {
@@ -78,6 +91,18 @@ describe("the committed migrations", () => {
   it("keep the unique index that stops a card number being issued to a second household", () => {
     expect(migrationSql()).toContain(
       'CREATE UNIQUE INDEX "Card_customerNumber_index_key" ON "Card"("customerNumber", "index")',
+    );
+  });
+
+  /**
+   * The no-duplicate-threshold rule (US-28, FR-4) enforced a second time, by the database.
+   * `createEggRule` refuses a rule naming one household size twice; this index is what makes that
+   * hold for a row inserted by anything other than the domain. Per *version*, not globally — a
+   * global one would make the second save of an unchanged rule impossible.
+   */
+  it("stop one settings version naming the same household size twice in its egg rule", () => {
+    expect(migrationSql()).toContain(
+      'CREATE UNIQUE INDEX "EggAllowanceRow_settingsVersionId_minPersons_key" ON "EggAllowanceRow"("settingsVersionId", "minPersons")',
     );
   });
 
