@@ -189,6 +189,12 @@ export const de = {
       children: "Kinder (unter 13 Jahren)",
       price: "Preis",
       /**
+       * The egg allowance (US-28). „Eier“ and nothing else: the figure is a plain number of whole
+       * eggs, so a „Stück“ or a note about the threshold would be the screen explaining a rule
+       * nobody at the counter has to know — they hand over what it says.
+       */
+      eggs: "Eier",
+      /**
        * The consecutive-no-show count (US-10.4). Shown only when it is greater than zero, and
        * inflected at one — the software states the number and draws no conclusion from it.
        */
@@ -543,8 +549,15 @@ export const de = {
         "Korrekturen an Name, Geburtsdatum und Anschrift. Der Name gilt zugleich für die Zeile " +
         "dieser Person im Haushalt. Die Kundennummer lässt sich nicht ändern.",
       detailsSubmit: "Person und Anschrift speichern",
+      /**
+       * Names all four derived figures, and says „aus dem Haushalt“ rather than „aus den
+       * Geburtsdaten“ since US-28: the eggs follow the number of people and not their ages, so the
+       * older wording would have been wrong about the fourth tile. It stops at *that* the figures
+       * are derived — which rule turns a household into six eggs is not something a staff member
+       * has to know at the table.
+       */
       householdHint:
-        "Erwachsene, Kinder und Preis werden aus den Geburtsdaten berechnet und gelten " +
+        "Erwachsene, Kinder, Eier und Preis werden aus dem Haushalt berechnet und gelten " +
         "sofort. Ändert sich dabei die Zahl der Köpfe, steht der Haushalt danach auf der Liste " +
         "„Karten neu ausstellen“ — die Karte nennt die alten Zahlen.",
       householdSubmit: "Haushalt speichern",

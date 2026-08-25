@@ -222,6 +222,21 @@ export function changedSettingsFields(
 export type PriceValues = Pick<Settings, "pricePerGrownUp" | "pricePerChild" | "priceCap">;
 
 /**
+ * The policy values a *derived allowance* rests on: the three price values above, plus the egg rule.
+ *
+ * The counts, the egg count and the price are the four figures the counter and the customer record
+ * state together, and the household editor derives every one of them in the browser as staff type
+ * (US-16.5, US-28). This is what that preview has to be handed — deliberately not the whole of
+ * {@link Settings}, for {@link PriceValues}' reason: the quota and the week anchor have nothing to
+ * do with what a household receives.
+ *
+ * {@link priceFor} keeps taking the narrower {@link PriceValues}, because the price is still derived
+ * from the prices alone; an egg rule in its signature would say the eggs were part of the sum, and
+ * they are free.
+ */
+export type AllowanceValues = PriceValues & Pick<Settings, "eggRule">;
+
+/**
  * What a household pays for one distribution: one grown-up price per grown-up plus one child price
  * per child, and never more than the {@link Settings.priceCap} when one is configured.
  *
