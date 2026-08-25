@@ -336,3 +336,57 @@ Two hazards this batch carries, both stated in `prd.json` and worth reading twic
     seam turns a household plus a date "into the counts and the price". US-003 made that wrong; the
     runtime view was fixed then and this cell was not.
 ---
+
+## 2026-08-25 — US-006 (The rule is editable on the settings screen, presentation)
+- New client component `src/app/einstellungen/egg-rule-table.tsx`: an „Eier“ `Section` card between
+  „Mengen und Preise“ and „Ausgaberhythmus“, holding a two-column table (threshold, eggs) with a
+  „Zeile entfernen“ per row, „Zeile hinzufügen“ below, a sibling hint reached by `aria-describedby`
+  and a sentence in place of the table when the rule is empty.
+- `actions.ts`: `eggRuleRows` pairs the repeated `eggThreshold` / `eggCount` inputs back into rows
+  (modelled on `householdRows`), dropping a row whose two fields are *both* blank; `screenPath`
+  translates a refusal's `eggRule.<index>.<part>` back to the row's position **on screen**;
+  `DuplicateEggThreshold` and `EggsNotIncreasing` are stated by the button and mark nothing. The
+  temporary `eggRule: []` is gone — the form's rows are what reaches `updateSettings`.
+- `de.ts`: the section heading, both column headings, add/remove labels, hint, empty sentence, the
+  two collision sentences, `eggs.fieldLabel(position, part)`, and `eggRuleFieldLabel` — the
+  `householdFieldLabel`-shaped regex that lets `settingsFormFieldLabel` name an indexed row.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1146 tests, domain+application 100%), `build`
+  and `format:check` all green.
+- Browser-checked against `npm run start` over a reset database, reading accessibility snapshots:
+  rows seeded 3/6, 5/12, 8/18 from the stored rule; adding and removing rows without a reload; a
+  threshold of 0 typed as row 4 marked **row 4** and not the row it would sort to, with the summary
+  naming „Eier, Zeile 4: Ab wie vielen Personen“ and all four typed rows kept; both collisions read
+  as their German sentences with `aria-invalid` nowhere on the page; a half-typed row refused naming
+  the blank field; a blank added row saved without refusing; the rule emptied, saved and reloaded as
+  „Keine Stufen hinterlegt.“; and rows typed 8 then 3 stayed 8, 3 while typing and came back 3, 8
+  after a reload. The database was reset afterwards, so the three extra versions are gone.
+- **Learnings for future iterations:**
+  - **`type="number"` means the snapshot says `spinbutton`, not `textbox`.** The PRD asks for „a
+    NAMED textbox“; what matters is the accessible name, and `NumberField` (quotaN,
+    distributionWeekday) has been a spinbutton on this screen all along. Matching the screen's own
+    whole-number control beat matching the PRD's word. Only `EuroField` is a textbox, and
+    deliberately — a German decimal comma is what staff type.
+  - **A refusal's row index has to be translated twice over, and both ends count differently.** Zod
+    numbers its issues over the array it was handed and `createEggRule` over the rows it was handed
+    — both the list with blank rows already dropped — while the form still shows the blank row. One
+    helper (`screenPath`) fixes both, and it is why `eggRuleRows` carries `position` rather than
+    returning bare rows. Without it a refusal marks the row *above* the one that was typed.
+  - **`de.settings.errorFields` is keyed by domain field name and cannot answer for an indexed
+    path**, so the `InvalidSettings` branch falls through to `settingsFormFieldLabel(path)` — which
+    needs the *screen* path, not the domain one. Order matters: translate the path first, then look
+    up the label with it.
+  - **The rows deliberately do not travel in `SubmittedSettings`.** They are React state and survive
+    `useActionState`'s reset on their own; the eight uncontrolled fields around them do not. The
+    asymmetry is commented in both files, because it reads as an oversight otherwise.
+  - **`revalidatePath` does not re-seed the table.** `useState`'s initialiser runs once, so the rows
+    keep their typed order after a save and only a real reload shows the sorted result — which is
+    what the PRD asks for, but it does mean a blank row added just before a successful save is still
+    on screen afterwards.
+  - **`playwright-cli fill` reaches these inputs by `getByLabel('Eier, Zeile 1: Eier')`** — the
+    `aria-label` is the whole locator, no testid needed. `remove-egg-row-<n>` and `add-egg-row` are
+    testids; note the remove ids are re-numbered on every removal, so clicking
+    `remove-egg-row-0` repeatedly is how a table is emptied.
+  - **Still owed to US-009:** `docs/architecture/05-building-block-view.md:73` (the `allowance/`
+    seam's summary, wrong since US-003) and the configuration-as-data prose, chapter 7's seed row,
+    `tasks/README.md`'s provisional table and the ADR.
+---
