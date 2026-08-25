@@ -1,6 +1,6 @@
 # 4. Solution strategy
 
-_Last reviewed: 2026-08-07_
+_Last reviewed: 2026-08-25_
 
 Six statements. Each names an approach, why it was taken given a goal or constraint, what it makes
 easier and what it makes harder, and where the full reasoning lives.
@@ -41,18 +41,23 @@ both decisions.
 
 ## 3. Policy is data DF owns, not constants a developer owns
 
-**Approach.** Quota, prices, the price cap, the distribution weekday and the week anchor live in
-append-only, clock-stamped `SettingsVersion` rows, editable in the UI and in force immediately.
+**Approach.** Quota, prices, the price cap, the distribution weekday, the week anchor and the egg
+allowance live in append-only, clock-stamped `SettingsVersion` rows, editable in the UI and in force
+immediately. The egg allowance is the first of them that is a **list** rather than a number — a
+staircase of (household size → eggs) rows, kept as a child table of the version rather than as a
+JSON blob or a fixed set of columns.
 
 **Rationale.** Every number in DF's process is a decision they revisit. Behind a deploy, "changeable"
 means "not changeable" for an organisation with no developer on call.
 
 **Consequence.** DF change their own rules, and a past distribution can still be priced because the
-version in force that day survives. It also means nothing in the codebase may hard-code a price or
-a threshold — a standing rule, and the reason there is no configurable reminder
-escalation: whether an expired certificate ends in archiving is a judgement, not a number.
+version in force that day survives. It also means nothing in the codebase may hard-code a price or a
+threshold — not the prices per head, not the cap, not the quota, and not the egg counts or the
+household sizes that earn them. That is a standing rule, and the reason there is no configurable
+reminder escalation: whether an expired certificate ends in archiving is a judgement, not a number.
 
 → [ADR-005](adr/005-keep-business-rules-as-dated-append-only-settings-data.md),
+[ADR-014](adr/014-store-the-egg-allowance-as-versioned-threshold-rows.md),
 [chapter 8](08-crosscutting-concepts.md#configuration-as-data)
 
 ## 4. Derive anything computable; a stored duplicate needs an argument

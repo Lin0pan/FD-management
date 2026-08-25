@@ -1,6 +1,6 @@
 # 8. Cross-cutting concepts
 
-_Last reviewed: 2026-08-07_
+_Last reviewed: 2026-08-25_
 
 The rules that apply everywhere, so that five modules do not solve one problem five ways. Each says
 what it is, why it exists, the rules that follow, and where it shows up. The "why did we choose this
@@ -119,11 +119,27 @@ Policy is `SettingsVersion` rows, not constants — [ADR-005](adr/005-keep-busin
   not after that instant. `readCurrentSettings` is the single read seam.
 - Rows re-enter the domain through `createSettings`, so a hand-edited database cannot bypass an
   invariant.
-- **Nothing may hard-code a price or a threshold.** And there are no thresholds to
-  configure: reminders, no-shows and card losses are counted and never acted on, because what a count
-  means is a staff judgement.
+- **Nothing may hard-code a price or a threshold** — not the prices per head, not the cap, not the
+  quota, and not the egg counts or the household sizes that earn them. The thresholds that are _not_
+  configurable are the ones that do not exist: reminders, no-shows and card losses are counted and
+  never acted on, because what a count means is a staff judgement.
 - `priceCapCents` is nullable rather than a `0` sentinel, because `0` is a coherent cap meaning every
   distribution is free — the two must stay distinguishable on the screen.
+- **One setting is a list, and that changes three things.** The egg allowance is a staircase of
+  `EggAllowanceRow` rows on the version rather than a column
+  ([ADR-014](adr/014-store-the-egg-allowance-as-versioned-threshold-rows.md)), because rows are added
+  and removed and DF's current three steps are a configuration rather than a fact. A list-valued
+  setting differs from a numeric one in exactly three ways, and a second one should follow the same
+  three:
+  - **An empty list is a configuration, not an absence.** No rows means no eggs for anyone, which DF
+    may legitimately choose; nothing may read it as "not yet configured".
+  - **Order is part of the value, not of the screen.** `createEggRule` sorts by threshold before it
+    validates, so staff type rows in whatever order they think of them and the check, the counter and
+    the history all see one order.
+  - **Its diff is row-by-row.** `SettingsChange` for the egg rule is the only variant without a
+    `from`/`to` pair: printing two whole rules side by side is the restatement the Änderungsverlauf
+    exists to avoid, so a change names the rows added, removed and moved from how many eggs to how
+    many.
 
 ## Money
 

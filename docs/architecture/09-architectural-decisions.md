@@ -1,8 +1,8 @@
 # 9. Architectural decisions
 
-_Last reviewed: 2026-08-08_
+_Last reviewed: 2026-08-25_
 
-A timeline. The thirteen decisions that constrain future work and are hard to reverse have an ADR of their
+A timeline. The fourteen decisions that constrain future work and are hard to reverse have an ADR of their
 own in [`adr/`](adr/); the smaller ones below them are recorded as a row and nothing more, because a
 decision log full of trivia teaches people to skim it.
 
@@ -23,6 +23,7 @@ decision log full of trivia teaches people to skim it.
 | [011](adr/011-track-the-newest-even-numbered-node-release.md)                             | Track the newest even-numbered Node release                             | Accepted | 2026-08-08 |
 | [012](adr/012-support-safari-and-chromium-based-browsers-and-gate-both-in-ci.md)          | Support Safari and Chromium-based browsers, and gate both in CI         | Accepted | 2026-08-21 |
 | [013](adr/013-type-calendar-days-as-tt-mm-jjjj-instead-of-using-the-native-date-input.md) | Type calendar days as TT.MM.JJJJ instead of using the native date input | Accepted | 2026-08-21 |
+| [014](adr/014-store-the-egg-allowance-as-versioned-threshold-rows.md)                     | Store the egg allowance as versioned threshold rows                     | Accepted | 2026-08-25 |
 
 ## Smaller decisions, recorded without an ADR
 
