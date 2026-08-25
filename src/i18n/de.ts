@@ -22,6 +22,17 @@ function eggCount(eggs: number): string {
 }
 
 /**
+ * One row of the egg rule as it stands: „ab 3 Personen: 6 Eier“ (US-28).
+ *
+ * Module-level because it is the clause four dictionary entries share — the row on its own, which
+ * the summary of the version in force states, and that same row with what happened to it appended,
+ * which the history states.
+ */
+function eggRow(minPersons: number, eggs: number): string {
+  return `${fromPersons(minPersons)}: ${eggCount(eggs)}`;
+}
+
+/**
  * The two column headings of the egg-rule table, module-level because they are said twice: once over
  * the column and once inside the name of every control in it ({@link de.settings.eggs.fieldLabel}).
  *
@@ -1360,12 +1371,24 @@ export const de = {
         `Die Zeile ${fromPersons(minPersons)} gibt ${eggCount(eggs)} und damit nicht mehr als die ` +
         `${eggCount(lowerEggs)} ${fromPersons(lowerMinPersons)}. Größere Haushalte müssen mehr ` +
         `Eier erhalten als kleinere. Es wurde nichts gespeichert.`,
+      /**
+       * One row of the rule as it is, for the summary of the version in force: „ab 3 Personen:
+       * 6 Eier“. The three phrasings below are this clause plus what became of the row, which is
+       * why the reader of a change and the reader of a rule are told a row in the same words.
+       */
+      row: eggRow,
+      /**
+       * What a rule with no rows reads as, wherever a whole rule is stated — the counterpart of
+       * {@link de.settings.prices.noCap}, and there for the same reason. „keine Eier“ and „0 Eier
+       * ab 1 Person“ are two different configurations, and an empty stretch of screen cannot be
+       * told apart from one that failed to render.
+       */
+      none: "keine Eier",
       /** A row that was not in the previous rule: „ab 8 Personen: 18 Eier (neu)“. */
-      rowAdded: (minPersons: number, eggs: number): string =>
-        `${fromPersons(minPersons)}: ${eggCount(eggs)} (neu)`,
+      rowAdded: (minPersons: number, eggs: number): string => `${eggRow(minPersons, eggs)} (neu)`,
       /** A row the new rule no longer has: „ab 3 Personen: 6 Eier (entfernt)“. */
       rowRemoved: (minPersons: number, eggs: number): string =>
-        `${fromPersons(minPersons)}: ${eggCount(eggs)} (entfernt)`,
+        `${eggRow(minPersons, eggs)} (entfernt)`,
       /**
        * A row whose count moved: „ab 5 Personen: 12 → 14 Eier“. The unit is stated once, at the
        * end — a threshold cannot change, because the threshold is what identifies the row.

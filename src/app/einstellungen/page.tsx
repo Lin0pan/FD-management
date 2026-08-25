@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/card";
 import { DomainError } from "@/domain/errors";
 import { type Cents, formatEuros } from "@/domain/money";
-import type { EggRuleRowChange } from "@/domain/policy/eggs";
+import type { EggRule, EggRuleRowChange } from "@/domain/policy/eggs";
 import type { Settings } from "@/domain/policy/settings";
 import type { SettingsChange } from "@/domain/policy/settings-diff";
 import { de } from "@/i18n/de";
@@ -100,6 +100,21 @@ function describeEggRuleRow(row: EggRuleRowChange): string {
 }
 
 /**
+ * The whole rule in one clause: every row in threshold order, or the words for there being none.
+ *
+ * The empty branch is {@link describeCap}'s argument over again — „keine Eier“ and „0 Eier ab 1
+ * Person“ are two different configurations, so an empty rule is stated in words rather than left as
+ * a blank nobody can tell apart from a line that failed to render. It is the one place a rule is
+ * printed whole: a superseded version states the rows that *moved* (`describeChange`), which is
+ * what makes a removal readable, and the version in force states the rows it *has*.
+ */
+function describeEggRule(rule: EggRule): string {
+  return rule.length === 0
+    ? de.settings.eggs.none
+    : rule.map((row) => de.settings.eggs.row(row.minPersons, row.eggs)).join(" · ");
+}
+
+/**
  * One side of a cap change: the amount, or the words for there not being one.
  *
  * Branching on `null` before formatting is the whole point — `formatEuros(0)` is `0,00 €`, and a
@@ -109,7 +124,7 @@ function describeCap(cap: Cents | null): string {
   return cap === null ? de.settings.prices.noCap : formatEuros(cap);
 }
 
-/** All seven values, for the one version that is worth reading in full: the one in force. */
+/** All eight values, for the one version that is worth reading in full: the one in force. */
 function FullValues({ settings }: { settings: Settings }): React.ReactElement {
   return (
     <>
@@ -130,6 +145,11 @@ function FullValues({ settings }: { settings: Settings }): React.ReactElement {
         {de.settings.fields.weekAnchorColour}: {de.settings.colours[settings.weekAnchor.colour]} ·{" "}
         {de.settings.fields.distributionWeekday}:{" "}
         {de.settings.weekdays[settings.distributionWeekday]}
+      </span>
+      {/* A line of its own, because it is the one value here that is a list: joined onto the row
+        above it, a rule of three steps would read as a fourth and a fifth value of the version. */}
+      <span className="block text-muted-foreground">
+        {de.settings.fields.eggRule}: {describeEggRule(settings.eggRule)}
       </span>
     </>
   );
