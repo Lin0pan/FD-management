@@ -32,7 +32,7 @@ import { NotesControls } from "./notes-controls";
  * away, and — only where somebody typed one — a sentence.
  *
  * `detail` is `null` for every verdict the screen already answers by itself. "Ausgabe frei" needed
- * no "Der Preis steht unten" when the counts and the price are three tiles below it, and
+ * no "Der Preis steht unten" when the counts, the eggs and the price are four tiles below it, and
  * the expired certificate's date and reminder count are rows in the same record. A sentence that
  * restates what is already on screen is not reassurance; it is one more thing to read with a queue
  * waiting. What survives is the block reason, because that is the one line no other element holds.
@@ -252,7 +252,7 @@ export function CustomerDetails({
             and at a glance, which is a size argument, not a layout one: the screen had the name at
             24px and these two at 14px, and the name is the one thing here nobody says out loud.
 
-            Bigger than the derived figures below them, so five tiles do not read as one undivided
+            Bigger than the derived figures below them, so six tiles do not read as one undivided
             grid — the counts answer "how much", these answer "who", and the gap plus the step in
             size is what separates the questions. No colour: that budget is the verdict's.
 
@@ -286,6 +286,18 @@ export function CustomerDetails({
             label={de.customers.derived.children}
             value={String(customer.children)}
             testId="counter-children"
+          />
+          {/* Third, in the slot the portion tile left behind (US-27), so the price stays in the
+              fourth — where a staff member's eye already goes for it. Moving the price is the one
+              change on this screen somebody could act on wrongly, and there was no reason to.
+
+              A plain number, like the two counts beside it: the eggs are handed over, not explained.
+              A household entitled to none reads 0 rather than nothing at all — the counter has to
+              be able to see that the question was answered. */}
+          <Stat
+            label={de.customers.derived.eggs}
+            value={String(customer.eggs)}
+            testId="counter-eggs"
           />
           <Stat
             label={de.customers.derived.price}

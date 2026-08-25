@@ -39,27 +39,33 @@ order the layering implies ([chapter 5](../docs/architecture/05-building-block-v
   is a **reusable slot attribute**, not an identity.
 - German UI, English code.
 
-## Provisional seed values
+## Seed values
 
 The concrete policy numbers are **open question 1** in `docs/archiv/domain_analysis.md`. To unblock
 implementation and tests, the PRDs assume the following seeds. They are configuration rows
-(US-14), so replacing them is a data edit, not a code change. **All are provisional and must be
-confirmed with DF before go-live.**
+(US-14), so replacing them is a data edit, not a code change. **Every row but the last is
+provisional and must be confirmed with DF before go-live.** The egg allowance is the exception: DF
+stated that staircase as the rule they hand out by today (US-28), so it is seeded as their real one
+rather than as a placeholder — which changes nothing about how it is stored, only what a reader
+should assume when they see it.
 
-| Value                | Provisional seed              |
-| -------------------- | ----------------------------- |
-| Customer quota `N`   | 240                           |
-| Price per grown-up   | 200 cents                     |
-| Price per child      | 100 cents                     |
-| Maximalpreis         | 500 cents                     |
-| Week-cycle anchor    | ISO week `2026-W02` = **Red** |
-| Distribution weekday | Thursday                      |
+| Value                | Seed                                                     | Status        |
+| -------------------- | -------------------------------------------------------- | ------------- |
+| Customer quota `N`   | 240                                                      | Provisional   |
+| Price per grown-up   | 200 cents                                                | Provisional   |
+| Price per child      | 100 cents                                                | Provisional   |
+| Maximalpreis         | 500 cents                                                | Provisional   |
+| Week-cycle anchor    | ISO week `2026-W02` = **Red**                            | Provisional   |
+| Distribution weekday | Thursday                                                 | Provisional   |
+| Egg allowance        | from 3 people 6 eggs, from 5 people 12, from 8 people 18 | **Confirmed** |
 
 The price is charged **per head** up to the **Maximalpreis**: what a household owes is
 `min(grown-ups × price per grown-up + children × price per child, Maximalpreis)`, derived wherever
 it is shown and never stored. The Maximalpreis is optional — where none is configured the per-head
-sum stands. There is no other derived figure for it to cap: the portion allowance US-07 once
-derived was withdrawn in US-27, because DF hand out food by judgement rather than by count.
+sum stands. There is no other derived _amount_ for it to cap: the portion allowance US-07 once
+derived was withdrawn in US-27, because DF hand out food by judgement rather than by count. The egg
+allowance US-28 added is derived beside the price rather than inside it — the eggs are free, counted
+per head of any age, and touch neither the sum nor the cap.
 
 ## Index
 

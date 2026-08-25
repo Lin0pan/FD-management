@@ -16,6 +16,7 @@ import { type Cents, formatEuroAmount } from "@/domain/money";
 import type { Settings } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { saveSettings } from "./actions";
+import { EggRuleTable } from "./egg-rule-table";
 import { initialSaveSettingsState } from "./save-settings-state";
 import type { SaveSettingsState, SubmittedSettings } from "./save-settings-state";
 import { FieldRejection, useFocusFirstRefusal } from "../field-mark";
@@ -309,6 +310,13 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
         <p id="prices-hint" className="max-w-prose text-sm text-muted-foreground">
           {de.settings.prices.hint}
         </p>
+      </Section>
+
+      {/* Between the amounts and the rhythm, where it belongs by subject: it is a *what a household
+          gets* setting. Its own card rather than a field in the one above, because a repeating table
+          with add and remove controls has no slot in a twelve-column subgrid (§3.3). */}
+      <Section heading={de.settings.eggs.heading}>
+        <EggRuleTable rule={settings.eggRule} problem={problem} />
       </Section>
 
       <Section heading={de.settings.rhythmHeading}>

@@ -4,7 +4,7 @@ This is the architecture documentation for **FD-Management**, the operations sof
 _Delbrücker Füllhorn_ food bank. It follows the [arc42](https://arc42.org) template: one markdown
 file per chapter, kept in the repository so it is reviewed alongside the code it describes.
 
-_Last reviewed: 2026-08-07_
+_Last reviewed: 2026-08-25_
 
 ## Chapters
 
@@ -52,7 +52,7 @@ This tree is the **architecture record**. The other documents each keep a distin
 | Document                                                                 | Job                                                                                          |
 | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
 | [`docs/archiv/domain_analysis.md`](../archiv/domain_analysis.md)         | DF's process as it is run today — the source material                                        |
-| [`tasks/`](../../tasks/)                                                 | What the software must do, story by story — one PRD each, US-01 to US-26. The current record |
+| [`tasks/`](../../tasks/)                                                 | What the software must do, story by story — one PRD each, US-01 to US-28. The current record |
 | [`docs/guideline/ui_styling_guide.md`](../guideline/ui_styling_guide.md) | How to build a screen. Still the whole UI standard                                           |
 | [`CLAUDE.md`](../../CLAUDE.md)                                           | The binding engineering standard for anyone, human or agent, writing code here               |
 | [`docs/archiv/user_stories_mvp.md`](../archiv/user_stories_mvp.md)       | **Not current.** An early MVP scope the system has moved past; `tasks/` is the record        |

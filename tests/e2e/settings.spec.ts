@@ -35,6 +35,20 @@ const SEEDED_CAP = "5,00";
 const SEEDED_QUOTA = "240";
 
 /**
+ * The egg rule as the version in force states it — DF's own three steps (US-28).
+ *
+ * Spelled out for the same reason the three amounts above are, and *not* shortened to one row: the
+ * rule is the only value on this screen that is a list, and it is stated whole on a line of its own.
+ * An assertion that only looked for „ab 3 Personen“ would pass against a rule that had lost its top
+ * two steps, which is precisely the failure a list-valued setting can have and a number cannot.
+ *
+ * This file does not edit the rule — `eggs.spec.ts` does, and hands the seeded one back before this
+ * one runs. What is asserted here is that the summary of the version in force still carries it after
+ * a save that had nothing to do with it.
+ */
+const SEEDED_EGG_RULE = "ab 3 Personen: 6 Eier · ab 5 Personen: 12 Eier · ab 8 Personen: 18 Eier";
+
+/**
  * Open the settings screen and wait until React owns it.
  *
  * Not a nicety. The form is `useActionState`, so the confirmation this file asserts after every save
@@ -144,6 +158,12 @@ test.describe("Einstellungen", () => {
     await openHistory(page);
     await expect(page.getByTestId("settings-version").first()).toContainText(
       `${de.settings.fields.pricePerGrownUp}: 2,50 €`,
+    );
+    // And every other value it holds, the egg rule among them since US-28 — a save that moved the
+    // price must carry the rest of the configuration forward unchanged, and the summary of the
+    // version in force is where that is readable.
+    await expect(page.getByTestId("settings-version").first()).toContainText(
+      `${de.settings.fields.eggRule}: ${SEEDED_EGG_RULE}`,
     );
   });
 

@@ -273,3 +273,9 @@ answered by FD and are folded into the sections above. What remains open:
 
 > **Note (2026-08-24).** The portion allowance is withdrawn — see
 > [`tasks/prd-us-27-remove-portion-allowance.md`](../../tasks/prd-us-27-remove-portion-allowance.md).
+
+> **Note (2026-08-25).** Question 1 has one more policy value in it than this list names, and that
+> one is answered: alongside the food DF hand out **eggs**, by a staircase of household sizes they
+> confirmed (from 3 people 6 eggs, from 5 people 12, from 8 people 18). It is configuration like the
+> prices, not structure, and it is seeded as DF's real rule rather than as a placeholder — see
+> [`tasks/prd-us-28-egg-allowance.md`](../../tasks/prd-us-28-egg-allowance.md).

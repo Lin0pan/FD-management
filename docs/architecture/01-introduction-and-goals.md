@@ -1,6 +1,6 @@
 # 1. Introduction and goals
 
-_Last reviewed: 2026-08-07_
+_Last reviewed: 2026-08-25_
 
 ## Introduction
 
@@ -22,7 +22,7 @@ five years or more with little maintenance, possibly in the hands of a different
 
 ## Requirements overview
 
-The story-by-story record is [`tasks/`](../../tasks/), one PRD per user story, US-01 to US-26.
+The story-by-story record is [`tasks/`](../../tasks/), one PRD per user story, US-01 to US-28.
 (`docs/archiv/user_stories_mvp.md` describes an early MVP scope the system has since moved past; it is not
 current — see [chapter 11](11-risks-and-technical-debt.md).) What matters architecturally:
 
@@ -32,6 +32,9 @@ current — see [chapter 11](11-risks-and-technical-debt.md).) What matters arch
   never from stored counts. The boundary is the 13th birthday.
 - **Derive the price** from that composition and the policy in force, capped by DF's
   _Maximalpreis_.
+- **Derive the egg allowance** — how many eggs the household is handed alongside the food — from the
+  number of people in it, whatever their ages, against the staircase DF configured. The eggs are
+  free and do not touch the price.
 - **Answer one question at the counter**: given a card or customer number, may this household
   collect today? Exactly one verdict, never a list of hints.
 - **Record a hand-out** — at most one per household per distribution day — and allow it to be
@@ -42,8 +45,8 @@ current — see [chapter 11](11-risks-and-technical-debt.md).) What matters arch
   a row are impossible.
 - **Keep the register true over time**: block and unblock, archive (releasing the number), reuse an
   archived record for a re-registration, run a waiting list in strict arrival order.
-- **Let DF change their own rules** — quota, prices, price cap, distribution weekday, week anchor —
-  in the UI, with the change in force immediately and the history kept.
+- **Let DF change their own rules** — quota, prices, price cap, distribution weekday, week anchor,
+  the egg allowance — in the UI, with the change in force immediately and the history kept.
 - **Notice when a printed card has been overtaken** by a birthday, a household change or a group
   move, and offer a reissue.
 

@@ -1,6 +1,6 @@
 # 6. Runtime view
 
-_Last reviewed: 2026-08-07_
+_Last reviewed: 2026-08-25_
 
 Four scenarios, chosen for what they reveal rather than for how easily they draw. Participants are
 named as in [chapter 5](05-building-block-view.md). The failure paths are the point — they are where
@@ -29,7 +29,7 @@ sequenceDiagram
     Lookup->>Verdict: status, group vs this week's colour,<br/>card index, today's record, certificate
     Verdict-->>Lookup: exactly one verdict
     Lookup->>Allow: composition + settings in force now
-    Allow-->>Lookup: counts, price (capped)
+    Allow-->>Lookup: counts, price (capped), eggs
     Lookup-->>Page: verdict + everything beneath it
     Page-->>Staff: one banner, counts, amount to charge
 
@@ -159,6 +159,10 @@ stored. This is the scenario that makes
 [derive-don't-store](adr/007-derive-anything-computable-rather-than-storing-it.md) architecture
 rather than style: with typed-in counts, this day requires a process that runs on a machine which is
 switched off six days a week.
+
+**What does _not_ move is the egg allowance.** Its rule counts heads of any age, so the household is
+the same size the day after the birthday as the day before — the counts and the price move, the eggs
+stay ([ADR-014](adr/014-store-the-egg-allowance-as-versioned-threshold-rows.md)).
 
 The printed card is the one thing that _cannot_ update itself, which is exactly why
 `grownUpsAtIssue`, `childrenAtIssue` and `groupAtIssue` are stored: without a snapshot of what the

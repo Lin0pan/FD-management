@@ -14,6 +14,8 @@
 
 import { InvalidSettings, NoSettingsInForce } from "../errors";
 import type { Cents } from "../money";
+import { createEggRule, diffEggRule, type EggRule, type EggRuleRow } from "./eggs";
+import { requireInteger } from "./require-integer";
 
 /** The two-week distribution cycle alternates between these two groups. */
 export type WeekColour = "RED" | "BLUE";
@@ -68,11 +70,20 @@ export interface Settings {
    * apart from the settings form down to the nullable column, so there is one spelling end to end.
    */
   readonly priceCap: Cents | null;
+  /**
+   * How many eggs a household receives, as a staircase of thresholds (US-28). The only list-valued
+   * policy value, and the only one that may legitimately be empty: no rows means no eggs for anyone.
+   */
+  readonly eggRule: EggRule;
 }
 
-/** The unvalidated shape `createSettings` accepts — the weekday is narrowed during validation. */
-export interface SettingsInput extends Omit<Settings, "distributionWeekday"> {
+/**
+ * The unvalidated shape `createSettings` accepts — the weekday is narrowed and the egg rule is
+ * sorted and checked during validation, exactly as the weekday arrives here as a plain number.
+ */
+export interface SettingsInput extends Omit<Settings, "distributionWeekday" | "eggRule"> {
   readonly distributionWeekday: number;
+  readonly eggRule: ReadonlyArray<EggRuleRow>;
 }
 
 /**
@@ -89,15 +100,6 @@ export interface SettingsVersion {
 
 /** `2026-W02` — a four-digit ISO year, `W`, and a two-digit week between 01 and 53. */
 const ISO_WEEK = /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/;
-
-function requireInteger(field: string, value: number, minimum: number): void {
-  if (!Number.isInteger(value) || value < minimum) {
-    throw new InvalidSettings(
-      field,
-      `must be an integer of at least ${minimum}, received ${value}`,
-    );
-  }
-}
 
 function isIsoWeekday(value: number): value is IsoWeekday {
   return Number.isInteger(value) && value >= 1 && value <= 7;
@@ -128,6 +130,10 @@ export function createSettings(input: SettingsInput): Settings {
     );
   }
 
+  // Through `createEggRule`, so an invalid rule can never reach a `Settings` value: sorting and the
+  // staircase check are that constructor's, and repeating either here would be a second answer.
+  const eggRule = createEggRule(input.eggRule);
+
   return {
     quotaN: input.quotaN,
     weekAnchor: { isoWeek: input.weekAnchor.isoWeek, colour: input.weekAnchor.colour },
@@ -135,6 +141,7 @@ export function createSettings(input: SettingsInput): Settings {
     pricePerGrownUp: input.pricePerGrownUp,
     pricePerChild: input.pricePerChild,
     priceCap: input.priceCap,
+    eggRule,
   };
 }
 
@@ -170,6 +177,7 @@ const SETTINGS_FIELDS = [
   "pricePerGrownUp",
   "pricePerChild",
   "priceCap",
+  "eggRule",
 ] as const;
 
 /** The name of one editable policy field, as it appears in an audit entry. */
@@ -182,6 +190,11 @@ function sameWeekAnchor(a: WeekAnchor, b: WeekAnchor): boolean {
 function isUnchanged(field: SettingsField, previous: Settings, next: Settings): boolean {
   if (field === "weekAnchor") {
     return sameWeekAnchor(previous.weekAnchor, next.weekAnchor);
+  }
+  // The rule is an array, so the comparison below is a comparison of two references and would report
+  // every single save as a change to it. Two rules are the same rule when no row differs.
+  if (field === "eggRule") {
+    return diffEggRule(previous.eggRule, next.eggRule).length === 0;
   }
   return previous[field] === next[field];
 }
@@ -207,6 +220,21 @@ export function changedSettingsFields(
  * say those had something to do with the answer.
  */
 export type PriceValues = Pick<Settings, "pricePerGrownUp" | "pricePerChild" | "priceCap">;
+
+/**
+ * The policy values a *derived allowance* rests on: the three price values above, plus the egg rule.
+ *
+ * The counts, the egg count and the price are the four figures the counter and the customer record
+ * state together, and the household editor derives every one of them in the browser as staff type
+ * (US-16.5, US-28). This is what that preview has to be handed — deliberately not the whole of
+ * {@link Settings}, for {@link PriceValues}' reason: the quota and the week anchor have nothing to
+ * do with what a household receives.
+ *
+ * {@link priceFor} keeps taking the narrower {@link PriceValues}, because the price is still derived
+ * from the prices alone; an egg rule in its signature would say the eggs were part of the sum, and
+ * they are free.
+ */
+export type AllowanceValues = PriceValues & Pick<Settings, "eggRule">;
 
 /**
  * What a household pays for one distribution: one grown-up price per grown-up plus one child price

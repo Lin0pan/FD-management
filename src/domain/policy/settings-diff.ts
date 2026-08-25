@@ -22,6 +22,7 @@
  */
 
 import type { Cents } from "../money";
+import { diffEggRule, type EggRuleRowChange } from "./eggs";
 import type { IsoWeekday, Settings, WeekColour } from "./settings";
 
 /** One field that differs between two versions, with the value on either side of the change. */
@@ -32,7 +33,14 @@ export type SettingsChange =
   | { readonly field: "distributionWeekday"; readonly from: IsoWeekday; readonly to: IsoWeekday }
   | { readonly field: "pricePerGrownUp"; readonly from: Cents; readonly to: Cents }
   | { readonly field: "pricePerChild"; readonly from: Cents; readonly to: Cents }
-  | { readonly field: "priceCap"; readonly from: Cents | null; readonly to: Cents | null };
+  | { readonly field: "priceCap"; readonly from: Cents | null; readonly to: Cents | null }
+  /**
+   * The one variant without `from` and `to`, deliberately: a list-valued setting's change is a set
+   * of row changes, and stating it as `from → to` would print the two whole rules side by side —
+   * exactly the 136-character restatement this history was rewritten to stop doing. The rows are
+   * already in threshold order, so the renderer joins them and adds nothing.
+   */
+  | { readonly field: "eggRule"; readonly rows: ReadonlyArray<EggRuleRowChange> };
 
 /** The name of one field a change can be reported against — the keys of `de.settings.fields`. */
 export type SettingsChangeField = SettingsChange["field"];
@@ -84,6 +92,13 @@ export function diffSettings(previous: Settings, next: Settings): ReadonlyArray<
   // `Cents | null` rather than over the amount: `null` is a configuration here, not a missing value.
   if (previous.priceCap !== next.priceCap) {
     changes.push({ field: "priceCap", from: previous.priceCap, to: next.priceCap });
+  }
+
+  // Only when something in the rule actually moved: `diffEggRule` returns an empty list for two
+  // equal rules, and an entry carrying no rows would be a version reporting a change to nothing.
+  const rows = diffEggRule(previous.eggRule, next.eggRule);
+  if (rows.length > 0) {
+    changes.push({ field: "eggRule", rows });
   }
 
   return changes;

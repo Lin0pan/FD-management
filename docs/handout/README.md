@@ -13,9 +13,9 @@ over as it stands. That sets three rules the rest of `docs/` does not follow:
 Keeping these true is a real cost, so the folder stays small on purpose. A document only belongs
 here if DF cannot get the answer from the screen in front of them.
 
-| Document                                         | Purpose                                                                                     |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| [`betriebsanleitung.md`](./betriebsanleitung.md) | Starting, stopping, where the data lives, backup, restore, what to do when something breaks |
+| Document                                         | Purpose                                                                                                        |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| [`betriebsanleitung.md`](./betriebsanleitung.md) | Starting, stopping, where the data lives, backup, restore, the egg allowance, what to do when something breaks |
 
 The technical counterpart is
 [chapter 7 — deployment view](../architecture/07-deployment-view.md); where the two disagree about a

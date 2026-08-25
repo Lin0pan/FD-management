@@ -1,5 +1,5 @@
 # Ralph Progress Log
-Started: Mon Aug 24 2026 (batch 27 — US-27 remove the portion allowance)
+Started: Mon Aug 24 2026 (batch 28 — US-28 the egg allowance)
 
 ## Codebase Patterns
 - **Adding a `DomainErrorCode` is a three-file change**: the union in `src/domain/errors.ts`, the
@@ -15,14 +15,16 @@ Started: Mon Aug 24 2026 (batch 27 — US-27 remove the portion allowance)
   shape, including the comment saying which story will call it.
 - **`errors.ts` cannot import from `domain/card/`**: `cardNumber.ts` imports `errors.ts`, so a
   message that wants to read `66k1` writes the `k` inline rather than calling `formatCardNumber`.
-- **`docs/technical_documentation.md` explains each domain module in a `### <path>` section** and
-  lists the error classes by name in the `src/domain/errors.ts` section. Adding an export or an
-  error makes both stale and no gate can tell — grep the file for the module path *and* for the
-  vocabulary of the rule being changed.
 - **Adding a field to `Settings` is a wide change before it is a deep one.** `createSettings` is
   called from the repository, the seed, the settings server action and every hand-written fake in
   the application tests; all of them must supply the new field before anything compiles. Land the
   field with a placeholder value at each call site, then replace them in the story that owns each.
+  Get the *files* out of a wide break rather than the errors:
+  `npm run typecheck 2>&1 | grep -E "^src/" | cut -d'(' -f1 | sort -u`.
+- **A test that merely *uses* a field is not a test *of* it.** Several `settings.test.ts` cases
+  reach for an arbitrary second field to prove the same-instant tie rule or the audit's changed-field
+  list. When that field goes away, **re-point them**, do not delete them — deleting takes an
+  unrelated rule with it and drops coverage below the gate.
 - **A Prisma `P2002` cannot always name *which* constraint was broken.** `meta` is
   `{ modelName, target: [columns] }`, but where two unique indexes both cover the offending row
   SQLite reports only one of them, and not the one that was declared or created first. Where the
@@ -34,334 +36,515 @@ Started: Mon Aug 24 2026 (batch 27 — US-27 remove the portion allowance)
 - **Regenerating `prisma/migrations/` drops the hand-written partial unique index** on
   `Customer.customerNumber` (`Customer_customerNumber_onRegister_key`) at the end of the migration
   SQL. `src/infrastructure/prisma/schema.test.ts` greps for it and for the `onDelete: Restrict`
-  clauses, so a lost line fails CI rather than production — but re-add it deliberately, and run
-  `npm run db:reset` afterwards or the schema and the database drift silently. **Delete
-  `data/fd.db` before `migrate dev`**: with the old migration row still in `_prisma_migrations`,
-  Prisma refuses to regenerate and writes nothing.
-- **Never `pkill -f "next dev"`** — the pattern matches the Bash tool's own wrapper command line and
-  kills the shell (exit 144, no output). **And `ss` is not installed in this sandbox**, so
-  `ss -ltnp | grep :3000 || echo free` reports "free" for every port, always: the `||` fires on
-  `command not found`. Check `ps aux | grep "[n]ext-server"` — the bracket keeps the pattern out of
-  its own match — and `kill <pid>` by number.
+  clauses, so a lost line fails CI rather than production — but re-add it deliberately. Three things
+  batches 25–27 each had to learn:
+  - **Delete `data/fd.db` before `migrate dev`**: with the old migration row still in
+    `_prisma_migrations`, Prisma refuses to regenerate and writes nothing.
+  - **Verify with `diff`, not by reading the new file**:
+    `git show HEAD:prisma/migrations/<old>/migration.sql > /tmp/old.sql && diff /tmp/old.sql <new>`
+    states in a few lines what the story is allowed to have changed. Anything else is a Prisma
+    version drifting the DDL under you, which no gate would attribute to this commit.
+  - **`migrate dev` applies the migration *before* the hand-written index is appended**, so the
+    database it leaves does not have the index even though the committed SQL does. `npm run db:reset`
+    afterwards is what makes the two agree — check with
+    `SELECT sql FROM sqlite_master WHERE name='Customer_customerNumber_onRegister_key'` rather than
+    trusting that the reset ran.
+  - A regeneration **renames a directory that documents cite by name**. `grep -rn "<old-timestamp>_init"
+    docs/ src/ tests/` afterwards; prefer the `prisma/migrations/*_init/migration.sql` glob, which
+    survives the next one.
+- **Never `pkill -f "next dev"`, and never `pkill -f "node.*next-server"`** — both patterns match the
+  Bash tool's own wrapper command line and kill the shell (exit 144, no output). **And `ss` is not
+  installed in this sandbox**, so `ss -ltnp | grep :3000 || echo free` reports "free" for every port,
+  always: the `||` fires on `command not found`. (Batch 27's per-story notes recommend `ss` in two
+  places — they are wrong; that is the bug this bullet exists to stop.) Check
+  `ps aux | grep "[n]ext-server"` — the bracket keeps the pattern out of its own match — and
+  `kill <pid>` by number.
+- **A stale `next start` from an earlier iteration silently serves a mixed build.** The new
+  `npm run start` fails with `EADDRINUSE` in the background while the page still renders, from the
+  old server reading the *new* chunks off disk — a couple of console 500s are the only symptom.
+  Check for a live server (`ps`, above) **before** trusting any browser check.
+- **`npm run db:reset` does not reach a server that is already running.** It deletes `data/fd.db`,
+  and SQLite keeps serving the running process from the deleted inode, so the screen goes on showing
+  the pre-reset data. Restart the server after a reset, or the verification is of the old database.
+  `db:seed` fills settings only — customers are not seeded, so a reset empties whatever manual
+  clicking built up (the e2e suite makes its own registers).
 - **Changing a seeded policy value moves e2e expectations.** `grep -rn ',00 €' tests/e2e/` before
-  editing a number in `seed.ts` — the seeded cap of 500 moved exactly one assertion and it would
-  have surfaced two stories later otherwise.
+  editing a number in `seed.ts`.
 - **The e2e customer-number bands, as they now stand.** Below the quota of 240: counter 201–206 and
   239, allowance 211, serve 221–222, reminders 231, registration 232–234, card numbers 236. Above it:
-  block 241, reissue 251, age-13 271, customer-list 281–285, customer-record 291, group-progress
-  301–303, group-walk 311–315, price cap 321. A spec whose number must be **pickable in the
+  block 241, reissue 251, age-13 271, customer-list 281–285, customer-record 291–293, group-progress
+  301–303, group-walk 311–315, price cap 321, eggs 331–334. A spec whose number must be **pickable in the
   /kunden/neu dropdown** has to sit below 240 — the pool is `1..quotaN` — and everything else should
-  stay above it, clear of
-  the low sequence the allocating specs (registration, card, archive, reregistration) consume.
+  stay above it, clear of the low sequence the allocating specs (registration, card, archive,
+  reregistration) consume. **A new spec takes a new band**; do not borrow another spec's numbers.
 - **e2e spec files run in alphabetical path order, one worker, one shared database.** So a spec that
   *writes* shared state is only ever seen by the files sorting after it — `npx playwright test --list`
-  prints the order. Anything a spec asserts as an **absolute count of a shared thing** is therefore a
-  landmine for the next spec added above it: `settings.spec.ts` counted its version history as
-  `3` and `4` and read the seeded version as `nth(2)`. It now reads a baseline with
-  `versionCount(page)` and asserts `before + 1`, and the oldest version as `.last()` — the same
-  claim (a save appends exactly one version), stated so that it does not depend on who ran first.
-- **Get the *files* out of a wide type break, not the errors**:
-  `npm run typecheck 2>&1 | grep -E "^src/" | cut -d'(' -f1 | sort -u`. Adding a required field to
-  `Settings` breaks ~18 files at once and the raw output is a screen per error.
+  prints the order, and a **rename moves a spec in that order** (batch 27's `portions.spec.ts` →
+  `allowance.spec.ts` moved it from the middle to second). Anything a spec asserts as an **absolute
+  count of a shared thing** is therefore a landmine: `settings.spec.ts` counted its version history
+  as `3` and `4` and read the seeded version as `nth(2)`. It now takes a baseline with
+  `versionCount(page)` and asserts `before + 1`, and reads the oldest version as `.last()` — the same
+  claim, stated so that it does not depend on who ran first.
 - **Two consecutive saves on the settings screen need a `page.reload()` between them in e2e.** A
   successful save *clears* the form, and the revalidated render that does it can land **after** the
   next `fill`, rewinding the field to the stored value; the second save then appends a version that
   changed nothing and every history index below it shifts. `selectOption` happens to survive the
   race, `fill` does not — reload and re-assert the stored value before typing again.
+- **The customer record renders two different household blocks.** `/kunden/<active>` gives the live
+  editor (`household-editor.tsx`), `/kunden/<archived>` gives `HouseholdReadOnly` in `[id]/page.tsx`.
+  Both hold the same tiles, so a screen-level change has to be checked on one of each — **seed
+  customer 6 is archived**.
+- **Counts baked into prose go stale in files no story names, in both directions.** Removing two
+  settings made "the ten fields of the settings form", "nine of the ten need no translation",
+  "Seven of the nine settings", "printed only five of the eight settings" and a `toHaveLength(8)` all
+  wrong at once; *adding* a field or a tile does the same. After any such change,
+  `grep -rn "nine\|ten fields\|eight\|six tiles\|four figures" src/` — the suite catches only the
+  assertion. The same applies to an **exported type you delete or rename**: `grep -rn "<TypeName>"`
+  finds the `{@link}`-shaped references left behind in comments, which no gate sees.
+- **Prettier does not reflow comments.** Shortening a sentence inside a `/** */` block leaves a
+  ragged short line that `prettier --check` happily accepts. Re-wrap the paragraph by hand.
 - **Prettier owns every markdown table in `docs/`, and `npm run lint` does not check it.** `lint` is
   `eslint` alone; markdown formatting is `npm run format:check` (the pre-commit hook runs it). Widen
   one cell and Prettier re-flows every row of that table, so run `npx prettier --write` on the files
   you touched *before* reading the diff — otherwise you are reviewing a re-alignment.
-- **Documentation has no gate.** Nothing fails CI when a chapter goes stale, so a change that
-  removes a concept finishes with an explicit sweep — `grep -rin <concept> --include="*.md" .` —
-  and the answer is not always zero: `docs/architecture/01`'s non-goals and `09`'s „Decisions that
-  were reversed“ exist precisely to keep a withdrawn idea named, with its reason.
+- **Recording an ADR is four steps, and the script does one of them.**
+  `python3 .claude/skills/arc42/scripts/arc42.py new-adr "<decision as a sentence>"` picks the
+  number, renders the template and appends the chapter 9 index row as `Pending`. By hand afterwards:
+  set `Accepted` in the file **and** the row, **re-count** the intro sentence („The thirteen
+  decisions …“), and `npx prettier --write` chapter 9 — the appended row is narrower than the table
+  and Prettier re-flows every row of it. Finish with `arc42.py check`, which sees structure and dead
+  links but never staleness.
+- **Two files carry the story range and neither is anybody's story:**
+  `docs/architecture/01-introduction-and-goals.md` („one PRD per user story, US-01 to US-nn“) and
+  the `tasks/` row of `docs/architecture/README.md` say the same thing, and both go stale on every
+  batch that adds a PRD. `grep -rn "US-01 to US" docs/`.
+- **Documentation has no gate.** Nothing fails CI when a chapter goes stale, so a change that adds or
+  removes a concept finishes with an explicit sweep — `grep -rin <concept> --include="*.md" .` — and
+  the answer is not always zero: `docs/architecture/01`'s non-goals and `09`'s „Decisions that were
+  reversed“ exist precisely to keep a withdrawn idea named, with its reason. **`docs/architecture/`
+  is the tree to update**; `docs/technical_documentation.md`, `tech_stack_architecture_sketch.md` and
+  `fd_dev_setup_overview.md` were retired in #102 and only the archived progress logs still name them.
 - **`docs/archiv/` is annotated, never rewritten** (root `CLAUDE.md`). A dated `> **Note (YYYY-MM-DD).**`
   blockquote goes after the *block* carrying the claim, not inside the table cell or list item that
   states it, and names which bullets it answers when it follows several. The per-story PRDs in
   `tasks/` are the same kind of record: they say what was asked for, so a superseded one gets a
   banner and the rest are left alone.
-- **Prior runs' patterns are in the archive**, not in this file:
-  `scripts/ralph/archive/2026-08-07-us-26-price-cap/progress.txt` is the most recent,
-  and `archive/2026-08-07-us-25-globally-unique-card-numbers/progress.txt` before it keeps a long
-  consolidated list (playwright-cli usage, e2e customer-number bands, killing the dev server
-  safely, testid greps). Read both before any UI or e2e story.
----
-
-## 2026-08-24 — US-001 (batch 27): the portion figure leaves the five screens
-- Presentation-only removal of the portion figure from the counter, the customer record (both the
-  live household editor and the archived read-only block), the card view and the customer list.
-  `Settings` still carries `portionsPerGrownUp`/`portionsPerChild` and `Allowance` still carries
-  `portions` — deliberately, so the tree keeps compiling. US-002 onwards take those.
-- Files changed: `src/app/ausgabe/counter-lookup.tsx`, `src/app/kunden/page.tsx`,
-  `src/app/kunden/[id]/page.tsx`, `src/app/kunden/[id]/household-editor.tsx`,
-  `src/app/kunden/[id]/karte/page.tsx`, `src/app/kunden/[id]/actions.ts`, `src/app/stat.tsx`,
-  `src/i18n/de.ts`.
-- `AllowanceValues` in `household-editor.tsx` was `PortionValues & PriceValues`. With the portions
-  gone it would have been `PriceValues` under a second name, so the alias is **deleted** rather than
-  renamed: `page.tsx` now imports `PriceValues` from `@/domain/policy/settings` directly.
-- The customer list's freed width went to the **name** column (`min-w-56` → `min-w-64`), not spread
-  evenly — the argument `de.customerList.table.household` already makes for merging Erw. + Kinder.
-- No grid was re-spanned. The counter keeps `grid-cols-2 sm:grid-cols-4` with three tiles; the
-  screenshot confirms the figures row still lines up column-for-column with the identity pair above
-  it, which is the whole reason the tracks are shared.
-- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (50 files, 1096 tests, domain
-  and application at 100%) and `npm run build` all pass. Browser verification was done against
+- **`playwright-cli` needs a role locator, not a testid, to fill the counter's Nummer input**, and a
+  `cmd-a || cmd-b` shell chain hides a silent no-op — the first command exits 0 without filling
+  anything. Run the fill on its own and re-snapshot to confirm it landed. Verify against
   `npm run start` (production build), not `next dev`.
-- **Learnings for future iterations:**
-  - **A deleted concept survives in prose, not in code.** `grep -rn -i portion src/` after the JSX
-    edits still found six comments — two in `[id]/actions.ts`, one in `stat.tsx`'s worked example,
-    one in `de.ts`'s counter-verdict rationale, plus tile/column *counts* baked into comments
-    ("six tiles", "ten columns", "the four figures", "the five policy values"). US-005 greps for the
-    word, so grep after **every** file, and re-read the numbers in the comments you did not grep for.
-  - **Do not name the removed thing in the comment that explains its removal.** The first draft of
-    the customer-list width comment said "the Portionen column's width came here", which would have
-    failed US-005's `grep -ri portion` on its own. Say what happened ("a column was dropped, US-27")
-    without writing the word.
-  - **Prettier does not reflow comments.** Shortening a sentence inside a `/** */` block leaves a
-    ragged short line that `prettier --check` happily accepts. Re-wrap the paragraph by hand.
-  - **`playwright-cli fill` needs a role locator, not a testid, for the counter's Nummer input**, and
-    a `cmd-a || cmd-b` shell chain hides a silent no-op: the first command exits 0 without filling
-    anything. Run the fill on its own and re-snapshot to confirm it landed.
-  - **The record renders two different household blocks.** `/kunden/<active>` gives the live editor,
-    `/kunden/<archived>` gives `HouseholdReadOnly`. Both hold the same tiles, so a screen-level
-    change has to be checked on one of each — seed customer 6 is archived.
+- **WebKit's nav-bar click is flaky at roughly one failure in two full-suite runs**
+  (`navigation.spec.ts` „von Kunden verwalten aus …“, `waitForURL` timing out after the click). It
+  passes alone and on re-run. If it recurs, the click needs the „wait for React to own the control“
+  treatment `day.ts`'s `hydrated` gives the fields (#116) — worth watching rather than chasing.
+- **Prior runs' patterns are in the archive**, not in this file:
+  `scripts/ralph/archive/2026-08-24-us-27-remove-portion-allowance/progress.txt` is the most recent
+  (a deletion, run outside-in), `archive/2026-08-07-us-26-price-cap/` before it, and
+  `archive/2026-08-07-us-25-globally-unique-card-numbers/progress.txt` keeps a long consolidated list
+  (playwright-cli usage, e2e customer-number bands, killing the dev server safely, testid greps).
+  Read the most recent two before any UI or e2e story.
 
-## 2026-08-24 — US-002 (batch 27): the allowance seam stops deriving portions
-- `Allowance` is now `{ grownUps, children, priceCents }`. `allowanceAt` no longer calls
-  `portionsFor`, and with US-001 having taken the screens off the figure that function had no callers
-  left — `src/domain/policy/portions.ts` and `portions.test.ts` are **deleted**, not deprecated.
-- `CounterCustomerView` (lookup-customer.ts) and `CustomerListRow` (list-customers.ts) lose the field
-  and its copy line. `describeAllowance` / `describeAllowances` keep their signatures, their date
-  handling and their single read of the settings history — this story changed *what* is derived.
-- Files changed: `src/application/allowance/describe-allowance.ts` (+ test),
-  `src/application/customers/{lookup-customer,list-customers,read-customer,read-card,update-household}.ts`,
-  `src/application/ports.ts`, `src/application/customers/{customers,list-customers,lookup-customer,maintain-customer}.test.ts`,
-  `src/domain/policy/settings.ts`, `src/infrastructure/prisma/customer-repository.ts`.
-  Deleted: `src/domain/policy/portions.{ts,test.ts}`.
-- Gates: lint, typecheck, `test:coverage` (49 files, 1092 tests — exactly the deleted file's own
-  tests fewer; domain and application still 100%) and `build` all pass.
-- **Learnings for future iterations:**
-  - **Deleting an exported type breaks prose in a file you did not touch.** `PriceValues` in
-    `src/domain/policy/settings.ts` described itself as "the mirror of `PortionValues`" — a
-    `{@link}`-shaped reference to a type that no longer exists. `grep -rn "<TypeName>"` before
-    deleting an export, not only for imports: the dangling references are in comments and no gate
-    sees them.
-  - **Two comments outside this story's layer became false the moment `Allowance` changed**, because
-    they described the seam rather than their own file: `ports.ts`'s `updateHousehold`,
-    `update-household.ts` and `customer-repository.ts` all said "the portions and the price follow
-    from the birthdates". They are fixed here rather than left for a later story — none of US-003 to
-    US-006 lists them, so they would have survived to the US-005 grep with nothing owning them.
-  - **US-005's `grep -ri portion src/ tests/ prisma/` cannot literally return nothing.**
-    `describe-allowance.ts` and `tests/e2e/portions.spec.ts` both cite
-    `tasks/prd-us-07-portions-and-price.md`, and US-006 explicitly forbids renaming that PRD because
-    several specs and the batch index point at it. US-005 has to either exclude the path citation
-    from the grep or state the exception — decide it deliberately, do not "fix" it by mangling a
-    citation into something that no longer names a real file.
-  - **A settings *field* is not the same survivor as a portion *derivation*.** `portionsPerGrownUp` /
-    `portionsPerChild` are still required by `SettingsInput`, so every application fake still supplies
-    them and `settings.test.ts` still has a portion-diff test. That is correct after this story —
-    US-003 owns them. Do not pre-emptively strip them from fakes; nothing compiles without them.
+### Where batch 28 starts
+Batch 27 (the portion allowance) is **merged into `main`** — PR #120, squashed as `84c6c8e`. So the
+tile slot on the counter's four-track figures row is genuinely free, the „Mengen und Preise“ card is
+already re-spanned 3+3+3+3, and `Allowance` is `{ grownUps, children, priceCents }` with no third
+derived figure. Nothing in this batch should have to remove a portion: `grep -ri portion src/ tests/
+prisma/` returns only an absence-assertion regex in `tests/e2e/allowance.spec.ts` and one PRD path
+citation in a comment, both deliberate.
+
+Two hazards this batch carries, both stated in `prd.json` and worth reading twice:
+- Its `SettingsChange` variant is **the only one without `from`/`to`** — a list's change is a set of
+  row changes, and printing two whole rules side by side is the restatement the history was
+  rewritten to stop doing.
+- Between story 2 and story 6 the settings action passes an **empty rule**, so saving the form on
+  that branch erases the rule mid-batch. That is why story 6 is in this batch and not a follow-up —
+  do not leave the tree in that state.
 ---
 
-## 2026-08-24 — US-003 (batch 27): the two portion settings leave the domain and the screen
-- `Settings` loses `portionsPerGrownUp` / `portionsPerChild`, and with them the two `requireInteger`
-  calls, both `SETTINGS_FIELDS` entries, the two `SettingsChange` variants and their comparison
-  blocks, the two `case` labels in `describeChange`, the two `NumberField`s, the two dictionary
-  entries in `settings.fields` and `settings.errorFields`, the seed's two values and `toDomain`'s
-  two reads. The domain tests for them were deleted rather than rewritten.
-- The „Mengen und Preise“ card is re-spanned **3 + 3 + 3 + 3** for the four fields that remain, so
-  the row fills the twelve columns exactly; measured in the browser at 252px each, all four controls
-  at y=276 and all four labels at y=250, aligned with the three `lg:col-span-3` fields of
-  Ausgaberhythmus below. The heading stays — it still holds the customer quota.
-- `PrismaSettingsRepository.append` keeps a literal `portionsPerGrownUp: 0, portionsPerChild: 0`
-  under a comment naming US-004, because the columns are still NOT NULL with no default.
-- Files changed: `src/domain/policy/{settings,settings-diff}.ts` (+ tests),
-  `src/domain/{calendarDay,errors}.ts`, `src/domain/card/staleCard.ts`,
-  `src/domain/customer/{customer,householdComposition}.ts`,
-  `src/app/einstellungen/{page.tsx,settings-form.tsx,actions.ts,save-settings-state.ts}`,
-  `src/i18n/de.ts`, `src/infrastructure/prisma/{seed.ts,settings-repository.ts}` and the
-  application/infrastructure test fakes.
-- Gates: lint, typecheck, `test:coverage` (49 files, 1085 tests, domain and application still 100%)
-  and `build` all pass. Verified on `npm run start` (production build) through the accessibility
-  snapshot: four named controls in the first card and no `Portionen`, the price hint still reaching
-  `priceCap` through `aria-describedby`, and a save succeeding — „Gespeichert.“ plus one more
-  Fassung in the Änderungsverlauf, whose in-force summary now prints the quota on a line of its own.
+## 2026-08-24 — US-001 (The egg rule and the count it yields, domain)
+- New pure module `src/domain/policy/eggs.ts`: `EggRuleRow`, `EggRule`, `createEggRule` (sorts, then
+  validates the staircase) and `eggsFor` (highest threshold reached, else 0). Strict TDD — the whole
+  test file was written and run red before a line of the module existed.
+- Two new domain errors, `DuplicateEggThreshold` and `EggsNotIncreasing`, both tiered `refusal`.
+- Files: `src/domain/policy/eggs.ts` (new), `src/domain/policy/eggs.test.ts` (new),
+  `src/domain/policy/require-integer.ts` (new, see below), `src/domain/policy/settings.ts`,
+  `src/domain/errors.ts`, `src/app/notice-tier.ts`.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1108 tests, domain+application 100%) and
+  `build` all green.
 - **Learnings for future iterations:**
-  - **A row written straight through `prisma.*.create` in a test has to name a NOT NULL column too.**
-    The story said `append` was "the ONLY thing left pointing at" the columns, but
-    `settings-repository.test.ts` builds two deliberately illegal rows by hand and those broke the
-    typecheck once the fields were stripped. They now spread a `DROPPED_IN_US_004` constant, which
-    US-004 deletes with the columns.
-  - **A test that merely *uses* a field is not a test *of* it.** Three `settings.test.ts` cases used
-    `portionsPerChild` as an arbitrary second field to prove the same-instant tie rule and the
-    audit's changed-field list. Those were re-pointed at `pricePerChild`, not deleted — deleting
-    them would have taken two rules with them and dropped application coverage below 100%.
-  - **Counts baked into prose go stale in files the story does not name.** Removing two settings
-    made "the ten fields of the settings form", "nine of the ten need no translation", "Seven of the
-    nine settings", "printed only five of the eight settings" and an assertion of
-    `toHaveLength(8)` all wrong at once. `grep -rn "nine\|ten fields\|eight" src/` after the edit —
-    the suite catches only the assertion.
-  - **A stale `next start` from an earlier iteration silently serves a mixed build.** Port 3000 was
-    already held; the new `npm run start` failed with `EADDRINUSE` in the background while the page
-    still rendered, from the old server reading the *new* chunks off disk — two console 500s were
-    the only symptom. Check `ss -ltnp | grep :3000` **before** trusting a browser check.
-  - **`npm run db:reset` does not reach a server that is already running.** It deletes `data/fd.db`,
-    and SQLite keeps serving the running process from the deleted inode, so the screen went on
-    showing the pre-reset history. Restart the server after a reset, or the verification is of the
-    old database. `db:seed` fills settings only — customers are not seeded, so a reset empties the
-    register that manual clicking built up (the e2e suite makes its own).
+  - **`requireInteger` now lives in `src/domain/policy/require-integer.ts`**, not in `settings.ts`.
+    It had to move before story 1 could reuse it: story 2 puts `eggRule` on `Settings`, so
+    `settings.ts` imports `eggs.ts`, and leaving the helper where it was would have made the two
+    modules import each other. Landed as its own `refactor(domain):` commit before the feature.
+  - **The `notice-tier.ts` header counts the codes and went stale on its own**: it claimed a *33rd*
+    code would fail the build when there were already 33. Recount rather than increment —
+    `python3 -c` over the `DomainErrorCode` union is two lines — and it now says 36th for 35 codes.
+  - **A `try`/`catch` with an `instanceof` narrow is how these tests read an error's fields**, since
+    `expect(fn).toThrow(new SomeError(...))` only compares the message. `toThrow(new InvalidSettings(
+    field, requirement))` *is* worth using where the whole point is the exact field name and
+    requirement sentence — it asserts both in one line.
+  - Deriving from a sorted list needs no `findLast`: `eggsFor` walks the rule and keeps overwriting,
+    so the last row the household reaches is the answer. One branch, one loop, 100% covered.
 ---
 
-## 2026-08-24 — US-004 (batch 27): the two portion columns leave the schema
-- `SettingsVersion` in `prisma/schema.prisma` loses `portionsPerGrownUp`, `portionsPerChild` and the
-  `///` comment above them; the model's own doc comment now lists the quota, the price per head and
-  the week anchor. Pre-release rules (CLAUDE.md § Database migrations, ADR-009): the init migration
-  was **replaced**, not corrected — `prisma/migrations/20260807065541_init` deleted, `data/fd.db`
-  deleted, `npx prisma migrate dev --name init` regenerated as `20260824183935_init`, the
-  hand-written `Customer_customerNumber_onRegister_key` partial unique index re-appended verbatim,
-  then `npm run db:reset`.
-- `diff` of the old migration against the regenerated one is **exactly the two dropped column
-  lines** — nothing else moved, so no relation gained a cascade and no `onDelete: Restrict` was lost.
-  `schema.test.ts` checks the same three claims and passes.
-- The TEMPORARY `portionsPerGrownUp: 0, portionsPerChild: 0` literals from US-003 are gone from
-  `PrismaSettingsRepository.append`, and `DROPPED_IN_US_004` with its two spreads is gone from
-  `settings-repository.test.ts`. The two hand-written illegal rows there still prove the colour and
-  the cap are re-validated on the way out.
-- `docs/architecture/adr/008-…md` cited the init migration by its old timestamped folder name, which
-  this regeneration invalidated. It now cites `prisma/migrations/*_init/migration.sql`, the glob
-  chapter 02 already uses — a path that survives the next regeneration.
-- Files changed: `prisma/schema.prisma`, `prisma/migrations/20260824183935_init/migration.sql` (was
-  `20260807065541_init`), `src/infrastructure/prisma/settings-repository.ts` (+ test),
-  `docs/architecture/adr/008-treat-a-customer-number-as-a-reusable-slot-not-an-identity.md`.
-- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1085 tests, domain and
-  application at 100%) and `build` all pass. `npm run db:reset` runs clean and `/einstellungen` on a
-  production build reports the seeded values through the accessibility snapshot — N 240, 2,00 €,
-  1,00 €, Maximalpreis 5,00 €, 2026-W02/Rot/Donnerstag, „1 Fassung" in the Änderungsverlauf — rather
-  than reporting that nothing is configured. Zero console messages.
+## 2026-08-24 — US-002 (The rule becomes a setting, and a change to it is named, domain)
+- `Settings.eggRule` built through `createEggRule` in `createSettings`, `SettingsInput` taking the
+  unsorted `ReadonlyArray<EggRuleRow>`, `"eggRule"` last in `SETTINGS_FIELDS`, and an `eggRule` case
+  in `isUnchanged` that asks `diffEggRule` rather than comparing two array references.
+- `diffEggRule` + `EggRuleRowChange` in `eggs.ts` (matched by threshold, reported ascending), the
+  `{ field: "eggRule"; rows }` variant of `SettingsChange`, and `diffSettings` emitting it only when
+  a row moved.
+- `describeChange` in the settings page renders it through `de.settings.history.rowChanges` and one
+  dictionary function per kind; `de.settings.fields.eggRule = "Eierregel"`.
+- Every `createSettings` call site updated: 13 test builders with `eggRule: []`, and the repository's
+  `toDomain`, the seed and the settings action with an empty rule and a comment naming the story
+  that replaces it (US-004, US-004, US-006).
+- Files: `src/domain/policy/{eggs,settings,settings-diff}.ts` + their tests, `src/i18n/de.ts`,
+  `src/app/einstellungen/{page.tsx,actions.ts}`, `src/infrastructure/prisma/{seed,settings-repository}.ts`,
+  11 further application/domain test builders.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1133 tests, domain+application 100%) and
+  `build` all green.
 - **Learnings for future iterations:**
-  - **Verify the regeneration with `diff`, not by reading the new file.** `git show
-    HEAD:prisma/migrations/<old>/migration.sql > /tmp/old.sql && diff /tmp/old.sql <new>` states in
-    two lines what the story is allowed to have changed; anything else in that diff is a Prisma
-    version drifting the DDL under you, which no gate would attribute to this commit.
-  - **`npx prisma migrate dev` applies the migration before the hand-written index is appended**, so
-    the database it leaves behind does *not* have the partial index even though the committed SQL
-    does. `npm run db:reset` afterwards is what makes the two agree — check with
-    `SELECT sql FROM sqlite_master WHERE name='Customer_customerNumber_onRegister_key'` rather than
-    trusting that the reset ran.
-  - **`pkill -f "node.*next-server"` also kills the Bash tool's wrapper** (exit 144, no output) — the
-    same trap the `next dev` note records, because the wrapper's command line contains the pattern.
-    The server does die, so just re-check `ss -ltnp | grep :3000` in a fresh call instead of retrying.
-  - **A regenerated migration renames a directory that documents cite by name.** `grep -rn
-    "<old-timestamp>_init" docs/ src/ tests/` after every regeneration; ADR-008 held the only live
-    citation and prose is where such a path goes stale silently. Prefer the `*_init` glob.
+  - **The Änderungsverlauf's rows are ascending, not the PRD example's order.** `prd.json`'s
+    illustrative string reads „ab 8 … · ab 5 … · ab 3 …“ (descending), but FR-6 says a rule "must
+    always be displayed in that order" — the ascending order `createEggRule` sorts to. Ascending is
+    what `diffEggRule` returns and what US-007's `FullValues` should match; the example is phrasing,
+    not order.
+  - **`eggRule` is the third `SETTINGS_FIELDS` entry needing a case in `isUnchanged`.** The default
+    `previous[field] === next[field]` works only for primitives; `weekAnchor` was the first
+    exception and any future object- or list-valued setting is the next one.
+  - **The audit's changed-field count is asserted as a literal** in
+    `src/application/settings/settings.test.ts` ("treats every field as changed when there is no
+    previous version"). It moved 6 → 7. Any story adding or removing a settings field must re-point
+    it and its comment, which recounts the history of the number.
+  - **A regex insert after `priceCap` hits the *parameter list* too.** `settings-repository.test.ts`
+    builds its version with `version(recordedAt, quotaN = 240, priceCap = null)`, so the first
+    `priceCap,` in the file is a parameter, not an object key. Typecheck caught it; check the hunk.
+  - **German plurals for the rule live in two module-level helpers in `de.ts`** (`fromPersons`,
+    `eggCount`), above the dictionary, because „ab 1 Person“ and „1 Ei“ are both reachable
+    configurations and three phrasings share the grammar. First helpers of their kind in that file.
 ---
 
-## 2026-08-24 — US-005 (batch 27): the e2e suite stops asserting portions and proves the figure is gone
-- `tests/e2e/portions.spec.ts` is **renamed** (`git mv`, so the history follows) to
-  `allowance.spec.ts` and keeps its job: seed a household, read its figures off the record, add a
-  member straight through Prisma, reload, watch the figures move. It now asserts the counts and the
-  price, and carries the batch's one **new** assertion — the counter screen states no accessible
-  name matching the withdrawn figure.
-- **The seeded household is now one grown-up and one child, not two and one.** At the old size the
-  household priced at exactly the seeded Maximalpreis, so adding a child left the price unmoved and
-  „asserts the price“ would have been an assertion that could not fail. Below the cap the added
-  child moves the price 3,00 € → 4,00 € as well as the child count, and the cap goes back to being
-  `price-cap.spec.ts`'s subject alone.
-- `price-cap.spec.ts` loses `PORTIONS` / `PORTIONS_WITH_EXTRA_CHILD` and their four assertions; its
-  test is now *does not raise the price when a member joins above the cap*, and the header says
-  plainly that the cap's other half lost its witness rather than faking one with another quantity.
-  `age-13.spec.ts` and `customer-record.spec.ts` drop the `portions` key from BEFORE / AFTER and the
-  `portions` / `counter-portions` reads from `expectDerived`; `counter.spec.ts`'s expired-certificate
-  test now witnesses „served, not turned away“ with the price and the verdict.
-- `settings.spec.ts` needed no assertion change — its history claims are `toContainText` on named
-  fields — but its comment „restating all eight values“ was stale after US-003: `FullValues` prints
-  **seven**. Corrected deliberately rather than loosened.
-- **The `grep -ri portion src/ tests/ prisma/` gate returns exactly two lines, both deliberate**, and
-  both say so where they stand: the `/Portion/i` guard in `allowance.spec.ts` (a test that fails if
-  the figure comes back is the opposite of a survivor) and the §US-07.3 citation in
-  `describe-allowance.ts`, whose PRD US-27.7 forbids renaming. Everything else that named the figure
-  is gone, including the band comments in nine specs and a stale comment in
-  `src/application/settings/settings.test.ts`.
-- Files changed: `tests/e2e/allowance.spec.ts` (was `portions.spec.ts`), `age-13.spec.ts`,
-  `block.spec.ts`, `card-number.spec.ts`, `counter.spec.ts`, `customer-list.spec.ts`,
-  `customer-record.spec.ts`, `price-cap.spec.ts`, `registration.spec.ts`, `reissue.spec.ts`,
-  `reminders.spec.ts`, `serve.spec.ts`, `settings.spec.ts`,
-  `src/application/settings/settings.test.ts`.
-- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1085 tests, domain and
-  application still 100%), `build`, `npm run test:e2e` (157 passed, 1 skipped) and
-  `npm run test:e2e:webkit` (157 passed, 1 skipped).
+## 2026-08-24 — US-003 (The allowance seam states the egg count, application)
+- `Allowance` gains `readonly eggs: number`, derived in `allowanceAt` as
+  `eggsFor(settings.eggRule, grownUps + children)` — the composition's own total, never a second
+  count of the members array. `CounterCustomerView` copies it; `read-customer.ts`, `read-card.ts`
+  and `list-customers.ts` needed no change at all.
+- Files: `src/application/allowance/describe-allowance.ts` + test,
+  `src/application/customers/lookup-customer.ts` + test, `docs/architecture/06-runtime-view.md`.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1139 tests, domain+application 100%) and
+  `build` all green. No UI in this story, so no browser check.
 - **Learnings for future iterations:**
-  - **`ss` does not exist in this sandbox, and `ss … || echo "port free"` lies.** The `||` fires on
-    `command not found`, so every port reads as free. A `next start` left over from the US-004
-    iteration was holding 3000, Playwright's `reuseExistingServer` (true unless `CI`) reused it, and
-    the whole `webServer.command` — the `rm` of `data/e2e.db`, `prisma migrate deploy`, `db:seed` —
-    was therefore **skipped**: 26 specs failed against a stale build over a database still carrying
-    US-004's dropped columns. `ps aux | grep "[n]ext-server"` and `kill <pid>` is the check that
-    actually answers. The tell is a *broad* failure of first-tests-in-file plus „This page couldn't
-    load“, and `PRAGMA table_info(SettingsVersion)` on `data/e2e.db` settles it in one line.
-  - **Renaming a spec moves it in the run order, and the order is the fixture.** One worker,
-    alphabetical, one shared register: `portions.spec.ts` ran fourteenth and `allowance.spec.ts`
-    runs second, so twelve specs now meet its household — and the stale card its added child leaves
-    behind — where they previously did not. Audited before renaming: the register-wide claims are
-    all relative (`versionCount`, `dueBefore`, `balanceBefore`, `snapshotRegister`) or scoped by
-    `data-customer-number`, which is why the move was safe. Check that before renaming a spec, not
-    after.
-  - **WebKit's nav-bar click is flaky at about one failure in two runs of the full suite**
-    (`navigation.spec.ts` „von Kunden verwalten aus …“, `waitForURL` timing out after the click).
-    It passed alone and on the re-run of the whole suite; nothing in this story touches navigation.
-    Worth watching rather than chasing — if it recurs, the click needs the same
-    „wait for React to own the control“ treatment `day.ts`'s `hydrated` gives the fields (#116).
-  - **A rename leaves citations behind in files no gate reads.** `tasks/prd-us-26-price-cap.md`
-    §US-26.7 still names `tests/e2e/portions.spec.ts` as the file to extend. It is a historical PRD
-    and US-006 does not list it, so it is deliberately left — but a reader following that path finds
-    nothing. Flagged here for whoever next touches that PRD.
+  - **Typecheck is the census of `Allowance` constructors.** Adding a required field to `Allowance`
+    and to `CounterCustomerView` broke *nothing* — no fixture, fake or app route builds either shape
+    by hand, they all read what the seam returns. That is the seam working, and it means a future
+    field on either type is a one-file change plus its tests. Contrast `Settings` (batch 28's
+    US-002 notes), where the same move touched 20 call sites.
+  - **`describeAllowances` had no test file of its own** before this story — its coverage came
+    entirely through `list-customers.test.ts`. The new "one read of the settings history" test adds
+    a `reads` counter to the local `FakeSettingsRepository`; that counter is the only way to assert
+    the no-query-per-row promise, since the result alone cannot show how often the port was called.
+  - **The two exhaustive `toEqual` assertions in `describe-allowance.test.ts` are the tripwire** for
+    a new derived figure: they compare the whole object, so a field added to `Allowance` fails them
+    until it is stated. Keep them exhaustive — the `toMatchObject` cases elsewhere would not notice.
+  - **`docs/architecture/06-runtime-view.md` names the seam's return value** in the counter sequence
+    diagram (`Allow-->>Lookup: counts, price (capped), eggs`). Any story that adds or removes a
+    derived figure makes that line wrong; the docs story at the end of a batch is too late, so fix
+    it in the same commit.
 ---
 
-## 2026-08-24 — US-006 (batch 27): the documents stop describing a portion allowance
-- Documentation only, no code touched. Every live document that described the portion allowance as
-  something the software provides now describes the price alone; the two places that record the
-  *reversal* keep the word on purpose.
-- Files changed: `docs/architecture/01`, `03`, `04`, `05`, `06`, `07`, `08`, `09`, `12`,
-  `adr/005`, `adr/007`, `adr/013`, `docs/archiv/domain_analysis.md`,
-  `docs/archiv/user_stories_mvp.md`, `tasks/prd-us-07-portions-and-price.md`, `tasks/README.md`,
-  `CLAUDE.md`, `CONTRIBUTING.md`.
-- Chapter 01's out-of-scope row was rewritten rather than deleted, as the story required: it now
-  reads „A portion allowance — withdrawn 2026-08-24 (US-27)“ with DF's reason. Chapter 09 gained a
-  row in **Decisions that were reversed**. Chapter 12's glossary entry is gone; chapter 06's
-  flowchart lost its `portions` node and the birthday now flows `day → comp → price`.
-- Two files outside the story's list were fixed, and deliberately: `CLAUDE.md` used the portion
-  allowance as the lead example of „derive, don't store“ and listed „portions“ among the policy
-  values, and `CONTRIBUTING.md`'s configurable-rules bullet opened with „Portions“. Both are live
-  standards, both were made wrong by this batch, and the US-005 grep gate covers `src/ tests/
-  prisma/` only — so neither would have been caught. The three „derive, don't store“ exceptions were
-  left untouched, as specified.
-- Gates: lint, typecheck, `format:check`, `test:coverage` (49 files, 1085 tests, domain and
-  application still 100%), `build`. No browser verification: the story changes no UI.
+## 2026-08-25 — US-004 (The rule is stored and versioned, infrastructure)
+- New `EggAllowanceRow` model: a child table of `SettingsVersion` with `minPersons`, `eggs`,
+  `onDelete: Restrict` spelled out, `@@unique([settingsVersionId, minPersons])` and
+  `@@index([settingsVersionId])`. Its `///` comment carries the argument for rows over a JSON column
+  or three fixed columns.
+- Migration history regenerated as `20260825000027_init` (pre-release rules), the hand-written
+  `Customer_customerNumber_onRegister_key` partial index re-appended, `npm run db:reset` run.
+- `PrismaSettingsRepository.append` writes the rows as a **nested create** inside
+  `settingsVersion.create`; `listVersions` includes them ordered by `minPersons` and `toDomain`
+  passes them through `createSettings`.
+- The seed carries DF's real rule (3 → 6, 5 → 12, 8 → 18) and its comment says that this is the one
+  seeded value that is *not* provisional. US-002's temporary empty rule is gone from the repository
+  and the seed.
+- Files: `prisma/schema.prisma`, `prisma/migrations/20260825000027_init/migration.sql` (replacing
+  `20260824183935_init`), `src/infrastructure/prisma/{settings-repository,seed,test-support}.ts`,
+  `src/infrastructure/prisma/{settings-repository,schema}.test.ts`,
+  `docs/architecture/08-crosscutting-concepts.md`.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1146 tests, domain+application 100%), `build`
+  and `format:check` all green. `/einstellungen` checked against the reset database on
+  `npm run start`: 240, 5,00 € and „Maximalpreis“ render, no „Noch nicht konfiguriert“.
 - **Learnings for future iterations:**
-  - **Prettier owns the markdown tables, so widen a cell and every row in that table re-flows.**
-    One added sentence in a `| … |` cell produced a 10-line diff in chapter 01's non-goals table.
-    Run `npx prettier --write` on the files you touched *before* reading the diff, or you review a
-    re-alignment instead of a change. `npm run lint` is `eslint` only — markdown drift is caught by
-    `format:check`, which the pre-commit hook runs.
-  - **A dated note in `docs/archiv/` cannot go where the claim is.** The claims sit inside table
-    cells and numbered-list items; a blockquote inside either is the rewrite `CLAUDE.md` forbids
-    (and between list items it splits the list). Anchor the note to the *end of the block* that
-    carries the claim instead — seven in `domain_analysis.md`, six in `user_stories_mvp.md` — and
-    where a note follows a list of several bullets, name in the note which bullets it answers, or
-    the reader cannot tell what it retracts.
-  - **A historical statement is not a stale one.** ADR-005 says the settings history is shown as a
-    diff because „a wall of eight columns turned out to be unreadable“ — that is the state at the
-    time of the decision and stays. Chapter 01's „confirmed still current on 2026-08-07“ above the
-    non-goals table was likewise *not* bumped to today: DF re-confirmed the portion row, not the
-    other eight, and moving the date would claim a confirmation that never happened.
-  - **The batch's grep gate stops at `src/ tests/ prisma/`.** Documentation has no gate at all, so
-    the sweep that finishes a deletion is `grep -rin portion --include="*.md" .` minus the entries
-    that record the reversal. After this story exactly two remain: chapter 01's non-goal row and
-    chapter 09's reversed-decisions row.
-  - **The per-story PRDs in `tasks/` are records of what was asked, not descriptions of the build.**
-    US-04, US-13, US-14, US-15, US-16, US-01 and US-26 all still describe portions and are
-    deliberately left that way; only US-07, which owned the figure, got a banner. If a future
-    reader needs the current truth they go to `docs/architecture/`, which is why that is the one
-    place this story rewrote rather than annotated.
+  - **`clearRegister` was the wrong place, and the PRD's hint to extend it is a trap.** The egg rows
+    hang off `SettingsVersion`, not off `Customer`, so the register helper never touches them. What
+    broke was `settings-repository.test.ts`'s `beforeEach`: `settingsVersion.deleteMany()` is a
+    foreign-key error the moment a version carries a rule, and every version does now that the seed
+    does. There is a `clearSettings(prisma)` sibling in `test-support.ts` for it — **use it rather
+    than deleting the two tables inline**, and extend it when the next child table of a version
+    arrives.
+  - **`tail -N old.sql >> new.sql` re-appended one line too many.** The hand-written index block is
+    the last 15 lines of the old migration, not 17; the extra two duplicated
+    `CREATE INDEX "AuditEntry_when_idx"`. SQLite would have failed the reset on it, but the reset ran
+    *before* the check — always finish with `diff /tmp/old.sql prisma/migrations/*_init/migration.sql`
+    and read the whole diff, not just that the new table is in it.
+  - **Verify the regenerated database by asking `sqlite_master` for the index names**, from a script
+    at the repo root: `npx tsx /tmp/x.ts` fails with `Cannot find module '@prisma/client'` because
+    tsx resolves from the *script's* directory, and `npx tsx -e` cannot take `$queryRaw` (the shell
+    eats the `$`, esbuild then reports `Syntax error "$"`). Write the file into the repo, run it,
+    delete it. Top-level `await` is out too — tsx transforms to CJS here, so wrap it in `main()`.
+  - **A required Prisma relation defaults to `Restrict` already**, so writing it out changes nothing
+    the database does — it changes what the file says, and `schema.test.ts` now asserts the words are
+    there. Note that **most existing relations do *not* spell it out** (`HouseholdMember`,
+    `Certificate`, `Card`, `DistributionRecord`, `ReminderLog` all rely on the default), so a
+    general "every relation states its action" test fails today. If that is wanted it is a
+    deliberate refactor of its own, not a line in a feature story.
+  - **Chapter 8's „Nine tables“ was made wrong by this commit**, so it and the ER diagram were fixed
+    here rather than left to the batch's documentation story (US-009). The rest of that story's
+    sweep — the configuration-as-data prose, chapter 7's seed row, `tasks/README.md`'s provisional
+    table, the ADR — is untouched and still owed.
+  - **The last `eggRule: []` placeholder is `src/app/einstellungen/actions.ts:235`**, which US-006
+    replaces. Until then, saving the settings form erases the rule — the hazard the batch header
+    warns about is still live.
+---
+
+## 2026-08-25 — US-005 (The counter, the record and the live preview state the eggs, presentation)
+- An „Eier“ `Stat` in the **third** slot of the four-track figures row on all three screens, ahead of
+  the price: `counter-eggs` on the counter, `eggs` in `HouseholdReadOnly` and `eggs` in the live
+  editor. The customer list and the card view were not touched.
+- `AllowanceValues = PriceValues & Pick<Settings, "eggRule">` in `settings.ts` is what carries the
+  rule to the browser; the editor's `derived()` calls `eggsFor(policy.eggRule, grownUps + children)`
+  and re-implements no lookup. `priceFor` keeps the narrower `PriceValues`.
+- `de.customers.derived.eggs = "Eier"`, and `de.customers.record.householdHint` now names all four
+  figures.
+- Files: `src/app/ausgabe/counter-lookup.tsx`, `src/app/kunden/[id]/{page.tsx,household-editor.tsx}`,
+  `src/domain/policy/settings.ts`, `src/i18n/de.ts`.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1146 tests), `build` and `format:check` green.
+- Browser-checked against `npm run start` with two hand-seeded households (901: two grown-ups and a
+  child; 902: two grown-ups, archived afterwards for the read-only block). Accessibility snapshots
+  read „Eier 6“, „Eier 12“ and „Eier 0“ as one `<p>` each; the editor moved 6 → 6 → 12 as a fourth
+  and then a fifth member was added, and emptying the household turned it to „—“ beside the counts'
+  own „—“.
+- **Learnings for future iterations:**
+  - **The PRD names `AllowanceValues` as if it already existed** — the type on `main` is
+    `PriceValues`. It was **added beside** `PriceValues` rather than renamed over it: `priceFor`
+    still takes only the three price values, and widening its parameter would have said the eggs
+    were part of the sum and forced an `eggRule` into every price test. A PRD naming a type it
+    expects to find is a design hint, not a fact about the tree.
+  - **`de.customers.record.householdHint` enumerates the derived figures** („Erwachsene, Kinder und
+    Preis …“) and no gate sees it. It now says „aus dem Haushalt“ rather than „aus den
+    Geburtsdaten“, because the eggs follow heads and not ages. Any story adding or removing a tile
+    on that screen has to re-read that sentence — `de.customers.new.intro` is the same shape for the
+    registration form.
+  - **`playwright-cli fill` on a `DateInput` works through `getByTestId`** — the date fields take a
+    testid per row (`member-birth-date-<n>`), unlike the counter's Nummer input, which still needs a
+    role locator. `add-member` and `remove-member-<n>` are testids too, so the whole editor can be
+    driven without a snapshot between steps.
+  - **Seeding a household by hand for a browser check needs two fields the e2e specs' snippets do
+    not show you**: `Certificate.recordedAt` is required, and the archive pair is
+    `archiveReason` + `archivedAt` (not `archivedReason`). Write the script into the repo root, run
+    `npx tsx ./x.ts`, delete it — and finish with `npm run db:reset` so the next iteration does not
+    inherit customers 901/902.
+  - **Still owed to US-009:** `docs/architecture/05-building-block-view.md:73` says the `allowance/`
+    seam turns a household plus a date "into the counts and the price". US-003 made that wrong; the
+    runtime view was fixed then and this cell was not.
+---
+
+## 2026-08-25 — US-006 (The rule is editable on the settings screen, presentation)
+- New client component `src/app/einstellungen/egg-rule-table.tsx`: an „Eier“ `Section` card between
+  „Mengen und Preise“ and „Ausgaberhythmus“, holding a two-column table (threshold, eggs) with a
+  „Zeile entfernen“ per row, „Zeile hinzufügen“ below, a sibling hint reached by `aria-describedby`
+  and a sentence in place of the table when the rule is empty.
+- `actions.ts`: `eggRuleRows` pairs the repeated `eggThreshold` / `eggCount` inputs back into rows
+  (modelled on `householdRows`), dropping a row whose two fields are *both* blank; `screenPath`
+  translates a refusal's `eggRule.<index>.<part>` back to the row's position **on screen**;
+  `DuplicateEggThreshold` and `EggsNotIncreasing` are stated by the button and mark nothing. The
+  temporary `eggRule: []` is gone — the form's rows are what reaches `updateSettings`.
+- `de.ts`: the section heading, both column headings, add/remove labels, hint, empty sentence, the
+  two collision sentences, `eggs.fieldLabel(position, part)`, and `eggRuleFieldLabel` — the
+  `householdFieldLabel`-shaped regex that lets `settingsFormFieldLabel` name an indexed row.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1146 tests, domain+application 100%), `build`
+  and `format:check` all green.
+- Browser-checked against `npm run start` over a reset database, reading accessibility snapshots:
+  rows seeded 3/6, 5/12, 8/18 from the stored rule; adding and removing rows without a reload; a
+  threshold of 0 typed as row 4 marked **row 4** and not the row it would sort to, with the summary
+  naming „Eier, Zeile 4: Ab wie vielen Personen“ and all four typed rows kept; both collisions read
+  as their German sentences with `aria-invalid` nowhere on the page; a half-typed row refused naming
+  the blank field; a blank added row saved without refusing; the rule emptied, saved and reloaded as
+  „Keine Stufen hinterlegt.“; and rows typed 8 then 3 stayed 8, 3 while typing and came back 3, 8
+  after a reload. The database was reset afterwards, so the three extra versions are gone.
+- **Learnings for future iterations:**
+  - **`type="number"` means the snapshot says `spinbutton`, not `textbox`.** The PRD asks for „a
+    NAMED textbox“; what matters is the accessible name, and `NumberField` (quotaN,
+    distributionWeekday) has been a spinbutton on this screen all along. Matching the screen's own
+    whole-number control beat matching the PRD's word. Only `EuroField` is a textbox, and
+    deliberately — a German decimal comma is what staff type.
+  - **A refusal's row index has to be translated twice over, and both ends count differently.** Zod
+    numbers its issues over the array it was handed and `createEggRule` over the rows it was handed
+    — both the list with blank rows already dropped — while the form still shows the blank row. One
+    helper (`screenPath`) fixes both, and it is why `eggRuleRows` carries `position` rather than
+    returning bare rows. Without it a refusal marks the row *above* the one that was typed.
+  - **`de.settings.errorFields` is keyed by domain field name and cannot answer for an indexed
+    path**, so the `InvalidSettings` branch falls through to `settingsFormFieldLabel(path)` — which
+    needs the *screen* path, not the domain one. Order matters: translate the path first, then look
+    up the label with it.
+  - **The rows deliberately do not travel in `SubmittedSettings`.** They are React state and survive
+    `useActionState`'s reset on their own; the eight uncontrolled fields around them do not. The
+    asymmetry is commented in both files, because it reads as an oversight otherwise.
+  - **`revalidatePath` does not re-seed the table.** `useState`'s initialiser runs once, so the rows
+    keep their typed order after a save and only a real reload shows the sorted result — which is
+    what the PRD asks for, but it does mean a blank row added just before a successful save is still
+    on screen afterwards.
+  - **`playwright-cli fill` reaches these inputs by `getByLabel('Eier, Zeile 1: Eier')`** — the
+    `aria-label` is the whole locator, no testid needed. `remove-egg-row-<n>` and `add-egg-row` are
+    testids; note the remove ids are re-numbered on every removal, so clicking
+    `remove-egg-row-0` repeatedly is how a table is emptied.
+  - **Still owed to US-009:** `docs/architecture/05-building-block-view.md:73` (the `allowance/`
+    seam's summary, wrong since US-003) and the configuration-as-data prose, chapter 7's seed row,
+    `tasks/README.md`'s provisional table and the ADR.
+---
+
+## 2026-08-25 — US-007 (The Änderungsverlauf reads a rule change row by row, presentation)
+- `FullValues` gained a **fourth** line, „Eierregel: …“, holding every row as
+  „ab 3 Personen: 6 Eier“ joined by „ · “, through a new `describeEggRule` helper shaped exactly
+  like `describeCap`: an empty rule returns `de.settings.eggs.none` („keine Eier“).
+- `de.settings.eggs` gained `row` and `none`, and the row clause moved to a module-level `eggRow`
+  beside `fromPersons`/`eggCount`, so `rowAdded`/`rowRemoved` are that same clause plus „(neu)“ /
+  „(entfernt)“ — a rule and a change to it now name a row in one place.
+- `describeChange`'s `eggRule` case and `describeEggRuleRow` were already on the branch (US-002 put
+  them there — the exhaustive switch fails the build without them), so this story's work was the
+  summary half plus the end-to-end proof of the change half.
+- Files: `src/app/einstellungen/page.tsx`, `src/i18n/de.ts`.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1146 tests), `build`, `format:check` green.
+- Browser-checked against `npm run start` over a reset database, reading the accessibility snapshot
+  and each `settings-version` entry's text. Five versions were saved; the history read, newest
+  first: the in-force summary with „Eierregel: ab 4 Personen: 10 Eier“ on its own line; „Eierregel:
+  ab 3 Personen: 8 Eier (entfernt) · ab 5 Personen: 12 Eier (entfernt) · ab 8 Personen: 18 Eier
+  (entfernt) · ab 12 Personen: 24 Eier (entfernt)“; „Eierregel: ab 12 Personen: 24 Eier (neu)“;
+  „Eierregel: ab 3 Personen: 6 → 8 Eier“; „Erstkonfiguration“. While the emptied rule was the
+  version in force its summary read „Eierregel: keine Eier“. The fold summary stated „4 Fassungen ·
+  zuletzt geändert am 25.08.2026“ and then „5 Fassungen“, console clean. The database was reset
+  afterwards.
+- **Learnings for future iterations:**
+  - **„keine Eier“ has exactly one site on the screen, and it is inside the history.** The PRD asks
+    for it „in both the summary and the history“, but a superseded version states only the rows that
+    *moved* — an emptied rule reads there as four „(entfernt)“ rows, which is more informative and is
+    what the story's own title asks for. The only place a rule is printed **whole** is `FullValues`,
+    and `FullValues` renders inside the Änderungsverlauf card, as the in-force version's own row. So
+    both places are one place; do not add a second branch chasing the wording.
+  - **The in-force version shows no diff at all.** To see a change rendered as a diff line you have
+    to save *another* version after it — the entry at the top of the list is always the full values.
+    Verifying „(entfernt)“ therefore needs five saves, not four.
+  - **Reading version rows is far cheaper as text than as a snapshot.**
+    `playwright-cli --raw eval "() => Array.from(document.querySelectorAll('[data-testid=settings-version]')).map(li => li.innerText)"`
+    returns the whole history as a JSON array of newline-separated lines; a `snapshot` of the same
+    card is hundreds of lines of `generic` wrappers. Use `find`/`snapshot` to establish the markup
+    *means* the right thing once, then `eval` for the content of the remaining cases.
+  - **`<details>` must be re-opened after every `reload`** — it is uncontrolled DOM state, not React
+    state. `playwright-cli click "getByTestId('settings-history-open')"` after each reload.
+  - **`remove-egg-row-0` clicked N times empties the table**, because the testids renumber on every
+    removal (noted in US-006 and confirmed here).
+  - **Still owed to US-009:** `docs/architecture/05-building-block-view.md:73` (the `allowance/`
+    seam's summary, wrong since US-003), the configuration-as-data prose, chapter 7's seed row,
+    `tasks/README.md`'s provisional table and the ADR.
+---
+
+## 2026-08-25 — US-008 (E2E — the egg count from the settings screen to the counter)
+- New `tests/e2e/eggs.spec.ts`, ten serial tests over a band of its own (**331–334**): households of
+  2, 3, 5 and 8 people, the household of three being two grown-ups and one infant. It asserts the
+  count on the counter *and* on the record for all four; that the two-person household's tile
+  **reads 0** and is visible; the live preview moving 0 → 6 as a baby is typed into the editor, with
+  the saved record and the counter then agreeing; that the eggs appear on neither the customer list
+  nor the card view; both refusals through the real form (`duplicateThreshold(5)` and
+  `eggsNotIncreasing(8, 6, 5, 12)`) with nothing written and every typed row still on screen; a
+  6 → 8 edit on /einstellungen moving the counter's figure for the same household; an emptied rule
+  saving and every household then reading 0; and the seeded rule typed back in **top step first**,
+  sorting itself on reload.
+- The price rides along with every reading, because the eggs are free: the household of two — three
+  once the baby joins — is priced under the seeded Maximalpreis, so a count leaking into the sum
+  would show. The other three stand at the cap and are asserted for completeness.
+- `tests/e2e/age-13.spec.ts` gained the eggs in `expectDerived` and at the counter — and a **third
+  member**. A household of two receives no eggs under DF's rule, so `0` either side of the birthday
+  would have proved nothing; with a baby in it the household is three people on both days and reads
+  6 while the counts and the price move (4,00 € → 5,00 €). The card's `childrenAtIssue` and the two
+  `countsValue` pairs moved with the fixture.
+- `tests/e2e/settings.spec.ts` gained `SEEDED_EGG_RULE` and one assertion on the version in force:
+  the whole rule, all three rows, spelled out rather than matched as a substring — a list-valued
+  setting can lose its top two steps in a way a number cannot.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1146 tests), `build`, `format:check`, and
+  **both engines** — `npm run test:e2e` and `npm run test:e2e:webkit`, 167 passed / 1 skipped each,
+  no dev server running.
+- **Learnings for future iterations:**
+  - **A spec that edits settings must hand the register back**, and `settings.spec.ts` is why: it
+    sorts after `eggs.spec.ts` and states the rule in force *in full*. The last test restores the
+    seeded rule, which is the courtesy `price-cap.spec.ts` pays with the Maximalpreis. Typing it
+    back in reversed order is a free extra assertion — the domain sorts, so the reload is the proof.
+  - **Do not pin the clock in a spec that also saves settings.** A settings version is stamped
+    *now*, and a version written under a pinned January would sort into the history below versions
+    the earlier specs stamped today — which the positional assertions in `settings.spec.ts`
+    (`versions.nth(1)`, `versions.last()`) count on. `eggs.spec.ts` therefore uses literal
+    birthdates and the real clock, and the 13th-birthday case stays in `age-13.spec.ts`, which pins
+    and saves nothing.
+  - **The record's egg tile on an *active* customer is the household editor's**, derived in the
+    browser; the server-rendered one (`HouseholdReadOnly`) only appears on an archived record. So
+    the counter is the screen that proves the *server* read the rule, and both were asserted.
+  - **Assert an absent tile by testid and by an exact-text label, never by `not.toContainText`.**
+    The customer list carries every spec's Faker names, so a substring check for „Eier“ is a
+    surname away from a false failure; `getByRole("columnheader", { name })` and
+    `getByText(label, { exact: true })` say what is actually meant.
+  - **Household prices of five or more are all at the seeded cap.** 2,00 € per grown-up and 1,00 €
+    per child put any household of five over 500c, so a price assertion there cannot fail on its
+    own. A spec that wants the price to be *free to move* needs a household of two or three.
+  - **`remove-egg-row-0` clicked N times empties the table** (US-006/US-007 said so; confirmed
+    against both engines), and the egg cells are addressable as `#eggThreshold-<i>` / `#eggCount-<i>`
+    — shorter than the `aria-label` and stable across a re-render.
+  - **Still owed to US-009:** `docs/architecture/05-building-block-view.md:73` (the `allowance/`
+    seam's summary, wrong since US-003), the configuration-as-data prose, chapter 7's seed row,
+    `tasks/README.md`'s provisional table and the ADR.
+---
+
+## 2026-08-25 — US-009 (The documents describe the egg allowance, and an ADR records the shape)
+- **ADR-014 „Store the egg allowance as versioned threshold rows“**, scaffolded with
+  `python3 .claude/skills/arc42/scripts/arc42.py new-adr` and accepted in both the file and the
+  chapter 9 row. It states the decision (a child table of `SettingsVersion`, the domain owning the
+  staircase, the database owning the no-duplicate rule) and turns down four alternatives: a JSON
+  column, three fixed columns, a per-head number, and both invariants in the domain only.
+- Chapters updated: **01** (a „derive the egg allowance“ goal, the list of what DF may change,
+  US-01…28), **03** (three context edges and two Neighbours rows), **04** (strategy 3's approach,
+  the hard-code sentence by name, an ADR-014 link), **05** (26 domain modules, the `policy/` and
+  `allowance/` rows, the seed adapter), **06** (a paragraph on scenario 4: the eggs are the figure a
+  13th birthday does *not* move), **07** (the seed row separates the real rule from the provisional
+  values), **08** (configuration-as-data gained „One setting is a list, and that changes three
+  things“), **09** (fourteen ADRs), **12** („Egg allowance“ and „Threshold“ entries), plus
+  `docs/architecture/README.md`.
+- Also: `CONTRIBUTING.md`'s configurable-data bullet, `docs/handout/betriebsanleitung.md` (a German
+  „Eier“ section — where the count appears, how to change the rule, what is refused) and its README
+  row, `tasks/README.md` (the seed table gained a **Status** column and the egg row marked
+  Confirmed), and a dated pointer in `docs/archiv/domain_analysis.md` §6 open question 1.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1146 tests), `build` and `prettier --check .`
+  all green. No code changed, so no browser check and no e2e run.
+- **Learnings for future iterations:**
+  - **`arc42.py new-adr` writes the index row itself**, unformatted and `Pending`. Three things are
+    left to do by hand and none of them is optional: set `Accepted` in *both* places, re-count the
+    intro sentence („The thirteen decisions …“ — it goes stale silently, exactly like
+    `notice-tier.ts`'s header), and run `npx prettier --write` on chapter 9, because the new row is
+    narrower than the table and Prettier re-flows all fourteen.
+  - **`arc42.py check` validates structure, not truth.** It passed before a single chapter was
+    touched. It is worth running for dead links and the ADR index, but it can never tell you a
+    chapter is stale — that is what the batch-closing documentation story is for.
+  - **A long table cell is a whole-table diff.** The chapter 7 seed row grew by a sentence and
+    Prettier re-flowed all seven rows to the new width, which buried the change. Write the cell
+    *short* — the same fact in half the words costs nothing here and keeps the diff to one line.
+  - **`docs/architecture/README.md` carries claims about the other trees**, including „US-01 to
+    US-26“ in the table of what `tasks/` is. Chapter 01 has the same sentence. Both go stale on
+    every batch that adds a PRD and neither is anybody's story — `grep -rn "US-01 to US" docs/`.
+  - **The debts US-003 to US-008 recorded in this log were the checklist**, and they were all real:
+    `05-building-block-view.md:73` had said „the counts and the price“ since US-003. Leaving a
+    „Still owed to US-009“ bullet under each story is the pattern that made this story fast — keep
+    doing it, and make the last story of a batch read the log rather than the diff.
+  - **`docs/handout/README.md` states the rules the Betriebsanleitung is written to** (German, no
+    file paths, one page, italic placeholders) *and* a row summarising what it covers. A new section
+    means both: write to the rules, then extend the row.
+  - **The archive note is a pointer, not a rewrite.** `domain_analysis.md`'s open question 1 lists
+    the policy values still unknown; the egg rule is a value that list never named and DF have since
+    confirmed, so it got a dated `> **Note (2026-08-25).**` after the block — the list itself was
+    left exactly as it was.
 ---

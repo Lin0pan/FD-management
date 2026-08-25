@@ -4,12 +4,12 @@
  * The household editor on the customer record (tasks/prd-us-16-maintain-customer-record.md §US-16.1,
  * §US-16.5) — where a baby is added and somebody who moved out is taken off the list.
  *
- * A client component for the reason the registration form is one: the counts and the price have to
- * update *as staff type*, because the whole point of the screen is that the consequences of an edit
- * are visible before it is saved (FR-1). None of the three is computed here — the panel calls the
- * same domain rules the save will apply (`composition`, `priceFor`) against the day and the policy
- * values the server handed it, so what is on screen is what the save derives. There is no input for
- * any of them by design.
+ * A client component for the reason the registration form is one: the counts, the eggs and the price
+ * have to update *as staff type*, because the whole point of the screen is that the consequences of
+ * an edit are visible before it is saved (FR-1). None of the four is computed here — the panel calls
+ * the same domain rules the save will apply (`composition`, `priceFor`, `eggsFor`) against the day
+ * and the policy values the server handed it, so what is on screen is what the save derives. There
+ * is no input for any of them by design.
  *
  * The edit is a **replacement of the whole set**, not an add-and-remove pair: staff correct the list
  * in front of them and press save. Two members can share a name and a birthdate, so a row has no
@@ -35,7 +35,8 @@ import {
 } from "@/components/ui/table";
 import { ageInYears, composition } from "@/domain/customer/householdComposition";
 import { formatEuros } from "@/domain/money";
-import { priceFor, type PriceValues } from "@/domain/policy/settings";
+import { eggsFor } from "@/domain/policy/eggs";
+import { priceFor, type AllowanceValues } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
@@ -77,8 +78,8 @@ function typedDay(value: string): Date | null {
 function derived(
   rows: ReadonlyArray<MemberRow>,
   today: Date,
-  policy: PriceValues,
-): { grownUps: number; children: number; priceCents: number } | null {
+  policy: AllowanceValues,
+): { grownUps: number; children: number; priceCents: number; eggs: number } | null {
   const members = rows
     .map((row) => typedDay(row.birthDate))
     .filter((day): day is Date => day !== null)
@@ -91,6 +92,11 @@ function derived(
     return {
       ...counts,
       priceCents: priceFor(policy, counts.grownUps, counts.children),
+      // Through `eggsFor` against the rule the server handed down, never a lookup written out
+      // again here: a second reading of the staircase is how the preview and the save come to
+      // disagree. The rule counts heads and not ages, so it is the two counts added — the same
+      // total `describeAllowance` asks about (US-28).
+      eggs: eggsFor(policy.eggRule, counts.grownUps + counts.children),
     };
   } catch {
     return null;
@@ -179,7 +185,7 @@ export function HouseholdEditor({
   members: ReadonlyArray<MemberRow>;
   /** The day the counts are judged against — the server's, never the browser's clock. */
   today: Date;
-  policy: PriceValues;
+  policy: AllowanceValues;
 }): React.ReactElement {
   const [state, formAction, pending] = useActionState(
     updateHouseholdAction,
@@ -205,7 +211,7 @@ export function HouseholdEditor({
     <form ref={form} action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="customerId" value={customerId} />
 
-      {/* The three figures the household section exists to produce, at the rank the counter gives
+      {/* The four figures the household section exists to produce, at the rank the counter gives
           them: FR-1 is that the consequences of an edit are visible before it is saved, and as
           408px bordered boxes holding one digit each they were the least emphatic thing in the
           section. Above the table, so an edit and its consequence are read in that order. */}
@@ -219,6 +225,16 @@ export function HouseholdEditor({
           label={de.customers.derived.children}
           value={figures === null ? unknown : String(figures.children)}
           testId="children"
+        />
+        {/* Third, ahead of the price, as at the counter and on the read-only block above.
+
+            The dash is the *nothing derivable at all* state — no dated member yet — and it stays
+            that for the eggs exactly as it is for the counts beside them. An entitlement of none is
+            a different answer and reads 0: a household of two is known and small, not unknown. */}
+        <Stat
+          label={de.customers.derived.eggs}
+          value={figures === null ? unknown : String(figures.eggs)}
+          testId="eggs"
         />
         <Stat
           label={de.customers.derived.price}

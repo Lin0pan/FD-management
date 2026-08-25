@@ -1,6 +1,6 @@
 # 5. Building block view
 
-_Last reviewed: 2026-08-07_
+_Last reviewed: 2026-08-25_
 
 Deliberately terse. One sentence of responsibility per block, no function listings — the code and its
 tests are the reference for those, and a second copy here is the one that would go stale.
@@ -47,14 +47,14 @@ Business logic in `app/` is a defect, not a style preference. So is a Prisma cal
 
 ## Level 2 — inside each layer
 
-### `src/domain/` — 24 modules in four families
+### `src/domain/` — 26 modules in four families
 
 | Directory               | Responsibility                                                                                                                                                                                                                                         |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `customer/`             | What a household is and what may happen to it: composition from birthdates, the 13-year boundary, certificate expiry and state, the three-status state machine, group balancing, the free-slot arithmetic, name folding for search, waiting-list order |
 | `distribution/`         | What happens on a distribution day: the counter verdict and its fixed precedence, one hand-out per Berlin calendar day, week-colour alternation from a single anchor, the group roster walk, the served/expected tally, consecutive no-shows           |
 | `card/`                 | What a card is: the derived card number, "valid means highest index", and whether what is printed still matches the household                                                                                                                          |
-| `policy/`               | Settings as immutable versions, resolution at an instant, price per head with cap, and the diff two versions produce                                                                                                                                   |
+| `policy/`               | Settings as immutable versions, resolution at an instant, price per head with cap, the egg staircase and the count a household size yields, and the diff two versions produce                                                                          |
 | `errors.ts`, `money.ts` | The closed set of failure modes; money as integer cents with German formatting                                                                                                                                                                         |
 
 The one module worth naming individually is `distribution/counterVerdict.ts`. It produces **exactly
@@ -70,7 +70,7 @@ Assembling that answer in JSX is the mistake the module exists to prevent.
 | `distribution/` | Record and correct a hand-out, answer this week's colour, read the group roster and its walk                                                                                                                                                                                                                   |
 | `settings/`     | Read the version in force, append a new one, list the history with diffs                                                                                                                                                                                                                                       |
 | `waiting-list/` | Add, list in arrival order, promote, register from the list, remove with a reason                                                                                                                                                                                                                              |
-| `allowance/`    | The single seam that turns a household plus a date into the counts and the price                                                                                                                                                                                                                               |
+| `allowance/`    | The single seam that turns a household plus a date into the counts, the eggs and the price                                                                                                                                                                                                                     |
 | `ports.ts`      | The hexagon boundary — type-only, no runtime code                                                                                                                                                                                                                                                              |
 
 Every use case is a plain function taking `(deps, input)`, where `deps` is a structural subset of the
@@ -104,7 +104,7 @@ This table _is_ the boundary between the pure core and everything else.
 | `prisma/client.ts`                 | One `PrismaClient`, cached on `globalThis` outside production so hot reload does not exhaust the pool |
 | `prisma/*-repository.ts` (7 files) | One adapter per port; each translates Prisma's `P2002` into the right typed domain error              |
 | `prisma/audit-log.ts`              | Appends an audit row, joining the changed fields with commas                                          |
-| `prisma/seed.ts`                   | The provisional settings version, idempotent, writing no audit entry                                  |
+| `prisma/seed.ts`                   | The first settings version, idempotent, writing no audit entry — provisional except for the egg rule  |
 | `prisma/test-support.ts`           | `clearRegister` — the only sanctioned way to empty the register, deleting children first              |
 | `prisma/schema.test.ts`            | A static guard: fails if a cascade or a `SetNull` reappears in the schema or the generated SQL        |
 

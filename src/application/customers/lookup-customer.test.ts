@@ -295,6 +295,7 @@ function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
     pricePerGrownUp: 200,
     pricePerChild: 100,
     priceCap: null,
+    eggRule: [],
     ...overrides,
   };
 }
@@ -482,6 +483,25 @@ describe("lookupCustomer", () => {
     expect(result.customer?.grownUps).toBe(2);
     expect(result.customer?.children).toBe(1);
     expect(result.customer?.priceCents).toBe(500);
+  });
+
+  it("states the eggs the household receives, counting every member whatever their age", async () => {
+    settings = new FakeSettingsRepository(
+      version({
+        eggRule: [
+          { minPersons: 3, eggs: 6 },
+          { minPersons: 5, eggs: 12 },
+        ],
+      }),
+    );
+    customers = new FakeCustomerRepository(
+      customerRecord({ householdMembers: [member(GROWN_UP), member(GROWN_UP), member(CHILD)] }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    // Three persons — the child counts towards the eggs, though not towards the grown-ups.
+    expect(result.customer?.eggs).toBe(6);
   });
 
   it("counts a member who has since turned 13 as a grown-up, never a stored number", async () => {

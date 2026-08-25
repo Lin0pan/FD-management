@@ -12,10 +12,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { eggsFor, type EggRuleRow } from "@/domain/policy/eggs";
 import { createSettings, priceFor, type SettingsVersion } from "@/domain/policy/settings";
 import { PrismaSettingsRepository } from "./settings-repository";
 import { provisionalSettingsVersion, seedSettings } from "./seed";
-import { migrateThrowawayDatabase } from "./test-support";
+import { clearSettings, migrateThrowawayDatabase } from "./test-support";
 
 let directory: string;
 let prisma: PrismaClient;
@@ -35,13 +36,14 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
-  await prisma.settingsVersion.deleteMany();
+  await clearSettings(prisma);
 });
 
 function version(
   recordedAt: string,
   quotaN = 240,
   priceCap: number | null = null,
+  eggRule: ReadonlyArray<EggRuleRow> = [],
 ): SettingsVersion {
   return {
     recordedAt: new Date(recordedAt),
@@ -52,6 +54,7 @@ function version(
       pricePerGrownUp: 200,
       pricePerChild: 100,
       priceCap,
+      eggRule,
     }),
   };
 }
@@ -113,6 +116,80 @@ describe("PrismaSettingsRepository", () => {
     expect(quotas).toEqual([200, 210]);
   });
 
+  it("carries an egg rule through the round trip, and no rule back as an empty rule", async () => {
+    await repository.append(
+      version("2026-01-01T00:00:00.000Z", 240, null, [
+        { minPersons: 3, eggs: 6 },
+        { minPersons: 5, eggs: 12 },
+        { minPersons: 8, eggs: 18 },
+      ]),
+    );
+    await repository.append(version("2026-02-01T00:00:00.000Z", 240, null, []));
+
+    const [ruled, unruled] = await repository.listVersions();
+    expect(ruled.settings.eggRule).toEqual([
+      { minPersons: 3, eggs: 6 },
+      { minPersons: 5, eggs: 12 },
+      { minPersons: 8, eggs: 18 },
+    ]);
+    expect(eggsFor(ruled.settings.eggRule, 4)).toBe(6);
+    // The distinction the child table exists for: a version with no rows is a *configuration* — no
+    // eggs for anyone — and must come back as an empty rule rather than as absent or as a default.
+    expect(unruled.settings.eggRule).toEqual([]);
+    expect(eggsFor(unruled.settings.eggRule, 9)).toBe(0);
+  });
+
+  it("sorts a rule written out of order back into threshold order", async () => {
+    await repository.append(
+      version("2026-01-01T00:00:00.000Z", 240, null, [
+        { minPersons: 8, eggs: 18 },
+        { minPersons: 3, eggs: 6 },
+        { minPersons: 5, eggs: 12 },
+      ]),
+    );
+
+    const [stored] = await repository.listVersions();
+    expect(stored.settings.eggRule.map((row) => row.minPersons)).toEqual([3, 5, 8]);
+  });
+
+  it("lets two versions hold the same thresholds — the unique index is per version", async () => {
+    // `@@unique([settingsVersionId, minPersons])` says a *version* names a household size once. A
+    // global unique index on `minPersons` would make the second save of an unchanged rule
+    // impossible, which is most of them.
+    await repository.append(
+      version("2026-01-01T00:00:00.000Z", 240, null, [{ minPersons: 3, eggs: 6 }]),
+    );
+    await repository.append(
+      version("2026-02-01T00:00:00.000Z", 240, null, [{ minPersons: 3, eggs: 9 }]),
+    );
+
+    const [first, second] = await repository.listVersions();
+    expect(first.settings.eggRule).toEqual([{ minPersons: 3, eggs: 6 }]);
+    expect(second.settings.eggRule).toEqual([{ minPersons: 3, eggs: 9 }]);
+  });
+
+  it("rejects a hand-edited staircase whose larger household receives no more eggs", async () => {
+    await prisma.settingsVersion.create({
+      data: {
+        recordedAt: new Date("2026-03-01T00:00:00.000Z"),
+        quotaN: 240,
+        weekAnchorIsoWeek: "2026-W02",
+        weekAnchorColour: "RED",
+        distributionWeekday: 4,
+        pricePerGrownUpCents: 200,
+        pricePerChildCents: 100,
+        eggRule: {
+          create: [
+            { minPersons: 3, eggs: 12 },
+            { minPersons: 5, eggs: 6 },
+          ],
+        },
+      },
+    });
+
+    await expect(repository.listVersions()).rejects.toThrow(/5 persons award 6 eggs/);
+  });
+
   it("rejects a stored week colour that is not part of the cycle", async () => {
     await prisma.settingsVersion.create({
       data: {
@@ -168,6 +245,21 @@ describe("seedSettings", () => {
     // Four grown-ups and three children owe 11,00 € per head and pay 5,00 € — the case the whole
     // of US-26 exists for, exercised by seeded data without anyone editing the settings first.
     expect(priceFor(seeded.settings, 4, 3)).toBe(500);
+  });
+
+  it("seeds DF's own egg rule, the one seeded value that is not provisional", async () => {
+    await seedSettings(repository);
+
+    const [seeded] = await repository.listVersions();
+    expect(seeded.settings.eggRule).toEqual([
+      { minPersons: 3, eggs: 6 },
+      { minPersons: 5, eggs: 12 },
+      { minPersons: 8, eggs: 18 },
+    ]);
+    // The rule as DF state it, read off the seeded staircase: 1–2 none, 3–4 six, 5–7 twelve,
+    // 8 and up eighteen.
+    expect([1, 2, 3, 4, 5, 7, 8, 12].map((persons) => eggsFor(seeded.settings.eggRule, persons))) //
+      .toEqual([0, 0, 6, 6, 12, 12, 18, 18]);
   });
 
   it("is a no-op the second time, leaving the stored version untouched", async () => {

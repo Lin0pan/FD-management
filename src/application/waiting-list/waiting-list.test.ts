@@ -239,6 +239,7 @@ function settingsInput(quotaN: number): SettingsInput {
     pricePerGrownUp: 200,
     pricePerChild: 100,
     priceCap: null,
+    eggRule: [],
   };
 }
 

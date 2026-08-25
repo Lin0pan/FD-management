@@ -150,6 +150,7 @@ const SETTINGS: SettingsVersion = {
     pricePerGrownUp: 200,
     pricePerChild: 100,
     priceCap: null,
+    eggRule: [],
   }),
 };
 

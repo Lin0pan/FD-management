@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
+import type { EggRuleRow } from "./eggs";
 import { createSettings, type Settings, type SettingsInput } from "./settings";
 import { diffSettings } from "./settings-diff";
+
+/** What DF hand out today, and the rule every test here moves one row of. */
+const DF_EGG_ROWS: ReadonlyArray<EggRuleRow> = [
+  { minPersons: 3, eggs: 6 },
+  { minPersons: 5, eggs: 12 },
+  { minPersons: 8, eggs: 18 },
+];
 
 /** A valid baseline; each test moves only the field whose rule it is about. */
 function settings(overrides: Partial<SettingsInput> = {}): Settings {
@@ -11,6 +19,7 @@ function settings(overrides: Partial<SettingsInput> = {}): Settings {
     pricePerGrownUp: 200,
     pricePerChild: 100,
     priceCap: null,
+    eggRule: DF_EGG_ROWS,
     ...overrides,
   });
 }
@@ -142,6 +151,88 @@ describe("diffSettings", () => {
       "pricePerGrownUp",
       "pricePerChild",
       "priceCap",
+    ]);
+  });
+});
+
+describe("diffSettings over the egg rule", () => {
+  it("reports nothing when the rule did not move", () => {
+    // The rule is an array: comparing the two references would report a change on every save.
+    expect(diffSettings(settings(), settings())).toEqual([]);
+  });
+
+  it("reports nothing when the rows were merely retyped in another order", () => {
+    const next = settings({
+      eggRule: [
+        { minPersons: 8, eggs: 18 },
+        { minPersons: 5, eggs: 12 },
+        { minPersons: 3, eggs: 6 },
+      ],
+    });
+
+    expect(diffSettings(settings(), next)).toEqual([]);
+  });
+
+  it("reports a changed row as a row change, with no from and no to for the rule", () => {
+    const next = settings({
+      eggRule: [
+        { minPersons: 3, eggs: 6 },
+        { minPersons: 5, eggs: 14 },
+        { minPersons: 8, eggs: 18 },
+      ],
+    });
+
+    expect(diffSettings(settings(), next)).toEqual([
+      { field: "eggRule", rows: [{ kind: "changed", minPersons: 5, from: 12, to: 14 }] },
+    ]);
+  });
+
+  it("reports an added row", () => {
+    const next = settings({ eggRule: [...DF_EGG_ROWS, { minPersons: 12, eggs: 24 }] });
+
+    expect(diffSettings(settings(), next)).toEqual([
+      { field: "eggRule", rows: [{ kind: "added", minPersons: 12, eggs: 24 }] },
+    ]);
+  });
+
+  it("reports every row as removed when the rule was emptied", () => {
+    expect(diffSettings(settings(), settings({ eggRule: [] }))).toEqual([
+      {
+        field: "eggRule",
+        rows: [
+          { kind: "removed", minPersons: 3, eggs: 6 },
+          { kind: "removed", minPersons: 5, eggs: 12 },
+          { kind: "removed", minPersons: 8, eggs: 18 },
+        ],
+      },
+    ]);
+  });
+
+  it("reports every row as added when the rule was filled from empty", () => {
+    expect(diffSettings(settings({ eggRule: [] }), settings())).toEqual([
+      {
+        field: "eggRule",
+        rows: [
+          { kind: "added", minPersons: 3, eggs: 6 },
+          { kind: "added", minPersons: 5, eggs: 12 },
+          { kind: "added", minPersons: 8, eggs: 18 },
+        ],
+      },
+    ]);
+  });
+
+  it("reports the rule beside the other fields that moved, after the cap", () => {
+    const next = settings({ quotaN: 200, eggRule: [{ minPersons: 3, eggs: 6 }] });
+
+    expect(diffSettings(settings(), next)).toEqual([
+      { field: "quotaN", from: 240, to: 200 },
+      {
+        field: "eggRule",
+        rows: [
+          { kind: "removed", minPersons: 5, eggs: 12 },
+          { kind: "removed", minPersons: 8, eggs: 18 },
+        ],
+      },
     ]);
   });
 });

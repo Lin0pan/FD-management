@@ -234,6 +234,7 @@ function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
     pricePerGrownUp: 200,
     pricePerChild: 100,
     priceCap: null,
+    eggRule: [],
     ...overrides,
   };
 }

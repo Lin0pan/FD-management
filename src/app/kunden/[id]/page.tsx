@@ -41,7 +41,7 @@ import {
 import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
 import { DomainError } from "@/domain/errors";
 import { formatEuros } from "@/domain/money";
-import type { PriceValues, Settings } from "@/domain/policy/settings";
+import type { AllowanceValues, Settings } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { GROUP_STYLES } from "../../accents";
@@ -190,6 +190,9 @@ function HouseholdReadOnly({ view }: { view: CustomerCardView }): React.ReactEle
           value={String(composition.children)}
           testId="children"
         />
+        {/* Third, ahead of the price, exactly as at the counter — the two screens state the same
+            four figures in the same order, so a staff member reads one having learnt the other. */}
+        <Stat label={de.customers.derived.eggs} value={String(allowance.eggs)} testId="eggs" />
         <Stat
           label={de.customers.derived.price}
           value={formatEuros(allowance.priceCents)}
@@ -326,12 +329,15 @@ function CustomerRecord({
   const { details } = customer;
   const archived = customer.status === "ARCHIVED";
   const words = de.customers.record;
-  // The three policy values the household editor derives its live figures from, and nothing more:
-  // the quota and the week anchor have no bearing on what a household pays.
-  const policy: PriceValues = {
+  // The policy values the household editor derives its live figures from, and nothing more: the
+  // quota and the week anchor bear on neither what a household pays nor what it is handed. The egg
+  // rule travels with the prices because the preview derives the egg count the same way it derives
+  // the price — through the domain, against the rule in force, never re-implemented in the browser.
+  const policy: AllowanceValues = {
     pricePerGrownUp: settings.pricePerGrownUp,
     pricePerChild: settings.pricePerChild,
     priceCap: settings.priceCap,
+    eggRule: settings.eggRule,
   };
 
   return (

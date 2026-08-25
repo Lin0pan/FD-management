@@ -2,7 +2,13 @@ import type { PrismaClient } from "@prisma/client";
 import type { SettingsRepository } from "@/application/ports";
 import { createSettings, parseWeekColour, type SettingsVersion } from "@/domain/policy/settings";
 
-/** One `SettingsVersion` row, as the query below returns it. */
+/** One `EggAllowanceRow` row, as the query below returns it. */
+interface StoredEggRuleRow {
+  readonly minPersons: number;
+  readonly eggs: number;
+}
+
+/** One `SettingsVersion` row with its egg rule, as the query below returns it. */
 interface StoredVersion {
   readonly recordedAt: Date;
   readonly quotaN: number;
@@ -12,6 +18,7 @@ interface StoredVersion {
   readonly pricePerGrownUpCents: number;
   readonly pricePerChildCents: number;
   readonly priceCapCents: number | null;
+  readonly eggRule: ReadonlyArray<StoredEggRuleRow>;
 }
 
 /**
@@ -36,6 +43,11 @@ function toDomain(row: StoredVersion): SettingsVersion {
       // domain spells "no cap" exactly one way, and `undefined` would slip past `createSettings`
       // as a missing field instead of a configured one.
       priceCap: row.priceCapCents ?? null,
+      // The rows go through `createEggRule` inside `createSettings` like every other value here, so
+      // a hand-edited database cannot smuggle a descending staircase or a fractional threshold into
+      // the domain. A version with no rows comes back as an empty rule, which is a configuration
+      // and not an absence: no eggs for anyone.
+      eggRule: row.eggRule.map((step) => ({ minPersons: step.minPersons, eggs: step.eggs })),
     }),
   };
 }
@@ -62,11 +74,22 @@ export class PrismaSettingsRepository implements SettingsRepository {
   async listVersions(): Promise<SettingsVersion[]> {
     const rows = await this.prisma.settingsVersion.findMany({
       orderBy: { id: "asc" },
+      // Threshold order rather than insertion order: `createEggRule` sorts anyway, but reading them
+      // sorted means the query answers the same question the domain asks and a row inserted out of
+      // order by hand never looks like a rule that changed.
+      include: { eggRule: { orderBy: { minPersons: "asc" } } },
     });
     return rows.map(toDomain);
   }
 
-  /** Store a new version. Nothing is ever updated or deleted. */
+  /**
+   * Store a new version. Nothing is ever updated or deleted.
+   *
+   * The rule's rows are a **nested create** rather than a second statement: Prisma wraps a nested
+   * write in one transaction, so a version and the rule it was saved with land together or not at
+   * all. A version holding half a staircase would price a past distribution wrongly and nothing
+   * would say so.
+   */
   async append(version: SettingsVersion): Promise<void> {
     const { settings } = version;
     await this.prisma.settingsVersion.create({
@@ -79,6 +102,12 @@ export class PrismaSettingsRepository implements SettingsRepository {
         pricePerGrownUpCents: settings.pricePerGrownUp,
         pricePerChildCents: settings.pricePerChild,
         priceCapCents: settings.priceCap,
+        eggRule: {
+          create: settings.eggRule.map((row) => ({
+            minPersons: row.minPersons,
+            eggs: row.eggs,
+          })),
+        },
       },
     });
   }

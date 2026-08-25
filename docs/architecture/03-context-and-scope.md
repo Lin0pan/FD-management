@@ -1,6 +1,6 @@
 # 3. Context and scope
 
-_Last reviewed: 2026-08-07_
+_Last reviewed: 2026-08-25_
 
 The system's edges are unusually thin, and that is a design outcome rather than an accident: it runs
 on one machine, talks to no service, and every exchange with the world outside it happens on paper or
@@ -20,9 +20,9 @@ flowchart LR
     excel["The current Excel sheet<br/><i>the register today</i>"]
 
     jobcenter -. "paper certificate,<br/>out of band" .-> customer
-    customer <== "card and certificate;<br/>food and payment" ==> staff
-    staff <== "registers, looks up, records;<br/>one verdict, price" ==> fd
-    manager -- "quota, prices, cap" --> fd
+    customer <== "card and certificate;<br/>food, eggs and payment" ==> staff
+    staff <== "registers, looks up, records;<br/>one verdict, price, eggs" ==> fd
+    manager -- "quota, prices, cap, egg rule" --> fd
     fd -- "customer and card number" --> printer
     excel -. "one-off migration,<br/>still unanswered" .-> fd
 
@@ -64,17 +64,17 @@ day.
 
 ## Neighbours
 
-| Neighbour                            | Responsibility                                                    | Direction                           | Exchanged                                                                | Format / protocol                  | Owner                                                                             |
-| ------------------------------------ | ----------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------ | ---------------------------------- | --------------------------------------------------------------------------------- |
-| Counter staff                        | Operate the system; make every judgement call it declines to make | Both                                | Registrations, lookups, hand-outs, reminders, renewals; verdicts, prices | HTML over HTTP on `localhost:3000` | DF                                                                                |
-| DF's manager                         | Set the policy values                                             | Inbound                             | Quota, prices per head, price cap, distribution weekday, week anchor     | The `/einstellungen` screen        | DF                                                                                |
-| Household (customer)                 | Present a card; bring a valid certificate                         | Indirect — never touches the system | Card number, proof of need                                               | Spoken and on paper                | —                                                                                 |
-| Jobcenter / issuing body             | Issue the proof of need                                           | Out of band                         | Certificate type and validity date, typed in by staff                    | Paper                              | External                                                                          |
-| Card printing system                 | Print the physical cards                                          | Outbound, manual                    | Customer number and card number, read off `/kunden/[id]/karte`           | Read from screen                   | DF (existing system)                                                              |
-| `data/fd.db`                         | Hold the entire register                                          | Both                                | Everything                                                               | SQLite file on the local disk      | DF                                                                                |
-| Backup target                        | Hold a restorable copy of the register                            | Outbound                            | A copy of `data/fd.db`                                                   | File copy plus a WAL checkpoint    | DF — **no schedule exists yet**, see [chapter 11](11-risks-and-technical-debt.md) |
-| The current Excel sheet              | The register as it is kept today                                  | Inbound, one-off                    | A few hundred households                                                 | Undecided                          | DF — **migration route still unanswered**                                         |
-| GitHub Actions / CodeQL / Dependabot | Gate every change before it lands                                 | Build side only                     | Source, test results, advisories                                         | GitHub                             | The maintainer                                                                    |
+| Neighbour                            | Responsibility                                                    | Direction                           | Exchanged                                                                            | Format / protocol                  | Owner                                                                             |
+| ------------------------------------ | ----------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------- | --------------------------------------------------------------------------------- |
+| Counter staff                        | Operate the system; make every judgement call it declines to make | Both                                | Registrations, lookups, hand-outs, reminders, renewals; verdicts, prices, egg counts | HTML over HTTP on `localhost:3000` | DF                                                                                |
+| DF's manager                         | Set the policy values                                             | Inbound                             | Quota, prices per head, price cap, distribution weekday, week anchor, egg rule       | The `/einstellungen` screen        | DF                                                                                |
+| Household (customer)                 | Present a card; bring a valid certificate                         | Indirect — never touches the system | Card number, proof of need                                                           | Spoken and on paper                | —                                                                                 |
+| Jobcenter / issuing body             | Issue the proof of need                                           | Out of band                         | Certificate type and validity date, typed in by staff                                | Paper                              | External                                                                          |
+| Card printing system                 | Print the physical cards                                          | Outbound, manual                    | Customer number and card number, read off `/kunden/[id]/karte`                       | Read from screen                   | DF (existing system)                                                              |
+| `data/fd.db`                         | Hold the entire register                                          | Both                                | Everything                                                                           | SQLite file on the local disk      | DF                                                                                |
+| Backup target                        | Hold a restorable copy of the register                            | Outbound                            | A copy of `data/fd.db`                                                               | File copy plus a WAL checkpoint    | DF — **no schedule exists yet**, see [chapter 11](11-risks-and-technical-debt.md) |
+| The current Excel sheet              | The register as it is kept today                                  | Inbound, one-off                    | A few hundred households                                                             | Undecided                          | DF — **migration route still unanswered**                                         |
+| GitHub Actions / CodeQL / Dependabot | Gate every change before it lands                                 | Build side only                     | Source, test results, advisories                                                     | GitHub                             | The maintainer                                                                    |
 
 ## Explicitly not neighbours
 

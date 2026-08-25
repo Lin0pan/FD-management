@@ -6,6 +6,42 @@
  * Keeping the strings in one dictionary module makes the surface easy to review and, if it is ever
  * needed, to translate.
  */
+/**
+ * „ab 3 Personen“, and „ab 1 Person“ for the threshold of one the egg rule allows (US-28).
+ *
+ * A module-level helper rather than a dictionary entry: it is a fragment of grammar the three row
+ * phrasings below share, never a string a screen asks for on its own.
+ */
+function fromPersons(minPersons: number): string {
+  return `ab ${minPersons === 1 ? "1 Person" : `${minPersons} Personen`}`;
+}
+
+/** „6 Eier“, and „1 Ei“ for the single egg nothing in the rule forbids. */
+function eggCount(eggs: number): string {
+  return eggs === 1 ? "1 Ei" : `${eggs} Eier`;
+}
+
+/**
+ * One row of the egg rule as it stands: „ab 3 Personen: 6 Eier“ (US-28).
+ *
+ * Module-level because it is the clause four dictionary entries share — the row on its own, which
+ * the summary of the version in force states, and that same row with what happened to it appended,
+ * which the history states.
+ */
+function eggRow(minPersons: number, eggs: number): string {
+  return `${fromPersons(minPersons)}: ${eggCount(eggs)}`;
+}
+
+/**
+ * The two column headings of the egg-rule table, module-level because they are said twice: once over
+ * the column and once inside the name of every control in it ({@link de.settings.eggs.fieldLabel}).
+ *
+ * „Ab wie vielen Personen“ rather than „Personenzahl“, because the column holds a **floor** and not
+ * a count — the distinction the whole rule turns on (US-28).
+ */
+const EGG_THRESHOLD_COLUMN = "Ab wie vielen Personen";
+const EGG_COUNT_COLUMN = "Eier";
+
 export const de = {
   app: {
     name: "Füllhorn Delbrück – Verwaltung",
@@ -173,6 +209,12 @@ export const de = {
       grownUps: "Erwachsene (ab 13 Jahren)",
       children: "Kinder (unter 13 Jahren)",
       price: "Preis",
+      /**
+       * The egg allowance (US-28). „Eier“ and nothing else: the figure is a plain number of whole
+       * eggs, so a „Stück“ or a note about the threshold would be the screen explaining a rule
+       * nobody at the counter has to know — they hand over what it says.
+       */
+      eggs: "Eier",
       /**
        * The consecutive-no-show count (US-10.4). Shown only when it is greater than zero, and
        * inflected at one — the software states the number and draws no conclusion from it.
@@ -528,8 +570,15 @@ export const de = {
         "Korrekturen an Name, Geburtsdatum und Anschrift. Der Name gilt zugleich für die Zeile " +
         "dieser Person im Haushalt. Die Kundennummer lässt sich nicht ändern.",
       detailsSubmit: "Person und Anschrift speichern",
+      /**
+       * Names all four derived figures, and says „aus dem Haushalt“ rather than „aus den
+       * Geburtsdaten“ since US-28: the eggs follow the number of people and not their ages, so the
+       * older wording would have been wrong about the fourth tile. It stops at *that* the figures
+       * are derived — which rule turns a household into six eggs is not something a staff member
+       * has to know at the table.
+       */
       householdHint:
-        "Erwachsene, Kinder und Preis werden aus den Geburtsdaten berechnet und gelten " +
+        "Erwachsene, Kinder, Eier und Preis werden aus dem Haushalt berechnet und gelten " +
         "sofort. Ändert sich dabei die Zahl der Köpfe, steht der Haushalt danach auf der Liste " +
         "„Karten neu ausstellen“ — die Karte nennt die alten Zahlen.",
       householdSubmit: "Haushalt speichern",
@@ -1264,6 +1313,88 @@ export const de = {
        * this one apart is that it is a limit per household per distribution.
        */
       priceCap: "Maximalpreis je Ausgabe",
+      /**
+       * „Eierregel“ and not the bare „Eier“: the figure a household receives is announced as „Eier“
+       * on the counter and on the record, and a change to the *rule* that decides it must not
+       * arrive in the history under the same word as the figure it changes.
+       */
+      eggRule: "Eierregel",
+    },
+    /**
+     * The egg allowance (US-28), the one policy value that is a list of rows. Its words are here
+     * rather than in `history` because the same phrasings state a rule and state a change to it.
+     */
+    eggs: {
+      /** The card the rule is edited in, between „Mengen und Preise“ und „Ausgaberhythmus“. */
+      heading: "Eier",
+      thresholdColumn: EGG_THRESHOLD_COLUMN,
+      eggsColumn: EGG_COUNT_COLUMN,
+      addRow: "Zeile hinzufügen",
+      /** The same words the household table's remove control carries — it is the same gesture. */
+      removeRow: "Zeile entfernen",
+      /**
+       * What names one control of the table, wherever it is named: the `aria-label` on the input and
+       * the field a refusal points at from the summary („Eier, Zeile 2: Eier“).
+       *
+       * One function for both, because they have to be the same string — the summary sits by the
+       * button and names a field the staff member then has to find in the table. Rows count from 1
+       * on screen while the domain and the form count from 0, as they already do for household
+       * members.
+       */
+      fieldLabel: (position: number, part: "minPersons" | "eggs"): string =>
+        `Eier, Zeile ${position}: ${part === "minPersons" ? EGG_THRESHOLD_COLUMN : EGG_COUNT_COLUMN}`,
+      /** The rule in one sentence, under the table — both halves of it, including the bottom. */
+      hint:
+        "Ein Haushalt erhält die Eier der höchsten Stufe, die er erreicht. Ein Haushalt, der keine " +
+        "Stufe erreicht, erhält keine Eier.",
+      /**
+       * What an empty table says. No rows is a legitimate setting, and an empty area on a screen
+       * cannot be told apart from one that failed to render — so it is stated in words.
+       */
+      empty: "Keine Stufen hinterlegt. Kein Haushalt erhält Eier.",
+      /**
+       * The two collisions between rows, said by the button and naming **no** field.
+       *
+       * Marking one of the two rows would say that row is malformed when the two are merely
+       * inconsistent — the division `quotaBelowActiveCustomers` already keeps. So the sentence has
+       * to name the thresholds itself: with no mark, that is the only way the rows are findable.
+       */
+      duplicateThreshold: (minPersons: number): string =>
+        `Es gibt zwei Zeilen ${fromPersons(minPersons)}. Jede Stufe darf nur einmal vorkommen. ` +
+        `Es wurde nichts gespeichert.`,
+      eggsNotIncreasing: (
+        minPersons: number,
+        eggs: number,
+        lowerMinPersons: number,
+        lowerEggs: number,
+      ): string =>
+        `Die Zeile ${fromPersons(minPersons)} gibt ${eggCount(eggs)} und damit nicht mehr als die ` +
+        `${eggCount(lowerEggs)} ${fromPersons(lowerMinPersons)}. Größere Haushalte müssen mehr ` +
+        `Eier erhalten als kleinere. Es wurde nichts gespeichert.`,
+      /**
+       * One row of the rule as it is, for the summary of the version in force: „ab 3 Personen:
+       * 6 Eier“. The three phrasings below are this clause plus what became of the row, which is
+       * why the reader of a change and the reader of a rule are told a row in the same words.
+       */
+      row: eggRow,
+      /**
+       * What a rule with no rows reads as, wherever a whole rule is stated — the counterpart of
+       * {@link de.settings.prices.noCap}, and there for the same reason. „keine Eier“ and „0 Eier
+       * ab 1 Person“ are two different configurations, and an empty stretch of screen cannot be
+       * told apart from one that failed to render.
+       */
+      none: "keine Eier",
+      /** A row that was not in the previous rule: „ab 8 Personen: 18 Eier (neu)“. */
+      rowAdded: (minPersons: number, eggs: number): string => `${eggRow(minPersons, eggs)} (neu)`,
+      /** A row the new rule no longer has: „ab 3 Personen: 6 Eier (entfernt)“. */
+      rowRemoved: (minPersons: number, eggs: number): string =>
+        `${eggRow(minPersons, eggs)} (entfernt)`,
+      /**
+       * A row whose count moved: „ab 5 Personen: 12 → 14 Eier“. The unit is stated once, at the
+       * end — a threshold cannot change, because the threshold is what identifies the row.
+       */
+      rowChanged: (minPersons: number, from: number, to: number): string =>
+        `${fromPersons(minPersons)}: ${from} → ${eggCount(to)}`,
     },
     colours: {
       RED: "Rot",
@@ -1343,6 +1474,16 @@ export const de = {
       noChange: "Keine Änderung an den Werten",
       /** One changed field, both sides of it: `Preis je Erwachsenem: 1,80 € → 2,00 €`. */
       change: (label: string, from: string, to: string): string => `${label}: ${from} → ${to}`,
+      /**
+       * A list-valued setting's change, stated as the rows that moved rather than as two values:
+       * `Eierregel: ab 8 Personen: 18 Eier (neu) · ab 5 Personen: 12 → 14 Eier`.
+       *
+       * The rows arrive in threshold order and already carry their own words, so this only joins
+       * them under the label — printing the whole rule on either side of an arrow is the
+       * restatement this history exists to avoid.
+       */
+      rowChanges: (label: string, rows: ReadonlyArray<string>): string =>
+        `${label}: ${rows.join(" · ")}`,
     },
     errors: {
       /**
@@ -1448,6 +1589,26 @@ export function customerFormFieldLabel(path: string): string | null {
 /** The names of the fields the settings form submits, as `de.settings.fields` keys them. */
 const SETTINGS_FORM_FIELDS = de.settings.fields as Record<string, string | undefined>;
 
+/** A row of the egg rule as the domain and the form both name it, e.g. `eggRule.1.eggs`. */
+const EGG_RULE_FIELD = /^eggRule\.(\d+)\.(minPersons|eggs)$/;
+
+/**
+ * „Eier, Zeile 2: Eier“ for one control of the egg-rule table, `null` for anything else.
+ *
+ * {@link householdFieldLabel} for the one list-valued policy value (US-28), and it exists for that
+ * function's reason: rows are named by index and there is no upper bound on how many of them a rule
+ * has, so they cannot be listed in the dictionary. Without it a refused row would be a path with no
+ * label — dropped as a field nobody can see (§7) — and the summary would fall through to „nichts
+ * gespeichert“ for a box that is right there on the screen.
+ */
+function eggRuleFieldLabel(field: string): string | null {
+  const match = EGG_RULE_FIELD.exec(field);
+  if (match === null) {
+    return null;
+  }
+  return de.settings.eggs.fieldLabel(Number(match[1]) + 1, match[2] as "minPersons" | "eggs");
+}
+
 /**
  * {@link customerFormFieldLabel} for the settings screen, and it misses for the same reason.
  *
@@ -1457,7 +1618,13 @@ const SETTINGS_FORM_FIELDS = de.settings.fields as Record<string, string | undef
  * would fall through to „nichts gespeichert“ for a field staff can see. Nothing refuses it today
  * (`z.string()` accepts everything, and an empty reason is allowed), which is exactly why it would
  * go unnoticed if it ever did.
+ *
+ * The egg rule is the one setting that is not a field but a table of them, so its paths are answered
+ * by {@link eggRuleFieldLabel} rather than by a key.
  */
 export function settingsFormFieldLabel(name: string): string | null {
-  return name === "reason" ? de.settings.reason : (SETTINGS_FORM_FIELDS[name] ?? null);
+  if (name === "reason") {
+    return de.settings.reason;
+  }
+  return eggRuleFieldLabel(name) ?? SETTINGS_FORM_FIELDS[name] ?? null;
 }

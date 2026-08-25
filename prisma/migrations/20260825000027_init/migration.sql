@@ -12,6 +12,15 @@ CREATE TABLE "SettingsVersion" (
 );
 
 -- CreateTable
+CREATE TABLE "EggAllowanceRow" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "settingsVersionId" INTEGER NOT NULL,
+    "minPersons" INTEGER NOT NULL,
+    "eggs" INTEGER NOT NULL,
+    CONSTRAINT "EggAllowanceRow_settingsVersionId_fkey" FOREIGN KEY ("settingsVersionId") REFERENCES "SettingsVersion" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "Customer" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "customerNumber" INTEGER NOT NULL,
@@ -119,6 +128,12 @@ CREATE TABLE "AuditEntry" (
 
 -- CreateIndex
 CREATE INDEX "SettingsVersion_recordedAt_idx" ON "SettingsVersion"("recordedAt");
+
+-- CreateIndex
+CREATE INDEX "EggAllowanceRow_settingsVersionId_idx" ON "EggAllowanceRow"("settingsVersionId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "EggAllowanceRow_settingsVersionId_minPersons_key" ON "EggAllowanceRow"("settingsVersionId", "minPersons");
 
 -- CreateIndex
 CREATE INDEX "Customer_customerNumber_idx" ON "Customer"("customerNumber");

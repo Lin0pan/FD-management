@@ -1,6 +1,6 @@
 # FD-Management — Betriebsanleitung
 
-**Testversion · Stand: 8. August 2026**
+**Testversion · Stand: 25. August 2026**
 
 Diese Software unterstützt die Kundenverwaltung und die Ausgabe des Delbrücker Füllhorns. Sie läuft
 auf **einem einzigen Rechner**, ohne Internet und ohne Anmeldung.
@@ -50,6 +50,22 @@ Ist der Rechner defekt oder die Datei beschädigt, wird die Sicherung zurückkop
 Ordner `data` an die ursprüngliche Stelle im Programmordner kopieren und das Programm neu starten.
 Der Stand entspricht dann dem Tag der Sicherung. Bitte melden Sie sich in diesem Fall, bevor Sie es
 selbst versuchen.
+
+## Eier
+
+Neben den Lebensmitteln erhält jeder Haushalt Eier. Wie viele, hängt davon ab, **wie viele Personen**
+zum Haushalt gehören — Kinder und Babys zählen mit, ein Geburtstag ändert daran nichts. Unter
+**Ausgabe** steht die Zahl neben Erwachsenen, Kindern und Preis, und zwar auch dann, wenn es keine
+Eier gibt: dann steht dort **0**. Beim Kunden selbst finden Sie dieselbe Zahl. Auf der Kundenkarte
+steht sie nicht — die Eier werden an der Ausgabe übergeben.
+
+Ändern können Sie die Regel unter **Einstellungen**, Abschnitt **Eier**: eine Zeile je Stufe — ab wie
+vielen Personen sie gilt und wie viele Eier es dann gibt. **Zeile hinzufügen** und **Zeile entfernen**
+ändern die Stufen; entfernen Sie alle, erhält niemand Eier. In welcher Reihenfolge Sie tippen, ist
+gleichgültig. Zwei Zeilen mit derselben Personenzahl nimmt die Software nicht an, und eine höhere
+Stufe muss mehr Eier geben als die darunter — sonst wird nichts gespeichert und Sie erhalten eine
+Meldung. Nach dem Speichern gilt die neue Regel sofort; die bisherige bleibt im Änderungsverlauf
+darunter stehen.
 
 ## Wenn etwas nicht funktioniert
 
