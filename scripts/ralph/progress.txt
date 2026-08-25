@@ -390,3 +390,48 @@ Two hazards this batch carries, both stated in `prd.json` and worth reading twic
     seam's summary, wrong since US-003) and the configuration-as-data prose, chapter 7's seed row,
     `tasks/README.md`'s provisional table and the ADR.
 ---
+
+## 2026-08-25 — US-007 (The Änderungsverlauf reads a rule change row by row, presentation)
+- `FullValues` gained a **fourth** line, „Eierregel: …“, holding every row as
+  „ab 3 Personen: 6 Eier“ joined by „ · “, through a new `describeEggRule` helper shaped exactly
+  like `describeCap`: an empty rule returns `de.settings.eggs.none` („keine Eier“).
+- `de.settings.eggs` gained `row` and `none`, and the row clause moved to a module-level `eggRow`
+  beside `fromPersons`/`eggCount`, so `rowAdded`/`rowRemoved` are that same clause plus „(neu)“ /
+  „(entfernt)“ — a rule and a change to it now name a row in one place.
+- `describeChange`'s `eggRule` case and `describeEggRuleRow` were already on the branch (US-002 put
+  them there — the exhaustive switch fails the build without them), so this story's work was the
+  summary half plus the end-to-end proof of the change half.
+- Files: `src/app/einstellungen/page.tsx`, `src/i18n/de.ts`.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1146 tests), `build`, `format:check` green.
+- Browser-checked against `npm run start` over a reset database, reading the accessibility snapshot
+  and each `settings-version` entry's text. Five versions were saved; the history read, newest
+  first: the in-force summary with „Eierregel: ab 4 Personen: 10 Eier“ on its own line; „Eierregel:
+  ab 3 Personen: 8 Eier (entfernt) · ab 5 Personen: 12 Eier (entfernt) · ab 8 Personen: 18 Eier
+  (entfernt) · ab 12 Personen: 24 Eier (entfernt)“; „Eierregel: ab 12 Personen: 24 Eier (neu)“;
+  „Eierregel: ab 3 Personen: 6 → 8 Eier“; „Erstkonfiguration“. While the emptied rule was the
+  version in force its summary read „Eierregel: keine Eier“. The fold summary stated „4 Fassungen ·
+  zuletzt geändert am 25.08.2026“ and then „5 Fassungen“, console clean. The database was reset
+  afterwards.
+- **Learnings for future iterations:**
+  - **„keine Eier“ has exactly one site on the screen, and it is inside the history.** The PRD asks
+    for it „in both the summary and the history“, but a superseded version states only the rows that
+    *moved* — an emptied rule reads there as four „(entfernt)“ rows, which is more informative and is
+    what the story's own title asks for. The only place a rule is printed **whole** is `FullValues`,
+    and `FullValues` renders inside the Änderungsverlauf card, as the in-force version's own row. So
+    both places are one place; do not add a second branch chasing the wording.
+  - **The in-force version shows no diff at all.** To see a change rendered as a diff line you have
+    to save *another* version after it — the entry at the top of the list is always the full values.
+    Verifying „(entfernt)“ therefore needs five saves, not four.
+  - **Reading version rows is far cheaper as text than as a snapshot.**
+    `playwright-cli --raw eval "() => Array.from(document.querySelectorAll('[data-testid=settings-version]')).map(li => li.innerText)"`
+    returns the whole history as a JSON array of newline-separated lines; a `snapshot` of the same
+    card is hundreds of lines of `generic` wrappers. Use `find`/`snapshot` to establish the markup
+    *means* the right thing once, then `eval` for the content of the remaining cases.
+  - **`<details>` must be re-opened after every `reload`** — it is uncontrolled DOM state, not React
+    state. `playwright-cli click "getByTestId('settings-history-open')"` after each reload.
+  - **`remove-egg-row-0` clicked N times empties the table**, because the testids renumber on every
+    removal (noted in US-006 and confirmed here).
+  - **Still owed to US-009:** `docs/architecture/05-building-block-view.md:73` (the `allowance/`
+    seam's summary, wrong since US-003), the configuration-as-data prose, chapter 7's seed row,
+    `tasks/README.md`'s provisional table and the ADR.
+---
