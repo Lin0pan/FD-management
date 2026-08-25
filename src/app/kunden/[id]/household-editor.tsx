@@ -15,8 +15,10 @@
  * in front of them and press save. Two members can share a name and a birthdate, so a row has no
  * identity to diff on — which is also why rows are addressed by position here.
  *
- * The customer is one of these rows, and their name is on the record twice; the editor does not
- * single that row out. Correcting the customer's own name belongs to the personal-data form, which
+ * The customer is one of these rows, and their name is on the record twice. That row is locked:
+ * its remove control is greyed and its three fields are read-only, because a household the customer
+ * is not in is one the save refuses (`createHouseholdMembers`) — better to say so before the click
+ * than after it. Correcting the customer's own name belongs to the personal-data form, which
  * carries the change into their household row in the same write (`replaceHouseholdMember`).
  */
 
@@ -41,7 +43,7 @@ import { de } from "@/i18n/de";
 import { useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
 import { Stat } from "../../stat";
-import { EMPTY_ROW, type MemberRow, ROW_TEXT } from "../household-row";
+import { EMPTY_ROW, isCustomerRow, type MemberRow, ROW_TEXT } from "../household-row";
 import { updateHouseholdAction } from "./actions";
 import { FormFooter, RecordRejection, SaveButton, SaveFeedback } from "./record-forms";
 import { initialRecordFormState } from "./record-state";
@@ -118,6 +120,7 @@ function MemberCell({
   value,
   onChange,
   problem,
+  readOnly = false,
 }: {
   index: number;
   part: MemberPart;
@@ -125,6 +128,12 @@ function MemberCell({
   value: string;
   onChange: (value: string) => void;
   problem: string | null;
+  /**
+   * `readOnly`, never `disabled`: a disabled input submits nothing, and the three columns are read
+   * back as parallel lists paired by position (`householdRows`) — a dropped value would shift every
+   * row below it onto somebody else's name.
+   */
+  readOnly?: boolean;
 }): React.ReactElement {
   const name = MEMBER_INPUT[part];
   // Not `useId`: the mark's `aria-describedby` has to name an element, and a stable id per row and
@@ -132,6 +141,7 @@ function MemberCell({
   const id = `record-${name}-${index}`;
   const label = `${de.customers.new.memberRow(index + 1)} — ${de.customers.fields[part]}`;
   const marks = marking(memberPath(index, part), id, problem);
+  const quiet = readOnly ? "bg-muted text-muted-foreground" : undefined;
 
   return (
     <TableCell className="align-top">
@@ -145,6 +155,8 @@ function MemberCell({
             placeholder={de.day.placeholder}
             value={value}
             onChange={onChange}
+            readOnly={readOnly}
+            className={quiet}
             {...marks}
           />
         ) : (
@@ -156,6 +168,8 @@ function MemberCell({
             aria-label={label}
             value={value}
             onChange={(event) => onChange(event.target.value)}
+            readOnly={readOnly}
+            className={quiet}
             {...marks}
           />
         )}
@@ -167,11 +181,17 @@ function MemberCell({
 
 export function HouseholdEditor({
   customerId,
+  customer,
   members,
   today,
   policy,
 }: {
   customerId: number;
+  /**
+   * Who the record is about, written the way a row is, so the row that is them can be picked out of
+   * the household by what it says (`isCustomerRow`).
+   */
+  customer: MemberRow;
   /** The household as it stands, each birthdate already written as ISO by the server. */
   members: ReadonlyArray<MemberRow>;
   /** The day the counts are judged against — the server's, never the browser's clock. */
@@ -253,6 +273,9 @@ export function HouseholdEditor({
         <TableBody>
           {rows.map((row, index) => {
             const day = typedDay(row.birthDate);
+            // The customer's own row. It is theirs by what it says, which is how the save finds it
+            // too, so what is locked here is exactly what the domain would refuse to lose.
+            const isCustomer = isCustomerRow(row, customer);
             return (
               // Rows are addressed by position: two members can share a name and a birthdate, and a
               // row has no identity of its own.
@@ -267,6 +290,7 @@ export function HouseholdEditor({
                   value={row.firstName}
                   onChange={(firstName) => updateRow(index, { firstName })}
                   problem={problem(memberPath(index, "firstName"))}
+                  readOnly={isCustomer}
                 />
                 <MemberCell
                   index={index}
@@ -275,6 +299,7 @@ export function HouseholdEditor({
                   value={row.lastName}
                   onChange={(lastName) => updateRow(index, { lastName })}
                   problem={problem(memberPath(index, "lastName"))}
+                  readOnly={isCustomer}
                 />
                 <MemberCell
                   index={index}
@@ -283,6 +308,7 @@ export function HouseholdEditor({
                   value={row.birthDate}
                   onChange={(birthDate) => updateRow(index, { birthDate })}
                   problem={problem(memberPath(index, "birthDate"))}
+                  readOnly={isCustomer}
                 />
                 {/* Derived from the date in the field beside it, so the 13-year boundary follows a
                     correction immediately and a reissue can be anticipated (PRD §6). */}
@@ -297,6 +323,7 @@ export function HouseholdEditor({
                     variant="ghost"
                     size="sm"
                     data-testid={`remove-member-${index}`}
+                    disabled={isCustomer}
                     onClick={() => setRows(rows.filter((_row, position) => position !== index))}
                   >
                     {de.customers.new.removeMember}
@@ -320,6 +347,7 @@ export function HouseholdEditor({
         </Button>
       </div>
 
+      <p className="text-xs text-muted-foreground">{de.customers.record.customerRowHint}</p>
       <p className="text-xs text-muted-foreground">{de.customers.derived.hint}</p>
       <p className="text-xs text-muted-foreground">{de.customers.derived.standardValues}</p>
 
