@@ -107,6 +107,17 @@ Started: Mon Aug 24 2026 (batch 28 — US-28 the egg allowance)
   `eslint` alone; markdown formatting is `npm run format:check` (the pre-commit hook runs it). Widen
   one cell and Prettier re-flows every row of that table, so run `npx prettier --write` on the files
   you touched *before* reading the diff — otherwise you are reviewing a re-alignment.
+- **Recording an ADR is four steps, and the script does one of them.**
+  `python3 .claude/skills/arc42/scripts/arc42.py new-adr "<decision as a sentence>"` picks the
+  number, renders the template and appends the chapter 9 index row as `Pending`. By hand afterwards:
+  set `Accepted` in the file **and** the row, **re-count** the intro sentence („The thirteen
+  decisions …“), and `npx prettier --write` chapter 9 — the appended row is narrower than the table
+  and Prettier re-flows every row of it. Finish with `arc42.py check`, which sees structure and dead
+  links but never staleness.
+- **Two files carry the story range and neither is anybody's story:**
+  `docs/architecture/01-introduction-and-goals.md` („one PRD per user story, US-01 to US-nn“) and
+  the `tasks/` row of `docs/architecture/README.md` say the same thing, and both go stale on every
+  batch that adds a PRD. `grep -rn "US-01 to US" docs/`.
 - **Documentation has no gate.** Nothing fails CI when a chapter goes stale, so a change that adds or
   removes a concept finishes with an explicit sweep — `grep -rin <concept> --include="*.md" .` — and
   the answer is not always zero: `docs/architecture/01`'s non-goals and `09`'s „Decisions that were
@@ -488,4 +499,52 @@ Two hazards this batch carries, both stated in `prd.json` and worth reading twic
   - **Still owed to US-009:** `docs/architecture/05-building-block-view.md:73` (the `allowance/`
     seam's summary, wrong since US-003), the configuration-as-data prose, chapter 7's seed row,
     `tasks/README.md`'s provisional table and the ADR.
+---
+
+## 2026-08-25 — US-009 (The documents describe the egg allowance, and an ADR records the shape)
+- **ADR-014 „Store the egg allowance as versioned threshold rows“**, scaffolded with
+  `python3 .claude/skills/arc42/scripts/arc42.py new-adr` and accepted in both the file and the
+  chapter 9 row. It states the decision (a child table of `SettingsVersion`, the domain owning the
+  staircase, the database owning the no-duplicate rule) and turns down four alternatives: a JSON
+  column, three fixed columns, a per-head number, and both invariants in the domain only.
+- Chapters updated: **01** (a „derive the egg allowance“ goal, the list of what DF may change,
+  US-01…28), **03** (three context edges and two Neighbours rows), **04** (strategy 3's approach,
+  the hard-code sentence by name, an ADR-014 link), **05** (26 domain modules, the `policy/` and
+  `allowance/` rows, the seed adapter), **06** (a paragraph on scenario 4: the eggs are the figure a
+  13th birthday does *not* move), **07** (the seed row separates the real rule from the provisional
+  values), **08** (configuration-as-data gained „One setting is a list, and that changes three
+  things“), **09** (fourteen ADRs), **12** („Egg allowance“ and „Threshold“ entries), plus
+  `docs/architecture/README.md`.
+- Also: `CONTRIBUTING.md`'s configurable-data bullet, `docs/handout/betriebsanleitung.md` (a German
+  „Eier“ section — where the count appears, how to change the rule, what is refused) and its README
+  row, `tasks/README.md` (the seed table gained a **Status** column and the egg row marked
+  Confirmed), and a dated pointer in `docs/archiv/domain_analysis.md` §6 open question 1.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1146 tests), `build` and `prettier --check .`
+  all green. No code changed, so no browser check and no e2e run.
+- **Learnings for future iterations:**
+  - **`arc42.py new-adr` writes the index row itself**, unformatted and `Pending`. Three things are
+    left to do by hand and none of them is optional: set `Accepted` in *both* places, re-count the
+    intro sentence („The thirteen decisions …“ — it goes stale silently, exactly like
+    `notice-tier.ts`'s header), and run `npx prettier --write` on chapter 9, because the new row is
+    narrower than the table and Prettier re-flows all fourteen.
+  - **`arc42.py check` validates structure, not truth.** It passed before a single chapter was
+    touched. It is worth running for dead links and the ADR index, but it can never tell you a
+    chapter is stale — that is what the batch-closing documentation story is for.
+  - **A long table cell is a whole-table diff.** The chapter 7 seed row grew by a sentence and
+    Prettier re-flowed all seven rows to the new width, which buried the change. Write the cell
+    *short* — the same fact in half the words costs nothing here and keeps the diff to one line.
+  - **`docs/architecture/README.md` carries claims about the other trees**, including „US-01 to
+    US-26“ in the table of what `tasks/` is. Chapter 01 has the same sentence. Both go stale on
+    every batch that adds a PRD and neither is anybody's story — `grep -rn "US-01 to US" docs/`.
+  - **The debts US-003 to US-008 recorded in this log were the checklist**, and they were all real:
+    `05-building-block-view.md:73` had said „the counts and the price“ since US-003. Leaving a
+    „Still owed to US-009“ bullet under each story is the pattern that made this story fast — keep
+    doing it, and make the last story of a batch read the log rather than the diff.
+  - **`docs/handout/README.md` states the rules the Betriebsanleitung is written to** (German, no
+    file paths, one page, italic placeholders) *and* a row summarising what it covers. A new section
+    means both: write to the rules, then extend the row.
+  - **The archive note is a pointer, not a rewrite.** `domain_analysis.md`'s open question 1 lists
+    the policy values still unknown; the egg rule is a value that list never named and DF have since
+    confirmed, so it got a dated `> **Note (2026-08-25).**` after the block — the list itself was
+    left exactly as it was.
 ---
