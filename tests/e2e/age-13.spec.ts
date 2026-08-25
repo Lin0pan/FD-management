@@ -17,9 +17,9 @@ import { releaseNumbers } from "./seeding";
  * compares what a card printed against the record today, and `staleCardReason` names the
  * difference. What none of them can see is the claim the story actually makes — *nobody did
  * anything, and the numbers changed anyway*. That claim spans three screens and a clock, so this
- * spec follows one household across a birthday: read the counts and the price off the record, move
- * the app's today past the 13th birthday, reload the very same screen, and watch all three move
- * with no request in between having written a thing.
+ * spec follows one household across a birthday: read the derived figures off the record, move the
+ * app's today past the 13th birthday, reload the very same screen, and watch the counts and the
+ * price move — and the egg count stay — with no request in between having written a thing.
  *
  * The absence is the substance, so it is asserted the way the reissue spec asserts a refusal: one
  * Prisma snapshot of everything the household owns, taken either side of the clock change. If the
@@ -31,9 +31,14 @@ import { releaseNumbers } from "./seeding";
  * than instead of it — and only then does the reissue take the household off the list.
  *
  * One household is seeded straight through Prisma: RED, active, current certificate, one card printed
- * with the counts it really had. It takes number 271, clear of the low sequence the registration and
- * card specs allocate against and of the counter (201–206/239), allowance (211), serve (221–222),
- * reminders (231), block (241) and reissue (251) specs in the shared `data/e2e.db`.
+ * with the counts it really had. Three people — a grown-up, the child about to turn 13, and a baby.
+ * The baby is there for the fourth figure on those screens: the egg allowance counts heads and not
+ * ages (US-28), so *the eggs do not move* is only worth asserting about a household that reaches a
+ * step of the rule at all — a household of two would read `0` on both days whatever the rule said.
+ *
+ * It takes number 271, clear of the low sequence the registration and card specs allocate against
+ * and of the counter (201–206/239), allowance (211), serve (221–222), reminders (231), block (241)
+ * and reissue (251) specs in the shared `data/e2e.db`.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -66,18 +71,31 @@ function card(index: number): string {
 const GROWN_UP_BIRTH_DATE = "1985-02-11";
 /** The birthdate the whole spec turns on: 12 on 08.01.2026, 13 from 15.01.2026 onwards. */
 const CHILD_BIRTH_DATE = "2013-01-15";
+/**
+ * A baby, and the reason the household is three people rather than two.
+ *
+ * The egg allowance counts heads and not ages (US-28), so the assertion that a birthday leaves it
+ * alone is only worth making about a household that receives eggs at all — under DF's seeded rule a
+ * household of two receives none, and `0` either side of the birthday would prove nothing. Three
+ * people reach the first step, and stay on it while the counts and the price move.
+ */
+const BABY_BIRTH_DATE = "2024-03-05";
 const CERTIFICATE_VALID_UNTIL = "2027-06-30";
 
 /**
  * What the seeded settings make of each household composition.
  *
- * 200c per grown-up and 100c per child. One grown-up and one child is therefore 3,00 €; two
- * grown-ups and no child is 4,00 €. The price moves on the birthday and not only the counts, which
+ * 200c per grown-up and 100c per child. One grown-up and two children is therefore 4,00 €; two
+ * grown-ups and one child is 5,00 €. The price moves on the birthday and not only the counts, which
  * is the point — a spec where only the counts changed would pass against an app that derived the
  * counts and stored the money.
+ *
+ * The eggs are the figure that must **not** move (US-28). The household is three people on both
+ * days, because nobody joined it and nobody left, and the seeded rule hands three people six eggs
+ * whatever their ages: a 13th birthday is not an event the egg allowance has any opinion about.
  */
-const BEFORE = { grownUps: "1", children: "1", price: "3,00 €" };
-const AFTER = { grownUps: "2", children: "0", price: "4,00 €" };
+const BEFORE = { grownUps: "1", children: "2", eggs: "6", price: "4,00 €" };
+const AFTER = { grownUps: "2", children: "1", eggs: "6", price: "5,00 €" };
 
 /**
  * The database the built app is running against — the same file, opened a second time.
@@ -99,7 +117,7 @@ function utcMidnight(date: string): Date {
 }
 
 /**
- * Insert one RED, active household: a grown-up, a child two months short of 13, a current
+ * Insert one RED, active household: a grown-up, a child two months short of 13, a baby, a current
  * certificate, and a card printed with the counts the household really had at the issue.
  *
  * @returns the surrogate id the record page is addressed by (the URL takes the id, not the number).
@@ -138,6 +156,11 @@ async function seedHousehold(): Promise<number> {
             lastName,
             birthDate: utcMidnight(CHILD_BIRTH_DATE),
           },
+          {
+            firstName: faker.person.firstName(),
+            lastName,
+            birthDate: utcMidnight(BABY_BIRTH_DATE),
+          },
         ],
       },
       certificates: {
@@ -156,7 +179,7 @@ async function seedHousehold(): Promise<number> {
           // Printed before the birthday, and true when it was printed. Everything this spec asserts
           // about the cards-due list follows from this pair going out of date on its own.
           grownUpsAtIssue: 1,
-          childrenAtIssue: 1,
+          childrenAtIssue: 2,
           groupAtIssue: "RED",
         },
       },
@@ -198,10 +221,13 @@ async function snapshotHousehold(id: number): Promise<string> {
   return JSON.stringify({ customer, members, cards, records, auditEntries });
 }
 
-/** Read the record's three derived figures and check them against one of the two expectations. */
+/** Read the record's four derived figures and check them against one of the two expectations. */
 async function expectDerived(page: Page, expected: typeof BEFORE): Promise<void> {
   await expect(page.getByTestId("grown-ups")).toHaveText(expected.grownUps);
   await expect(page.getByTestId("children")).toHaveText(expected.children);
+  // The one figure that reads the same on both days, asserted beside the three that move: the eggs
+  // follow the number of people in the household, and a birthday moves nobody in or out (US-28).
+  await expect(page.getByTestId("eggs")).toHaveText(expected.eggs);
   await expect(page.getByTestId("price")).toHaveText(expected.price);
 }
 
@@ -255,7 +281,7 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
     await prisma.$disconnect();
   });
 
-  test("a household with a 12-year-old counts one grown-up and one child", async ({ page }) => {
+  test("a household with a 12-year-old counts one grown-up and two children", async ({ page }) => {
     await page.goto(`/kunden/${id}`);
     await expectDerived(page, BEFORE);
     await expect(page.getByTestId("card-number")).toHaveText(card(1));
@@ -292,10 +318,10 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
     await expect(row.getByTestId("cards-due-card-number")).toHaveText(card(1));
     // Both count sets side by side, and the difference named in words rather than as a colour.
     await expect(row.getByTestId("cards-due-counts-on-card")).toHaveText(
-      de.customers.derived.countsValue(1, 1),
+      de.customers.derived.countsValue(1, 2),
     );
     await expect(row.getByTestId("cards-due-counts-today")).toHaveText(
-      de.customers.derived.countsValue(2, 0),
+      de.customers.derived.countsValue(2, 1),
     );
     await expect(row.getByTestId("cards-due-reason")).toHaveText(de.cardsDue.reasons.AGE_13);
 
@@ -321,12 +347,13 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
     // card still carries — a remark, not a verdict.
     await expect(page.getByTestId("counter-grown-ups")).toHaveText(AFTER.grownUps);
     await expect(page.getByTestId("counter-children")).toHaveText(AFTER.children);
+    await expect(page.getByTestId("counter-eggs")).toHaveText(AFTER.eggs);
     await expect(page.getByTestId("counter-price")).toHaveText(AFTER.price);
     await expect(page.getByTestId("counter-stale-card")).toHaveText(
       de.distribution.counter.staleCard(
         card(1),
-        de.customers.derived.countsValue(1, 1),
-        de.customers.derived.countsValue(2, 0),
+        de.customers.derived.countsValue(1, 2),
+        de.customers.derived.countsValue(2, 1),
       ),
     );
   });

@@ -72,8 +72,8 @@ Started: Mon Aug 24 2026 (batch 28 — US-28 the egg allowance)
   editing a number in `seed.ts`.
 - **The e2e customer-number bands, as they now stand.** Below the quota of 240: counter 201–206 and
   239, allowance 211, serve 221–222, reminders 231, registration 232–234, card numbers 236. Above it:
-  block 241, reissue 251, age-13 271, customer-list 281–285, customer-record 291, group-progress
-  301–303, group-walk 311–315, price cap 321. A spec whose number must be **pickable in the
+  block 241, reissue 251, age-13 271, customer-list 281–285, customer-record 291–293, group-progress
+  301–303, group-walk 311–315, price cap 321, eggs 331–334. A spec whose number must be **pickable in the
   /kunden/neu dropdown** has to sit below 240 — the pool is `1..quotaN` — and everything else should
   stay above it, clear of the low sequence the allocating specs (registration, card, archive,
   reregistration) consume. **A new spec takes a new band**; do not borrow another spec's numbers.
@@ -431,6 +431,60 @@ Two hazards this batch carries, both stated in `prd.json` and worth reading twic
     state. `playwright-cli click "getByTestId('settings-history-open')"` after each reload.
   - **`remove-egg-row-0` clicked N times empties the table**, because the testids renumber on every
     removal (noted in US-006 and confirmed here).
+  - **Still owed to US-009:** `docs/architecture/05-building-block-view.md:73` (the `allowance/`
+    seam's summary, wrong since US-003), the configuration-as-data prose, chapter 7's seed row,
+    `tasks/README.md`'s provisional table and the ADR.
+---
+
+## 2026-08-25 — US-008 (E2E — the egg count from the settings screen to the counter)
+- New `tests/e2e/eggs.spec.ts`, ten serial tests over a band of its own (**331–334**): households of
+  2, 3, 5 and 8 people, the household of three being two grown-ups and one infant. It asserts the
+  count on the counter *and* on the record for all four; that the two-person household's tile
+  **reads 0** and is visible; the live preview moving 0 → 6 as a baby is typed into the editor, with
+  the saved record and the counter then agreeing; that the eggs appear on neither the customer list
+  nor the card view; both refusals through the real form (`duplicateThreshold(5)` and
+  `eggsNotIncreasing(8, 6, 5, 12)`) with nothing written and every typed row still on screen; a
+  6 → 8 edit on /einstellungen moving the counter's figure for the same household; an emptied rule
+  saving and every household then reading 0; and the seeded rule typed back in **top step first**,
+  sorting itself on reload.
+- The price rides along with every reading, because the eggs are free: the household of two — three
+  once the baby joins — is priced under the seeded Maximalpreis, so a count leaking into the sum
+  would show. The other three stand at the cap and are asserted for completeness.
+- `tests/e2e/age-13.spec.ts` gained the eggs in `expectDerived` and at the counter — and a **third
+  member**. A household of two receives no eggs under DF's rule, so `0` either side of the birthday
+  would have proved nothing; with a baby in it the household is three people on both days and reads
+  6 while the counts and the price move (4,00 € → 5,00 €). The card's `childrenAtIssue` and the two
+  `countsValue` pairs moved with the fixture.
+- `tests/e2e/settings.spec.ts` gained `SEEDED_EGG_RULE` and one assertion on the version in force:
+  the whole rule, all three rows, spelled out rather than matched as a substring — a list-valued
+  setting can lose its top two steps in a way a number cannot.
+- Gates: lint, typecheck, `test:coverage` (50 files, 1146 tests), `build`, `format:check`, and
+  **both engines** — `npm run test:e2e` and `npm run test:e2e:webkit`, 167 passed / 1 skipped each,
+  no dev server running.
+- **Learnings for future iterations:**
+  - **A spec that edits settings must hand the register back**, and `settings.spec.ts` is why: it
+    sorts after `eggs.spec.ts` and states the rule in force *in full*. The last test restores the
+    seeded rule, which is the courtesy `price-cap.spec.ts` pays with the Maximalpreis. Typing it
+    back in reversed order is a free extra assertion — the domain sorts, so the reload is the proof.
+  - **Do not pin the clock in a spec that also saves settings.** A settings version is stamped
+    *now*, and a version written under a pinned January would sort into the history below versions
+    the earlier specs stamped today — which the positional assertions in `settings.spec.ts`
+    (`versions.nth(1)`, `versions.last()`) count on. `eggs.spec.ts` therefore uses literal
+    birthdates and the real clock, and the 13th-birthday case stays in `age-13.spec.ts`, which pins
+    and saves nothing.
+  - **The record's egg tile on an *active* customer is the household editor's**, derived in the
+    browser; the server-rendered one (`HouseholdReadOnly`) only appears on an archived record. So
+    the counter is the screen that proves the *server* read the rule, and both were asserted.
+  - **Assert an absent tile by testid and by an exact-text label, never by `not.toContainText`.**
+    The customer list carries every spec's Faker names, so a substring check for „Eier“ is a
+    surname away from a false failure; `getByRole("columnheader", { name })` and
+    `getByText(label, { exact: true })` say what is actually meant.
+  - **Household prices of five or more are all at the seeded cap.** 2,00 € per grown-up and 1,00 €
+    per child put any household of five over 500c, so a price assertion there cannot fail on its
+    own. A spec that wants the price to be *free to move* needs a household of two or three.
+  - **`remove-egg-row-0` clicked N times empties the table** (US-006/US-007 said so; confirmed
+    against both engines), and the egg cells are addressable as `#eggThreshold-<i>` / `#eggCount-<i>`
+    — shorter than the `aria-label` and stable across a re-render.
   - **Still owed to US-009:** `docs/architecture/05-building-block-view.md:73` (the `allowance/`
     seam's summary, wrong since US-003), the configuration-as-data prose, chapter 7's seed row,
     `tasks/README.md`'s provisional table and the ADR.

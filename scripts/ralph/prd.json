@@ -200,7 +200,7 @@
         "BOTH engines pass: npm run test:e2e and npm run test:e2e:webkit, each after a rebuild and with the dev server stopped (`pkill -f next-server`) — a live port 3000 fails the suite for the wrong reason"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
