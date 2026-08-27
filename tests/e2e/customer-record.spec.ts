@@ -6,6 +6,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { berlinDayKey } from "@/domain/distribution/attendance";
 import { foldName } from "@/domain/customer/nameSearch";
+import { expectNothingCovers } from "./layout";
 import { SHARED } from "./registers";
 import { fillDay, fillSticky, typedDay } from "./day";
 import { releaseNumbers } from "./seeding";
@@ -825,6 +826,12 @@ test.describe("Kundenakte pflegen", () => {
  * (WCAG 2.1.1). It **cannot** meaningfully prove the header sticks — that only shows itself above
  * the row count any fixture wants to insert on every run, so it is measured by hand against an
  * inflated copy of the register (`docs/guideline/ui_styling_guide.md` §11).
+ *
+ * What it **can** prove, and does below, is that the header is not sitting *on top of* the first row.
+ * That is the second sticky header in the application, and the first one shipped exactly that fault
+ * for weeks (`tests/e2e/layout.ts`). This one is offset `top-0` into a scrollport of its own, which is
+ * the reason it is safe — a value copied across from `/kunden` would not be, and nothing else here
+ * would notice.
  */
 test.describe("Bisherige Ausgaben", () => {
   let withHistory: number;
@@ -861,6 +868,25 @@ test.describe("Bisherige Ausgaben", () => {
     await page.getByTestId("history-open").click();
     await expect(page.getByTestId("history-empty")).toBeVisible();
     await expect(page.getByTestId("history-row")).toHaveCount(0);
+  });
+
+  test("the first hand-out is on screen, not under the sticky header above it", async ({
+    page,
+  }) => {
+    await page.goto(`/kunden/${withHistory}`);
+    await page.getByTestId("history-open").click();
+
+    const first = page.getByTestId("history-row").first();
+    // The page, not the box: the row is the first one, so the container has nothing to scroll and
+    // stays at the top — which is the state the assertion is about.
+    await first.scrollIntoViewIfNeeded();
+    expect(
+      await page
+        .getByRole("region", { name: de.customers.record.historyRegionLabel })
+        .evaluate((box: HTMLElement): number => box.scrollTop),
+    ).toBe(0);
+
+    await expectNothingCovers(first, "die erste Zeile der Ausgabe-Historie");
   });
 
   test("the history is a named region the keyboard can reach and scroll", async ({ page }) => {

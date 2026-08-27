@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { foldName } from "@/domain/customer/nameSearch";
 import { de } from "@/i18n/de";
+import { BELOW_BREAKPOINT, GATE_WIDTH, expectNothingCovers } from "./layout";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
 
@@ -314,6 +315,17 @@ function row(page: Page, customerNumber: number): Locator {
   return page.locator(`[data-customer-number="${customerNumber}"]`);
 }
 
+/**
+ * How the table header is positioned, as the browser resolved it — which is the pair that has to
+ * agree with the scrollport, and the pair a Tailwind variant decides.
+ */
+async function stickiness(page: Page): Promise<{ position: string; top: string }> {
+  return page.locator('[data-testid="customer-table"] thead').evaluate((head: HTMLElement) => {
+    const style = getComputedStyle(head);
+    return { position: style.position, top: style.top };
+  });
+}
+
 /** Press "Filtern" and wait for the navigation that writes the controls into the URL. */
 async function applyFilters(page: Page): Promise<void> {
   await Promise.all([
@@ -597,6 +609,72 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
     await expect(page.getByTestId("customer-search")).toHaveValue(SEARCH_PREFIX);
     await expect(page.getByTestId("group-filter")).toHaveValue("BLUE");
     await expect(page.getByTestId("archived-toggle")).toBeChecked();
+  });
+
+  /**
+   * The register as it is *seen*, at both sides of the one breakpoint this screen switches at.
+   *
+   * Every other test in this file reads the table out of the DOM, and the whole of the bug these two
+   * exist for was that the DOM was right: the first row was rendered, counted in „N Haushalte“ and
+   * counted in the group balance, with the sticky header painted opaquely over it at every width
+   * below `xl`. DF reported it as customer number 1 having disappeared from the list, and as a group
+   * filter showing three of four — which is the same sentence, because it is always the first row of
+   * whatever is on screen. See `tests/e2e/layout.ts` for why the check is a hit-test.
+   */
+  test.describe("die Liste, wie sie zu sehen ist", () => {
+    test.use({ viewport: BELOW_BREAKPOINT });
+
+    test("unterhalb des Breakpoints verdeckt der Tabellenkopf die erste Zeile nicht", async ({
+      page,
+    }) => {
+      // Below `xl` the table's container is its own scrollport, so a header offset into it is pushed
+      // *down* over the first row rather than left where it is. The fix is that the header stops
+      // being sticky at exactly the width where the container starts scrolling.
+      await page.goto("/kunden");
+      const first = page.getByTestId("customer-row").first();
+      await expect(first).toBeVisible();
+      await expectNothingCovers(first, "die erste Zeile der Liste");
+
+      // And again under a filter: the row underneath the header is whichever one is now on top, which
+      // is how the same fault reached DF a second time as "eine Blaue fehlt".
+      await page.goto("/kunden?gruppe=BLUE");
+      const firstBlue = page.getByTestId("customer-row").first();
+      await expect(firstBlue).toBeVisible();
+      await expectNothingCovers(firstBlue, "die erste Zeile der gefilterten Liste");
+
+      // The rule behind the symptom, so that a future offset cannot quietly reintroduce it: where the
+      // container is the scrollport, the header does not stick at all. `sticky top-12` here is what
+      // pushed it down over the row — a sticky box shifts in either direction to satisfy its offset,
+      // and this scrollport's top is already 0.
+      await expect(stickiness(page)).resolves.toEqual({ position: "static", top: "auto" });
+    });
+  });
+
+  test.describe("die Liste auf der Zielbreite", () => {
+    test.use({ viewport: { width: GATE_WIDTH, height: 720 } });
+
+    test("auf der Zielbreite klebt der Tabellenkopf unter der Navigation, ohne eine Zeile zu verdecken", async ({
+      page,
+    }) => {
+      await page.goto("/kunden");
+      await expectNothingCovers(
+        page.getByTestId("customer-row").first(),
+        "die erste Zeile der Liste",
+      );
+
+      // The other half of the same rule, or "nothing covers the first row" could be satisfied for
+      // good by deleting the sticky header. Here the window is the scrollport, so the offset is the
+      // nav's own height — read off the nav rather than written out as 48, so the two cannot drift.
+      // Whether it *then* sticks is the browser's business and is measured by hand against an
+      // inflated register (`docs/guideline/ui_styling_guide.md` §11): the shared register is however
+      // many rows the specs before this one left behind, which is no basis for scrolling anything.
+      const nav = await page.getByTestId("main-nav").boundingBox();
+      expect(nav).not.toBeNull();
+      await expect(stickiness(page)).resolves.toEqual({
+        position: "sticky",
+        top: `${nav?.height ?? 0}px`,
+      });
+    });
   });
 
   test("„Zurücksetzen“ leert die Filterfelder, nicht nur die Liste", async ({ page }) => {

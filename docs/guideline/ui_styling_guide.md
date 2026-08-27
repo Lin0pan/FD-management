@@ -79,15 +79,37 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   headings light up like a record.
 - A column heading is a width: `whitespace-nowrap` gives every column a floor equal to its German
   label. Cut the heading to a shorter _true_ phrase rather than an abbreviation nobody says aloud.
-- **Sticky table header needs all three**, or none of them is worth doing:
+- **Sticky table header needs all four**, or none of them is worth doing:
 
   ```tsx
   <Card className="overflow-visible">                                  {/* Card ships overflow-hidden */}
     <Table containerClassName="overflow-x-auto xl:overflow-x-visible"> {/* not overflow-y-visible */}
-      <TableHeader className="sticky top-12 z-10 bg-card">            {/* top-12 = nav height, opaque */}
+      <TableHeader className="z-10 bg-card xl:sticky xl:top-12">      {/* same xl: as the overflow */}
   ```
 
   Pick the breakpoint by measuring `documentElement.scrollWidth - clientWidth` at it, not by eye.
+
+- **A sticky offset is measured from the scrollport, so `top-N` and the scrollport have to agree.**
+  Sticky shifts a box in _either_ direction: `top: 48px` against a scrollport already at 0 is not
+  satisfied by staying put, so the header is pushed 48px **down** — opaque, over the first row.
+
+  | The scrollport is…                                               | The header must be…                        |
+  | ---------------------------------------------------------------- | ------------------------------------------ |
+  | the **window** (container `overflow-x-visible`)                  | `sticky top-12` — clear the nav            |
+  | the **container** (`overflow-x-auto`, `max-h-… overflow-y-auto`) | `sticky top-0` — there is nothing to clear |
+
+  A container whose overflow switches at a breakpoint switches which of those two rows applies, so
+  the stickiness carries the **same breakpoint** as the overflow. `/kunden` shipped `sticky top-12`
+  against an `xl:`-switched container and hid the first row of the register at every window under
+  1280px, for weeks: the row was in the DOM, the result count counted it and the group balance
+  counted it, so DF reported a customer missing from the list and every spec stayed green.
+
+- **Anything painted over rows is a `bg-*` and a `z-` away from hiding one.** Whenever you add a
+  sticky, fixed or floating element, hit-test what is beneath it at its resting position —
+  `document.elementFromPoint` at the centre of the first row, at both sides of every breakpoint
+  involved. `toBeVisible()` cannot see this and neither can a screenshot you did not think to take at
+  that width; `tests/e2e/layout.ts` is the assertion, and it belongs in the spec of any screen that
+  grows one of these.
 
 - **Empty state is an `<Alert role="status">`** inside the card the list would have filled, naming
   the filters in force. "Not configured yet" is a gentler state of its own that points at
@@ -407,6 +429,12 @@ it. Playwright is the only thing that will tell you.
   the confirmation after the click (measure the button's own rect either side, not just
   `window.scrollY`); `documentElement.scrollWidth - clientWidth` is `0` at ~1440, ~800, ~390 and at
   both sides of any breakpoint introduced; and the thing that matters still dominates.
+- **Look at the narrow side of every breakpoint, not only the design width.** Both e2e devices are
+  1280×720, which is exactly the `xl` breakpoint, so the suite only ever sees the wide side of it —
+  and DF do not work maximised, Safari remembers a page zoom per site, and a scrollbar takes its width
+  out of what a media query is answered against. A rule that only holds at 1280 holds for nobody. Ask
+  `getComputedStyle` what the breakpoint actually changed, then hit-test the first row beneath any
+  sticky element (§3).
 - Driving real flows writes to `data/fd.db`. That is fine — say so, and `npm run db:demo -- --reset`
   puts the demo register back.
 - **Done is** `npm run lint && npm run typecheck && npm run test:coverage && npm run build`, then
