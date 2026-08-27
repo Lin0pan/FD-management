@@ -13,6 +13,7 @@
 
 import { useActionState, useRef, useState } from "react";
 import { de } from "@/i18n/de";
+import { guardEnter } from "../../enter-guard";
 import { useFocusFirstRefusal } from "../../field-mark";
 import { marking, problemAt } from "../../field-refusal";
 import { updateNotesAction } from "./actions";
@@ -39,7 +40,7 @@ export function NotesEditor({
   useFocusFirstRefusal(fields, form);
 
   return (
-    <form ref={form} action={formAction} className="flex flex-col gap-3">
+    <form ref={form} action={formAction} onKeyDown={guardEnter} className="flex flex-col gap-3">
       <input type="hidden" name="customerId" value={customerId} />
       <div className="flex flex-col gap-1.5">
         <label

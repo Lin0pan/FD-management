@@ -19,6 +19,7 @@ import { saveSettings } from "./actions";
 import { EggRuleTable } from "./egg-rule-table";
 import { initialSaveSettingsState } from "./save-settings-state";
 import type { SaveSettingsState, SubmittedSettings } from "./save-settings-state";
+import { guardEnter } from "../enter-guard";
 import { FieldRejection, useFocusFirstRefusal } from "../field-mark";
 import { marking, problemAt, type FieldRefusal } from "../field-refusal";
 import { Notice } from "../notice";
@@ -269,7 +270,7 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
     shownValue(state, name, stored);
 
   return (
-    <form ref={form} action={formAction} className="flex flex-col gap-6">
+    <form ref={form} action={formAction} onKeyDown={guardEnter} className="flex flex-col gap-6">
       <Section heading={de.settings.amountsHeading}>
         <div className={GRID}>
           <NumberField

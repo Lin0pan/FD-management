@@ -665,4 +665,66 @@ test.describe("Kundenaufnahme", () => {
     await expect(page.locator("#street")).toBeFocused();
     await expect(page).toHaveURL(/\/kunden\/neu$/);
   });
+
+  /**
+   * Enter does not register anybody (`src/app/enter-guard.ts`).
+   *
+   * DF reported it from this screen: a form with one submit button submits on Enter in any field,
+   * and staff who type fast were registering households while the members were still half-entered
+   * or the group was still the proposed one. That save is not taken back by a second keystroke — it
+   * consumes a customer number and issues a card — so Enter in a field is now inert.
+   *
+   * Only a browser can be asked this. It is native behaviour being suppressed, not a value any
+   * layer below holds, and until these two specs nothing in the suite pressed Enter on a data form
+   * at all — in either direction.
+   */
+  test("Enter in a field does not register the customer", async ({ page }) => {
+    await page.goto("/kunden/neu");
+
+    // The form is left *complete*, so nothing but the guard is stopping the save. A form that would
+    // have been refused anyway proves nothing.
+    const proposedNumber = await page.getByTestId("customer-number-select").inputValue();
+    const applicant = person(faker.person.lastName());
+    await fillPersonalData(page, applicant);
+    const typed = await typedValues(page);
+
+    await page.locator("#lastName").press("Enter");
+
+    // Not a refusal and not a save: nothing happened at all. The screen is still the intake, with
+    // every field as it was typed — an Enter that emptied the form would be its own bug.
+    await expect(page).toHaveURL(/\/kunden\/neu$/);
+    await expect(page.getByTestId("registration-error")).toHaveCount(0);
+    expect(await typedValues(page)).toEqual(typed);
+
+    // A date field is masked and a household cell is addressed by position; both are ordinary text
+    // inputs to the guard, and this is where fast typing actually ends a line.
+    await page.locator("#certificateValidUntil").press("Enter");
+    await page.locator("#memberLastName-0").press("Enter");
+    await expect(page).toHaveURL(/\/kunden\/neu$/);
+
+    // And no customer number was consumed on the way, which is the whole complaint.
+    await page.goto("/kunden/neu");
+    await expect(page.getByTestId("customer-number-select")).toHaveValue(proposedNumber);
+    expect(await prisma.customer.count({ where: { lastName: applicant.lastName } })).toBe(0);
+  });
+
+  // Last in the file, after the refusal spec that was: it registers, so it consumes a number.
+  test("Enter on the focused save button still registers, so the form stays keyboard-operable", async ({
+    page,
+  }) => {
+    await page.goto("/kunden/neu");
+
+    const proposedNumber = await page.getByTestId("customer-number-select").inputValue();
+    await fillPersonalData(page, person(faker.person.lastName()));
+
+    // The guard swallows Enter in a *field*; on the button the keydown lands on a `<button>` and
+    // the native activation follows. Losing that would trade DF's complaint for a form nobody can
+    // finish without a mouse.
+    const save = page.getByRole("button", { name: de.customers.new.submit, exact: true });
+    await save.focus();
+    await save.press("Enter");
+
+    await page.waitForURL(/\/kunden\/\d+(\?|$)/);
+    await expect(page.getByTestId("customer-number")).toHaveText(proposedNumber);
+  });
 });

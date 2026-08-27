@@ -712,6 +712,40 @@ test.describe("Kundenakte pflegen", () => {
     await expect(page.getByTestId("counter-notes")).toHaveText(NOTE);
   });
 
+  /**
+   * Enter does not save a record edit either (`src/app/enter-guard.ts`).
+   *
+   * DF reported the accidental save on the intake, but the record carries the same hazard in a
+   * worse place: five forms on one page, so an Enter meant for the next line saves whichever of
+   * them the cursor happens to be in. The textarea is the reason the guard is written as an
+   * allowlist rather than a list of exceptions — the note is the one field on the record where
+   * Enter has a job of its own, and taking it away would be a worse bug than the one being fixed.
+   */
+  test("Enter writes a newline in the note and saves nothing on the record", async ({ page }) => {
+    await page.goto(`/kunden/${id}`);
+
+    const notes = page.getByTestId("notes-field");
+    await notes.fill("Erste Zeile");
+    await notes.press("Enter");
+    await notes.pressSequentially("Zweite Zeile");
+
+    // The textarea kept its Enter, and the form did not go with it.
+    await expect(notes).toHaveValue("Erste Zeile\nZweite Zeile");
+    await expect(page.getByTestId("notes-saved")).toHaveCount(0);
+    await expect(page.getByTestId("notes-error")).toHaveCount(0);
+
+    // The neighbouring form, where Enter is inert: the name is left changed on screen and unsaved,
+    // so a reload is what says whether the record moved.
+    const stored = await page.getByTestId("details-last-name").inputValue();
+    await fillSticky(page.getByTestId("details-last-name"), `${stored}-Enter`);
+    await page.getByTestId("details-last-name").press("Enter");
+    await expect(page.getByTestId("details-saved")).toHaveCount(0);
+
+    await page.goto(`/kunden/${id}`);
+    await expect(page.getByTestId("details-last-name")).toHaveValue(stored);
+    await expect(page.getByTestId("notes-field")).toHaveValue(NOTE);
+  });
+
   test("shows the answer to the last thing asked, and no older one", async ({ page }) => {
     // Eight write controls stand on this record and each keeps its own last result. Observed before
     // the board: a „Gespeichert." from a group move was still on screen through a card reissue and a
