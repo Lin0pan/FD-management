@@ -484,11 +484,21 @@ function Overview({
  *
  * `top-12` is the height of the sticky nav above it, and the background is `bg-card` and opaque —
  * the nav is translucent, and a header that copied that would have rows reading through it.
+ *
+ * **The stickiness carries the same `xl:` as the overflow, and has to.** A sticky offset is measured
+ * from the scrollport, and which element that is changes at this very breakpoint: above it the
+ * window, below it the container, whose scroll top is 0. `top: 48px` against a scrollport at 0 is not
+ * satisfied by staying put — sticky shifts a box in *either* direction — so the header was pushed 48px
+ * *down*, opaque, exactly over the first row. DF read it as a customer missing from the register: the
+ * row was in the DOM, the count above the table still counted it, the group balance still counted it,
+ * and filtering only moved which row was underneath. It came and went because it is decided by the
+ * window's width alone — 1279px hides a row, 1280px does not — so a resize, a zoom step or a
+ * scrollbar appearing as the register grew was enough to flip it either way.
  */
 function CustomerTable({ rows }: { rows: ReadonlyArray<CustomerListRow> }): React.ReactElement {
   return (
     <Table data-testid="customer-table" containerClassName="overflow-x-auto xl:overflow-x-visible">
-      <TableHeader className="sticky top-12 z-10 bg-card">
+      <TableHeader className="z-10 bg-card xl:sticky xl:top-12">
         <TableRow className="hover:bg-transparent">
           <TableHead className="text-right">{de.customerList.table.customerNumber}</TableHead>
           <TableHead>{de.customerList.table.name}</TableHead>
