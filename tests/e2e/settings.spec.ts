@@ -516,6 +516,41 @@ test.describe("Einstellungen", () => {
     await expect(page.getByLabel(PRICE_LABEL, { exact: true })).not.toHaveValue("2,5o");
   });
 
+  /**
+   * Enter does not put a policy change into force (`src/app/enter-guard.ts`).
+   *
+   * The settings are the one screen where an accidental save is not confined to one household: a
+   * price applies at once and to everybody, and the version it appends is kept for good. It is also
+   * the only guarded form holding a native `<select>`, which submits on Enter exactly as a text
+   * field does and is the reason the guard covers both.
+   *
+   * Last in the file because the specs above are a chain of asserted amounts — a save leaking out
+   * of here would be read as a failure in whichever one came next.
+   */
+  test("Enter in a field does not save the settings", async ({ page }) => {
+    await openSettings(page);
+
+    const before = await versionCount(page);
+    const price = page.getByLabel(PRICE_LABEL, { exact: true });
+    const stored = await price.inputValue();
+
+    await price.fill("9,99");
+    await price.press("Enter");
+    await page.locator("#distributionWeekday").press("Enter");
+
+    await expect(page.getByTestId("settings-saved")).toHaveCount(0);
+    await expect(page.getByTestId("settings-error")).toHaveCount(0);
+    // The edit is still on screen to be saved or abandoned; it simply is not in force.
+    await expect(price).toHaveValue("9,99");
+
+    // No version was appended, and a reload gets the amount that was there before.
+    await expect(page.getByTestId("settings-history-count")).toContainText(
+      de.settings.history.count(before),
+    );
+    await page.reload();
+    await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue(stored);
+  });
+
   // The quota-below-*active-customers* rule (FR-4) is reachable from the browser as of US-01.6 —
   // the registration form can now put customers into the register — but it needs **two** of them:
   // a quota is only valid at 1 or above, so the count has to reach 2 before any valid quota can

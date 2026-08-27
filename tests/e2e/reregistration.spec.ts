@@ -344,6 +344,35 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     await expect(matchRow(page, successor.id)).toHaveCount(0);
   });
 
+  /**
+   * The search keeps its Enter, which the registration form beside it has lost.
+   *
+   * Two forms share this screen: the intake, where Enter in a field is inert because DF were saving
+   * half-filled registrations with it (`src/app/enter-guard.ts`), and this panel, where Enter is
+   * how a search box is used. They stay apart only because the guard hangs on one `<form>` element
+   * rather than on the document — a distinction nothing but a browser can check, and the one this
+   * change was most likely to get wrong.
+   */
+  test("Enter in the archive search still searches, and does not register anybody", async ({
+    page,
+  }) => {
+    await page.goto("/kunden/neu");
+
+    const proposedNumber = await page.getByTestId("customer-number-select").inputValue();
+
+    await page.getByTestId("archive-search-open").click();
+    await expect(page.locator("#archiveLastName")).toBeVisible();
+    await page.locator("#archiveLastName").fill(surname);
+    await page.locator("#archiveLastName").press("Enter");
+
+    await expect(matchRow(page, returning.id)).toBeVisible();
+
+    // The other form on the page did not go with it: still the intake, still offering the number it
+    // opened on.
+    await expect(page).toHaveURL(/\/kunden\/neu$/);
+    await expect(page.getByTestId("customer-number-select")).toHaveValue(proposedNumber);
+  });
+
   test("selecting the match pre-fills the form and the pre-fill can be dropped", async ({
     page,
   }) => {

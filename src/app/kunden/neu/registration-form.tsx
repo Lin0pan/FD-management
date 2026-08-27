@@ -53,6 +53,7 @@ import { GROUPS } from "@/domain/customer/group";
 import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { GROUP_STYLES } from "../../accents";
+import { guardEnter } from "../../enter-guard";
 import { FieldRejection, useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
 import { selectClass } from "../../select";
@@ -462,7 +463,10 @@ export function RegistrationForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-6">
+    // Enter in a field does nothing; the registration is saved by its button. This is the screen
+    // DF reported it from — see `enter-guard.ts` for why, and for the five other forms that
+    // followed. The archive-search panel is a sibling form and keeps its Enter.
+    <form action={formAction} onKeyDown={guardEnter} className="flex flex-col gap-6">
       {/* Absent rather than empty for a walk-in: the field is metadata about where these people
           came from, and a blank string is not an answer to that. */}
       {previousCustomerId === null ? null : (

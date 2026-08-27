@@ -236,6 +236,19 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 - **Pending is `disabled={pending}` plus a German label swap.** No spinners, no skeletons.
 - **A save button is named after what it saves.** Five buttons reading "Speichern" are
   indistinguishable by keyboard and by screen reader.
+- **A multi-field data-entry form is saved on purpose: `onKeyDown={guardEnter}`** from
+  `src/app/enter-guard.ts`. A form with one submit button submits on Enter in any field, which is
+  right for a search box and wrong for a save. DF reported it from „Kunde aufnehmen": staff who type
+  fast were registering households with the members still half-entered and the group still the
+  proposed one, and that save consumes a customer number and issues a card. The guard hangs on the
+  `<form>`, never on the document — the intake and the archive-search panel sit on the same screen
+  and only the first one loses its Enter.
+
+  It swallows Enter in a text field and a `<select>`, and leaves it everywhere it means something
+  else: the `<textarea>` keeps its newline, a `<summary>` its disclosure, and the **submit button
+  its activation**, so the form is still finishable without a mouse. Search boxes and the counter
+  loop on `/ausgabe` — where Enter _is_ the interaction — take no guard at all; neither do the
+  single-field confirm forms, which have nothing half-filled to protect.
 
 ## 7. Feedback
 

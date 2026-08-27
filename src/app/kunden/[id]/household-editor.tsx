@@ -40,6 +40,7 @@ import { formatEuros } from "@/domain/money";
 import { eggsFor } from "@/domain/policy/eggs";
 import { priceFor, type AllowanceValues } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
+import { guardEnter } from "../../enter-guard";
 import { useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
 import { Stat } from "../../stat";
@@ -243,7 +244,7 @@ export function HouseholdEditor({
   }
 
   return (
-    <form ref={form} action={formAction} className="flex flex-col gap-4">
+    <form ref={form} action={formAction} onKeyDown={guardEnter} className="flex flex-col gap-4">
       <input type="hidden" name="customerId" value={customerId} />
 
       {/* The four figures the household section exists to produce, at the rank the counter gives

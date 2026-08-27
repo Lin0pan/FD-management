@@ -19,6 +19,7 @@
 
 import { useActionState, useRef, useState } from "react";
 import { de } from "@/i18n/de";
+import { guardEnter } from "../../enter-guard";
 import { useFocusFirstRefusal } from "../../field-mark";
 import { problemAt } from "../../field-refusal";
 import { updateDetailsAction } from "./actions";
@@ -60,7 +61,7 @@ export function DetailsEditor({
   }
 
   return (
-    <form ref={form} action={formAction} className="flex flex-col gap-4">
+    <form ref={form} action={formAction} onKeyDown={guardEnter} className="flex flex-col gap-4">
       <input type="hidden" name="customerId" value={customerId} />
       <p className="max-w-prose text-sm text-muted-foreground">{de.customers.record.detailsHint}</p>
 

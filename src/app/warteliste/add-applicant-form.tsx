@@ -38,6 +38,7 @@ import { de } from "@/i18n/de";
 import { addApplicantAction } from "./actions";
 import { ADD_FORM_ANCHOR } from "./add-form-anchor";
 import { initialAddApplicantState } from "./waiting-list-state";
+import { guardEnter } from "../enter-guard";
 import { FieldRejection, useFocusFirstRefusal } from "../field-mark";
 import { marking, problemAt, type FieldRefusal } from "../field-refusal";
 import { Notice } from "../notice";
@@ -222,7 +223,7 @@ export function AddApplicantForm(): React.ReactElement {
         <CardDescription className="max-w-prose">{de.waitingList.add.hint}</CardDescription>
       </CardHeader>
       <CardContent>
-        <form ref={form} action={action} className="flex flex-col gap-4">
+        <form ref={form} action={action} onKeyDown={guardEnter} className="flex flex-col gap-4">
           {/* The remount that clears the form for the next applicant. It keys on how many have been
               saved, not on the message, so a second applicant of the same name still resets it —
               and a refusal, which does not change the count, leaves every field as it was typed. */}
