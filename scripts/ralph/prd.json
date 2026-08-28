@@ -22,8 +22,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Landed as balance.ts + balance.test.ts (17 tests). The doc comment forward-references replayPayments, which US-002 adds to the same module."
     },
     {
       "id": "US-002",

@@ -183,3 +183,33 @@ Five hazards, all stated in `prd.json` and worth reading twice:
   `tests/e2e/day.ts` already does that for the age-13 and reminder specs. Both engines, registers of
   its own.
 ---
+
+## 2026-08-28 — US-001 The balance arithmetic (domain)
+- New pure module `src/domain/distribution/balance.ts`: `PaidRecord`, `balanceOf`, `amountToPay`,
+  `balanceKind` / `BalanceKind`. No I/O, no clock, no framework import; imports only `Cents`.
+- New `src/domain/distribution/balance.test.ts` — 17 tests, written first and run red (the module did
+  not exist) before a line of it was written.
+- Files changed: `src/domain/distribution/balance.ts` (new),
+  `src/domain/distribution/balance.test.ts` (new), `scripts/ralph/prd.json`, this log.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1183 tests, domain/
+  and application/ still 100%), `npm run build` — all green.
+- **Learnings for future iterations:**
+  - **The named test that pins the formula is `consumes a credit larger than the price by the week it
+    pays for`.** It asserts *both* `balanceOf` and `amountToPay` on the week-4 row, because summing
+    against the amount asked for instead of the price passes every other test in the file — a
+    household that always hands over exactly what it is asked for gives 0 either way. If a later
+    change breaks only this test, the change is wrong, not the test.
+  - The module's doc comment forward-references `replayPayments`, which **US-002 adds to this same
+    file**. Nothing lints or type-checks a `{@link}`, so the reference is not load-bearing, but leave
+    it: US-002 makes it resolve.
+  - `distributionRecord.ts` shows as `0 | 0 | 0 | 0` in the coverage table and always has — it is
+    types only, so there is nothing to execute. It does not fail the 100% gate; do not "fix" it by
+    writing a test that constructs an interface.
+  - A test helper named with a snake_case local (`so_far`) passes ESLint here but reads wrong beside
+    the rest of the suite; the convention in `domain/` tests is a tiny camelCase factory at the top
+    of the file (`entry()` in `groupProgress.test.ts`, `handOut()` here) rather than object literals
+    repeated per case.
+  - **Docs are deliberately untouched.** `docs/architecture/05` lists `distribution/` module by
+    module and would take a `balance.ts` line, but US-010 owns every document in this batch — adding
+    it early would make that story's diff lie about what it did.
+---
