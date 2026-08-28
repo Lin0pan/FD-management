@@ -167,6 +167,29 @@ The `## Codebase Patterns` block below is CARRIED OVER from earlier batches on p
   `archive/2026-08-07-us-25-globally-unique-card-numbers/progress.txt` keeps a long consolidated list
   (playwright-cli usage, e2e customer-number bands, killing the dev server safely, testid greps).
   Read the most recent two before any UI or e2e story.
+- **React resets an uncontrolled form once its server action resolves.** So a field cannot survive
+  its own submission's answer: after a refusal that has to be re-submitted — the overpayment
+  confirmation is the one we have — the field snaps back to its `defaultValue` while the notice
+  beside it still names what was typed, and the second submit sends the wrong number. Every gate
+  stays green; only driving it in a browser finds it. The fix is both halves together: derive the
+  default from the refusal (`refusal?.paidCents ?? theDefault`) **and** `key` the field on it, so a
+  fresh input mounts on the refused value whichever order React re-renders and resets in.
+- **`whitespace-nowrap` on a `Stat` value is a narrow-screen bug, and the overflow check cannot see
+  it.** A phrase („Offen 2,00 €") runs out through the *tile's* padding at 390px while
+  `documentElement.scrollWidth - clientWidth` still reads `0` — the page does not overflow, the tile
+  does. Pass the nowrap/width-floor pair only where two tiles exist to be diffed (§4); let a phrase
+  wrap where they are not, and read the screenshot at 390 rather than the number.
+- **A dictionary entry may not read `de` inside its own initialiser** — TypeScript makes the whole
+  object implicitly `any` (TS7022) even though it would work at run time. Lift the shared clause to a
+  module-level function above the object, which is what `eggRow`/`fromPersons` already are. Note also
+  that `de.ts` is no longer import-free: `formatEuros` and `balanceKind` are imported so that money
+  and the balance's wording are formatted in one place and no screen can print a leading minus.
+- **`ui_styling_guide.md` §11's snippet still says `pkill -f next-server`, and that kills the Bash
+  tool** (exit 144, no output) — the bullet above says why. Kill by pid from
+  `ps aux | grep "[n]ext-server"`. And **driving the counter by hand needs `FD_FIXED_NOW_FILE` set on
+  the server**, not just a seeded register: the demo day is deliberately not a distribution day, so no
+  household is clear to serve. Pin a Thursday whose week colour matches the household (anchor
+  `2026-W02` = RED, so odd week offsets are BLUE) and restart `npm run start` with it.
 - **Renaming a Prisma column is not finished when `tsc` is green.** A `select: { paid: true }` in an
   e2e spec typechecks against the *generated client*, so `npm run typecheck` on `src/` passes while
   the suite would fail at run time — and five specs held one. After any column rename,
@@ -469,4 +492,71 @@ Five hazards, all stated in `prd.json` and worth reading twice:
     price). Any later story needing a household in debt or credit in the `readCustomer` block should
     use it rather than writing a bare `records.create`.
   - Docs still untouched — US-010 owns every document in this batch, as US-001..005 each recorded.
+---
+
+## 2026-08-28 — US-007 The counter collects an amount (presentation)
+- The paid checkbox is **gone from both counter forms**, replaced by a `Betrag` text field pre-filled
+  with the amount to pay (serve) or the stored payment (correction): `name="betrag"`,
+  `inputMode="decimal"`, `autoComplete="off"`, contents selected on focus, in the German amount form
+  `formatEuroAmount` writes and `parseEuros` reads — `4,00`, no currency symbol. Both forms took
+  `onKeyDown={guardEnter}`, so Enter no longer submits either of them.
+- A **payment row** above the serve form, in `ServeControls` rather than on the lookup card: `Zu
+  zahlen` (`counter-amount-to-pay`, `text-4xl`) and `Saldo` (`counter-balance`), worded and never
+  signed off `balanceKind`. The four derived tiles are untouched and the price is still fourth. The
+  already-served card shows the `Saldo` alone — the amount to pay in that state is what a *second*
+  hand-out would cost, which cannot happen.
+- The overpayment step is **driven from the server's refusal**: the form submits without a
+  confirmation, `OverpaymentNotConfirmed` comes back as the new `confirmOverpayment` status on both
+  `ServeState` and `CorrectState`, and the notice renders `refusal`-tiered with a second submit
+  button (`name="overpaymentConfirmed"`) beside it. No modal, nothing to dismiss.
+- `de.distribution.serve.paid` and `paidState` **deleted**. New: `serve.amount`, `serve.asked(cents)`,
+  `serve.overpayment.{question,confirm}`, `serve.errors.notAnAmount`, a reworded
+  `alreadyServed(time, paidCents, askedCents)`, `correct.save` → „Betrag speichern", and
+  `correct.removeConfirm(balanceWithoutRecordCents)`; plus `customers.derived.{amountToPay,balance,
+  balanceValue}`.
+- Files changed: `src/i18n/de.ts`, `src/app/ausgabe/{serve-controls.tsx,serve-state.ts,actions.ts,
+  page.tsx}`, `src/app/enter-guard.ts`, `tests/e2e/serve.spec.ts`, `scripts/ralph/prd.json`, this log.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1224 tests, domain/
+  and application/ still 100%), `npm run build`, `npx prettier --check .`, `npm run test:e2e`
+  (177 passed) and `npm run test:e2e:webkit` (177 passed) — all green. Browser pass with
+  `playwright-cli` against `npm run start`, pinned to a BLUE distribution day over the demo register;
+  console 0 errors, `scrollWidth - clientWidth` 0 at 1440/1280/800/390.
+- **Learnings for future iterations:**
+  - **React resets an uncontrolled form once its action resolves, and that silently broke the
+    overpayment confirmation.** Typing 50,00 against 7,00 asked produced the right question — and the
+    field snapped back to `7,00` behind it, so pressing „Ja, Betrag so buchen" would have booked 7,00
+    with the flag. The browser pass is the only thing that found it; every gate was green. The fix is
+    to drive `defaultCents` from the refusal (`overpayment?.paidCents ?? default`) **and key the field
+    on it**, so a fresh input mounts on the refused amount whichever order React re-renders and resets
+    in. Any form that has to survive its own action's answer needs the same treatment.
+  - **`de.ts` now has imports, and it never had any before.** `formatEuros`, `balanceKind` and
+    `BalanceKind`, all pure domain. The PRD asked for `balanceValue(kind, cents)` and `asked(cents)`
+    by name, and formatting inside the dictionary is also what keeps a leading minus off every screen
+    at once rather than leaving each caller to remember `Math.abs`. The precedent it breaks —
+    `history.change(label, from, to)` takes ready-made strings — is left as it is.
+  - **A dictionary entry may not read `de` inside its own initialiser.** `removeConfirm` wanted
+    `de.customers.derived.balanceValue`, which makes `de` implicitly `any` (TS7022) even though it
+    would work at run time. Module-level `balanceWording` above the object is the shape the egg-rule
+    fragments (`eggRow`, `fromPersons`) already use for exactly this.
+  - **`whitespace-nowrap` on a `Stat` value is a narrow-screen bug.** „Offen 2,00 €" ran out through
+    the tile's own padding at 390px while `documentElement.scrollWidth - clientWidth` still read `0` —
+    the page does not overflow, the *tile* does, and only the screenshot shows it. Pass the width floor
+    where tiles are compared; let a phrase wrap where they are not.
+  - **The payment row shares the counts row's four-track grid** (`grid-cols-2 sm:grid-cols-4`, `Saldo`
+    spanning two), not a grid of its own two columns. The two cards are the same width with the same
+    padding, so four tracks put `Zu zahlen` on the same baseline as `Erwachsene`; a bare `grid-cols-2`
+    gave two half-width tiles that lined up with nothing above them.
+  - **`playwright-cli` takes a testid as a bare target** (`playwright-cli fill serve-amount "50,00"`)
+    only once the element is in the current snapshot — otherwise it errors with "does not match any
+    elements" and a `snapshot` first is what fixes it, not a different locator. `eval` is how you read
+    `selectionStart`/`activeElement`, which is the only honest check for select-on-focus and for
+    keyboard reachability of a confirm button.
+  - **`pkill -f "next-server"` kills the Bash tool** (exit 144, no output) exactly as this log's
+    pattern bullet warns — and `ui_styling_guide.md` §11 still prints `pkill -f next-server` in its
+    snippet. Kill by pid from `ps aux | grep "[n]ext-server"`.
+  - **Driving the counter needs `FD_FIXED_NOW_FILE` on the server**, not just a seeded register: the
+    demo day is deliberately not a distribution day, so no household is clear to serve. Pin a Thursday
+    in a week whose colour matches the household you want (anchor `2026-W02` = RED, so odd offsets are
+    BLUE) and restart `npm run start` with the variable set.
+  - Docs still untouched — US-010 owns every document in this batch, as US-001..006 each recorded.
 ---

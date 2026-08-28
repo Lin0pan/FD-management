@@ -5,7 +5,17 @@
  * text is German while code identifiers stay English (see docs/architecture/08-crosscutting-concepts.md §Internationalisation).
  * Keeping the strings in one dictionary module makes the surface easy to review and, if it is ever
  * needed, to translate.
+ *
+ * The imports below are the module's only ones, and all three are pure domain: an amount of money is
+ * written by `formatEuros` and nowhere else (`CLAUDE.md` §Coding style), and a balance is *named*
+ * from its `BalanceKind` rather than from its sign. Formatting the amounts here is what keeps a
+ * leading minus off every screen at once — an entry taking a ready-made string would leave each
+ * caller to remember, and rule 6 forbids making a staff member read a sign.
  */
+
+import { balanceKind, type BalanceKind } from "@/domain/distribution/balance";
+import { formatEuros } from "@/domain/money";
+
 /**
  * „ab 3 Personen“, and „ab 1 Person“ for the threshold of one the egg rule allows (US-28).
  *
@@ -41,6 +51,28 @@ function eggRow(minPersons: number, eggs: number): string {
  */
 const EGG_THRESHOLD_COLUMN = "Ab wie vielen Personen";
 const EGG_COUNT_COLUMN = "Eier";
+
+/**
+ * A balance in words: „Guthaben 2,00 €“, „Offen 2,00 €“, „ausgeglichen“ (US-29).
+ *
+ * **Never signed.** The word says which way the amount runs, so the figure is printed from its
+ * absolute value and no screen in the application shows a leading minus — rule 6 forbids making a
+ * staff member read a sign. Which way it runs is read once, by `balanceKind` in the domain, and only
+ * named here; a screen that compared the number to zero itself would decide the rule a second time.
+ *
+ * A settled balance is a word and not „0,00 €“: it is the state staff look for, and a zero beside a
+ * euro sign reads like an amount that merely happens to be nothing.
+ *
+ * Module-level because two entries say it — the tile on the counter and the record, and the sentence
+ * warning what a removal does to the balance.
+ */
+function balanceWording(kind: BalanceKind, cents: number): string {
+  if (kind === "SETTLED") {
+    return "ausgeglichen";
+  }
+  const amount = formatEuros(Math.abs(cents));
+  return kind === "CREDIT" ? `Guthaben ${amount}` : `Offen ${amount}`;
+}
 
 export const de = {
   app: {
@@ -235,6 +267,16 @@ export const de = {
        */
       countsValue: (grownUps: number, children: number): string =>
         `Erwachsene: ${grownUps}, Kinder: ${children}`,
+      /**
+       * What the household hands over today: the price offset by their balance (US-29). „Zu zahlen“
+       * and not „Preis“ — the two differ exactly when a balance is standing, and the tile beside
+       * this one still says what the week itself cost.
+       */
+      amountToPay: "Zu zahlen",
+      /** Where the household stands over all their hand-outs: a credit, an open amount, or neither. */
+      balance: "Saldo",
+      /** A balance in words, never signed — {@link balanceWording}, which says why. */
+      balanceValue: balanceWording,
       hint: "Berechnet aus den Geburtsdaten — nicht eingebbar.",
       standardValues: "Standardpreis; am Ausgabetisch nicht anpassbar.",
       unknown: "—",
@@ -1222,7 +1264,17 @@ export const de = {
      */
     serve: {
       submit: "Ausgabe erfassen",
-      paid: "Bezahlt",
+      /**
+       * The label of the field DF type the handed-over amount into (US-29.7). „Betrag“ and not
+       * „Bezahlt“: the field takes a number, and the flag it replaced could not say a part payment.
+       */
+      amount: "Betrag",
+      /**
+       * What the counter asked for on the day a record was made, stated above the correction field
+       * so the amount in it can be read against something. „Gefordert“ rather than „Preis“ — a
+       * household settling an old debt was asked for more than the week cost.
+       */
+      asked: (cents: number): string => `Gefordert: ${formatEuros(cents)}`,
       /**
        * Shown after a successful hand-out, in place of the serve button and nowhere else. It once
        * ended "Nächste Nummer eingeben.", which was an instruction about a cursor the screen used to
@@ -1230,19 +1282,46 @@ export const de = {
        * to do something the screen had not prepared for them.
        */
       confirmed: (time: string): string => `Ausgabe um ${time} Uhr erfasst.`,
-      /** Shown on a customer who already has a record today, in place of the serve action. */
-      alreadyServed: (time: string): string => `Heute bereits versorgt um ${time} Uhr.`,
-      paidState: {
-        paid: "bezahlt",
-        unpaid: "nicht bezahlt",
+      /**
+       * Shown on a customer who already has a record today, in place of the serve action — the time,
+       * and what was handed over against what was asked for (US-29.7). It used to end in „bezahlt“
+       * or „nicht bezahlt“, which is exactly the third case DF kept in the Excel list by hand: a
+       * household that hands over 2,00 € of 5,00 € is neither.
+       */
+      alreadyServed: (time: string, paidCents: number, askedCents: number): string =>
+        `Heute bereits versorgt um ${time} Uhr. ` +
+        `(${formatEuros(paidCents)} von ${formatEuros(askedCents)} gezahlt)`,
+      /**
+       * The question an amount above what was asked for raises (US-29.7).
+       *
+       * A question and not a fault: paying ahead is a thing households do, and it is never refused
+       * outright. It is asked at all because a mistyped credit is the one error this design cannot
+       * undo — it silently pays for the household's next weeks — while a shortfall shows up as an
+       * open amount at the very next hand-out, in front of the person serving them.
+       */
+      overpayment: {
+        question: (paidCents: number, amountToPayCents: number): string =>
+          `${formatEuros(paidCents)} statt ${formatEuros(amountToPayCents)} — wirklich so buchen? ` +
+          `Der Rest von ${formatEuros(paidCents - amountToPayCents)} bleibt als Guthaben stehen ` +
+          `und wird bei der nächsten Ausgabe verrechnet.`,
+        /** Names the act rather than answering „ja“, so the button says what pressing it does. */
+        confirm: "Ja, Betrag so buchen",
       },
       correct: {
         heading: "Heutigen Eintrag korrigieren",
-        save: "Bezahlt-Status speichern",
+        save: "Betrag speichern",
         saved: "Eintrag aktualisiert.",
         remove: "Eintrag entfernen",
-        removeConfirm:
-          "Diesen Eintrag wirklich entfernen? Die Ausgabe gilt dann als nicht erfolgt.",
+        /**
+         * The whole consequence of a removal, in the order it is felt: the hand-out goes, the
+         * payment goes with it, and the household's balance returns to where it stood before today
+         * (US-29, rule 9). The third clause is the one no other line on the screen carries — the
+         * balance is a derivation over the surviving records, so a removal moves it.
+         */
+        removeConfirm: (balanceWithoutRecordCents: number): string =>
+          `Diesen Eintrag wirklich entfernen? Die Ausgabe gilt dann als nicht erfolgt, und der ` +
+          `gezahlte Betrag wird mit entfernt. Der Saldo des Haushalts steht danach wieder bei: ` +
+          `${balanceWording(balanceKind(balanceWithoutRecordCents), balanceWithoutRecordCents)}.`,
         removeConfirmButton: "Ja, entfernen",
         removeCancel: "Abbrechen",
         removed: "Eintrag entfernt. Der Haushalt kann heute erneut erfasst werden.",
@@ -1253,6 +1332,8 @@ export const de = {
         noLongerCorrectable:
           "Dieser Eintrag stammt nicht von heute und kann nicht mehr geändert werden.",
         notFound: "Der Eintrag wurde nicht gefunden. Bitte die Seite neu laden.",
+        /** The field takes euros as DF write them — `4`, `4,00` and `4.00` all read the same. */
+        notAnAmount: "Kein gültiger Betrag. Bitte so eingeben: 4,00",
         unknown: "Die Ausgabe konnte nicht gespeichert werden. Bitte erneut versuchen.",
       },
     },

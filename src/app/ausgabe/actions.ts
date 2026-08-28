@@ -11,14 +11,15 @@
  * a record corrected lives in the domain and the use cases — the eligibility re-check, the
  * once-per-day guard and the same-day-only correction are all theirs, not this layer's (FR-8).
  *
- * A `<input type="checkbox">` submits nothing when unchecked, so `paid` is read as the mere presence
- * of the field — the standard HTML-form idiom, and the reason the box is pre-checked in the markup.
+ * The one value read off these forms that is not an id is the **amount** a household handed over
+ * (US-29.7). It arrives as German text — `4`, `4,00`, `4.00` — and `parseEuros` is the single place
+ * that turns text into money, here at the boundary; a negative or unreadable amount is refused here
+ * and never reaches a use case, which is why neither of them re-checks it.
  *
- * **The paid checkbox is a bridge, and a temporary one (US-29.4).** A hand-out now records the
- * *amount* a household handed over, and a flag cannot say an amount, so a ticked box is translated
- * here into the figure it has always meant: the amount asked for when a hand-out is recorded, and
- * today's price when one is corrected. US-29.7 replaces the box with the amount field DF are to
- * type into, and both translations go with it.
+ * An amount **above** what was asked for is a different matter, and deliberately not this layer's
+ * to judge. The submission goes without a confirmation, the use case answers with
+ * `OverpaymentNotConfirmed`, and that comes back as the `confirmOverpayment` state the form turns
+ * into a question with a second button. The screen never works out for itself whether to ask (FR-8).
  */
 
 import { revalidatePath } from "next/cache";
@@ -27,7 +28,10 @@ import { z } from "zod";
 import { isBlankDay, parseCalendarDay } from "@/domain/calendarDay";
 import { recordReminder } from "@/application/customers/record-reminder";
 import { renewCertificate } from "@/application/customers/renew-certificate";
-import { correctAttendance } from "@/application/distribution/correct-attendance";
+import {
+  correctAttendance,
+  type CorrectAttendanceInput,
+} from "@/application/distribution/correct-attendance";
 import { recordAttendance } from "@/application/distribution/record-attendance";
 import {
   AlreadyServedToday,
@@ -36,9 +40,11 @@ import {
   DistributionRecordNotFound,
   MissingRequiredField,
   NotClearToServe,
+  OverpaymentNotConfirmed,
   RecordNoLongerCorrectable,
   ReminderAlreadyLoggedToday,
 } from "@/domain/errors";
+import { parseEuros } from "@/domain/money";
 import { customerFieldLabel, de } from "@/i18n/de";
 import { customerErrorField, fieldRefusals } from "../kunden/neu/registration-input";
 import { germanTime } from "@/i18n/format";
@@ -54,13 +60,36 @@ const surrogateId = z
   .transform((value): number => Number(value));
 
 /**
- * A whole number of cents as a hidden form field carries it — part of the US-29.4 bridge, and gone
- * with it (US-29.7), by which point the only amount on this form comes from `parseEuros`.
+ * The amount a household handed over, as DF type it into the Betrag field: `4`, `4,00` or `4.00`,
+ * all read as 400 cents.
+ *
+ * `parseEuros` is the domain's own reader — the same one the settings screen's prices go through —
+ * and it is strict on purpose: a third decimal digit and a minus sign are both refused rather than
+ * rounded or absorbed. That refusal is the reason `recordAttendance` and `correctAttendance` may
+ * trust the number they are handed (US-29.4).
  */
-const centsField = z
-  .string()
-  .regex(/^\d+$/)
-  .transform((value): number => Number(value));
+const euroAmount = z.string().transform((value, ctx): number => {
+  try {
+    return parseEuros(value);
+  } catch {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: de.distribution.serve.errors.notAnAmount,
+    });
+    return z.NEVER;
+  }
+});
+
+/**
+ * That the staff member answered the overpayment question by pressing the confirm button.
+ *
+ * Read as the mere *presence* of the field, the standard HTML-form idiom: the confirm button is a
+ * second submit inside the same form, so clicking it re-sends the typed amount and this flag while
+ * the ordinary button sends only the amount.
+ */
+function confirmed(formData: FormData): boolean {
+  return formData.get("overpaymentConfirmed") !== null;
+}
 
 /**
  * A calendar day as DF type it — `TT.MM.JJJJ` — read as the UTC day it names.
@@ -122,33 +151,54 @@ function correctMessage(error: unknown): string {
 }
 
 /**
- * Record a hand-out for the customer named by the hidden `customerId`, paid unless the box was
- * cleared. On success the page is revalidated so today's record appears in place of the serve action,
- * and the returned time drives the confirmation the form shows while the number field re-focuses.
+ * Record a hand-out for the customer named by the hidden `customerId`, for the amount typed into the
+ * Betrag field. On success the page is revalidated so today's record appears in place of the serve
+ * action, and the returned time drives the confirmation the form shows while the number field is
+ * cleared for the next customer.
+ *
+ * An amount above what was asked for comes back as `confirmOverpayment` rather than as a failure —
+ * the counter shows the question and submits the same amount again with the flag.
  */
 export async function recordServe(_previous: ServeState, formData: FormData): Promise<ServeState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
   if (!customerId.success) {
     return { status: "error", message: de.distribution.serve.errors.unknown, tier: "error" };
   }
+  const paidCents = euroAmount.safeParse(String(formData.get("betrag") ?? ""));
+  if (!paidCents.success) {
+    // A refusal and not an error: nothing is wrong with the installation, the staff member typed
+    // something the field cannot read, and the sentence says what it can.
+    return {
+      status: "error",
+      message: de.distribution.serve.errors.notAnAmount,
+      tier: "refusal",
+    };
+  }
 
   try {
     const record = await recordAttendance(counterActionDeps, {
-      // The US-29.4 bridge: a ticked box is the household handing over what they were asked for,
-      // which is what an omitted amount already means, and a cleared one is handing over nothing.
-      paidCents: formData.get("paid") !== null ? undefined : 0,
       customerId: customerId.data,
+      paidCents: paidCents.data,
+      overpaymentConfirmed: confirmed(formData),
     });
     revalidatePath("/ausgabe");
     return { status: "recorded", at: germanTime(record.date) };
   } catch (error: unknown) {
+    if (error instanceof OverpaymentNotConfirmed) {
+      return {
+        status: "confirmOverpayment",
+        paidCents: error.paidCents,
+        amountToPayCents: error.amountToPayCents,
+      };
+    }
     return { status: "error", message: serveMessage(error), tier: tierOf(error) };
   }
 }
 
 /**
- * Amend or remove today's record. The clicked button names the intent through `action`: `SET_PAYMENT`
- * writes the checkbox's new value, `REMOVE` deletes the record after the form's confirmation step.
+ * Amend or remove today's record. The clicked button names the intent through `action`:
+ * `SET_PAYMENT` writes the amount now in the Betrag field, `REMOVE` deletes the record after the
+ * form's confirmation step.
  *
  * The two answers leave by different routes, because a removal destroys the card that would show it.
  * `SET_PAYMENT` comes back as `saved` and is read beside the button. `REMOVE` makes `todaysRecord` null,
@@ -166,36 +216,44 @@ export async function correctServe(
   if (!recordId.success) {
     return { status: "error", message: de.distribution.serve.errors.notFound, tier: "error" };
   }
-  const remove = formData.get("action") === "REMOVE";
-  // The other half of the US-29.4 bridge: the ticked box is the day's price handed over, which is
-  // what the flag has always meant, and it rides along as a hidden field because the box cannot
-  // carry a number of its own.
-  const priceCents = centsField.safeParse(String(formData.get("priceCents") ?? ""));
-  if (!remove && !priceCents.success) {
-    return { status: "error", message: de.distribution.serve.errors.notFound, tier: "error" };
+  // The two intents are read apart before anything is called, because only one of them has an amount
+  // to read: the removal button sits inside the same form and submits the Betrag field with it,
+  // and parsing what a removal is never going to use would refuse a removal over a typo.
+  let intent: CorrectAttendanceInput;
+  if (formData.get("action") === "REMOVE") {
+    intent = { recordId: recordId.data, action: "REMOVE" };
+  } else {
+    const paidCents = euroAmount.safeParse(String(formData.get("betrag") ?? ""));
+    if (!paidCents.success) {
+      return {
+        status: "error",
+        message: de.distribution.serve.errors.notAnAmount,
+        tier: "refusal",
+      };
+    }
+    intent = {
+      recordId: recordId.data,
+      action: "SET_PAYMENT",
+      paidCents: paidCents.data,
+      overpaymentConfirmed: confirmed(formData),
+    };
   }
 
   try {
-    await correctAttendance(
-      counterActionDeps,
-      remove
-        ? { recordId: recordId.data, action: "REMOVE" }
-        : {
-            recordId: recordId.data,
-            action: "SET_PAYMENT",
-            paidCents: formData.get("paid") !== null && priceCents.success ? priceCents.data : 0,
-            // Ticking writes the day's price exactly as it always has. For a household in credit
-            // that is more than they were asked for, and the checkbox offers no way to answer the
-            // question, so the bridge confirms it rather than refusing a correction it offers.
-            overpaymentConfirmed: true,
-          },
-    );
+    await correctAttendance(counterActionDeps, intent);
     revalidatePath("/ausgabe");
   } catch (error: unknown) {
+    if (error instanceof OverpaymentNotConfirmed) {
+      return {
+        status: "confirmOverpayment",
+        paidCents: error.paidCents,
+        amountToPayCents: error.amountToPayCents,
+      };
+    }
     return { status: "error", message: correctMessage(error), tier: tierOf(error) };
   }
 
-  if (remove) {
+  if (intent.action === "REMOVE") {
     const nummer = String(formData.get("nummer") ?? "");
     redirect(`/ausgabe?nummer=${encodeURIComponent(nummer)}&${RECORD_REMOVED}=1`);
   }

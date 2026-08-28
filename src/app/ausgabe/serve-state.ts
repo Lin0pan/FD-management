@@ -13,12 +13,30 @@ import type { FieldRefusal } from "../field-refusal";
 import type { NoticeTier } from "../notice-tier";
 
 /**
+ * The question an amount above the amount to pay raises, carried back to the form so the notice can
+ * name both figures (US-29.7).
+ *
+ * A status of its own rather than an `error`, because nothing failed: `OverpaymentNotConfirmed` is
+ * the use case asking whether the credit was meant. The form re-submits the very same amount with
+ * the confirmation flag, so **the rule stays in the use case** and the screen is not the only guard
+ * (FR-8) — the browser does no arithmetic of its own to decide whether to ask.
+ */
+interface ConfirmOverpayment {
+  readonly status: "confirmOverpayment";
+  /** What was typed, in cents — the amount the second submission will carry unchanged. */
+  readonly paidCents: number;
+  /** What was asked for: today's amount to pay, or for a correction what was asked on the day. */
+  readonly amountToPayCents: number;
+}
+
+/**
  * What the serve form shows after a submission. `recorded` carries the Berlin time the hand-out was
  * stored at, so the confirmation can name it while the number field re-focuses for the next customer.
  */
 export type ServeState =
   | { readonly status: "idle" }
   | { readonly status: "recorded"; readonly at: string }
+  | ConfirmOverpayment
   | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
 
 export const initialServeState: ServeState = { status: "idle" };
@@ -34,6 +52,7 @@ export const initialServeState: ServeState = { status: "idle" };
 export type CorrectState =
   | { readonly status: "idle" }
   | { readonly status: "saved" }
+  | ConfirmOverpayment
   | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
 
 export const initialCorrectState: CorrectState = { status: "idle" };

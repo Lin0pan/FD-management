@@ -6,6 +6,8 @@ import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { germanTime } from "@/i18n/format";
 import { foldName } from "@/domain/customer/nameSearch";
+import { formatEuroAmount, formatEuros } from "@/domain/money";
+import { fillSticky } from "./day";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
 
@@ -18,8 +20,12 @@ import { releaseNumbers } from "./seeding";
  * type a number, read the verdict, press the button, watch the screen switch to today's record. So
  * this spec records a hand-out on the real screen against a real database and asserts the German
  * confirmation, then proves the three things the UI must never let slip — a second hand-out on the
- * same day (the button is simply gone, and only one row exists), a cleared "Bezahlt" box (the row
- * stores `paidCents = 0`), and the confirmation staying under the eye that pressed the button.
+ * same day (the button is simply gone, and only one row exists), an amount typed over the pre-filled
+ * one (the row stores what was handed over, down to `0`), and the confirmation staying under the eye
+ * that pressed the button.
+ *
+ * The Betrag field replaced the „Bezahlt" checkbox in US-29.7; the balance's own spine — a part
+ * payment carried to the next hand-out — is `balance.spec.ts`'s (US-29.9).
  *
  * Three households are seeded straight through Prisma: all RED, active, current certificate, one card.
  * They take numbers in the 220s so the registration and card specs, which allocate the *lowest* free
@@ -56,9 +62,10 @@ const NUMBERS = {
 } as const;
 
 /**
- * What one of these households owes, and therefore hands over when the box is left checked: one
- * grown-up and one child under the seeded policy, 200 + 100 cents. The record stores the amount now
- * rather than a flag (US-29), so a cleared box is a hand-out of `0` and not a missing payment.
+ * What one of these households owes, and therefore what the Betrag field opens on: one grown-up and
+ * one child under the seeded policy, 200 + 100 cents. None of them carries a balance, so the amount
+ * asked for is the bare price. The record stores the amount now rather than a flag (US-29), so a
+ * field emptied to `0,00` is a hand-out of nothing and not a missing payment.
  */
 const PRICE_CENTS = 300;
 
@@ -190,24 +197,26 @@ test.describe("Ausgabe erfassen", () => {
     await prisma.$disconnect();
   });
 
-  test("records a paid hand-out and confirms it while switching to today's record", async ({
+  test("records the pre-filled amount and confirms it while switching to today's record", async ({
     page,
   }) => {
     await lookUp(page, NUMBERS.paid);
 
-    // The verdict permits serving, so the button and the pre-checked "Bezahlt" box are offered.
+    // The verdict permits serving, so the button is offered — with the amount to collect stated
+    // above it and already standing in the field, which is the ordinary case: staff confirm it.
     await expect(page.getByTestId("serve-button")).toBeVisible();
-    await expect(page.getByTestId("serve-paid")).toBeChecked();
+    await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(formatEuros(PRICE_CENTS));
+    await expect(page.getByTestId("serve-amount")).toHaveValue(formatEuroAmount(PRICE_CENTS));
     await page.getByTestId("serve-button").click();
 
     // On success the page revalidates: the confirmation names the Berlin time, and the serve action
-    // is replaced by today's record — the household is now "already served", and paid.
+    // is replaced by today's record — the household is now "already served", for what they handed
+    // over against what they were asked for.
     await expect(page.getByTestId("serve-confirmation")).toHaveText(serve.confirmed(SERVED_AT));
     await expect(page.getByTestId("already-served")).toBeVisible();
-    await expect(page.getByTestId("already-served-message")).toContainText(
-      serve.alreadyServed(SERVED_AT),
+    await expect(page.getByTestId("already-served-message")).toHaveText(
+      serve.alreadyServed(SERVED_AT, PRICE_CENTS, PRICE_CENTS),
     );
-    await expect(page.getByTestId("already-served-message")).toContainText(serve.paidState.paid);
     // No second serve is possible from here — the button is gone, not merely disabled.
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
 
@@ -220,23 +229,29 @@ test.describe("Ausgabe erfassen", () => {
     // instead of the button, so the queue cannot double-serve — and the database still holds one row.
     await lookUp(page, NUMBERS.paid);
 
-    await expect(page.getByTestId("already-served-message")).toContainText(
-      serve.alreadyServed(SERVED_AT),
+    await expect(page.getByTestId("already-served-message")).toHaveText(
+      serve.alreadyServed(SERVED_AT, PRICE_CENTS, PRICE_CENTS),
     );
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
 
     expect(await recordsFor(NUMBERS.paid)).toHaveLength(1);
   });
 
-  test("stores an unpaid hand-out when the box is cleared", async ({ page }) => {
+  test("stores a hand-out of nothing when the amount is typed over with zero", async ({ page }) => {
     await lookUp(page, NUMBERS.unpaid);
 
     await expect(page.getByTestId("serve-button")).toBeVisible();
-    await page.getByTestId("serve-paid").uncheck();
+    await fillSticky(page.getByTestId("serve-amount"), formatEuroAmount(0));
     await page.getByTestId("serve-button").click();
 
     await expect(page.getByTestId("serve-confirmation")).toHaveText(serve.confirmed(SERVED_AT));
-    await expect(page.getByTestId("already-served-message")).toContainText(serve.paidState.unpaid);
+    await expect(page.getByTestId("already-served-message")).toHaveText(
+      serve.alreadyServed(SERVED_AT, 0, PRICE_CENTS),
+    );
+    // The whole price is now open, and the screen says so in words rather than as a minus sign.
+    await expect(page.getByTestId("counter-balance")).toHaveText(
+      de.customers.derived.balanceValue("DEBT", -PRICE_CENTS),
+    );
 
     const records = await recordsFor(NUMBERS.unpaid);
     expect(records).toEqual([{ paidCents: 0, dayKey: TODAYS_DAY_KEY, showedUp: true }]);
