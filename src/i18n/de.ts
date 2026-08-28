@@ -13,7 +13,7 @@
  * caller to remember, and rule 6 forbids making a staff member read a sign.
  */
 
-import { balanceKind, type BalanceKind } from "@/domain/distribution/balance";
+import { balanceKind, type BalanceKind, type PaymentStanding } from "@/domain/distribution/balance";
 import { formatEuros } from "@/domain/money";
 
 /**
@@ -663,9 +663,17 @@ export const de = {
         `Aktuell: Rot ${red}, Blau ${blue} Haushalte`,
       /** The hand-out history (US-16.5) — newest first, each row priced as it was priced then. */
       historyHeading: "Bisherige Ausgaben",
+      /**
+       * Two sentences under the table: what the price on a row means, and what to do about a wrong
+       * one. The second is there because the software offers no answer to it — a hand-out can be
+       * corrected only on the day it was recorded (US-29.4), so a mistake found a week later is put
+       * right by asking for more or less at the next hand-out, which the balance then carries. The
+       * screen states the procedure rather than leaving a staff member to look for a button.
+       */
       historyHint:
         "Der Preis ist der, der an diesem Tag galt — spätere Änderungen an den Einstellungen " +
-        "ändern ihn nicht.",
+        "ändern ihn nicht. Eine Ausgabe lässt sich nur am selben Tag korrigieren; ein später " +
+        "bemerkter Fehler wird bei der nächsten Ausgabe über den geforderten Betrag ausgeglichen.",
       historyEmpty: "Für diesen Haushalt ist noch keine Ausgabe erfasst.",
       /**
        * The accessible name of the scrolling box the history sits in. It has to be spoken, because
@@ -694,11 +702,37 @@ export const de = {
        * made that label differ on every row — and a column is what stops it doing that.
        */
       ageColumn: "Alter",
+      /**
+       * The history's columns. „Bezahlt“ was one column answering ja/nein and is now two, because a
+       * payment is an amount and an amount means nothing without what was asked for beside it
+       * (US-29.8): „Gefordert“ is the price offset by the balance the household carried into that
+       * day, „Gezahlt“ what they actually handed over.
+       */
       historyColumns: {
         date: "Datum",
         showedUp: "Erschienen",
-        paid: "Bezahlt",
+        asked: "Gefordert",
+        paid: "Gezahlt",
         price: "Preis",
+      },
+      /**
+       * How the payment stood against what was asked for that day, said in words beside the amount.
+       *
+       * **Unsigned, like every other amount in this file.** „offen“ and „zu viel“ each say which way
+       * the difference runs, so a minus in front of one of them would be the sign arithmetic the
+       * wording exists to remove — the source document's illustrative „−2,00 € offen“ deliberately
+       * loses its minus here.
+       *
+       * An exact payment says so rather than showing „0,00 €“, for the reason {@link balanceWording}
+       * gives at a settled balance: a zero beside a euro sign reads like an amount, not like the
+       * state everything is in order.
+       */
+      historyStanding: (standing: PaymentStanding, differenceCents: number): string => {
+        if (standing === "EXACT") {
+          return "genau";
+        }
+        const amount = formatEuros(Math.abs(differenceCents));
+        return standing === "SHORT" ? `${amount} offen` : `${amount} zu viel`;
       },
       yes: "ja",
       no: "nein",

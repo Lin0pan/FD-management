@@ -38,14 +38,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Settlement } from "@/domain/distribution/balance";
+import { balanceKind, type Settlement } from "@/domain/distribution/balance";
 import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
 import { DomainError } from "@/domain/errors";
 import { formatEuros } from "@/domain/money";
 import type { AllowanceValues, Settings } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
-import { GROUP_STYLES } from "../../accents";
+import { GROUP_STYLES, PAYMENT_STANDING_STYLES } from "../../accents";
 import { Confirmation } from "../../notice";
 import { NoticeBoard } from "../../notice-board";
 import { ARCHIVED } from "../archived-flag";
@@ -261,10 +261,11 @@ function History({
 
   return (
     <>
-      {/* No chrome on "Bezahlt: nein". It is 8 of 42 hand-outs across the demo register, which is a
-          badge's worth of rarity — but "Erschienen: nein" is a second exception in the same small
-          table and a no-show is not a debt, so two chromes here would be texture rather than
-          emphasis. The words already say it, which is the requirement. */}
+      {/* One chrome in the table, and it is the payment's (US-29.8). "Erschienen: nein" stays a bare
+          word: a no-show is not a debt, and a second badge in a table this small would be texture
+          rather than emphasis. The mark that survived is the one a staff member is looking *for* —
+          which hand-outs were paid short — and it never travels without its own word, so the table
+          reads the same in greyscale and on paper. */}
       {/*
        * A box of its own, so the record is the same shape whether a household has three hand-outs or
        * three hundred. Measured against an inflated register, 130 rows — five years at the
@@ -295,21 +296,39 @@ function History({
           <TableRow className="hover:bg-transparent">
             <TableHead>{words.historyColumns.date}</TableHead>
             <TableHead>{words.historyColumns.showedUp}</TableHead>
+            {/* Gefordert then Gezahlt then Preis: the amount asked for is the only one of the three
+                a payment can be judged against, so it stands immediately left of the payment, and
+                the price — the week's own cost, which the balance offsets — closes the row. */}
+            <TableHead>{words.historyColumns.asked}</TableHead>
             <TableHead>{words.historyColumns.paid}</TableHead>
             <TableHead>{words.historyColumns.price}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {records.map(({ record }) => (
+          {records.map(({ record, askedCents, standing }) => (
             <TableRow key={record.id} data-testid="history-row">
               <TableCell className="tabular-nums">{germanDate(record.date)}</TableCell>
               <TableCell>{record.showedUp ? words.yes : words.no}</TableCell>
-              {/* A bridge, and a temporary one (US-29.3): the record carries the amount that was
-                  handed over, and this column still asks the boolean question it used to answer.
-                  The settlement beside it already says what was asked and how the payment stood
-                  against it — US-29.8 renders those and this column goes. */}
-              <TableCell data-testid="history-paid">
-                {record.paidCents >= record.priceCents ? words.yes : words.no}
+              {/* Neither amount is stored: what was asked for on a past day is replayed from the
+                  balance of every earlier hand-out (`replayPayments`), which is exactly the figure
+                  the counter had in front of it that morning. */}
+              <TableCell data-testid="history-asked" className="tabular-nums">
+                {formatEuros(askedCents)}
+              </TableCell>
+              <TableCell data-testid="history-paid" className="tabular-nums">
+                {/* The amount first and the mark after it, wrapping rather than squeezing: the
+                    figures down the column stay aligned with the Gefordert ones beside them, and
+                    the word is what carries the meaning at any width. */}
+                <span className="flex flex-wrap items-center gap-2">
+                  {formatEuros(record.paidCents)}
+                  <Badge
+                    variant="outline"
+                    data-testid="history-standing"
+                    className={PAYMENT_STANDING_STYLES[standing]}
+                  >
+                    {words.historyStanding(standing, record.paidCents - askedCents)}
+                  </Badge>
+                </span>
               </TableCell>
               <TableCell data-testid="history-price" className="tabular-nums">
                 {formatEuros(record.priceCents)}
@@ -617,12 +636,29 @@ function CustomerRecord({
                   <h2>{words.historyHeading}</h2>
                 </CardTitle>
                 <CardDescription>{words.historyDisclosure}</CardDescription>
-                {/* One fact in the house pattern for one fact: the same slot, class and position as
-                  `customer-list-count` on /kunden. It is stated at zero too — "Noch keine Ausgabe
-                  erfasst" rather than a bare 0 — so a household with no history says so with the
-                  fold left shut, and a count that failed to load cannot pass for an empty one. */}
-                <CardAction data-testid="history-count" className="text-sm text-muted-foreground">
-                  {words.historyCount(view.history.length)}
+                {/* Two facts about the history, in the house pattern for one: the same slot, class
+                  and position as `customer-list-count` on /kunden. The count is stated at zero too —
+                  "Noch keine Ausgabe erfasst" rather than a bare 0 — so a household with no history
+                  says so with the fold left shut, and a count that failed to load cannot pass for an
+                  empty one.
+
+                  The balance goes here and **not** into a fifth tile beside Erwachsene, Kinder, Eier
+                  and Preis (US-29.8): those four are properties of the household, true of them
+                  today, while a balance is a property of what has *happened* to the household — the
+                  sum of the very rows this fold holds. It is worded exactly as the counter words it
+                  and never signed, `balanceKind` having read the sign once in the domain. An
+                  archived household shows it unchanged: there is no written-off state. */}
+                <CardAction className="text-right text-sm text-muted-foreground">
+                  <p data-testid="history-count">{words.historyCount(view.history.length)}</p>
+                  <p>
+                    {`${de.customers.derived.balance}: `}
+                    <span data-testid="record-balance" className="font-medium text-foreground">
+                      {de.customers.derived.balanceValue(
+                        balanceKind(view.balanceCents),
+                        view.balanceCents,
+                      )}
+                    </span>
+                  </p>
                 </CardAction>
               </CardHeader>
             </summary>

@@ -143,12 +143,13 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   `bg-primary`. Never `text-foreground/70`, `border-foreground/20`, `bg-foreground/5`.
 - **`src/app/accents.ts` is the list of permitted literal colours**, each reserved for one meaning:
 
-  | Export                | Meaning                                   |
-  | --------------------- | ----------------------------------------- |
-  | `GROUP_STYLES`        | the RED / BLUE printed card               |
-  | `FREE_SLOT_ACCENT`    | a customer number is free, somebody waits |
-  | `CONFIRMATION_ACCENT` | a write went through                      |
-  | `REFUSAL_ACCENT`      | a write was refused, nothing is broken    |
+  | Export                    | Meaning                                    |
+  | ------------------------- | ------------------------------------------ |
+  | `GROUP_STYLES`            | the RED / BLUE printed card                |
+  | `FREE_SLOT_ACCENT`        | a customer number is free, somebody waits  |
+  | `CONFIRMATION_ACCENT`     | a write went through                       |
+  | `REFUSAL_ACCENT`          | a write was refused, nothing is broken     |
+  | `PAYMENT_STANDING_STYLES` | a hand-out was paid short, exactly or over |
 
   **Before painting a state, look for it there.** If it is not listed, the question is what the state
   means, not which green — and the answer is a new named export in that file, never a tint in a
@@ -168,6 +169,11 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   badge, count how many rows will wear it — if it is most of them, it is not a badge, it is texture.
   Keep which states are exceptions in a `Record<State, Chrome | null>` beside the component, the way
   `STATUS_CHROME` in `kunden/state-word.tsx` does.
+  **One column is deliberately excepted**, and it is the only one: the payment standing in the
+  record's hand-out history (US-29.8) marks every row, „genau“ included, although most payments are
+  exact. The column is a column of _judgments_ rather than of states, and a row carrying an amount
+  with no mark beside it reads as one nobody has judged yet — which is exactly the question the
+  column exists to answer. Do not take it as licence for a second such column.
 - **The word never goes without the chrome** (US-03.4). Wrap the `Badge` _around_ the span holding
   exactly the word; do not let the badge replace it.
 - Never nest a translucent tint inside a tinted container — the two composite into a third colour

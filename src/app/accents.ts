@@ -11,6 +11,7 @@
  */
 
 import type { Group } from "@/domain/customer/group";
+import type { PaymentStanding } from "@/domain/distribution/balance";
 
 /**
  * The group's colour, worn wherever a screen names a household's group.
@@ -75,3 +76,30 @@ export const CONFIRMATION_ACCENT = "border-green-600/40 bg-green-600/10";
  * Worn through `Notice`'s `refusal` tone; nothing hand-tints it.
  */
 export const REFUSAL_ACCENT = "border-amber-500/40 bg-amber-500/10";
+
+/**
+ * How a hand-out's payment stood against what was asked for that day (US-29.8).
+ *
+ * **Standing state on a row**, like the register's amber for a lapsing certificate — a fact about
+ * the hand-out that is as true a year later as it was on the day, not an answer to a button the
+ * next render clears. That is why it lives here beside `GROUP_STYLES` rather than in `Notice`'s
+ * tones: `REFUSAL_ACCENT`'s amber and this red are never the same element and never the same
+ * grammar.
+ *
+ * Red for a shortfall, green for an exact payment, blue for an overpayment — DF's own wording for
+ * the three cases. The shape is the certificate chrome's (`border-…/40 bg-…/10`), because these are
+ * the same kind of mark on the same kind of row; the shades are deliberately *not* `GROUP_STYLES`'
+ * red-600 and blue-700, which are the printed cards themselves and may not be re-used for anything
+ * a household's group does not cause. `EXACT`'s green is `CONFIRMATION_ACCENT`'s literal, and that
+ * is the point rather than a duplicate: a payment that matched what was asked is the same good news
+ * a completed save is, read on a row instead of in a box.
+ *
+ * **The colour only reinforces the word.** Every cell wearing one of these also states its meaning
+ * in German — „2,00 € offen“, „2,00 € zu viel“, „genau“ — so the history is legible in greyscale, on
+ * paper, and to the staff member who cannot tell the three apart (US-03.4).
+ */
+export const PAYMENT_STANDING_STYLES: Record<PaymentStanding, string> = {
+  SHORT: "border-red-500/40 bg-red-500/10",
+  EXACT: "border-green-600/40 bg-green-600/10",
+  OVER: "border-blue-500/40 bg-blue-500/10",
+};

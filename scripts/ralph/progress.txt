@@ -560,3 +560,58 @@ Five hazards, all stated in `prd.json` and worth reading twice:
     BLUE) and restart `npm run start` with the variable set.
   - Docs still untouched — US-010 owns every document in this batch, as US-001..006 each recorded.
 ---
+
+## 2026-08-28 — US-008 The record states the balance and marks each hand-out (presentation)
+- The record's history disclosure now answers two questions with the fold still shut: how many
+  hand-outs it holds (`history-count`, unchanged) and where the household stands
+  (`record-balance`, „Saldo: Offen 2,00 €“). Both live in the one `CardAction` slot, right-aligned,
+  the balance worded by `de.customers.derived.balanceValue` off `balanceKind` — the counter's own
+  wording, never signed. **Not a fifth tile** beside Erwachsene/Kinder/Eier/Preis: those four are
+  properties of the household, the balance is a property of what has happened to it.
+- The table's „Bezahlt: ja/nein“ bridge column (US-29.3) is gone. In its place **Gefordert**
+  (`history-asked`) and **Gezahlt** (`history-paid`), both `tabular-nums`, with `Preis` unchanged in
+  the last slot. The Gezahlt cell carries the amount and a `Badge` (`history-standing`) saying
+  „2,00 € offen“, „2,00 € zu viel“ or „genau“ — the amount and the badge in a `flex flex-wrap`, so
+  the figures stay aligned with Gefordert beside them and the mark drops under them at 390px.
+- `PAYMENT_STANDING_STYLES` joins `src/app/accents.ts` as one exported `Record<PaymentStanding,
+  string>`: red for SHORT, green for EXACT, blue for OVER, in the certificate chrome's
+  `border-…/40 bg-…/10` shape and deliberately not `GROUP_STYLES`' red-600/blue-700. The doc comment
+  places it as **standing state on a row**, like a lapsed certificate's amber.
+- The illustrative „−2,00 € offen“ **lost its minus**, as the story required: „offen“ says which way
+  the amount runs, and `historyStanding` abs's the difference exactly as `balanceWording` does.
+- The history hint gained the clause the software has no button for: a hand-out is correctable only
+  on the day it was recorded, and a later mistake is settled by a compensating amount at the next
+  hand-out.
+- Files changed: `src/app/accents.ts`, `src/app/kunden/[id]/page.tsx`, `src/i18n/de.ts`,
+  `docs/guideline/ui_styling_guide.md`, `scripts/ralph/prd.json`, this log.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1224 tests, domain/
+  and application/ still 100%), `npm run build`, `npx prettier --check .`, `npm run test:e2e`
+  (177 passed) and `npm run test:e2e:webkit` (177 passed on the re-run — see the flake below) — all
+  green. Browser pass with `playwright-cli` against `npm run start` over the demo register.
+- **Learnings for future iterations:**
+  - **The demo register already scripts all three standings** (`paymentHabit` in `prisma/demo-seed.ts`):
+    customer 12 owes, 13 was short and settled it exactly, 14 has credit. `npm run db:demo -- --reset`
+    is therefore the whole fixture for a balance screen — no hand-written Prisma insert needed, and
+    the three records read as three different stories side by side. Customer 2 is archived **with**
+    a hand-out, which is the read-only variant.
+  - **A testid on a `CardAction` becomes wrong the moment the slot holds two facts.** `history-count`
+    moved from the `CardAction` itself onto the `<p>` inside it, so `toHaveText(historyCount(n))` in
+    `customer-record.spec.ts` still passes; had it stayed on the wrapper the balance line would have
+    silently joined the count's text. Put the testid on the sentence, never on the slot.
+  - **`ui_styling_guide.md` §5 says a badge most rows wear is texture, not emphasis — and this story
+    required exactly that.** „genau“ marks ~76% of hand-outs across the demo register. The column was
+    still built as specified (the criterion names „genau“ in a `Badge` twice, and the PRD is the
+    record of what is required), and the guide now carries the exception **by name** with its reason:
+    the column is one of *judgments*, and an amount with no mark beside it reads as unjudged. It is
+    written as the only such column on purpose — do not cite it for a second one.
+  - **A WebKit run failed once in `customer-list.spec.ts` (the certificate filter) and passed on both
+    a single-file re-run and a full re-run.** Nothing in this story touches that screen. Flake, not a
+    regression — but it is the second engine-specific flake this batch, so a spec failing there once
+    deserves a re-run before it is believed.
+  - The five-column table **scrolls horizontally inside its own region at 390px** (`scrollWidth` 440
+    against `clientWidth` 310) while `documentElement` overflow stays 0. That is the `Table`
+    primitive's own container doing its job, and the region already carries `tabIndex={0}`, so the
+    scroll is keyboard-reachable — but a sixth column would need a different answer.
+  - Docs: the styling guide is updated here because this story made it wrong. **US-010 still owns
+    every other document in the batch** (the handout, the arc42 chapters and ADR-015).
+---
