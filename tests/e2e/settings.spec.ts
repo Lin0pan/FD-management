@@ -297,6 +297,16 @@ test.describe("Einstellungen", () => {
 
     // Put it back in the same spec: the whole suite shares one database and two other screens read
     // the Ausgabetag. That leaves the moved version superseded, which is where a diff is shown.
+    //
+    // Reloaded between the two saves, because a save *clears* the form and the revalidated render
+    // that does it can land after the next `selectOption` — rewinding the field to the value just
+    // stored, so the second save appends a version that changed nothing and this spec asserts
+    // against a history one row out. WebKit loses that race often enough to fail the gate. The
+    // reload settles the render first, and the assertion below it states what the first save
+    // actually stored, so a rewind shows up here rather than four assertions later.
+    await page.reload();
+    await expect(page.locator("#distributionWeekday")).toHaveValue("5");
+
     await page.locator("#distributionWeekday").selectOption("4");
     await page.getByRole("button", { name: de.settings.save, exact: true }).click();
     await expect(page.getByTestId("settings-saved")).toHaveText(de.settings.saved);
