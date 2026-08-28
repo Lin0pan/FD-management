@@ -5,7 +5,7 @@ number). Each file is a complete, self-contained Ralph run: its own `branchName`
 starting at `US-001`, its own priorities `1..n`.
 
 [`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
-it. It currently holds **batch 28**, the next one to run. `done/` holds the finished copy of each
+it. It currently holds **batch 29**, the next one to run. `done/` holds the finished copy of each
 batch that has run — the same file with every story's `passes` flipped to `true`.
 
 ## Workflow
@@ -107,8 +107,9 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 26  | `26-us-26-price-cap.json`                    | 7       | `ralph/us-26-price-cap`                    |
 | 27  | `27-us-27-remove-portion-allowance.json`     | 6       | `ralph/us-27-remove-portion-allowance`     |
 | 28  | `28-us-28-egg-allowance.json`                | 9       | `ralph/us-28-egg-allowance`                |
+| 29  | `29-us-29-customer-balance.json`             | 10      | `ralph/us-29-customer-balance`             |
 
-144 stories total — the rows sum to it. Every story cites its source PRD section in its
+154 stories total — the rows sum to it. Every story cites its source PRD section in its
 `description`, so an iteration can read the full context when a criterion is ambiguous.
 
 Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 onwards are not
@@ -201,9 +202,33 @@ merged on 2026-08-24 (PR #120), so that condition is met.
   the form on that branch erases the rule mid-batch; that is why story 6 is in this batch and not a
   follow-up.
 
-Batches 27 and 28 both **regenerate `prisma/migrations/`** — the third and fourth batches to do so —
-so the hand-written partial unique index on `Customer.customerNumber` has to be re-added each time,
-and `schema.test.ts` is what catches it if it is not.
+**Batch 29 (US-29)** is the customer balance, and it is the first change to what a hand-out _is_
+since US-05 recorded one. A hand-out is currently paid or not paid — a boolean and a checkbox — and
+reality has a third case DF have been keeping in the Excel list by hand: the household owes 5,00 €
+and hands over 2,00 €, or, rarely, hands over more so as not to remember it next week. The flag
+becomes an **amount**, and one **balance** per customer is derived from the hand-out history:
+`Σ (paidCents − priceCents)`, with `amountToPay = max(0, priceCents − balance)`. Domain + schema +
+infrastructure + application + both screens + e2e + docs and an ADR.
+
+Four things about 29 to hold on to. **The sum is against the price, not against the amount asked
+for** — otherwise a credit is never consumed by the week it pays for and a household with 3,00 €
+credit and a 2,00 € price eats free for ever; the PRD's worked table and one named test pin it, and
+it is the single most likely thing for a later reader to "correct". **The balance is never stored**,
+which is what makes removing a hand-out return it for free and is why the batch's last story writes
+ADR-015 rather than a fourth exception to derive-don't-store. It is the **fifth batch to regenerate
+`prisma/migrations/`** (DF confirmed on 2026-08-28 that they still hold no real data), so the
+hand-written partial unique index on `Customer.customerNumber` has to be re-added again. And like
+27 and 28 it carries a **deliberate intermediate state**: between story 3 and story 4 the use cases
+bridge the old boolean into an amount (`paid ? priceCents : 0`), which is exactly today's behaviour,
+so the app stays green — that is why story 4 is in this batch and not a follow-up.
+
+Story 3 renames the port method `setPaid` to `setPayment`, so every hand-written fake
+`DistributionRecordRepository` gains it in the same commit — including the one in
+`read-group-roster.test.ts`, which implements the port in full and has nothing to do with payments.
+
+Batches 27, 28 and 29 all **regenerate `prisma/migrations/`** — the third, fourth and fifth batches
+to do so — so the hand-written partial unique index on `Customer.customerNumber` has to be re-added
+each time, and `schema.test.ts` is what catches it if it is not.
 
 Batches 21 to 23 all edit `src/app/ausgabe/page.tsx`, so the "merge before starting the next batch"
 rule is load-bearing here for the same reason it was for 19 and 20. **Run them in this order**: 21 frees the
