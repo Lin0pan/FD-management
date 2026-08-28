@@ -429,3 +429,44 @@ Five hazards, all stated in `prd.json` and worth reading twice:
     already-served half shows.
   - Docs still untouched — US-010 owns every document in this batch (same reasoning as US-001..004).
 ---
+
+## 2026-08-28 — US-006 The customer record reads the balance and the payment history (application)
+- `CustomerCardView` gains `balanceCents: Cents`, and `history` becomes
+  `ReadonlyArray<Settlement<DistributionRecord>>` — each row now carrying `askedCents`, `standing`
+  and `balanceAfter` beside the record itself. Both come out of the `records` `readCustomer` already
+  loads for `countNoShows`: **no extra query**.
+- The display order is `[...replayPayments(records)].reverse()`, one line, commented as being the
+  *display* order rather than the arithmetic's — `replayPayments` must walk oldest first because a
+  running balance can only be built that way.
+- The price on each row is still the record's own, and `askedCents` is replayed from those same
+  prices: a policy change since then rewrites nothing.
+- **Nothing special-cases an archived household or a re-registered one**, which is the point — two
+  named tests pin the properties (`keeps an archived household's balance`, `starts a re-registered
+  household at zero`) because both are things somebody could break later, the second by keying
+  records on the customer number instead of the surrogate id (ADR-008).
+- Eight tests written first and run **red** (8 failing, including the adapted newest-first test)
+  before a line of the implementation.
+- `src/app/kunden/[id]/page.tsx` follows the type mechanically: `History` takes settlements and
+  destructures `({ record })`. The US-29.3 „Bezahlt: ja/nein" bridge stays exactly as it was —
+  US-008 owns the Gefordert/Gezahlt columns and the colour mark that replace it.
+- Files changed: `src/application/customers/{read-customer.ts,customers.test.ts}`,
+  `src/app/kunden/[id]/page.tsx`, `scripts/ralph/prd.json`, this log.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1224 tests, domain/
+  and application/ still 100%), `npm run build`, `npx prettier --check` on the touched files,
+  `npm run test:e2e` (177 passed) and `npm run test:e2e:webkit` (177 passed) — all green.
+- **Learnings for future iterations:**
+  - **Widening a view's row type breaks its consumer's `.map` silently in the test file first.**
+    `view.history.map((record) => record.date)` still typechecks against a `Settlement` only if the
+    field names happen to collide — they do not here, so `tsc` caught it, but rename the lambda
+    parameter (`handOut`) rather than leaving a `record` that is no longer one. The same rename in
+    `page.tsx` is a destructure, `({ record })`, which keeps the body untouched.
+  - **`balanceOf(records)` beside `replayPayments(records)` is two computations of one number, and
+    that is fine here**: `balance.test.ts` already pins that the last `balanceAfter` equals
+    `balanceOf` of the same rows, so the two cannot drift without a domain test failing. Reaching
+    into the replay's last element instead would need a fallback for the empty history — an arm
+    nothing can reach, which the branch gate refuses (the same reason `askedForOn` is a `reduce`).
+  - **The `attend` helper in `customers.test.ts` now takes `paidCents`** (default 500, the seeded
+    price). Any later story needing a household in debt or credit in the `readCustomer` block should
+    use it rather than writing a bare `records.create`.
+  - Docs still untouched — US-010 owns every document in this batch, as US-001..005 each recorded.
+---

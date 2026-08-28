@@ -38,6 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { Settlement } from "@/domain/distribution/balance";
 import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
 import { DomainError } from "@/domain/errors";
 import { formatEuros } from "@/domain/money";
@@ -240,7 +241,11 @@ function HouseholdReadOnly({ view }: { view: CustomerCardView }): React.ReactEle
  * The price on each row is the record's own, captured when the hand-out was written: a policy change
  * since then must not rewrite what a household paid last March (US-05, FR-2).
  */
-function History({ records }: { records: ReadonlyArray<DistributionRecord> }): React.ReactElement {
+function History({
+  records,
+}: {
+  records: ReadonlyArray<Settlement<DistributionRecord>>;
+}): React.ReactElement {
   const words = de.customers.record;
   if (records.length === 0) {
     // An `Alert`, not a bare paragraph: a sentence on its own where a table was expected reads like
@@ -295,14 +300,14 @@ function History({ records }: { records: ReadonlyArray<DistributionRecord> }): R
           </TableRow>
         </TableHeader>
         <TableBody>
-          {records.map((record) => (
+          {records.map(({ record }) => (
             <TableRow key={record.id} data-testid="history-row">
               <TableCell className="tabular-nums">{germanDate(record.date)}</TableCell>
               <TableCell>{record.showedUp ? words.yes : words.no}</TableCell>
               {/* A bridge, and a temporary one (US-29.3): the record carries the amount that was
                   handed over, and this column still asks the boolean question it used to answer.
-                  US-29.8 replaces it with the payment itself and the mark that compares it against
-                  what was asked that day. */}
+                  The settlement beside it already says what was asked and how the payment stood
+                  against it — US-29.8 renders those and this column goes. */}
               <TableCell data-testid="history-paid">
                 {record.paidCents >= record.priceCents ? words.yes : words.no}
               </TableCell>

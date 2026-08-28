@@ -1364,12 +1364,13 @@ describe("readCustomer", () => {
     });
   }
 
-  async function attend(customerId: number, iso: string): Promise<void> {
+  /** A hand-out at the seeded 5,00 € price; `paidCents` is what the household handed over. */
+  async function attend(customerId: number, iso: string, paidCents = 500): Promise<void> {
     await records.create({
       customerId,
       date: new Date(iso),
       showedUp: true,
-      paidCents: 500 as Cents,
+      paidCents: paidCents as Cents,
       priceCents: 500 as Cents,
     });
   }
@@ -1486,13 +1487,99 @@ describe("readCustomer", () => {
 
     const view = await readCustomer(deps(), registered.id);
 
-    expect(view.history.map((record) => record.date.toISOString())).toEqual([
+    expect(view.history.map((handOut) => handOut.record.date.toISOString())).toEqual([
       "2026-07-09T09:00:00.000Z",
       "2026-06-11T09:00:00.000Z",
     ]);
     // The price is the record's own, captured when the hand-out was written — never re-derived from
     // today's settings, which may since have changed (US-05, FR-2).
-    expect(view.history.map((record) => record.priceCents)).toEqual([500, 500]);
+    expect(view.history.map((handOut) => handOut.record.priceCents)).toEqual([500, 500]);
+  });
+
+  it("states a settled balance for a household with no hand-outs", async () => {
+    const registered = await registerCustomer(deps(), registerInput());
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.balanceCents).toBe(0);
+  });
+
+  it("states an open amount after a part payment", async () => {
+    const registered = await seedLongStanding();
+    await attend(registered.id, "2026-06-11T09:00:00.000Z", 200);
+
+    const view = await readCustomer(deps(), registered.id);
+
+    // Σ (paid − price): 2,00 € against a 5,00 € week leaves 3,00 € owing.
+    expect(view.balanceCents).toBe(-300);
+  });
+
+  it("states a credit after an overpayment", async () => {
+    const registered = await seedLongStanding();
+    await attend(registered.id, "2026-06-11T09:00:00.000Z", 800);
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.balanceCents).toBe(300);
+  });
+
+  it("states what was asked on each past hand-out", async () => {
+    const registered = await seedLongStanding();
+    await attend(registered.id, "2026-06-11T09:00:00.000Z", 200);
+    await attend(registered.id, "2026-07-09T09:00:00.000Z", 800);
+
+    const view = await readCustomer(deps(), registered.id);
+
+    // Newest first: 07-09 was asked for the 5,00 € week plus the 3,00 € left over from 06-11, and
+    // paying it settled the household.
+    expect(view.history.map((handOut) => handOut.askedCents)).toEqual([800, 500]);
+    expect(view.history.map((handOut) => handOut.balanceAfter)).toEqual([0, -300]);
+  });
+
+  it("marks a hand-out that cleared an old debt as exact", async () => {
+    const registered = await seedLongStanding();
+    await attend(registered.id, "2026-06-11T09:00:00.000Z", 200);
+    await attend(registered.id, "2026-07-09T09:00:00.000Z", 800);
+
+    const view = await readCustomer(deps(), registered.id);
+
+    // 8,00 € against a 5,00 € price, and yet not `OVER`: the mark judges the payment against what
+    // was asked that day, so the household reads as having paid up rather than paid ahead.
+    expect(view.history.map((handOut) => handOut.standing)).toEqual(["EXACT", "SHORT"]);
+  });
+
+  it("keeps an archived household's balance", async () => {
+    const registered = await seedLongStanding();
+    await attend(registered.id, "2026-06-11T09:00:00.000Z", 200);
+    await customers.archive(registered.id, "verzogen", new Date(TODAY));
+
+    const view = await readCustomer(deps(), registered.id);
+
+    // Leaving the register writes nothing off: the record reads exactly as it did the week before,
+    // debt and all, because what happened is what the history says happened (US-29.6).
+    expect(view.balanceCents).toBe(-300);
+    expect(view.history).toHaveLength(1);
+  });
+
+  it("starts a re-registered household at zero", async () => {
+    const archived = await seedLongStanding();
+    await attend(archived.id, "2026-06-11T09:00:00.000Z", 200);
+    await customers.archive(archived.id, "verzogen", new Date(TODAY));
+    const draft = await draftFromArchived({ customers }, { archivedCustomerId: archived.id });
+    const returning = await registerCustomer(deps(), {
+      ...draft,
+      certificate: { type: "Jobcenter", validUntil: new Date("2027-06-30T00:00:00.000Z") },
+      notes: "",
+      previousCustomerId: archived.id,
+    });
+
+    const view = await readCustomer(deps(), returning.id);
+
+    // Nothing special-cases the re-registration. Hand-outs hang off the surrogate id (ADR-008), so
+    // the new household simply has no history — which is the property that would break the day
+    // somebody keyed records on the customer number instead.
+    expect(view.balanceCents).toBe(0);
+    expect(view.history).toEqual([]);
   });
 
   it("shows no hand-out history for a household that has never collected", async () => {
