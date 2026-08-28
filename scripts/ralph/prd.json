@@ -116,7 +116,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

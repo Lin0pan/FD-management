@@ -320,6 +320,13 @@ function member(birthDate: string): HouseholdMemberDetails {
 const GROWN_UP = "1985-03-11T00:00:00.000Z";
 const CHILD = "2020-06-01T00:00:00.000Z";
 
+/**
+ * What the default household — one grown-up — draws today at 2,00 € per grown-up. Named because the
+ * balance tests read against it: the amount to pay is *this* price offset by the balance, and the
+ * hand-outs behind them are priced at 5,00 € so the two can never be confused for one another.
+ */
+const PRICE_TODAY = 200;
+
 interface CustomerOverrides {
   readonly customerNumber?: number;
   readonly group?: Group;
@@ -703,7 +710,7 @@ describe("lookupCustomer", () => {
     expect(result.customer?.consecutiveNoShows).toBe(0);
   });
 
-  it("surfaces today's record — its id, time and paid flag — when one is already on file", async () => {
+  it("surfaces today's record — its id, time and the amount handed over — when one is already on file", async () => {
     customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
     records = new FakeDistributionRecordRepository(
       distributionRecord("2026-07-23T07:30:00.000Z", { id: 7, paidCents: 0 as Cents }),
@@ -714,7 +721,110 @@ describe("lookupCustomer", () => {
     expect(result.todaysRecord).toEqual({
       recordId: 7,
       at: new Date("2026-07-23T07:30:00.000Z"),
-      paid: false,
+      paidCents: 0,
+      askedCents: 500,
+      balanceWithoutRecordCents: 0,
     });
+  });
+
+  /**
+   * The balance and the amount to pay (US-29.5). The household these tests look up is one grown-up
+   * at {@link PRICE_TODAY}, and every earlier hand-out is priced at 5,00 € — so the two figures are
+   * never the same number by accident, and a test that summed against the amount asked for instead
+   * of the price would show up as a wrong `amountToPayCents` rather than as a coincidence.
+   */
+  it("states the price as the amount to pay for a settled household", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
+    records = new FakeDistributionRecordRepository(
+      distributionRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 500 as Cents }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.balanceCents).toBe(0);
+    expect(result.customer?.amountToPayCents).toBe(PRICE_TODAY);
+  });
+
+  it("adds an open amount to the price", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
+    records = new FakeDistributionRecordRepository(
+      distributionRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 200 as Cents }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.balanceCents).toBe(-300);
+    expect(result.customer?.amountToPayCents).toBe(PRICE_TODAY + 300);
+  });
+
+  it("subtracts a credit from the price", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
+    records = new FakeDistributionRecordRepository(
+      distributionRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 600 as Cents }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.balanceCents).toBe(100);
+    expect(result.customer?.amountToPayCents).toBe(PRICE_TODAY - 100);
+  });
+
+  it("asks for nothing when the credit exceeds the price", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
+    records = new FakeDistributionRecordRepository(
+      distributionRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 900 as Cents }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.balanceCents).toBe(400);
+    expect(result.customer?.amountToPayCents).toBe(0);
+  });
+
+  it("states a settled balance for a household with no hand-outs", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.balanceCents).toBe(0);
+    expect(result.customer?.amountToPayCents).toBe(PRICE_TODAY);
+  });
+
+  it("states the balance after today's payment once a hand-out is recorded", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
+    records = new FakeDistributionRecordRepository(
+      distributionRecord("2026-07-23T07:30:00.000Z", { id: 7, paidCents: 200 as Cents }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.balanceCents).toBe(-300);
+  });
+
+  it("states what was asked for today's record", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
+    records = new FakeDistributionRecordRepository(
+      distributionRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 200 as Cents }),
+      distributionRecord("2026-07-23T07:30:00.000Z", { id: 7, paidCents: 800 as Cents }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    // 5,00 € for the week plus the 3,00 € left open a fortnight ago — not the 5,00 € price.
+    expect(result.todaysRecord?.askedCents).toBe(800);
+    expect(result.todaysRecord?.paidCents).toBe(800);
+  });
+
+  it("states the balance a removal would return to", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
+    records = new FakeDistributionRecordRepository(
+      distributionRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 200 as Cents }),
+      distributionRecord("2026-07-23T07:30:00.000Z", { id: 7, paidCents: 800 as Cents }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.balanceCents).toBe(0);
+    expect(result.todaysRecord?.balanceWithoutRecordCents).toBe(-300);
   });
 });

@@ -91,8 +91,10 @@ The `## Codebase Patterns` block below is CARRIED OVER from earlier batches on p
 - **Two consecutive saves on the settings screen need a `page.reload()` between them in e2e.** A
   successful save *clears* the form, and the revalidated render that does it can land **after** the
   next `fill`, rewinding the field to the stored value; the second save then appends a version that
-  changed nothing and every history index below it shifts. `selectOption` happens to survive the
-  race, `fill` does not — reload and re-assert the stored value before typing again.
+  changed nothing and every history index below it shifts. **`selectOption` loses the race too** —
+  this bullet used to say it survived, and batch 29 watched WebKit fail the Ausgabetag spec on that
+  claim twice in a row. Reload and re-assert the stored value before touching the field again,
+  whichever control it is.
 - **The customer record renders two different household blocks.** `/kunden/<active>` gives the live
   editor (`household-editor.tsx`), `/kunden/<archived>` gives `HouseholdReadOnly` in `[id]/page.tsx`.
   Both hold the same tiles, so a screen-level change has to be checked on one of each — **seed
@@ -140,6 +142,15 @@ The `## Codebase Patterns` block below is CARRIED OVER from earlier batches on p
   states it, and names which bullets it answers when it follows several. The per-story PRDs in
   `tasks/` are the same kind of record: they say what was asked for, so a superseded one gets a
   banner and the rest are left alone.
+- **A controlled field filled straight after a `goto` needs `fillSticky`, not `fill`** — including a
+  `<textarea>`. Hydration re-renders it from the prop and the typed text comes back with the stored
+  value spliced into it (`notes-field`, batch 29), which reads like a broken assertion rather than a
+  race. `tests/e2e/day.ts` explains the window; the rule is the whole of it: plain `fill` only once
+  the page has been interacted with, or on a field React does not own.
+- **Before touching an e2e spec your story has no business in, `git stash` and run the suite on
+  clean `HEAD`.** It is the only thing that separates a regression from this suite's WebKit
+  flakiness. Note that a failure **aborts the files behind it** (`6 did not run`), so one flake hides
+  whatever else would have failed — and a green run after a fix is worth repeating twice.
 - **`playwright-cli` needs a role locator, not a testid, to fill the counter's Nummer input**, and a
   `cmd-a || cmd-b` shell chain hides a silent no-op — the first command exits 0 without filling
   anything. Run the fill on its own and re-snapshot to confirm it landed. Verify against
@@ -369,4 +380,52 @@ Five hazards, all stated in `prd.json` and worth reading twice:
   - The correction bridge passes `overpaymentConfirmed: true`, deliberately: ticking the box writes
     the day's price, which for a household in credit is more than they were asked for, and a checkbox
     offers no way to answer the confirmation it would otherwise raise.
+---
+
+## 2026-08-28 — US-005 The counter reads the amount to pay and the balance (application)
+- `CounterCustomerView` gains `balanceCents` and `amountToPayCents`; `TodaysRecordView` gains
+  `paidCents`, `askedCents` and `balanceWithoutRecordCents`, and **loses `paid`** — the last US-29.3
+  bridge in `application/` is gone. All five figures come out of the `recordsForCustomer` the lookup
+  already loads for `recordForDay` and `countNoShows`: **no second query** (US-04.3).
+- `balanceCents` is the balance *as it stands now*, today's hand-out included when one has been
+  recorded; `amountToPayCents` is `amountToPay(allowance.priceCents, balanceCents)`.
+  `balanceWithoutRecordCents` is `balanceOf` of the other rows, so the removal warning can name where
+  a household would land (rule 9).
+- `askedCents` is replayed, not looked up: a module-private `askedForOn` reduces over
+  `replayPayments`, seeded with the record's own price — the same shape `correctAttendance` uses, and
+  for the same reason (a `find(...) ?? fallback` would leave an arm nothing can reach, which the
+  branch gate refuses).
+- Nine tests written first and run **red** before a line of the implementation, including the four
+  that pin the formula against a household whose today-price (2,00 €) differs from every hand-out
+  behind them (5,00 €).
+- The app-layer bridge moved rather than grew: `src/app/ausgabe/page.tsx` now reads the checkbox's
+  `paid` back through the domain's own `standingOf(paidCents, askedCents) !== "SHORT"`. US-29.7
+  removes it with the checkbox.
+- Files changed: `src/application/customers/lookup-customer{,.test}.ts`, `src/app/ausgabe/page.tsx`,
+  `scripts/ralph/prd.json`, this log.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1217 tests, domain/
+  and application/ still 100%), `npm run build`, `npx prettier --check .`, `npm run test:e2e`
+  (177 passed) and `npm run test:e2e:webkit` (177 passed, run **three** times) — all green.
+- **Learnings for future iterations:**
+  - **Two WebKit failures in this iteration were pre-existing, and proving it took a `git stash`.**
+    A full webkit run on clean `HEAD` failed the same settings spec, which is the only thing that
+    separates "my change broke it" from "this suite is flaky here". Do that before touching a spec
+    the story has no business in — and note that `npm run test:e2e:webkit` aborts the remaining
+    files after a failure (`6 did not run`), so one flake hides whatever was behind it.
+  - Both flakes were hazards this log already names, and both are now fixed in a commit of their
+    own: a controlled `<textarea>` filled with a plain `fill()` straight after `goto`
+    (`notes-field` — `fillSticky` is the helper for exactly that window), and two consecutive saves
+    on the settings screen without a `page.reload()` between them. **`selectOption` does not
+    reliably survive that race either**, contrary to what the patterns bullet said — it is now
+    corrected there.
+  - **Running one spec file against the shared register is not a free diagnostic.** Playwright
+    reuses an existing server locally (`reuseExistingServer: !process.env.CI`) and each invocation
+    deletes and re-seeds its own database, so a single-file run is honest — but the *order* it
+    implies is not the order the full suite has, and a spec that asserts a shared count will read
+    differently. Re-run the whole file set before concluding anything.
+  - **`amountToPayCents` is defined for a household already served today**, and is what they *would*
+    be asked for on a second hand-out. That is not a bug and not something to null out: the screen
+    simply does not render it in that state (US-29.7), and the record's own `askedCents` is what the
+    already-served half shows.
+  - Docs still untouched — US-010 owns every document in this batch (same reasoning as US-001..004).
 ---

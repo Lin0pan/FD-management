@@ -33,6 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { standingOf } from "@/domain/distribution/balance";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { DomainError } from "@/domain/errors";
 import type { WeekColour } from "@/domain/policy/settings";
@@ -486,7 +487,17 @@ export default async function DistributionPage({
                       : {
                           recordId: counter.lookup.todaysRecord.recordId,
                           time: germanTime(counter.lookup.todaysRecord.at),
-                          paid: counter.lookup.todaysRecord.paid,
+                          /* The US-29.4 bridge, from the other end: the controls still offer a
+                             checkbox, so the stored amount is read back as one — through the
+                             domain's own `standingOf`, so what "paid" means is not re-decided in a
+                             component. A household that handed over what they were asked for that
+                             day is paid, whether or not that was the week's bare price. Removed
+                             with the checkbox (US-29.7). */
+                          paid:
+                            standingOf(
+                              counter.lookup.todaysRecord.paidCents,
+                              counter.lookup.todaysRecord.askedCents,
+                            ) !== "SHORT",
                           priceCents: counter.lookup.customer.priceCents,
                         }
                   }
