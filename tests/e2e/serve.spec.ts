@@ -19,7 +19,7 @@ import { releaseNumbers } from "./seeding";
  * this spec records a hand-out on the real screen against a real database and asserts the German
  * confirmation, then proves the three things the UI must never let slip — a second hand-out on the
  * same day (the button is simply gone, and only one row exists), a cleared "Bezahlt" box (the row
- * stores `paid = false`), and the confirmation staying under the eye that pressed the button.
+ * stores `paidCents = 0`), and the confirmation staying under the eye that pressed the button.
  *
  * Three households are seeded straight through Prisma: all RED, active, current certificate, one card.
  * They take numbers in the 220s so the registration and card specs, which allocate the *lowest* free
@@ -54,6 +54,13 @@ const NUMBERS = {
   unpaid: 222,
   inView: 223,
 } as const;
+
+/**
+ * What one of these households owes, and therefore hands over when the box is left checked: one
+ * grown-up and one child under the seeded policy, 200 + 100 cents. The record stores the amount now
+ * rather than a flag (US-29), so a cleared box is a hand-out of `0` and not a missing payment.
+ */
+const PRICE_CENTS = 300;
 
 /** Born well before 13 years ago: a grown-up. Comfortably inside the last 13 years: a child. */
 const GROWN_UP_BIRTH_DATE = "1985-02-11";
@@ -140,7 +147,7 @@ async function seedHousehold(customerNumber: number): Promise<void> {
 /** Every distribution record a household holds, found via its surrogate id from the customer number. */
 async function recordsFor(
   customerNumber: number,
-): Promise<ReadonlyArray<{ paid: boolean; dayKey: string; showedUp: boolean }>> {
+): Promise<ReadonlyArray<{ paidCents: number; dayKey: string; showedUp: boolean }>> {
   // `customerNumber` is unique only through a hand-written partial index Prisma cannot see, so it is
   // not a `findUnique` key here — `findFirst` reads the single row all the same.
   const customer = await prisma.customer.findFirst({
@@ -152,7 +159,7 @@ async function recordsFor(
   }
   return prisma.distributionRecord.findMany({
     where: { customerId: customer.id },
-    select: { paid: true, dayKey: true, showedUp: true },
+    select: { paidCents: true, dayKey: true, showedUp: true },
   });
 }
 
@@ -205,7 +212,7 @@ test.describe("Ausgabe erfassen", () => {
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
 
     const records = await recordsFor(NUMBERS.paid);
-    expect(records).toEqual([{ paid: true, dayKey: TODAYS_DAY_KEY, showedUp: true }]);
+    expect(records).toEqual([{ paidCents: PRICE_CENTS, dayKey: TODAYS_DAY_KEY, showedUp: true }]);
   });
 
   test("prevents a second hand-out on the same day", async ({ page }) => {
@@ -232,7 +239,7 @@ test.describe("Ausgabe erfassen", () => {
     await expect(page.getByTestId("already-served-message")).toContainText(serve.paidState.unpaid);
 
     const records = await recordsFor(NUMBERS.unpaid);
-    expect(records).toEqual([{ paid: false, dayKey: TODAYS_DAY_KEY, showedUp: true }]);
+    expect(records).toEqual([{ paidCents: 0, dayKey: TODAYS_DAY_KEY, showedUp: true }]);
   });
 
   test("leaves the confirmation where the button was pressed instead of scrolling away from it", async ({

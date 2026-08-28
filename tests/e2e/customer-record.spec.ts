@@ -281,7 +281,7 @@ async function seedHouseholdWithHistory(customerNumber: number, handOuts: number
           date,
           dayKey: berlinDayKey(date),
           showedUp: true,
-          paid: true,
+          paidCents: 200,
           priceCents: 200,
         };
       }),

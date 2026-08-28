@@ -283,9 +283,9 @@ test.describe("Maximalpreis", () => {
     // DF's books holding another.
     const records = await prisma.distributionRecord.findMany({
       where: { customerId: id },
-      select: { priceCents: true, paid: true },
+      select: { priceCents: true, paidCents: true },
     });
-    expect(records).toEqual([{ priceCents: CAPPED_PRICE_CENTS, paid: true }]);
+    expect(records).toEqual([{ priceCents: CAPPED_PRICE_CENTS, paidCents: CAPPED_PRICE_CENTS }]);
 
     await page.goto(`/kunden/${id}`);
     await expect(page.getByTestId("history-row")).toHaveCount(1);

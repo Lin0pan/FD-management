@@ -16,6 +16,7 @@ import type {
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
 import { InvalidCardNumber } from "@/domain/errors";
+import type { Cents } from "@/domain/money";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
 import type {
   ArchivedCustomer,
@@ -224,11 +225,11 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve(stored);
   }
 
-  setPaid(recordId: number, paid: boolean): Promise<DistributionRecord> {
+  setPayment(recordId: number, paidCents: Cents): Promise<DistributionRecord> {
     this.writes += 1;
     const record = this.records.find((candidate) => candidate.id === recordId);
     if (record === undefined) throw new Error("unreachable in these tests");
-    const updated = { ...record, paid };
+    const updated = { ...record, paidCents };
     this.records.splice(this.records.indexOf(record), 1, updated);
     return Promise.resolve(updated);
   }
@@ -277,8 +278,8 @@ function distributionRecord(
     customerId: 1,
     date: new Date(iso),
     showedUp: true,
-    paid: true,
-    priceCents: 500,
+    paidCents: 500 as Cents,
+    priceCents: 500 as Cents,
     ...overrides,
   };
 }
@@ -705,7 +706,7 @@ describe("lookupCustomer", () => {
   it("surfaces today's record — its id, time and paid flag — when one is already on file", async () => {
     customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
     records = new FakeDistributionRecordRepository(
-      distributionRecord("2026-07-23T07:30:00.000Z", { id: 7, paid: false }),
+      distributionRecord("2026-07-23T07:30:00.000Z", { id: 7, paidCents: 0 as Cents }),
     );
 
     const result = await lookupCustomer(deps(), "50");

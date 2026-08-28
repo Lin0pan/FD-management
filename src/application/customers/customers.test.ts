@@ -35,6 +35,7 @@ import {
   NoFreeCustomerNumber,
   NoSettingsInForce,
 } from "@/domain/errors";
+import type { Cents } from "@/domain/money";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
 import type {
   ArchivedCustomer,
@@ -440,10 +441,10 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve(stored);
   }
 
-  setPaid(recordId: number, paid: boolean): Promise<DistributionRecord> {
+  setPayment(recordId: number, paidCents: Cents): Promise<DistributionRecord> {
     this.writes += 1;
     const index = this.records.findIndex((record) => record.id === recordId);
-    const updated = { ...this.records[index], paid };
+    const updated = { ...this.records[index], paidCents };
     this.records[index] = updated;
     return Promise.resolve(updated);
   }
@@ -1098,8 +1099,8 @@ describe("reissueCard", () => {
       customerId,
       date: new Date(TODAY),
       showedUp: true,
-      paid: true,
-      priceCents: 500,
+      paidCents: 500 as Cents,
+      priceCents: 500 as Cents,
     };
   }
 
@@ -1368,8 +1369,8 @@ describe("readCustomer", () => {
       customerId,
       date: new Date(iso),
       showedUp: true,
-      paid: true,
-      priceCents: 500,
+      paidCents: 500 as Cents,
+      priceCents: 500 as Cents,
     });
   }
 
@@ -1960,8 +1961,8 @@ describe("archiveCustomer", () => {
         customerId: customer.id,
         date: new Date(date),
         showedUp: true,
-        paid: true,
-        priceCents: 500,
+        paidCents: 500 as Cents,
+        priceCents: 500 as Cents,
       });
     }
     return customer.id;
@@ -2473,8 +2474,8 @@ describe("draftFromArchived", () => {
       customerId,
       date: new Date("2026-06-11T09:00:00.000Z"),
       showedUp: true,
-      paid: true,
-      priceCents: 500,
+      paidCents: 500 as Cents,
+      priceCents: 500 as Cents,
     });
     const before = register();
     const writesBefore = distribution.writes;
@@ -2698,8 +2699,8 @@ describe("re-registering a household from an archived record", () => {
       customerId: archivedId,
       date: new Date("2025-10-08T09:00:00.000Z"),
       showedUp: true,
-      paid: true,
-      priceCents: 500,
+      paidCents: 500 as Cents,
+      priceCents: 500 as Cents,
     });
     const before = JSON.stringify(await customers.findById(archivedId));
     const writesBefore = distribution.writes;

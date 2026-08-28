@@ -1,6 +1,6 @@
 /**
  * The distribution record — what actually happened at one hand-out: a customer showed up on a day,
- * paid or did not, and owed the price the policy set for their household then (US-05, FR-1).
+ * handed over an amount, and owed the price the policy set for their household then (US-05, FR-1).
  *
  * The record is the transaction that turns the app into a history of distributions. It is never
  * overwritten week to week (FR-6): a fresh row is written each time, and a no-show is simply the
@@ -24,8 +24,16 @@ export interface NewDistributionRecord {
   readonly date: Date;
   /** Whether the customer showed up. Always true today — a no-show writes no record at all. */
   readonly showedUp: boolean;
-  /** Whether they paid; a flag, never an amount (FR-3). */
-  readonly paid: boolean;
+  /**
+   * What the household **handed over** — the amount, not a flag (US-29). It may be less than they
+   * were asked for (a part payment they make up another week) and occasionally more (they pay ahead
+   * so as not to have to remember it next week), so a boolean could not hold it.
+   *
+   * It is the only thing on the record the balance reads: `Σ (paidCents − priceCents)` over the
+   * household's hand-outs is what they owe or have paid ahead, derived at every read and never
+   * stored (`./balance`).
+   */
+  readonly paidCents: Cents;
   /** The price the policy in force on {@link date} set for the customer's household (FR-2). */
   readonly priceCents: Cents;
 }

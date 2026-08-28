@@ -299,7 +299,13 @@ function History({ records }: { records: ReadonlyArray<DistributionRecord> }): R
             <TableRow key={record.id} data-testid="history-row">
               <TableCell className="tabular-nums">{germanDate(record.date)}</TableCell>
               <TableCell>{record.showedUp ? words.yes : words.no}</TableCell>
-              <TableCell data-testid="history-paid">{record.paid ? words.yes : words.no}</TableCell>
+              {/* A bridge, and a temporary one (US-29.3): the record carries the amount that was
+                  handed over, and this column still asks the boolean question it used to answer.
+                  US-29.8 replaces it with the payment itself and the mark that compares it against
+                  what was asked that day. */}
+              <TableCell data-testid="history-paid">
+                {record.paidCents >= record.priceCents ? words.yes : words.no}
+              </TableCell>
               <TableCell data-testid="history-price" className="tabular-nums">
                 {formatEuros(record.priceCents)}
               </TableCell>

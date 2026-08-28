@@ -148,6 +148,16 @@ The `## Codebase Patterns` block below is CARRIED OVER from earlier batches on p
   `archive/2026-08-07-us-25-globally-unique-card-numbers/progress.txt` keeps a long consolidated list
   (playwright-cli usage, e2e customer-number bands, killing the dev server safely, testid greps).
   Read the most recent two before any UI or e2e story.
+- **Renaming a Prisma column is not finished when `tsc` is green.** A `select: { paid: true }` in an
+  e2e spec typechecks against the *generated client*, so `npm run typecheck` on `src/` passes while
+  the suite would fail at run time — and five specs held one. After any column rename,
+  `grep -rn "<oldColumn>" tests/e2e/ prisma/` and run **both** engines, not just Chromium.
+- **A scripted fixture in `demo-seed.ts` must be exempted from the counted patterns, not layered on
+  top of them.** `UNPAID_EVERY` and `NO_SHOW_EVERY` reach across the whole cast, so a household
+  scripted to demonstrate one state ends on whatever the modulus left it with (batch 29's three
+  balance households first came out at −12,00 €, −5,00 € and +1,00 €). Skip the pattern for the
+  scripted shape while still incrementing its counter, so the rest of the register is unchanged —
+  and verify the fixture by querying the seeded database, never by reading the script.
 
 ### Where batch 29 starts
 
@@ -244,3 +254,55 @@ Five hazards, all stated in `prd.json` and worth reading twice:
     coupling is that `replayPayments` needs its rows to carry a `date`, which the record already has.
   - Docs still untouched — US-010 owns every document in this batch (same reasoning as US-001).
 ---
+
+## 2026-08-28 — US-003 A hand-out records an amount, not a flag (domain type, schema, infrastructure)
+- `NewDistributionRecord.paid: boolean` is now `readonly paidCents: Cents`; the flag is **gone**, not
+  kept alongside. `prisma/schema.prisma` follows (`paid Boolean` → `paidCents Int`, with the `///`
+  comment saying the balance is derived from it and `priceCents` and never stored), and the
+  `SettingsVersion` doc comment lost the sentence claiming a record stores no amount.
+- `prisma/migrations/` regenerated as `20260828131514_init` — fifth regeneration, same drill: delete
+  `data/fd.db` first, re-append the hand-written `Customer_customerNumber_onRegister_key` partial
+  unique index, `npm run db:reset` afterwards. `diff` against `git show HEAD:…/20260825000027_init`
+  is **exactly one line**, which is the whole check.
+- `setPaid` → `setPayment(recordId, paidCents)` on the port, the Prisma adapter and all five
+  hand-written fakes; `RecordRow`/`toRecord` carry `paidCents`. New integration tests: a payment of
+  `0` is stored as `0` and not as null (asserted through raw SQL, not only through the adapter), a
+  payment above the price round-trips, and a correction down to nothing.
+- `prisma/demo-seed.ts` gained a `paymentHabit` on three cast members — `OWES`, `SETTLED_A_DEBT`,
+  `IN_CREDIT` — and the closing tally counts part payments and hand-outs paid ahead beside the
+  unpaid ones. The scripted households come out at −2,00 €, 0,00 € and +5,00 € exactly.
+- The **deliberate bridge** US-004 removes: `recordAttendance` and `correctAttendance` still take the
+  boolean and translate it (`paid ? priceCents : 0`), and `lookupCustomer` reads it back
+  (`paidCents >= priceCents`). The screens are untouched and the app is green.
+- Files changed: `src/domain/distribution/distributionRecord.ts`, `prisma/schema.prisma`,
+  `prisma/migrations/20260828131514_init/` (new, replaces `20260825000027_init`),
+  `src/application/ports.ts`, `src/application/distribution/{record,correct}-attendance{,.test}.ts`,
+  `src/application/distribution/read-group-roster.test.ts`,
+  `src/application/customers/{customers,lookup-customer,maintain-customer}.test.ts`,
+  `src/application/customers/lookup-customer.ts`, `src/app/kunden/[id]/page.tsx`,
+  `src/infrastructure/prisma/distribution-record-repository{,.test}.ts`, `prisma/demo-seed.ts`,
+  `tests/e2e/{serve,price-cap,archive,reregistration,customer-record}.spec.ts`,
+  `scripts/ralph/prd.json`, this log.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1199 tests, domain/
+  and application/ still 100%), `npm run build`, `npx prettier --check .`, `npm run test:e2e`
+  (177 passed) and `npm run test:e2e:webkit` (177 passed) — all green. `npm run db:reset` run, and
+  the partial index verified in the reset database rather than assumed.
+- **Learnings for future iterations:**
+  - **A scripted fixture must be exempted from `demo-seed.ts`'s counted patterns, not layered on top
+    of them.** `UNPAID_EVERY` writes a zero payment every fifth hand-out across the whole cast, so the
+    three balance households first came out at −12,00 €, −5,00 € and +1,00 € — the modulus, not the
+    script. They now skip the pattern (`shape.paymentHabit !== undefined || servedSoFar % … !== 0`)
+    while still incrementing `servedSoFar`, so which of the *other* households pay nothing is
+    unchanged. Any future fixture that demonstrates one state has the same problem.
+  - **The bridge is in three places, not two.** `recordAttendance` and `correctAttendance` are the
+    obvious ones; `lookupCustomer`'s `TodaysRecordView.paid` is the third, and it is what keeps the
+    correction checkbox opening on the stored value. A fourth, `history-paid` in
+    `src/app/kunden/[id]/page.tsx`, belongs to US-008. Each carries a comment naming the story that
+    removes it — `grep -rn "US-29.3" src/` finds all four.
+  - **`correctAttendance` needs the record it is correcting to know the price**, because the bridge
+    writes `record.priceCents`. It already loads the record for `canCorrect`, so nothing new is read —
+    but a use case that only had the id would have had to.
+  - **`select:` lists in e2e specs are a silent break.** Five specs name `paid: true` in a Prisma
+    `select`, which typechecks against the *generated client* — so the rename is not caught by
+    `tsc` on `src/` alone and would have failed only at run time. `grep -rn "paid" tests/e2e/`
+    after any column rename.

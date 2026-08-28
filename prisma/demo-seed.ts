@@ -55,6 +55,7 @@ import type {
 import { addToWaitingList } from "../src/application/waiting-list/add-to-waiting-list";
 import { formatCardNumber } from "../src/domain/card/cardNumber";
 import type { Address, HouseholdMemberDetails } from "../src/domain/customer/customer";
+import type { Cents } from "../src/domain/money";
 import type { WeekColour } from "../src/domain/policy/settings";
 import { startOfUtcDay } from "../src/domain/distribution/weekColour";
 import { PrismaAuditLog } from "../src/infrastructure/prisma/audit-log";
@@ -95,7 +96,7 @@ const UNPAID_EVERY = 5;
  * moduli above imply it should hold — a household blocked halfway through the history silently
  * shortens its own attendance, and a summary that did the arithmetic itself would not know.
  */
-const tally = { handOuts: 0, unpaid: 0, noShows: 0 };
+const tally = { handOuts: 0, unpaid: 0, partPayments: 0, paidAhead: 0, noShows: 0 };
 
 // ---------------------------------------------------------------------------------------------
 // Time
@@ -173,6 +174,53 @@ interface HouseholdShape {
   readonly reregistrationOf?: string;
   /** How many of this household's most recent distribution days they missed (US-10.4). */
   readonly missesLastDistributions?: number;
+  /** How this household pays, when the fixture puts a balance on it (US-29). */
+  readonly paymentHabit?: PaymentHabit;
+}
+
+/**
+ * A household whose hand-outs are scripted so the register shows what a balance can be (US-29).
+ *
+ * A hand-out records the **amount** handed over, so a household can end a day owing DF money or
+ * having paid ahead, and the screens that state a balance need all three states to be somewhere in
+ * the register. Every other household pays what it was asked for, or — on the counted pattern below
+ * — nothing at all.
+ *
+ *  - `OWES` hands over 2,00 € less than the day cost, once, and never makes it up: a standing debt.
+ *  - `SETTLED_A_DEBT` is 3,00 € short one week and hands over exactly those 3,00 € on top the next,
+ *    which is the case the counter's amount-to-pay exists for — and it ends back at zero.
+ *  - `IN_CREDIT` hands over 5,00 € more than was asked, so as not to have to remember it next week.
+ */
+type PaymentHabit = "OWES" | "SETTLED_A_DEBT" | "IN_CREDIT";
+
+/** The short payment a scripted household makes, and the amount it later hands over on top. */
+const SHORT_BY_CENTS = 200;
+const DEBT_CENTS = 300;
+const PAID_AHEAD_CENTS = 500;
+
+/**
+ * What a scripted household hands over on its `visit`-th hand-out, or `null` to pay what was asked.
+ *
+ * The visit numbers are low on purpose: eight distribution days alternate RED and BLUE, so a
+ * household sees about four of them and a no-show may take one of those away. A script that needed
+ * a fourth visit would silently do nothing for a household that only ever had three.
+ */
+function scriptedPaymentCents(
+  habit: PaymentHabit,
+  visit: number,
+  priceCents: number,
+): number | null {
+  switch (habit) {
+    case "OWES":
+      return visit === 2 ? Math.max(0, priceCents - SHORT_BY_CENTS) : null;
+    case "SETTLED_A_DEBT":
+      if (visit === 1) {
+        return Math.max(0, priceCents - DEBT_CENTS);
+      }
+      return visit === 2 ? priceCents + DEBT_CENTS : null;
+    case "IN_CREDIT":
+      return visit === 1 ? priceCents + PAID_AHEAD_CENTS : null;
+  }
 }
 
 /**
@@ -288,14 +336,15 @@ const CAST: ReadonlyArray<HouseholdShape> = [
   },
   {
     key: "young-family",
-    demonstrates: "two grown-ups, two small children",
+    demonstrates: "two grown-ups, two small children — and carries a debt from a part payment",
     registeredDaysAgo: 150,
     members: [{ years: 34 }, { years: 31 }, { years: 6 }, { years: 3 }],
     certificateValidInDays: 200,
+    paymentHabit: "OWES",
   },
   {
     key: "large-family",
-    demonstrates: "the biggest household — six heads, four of them children",
+    demonstrates: "six heads, four children — was short once and settled it exactly next time",
     registeredDaysAgo: 142,
     members: [
       { years: 41 },
@@ -307,13 +356,15 @@ const CAST: ReadonlyArray<HouseholdShape> = [
     ],
     certificateValidInDays: 120,
     notes: "Große Familie, kommt meist zu zweit und holt für alle mit ab.",
+    paymentHabit: "SETTLED_A_DEBT",
   },
   {
     key: "single-parent",
-    demonstrates: "one grown-up with two children",
+    demonstrates: "one grown-up with two children — paid ahead, so the household has credit",
     registeredDaysAgo: 134,
     members: [{ years: 29 }, { years: 4 }, { years: 2 }],
     certificateValidInDays: 95,
+    paymentHabit: "IN_CREDIT",
   },
   {
     key: "birthday-13",
@@ -775,6 +826,8 @@ function distributionEvents(
   // instead of landing on the same households every week.
   let eligible = 0;
   let servedSoFar = 0;
+  /** How many hand-outs each household has had so far — what a scripted payment is keyed on. */
+  const visits = new Map<string, number>();
 
   return days.map((day) => ({
     at: day.at,
@@ -797,11 +850,35 @@ function distributionEvents(
           continue; // A no-show writes no record at all (US-05, FR-6).
         }
         servedSoFar += 1;
-        const paid = servedSoFar % UNPAID_EVERY !== 0;
-        await recordAttendance(deps, { customerId: id, paid });
+        // A scripted household's payments are the script's business alone (US-29): the counted
+        // unpaid pattern would drop a zero into a history that exists to demonstrate one balance,
+        // and the debt or credit it ended on would be an accident of the modulus. `servedSoFar`
+        // counts them all the same, so which of the other households pay nothing is unchanged.
+        const paid = shape.paymentHabit !== undefined || servedSoFar % UNPAID_EVERY !== 0;
+        const record = await recordAttendance(deps, { customerId: id, paid });
+
+        // The amount the household handed over. `recordAttendance` still takes the old flag and
+        // translates it (US-29.3), so a scripted payment is written straight after through the
+        // store — which is what a same-day correction does anyway. US-29.4 lets the amount be
+        // passed in and this second write goes away.
+        const visit = (visits.get(shape.key) ?? 0) + 1;
+        visits.set(shape.key, visit);
+        const scripted =
+          shape.paymentHabit === undefined
+            ? null
+            : scriptedPaymentCents(shape.paymentHabit, visit, record.priceCents);
+        const paidCents = scripted ?? record.paidCents;
+        if (scripted !== null) {
+          await deps.records.setPayment(record.id, scripted as Cents);
+        }
+
         tally.handOuts += 1;
-        if (!paid) {
+        if (paidCents === 0) {
           tally.unpaid += 1;
+        } else if (paidCents < record.priceCents) {
+          tally.partPayments += 1;
+        } else if (paidCents > record.priceCents) {
+          tally.paidAhead += 1;
         }
       }
     },
@@ -866,6 +943,9 @@ async function printSummary(deps: DemoDeps, customerIds: Map<string, number>): P
     `\n  ${WAITING.length} applicants on the waiting list. ` +
       `${tally.handOuts} hand-outs over ${DISTRIBUTION_DAYS_OF_HISTORY} past distribution days, ` +
       `${tally.unpaid} of them unpaid, ${tally.noShows} no-shows.` +
+      `\n  Balances (US-29): ${tally.partPayments} part payments and ${tally.paidAhead} hand-outs` +
+      "\n  paid ahead, so the register carries a household that owes, one that has credit and one" +
+      "\n  that was short and settled it exactly the next time. Counted, not predicted." +
       "\n  Today has deliberately no hand-outs recorded — the counter is yours to play with." +
       "\n  Two numbers appear twice above: archiving releases the slot, so a later registration" +
       "\n  takes it while the archived record keeps the number it had. That is the rule, not a bug." +

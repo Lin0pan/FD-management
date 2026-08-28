@@ -22,6 +22,7 @@ import { canRecord } from "@/domain/distribution/attendance";
 import { evaluateAtCounter } from "@/domain/distribution/counterVerdict";
 import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
 import { CustomerNotFound, NotClearToServe } from "@/domain/errors";
+import type { Cents } from "@/domain/money";
 import { describeAllowance } from "../allowance/describe-allowance";
 import { getWeekColour } from "../distribution/get-week-colour";
 import type {
@@ -49,6 +50,10 @@ export interface RecordAttendanceInput {
   /**
    * Whether they paid. Pre-set to `true` because most customers do (FR-4); the staff member clears
    * it before confirming when they did not.
+   *
+   * **A bridge, and a temporary one (US-29.3).** The record now carries the amount that was handed
+   * over rather than a flag, and this boolean is translated into one below. US-29.4 replaces it with
+   * `paidCents` — the amount staff actually collected — and the translation goes with it.
    */
   readonly paid?: boolean;
 }
@@ -106,7 +111,9 @@ export async function recordAttendance(
     customerId: input.customerId,
     date: now,
     showedUp: true,
-    paid,
+    // The bridge US-29.3 leaves standing: paying is handing over the full price, not paying is
+    // handing over nothing. Exactly today's behaviour, until US-29.4 takes the amount from staff.
+    paidCents: paid ? allowance.priceCents : (0 as Cents),
     priceCents: allowance.priceCents,
   });
 

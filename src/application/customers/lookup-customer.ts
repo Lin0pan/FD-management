@@ -108,6 +108,10 @@ export interface CounterCustomerView {
  * of the serve action once a hand-out has been recorded (US-05.4). Carries the id so a same-day
  * correction can address it, the instant so the screen can name the time they were served, and the
  * paid flag so the correction control opens on the value that is stored.
+ *
+ * **`paid` is a bridge, and a temporary one (US-29.3).** The record carries the amount that was
+ * handed over now, and this reads it back as the flag the correction control still offers. US-29.5
+ * replaces it with `paidCents` and the amount that was asked for.
  */
 export interface TodaysRecordView {
   readonly recordId: number;
@@ -199,7 +203,13 @@ export async function lookupCustomer(
   ]);
   const existing = recordForDay(recordsForCustomer, today);
   const todaysRecord =
-    existing === null ? null : { recordId: existing.id, at: existing.date, paid: existing.paid };
+    existing === null
+      ? null
+      : {
+          recordId: existing.id,
+          at: existing.date,
+          paid: existing.paidCents >= existing.priceCents,
+        };
 
   const [allowance, consecutiveNoShows] = await Promise.all([
     describeAllowance(deps, customer.details.householdMembers, today),

@@ -85,7 +85,7 @@ CREATE TABLE "DistributionRecord" (
     "date" DATETIME NOT NULL,
     "dayKey" TEXT NOT NULL,
     "showedUp" BOOLEAN NOT NULL,
-    "paid" BOOLEAN NOT NULL,
+    "paidCents" INTEGER NOT NULL,
     "priceCents" INTEGER NOT NULL,
     CONSTRAINT "DistributionRecord_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );

@@ -15,6 +15,7 @@ import type {
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
 import { NoSettingsInForce } from "@/domain/errors";
+import type { Cents } from "@/domain/money";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
 import type {
   ArchivedCustomer,
@@ -221,11 +222,11 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve(stored);
   }
 
-  setPaid(recordId: number, paid: boolean): Promise<DistributionRecord> {
+  setPayment(recordId: number, paidCents: Cents): Promise<DistributionRecord> {
     this.writes += 1;
     const record = this.records.find((candidate) => candidate.id === recordId);
     if (record === undefined) throw new Error("test fake: no such record");
-    const updated = { ...record, paid };
+    const updated = { ...record, paidCents };
     this.records[this.records.indexOf(record)] = updated;
     return Promise.resolve(updated);
   }
@@ -243,8 +244,8 @@ function recordFor(customerId: number, instant: string, id = customerId): Distri
     customerId,
     date: new Date(instant),
     showedUp: true,
-    paid: true,
-    priceCents: 400,
+    paidCents: 400 as Cents,
+    priceCents: 400 as Cents,
   };
 }
 

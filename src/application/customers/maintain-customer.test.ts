@@ -121,7 +121,7 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.reject(new Error("No use case in this file records a hand-out"));
   }
 
-  setPaid(): Promise<DistributionRecord> {
+  setPayment(): Promise<DistributionRecord> {
     return Promise.reject(new Error("No use case in this file corrects a hand-out"));
   }
 

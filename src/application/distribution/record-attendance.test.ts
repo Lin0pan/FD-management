@@ -16,6 +16,7 @@ import type {
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
 import { AlreadyServedToday, CustomerNotFound, NotClearToServe } from "@/domain/errors";
+import type { Cents } from "@/domain/money";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
 import type {
   ArchivedCustomer,
@@ -198,10 +199,10 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve(stored);
   }
 
-  setPaid(recordId: number, paid: boolean): Promise<DistributionRecord> {
+  setPayment(recordId: number, paidCents: Cents): Promise<DistributionRecord> {
     const record = this.records.find((r) => r.id === recordId);
     if (record === undefined) throw new Error("test fake: no such record");
-    const updated = { ...record, paid };
+    const updated = { ...record, paidCents };
     this.records[this.records.indexOf(record)] = updated;
     return Promise.resolve(updated);
   }
@@ -299,8 +300,8 @@ function existingRecord(date: string): DistributionRecord {
     customerId: 1,
     date: new Date(date),
     showedUp: true,
-    paid: true,
-    priceCents: 300,
+    paidCents: 300 as Cents,
+    priceCents: 300 as Cents,
   };
 }
 
@@ -321,14 +322,14 @@ describe("recordAttendance", () => {
     audit = new FakeAuditLog();
   });
 
-  it("records the hand-out with showedUp, the paid flag and the price in force today", async () => {
+  it("records the hand-out with showedUp, the payment and the price in force today", async () => {
     const record = await recordAttendance(deps(), { customerId: 1 });
 
     // One grown-up + one child at 200/100 per head = 300 cents.
     expect(record).toMatchObject({
       customerId: 1,
       showedUp: true,
-      paid: true,
+      paidCents: 300,
       priceCents: 300,
     });
     expect(record.date).toEqual(new Date(TODAY));
@@ -338,13 +339,15 @@ describe("recordAttendance", () => {
   it("defaults paid to true when it is not given", async () => {
     const record = await recordAttendance(deps(), { customerId: 1 });
 
-    expect(record.paid).toBe(true);
+    // Paying is handing over the whole price — the bridge US-29.3 leaves standing until US-29.4
+    // takes the amount from the staff member instead.
+    expect(record.paidCents).toBe(300);
   });
 
-  it("stores paid as false when the staff member cleared the flag", async () => {
+  it("stores nothing handed over when the staff member cleared the flag", async () => {
     const record = await recordAttendance(deps(), { customerId: 1, paid: false });
 
-    expect(record.paid).toBe(false);
+    expect(record.paidCents).toBe(0);
   });
 
   it("writes an audit entry with no actor for the recorded hand-out", async () => {

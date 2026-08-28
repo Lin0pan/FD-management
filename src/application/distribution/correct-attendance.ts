@@ -14,6 +14,7 @@
 
 import { canCorrect } from "@/domain/distribution/attendance";
 import { DistributionRecordNotFound, RecordNoLongerCorrectable } from "@/domain/errors";
+import type { Cents } from "@/domain/money";
 import type { AuditLog, Clock, DistributionRecordRepository } from "../ports";
 
 /** The audit event names a correction is written under. */
@@ -65,7 +66,9 @@ export async function correctAttendance(
     return;
   }
 
-  await deps.records.setPaid(input.recordId, input.paid);
+  // The bridge US-29.3 leaves standing: the flag becomes the full price or nothing, which is what
+  // the record has always meant. US-29.4 replaces the flag with the amount staff collected.
+  await deps.records.setPayment(input.recordId, input.paid ? record.priceCents : (0 as Cents));
   await deps.audit.append({
     what: DISTRIBUTION_CORRECTED,
     changedFields: ["paid"],

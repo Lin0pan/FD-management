@@ -68,8 +68,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Migration replaced as 20260828131514_init (delete data/fd.db first, or migrate dev refuses); the diff against the old SQL is exactly one line, paid BOOLEAN -> paidCents INTEGER, and the hand-written Customer_customerNumber_onRegister_key partial unique index was re-appended. setPaid became setPayment on the port and in all five hand-written fakes. The bridge is in three places and US-004 must remove all three: recordAttendance (paid ? allowance.priceCents : 0), correctAttendance (paid ? record.priceCents : 0) and lookupCustomer's TodaysRecordView (paidCents >= priceCents -> paid), plus the history column in kunden/[id]/page.tsx that US-008 owns. The demo seed's three scripted households (12 OWES, 13 SETTLED_A_DEBT, 14 IN_CREDIT) are exempted from the counted UNPAID_EVERY pattern, or the modulus drops a zero into the history and the balance they end on is an accident: they now come out at -2,00, 0,00 and +5,00 exactly."
     },
     {
       "id": "US-004",

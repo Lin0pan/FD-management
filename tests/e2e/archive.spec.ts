@@ -174,7 +174,7 @@ async function belongings(id: number): Promise<string> {
     }),
     prisma.distributionRecord.findMany({
       where: { customerId: id },
-      select: { dayKey: true, paid: true, showedUp: true },
+      select: { dayKey: true, paidCents: true, showedUp: true },
       orderBy: { dayKey: "asc" },
     }),
   ]);

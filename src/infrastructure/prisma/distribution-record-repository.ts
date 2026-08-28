@@ -29,7 +29,7 @@ interface RecordRow {
   customerId: number;
   date: Date;
   showedUp: boolean;
-  paid: boolean;
+  paidCents: number;
   priceCents: number;
 }
 
@@ -39,7 +39,7 @@ function toRecord(row: RecordRow): DistributionRecord {
     customerId: row.customerId,
     date: row.date,
     showedUp: row.showedUp,
-    paid: row.paid,
+    paidCents: row.paidCents as Cents,
     priceCents: row.priceCents as Cents,
   };
 }
@@ -107,7 +107,7 @@ export class PrismaDistributionRecordRepository implements DistributionRecordRep
           date: record.date,
           dayKey: berlinDayKey(record.date),
           showedUp: record.showedUp,
-          paid: record.paid,
+          paidCents: record.paidCents,
           priceCents: record.priceCents,
         },
       });
@@ -121,16 +121,17 @@ export class PrismaDistributionRecordRepository implements DistributionRecordRep
   }
 
   /**
-   * Amend the paid flag of a record made today, and return it as stored. The day it was correctable
-   * on is the use case's question (`attendance.canCorrect`); the store only records the new flag.
+   * Amend the amount handed over on a record made today, and return it as stored. The day it was
+   * correctable on is the use case's question (`attendance.canCorrect`); the store only records the
+   * new amount, and `0` is written as `0` rather than as an absent payment.
    *
    * @throws {DistributionRecordNotFound} if the id belongs to no record.
    */
-  async setPaid(recordId: number, paid: boolean): Promise<DistributionRecord> {
+  async setPayment(recordId: number, paidCents: Cents): Promise<DistributionRecord> {
     try {
       const row = await this.prisma.distributionRecord.update({
         where: { id: recordId },
-        data: { paid },
+        data: { paidCents },
       });
       return toRecord(row);
     } catch (error: unknown) {
