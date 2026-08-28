@@ -45,8 +45,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Landed in the same balance.ts: standingOf/PaymentStanding, Settlement and replayPayments (sorting a copy by date), plus OverpaymentNotConfirmed in errors.ts tiered 'refusal'. The error has no caller until US-004."
     },
     {
       "id": "US-003",

@@ -46,7 +46,8 @@ export type DomainErrorCode =
   | "NotesTooLong"
   | "GroupUnchanged"
   | "DuplicateEggThreshold"
-  | "EggsNotIncreasing";
+  | "EggsNotIncreasing"
+  | "OverpaymentNotConfirmed";
 
 /** Base class of every domain error. `code` lets callers switch over the closed set above. */
 export abstract class DomainError extends Error {
@@ -708,5 +709,32 @@ export class EggsNotIncreasing extends DomainError {
     this.eggs = eggs;
     this.lowerMinPersons = lowerMinPersons;
     this.lowerEggs = lowerEggs;
+  }
+}
+
+/**
+ * More was handed over than the household was asked for, and nobody has confirmed it (US-29.2).
+ *
+ * A mistyped credit is the one error this design cannot undo. It does not surface anywhere: the
+ * balance silently pays for the household's next weeks, and the first sign is a household being
+ * asked for nothing for a month. A **shortfall** needs no such guard — it shows up as an open amount
+ * at the very next hand-out, in front of the staff member who is serving them.
+ *
+ * So the staff member is being asked a question, not shown a fault: „50,00 € statt 8,00 € — wirklich
+ * so buchen?" The counter re-submits with the confirmation and the payment is written as typed;
+ * paying ahead is a thing households do and is never refused outright.
+ *
+ * Carries both amounts, so the question can name them rather than asking whether something
+ * unspecified was meant.
+ */
+export class OverpaymentNotConfirmed extends DomainError {
+  readonly code = "OverpaymentNotConfirmed";
+  readonly paidCents: number;
+  readonly amountToPayCents: number;
+
+  constructor(paidCents: number, amountToPayCents: number) {
+    super(`${paidCents} cents were handed over against the ${amountToPayCents} cents asked for`);
+    this.paidCents = paidCents;
+    this.amountToPayCents = amountToPayCents;
   }
 }

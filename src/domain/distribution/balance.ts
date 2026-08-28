@@ -34,7 +34,7 @@
  * was asked can never return to zero.
  *
  * The amount that was asked for on a past day is a different quantity, and it is derived by
- * replaying the history — see {@link replayPayments} in US-29.2.
+ * replaying the history — see {@link replayPayments}.
  *
  * The module holds **no limit of any kind**: no floor, no ceiling, no warning threshold. DF's
  * balances stay within ±20 € in practice, and a debt has no automatic consequence — the household is
@@ -102,4 +102,73 @@ export function balanceKind(balanceCents: Cents): BalanceKind {
     return "DEBT";
   }
   return "SETTLED";
+}
+
+/** How a payment stood against what the household was asked for that day. */
+export type PaymentStanding = "SHORT" | "EXACT" | "OVER";
+
+/**
+ * How a payment stood against `askedCents` — **what was asked for that day**, never the price.
+ *
+ * The difference is the whole point of the two quantities. A household that owes 3,00 € and is asked
+ * for 8,00 € against a 5,00 € price hands over 8,00 € and is `EXACT`: they paid what they were asked
+ * for. Compared with the price it would read `OVER`, and the record would mark a household clearing
+ * an old debt in the colour of one paying ahead — which is the opposite of what happened.
+ */
+export function standingOf(paidCents: Cents, askedCents: Cents): PaymentStanding {
+  if (paidCents > askedCents) {
+    return "OVER";
+  }
+  if (paidCents < askedCents) {
+    return "SHORT";
+  }
+  return "EXACT";
+}
+
+/** One hand-out as the history reads it: the record, what it asked for, and where it left things. */
+export interface Settlement<T extends PaidRecord> {
+  /** The hand-out itself, handed back untouched so the caller keeps its date, id and anything else. */
+  readonly record: T;
+  /** What the counter asked for that day: the price offset by the balance of the *earlier* records. */
+  readonly askedCents: Cents;
+  /** How {@link record}'s payment stood against {@link askedCents}. */
+  readonly standing: PaymentStanding;
+  /** The running balance once this hand-out is counted in. */
+  readonly balanceAfter: Cents;
+}
+
+/**
+ * Walk a household's hand-outs oldest first and say, for each, what was asked for on the day.
+ *
+ * The amount asked for is not stored — nothing is — so it is re-derived here from the balance of
+ * every earlier hand-out, which is exactly the number the counter had in front of it that morning.
+ * That makes the history explain itself: a row saying „5,00 € gefordert, 2,00 € gezahlt" is readable
+ * a year later without knowing what the household owed at the time.
+ *
+ * It **sorts its input by `date` itself** rather than trusting the caller. Order is the whole meaning
+ * of a running balance, and the port that supplies the rows promises nothing about it — the same
+ * bargain {@link ../policy/eggs.createEggRule} strikes by sorting inside the constructor. The sort is
+ * on a copy: the caller's array comes back as it was passed.
+ *
+ * The last `balanceAfter` is {@link balanceOf} of the same rows, necessarily — the two walk the same
+ * sum — and a test says so, because two functions computing one number must not be able to disagree.
+ */
+export function replayPayments<T extends PaidRecord & { date: Date }>(
+  records: ReadonlyArray<T>,
+): ReadonlyArray<Settlement<T>> {
+  const oldestFirst = [...records].sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  const settlements: Settlement<T>[] = [];
+  let balance: Cents = 0;
+  for (const record of oldestFirst) {
+    const askedCents = amountToPay(record.priceCents, balance);
+    balance = balance + record.paidCents - record.priceCents;
+    settlements.push({
+      record,
+      askedCents,
+      standing: standingOf(record.paidCents, askedCents),
+      balanceAfter: balance,
+    });
+  }
+  return settlements;
 }

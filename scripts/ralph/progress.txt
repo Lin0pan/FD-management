@@ -213,3 +213,34 @@ Five hazards, all stated in `prd.json` and worth reading twice:
     module and would take a `balance.ts` line, but US-010 owns every document in this batch — adding
     it early would make that story's diff lie about what it did.
 ---
+
+## 2026-08-28 — US-002 The payment replay and the overpayment guard (domain)
+- `src/domain/distribution/balance.ts` gains `PaymentStanding`, `standingOf`, `Settlement<T>` and
+  `replayPayments` — the same module as US-001, because the replay is the balance walked in order.
+  `replayPayments` sorts a **copy** by `date` ascending itself; `askedCents` per row is
+  `amountToPay(priceCents, balance of the earlier rows)`, so it is exactly what the counter showed
+  that day. No `settlementOf` lookup helper, on purpose (a second way to ask the same question).
+- `src/domain/errors.ts` gains `OverpaymentNotConfirmed(paidCents, amountToPayCents)` and its code;
+  `src/app/notice-tier.ts` tiers it `refusal` (a question, not a fault) — its stale header count went
+  from „a 36th code" to „a 37th code" with it. No caller until US-004.
+- Files changed: `src/domain/distribution/balance.ts`, `src/domain/distribution/balance.test.ts`,
+  `src/domain/errors.ts`, `src/domain/errors.test.ts`, `src/app/notice-tier.ts`,
+  `scripts/ralph/prd.json`, this log.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1195 tests, domain/
+  and application/ still 100%), `npm run build`, `npx prettier --check` — all green.
+- **Learnings for future iterations:**
+  - **The test that ties the two functions together is `agrees with the plain sum`**
+    (`replayPayments(records).at(-1)?.balanceAfter === balanceOf(records)`), and it is deliberately
+    fed an out-of-order history — in date order it would also pass if the replay never sorted. If a
+    later change makes only this one red, the change has split one number into two answers.
+  - **`standingOf` compares against `askedCents`, never `priceCents`**, and the test that guards it is
+    `marks clearing an old debt as exact, not over`. Every other standing test passes either way,
+    because they are all weeks where the price *is* the amount asked for.
+  - The forward reference US-001 left (`{@link replayPayments} in US-29.2`) is now resolved and the
+    „in US-29.2" dropped — a `{@link}` is checked by nothing, so a story that fulfils one has to go
+    and close it by hand.
+  - **US-003 renames nothing in this module.** `PaidRecord` is intentionally *not*
+    `DistributionRecord`, so the schema change lands beside it rather than through it; the only
+    coupling is that `replayPayments` needs its rows to carry a `date`, which the record already has.
+  - Docs still untouched — US-010 owns every document in this batch (same reasoning as US-001).
+---

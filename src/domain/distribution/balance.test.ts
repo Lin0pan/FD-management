@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { amountToPay, balanceKind, balanceOf, type PaidRecord } from "./balance";
+import {
+  amountToPay,
+  balanceKind,
+  balanceOf,
+  type PaidRecord,
+  replayPayments,
+  standingOf,
+} from "./balance";
 
 /** One hand-out, described by the only two amounts the arithmetic reads. */
 function handOut(priceCents: number, paidCents: number): PaidRecord {
@@ -110,5 +117,110 @@ describe("the worked five-week table", () => {
       soFar.push(handOut(week.priceCents, week.paidCents));
       expect(balanceOf(soFar)).toBe(expectedBalances[index]);
     });
+  });
+});
+
+/** One hand-out as the replay sees it: the same two amounts, plus the day it happened. */
+function handOutOn(day: string, priceCents: number, paidCents: number) {
+  return { date: new Date(day), priceCents, paidCents };
+}
+
+describe("standingOf", () => {
+  it("marks a payment matching the amount asked as exact", () => {
+    expect(standingOf(500, 500)).toBe("EXACT");
+  });
+
+  it("marks a shortfall as short", () => {
+    expect(standingOf(200, 500)).toBe("SHORT");
+  });
+
+  it("marks a payment above the amount asked as over", () => {
+    expect(standingOf(700, 500)).toBe("OVER");
+  });
+
+  it("marks clearing an old debt as exact, not over", () => {
+    // Week 2 of the worked table: the price is 5,00 € but 8,00 € was asked, because 3,00 € was
+    // owed. Compared against the *price* the 8,00 € handed over would read as an overpayment and
+    // the record would mark a household settling its debt in the colour of one paying ahead.
+    const asked = amountToPay(500, -300);
+
+    expect(asked).toBe(800);
+    expect(standingOf(800, asked)).toBe("EXACT");
+  });
+
+  it("marks paying nothing on a settled account as short", () => {
+    expect(standingOf(0, 200)).toBe("SHORT");
+  });
+
+  it("marks paying nothing when nothing was asked as exact", () => {
+    // Week 4: the credit covered the week, so handing over nothing is exactly what was asked for.
+    expect(standingOf(0, 0)).toBe("EXACT");
+  });
+});
+
+describe("replayPayments", () => {
+  it("replays an empty history as nothing", () => {
+    expect(replayPayments([])).toEqual([]);
+  });
+
+  it("replays a history typed out of order", () => {
+    // The rows arrive newest first — which is how a register reads them — and the running balance
+    // is only meaningful oldest first, so the replay puts them in order itself.
+    const newestFirst = [handOutOn("2026-01-15", 500, 800), handOutOn("2026-01-08", 500, 200)];
+
+    const replayed = replayPayments(newestFirst);
+
+    expect(replayed.map((settlement) => settlement.record.date.toISOString())).toEqual([
+      new Date("2026-01-08").toISOString(),
+      new Date("2026-01-15").toISOString(),
+    ]);
+    expect(replayed.map((settlement) => settlement.askedCents)).toEqual([500, 800]);
+    expect(replayed.map((settlement) => settlement.balanceAfter)).toEqual([-300, 0]);
+  });
+
+  it("sorts a copy, leaving the caller's list as it was", () => {
+    const newestFirst = [handOutOn("2026-01-15", 500, 800), handOutOn("2026-01-08", 500, 200)];
+    const asPassed = [...newestFirst];
+
+    replayPayments(newestFirst);
+
+    expect(newestFirst).toEqual(asPassed);
+  });
+
+  it("states what was asked on the day, not what is asked today", () => {
+    // The whole worked five-week table, replayed in one call: each week's asked amount is the one
+    // the counter showed *that* day, derived from the balance of the weeks before it alone.
+    const history = [
+      handOutOn("2026-01-08", 500, 200),
+      handOutOn("2026-01-15", 500, 800),
+      handOutOn("2026-01-22", 200, 500),
+      handOutOn("2026-01-29", 200, 0),
+      handOutOn("2026-02-05", 200, 100),
+    ];
+
+    const replayed = replayPayments(history);
+
+    expect(replayed.map((settlement) => settlement.askedCents)).toEqual([500, 800, 200, 0, 100]);
+    expect(replayed.map((settlement) => settlement.balanceAfter)).toEqual([-300, 0, 300, 100, 0]);
+    expect(replayed.map((settlement) => settlement.standing)).toEqual([
+      "SHORT",
+      "EXACT",
+      "OVER",
+      "EXACT",
+      "EXACT",
+    ]);
+  });
+
+  it("agrees with the plain sum", () => {
+    // Two functions computing one number from the same rows must never be able to disagree: the
+    // record's balance is `balanceOf`, and the last row of the history it lists is this replay.
+    const history = [
+      handOutOn("2026-01-08", 500, 200),
+      handOutOn("2026-01-22", 200, 500),
+      handOutOn("2026-01-15", 500, 800),
+      handOutOn("2026-01-29", 200, 0),
+    ];
+
+    expect(replayPayments(history).at(-1)?.balanceAfter).toBe(balanceOf(history));
   });
 });
