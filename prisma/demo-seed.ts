@@ -186,10 +186,12 @@ interface HouseholdShape {
  * the register. Every other household pays what it was asked for, or — on the counted pattern below
  * — nothing at all.
  *
- *  - `OWES` hands over 2,00 € less than the day cost, once, and never makes it up: a standing debt.
- *  - `SETTLED_A_DEBT` is 3,00 € short one week and hands over exactly those 3,00 € on top the next,
- *    which is the case the counter's amount-to-pay exists for — and it ends back at zero.
- *  - `IN_CREDIT` hands over 5,00 € more than was asked, so as not to have to remember it next week.
+ *  - `OWES` hands over 2,00 € less than was asked, once, and pays only the week's own price after
+ *    that — so the debt stands rather than being settled by the next hand-out's asking price.
+ *  - `SETTLED_A_DEBT` is 3,00 € short one week and is asked for those 3,00 € on top the next, which
+ *    it hands over — the case the counter's amount-to-pay exists for — and it ends back at zero.
+ *  - `IN_CREDIT` hands over 5,00 € more than was asked, so as not to have to remember it next week,
+ *    and then pays each week's price so the credit stays where a screen can show it.
  */
 type PaymentHabit = "OWES" | "SETTLED_A_DEBT" | "IN_CREDIT";
 
@@ -199,7 +201,14 @@ const DEBT_CENTS = 300;
 const PAID_AHEAD_CENTS = 500;
 
 /**
- * What a scripted household hands over on its `visit`-th hand-out, or `null` to pay what was asked.
+ * What a scripted household hands over on its `visit`-th hand-out, or `null` to hand over exactly
+ * what the counter asked for.
+ *
+ * `askedCents` is what they were asked for that day — the price offset by whatever the household
+ * owed or had standing to them — and every script is written against it rather than against the
+ * price, because that is the figure the staff member reads out (US-29). Paying the bare
+ * `priceCents` is how a household leaves a balance exactly where it was: the week is covered and
+ * nothing is put towards the debt or taken out of the credit.
  *
  * The visit numbers are low on purpose: eight distribution days alternate RED and BLUE, so a
  * household sees about four of them and a no-show may take one of those away. A script that needed
@@ -208,18 +217,21 @@ const PAID_AHEAD_CENTS = 500;
 function scriptedPaymentCents(
   habit: PaymentHabit,
   visit: number,
+  askedCents: number,
   priceCents: number,
 ): number | null {
   switch (habit) {
     case "OWES":
-      return visit === 2 ? Math.max(0, priceCents - SHORT_BY_CENTS) : null;
-    case "SETTLED_A_DEBT":
       if (visit === 1) {
-        return Math.max(0, priceCents - DEBT_CENTS);
+        return null;
       }
-      return visit === 2 ? priceCents + DEBT_CENTS : null;
+      return visit === 2 ? Math.max(0, askedCents - SHORT_BY_CENTS) : priceCents;
+    case "SETTLED_A_DEBT":
+      // Short once. The next hand-out is asked for the debt on top and they hand it over, which is
+      // what an omitted amount already means — so there is nothing left to script.
+      return visit === 1 ? Math.max(0, askedCents - DEBT_CENTS) : null;
     case "IN_CREDIT":
-      return visit === 1 ? priceCents + PAID_AHEAD_CENTS : null;
+      return visit === 1 ? askedCents + PAID_AHEAD_CENTS : priceCents;
   }
 }
 
@@ -850,34 +862,42 @@ function distributionEvents(
           continue; // A no-show writes no record at all (US-05, FR-6).
         }
         servedSoFar += 1;
+        // Every hand-out is first written the ordinary way: no amount, which `recordAttendance`
+        // reads as "what the counter asked for" — the price plus whatever the household still owes.
+        // The record therefore comes back stating today's asking price, which is the figure both
+        // the scripted payments and the tally below are written against.
+        const record = await recordAttendance(deps, { customerId: id });
+        const askedCents = record.paidCents;
+        const visit = (visits.get(shape.key) ?? 0) + 1;
+        visits.set(shape.key, visit);
+
         // A scripted household's payments are the script's business alone (US-29): the counted
         // unpaid pattern would drop a zero into a history that exists to demonstrate one balance,
         // and the debt or credit it ended on would be an accident of the modulus. `servedSoFar`
         // counts them all the same, so which of the other households pay nothing is unchanged.
-        const paid = shape.paymentHabit !== undefined || servedSoFar % UNPAID_EVERY !== 0;
-        const record = await recordAttendance(deps, { customerId: id, paid });
+        let scripted: number | null = null;
+        if (shape.paymentHabit !== undefined) {
+          scripted = scriptedPaymentCents(shape.paymentHabit, visit, askedCents, record.priceCents);
+        } else if (servedSoFar % UNPAID_EVERY === 0) {
+          scripted = 0;
+        }
 
-        // The amount the household handed over. `recordAttendance` still takes the old flag and
-        // translates it (US-29.3), so a scripted payment is written straight after through the
-        // store — which is what a same-day correction does anyway. US-29.4 lets the amount be
-        // passed in and this second write goes away.
-        const visit = (visits.get(shape.key) ?? 0) + 1;
-        visits.set(shape.key, visit);
-        const scripted =
-          shape.paymentHabit === undefined
-            ? null
-            : scriptedPaymentCents(shape.paymentHabit, visit, record.priceCents);
-        const paidCents = scripted ?? record.paidCents;
+        // Anything other than paying what was asked is a second write through the store, which is
+        // what a same-day correction does anyway: neither the pattern nor a script can know the
+        // asking price before the hand-out that sets it.
+        const paidCents = scripted ?? askedCents;
         if (scripted !== null) {
           await deps.records.setPayment(record.id, scripted as Cents);
         }
 
         tally.handOuts += 1;
+        // Counted against what was asked, never against the price: a household handing over a
+        // capped price plus last week's debt has paid exactly what it owed, not paid ahead.
         if (paidCents === 0) {
           tally.unpaid += 1;
-        } else if (paidCents < record.priceCents) {
+        } else if (paidCents < askedCents) {
           tally.partPayments += 1;
-        } else if (paidCents > record.priceCents) {
+        } else if (paidCents > askedCents) {
           tally.paidAhead += 1;
         }
       }

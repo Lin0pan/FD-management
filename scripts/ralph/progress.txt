@@ -117,6 +117,14 @@ The `## Codebase Patterns` block below is CARRIED OVER from earlier batches on p
   decisions …“), and `npx prettier --write` chapter 9 — the appended row is narrower than the table
   and Prettier re-flows every row of it. Finish with `arc42.py check`, which sees structure and dead
   links but never staleness.
+- **A use case that already loads a customer's records must not load them twice.** `recordAttendance`
+  reads `listForCustomer` for the once-per-day guard and the balance both; `lookupCustomer` reads it
+  for `recordForDay`, `countNoShows` and the balance. One `const history = await …` at the top, and
+  everything derived from it — a second query is the thing US-04.3 and US-29 both forbid by name.
+- **An unreachable `?? fallback` fails the 100% branch gate.** Where a lookup cannot miss (a row that
+  came out of `findById` being in that customer's own list), reduce over the list with a ternary
+  instead of `find(...) ?? x` — both arms of the ternary are covered by any test with two rows, and
+  nothing pretends to handle a case that cannot arise.
 - **Two files carry the story range and neither is anybody's story:**
   `docs/architecture/01-introduction-and-goals.md` („one PRD per user story, US-01 to US-nn“) and
   the `tasks/` row of `docs/architecture/README.md` say the same thing, and both go stale on every
@@ -306,3 +314,59 @@ Five hazards, all stated in `prd.json` and worth reading twice:
     `select`, which typechecks against the *generated client* — so the rename is not caught by
     `tsc` on `src/` alone and would have failed only at run time. `grep -rn "paid" tests/e2e/`
     after any column rename.
+
+## 2026-08-28 — US-004 Recording and correcting a payment (application)
+- `RecordAttendanceInput.paid?: boolean` is now `paidCents?: Cents` + `overpaymentConfirmed?: boolean`.
+  `recordAttendance` derives the balance from the history **it already loaded** for the once-per-day
+  guard (one `listForCustomer`, no second query), then `amountToPay(allowance.priceCents, balance)`.
+  An omitted amount **is** that figure; above it without confirmation throws `OverpaymentNotConfirmed`
+  and writes nothing; below it — down to 0 — is written silently. Guard order unchanged and now stated
+  in the doc comment: eligibility → once-per-day → payment. Audit `changedFields` is
+  `["showedUp", "paidCents", "priceCents"]`.
+- `CorrectAttendanceInput`'s `SET_PAID` is now `SET_PAYMENT` with `paidCents` and
+  `overpaymentConfirmed?`; `REMOVE` untouched. The correction judges the amount against
+  **what was asked on that record's own day**, from `replayPayments` over `listForCustomer`, and
+  audits `["paidCents"]`. Removal gained no code at all — a named test asserts the balance returns to
+  what it was, which is the property derive-don't-store was chosen for.
+- The **US-29.3 bridge is gone from both use cases**. The two that remain belong to later stories:
+  `lookupCustomer`'s `TodaysRecordView.paid` (US-29.5) and `history-paid` in
+  `src/app/kunden/[id]/page.tsx` (US-29.8).
+- A **new, smaller bridge in `app/`** takes its place, because US-29.7 still owns the amount field:
+  the serve checkbox maps to `paidCents: undefined` (= what was asked) or `0`, and the correction
+  checkbox maps to the day's price, carried into the action as a hidden `priceCents` field off
+  `counter.lookup.customer.priceCents`. `grep -rn "US-29.4" src/` finds all four sites.
+- `prisma/demo-seed.ts` reworked: every hand-out is first written with **no amount** (so the record
+  states what was asked), and every deviation — the counted unpaid pattern and the three scripted
+  habits alike — is a second write through `setPayment`. Scripts are written against `askedCents`,
+  and the tally counts part payments and paid-ahead against it too.
+- Files changed: `src/application/distribution/{record,correct}-attendance{,.test}.ts`,
+  `src/application/allowance/describe-allowance.ts` (stale „keeps only a paid flag" comment),
+  `src/app/ausgabe/{actions.ts,page.tsx,serve-controls.tsx}`, `prisma/demo-seed.ts`,
+  `scripts/ralph/prd.json`, this log.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1209 tests, domain/
+  and application/ still 100%), `npm run build`, `npx prettier --write` on the touched files,
+  `npm run test:e2e` (177 passed) and `npm run test:e2e:webkit` (177 passed) — all green.
+  `npm run db:reset && npm run db:demo` run, and the fixture **verified by querying the database**.
+- **Learnings for future iterations:**
+  - **The balance changes what an unpaid week means in the seed, and it is not a bug.** A household
+    that pays nothing is asked for the price *plus the debt* at its next hand-out and — paying the
+    default — settles it. So the counted `UNPAID_EVERY` pattern no longer leaves standing debts: only
+    the households whose last hand-out was the unpaid one end negative (11 Maier −4,00 €, 15 Kneifel
+    −5,00 €). The three scripted ones come out at exactly −2,00 €, 0,00 € and +5,00 € as designed.
+  - **A demo script written against the price is wrong now; write it against `askedCents`.** `OWES`
+    and `IN_CREDIT` also need every *later* visit pinned to `record.priceCents` — paying the default
+    would settle the debt or eat the credit, and the register would have neither state left to show.
+    Paying exactly the price is how a household leaves a balance where it was.
+  - **The `askedCents` for a past record cannot be looked up, only replayed** — and the replay must
+    not fold in the record's own payment. `correctAttendance` reads it off the settlement whose
+    `record.id` matches, with a `reduce` rather than a `find`: a `find` needs a `?? fallback` for a
+    case that cannot happen, and that unreachable arm fails the 100% branch gate. The reduce's
+    ternary is covered by any test with two records.
+  - **`counter.lookup.customer.priceCents` already exists** (`counter-lookup.tsx` renders it), so an
+    app-layer bridge that needs the day's price does **not** need a new field on `TodaysRecordView` —
+    the page hands it to `ServeControls` directly. Worth checking before widening an application view
+    for something a sibling component already has.
+  - The correction bridge passes `overpaymentConfirmed: true`, deliberately: ticking the box writes
+    the day's price, which for a household in credit is more than they were asked for, and a checkbox
+    offers no way to answer the confirmation it would otherwise raise.
+---

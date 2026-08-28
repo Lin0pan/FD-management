@@ -13,6 +13,12 @@
  *
  * A `<input type="checkbox">` submits nothing when unchecked, so `paid` is read as the mere presence
  * of the field — the standard HTML-form idiom, and the reason the box is pre-checked in the markup.
+ *
+ * **The paid checkbox is a bridge, and a temporary one (US-29.4).** A hand-out now records the
+ * *amount* a household handed over, and a flag cannot say an amount, so a ticked box is translated
+ * here into the figure it has always meant: the amount asked for when a hand-out is recorded, and
+ * today's price when one is corrected. US-29.7 replaces the box with the amount field DF are to
+ * type into, and both translations go with it.
  */
 
 import { revalidatePath } from "next/cache";
@@ -43,6 +49,15 @@ import type { CorrectState, ReminderState, RenewalState, ServeState } from "./se
 
 /** A surrogate id as a hidden form field carries it — a positive whole number, or the form is stale. */
 const surrogateId = z
+  .string()
+  .regex(/^\d+$/)
+  .transform((value): number => Number(value));
+
+/**
+ * A whole number of cents as a hidden form field carries it — part of the US-29.4 bridge, and gone
+ * with it (US-29.7), by which point the only amount on this form comes from `parseEuros`.
+ */
+const centsField = z
   .string()
   .regex(/^\d+$/)
   .transform((value): number => Number(value));
@@ -119,8 +134,10 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
 
   try {
     const record = await recordAttendance(counterActionDeps, {
+      // The US-29.4 bridge: a ticked box is the household handing over what they were asked for,
+      // which is what an omitted amount already means, and a cleared one is handing over nothing.
+      paidCents: formData.get("paid") !== null ? undefined : 0,
       customerId: customerId.data,
-      paid: formData.get("paid") !== null,
     });
     revalidatePath("/ausgabe");
     return { status: "recorded", at: germanTime(record.date) };
@@ -130,11 +147,11 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
 }
 
 /**
- * Amend or remove today's record. The clicked button names the intent through `action`: `SET_PAID`
+ * Amend or remove today's record. The clicked button names the intent through `action`: `SET_PAYMENT`
  * writes the checkbox's new value, `REMOVE` deletes the record after the form's confirmation step.
  *
  * The two answers leave by different routes, because a removal destroys the card that would show it.
- * `SET_PAID` comes back as `saved` and is read beside the button. `REMOVE` makes `todaysRecord` null,
+ * `SET_PAYMENT` comes back as `saved` and is read beside the button. `REMOVE` makes `todaysRecord` null,
  * so the whole correction card unmounts and takes the state holding the answer with it — which is
  * why this action's `removed` result was, for its whole life, a branch no component could render.
  * It redirects instead, keeping the number that was looked up so the household stays on screen,
@@ -150,13 +167,28 @@ export async function correctServe(
     return { status: "error", message: de.distribution.serve.errors.notFound, tier: "error" };
   }
   const remove = formData.get("action") === "REMOVE";
+  // The other half of the US-29.4 bridge: the ticked box is the day's price handed over, which is
+  // what the flag has always meant, and it rides along as a hidden field because the box cannot
+  // carry a number of its own.
+  const priceCents = centsField.safeParse(String(formData.get("priceCents") ?? ""));
+  if (!remove && !priceCents.success) {
+    return { status: "error", message: de.distribution.serve.errors.notFound, tier: "error" };
+  }
 
   try {
     await correctAttendance(
       counterActionDeps,
       remove
         ? { recordId: recordId.data, action: "REMOVE" }
-        : { recordId: recordId.data, action: "SET_PAID", paid: formData.get("paid") !== null },
+        : {
+            recordId: recordId.data,
+            action: "SET_PAYMENT",
+            paidCents: formData.get("paid") !== null && priceCents.success ? priceCents.data : 0,
+            // Ticking writes the day's price exactly as it always has. For a household in credit
+            // that is more than they were asked for, and the checkbox offers no way to answer the
+            // question, so the bridge confirms it rather than refusing a correction it offers.
+            overpaymentConfirmed: true,
+          },
     );
     revalidatePath("/ausgabe");
   } catch (error: unknown) {

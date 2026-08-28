@@ -4,16 +4,31 @@
  *
  * A record is mutable only on the Berlin day it was made (`canCorrect`); by the next day it is part
  * of the permanent history and this refuses with {@link RecordNoLongerCorrectable}. Two corrections
- * are offered, both same-day: flip the `paid` flag (a mistyped payment), or remove the record
- * outright (served the wrong customer). Removal is the single deletion the store permits — the
- * distribution history is otherwise append-only and never rewritten after the fact.
+ * are offered, both same-day: set the amount that was handed over — a mistyped payment, or a
+ * household that came back with the rest before the day was out — or remove the record outright
+ * (served the wrong customer). Removal is the single deletion the store permits: the distribution
+ * history is otherwise append-only and never rewritten after the fact.
+ *
+ * **A removal needs no code of its own to put the balance back** (US-29, rule 9). The balance is the
+ * arithmetic of the surviving rows, so deleting a record deletes its payment with it and the
+ * household returns to exactly where they stood — the property the derive-don't-store choice was
+ * made for, and an application test says so.
+ *
+ * **A new payment is judged against what was asked for on that record's own day**, replayed from the
+ * customer's history. Today's amount to pay is the wrong figure: it already has this record's own
+ * payment folded into it, so a household settling an old debt would read as paying ahead.
  *
  * Each correction writes its own audit entry; no reason is required, because the event name and the
  * changed field already say what happened (the same judgement `updateSettings` makes).
  */
 
 import { canCorrect } from "@/domain/distribution/attendance";
-import { DistributionRecordNotFound, RecordNoLongerCorrectable } from "@/domain/errors";
+import { replayPayments } from "@/domain/distribution/balance";
+import {
+  DistributionRecordNotFound,
+  OverpaymentNotConfirmed,
+  RecordNoLongerCorrectable,
+} from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 import type { AuditLog, Clock, DistributionRecordRepository } from "../ports";
 
@@ -28,11 +43,20 @@ export interface CorrectAttendanceDeps {
 }
 
 /**
- * What to do to the record: set its paid flag to a new value, or remove it. A discriminated union so
- * the caller states exactly one intent and the use case has no third, undefined case to handle.
+ * What to do to the record: set the amount that was handed over, or remove it. A discriminated union
+ * so the caller states exactly one intent and the use case has no third, undefined case to handle.
+ *
+ * `paidCents` is trusted to be a whole, non-negative amount: `parseEuros` refuses anything else at
+ * the form boundary (US-29.7), and this layer does not re-check it.
  */
 export type CorrectAttendanceInput =
-  | { readonly recordId: number; readonly action: "SET_PAID"; readonly paid: boolean }
+  | {
+      readonly recordId: number;
+      readonly action: "SET_PAYMENT";
+      readonly paidCents: Cents;
+      /** That an amount above what was asked for that day was meant — see `recordAttendance`. */
+      readonly overpaymentConfirmed?: boolean;
+    }
   | { readonly recordId: number; readonly action: "REMOVE" };
 
 /**
@@ -40,6 +64,7 @@ export type CorrectAttendanceInput =
  *
  * @throws {DistributionRecordNotFound} if no record holds `recordId`.
  * @throws {RecordNoLongerCorrectable} if the record was made before today's Berlin day.
+ * @throws {OverpaymentNotConfirmed} if more than that day's amount was handed over unconfirmed.
  */
 export async function correctAttendance(
   deps: CorrectAttendanceDeps,
@@ -66,12 +91,24 @@ export async function correctAttendance(
     return;
   }
 
-  // The bridge US-29.3 leaves standing: the flag becomes the full price or nothing, which is what
-  // the record has always meant. US-29.4 replaces the flag with the amount staff collected.
-  await deps.records.setPayment(input.recordId, input.paid ? record.priceCents : (0 as Cents));
+  // What the counter asked for on the day this record was made. Nothing stores it, so the customer's
+  // history is replayed and the row belonging to this record read off the walk — its `askedCents` is
+  // the price offset by the balance of the *earlier* hand-outs only, which is the figure a staff
+  // member had in front of them. The record came out of `findById`, so it is one of these rows.
+  const settlements = replayPayments(await deps.records.listForCustomer(record.customerId));
+  const askedCents = settlements.reduce(
+    (asked, settlement) =>
+      settlement.record.id === input.recordId ? settlement.askedCents : asked,
+    record.priceCents,
+  );
+  if (input.paidCents > askedCents && input.overpaymentConfirmed !== true) {
+    throw new OverpaymentNotConfirmed(input.paidCents, askedCents);
+  }
+
+  await deps.records.setPayment(input.recordId, input.paidCents);
   await deps.audit.append({
     what: DISTRIBUTION_CORRECTED,
-    changedFields: ["paid"],
+    changedFields: ["paidCents"],
     when: now,
     why: "",
   });

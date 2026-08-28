@@ -487,6 +487,7 @@ export default async function DistributionPage({
                           recordId: counter.lookup.todaysRecord.recordId,
                           time: germanTime(counter.lookup.todaysRecord.at),
                           paid: counter.lookup.todaysRecord.paid,
+                          priceCents: counter.lookup.customer.priceCents,
                         }
                   }
                 />

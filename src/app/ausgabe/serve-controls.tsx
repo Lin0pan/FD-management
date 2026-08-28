@@ -31,6 +31,14 @@ export interface TodaysRecordProps {
   readonly recordId: number;
   readonly time: string;
   readonly paid: boolean;
+  /**
+   * The price the household draws today, carried into the correction form as a hidden field.
+   *
+   * **A bridge, and a temporary one (US-29.4).** The correction still offers a checkbox, and a flag
+   * cannot say an amount — `correctAttendance` now takes one — so the ticked box is translated into
+   * this price in the action. US-29.7 replaces the checkbox with the amount field and both go.
+   */
+  readonly priceCents: number;
 }
 
 /**
@@ -132,6 +140,8 @@ export function ServeControls({
           <form action={correct} className="flex flex-col gap-3">
             <input type="hidden" name="recordId" value={todaysRecord.recordId} />
             <input type="hidden" name="nummer" value={lookedUpNumber} />
+            {/* The US-29.4 bridge: what a ticked box means in cents. Removed with the box (US-29.7). */}
+            <input type="hidden" name="priceCents" value={todaysRecord.priceCents} />
             <h3 className="font-heading text-base font-medium">
               {de.distribution.serve.correct.heading}
             </h3>
@@ -140,7 +150,7 @@ export function ServeControls({
               <Button
                 type="submit"
                 name="action"
-                value="SET_PAID"
+                value="SET_PAYMENT"
                 variant="outline"
                 disabled={correcting}
                 data-testid="correct-save"
