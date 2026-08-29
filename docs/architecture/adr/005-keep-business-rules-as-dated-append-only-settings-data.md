@@ -16,6 +16,15 @@ with no IT staff means "not changeable". At the same time a distribution record 
 flag and never an amount, so the only way to answer _what did that household owe last March_ is to
 know which policy was in force then.
 
+> ⚠️ **Later note, 2026-08-29 — the second half of that paragraph no longer describes the schema, and
+> is left standing because it is the reasoning that was true on the day.** A distribution record has
+> since gained `priceCents` (deliberate redundancy, [ADR-007](007-derive-anything-computable-rather-than-storing-it.md)),
+> and in US-29 the `paid` flag became `paidCents` — **the amount handed over**, from which the
+> household's balance is derived ([ADR-015](015-derive-the-customer-balance-from-the-hand-out-history-never-store-it.md)).
+> What a past distribution cost is therefore now readable from the record itself. **The decision
+> below is unaffected**: DF still change these numbers, and the version history is still what makes a
+> past change legible.
+
 ## Considered options
 
 - **Append-only, clock-stamped versions of the whole settings set** — chosen.

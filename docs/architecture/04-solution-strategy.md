@@ -1,6 +1,6 @@
 # 4. Solution strategy
 
-_Last reviewed: 2026-08-25_
+_Last reviewed: 2026-08-29_
 
 Six statements. Each names an approach, why it was taken given a goal or constraint, what it makes
 easier and what it makes harder, and where the full reasoning lives.
@@ -62,9 +62,11 @@ reminder escalation: whether an expired certificate ends in archiving is a judge
 
 ## 4. Derive anything computable; a stored duplicate needs an argument
 
-**Approach.** Household composition, price, card validity, certificate state and week colour are
-computed at the point of use. Four stored duplicates exist and each carries its
-justification in the schema.
+**Approach.** Household composition, price, card validity, certificate state, week colour and a
+household's balance are computed at the point of use. Four stored duplicates exist and each carries
+its justification in the schema. The balance is the most recent thing that was **not** allowed to
+become a fifth: a running total is the classic candidate, and a stored one beside the hand-outs that
+produce it would be two answers to one question.
 
 **Rationale.** The drifting typed-in counts in DF's spreadsheet are the specific failure this system
 was built to remove ([goal 2](01-introduction-and-goals.md#quality-goals)).
@@ -76,7 +78,8 @@ clause: the cards-due-for-reissue comparison reads the whole register, accepted 
 rows.
 
 → [ADR-007](adr/007-derive-anything-computable-rather-than-storing-it.md),
-[ADR-008](adr/008-treat-a-customer-number-as-a-reusable-slot-not-an-identity.md)
+[ADR-008](adr/008-treat-a-customer-number-as-a-reusable-slot-not-an-identity.md),
+[ADR-015](adr/015-derive-the-customer-balance-from-the-hand-out-history-never-store-it.md)
 
 ## 5. The database is the final authority on every hard invariant
 

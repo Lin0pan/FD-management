@@ -3,6 +3,13 @@
 > Source story: `docs/archiv/user_stories_mvp.md` §US-05 (Tier 1). Depends on **US-04** (lookup and verdict)
 > and **US-07** (price). Feeds **US-10** (no-show driven archiving) and the deferred reporting work.
 
+> ⚠️ **Payment is no longer a flag — superseded by [US-29](prd-us-29-customer-balance.md)
+> (2026-08-28).** A record now stores `paidCents`, the amount the household handed over, and one
+> balance per household is derived from that history. Everything below that says `paid`, `true` or
+> `false` is the requirement as it was written, kept as the record of what was asked for; read US-29
+> for what is built. The rest of this PRD — one hand-out per Berlin day, the price captured on the
+> record, correction and removal on the same day only — still stands.
+
 ## 1. Introduction
 
 When a customer has been looked up and is clear to serve, one action must record that they showed up

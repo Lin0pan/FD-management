@@ -1,6 +1,6 @@
 # 6. Runtime view
 
-_Last reviewed: 2026-08-25_
+_Last reviewed: 2026-08-29_
 
 Four scenarios, chosen for what they reveal rather than for how easily they draw. Participants are
 named as in [chapter 5](05-building-block-view.md). The failure paths are the point — they are where
@@ -9,7 +9,7 @@ the architecture actually lives.
 ## Scenario 1 — serving a household at the counter
 
 **Intention:** a staff member has a card number in front of them and must answer one question: may
-this household collect today, and what do they owe?
+this household collect today, and what do they hand over?
 
 ```mermaid
 sequenceDiagram
@@ -18,6 +18,7 @@ sequenceDiagram
     participant Lookup as lookupCustomer
     participant Verdict as evaluateAtCounter
     participant Allow as describeAllowance
+    participant Balance as balance.ts
     participant Repo as CustomerRepository
     participant Record as recordAttendance
     participant DB as SQLite
@@ -30,12 +31,19 @@ sequenceDiagram
     Verdict-->>Lookup: exactly one verdict
     Lookup->>Allow: composition + settings in force now
     Allow-->>Lookup: counts, price (capped), eggs
+    Lookup->>Balance: the household's hand-outs, read once
+    Balance-->>Lookup: balance, amount to pay, the settled history
     Lookup-->>Page: verdict + everything beneath it
-    Page-->>Staff: one banner, counts, amount to charge
+    Page-->>Staff: one banner, counts, balance,<br/>amount to pay pre-filled in the field
 
-    Staff->>Record: confirms the hand-out
+    Staff->>Record: confirms the amount, or overwrites it
     Record->>Verdict: re-evaluates — the screen is not the only caller
-    Record->>DB: INSERT (customerId, dayKey, paid, priceCents)
+    Record->>Balance: re-derives the amount to pay from the history
+    alt more was handed over than was asked for
+        Record-->>Staff: OverpaymentNotConfirmed — asks once, writes nothing
+        Staff->>Record: submits again, overpayment confirmed
+    end
+    Record->>DB: INSERT (customerId, dayKey, paidCents, priceCents)
     DB-->>Record: OK
     Record->>DB: append audit entry distribution.recorded
 ```
@@ -45,6 +53,22 @@ assembled from conditions in JSX. Its `statementFor` ends in a `never`-typed def
 ninth verdict is a compile error until the counter renders it — no answer can ever be a blank banner.
 The price stored on the record is the same one the staff member saw, because both come from
 `describeAllowance` reading the clock once.
+
+**Money is an amount, not a flag.** The counter does not ask whether the household paid; it shows
+what they owe — the week's price offset by their balance — and collects the amount actually handed
+over. Both the balance and the amount to pay are derived from the hand-outs the use case has already
+loaded ([ADR-015](adr/015-derive-the-customer-balance-from-the-hand-out-history-never-store-it.md)),
+so the counter issues no second query for them. The field arrives pre-filled with the amount to pay
+and is normally just confirmed; a staff member may overwrite it with less (a part payment) or with
+more (paying ahead), and what is stored is what was handed over.
+
+**Key exception — more than was asked for.** `recordAttendance` re-derives the amount to pay from the
+history rather than trusting the figure the screen showed, and refuses a larger payment with
+`OverpaymentNotConfirmed` — **writing nothing**. The staff member is asked once and submits again
+with the confirmation, which is how a mistyped 50,00 € is caught while it is still only a number in a
+field. `correctAttendance` guards the same way against the amount that was asked for that day, and
+both may only touch a record made **today**: a mistake found later is put right by a compensating
+amount at the household's next hand-out, which the balance absorbs by construction.
 
 **Key exception — already served today.** `canRecord` refuses a second hand-out on the same
 _Europe/Berlin_ calendar day and nothing is written. If two requests race past that guard, the

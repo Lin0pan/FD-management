@@ -1,6 +1,6 @@
 # 8. Cross-cutting concepts
 
-_Last reviewed: 2026-08-25_
+_Last reviewed: 2026-08-29_
 
 The rules that apply everywhere, so that five modules do not solve one problem five ways. Each says
 what it is, why it exists, the rules that follow, and where it shows up. The "why did we choose this
@@ -54,7 +54,7 @@ erDiagram
     }
     DistributionRecord {
         string dayKey "Europe/Berlin YYYY-MM-DD"
-        boolean paid "a flag, never an amount"
+        int paidCents "the amount handed over"
         int priceCents "deliberate redundancy"
     }
     WaitingListEntry {
@@ -149,8 +149,23 @@ Policy is `SettingsVersion` rows, not constants — [ADR-005](adr/005-keep-busin
   rather than `Intl`, so output is deterministic across runtimes.
 - Euro text becomes whole cents in the server action, before anything leaves it. `parseEuros` throws
   `InvalidEuroAmount`.
-- A distribution record stores a `paid` **flag**, never an amount — plus `priceCents`, which is what
-  the household owed under the policy in force that day.
+- A distribution record stores `paidCents` — **the amount handed over**, never a flag — plus
+  `priceCents`, which is what the household owed under the policy in force that day. The two differ
+  whenever a household pays part of what it owes, or pays ahead, which is the case a boolean lost.
+- **The balance is derived and signed.** A household's balance is `Σ (paidCents − priceCents)` over
+  its own hand-outs, computed in `src/domain/distribution/balance.ts` and stored nowhere
+  ([ADR-015](adr/015-derive-the-customer-balance-from-the-hand-out-history-never-store-it.md)).
+  Negative means the household owes DF money, positive that they have paid ahead — and it is the one
+  quantity in the system where the sign carries meaning, every other amount being a price and
+  therefore never below zero.
+- The sign is read in **exactly one place**: `balanceKind` names a balance `CREDIT`, `DEBT` or
+  `SETTLED`, and every screen words that answer — „Guthaben 2,00 €“, „Offen 2,00 €“,
+  „ausgeglichen“ — instead of comparing to zero itself. That is what keeps the rule from being
+  re-decided one screen at a time.
+- What to collect today is `max(0, priceCents − balance)`: a debt raises it, a credit lowers it, and
+  it never goes below zero because credit is never paid out in cash. The **Maximalpreis caps the
+  price, not the amount asked for** — an old debt is added on top of a capped price and is not itself
+  capped.
 
 ## Errors and feedback
 

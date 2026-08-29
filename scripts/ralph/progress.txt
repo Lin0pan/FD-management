@@ -238,6 +238,21 @@ Five hazards, all stated in `prd.json` and worth reading twice:
   bullet above — eggs took 331–334, so start at 341). It also needs a **second distribution day**;
   `tests/e2e/day.ts` already does that for the age-13 and reminder specs. Both engines, registers of
   its own.
+- **The doc sweep at the end of a batch has a fixed list, and two of its entries are not obvious.**
+  A cross-cutting change (a schema field, a new derivation) reaches: chapter 3's "explicitly not
+  neighbours" paragraph, chapter 4's strategy section on the rule it touches, chapter 5's module
+  count *and* its per-module and per-port descriptions, chapter 6's scenario, chapter 8's concept
+  section **and its ER diagram** (`08` draws the columns, so a renamed field is wrong in two places),
+  chapter 11 (its own rule: re-read whenever an ADR is added), chapter 12's glossary, `tasks/README.md`
+  §Seed values, and `docs/handout/` + its README row. `grep -rn '<old field name>' docs/ tasks/` is the
+  check, and `python3 .claude/skills/arc42/scripts/arc42.py check` catches only the mechanical faults.
+- **A superseded fact inside an accepted ADR or an old PRD is ANNOTATED, never rewritten.** ADR-005's
+  context said a record stores only a `paid` flag; it keeps saying so, under a dated `> ⚠️ Later note`
+  block that names what changed, links the new ADR and says the decision below is unaffected — the
+  same shape chapter 9's log already uses for the row ADR-013 superseded. Old PRDs get the same
+  treatment (US-05 carries a banner under its source line; US-14, US-26 and US-28 carry an inline
+  parenthesis), because a PRD is the record of what was asked for. "No document claims X" is satisfied
+  by the note, not by a deletion.
 ---
 
 ## 2026-08-28 — US-001 The balance arithmetic (domain)
@@ -670,4 +685,59 @@ Five hazards, all stated in `prd.json` and worth reading twice:
     already says is testing the query, not the chain.
   - Docs still untouched — **US-010 owns every document in this batch**, as US-001..008 each
     recorded, and it is now the only story left.
+---
+
+## 2026-08-29 — US-010 The documents describe the balance, and an ADR records the derivation
+- **ADR-015 „derive the customer balance from the hand-out history, never store it“**, scaffolded
+  with `arc42.py new-adr` so it got its number and its chapter 9 row in one step, then written out
+  and set `Accepted` in both places. Its point is that the balance is **not** a fourth exception to
+  ADR-007: the considered options name the stored-column-in-the-same-transaction variant and say why
+  the transaction closes the obvious hole and leaves the real one, and the consequences state the
+  replay cost out loud (~50 rows a year, ~240 households) rather than implying it is free.
+- Chapter 9's intro count fourteen → fifteen. Chapter 5: 26 → 27 domain modules, `balance.ts` named
+  as the second module worth naming individually, `distribution/`'s responsibility line and the
+  `DistributionRecordRepository` row („set paid“ → „amend the amount handed over“). Chapter 6's
+  counter scenario redrawn — a `balance.ts` participant, the pre-filled field, an `alt` block for the
+  overpayment refusal, and `INSERT (…, paidCents, priceCents)` — with two new paragraphs, one of them
+  the exception that **nothing is written** while the question is being asked. Chapter 8's ER diagram
+  (`boolean paid` → `int paidCents`) and §Money, which gains the signed, derived balance and names
+  `balanceKind` as the one place the sign is read. Chapter 3's „explicitly not neighbours“ paragraph.
+  Chapter 4 §4 and its ADR arrow. Chapter 12 gains a **Balance** row. Chapter 11 carried no paid-flag
+  claim, but its own rule is to be re-read whenever an ADR lands, so it gains a debt row for the
+  replay (accepted, not scheduled) and its stale „PRDs through US-26“ is now US-29.
+- `docs/handout/betriebsanleitung.md` gains **Saldo — Guthaben und offene Beträge**: a three-row table
+  for the three standings, „Zu zahlen“ against „Preis“, then **Beim Erfassen** (the field is pre-filled
+  and normally just confirmed; less is a part payment; more is asked about once; **0** is allowed and
+  the household is served anyway) and **Einen Fehler berichtigen** — same-day only, and the
+  compensating amount at the next hand-out as a pull quote, because that procedure is the section's
+  reason to exist. Handout README row updated with it.
+- `tasks/README.md` §Seed values gains the balance paragraph (offsets the price, floors at zero, and
+  is **not** capped). §Index untouched, by the criterion.
+- Files changed: `docs/architecture/adr/015-*.md` (new), `docs/architecture/adr/005-*.md`,
+  `docs/architecture/03,04,05,06,08,09,11,12`, `docs/handout/betriebsanleitung.md`,
+  `docs/handout/README.md`, `tasks/README.md`, `tasks/prd-us-05|14|26|28-*.md`,
+  `scripts/ralph/prd.json`, this log.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1224 tests, domain/
+  and application/ still 100%), `npm run build`, `npx prettier --check .` and
+  `arc42.py check` (no errors; the two open TODOs are chapter 7's pre-existing ones) — all green.
+  Documentation-only story: no e2e re-run and no browser pass, nothing rendered changed.
+- **Learnings for future iterations:**
+  - **Every placement claim in the handout had to be checked against the code, and two were wrong on
+    the first draft.** The balance is not „ganz oben“ on the customer record — it sits in the
+    `CardAction` of the **Bisherige Ausgaben** fold — and the correction controls are on **/ausgabe**,
+    not on the customer page, because `serve-controls.tsx` owns them. A handout that sends a volunteer
+    to the wrong screen is worse than no handout; `grep` for the German string in `de.ts` and then for
+    its component is the check, and it is cheap.
+  - **Quote the UI, do not paraphrase it.** Every German term in the new section is copied from
+    `src/i18n/de.ts` („Betrag“, „Ausgabe erfassen“, „Heutigen Eintrag korrigieren“, „Betrag speichern“,
+    „Eintrag entfernen“, „Guthaben“, „Offen“, „ausgeglichen“, „Zu zahlen“). A paraphrase is a second
+    vocabulary DF then has to map onto the screen.
+  - **`„…"` with a straight closing quote is a Python syntax error waiting to happen** in a
+    `python3 - <<'PY'` heredoc using `"` string delimiters — the closing quote ends the literal. Use
+    the proper `„…“` pair (which is also correct German) or `'''…'''`.
+  - **Two counts in chapter 5 go stale silently**: „26 modules in four families“ and the ports table.
+    `find src/domain -name '*.ts' ! -name '*.test.ts' | wc -l` is the check, and it matched exactly —
+    so the count is maintained and worth keeping right.
+  - The batch is complete: US-001..010 all pass. What is left for a human is the **real-Safari pass**
+    US-008 asked for (WebKit is not Safari) and reading the German section aloud to DF.
 ---
