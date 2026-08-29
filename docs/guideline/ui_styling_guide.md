@@ -143,13 +143,14 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   `bg-primary`. Never `text-foreground/70`, `border-foreground/20`, `bg-foreground/5`.
 - **`src/app/accents.ts` is the list of permitted literal colours**, each reserved for one meaning:
 
-  | Export                    | Meaning                                    |
-  | ------------------------- | ------------------------------------------ |
-  | `GROUP_STYLES`            | the RED / BLUE printed card                |
-  | `FREE_SLOT_ACCENT`        | a customer number is free, somebody waits  |
-  | `CONFIRMATION_ACCENT`     | a write went through                       |
-  | `REFUSAL_ACCENT`          | a write was refused, nothing is broken     |
-  | `PAYMENT_STANDING_STYLES` | a hand-out was paid short, exactly or over |
+  | Export                    | Meaning                                      |
+  | ------------------------- | -------------------------------------------- |
+  | `GROUP_STYLES`            | the RED / BLUE printed card                  |
+  | `FREE_SLOT_ACCENT`        | a customer number is free, somebody waits    |
+  | `CONFIRMATION_ACCENT`     | a write went through                         |
+  | `REFUSAL_ACCENT`          | a write was refused, nothing is broken       |
+  | `PAYMENT_STANDING_STYLES` | a hand-out was paid short, exactly or over   |
+  | `BALANCE_STYLES`          | a household owes, has paid ahead, or neither |
 
   **Before painting a state, look for it there.** If it is not listed, the question is what the state
   means, not which green — and the answer is a new named export in that file, never a tint in a
@@ -159,7 +160,12 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   screen's job: the counter's traffic light (`ausgabe/counter-lookup.tsx`) and the two
   full-strength submit buttons that follow it (`serve-controls.tsx`, `certificate-controls.tsx`).
 - **A meaning gets one colour application-wide**, and two unrelated meanings must not share a tint on
-  one screen. A second _weight_ of a meaning is still that meaning and belongs in `accents.ts` beside
+  one screen. `BALANCE_STYLES` and `PAYMENT_STANDING_STYLES` share red-500 and blue-500 on purpose
+  and are the worked example of the rule rather than a breach of it: a hand-out paid short and a
+  household carrying a debt are one meaning — money is owed — read at two altitudes. `BALANCE_STYLES`
+  is a **fill without a border**, because every `Stat` tile is borderless and outlining one of five on
+  a row would make it a different kind of object; a settled balance is `null` and keeps `bg-muted/50`,
+  since colour there means _something is standing_. A second _weight_ of a meaning is still that meaning and belongs in `accents.ts` beside
   the first, not in a screen. Two are currently hand-written and must not be copied further: the
   solid group fill (`bg-red-600` / `bg-blue-700`, against `GROUP_STYLES`' tint) exists in
   `ausgabe/page.tsx` and `kunden/[id]/karte/page.tsx`, and "the certificate has lapsed" is written as
@@ -361,6 +367,14 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   number is how two screens come to disagree.
 - Number and date **shapes** come from `src/i18n/format.ts` (dates in UTC, times in Europe/Berlin) and
   `src/domain/money.ts`. Never format inline.
+- **An amount that runs two ways is written with a sign, never with a direction word.** „+2,00 €“ and
+  „−2,00 €“, through `signedAmount` in `src/i18n/de.ts` — not „Guthaben 2,00 €“, not „2,00 € offen“.
+  A sign scans down a column of figures where a trailing word does not, and it is one glyph at the
+  distance a counter is read from. The glyph is U+2212, not a hyphen. The **zero case stays a word**
+  — „ausgeglichen“, „genau“ — because a signed zero reads as an amount that happens to be nothing
+  rather than as the state of being in neither direction. Two quantities are written this way today,
+  the customer balance and a payment's standing; a third joins them rather than inventing a third
+  vocabulary.
 - Hints are siblings with `aria-describedby`, never `<span>`s inside the label — nested, they are
   concatenated into the accessible name.
 - **A long label is a dictionary problem, not a layout one.** Shorter true words, not a wider box.

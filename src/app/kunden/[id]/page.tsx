@@ -318,7 +318,8 @@ function History({
               <TableCell data-testid="history-paid" className="tabular-nums">
                 {/* The amount first and the mark after it, wrapping rather than squeezing: the
                     figures down the column stay aligned with the Gefordert ones beside them, and
-                    the word is what carries the meaning at any width. */}
+                    the mark's own text — a signed amount, or „genau“ — is what carries the meaning
+                    at any width, the badge's tint only repeating it. */}
                 <span className="flex flex-wrap items-center gap-2">
                   {formatEuros(record.paidCents)}
                   <Badge
@@ -645,9 +646,12 @@ function CustomerRecord({
                   The balance goes here and **not** into a fifth tile beside Erwachsene, Kinder, Eier
                   and Preis (US-29.8): those four are properties of the household, true of them
                   today, while a balance is a property of what has *happened* to the household — the
-                  sum of the very rows this fold holds. It is worded exactly as the counter words it
-                  and never signed, `balanceKind` having read the sign once in the domain. An
-                  archived household shows it unchanged: there is no written-off state. */}
+                  sum of the very rows this fold holds. It is written exactly as the counter writes
+                  it, signed, `balanceKind` having read the sign once in the domain. It takes no tint
+                  here: this is an inline label/value line and not a `Stat`, and a coloured ground
+                  behind one line of a card header reads as a badge rather than as a fact — the sign
+                  carries it on its own. An archived household shows it unchanged: there is no
+                  written-off state. */}
                 <CardAction className="text-right text-sm text-muted-foreground">
                   <p data-testid="history-count">{words.historyCount(view.history.length)}</p>
                   <p>

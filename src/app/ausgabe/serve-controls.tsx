@@ -20,6 +20,10 @@
  * zahlen`), where the household stands (`Saldo`), and what was actually handed over (the Betrag
  * field, pre-filled with the first). A hand-out is confirming the figure; a part payment is typing
  * over it; and an amount above it is a question the server asks before anything is written.
+ *
+ * The last of the three sits **on the same line as the button that books it**, in both forms. The
+ * field and the button are one gesture — read the amount, correct it if it differs, press — and
+ * stacking them put a line break through the middle of it.
  */
 
 import { useActionState, useEffect } from "react";
@@ -30,7 +34,9 @@ import { Label } from "@/components/ui/label";
 import { balanceKind } from "@/domain/distribution/balance";
 import { formatEuroAmount, formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
+import { cn } from "@/lib/utils";
 import { correctServe, recordServe } from "./actions";
+import { BALANCE_STYLES } from "../accents";
 import { initialCorrectState, initialServeState } from "./serve-state";
 import type { CorrectState, ServeState } from "./serve-state";
 import { guardEnter } from "../enter-guard";
@@ -59,19 +65,32 @@ export interface TodaysRecordProps {
  * moment. Keeping them apart is also what leaves the price in the fourth slot, where a staff
  * member's eye already goes for it.
  *
- * `Zu zahlen` is sized like the Kundennummer/Kartennummer pair rather than like a derived tile: it
- * is the number the transaction turns on, and it is read across a table. `Saldo` is a phrase and not
- * a figure, so it takes the smaller size a phrase needs — and it is **worded, never signed**
- * („Guthaben 2,00 €“, „Offen 2,00 €“, „ausgeglichen“), chosen on the domain's own `balanceKind`
- * rather than on a comparison written here.
+ * **The two are one pair: same size, same width, separated by weight.** `Zu zahlen` was the larger
+ * of the two, sized like the Kundennummer/Kartennummer figures; at the counter that made the balance
+ * look like a footnote to it, when in fact the one is the other offset by it. Neither takes a size
+ * override any more — both are `Stat`'s own, which is the size the four counts tiles above use, so
+ * the payment pair reads level with the household's figures instead of below them. What separates
+ * them is weight: `Zu zahlen` keeps the semibold, because it is the figure that leaves the screen —
+ * read aloud, and counted out in coins — while `Saldo` states where that figure came from.
+ *
+ * `Saldo` is **signed** — „−2,00 €“, „+2,00 €“, „ausgeglichen“ — chosen on the domain's own
+ * `balanceKind` rather than on a comparison written here, and the same `balanceKind` picks the
+ * tile's tint from `BALANCE_STYLES`: faint red behind a debt, faint blue behind a credit, `Stat`'s
+ * own muted fill behind a settled balance. The colour never travels alone (US-03.4) — the sign in
+ * front of the amount says the same thing, and is what remains in greyscale and on paper.
  *
  * The grid is the counts row's own, verbatim, for the reason the Kundennummer pair shares it: the
  * card above and this one are the same width with the same padding, so four tracks put `Zu zahlen`
  * on the same baseline as `Erwachsene` and the two cards read as one column rhythm rather than two
- * that miss each other. `Saldo` spans the second and third of them because its value is a phrase and
- * not a figure: „Guthaben 100,00 €“ wants the width to stay on one line. It is allowed to wrap all
- * the same — below `sm` the row drops to two columns, where a tile is 160px and a nowrap would run
- * the words out through the tile's own padding.
+ * that miss each other. At `xl` the pair sits in the first two tracks at equal width, exactly as
+ * Kundennummer and Kartennummer do on the card above — the same shape for the same kind of thing.
+ *
+ * **`Saldo` widens to two tracks below `xl`, and that is about one word.** „ausgeglichen“ is twelve
+ * characters with nowhere to hyphenate, so it needs about 195px of tile; a quarter of the row only
+ * reaches that at roughly 1200px of viewport, and narrower than that it ran out through the tile's
+ * own padding and lost its last letters. So the tile takes the room its longest value needs until
+ * the column is wide enough to hold it — rather than the value shrinking in one state, which would
+ * make the pair unequal in a way that means nothing.
  */
 function PaymentRow({
   amountToPayCents,
@@ -81,6 +100,10 @@ function PaymentRow({
   amountToPayCents: number | null;
   balanceCents: number;
 }): React.ReactElement {
+  // Read once, and used twice — for the wording and for the tile. Two calls would be two places the
+  // sign is read on one screen, which is the thing `balanceKind` exists to prevent.
+  const kind = balanceKind(balanceCents);
+
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {amountToPayCents === null ? null : (
@@ -88,15 +111,14 @@ function PaymentRow({
           label={de.customers.derived.amountToPay}
           value={formatEuros(amountToPayCents)}
           testId="counter-amount-to-pay"
-          valueClassName="text-4xl"
         />
       )}
       <Stat
         label={de.customers.derived.balance}
-        value={de.customers.derived.balanceValue(balanceKind(balanceCents), balanceCents)}
+        value={de.customers.derived.balanceValue(kind, balanceCents)}
         testId="counter-balance"
-        className="sm:col-span-2"
-        valueClassName="text-2xl"
+        className={cn("col-span-2 xl:col-span-1", BALANCE_STYLES[kind])}
+        valueClassName="font-medium"
       />
     </div>
   );
@@ -115,6 +137,11 @@ function PaymentRow({
  * A native `<label htmlFor>` pair rather than a placeholder: the accessibility snapshot has to show a
  * *named* textbox, and a placeholder disappears the moment somebody types.
  *
+ * **`height` is the button's, passed in by the caller.** The field and the button that books it are
+ * one gesture on one line, so a field shorter than the button beside it reads as two controls that
+ * happen to be adjacent. There are two heights because there are two buttons: the counter's large
+ * green `h-14`, and the correction's ordinary `h-12`.
+ *
  * **Keyed on `defaultCents` by every caller, and that is load-bearing.** React resets an uncontrolled
  * form once its action resolves, so after the server refuses an unconfirmed overpayment the field
  * would snap back to the amount that was asked for while the question beside it still named the
@@ -125,9 +152,12 @@ function PaymentRow({
 function AmountField({
   defaultCents,
   testId,
+  height,
 }: {
   defaultCents: number;
   testId: string;
+  /** The height of the button this field sits beside — `h-14` at the counter, `h-12` correcting. */
+  height: string;
 }): React.ReactElement {
   return (
     <div className="flex flex-col gap-1.5">
@@ -141,7 +171,7 @@ function AmountField({
         defaultValue={formatEuroAmount(defaultCents)}
         onFocus={(event) => event.currentTarget.select()}
         data-testid={testId}
-        className="h-12 w-32 text-2xl tabular-nums md:text-2xl"
+        className={cn(height, "w-32 text-2xl tabular-nums md:text-2xl")}
       />
     </div>
   );
@@ -296,8 +326,18 @@ export function ServeControls({
             <p data-testid="correct-asked" className="text-sm text-muted-foreground">
               {de.distribution.serve.asked(todaysRecord.askedCents)}
             </p>
-            <AmountField key={typedCents} defaultCents={typedCents} testId="correct-amount" />
-            <div className="flex flex-wrap items-start gap-3">
+            {/* Field and save button on one line, as on the serve form — the same gesture, so the
+                same shape. The removal stays *out* of this row on purpose: an open `<details>` is
+                the tallest thing on its flex line, and under `items-end` opening it would push the
+                field and the save button down as it grew. It is also a different act, confirmed on
+                its own. */}
+            <div className="flex flex-wrap items-end gap-3">
+              <AmountField
+                key={typedCents}
+                defaultCents={typedCents}
+                testId="correct-amount"
+                height="h-12"
+              />
               <Button
                 type="submit"
                 name="action"
@@ -305,41 +345,44 @@ export function ServeControls({
                 variant="outline"
                 disabled={correcting}
                 data-testid="correct-save"
-                className="h-9"
+                className="h-12"
               >
                 {de.distribution.serve.correct.save}
               </Button>
-              {/* The confirmation step before a removal: the summary reveals the warning and the one
-                  button that actually deletes, so no single click can drop a record. A native
-                  `<details>` rather than a dialog — at the counter the queue is waiting, and nothing
-                  here may have to be dismissed before the next customer can be served. */}
-              <details className="rounded-lg border border-destructive/40">
-                <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-destructive">
-                  {de.distribution.serve.correct.remove}
-                </summary>
-                <div className="flex flex-col gap-2 px-3 pb-3">
-                  <p
-                    data-testid="correct-remove-warning"
-                    className="max-w-prose text-sm text-muted-foreground"
-                  >
-                    {de.distribution.serve.correct.removeConfirm(
-                      todaysRecord.balanceWithoutRecordCents,
-                    )}
-                  </p>
-                  <Button
-                    type="submit"
-                    name="action"
-                    value="REMOVE"
-                    variant="destructive"
-                    disabled={correcting}
-                    data-testid="correct-remove"
-                    className="h-9 self-start"
-                  >
-                    {de.distribution.serve.correct.removeConfirmButton}
-                  </Button>
-                </div>
-              </details>
             </div>
+            {/* The confirmation step before a removal: the summary reveals the warning and the one
+                button that actually deletes, so no single click can drop a record. A native
+                `<details>` rather than a dialog — at the counter the queue is waiting, and nothing
+                here may have to be dismissed before the next customer can be served.
+
+                `self-start` because the form is a column and would otherwise stretch this to the
+                card's full width, turning a small disclosure into a bar the width of the screen. */}
+            <details className="self-start rounded-lg border border-destructive/40">
+              <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-destructive">
+                {de.distribution.serve.correct.remove}
+              </summary>
+              <div className="flex flex-col gap-2 px-3 pb-3">
+                <p
+                  data-testid="correct-remove-warning"
+                  className="max-w-prose text-sm text-muted-foreground"
+                >
+                  {de.distribution.serve.correct.removeConfirm(
+                    todaysRecord.balanceWithoutRecordCents,
+                  )}
+                </p>
+                <Button
+                  type="submit"
+                  name="action"
+                  value="REMOVE"
+                  variant="destructive"
+                  disabled={correcting}
+                  data-testid="correct-remove"
+                  className="h-9 self-start"
+                >
+                  {de.distribution.serve.correct.removeConfirmButton}
+                </Button>
+              </div>
+            </details>
             {/* The same test id as the hand-out's confirmation above: only one of the two can be on
                 screen at a time, and a spec that asserts "the counter confirmed" should not have to
                 know which of the two acts it was. */}
@@ -379,16 +422,29 @@ export function ServeControls({
           <PaymentRow amountToPayCents={amountToPayCents} balanceCents={balanceCents} />
           <form action={serve} onKeyDown={guardEnter} className="flex flex-col items-start gap-4">
             <input type="hidden" name="customerId" value={customerId} />
-            <AmountField key={typedCents} defaultCents={typedCents} testId="serve-amount" />
-            <Button
-              type="submit"
-              size="lg"
-              disabled={serving}
-              data-testid="serve-button"
-              className="h-14 bg-green-700 px-8 text-lg font-semibold text-white hover:bg-green-800"
-            >
-              {de.distribution.serve.submit}
-            </Button>
+            {/* The amount and the button that books it, on one line: `items-end` sits the `h-14`
+                button on the `h-12` field's own bottom edge, with the field's label riding above
+                both. The row is a `div` inside the column and not the form itself, because what
+                follows it — the overpayment question, a refusal — are answers *about* this row and
+                belong under it at full width, not beside it. `flex-wrap` lets the pair break apart
+                on a narrow viewport rather than squeeze the button. */}
+            <div className="flex flex-wrap items-end gap-4">
+              <AmountField
+                key={typedCents}
+                defaultCents={typedCents}
+                testId="serve-amount"
+                height="h-14"
+              />
+              <Button
+                type="submit"
+                size="lg"
+                disabled={serving}
+                data-testid="serve-button"
+                className="h-14 bg-green-700 px-8 text-lg font-semibold text-white hover:bg-green-800"
+              >
+                {de.distribution.serve.submit}
+              </Button>
+            </div>
             {serveOverpayment === null ? null : (
               <OverpaymentQuestion
                 state={serveOverpayment}

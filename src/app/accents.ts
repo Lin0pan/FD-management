@@ -11,7 +11,7 @@
  */
 
 import type { Group } from "@/domain/customer/group";
-import type { PaymentStanding } from "@/domain/distribution/balance";
+import type { BalanceKind, PaymentStanding } from "@/domain/distribution/balance";
 
 /**
  * The group's colour, worn wherever a screen names a household's group.
@@ -94,12 +94,39 @@ export const REFUSAL_ACCENT = "border-amber-500/40 bg-amber-500/10";
  * is the point rather than a duplicate: a payment that matched what was asked is the same good news
  * a completed save is, read on a row instead of in a box.
  *
- * **The colour only reinforces the word.** Every cell wearing one of these also states its meaning
- * in German — „2,00 € offen“, „2,00 € zu viel“, „genau“ — so the history is legible in greyscale, on
- * paper, and to the staff member who cannot tell the three apart (US-03.4).
+ * **The colour only reinforces what the cell already says.** Every cell wearing one of these states
+ * its own meaning in text — „−2,00 €“, „+2,00 €“, „genau“ — so the history is legible in greyscale,
+ * on paper, and to the staff member who cannot tell the three apart (US-03.4). The sign carries it,
+ * exactly as it does behind `BALANCE_STYLES`.
  */
 export const PAYMENT_STANDING_STYLES: Record<PaymentStanding, string> = {
   SHORT: "border-red-500/40 bg-red-500/10",
   EXACT: "border-green-600/40 bg-green-600/10",
   OVER: "border-blue-500/40 bg-blue-500/10",
+};
+
+/**
+ * Where a household's balance stands, worn by the Saldo tile at the counter (US-29).
+ *
+ * **The same red-500 and blue-500 as `PAYMENT_STANDING_STYLES`, deliberately and not by accident.**
+ * A hand-out paid short and a household carrying a debt are one meaning at two altitudes — money is
+ * owed — and a meaning gets one colour application-wide. Blue likewise reads "paid ahead" in both
+ * places. Neither may be `GROUP_STYLES`' red-600/blue-700: those are the printed cards themselves.
+ *
+ * **A settled balance is `null` and keeps `Stat`'s own `bg-muted/50`.** That is the point of the
+ * scale rather than a gap in it: colour here means *something is standing*, so the ordinary case —
+ * most households, most weeks — must not be painted, or the two that matter stop standing out.
+ *
+ * **Background only, no border**, against the `border-…/40 bg-…/10` shape the badges on a row use.
+ * Every `Stat` in the application is a borderless filled tile, and outlining one of the five on the
+ * counter would make it a different kind of object from the four beside it. `cn`'s `twMerge` drops
+ * the muted fill when a tint is passed, so the tile changes colour without changing shape.
+ *
+ * The word travels with the chrome as always (US-03.4), and here the "word" is the sign: the value
+ * reads „−2,00 €“ or „+2,00 €“, which survives greyscale, print and the accessibility snapshot.
+ */
+export const BALANCE_STYLES: Record<BalanceKind, string | null> = {
+  DEBT: "bg-red-500/10",
+  CREDIT: "bg-blue-500/10",
+  SETTLED: null,
 };
