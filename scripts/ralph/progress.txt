@@ -76,10 +76,14 @@ The `## Codebase Patterns` block below is CARRIED OVER from earlier batches on p
 - **The e2e customer-number bands, as they now stand.** Below the quota of 240: counter 201–206 and
   239, allowance 211, serve 221–222, reminders 231, registration 232–234, card numbers 236. Above it:
   block 241, reissue 251, age-13 271, customer-list 281–285, customer-record 291–293, group-progress
-  301–303, group-walk 311–315, price cap 321, eggs 331–334. A spec whose number must be **pickable in the
-  /kunden/neu dropdown** has to sit below 240 — the pool is `1..quotaN` — and everything else should
-  stay above it, clear of the low sequence the allocating specs (registration, card, archive,
-  reregistration) consume. **A new spec takes a new band**; do not borrow another spec's numbers.
+  301–303, group-walk 311–315, price cap 321, eggs 331–334, balance 341–344. A spec whose number must
+  be **pickable in the /kunden/neu dropdown** has to sit below 240 — the pool is `1..quotaN` — and
+  everything else should stay above it, clear of the low sequence the allocating specs (registration,
+  card, archive, reregistration) consume. **A new spec takes a new band**; do not borrow another
+  spec's numbers. **And a band above 315 must be seeded BLUE**: `group-walk.spec.ts` reads the whole
+  shared register and asserts that the highest walkable RED number *is* its own 315, so one RED
+  household seeded higher fails a spec the new one has no business in — `eggs` and `balance` are both
+  BLUE for that reason and not by taste.
 - **e2e spec files run in alphabetical path order, one worker, one shared database.** So a spec that
   *writes* shared state is only ever seen by the files sorting after it — `npx playwright test --list`
   prints the order, and a **rename moves a spec in that order** (batch 27's `portions.spec.ts` →
@@ -614,4 +618,56 @@ Five hazards, all stated in `prd.json` and worth reading twice:
     scroll is keyboard-reachable — but a sixth column would need a different answer.
   - Docs: the styling guide is updated here because this story made it wrong. **US-010 still owns
     every other document in the batch** (the handout, the arc42 chapters and ADR-015).
+---
+
+## 2026-08-29 — US-009 E2E — a part payment carried to the next hand-out
+- New `tests/e2e/balance.spec.ts`: ten serial tests over four households of its own (341 carry,
+  342 small credit, 343 large credit, 344 capped), on **two** BLUE distribution days a fortnight
+  apart — Thursday 15.01. and 29.01.2026 — pinned through the same clock seam `age-13.spec.ts` and
+  `reminders.spec.ts` use, and released in `afterAll` so no later spec inherits a frozen January.
+- The spine: a household with no history is asked the bare price and reads „ausgeglichen“; 1,00 € of
+  3,00 € leaves „Offen 2,00 €“ beside the confirmation it landed in; the record states Gefordert,
+  Gezahlt and „2,00 € offen“ with the balance above the fold. **The carry**: a fortnight later the
+  same household is asked 5,00 € while `Preis` still reads 3,00 € — the figure nothing wrote down.
+- **The credit** is driven through the refusal, not around it: 4,00 € against 3,00 € asked shows the
+  question, `handOutsOf` proves **nothing was written while it was being asked**, and the confirm
+  button books the amount still in the field. 10,00 € gives a credit larger than a week, so the next
+  hand-out costs 0,00 € and the field opens on it. **The cap**: 11,00 € per head capped at 5,00 €,
+  2,00 € handed over, and a fortnight later `Zu zahlen` is 8,00 € above a `Preis` tile still on the
+  cap — the one case where the amount to pay exceeds the Maximalpreis, and not a cap being broken.
+- **The removal** obeys the panel-coupling rule: the household is settled, removed, and the balance
+  is asserted back at „Offen 2,00 €“ **on the screen the removal's confirmation landed on**, with no
+  `goto` between them. A balance that had stopped following the records passes every other test here.
+- `serve.spec.ts`'s `paid`/`unpaid` numbers renamed to `confirmed`/`nothing` — the flag's last names
+  in a spec, and both households now describe what is *done* to them rather than a boolean.
+  `src/domain/policy/settings.ts` and `prisma/demo-seed.ts` lost the two doc comments still claiming
+  a record stores a paid flag.
+- Files changed: `tests/e2e/balance.spec.ts` (new), `tests/e2e/serve.spec.ts`,
+  `src/domain/policy/settings.ts`, `prisma/demo-seed.ts`, `scripts/ralph/prd.json`, this log.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1224 tests, domain/
+  and application/ still 100%), `npm run build`, `npx prettier --check .`, `npm run test:e2e`
+  (187 passed) and `npm run test:e2e:webkit` (187 passed) — all green, both engines first time, no
+  flake to re-run.
+- **Learnings for future iterations:**
+  - **The sweep came out clean, and what is left is deliberate.** `grep -rn '\bpaid\b' src/ prisma/
+    tests/` still hits `historyColumns.paid: "Gezahlt"`, the `history-paid` testid and a dozen
+    sentences of English prose („paid ahead“, „paid short“); `grep -rni 'bezahlt' src/ tests/` hits
+    four comments that name the removed flag with the reason it went. None is a leftover: the key
+    and the testid are the *amount* paid, named after `paidCents`, and CLAUDE.md's documentation rule
+    is that a withdrawn idea stays named with its reason. **Nothing boolean survives** — the honest
+    check is the grep filtered to non-comment lines, not the raw count.
+  - **A spec that seeds households can break a spec sorting after it without touching its screen.**
+    `group-walk.spec.ts` reads the whole shared register and asserts the highest walkable RED number
+    is its own 315, so this spec's four households had to be BLUE. Colour is not decoration in a new
+    band above 315 — the patterns bullet now says so.
+  - **`fillSticky` is required for `serve-amount` every time**, because the counter's amount field is
+    controlled and every one of these tests fills it straight after a `goto`. The overpayment path
+    fills it *twice* in effect — once by hand, once by React remounting it on the refused value — and
+    a plain `fill` there would book the pre-filled figure with a confirmed flag, silently.
+  - **Two households are read back out of SQLite and two are not**, on purpose: `handOutsOf` exists
+    to prove a *non-write* (the refusal) and a *removal*, which no screen can show. Everything else
+    is asserted through the counter, because a spec that reads the database for what the screen
+    already says is testing the query, not the chain.
+  - Docs still untouched — **US-010 owns every document in this batch**, as US-001..008 each
+    recorded, and it is now the only story left.
 ---

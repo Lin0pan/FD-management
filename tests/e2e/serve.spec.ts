@@ -56,8 +56,10 @@ const TODAYS_DAY_KEY = "2026-01-08";
 
 /** The numbers this spec owns. Well clear of the low sequence the other specs consume. */
 const NUMBERS = {
-  paid: 221,
-  unpaid: 222,
+  /** Served for the amount the field opens on, which is what staff confirm on an ordinary day. */
+  confirmed: 221,
+  /** Served for a typed-over `0,00` — a hand-out of nothing, and the record that is then removed. */
+  nothing: 222,
   inView: 223,
 } as const;
 
@@ -185,8 +187,8 @@ test.describe.configure({ mode: "serial" });
 test.describe("Ausgabe erfassen", () => {
   test.beforeAll(async () => {
     pinToday();
-    await seedHousehold(NUMBERS.paid);
-    await seedHousehold(NUMBERS.unpaid);
+    await seedHousehold(NUMBERS.confirmed);
+    await seedHousehold(NUMBERS.nothing);
     await seedHousehold(NUMBERS.inView);
   });
 
@@ -200,7 +202,7 @@ test.describe("Ausgabe erfassen", () => {
   test("records the pre-filled amount and confirms it while switching to today's record", async ({
     page,
   }) => {
-    await lookUp(page, NUMBERS.paid);
+    await lookUp(page, NUMBERS.confirmed);
 
     // The verdict permits serving, so the button is offered — with the amount to collect stated
     // above it and already standing in the field, which is the ordinary case: staff confirm it.
@@ -220,25 +222,25 @@ test.describe("Ausgabe erfassen", () => {
     // No second serve is possible from here — the button is gone, not merely disabled.
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
 
-    const records = await recordsFor(NUMBERS.paid);
+    const records = await recordsFor(NUMBERS.confirmed);
     expect(records).toEqual([{ paidCents: PRICE_CENTS, dayKey: TODAYS_DAY_KEY, showedUp: true }]);
   });
 
   test("prevents a second hand-out on the same day", async ({ page }) => {
     // A staff member types the number again expecting to serve; the screen shows today's record
     // instead of the button, so the queue cannot double-serve — and the database still holds one row.
-    await lookUp(page, NUMBERS.paid);
+    await lookUp(page, NUMBERS.confirmed);
 
     await expect(page.getByTestId("already-served-message")).toHaveText(
       serve.alreadyServed(SERVED_AT, PRICE_CENTS, PRICE_CENTS),
     );
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
 
-    expect(await recordsFor(NUMBERS.paid)).toHaveLength(1);
+    expect(await recordsFor(NUMBERS.confirmed)).toHaveLength(1);
   });
 
   test("stores a hand-out of nothing when the amount is typed over with zero", async ({ page }) => {
-    await lookUp(page, NUMBERS.unpaid);
+    await lookUp(page, NUMBERS.nothing);
 
     await expect(page.getByTestId("serve-button")).toBeVisible();
     await fillSticky(page.getByTestId("serve-amount"), formatEuroAmount(0));
@@ -253,7 +255,7 @@ test.describe("Ausgabe erfassen", () => {
       de.customers.derived.balanceValue("DEBT", -PRICE_CENTS),
     );
 
-    const records = await recordsFor(NUMBERS.unpaid);
+    const records = await recordsFor(NUMBERS.nothing);
     expect(records).toEqual([{ paidCents: 0, dayKey: TODAYS_DAY_KEY, showedUp: true }]);
   });
 
@@ -278,7 +280,7 @@ test.describe("Ausgabe erfassen", () => {
   });
 
   test("removing today's hand-out says so, on a screen the record has left", async ({ page }) => {
-    await lookUp(page, NUMBERS.unpaid);
+    await lookUp(page, NUMBERS.nothing);
     await expect(page.getByTestId("already-served")).toBeVisible();
 
     // The two-step guard: the closed disclosure has to be opened before the button that deletes
@@ -290,13 +292,13 @@ test.describe("Ausgabe erfassen", () => {
     // "removed" result was a branch no component could render. It redirects instead, keeping the
     // number that was looked up so the household is still on screen, and the counter states it —
     // in the viewport, because a navigation lands at the top of the page.
-    await expect(page).toHaveURL(new RegExp(`nummer=${NUMBERS.unpaid}&entfernt=1$`));
+    await expect(page).toHaveURL(new RegExp(`nummer=${NUMBERS.nothing}&entfernt=1$`));
     await expect(page.getByTestId("serve-removed-confirmation")).toHaveText(serve.correct.removed);
     await expect(page.getByTestId("serve-removed-confirmation")).toBeInViewport();
 
     // And the household can be served again today, which is what the sentence promises.
     await expect(page.getByTestId("already-served")).toHaveCount(0);
     await expect(page.getByTestId("serve-button")).toBeVisible();
-    expect(await recordsFor(NUMBERS.unpaid)).toHaveLength(0);
+    expect(await recordsFor(NUMBERS.nothing)).toHaveLength(0);
   });
 });

@@ -80,11 +80,11 @@ const DISTRIBUTION_DAYS_OF_HISTORY = 8;
  * household that does turn up leaves without paying.
  *
  * Counted rather than drawn at random, and deliberately so. A fixture exists to *guarantee* what it
- * demonstrates, and a random draw guarantees nothing — an early version of this file drew the paid
- * flag from Faker and produced 37 hand-outs of which every single one was paid, so the screens that
- * show an unpaid customer had nothing to show. Counting cannot have a bad day. The two moduli are
- * coprime and neither divides the six-or-so households served on a day, so the pattern shifts from
- * week to week instead of falling on the same people every time.
+ * demonstrates, and a random draw guarantees nothing — an early version of this file drew from Faker
+ * and produced 37 hand-outs on which every single household handed over what it was asked for, so
+ * the screens that state a debt had nothing to show. Counting cannot have a bad day. The two moduli
+ * are coprime and neither divides the six-or-so households served on a day, so the pattern shifts
+ * from week to week instead of falling on the same people every time.
  */
 const NO_SHOW_EVERY = 7;
 const UNPAID_EVERY = 5;
