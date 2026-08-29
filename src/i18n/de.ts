@@ -7,10 +7,10 @@
  * needed, to translate.
  *
  * The imports below are the module's only ones, and all three are pure domain: an amount of money is
- * written by `formatEuros` and nowhere else (`CLAUDE.md` §Coding style), and a balance is *named*
- * from its `BalanceKind` rather than from its sign. Formatting the amounts here is what keeps a
- * leading minus off every screen at once — an entry taking a ready-made string would leave each
- * caller to remember, and rule 6 forbids making a staff member read a sign.
+ * written by `formatEuros` and nowhere else (`CLAUDE.md` §Coding style), and a balance is *signed*
+ * from its `BalanceKind` rather than from a comparison a screen makes for itself. Writing the sign
+ * here is what puts the same glyph in front of every balance in the application at once — an entry
+ * taking a ready-made string would leave each caller to remember.
  */
 
 import { balanceKind, type BalanceKind, type PaymentStanding } from "@/domain/distribution/balance";
@@ -53,25 +53,48 @@ const EGG_THRESHOLD_COLUMN = "Ab wie vielen Personen";
 const EGG_COUNT_COLUMN = "Eier";
 
 /**
- * A balance in words: „Guthaben 2,00 €“, „Offen 2,00 €“, „ausgeglichen“ (US-29).
+ * A directed amount, written with its sign in front: „+2,00 €“, „−2,00 €“.
  *
- * **Never signed.** The word says which way the amount runs, so the figure is printed from its
- * absolute value and no screen in the application shows a leading minus — rule 6 forbids making a
- * staff member read a sign. Which way it runs is read once, by `balanceKind` in the domain, and only
- * named here; a screen that compared the number to zero itself would decide the rule a second time.
+ * **The house form for any amount that runs two ways**, and there are exactly two of them — a
+ * household's balance and how one payment stood against what was asked for it. Both used to be
+ * worded („Guthaben“ / „Offen“, „zu viel“ / „offen“); both are signed now, and any third such
+ * quantity comes here rather than inventing a third vocabulary.
  *
- * A settled balance is a word and not „0,00 €“: it is the state staff look for, and a zero beside a
- * euro sign reads like an amount that merely happens to be nothing.
+ * The glyph is **U+2212 MINUS SIGN, not a hyphen**: it matches the `+` in width, and a hyphen
+ * shrinks to a stray stroke at the sizes the counter reads at. That is also why the amount is
+ * printed from its absolute value with the sign prefixed, rather than let out of `formatEuros`.
+ *
+ * Reading the sign here is not a second classification. `balanceKind` and `standingOf` in the domain
+ * have already decided *which* of the three cases this is; by the time a caller reaches this
+ * function the case is settled and the sign of the number is the same fact, said again.
+ */
+function signedAmount(cents: number): string {
+  return `${cents < 0 ? "−" : "+"}${formatEuros(Math.abs(cents))}`;
+}
+
+/**
+ * A balance, signed: „+2,00 €“, „−2,00 €“, „ausgeglichen“ (US-29).
+ *
+ * **The sign is the word.** This was „Guthaben“ / „Offen“, on the argument that a staff member
+ * should never have to read a sign; the built screen said otherwise. A balance is read at a counter
+ * with a queue at it, and one glyph in front of the amount is taken in faster than a word before it
+ * — the more so once the tile behind it is tinted, since the sign and the colour then say the same
+ * thing twice.
+ *
+ * **The sign is what keeps the tint honest** (US-03.4). A colour is a distinction only some of the
+ * staff can make, and it does not survive a photocopier; a `+` or a `−` is there in greyscale, in
+ * print, and in the accessibility snapshot, so the tile's red and blue only ever repeat it.
+ *
+ * A settled balance stays a **word** and not „0,00 €“: it is the state staff look for, and a zero
+ * beside a euro sign reads like an amount that merely happens to be nothing. {@link
+ * de.customers.record.historyStanding} keeps „genau“ for the same reason — the sign is for the two
+ * directions, never for the state of being in neither.
  *
  * Module-level because two entries say it — the tile on the counter and the record, and the sentence
  * warning what a removal does to the balance.
  */
 function balanceWording(kind: BalanceKind, cents: number): string {
-  if (kind === "SETTLED") {
-    return "ausgeglichen";
-  }
-  const amount = formatEuros(Math.abs(cents));
-  return kind === "CREDIT" ? `Guthaben ${amount}` : `Offen ${amount}`;
+  return kind === "SETTLED" ? "ausgeglichen" : signedAmount(cents);
 }
 
 export const de = {
@@ -275,7 +298,7 @@ export const de = {
       amountToPay: "Zu zahlen",
       /** Where the household stands over all their hand-outs: a credit, an open amount, or neither. */
       balance: "Saldo",
-      /** A balance in words, never signed — {@link balanceWording}, which says why. */
+      /** A balance, signed — {@link balanceWording}, which says why the sign is the word. */
       balanceValue: balanceWording,
       hint: "Berechnet aus den Geburtsdaten — nicht eingebbar.",
       standardValues: "Standardpreis; am Ausgabetisch nicht anpassbar.",
@@ -716,24 +739,21 @@ export const de = {
         price: "Preis",
       },
       /**
-       * How the payment stood against what was asked for that day, said in words beside the amount.
+       * How the payment stood against what was asked for that day, marked beside the amount:
+       * „−2,00 €“ short, „+2,00 €“ over, „genau“ exact.
        *
-       * **Unsigned, like every other amount in this file.** „offen“ and „zu viel“ each say which way
-       * the difference runs, so a minus in front of one of them would be the sign arithmetic the
-       * wording exists to remove — the source document's illustrative „−2,00 € offen“ deliberately
-       * loses its minus here.
+       * **Signed, like the balance** — {@link signedAmount}, which says why. This was „2,00 € offen“
+       * and „2,00 € zu viel“; the source document's own illustrative „−2,00 € offen“ was closer to
+       * where this ended up than the wording that replaced it. A row of this column is read down the
+       * page against the Gefordert and Gezahlt figures beside it, and a sign in front of a number
+       * scans with them where a trailing word does not.
        *
-       * An exact payment says so rather than showing „0,00 €“, for the reason {@link balanceWording}
-       * gives at a settled balance: a zero beside a euro sign reads like an amount, not like the
-       * state everything is in order.
+       * An exact payment says **„genau“** rather than „+0,00 €“, for the reason {@link
+       * balanceWording} gives at a settled balance: a signed zero reads like an amount that happens
+       * to be nothing, not like the state everything is in order.
        */
-      historyStanding: (standing: PaymentStanding, differenceCents: number): string => {
-        if (standing === "EXACT") {
-          return "genau";
-        }
-        const amount = formatEuros(Math.abs(differenceCents));
-        return standing === "SHORT" ? `${amount} offen` : `${amount} zu viel`;
-      },
+      historyStanding: (standing: PaymentStanding, differenceCents: number): string =>
+        standing === "EXACT" ? "genau" : signedAmount(differenceCents),
       yes: "ja",
       no: "nein",
       /**

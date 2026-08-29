@@ -90,9 +90,11 @@ export function amountToPay(priceCents: Cents, balanceCents: Cents): Cents {
 /**
  * Name a balance, so nobody does sign arithmetic.
  *
- * This is the one place the sign is read. Every screen asks here and words the answer — „Guthaben
- * 2,00 €", „Offen 2,00 €", „ausgeglichen" — rather than comparing to zero itself, which is what
- * keeps the rule from being re-decided one screen at a time.
+ * This is the one place the sign is read. Every screen asks here and renders the answer — „−2,00 €",
+ * „+2,00 €", „ausgeglichen", and the tint that goes behind them — rather than comparing to zero
+ * itself, which is what keeps the rule from being re-decided one screen at a time. That the screens
+ * now print a sign changes nothing here: what they print it from is still this answer and not a
+ * comparison of their own.
  */
 export function balanceKind(balanceCents: Cents): BalanceKind {
   if (balanceCents > 0) {

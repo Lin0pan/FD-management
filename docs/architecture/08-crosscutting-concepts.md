@@ -159,9 +159,18 @@ Policy is `SettingsVersion` rows, not constants — [ADR-005](adr/005-keep-busin
   quantity in the system where the sign carries meaning, every other amount being a price and
   therefore never below zero.
 - The sign is read in **exactly one place**: `balanceKind` names a balance `CREDIT`, `DEBT` or
-  `SETTLED`, and every screen words that answer — „Guthaben 2,00 €“, „Offen 2,00 €“,
-  „ausgeglichen“ — instead of comparing to zero itself. That is what keeps the rule from being
-  re-decided one screen at a time.
+  `SETTLED`, and every screen renders that answer — „+2,00 €“, „−2,00 €“, „ausgeglichen“ — instead of
+  comparing to zero itself. That is what keeps the rule from being re-decided one screen at a time.
+  The two amounts were once worded („Guthaben“, „Offen“) and are now signed, because at a counter one
+  glyph is read faster than a word; the settled case stays a word, a signed zero reading like an
+  amount that happens to be nothing. The counter tints the tile behind the figure to match
+  (`BALANCE_STYLES` in `src/app/accents.ts`), and the sign is what keeps that colour from carrying
+  meaning on its own (US-03.4).
+- **That form is the rule for every directed amount, not a fact about the balance.** Anything that
+  can run two ways is written „+2,00 €“ / „−2,00 €“ through one helper, `signedAmount` in
+  `src/i18n/de.ts`, with the zero case as a word. The second such quantity is how a payment stood
+  against what was asked for it, on the record's hand-out history — „−2,00 €“ short, „+2,00 €“ over,
+  „genau“ exact, replacing „2,00 € offen“ and „2,00 € zu viel“. A third goes through the same helper.
 - What to collect today is `max(0, priceCents − balance)`: a debt raises it, a credit lowers it, and
   it never goes below zero because credit is never paid out in cash. The **Maximalpreis caps the
   price, not the amount asked for** — an old debt is added on top of a capped price and is not itself

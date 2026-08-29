@@ -232,7 +232,8 @@ test.describe("Saldo", () => {
     await lookUp(page, NUMBERS.carry);
 
     // Nothing has happened to this household yet, so the three figures agree: the week costs 3,00 €,
-    // 3,00 € is what to collect, and the field opens on it. The balance is a word, not „0,00 €“.
+    // 3,00 € is what to collect, and the field opens on it. A settled balance is the one that stays
+    // a word: „ausgeglichen“, never a signed „0,00 €“.
     await expect(page.getByTestId("counter-price")).toHaveText(formatEuros(PRICE_CENTS));
     await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(formatEuros(PRICE_CENTS));
     await expect(page.getByTestId("counter-balance")).toHaveText(

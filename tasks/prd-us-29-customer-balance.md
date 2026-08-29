@@ -409,9 +409,10 @@ which hand-outs were paid short, exactly or over, so I can judge an open amount 
       the history is what shows both — it is a fact about the history, not a fifth derived tile
 - [ ] The history table's **Bezahlt** column becomes two: **Gefordert** (`history-asked`) and
       **Gezahlt** (`history-paid`), both `tabular-nums`, beside the existing **Preis**
-- [ ] The **Gezahlt** cell carries the amount and, where the payment was not exact, a short word with
+- [ ] The **Gezahlt** cell carries the amount and, where the payment was not exact, a short mark with
       the difference — „2,00 € offen" for a shortfall, „2,00 € zu viel" for an overpayment, „genau"
-      for an exact one — in a `Badge`, `data-testid="history-standing"`
+      for an exact one — in a `Badge`, `data-testid="history-standing"`. **Superseded by the
+      amendment note below:** the two amounts are now signed, „−2,00 €" and „+2,00 €".
 - [ ] The three tints go in `src/app/accents.ts` as one exported `PAYMENT_STANDING_STYLES` record,
       not hand-tinted at the call site, with a doc comment placing them among the accents already
       there: they are **standing state on a row**, like a lapsed certificate's amber, not an answer to
@@ -432,6 +433,30 @@ which hand-outs were paid short, exactly or over, so I can judge an open amount 
 - [ ] Driven and reviewed with the **`playwright-cli` skill**; the accessibility snapshot must show the
       standing as text inside the cell, not as a title attribute or a bare colour
 - [ ] Typecheck and lint pass
+
+> **Amended 2026-08-29, after reviewing the built screen.** Three of the presentation criteria in
+> US-29.7 and US-29.8 above were changed and are kept as written so the reasoning stays legible:
+>
+> - The Saldo is **signed, not worded**: „+2,00 €“ and „−2,00 €“ replace „Guthaben 2,00 €“ and
+>   „Offen 2,00 €“; „ausgeglichen“ is unchanged. At a counter one glyph is read faster than a word,
+>   and the sign is also what lets the tile be tinted without the colour carrying meaning alone
+>   (US-03.4). `balanceKind` still reads the sign, and still exactly once.
+> - **The history's standing mark follows it**, and the signed form is now the project-wide rule for
+>   any amount that runs two ways rather than a decision about the balance: „−2,00 €“ short and
+>   „+2,00 €“ over replace „2,00 € offen“ and „2,00 € zu viel“, with „genau“ unchanged for the same
+>   reason „ausgeglichen“ is. Both go through one `signedAmount` helper in `src/i18n/de.ts`, and the
+>   rule is written down in `docs/guideline/ui_styling_guide.md` §8. The paragraph "**The mark is a
+>   word first**" below still holds — the mark states its meaning in text and the tint only repeats
+>   it — but that text is now a sign rather than a word.
+> - The Saldo tile is **tinted** on the counter — faint red for a debt, faint blue for a credit,
+>   `Stat`'s muted fill when settled — through a new `BALANCE_STYLES` in `src/app/accents.ts`. The
+>   customer record's `record-balance` stays untinted: it is an inline line, not a tile.
+> - **Zu zahlen drops from `text-4xl` to `text-2xl`**, the Saldo's size, and the two are separated by
+>   weight instead: `Zu zahlen` keeps semibold, the Saldo value goes `font-medium`. The Betrag field
+>   moves onto the same line as its button, in both the serve and the correction form.
+>
+> `docs/handout/betriebsanleitung.md` §Saldo, `docs/architecture/08-crosscutting-concepts.md`,
+> `12-glossary.md` and ADR-015 were updated with it.
 
 ### US-29.9: E2E — a part payment carried to the next hand-out
 

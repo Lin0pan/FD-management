@@ -75,13 +75,25 @@ handschriftlich in der Excel-Liste; die Software rechnet es jetzt selbst mit und
 **Saldo**.
 
 Der Saldo steht unter **Ausgabe** neben Erwachsenen, Kindern und Preis, und beim Kunden selbst über
-der Liste **Bisherige Ausgaben**. Er sagt in Worten, wie der Haushalt dasteht:
+der Liste **Bisherige Ausgaben**. Ein Vorzeichen sagt, wie der Haushalt dasteht:
 
-| Anzeige             | Bedeutung                                                                  |
-| ------------------- | -------------------------------------------------------------------------- |
-| **ausgeglichen**    | Der Haushalt schuldet nichts und hat nichts gut. Der Normalfall.           |
-| **Offen 2,00 €**    | Der Haushalt schuldet noch 2,00 €. Der Betrag wird heute mit gefordert.    |
-| **Guthaben 2,00 €** | Der Haushalt hat 2,00 € zu viel gezahlt. Der Betrag wird heute verrechnet. |
+| Anzeige          | Bedeutung                                                                  |
+| ---------------- | -------------------------------------------------------------------------- |
+| **ausgeglichen** | Der Haushalt schuldet nichts und hat nichts gut. Der Normalfall.           |
+| **−2,00 €**      | Der Haushalt schuldet noch 2,00 €. Der Betrag wird heute mit gefordert.    |
+| **+2,00 €**      | Der Haushalt hat 2,00 € zu viel gezahlt. Der Betrag wird heute verrechnet. |
+
+Unter **Ausgabe** ist das Feld zusätzlich schwach eingefärbt: **rot**, wenn der Haushalt noch etwas
+schuldet, **blau**, wenn er etwas gut hat, und grau wie die übrigen Felder, wenn alles ausgeglichen
+ist. Die Farbe wiederholt nur das Vorzeichen — wer sie nicht unterscheiden kann oder das Blatt in
+Schwarzweiß ausdruckt, liest dasselbe am **−** oder **+** ab.
+
+In der Liste **Bisherige Ausgaben** beim Kunden trägt jede Zeile denselben Vorzeichen-Hinweis: neben
+dem gezahlten Betrag steht **−2,00 €**, wenn an dem Tag 2,00 € zu wenig übergeben wurden, **+2,00 €**,
+wenn es 2,00 € zu viel waren, und **genau**, wenn der geforderte Betrag genau gezahlt wurde. Die
+Zeilen sind zusätzlich rot, blau und grün hinterlegt — auch hier nur als Wiederholung dessen, was
+schon dasteht. **Gefordert** ist dabei der Betrag, der an jenem Tag verlangt wurde (der Preis, um den
+damaligen Saldo verschoben), **Preis** die reinen Kosten der Woche.
 
 **Zu zahlen** ist der Betrag, den Sie heute kassieren: der Preis dieser Woche, um den Saldo erhöht
 oder verringert. Er kann höher sein als der Preis — dann zahlt der Haushalt eine alte Schuld mit ab —
@@ -94,7 +106,7 @@ Das Feld **Betrag** ist bereits mit dem geforderten Betrag ausgefüllt. **Im Nor
 es einfach** mit **Ausgabe erfassen** — Sie müssen nichts rechnen und nichts eintippen.
 
 Gibt der Haushalt weniger, tragen Sie den tatsächlich erhaltenen Betrag ein; der Rest steht ab sofort
-als **Offen** beim Haushalt und wird bei der nächsten Ausgabe mit gefordert. Gibt jemand mehr, fragt
+mit einem **Minus** im Saldo des Haushalts und wird bei der nächsten Ausgabe mit gefordert. Gibt jemand mehr, fragt
 die Software einmal nach („… wirklich so buchen?“) und bucht den Betrag erst nach Ihrer Bestätigung.
 Diese Rückfrage ist keine Ablehnung — sie fängt nur den vertippten Betrag ab, denn ein zu hoch
 gebuchtes Guthaben würde stillschweigend die nächsten Wochen bezahlen.
@@ -117,7 +129,7 @@ dafür einen einfachen Weg:
 
 > **Fällt ein Fehler später auf, wird er bei der nächsten Ausgabe des Haushalts ausgeglichen.**
 > Haben Sie 5,00 € gebucht, obwohl nur 3,00 € übergeben wurden, tragen Sie bei der nächsten Ausgabe
-> 2,00 € weniger ein als gefordert — der Rest bleibt als **Offen** stehen. Umgekehrt tragen Sie
+> 2,00 € weniger ein als gefordert — der Rest bleibt als **Minusbetrag** stehen. Umgekehrt tragen Sie
 > 2,00 € mehr ein, wenn zu wenig gebucht wurde. Der Saldo trägt die Korrektur von selbst weiter, und
 > die Kasse stimmt wieder.
 

@@ -250,7 +250,7 @@ test.describe("Ausgabe erfassen", () => {
     await expect(page.getByTestId("already-served-message")).toHaveText(
       serve.alreadyServed(SERVED_AT, 0, PRICE_CENTS),
     );
-    // The whole price is now open, and the screen says so in words rather than as a minus sign.
+    // The whole price is now open, and the screen says so with a sign in front of the amount.
     await expect(page.getByTestId("counter-balance")).toHaveText(
       de.customers.derived.balanceValue("DEBT", -PRICE_CENTS),
     );

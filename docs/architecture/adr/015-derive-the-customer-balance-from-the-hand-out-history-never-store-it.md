@@ -76,8 +76,10 @@ direction.
   to want every household's balance at once, that is the measurement worth taking before this is
   revisited; nothing else here changes.
 - The sign is read in exactly one place, `balanceKind`, so no screen compares a balance to zero
-  itself and the wording — „Guthaben", „Offen", „ausgeglichen" — cannot be re-decided one screen at a
-  time.
+  itself and how a balance is written — signed, „+2,00 €" / „−2,00 €" / „ausgeglichen" — cannot be
+  re-decided one screen at a time. (The two amounts were worded „Guthaben" and „Offen" when this
+  decision was taken; they were changed to signs after the screen was reviewed. Nothing in this
+  decision turns on which of the two it is.)
 - A mistake found on a **later** day cannot be edited away: corrections are permitted only on the day
   the record was made. DF put such a mistake right by recording a compensating amount at the
   household's next hand-out, which the balance absorbs by construction. That procedure is written for
