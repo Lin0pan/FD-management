@@ -13,8 +13,10 @@
  *
  * The one value read off these forms that is not an id is the **amount** a household handed over
  * (US-29.7). It arrives as German text — `4`, `4,00`, `4.00` — and `parseEuros` is the single place
- * that turns text into money, here at the boundary; a negative or unreadable amount is refused here
- * and never reaches a use case, which is why neither of them re-checks it.
+ * that turns text into money, here at the boundary, so an unreadable amount is answered with a
+ * sentence about the field rather than an exception from three layers down. It is not the *guard*,
+ * though: both use cases check the number again with `requirePayment`, because a screen may not be
+ * the only thing standing between a typo and a household's balance (FR-8).
  *
  * An amount **above** what was asked for is a different matter, and deliberately not this layer's
  * to judge. The submission goes without a confirmation, the use case answers with
@@ -44,7 +46,7 @@ import {
   RecordNoLongerCorrectable,
   ReminderAlreadyLoggedToday,
 } from "@/domain/errors";
-import { parseEuros } from "@/domain/money";
+import { parseEuros, type Cents } from "@/domain/money";
 import { customerFieldLabel, de } from "@/i18n/de";
 import { customerErrorField, fieldRefusals } from "../kunden/neu/registration-input";
 import { germanTime } from "@/i18n/format";
@@ -61,24 +63,25 @@ const surrogateId = z
 
 /**
  * The amount a household handed over, as DF type it into the Betrag field: `4`, `4,00` or `4.00`,
- * all read as 400 cents.
+ * all read as 400 cents. `null` when the field holds something that is not an amount.
  *
  * `parseEuros` is the domain's own reader — the same one the settings screen's prices go through —
  * and it is strict on purpose: a third decimal digit and a minus sign are both refused rather than
- * rounded or absorbed. That refusal is the reason `recordAttendance` and `correctAttendance` may
- * trust the number they are handed (US-29.4).
+ * rounded or absorbed. `InvalidEuroAmount` is the only thing it throws, and the caller has just one
+ * sentence to say about any of it, so the error becomes a `null` here rather than a typed refusal
+ * carried two frames to be flattened anyway.
+ *
+ * Not a Zod schema, unlike `surrogateId` above: there is no shape to describe and no second issue to
+ * report, only a reader that already exists. The use cases check the number again with
+ * `requirePayment`, so this is the form's convenience rather than the system's guard (US-29.4).
  */
-const euroAmount = z.string().transform((value, ctx): number => {
+function amountFrom(formData: FormData): Cents | null {
   try {
-    return parseEuros(value);
+    return parseEuros(String(formData.get("betrag") ?? ""));
   } catch {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: de.distribution.serve.errors.notAnAmount,
-    });
-    return z.NEVER;
+    return null;
   }
-});
+}
 
 /**
  * That the staff member answered the overpayment question by pressing the confirm button.
@@ -164,8 +167,8 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
   if (!customerId.success) {
     return { status: "error", message: de.distribution.serve.errors.unknown, tier: "error" };
   }
-  const paidCents = euroAmount.safeParse(String(formData.get("betrag") ?? ""));
-  if (!paidCents.success) {
+  const paidCents = amountFrom(formData);
+  if (paidCents === null) {
     // A refusal and not an error: nothing is wrong with the installation, the staff member typed
     // something the field cannot read, and the sentence says what it can.
     return {
@@ -178,7 +181,7 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
   try {
     const record = await recordAttendance(counterActionDeps, {
       customerId: customerId.data,
-      paidCents: paidCents.data,
+      paidCents,
       overpaymentConfirmed: confirmed(formData),
     });
     revalidatePath("/ausgabe");
@@ -223,8 +226,8 @@ export async function correctServe(
   if (formData.get("action") === "REMOVE") {
     intent = { recordId: recordId.data, action: "REMOVE" };
   } else {
-    const paidCents = euroAmount.safeParse(String(formData.get("betrag") ?? ""));
-    if (!paidCents.success) {
+    const paidCents = amountFrom(formData);
+    if (paidCents === null) {
       return {
         status: "error",
         message: de.distribution.serve.errors.notAnAmount,
@@ -234,7 +237,7 @@ export async function correctServe(
     intent = {
       recordId: recordId.data,
       action: "SET_PAYMENT",
-      paidCents: paidCents.data,
+      paidCents,
       overpaymentConfirmed: confirmed(formData),
     };
   }

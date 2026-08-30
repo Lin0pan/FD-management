@@ -280,7 +280,10 @@ export function ServeControls({
   }, [serveState]);
 
   if (todaysRecord !== null) {
-    const correctOverpayment = showingCorrect ? overpaymentIn(correctState) : null;
+    // What the field opens on comes from the action state itself, never from `showingCorrect`: the
+    // board decides which *notice* is on screen, and another control claiming it must not quietly
+    // rewrite the amount a staff member typed. The question below is board-gated; the value is not.
+    const correctOverpayment = overpaymentIn(correctState);
     const typedCents = correctOverpayment?.paidCents ?? todaysRecord.paidCents;
 
     return (
@@ -392,13 +395,13 @@ export function ServeControls({
                 testId="serve-confirmation"
               />
             ) : null}
-            {correctOverpayment === null ? null : (
+            {showingCorrect && correctOverpayment !== null ? (
               <OverpaymentQuestion
                 state={correctOverpayment}
                 disabled={correcting}
                 testId="correct-confirm-overpayment"
               />
-            )}
+            ) : null}
             {showingCorrect && correctState.status === "error" ? (
               <Notice tone={correctState.tier} text={correctState.message} testId="serve-error" />
             ) : null}
@@ -409,9 +412,10 @@ export function ServeControls({
   }
 
   if (canServe) {
-    const serveOverpayment = showingServe ? overpaymentIn(serveState) : null;
     // What the field opens on: the amount to pay, or — once the server has asked about it — the
-    // amount that was typed, so confirming submits the figure the question named.
+    // amount that was typed, so confirming submits the figure the question named. Read off the
+    // action state and not off the board, for the reason the correction form above gives.
+    const serveOverpayment = overpaymentIn(serveState);
     const typedCents = serveOverpayment?.paidCents ?? amountToPayCents;
 
     return (
@@ -445,13 +449,13 @@ export function ServeControls({
                 {de.distribution.serve.submit}
               </Button>
             </div>
-            {serveOverpayment === null ? null : (
+            {showingServe && serveOverpayment !== null ? (
               <OverpaymentQuestion
                 state={serveOverpayment}
                 disabled={serving}
                 testId="serve-confirm-overpayment"
               />
-            )}
+            ) : null}
             {showingServe && serveState.status === "error" ? (
               <Notice tone={serveState.tier} text={serveState.message} testId="serve-error" />
             ) : null}

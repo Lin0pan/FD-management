@@ -1377,7 +1377,6 @@ export const de = {
           `gezahlte Betrag wird mit entfernt. Der Saldo des Haushalts steht danach wieder bei: ` +
           `${balanceWording(balanceKind(balanceWithoutRecordCents), balanceWithoutRecordCents)}.`,
         removeConfirmButton: "Ja, entfernen",
-        removeCancel: "Abbrechen",
         removed: "Eintrag entfernt. Der Haushalt kann heute erneut erfasst werden.",
       },
       errors: {
