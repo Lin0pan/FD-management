@@ -47,7 +47,8 @@ export type DomainErrorCode =
   | "GroupUnchanged"
   | "DuplicateEggThreshold"
   | "EggsNotIncreasing"
-  | "OverpaymentNotConfirmed";
+  | "OverpaymentNotConfirmed"
+  | "InvalidPaymentAmount";
 
 /** Base class of every domain error. `code` lets callers switch over the closed set above. */
 export abstract class DomainError extends Error {
@@ -736,5 +737,28 @@ export class OverpaymentNotConfirmed extends DomainError {
     super(`${paidCents} cents were handed over against the ${amountToPayCents} cents asked for`);
     this.paidCents = paidCents;
     this.amountToPayCents = amountToPayCents;
+  }
+}
+
+/**
+ * An amount handed over that is not a whole, non-negative number of cents (US-29).
+ *
+ * Distinct from {@link InvalidEuroAmount}, which is about *text a human typed* and carries that text
+ * back so the field can say what it read. This one is about a **number a caller passed**: it can only
+ * be raised by a path that did not go through `parseEuros`, and there is nothing to quote back.
+ *
+ * It exists because the balance is derived and therefore unrepairable. `Σ (paidCents − priceCents)`
+ * has no stored value to correct, so a negative or fractional amount that reaches the store is
+ * carried silently by every later reading of that household's balance, and by the amount the counter
+ * asks for. The counter cannot produce one — `parseEuros` refuses it at the form — but the counter is
+ * not the only caller (FR-8), and the seed already writes payments through the store directly.
+ */
+export class InvalidPaymentAmount extends DomainError {
+  readonly code = "InvalidPaymentAmount";
+  readonly paidCents: number;
+
+  constructor(paidCents: number) {
+    super(`${paidCents} is not a whole, non-negative number of cents`);
+    this.paidCents = paidCents;
   }
 }

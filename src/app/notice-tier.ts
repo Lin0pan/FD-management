@@ -28,14 +28,17 @@ export type NoticeTier = "refusal" | "error";
  * The tier of every code the domain can raise.
  *
  * A `Record<DomainErrorCode, NoticeTier>` rather than a `switch` with a default, and that is the
- * whole point of the shape: a 37th code added to `src/domain/errors.ts` fails the build here until
+ * whole point of the shape: a 39th code added to `src/domain/errors.ts` fails the build here until
  * somebody decides what it means. A `default` would have quietly made it red, which is exactly the
  * state this module exists to leave behind.
  *
- * The seven red ones are the four not-found codes, the unconfigured application, and the two that
+ * The eight red ones are the four not-found codes, the unconfigured application, and the two that
  * mean a *stored* value no longer parses — `InvalidCardNumber` reading a card number out of the
  * database, `CardIndexTaken` losing a race — plus `CardNumberTaken`, which is the same reading of a
- * stale card run one slot wider (US-25). Everything else is the counter's ordinary business.
+ * stale card run one slot wider (US-25) — and `InvalidPaymentAmount`, which is red for a reason of
+ * its own: the field that could produce it refuses a bad amount before a use case ever sees one, so
+ * this code reaching a screen means the amount came from somewhere else and typing again will not
+ * fix it. Everything else is the counter's ordinary business.
  * Note `CustomerNumberTaken` and the two card-run codes are all lost races and are tiered apart on
  * purpose: a taken customer number leaves the registration standing and re-submittable, while a
  * taken card index or card number means the run was read stale and the screen has to be re-read.
@@ -83,6 +86,7 @@ const TIERS: Record<DomainErrorCode, NoticeTier> = {
   InvalidCardNumber: "error",
   CardIndexTaken: "error",
   CardNumberTaken: "error",
+  InvalidPaymentAmount: "error",
 };
 
 /**

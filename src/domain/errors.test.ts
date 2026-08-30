@@ -41,10 +41,10 @@ describe("CardNumberTaken", () => {
 });
 
 /**
- * `OverpaymentNotConfirmed` is raised by `recordAttendance` when the amount handed over is more than
- * the household was asked for (US-29.4), which is still to be written. It is covered here so the
- * rule it stands for — the one mistake this design cannot undo is confirmed before it is written —
- * stays stated while its caller is on its way.
+ * `OverpaymentNotConfirmed` is raised by `recordAttendance` and `correctAttendance` when the amount
+ * handed over is more than the household was asked for (US-29.4). Unlike the two above it, both of
+ * its callers exist; it is kept here for the two amounts it carries, which is what lets the question
+ * on screen name them rather than ask whether something unspecified was meant.
  */
 describe("OverpaymentNotConfirmed", () => {
   it("names the amount handed over and the amount that was asked for", () => {
