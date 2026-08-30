@@ -26,7 +26,7 @@ import { releaseNumbers } from "./seeding";
  *
  * | Number | Household         | Case                                                        |
  * | ------ | ----------------- | ----------------------------------------------------------- |
- * | 341    | 1 grown-up, 1 kid | the spine: part payment, carry, and the removal that undoes it |
+ * | 341    | 1 grown-up, 1 kid | the spine: part payment, carry, the removal and the correction that undo it |
  * | 342    | 1 grown-up, 1 kid | a credit smaller than the price — the next hand-out costs less |
  * | 343    | 1 grown-up, 1 kid | a credit larger than the price — the next hand-out costs nothing |
  * | 344    | 4 grown-ups, 3 kids | the cap: an amount to pay *above* the Maximalpreis           |
@@ -411,5 +411,65 @@ test.describe("Saldo", () => {
     );
     await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(formatEuros(500));
     expect(await handOutsOf(carry)).toBe(1);
+  });
+
+  test("corrects today's amount against what was asked that day, and the balance follows", async ({
+    page,
+  }) => {
+    // The other half of the same-day correction, which the removal test above leaves untouched: the
+    // amount itself. Every assertion here is in **one page load** after the hand-out was recorded —
+    // the correction form and the Saldo tile are two panels the same write feeds, and a suite of
+    // per-form tests could not see one of them stop following the record (CLAUDE.md §Testing).
+    pinDay(SECOND_DAY);
+    await lookUp(page, NUMBERS.carry);
+
+    // 3,00 € for the week plus the 2,00 € still open. Handing over all of it settles the household.
+    await serve(page, 500);
+    await expect(page.getByTestId("counter-balance")).toHaveText(
+      derived.balanceValue("SETTLED", 0),
+    );
+
+    // The correction form opens on what was stored, above the figure it is judged against — which is
+    // what was asked **that day**, 5,00 €, and not the 3,00 € a settled household would be asked for
+    // now. The two are different numbers on purpose: today's amount to pay already has this record's
+    // own payment folded into it.
+    await expect(page.getByTestId("correct-asked")).toHaveText(serveWords.asked(500));
+    await expect(page.getByTestId("correct-amount")).toHaveValue(formatEuroAmount(500));
+
+    // 4,00 € is below the 5,00 € asked and above the 3,00 € today's amount to pay would be, so it
+    // saves without a question only if the day's figure is the one being used. The household is left
+    // 1,00 € short, and the tile says so without the page being reloaded.
+    await fillSticky(page.getByTestId("correct-amount"), formatEuroAmount(400));
+    await page.getByTestId("correct-save").click();
+    await expect(page.getByTestId("serve-confirmation")).toHaveText(serveWords.correct.saved);
+    await expect(page.getByTestId("already-served-message")).toHaveText(
+      serveWords.alreadyServed(SERVED_AT, 400, 500),
+    );
+    await expect(page.getByTestId("counter-balance")).toHaveText(
+      derived.balanceValue("DEBT", -100),
+    );
+
+    // Above the amount asked, a correction asks the same question the hand-out does, and writes
+    // nothing while it is being asked.
+    await fillSticky(page.getByTestId("correct-amount"), formatEuroAmount(800));
+    await page.getByTestId("correct-save").click();
+    await expect(page.getByTestId("serve-error")).toHaveText(
+      serveWords.overpayment.question(800, 500),
+    );
+    await expect(page.getByTestId("counter-balance")).toHaveText(
+      derived.balanceValue("DEBT", -100),
+    );
+    // The field still holds the refused amount, so confirming books the figure the question named
+    // rather than the one React would otherwise have restored.
+    await expect(page.getByTestId("correct-amount")).toHaveValue(formatEuroAmount(800));
+
+    await page.getByTestId("correct-confirm-overpayment").click();
+    await expect(page.getByTestId("serve-confirmation")).toHaveText(serveWords.correct.saved);
+    await expect(page.getByTestId("counter-balance")).toHaveText(
+      derived.balanceValue("CREDIT", 300),
+    );
+    // Two rows and no more — the fortnight-old one and today's. Three corrections amended today's
+    // hand-out; a correction never writes a second record, which is what keeps the sum a balance.
+    expect(await handOutsOf(carry)).toBe(2);
   });
 });
