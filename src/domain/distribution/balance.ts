@@ -174,3 +174,28 @@ export function replayPayments<T extends PaidRecord & { date: Date }>(
   }
   return settlements;
 }
+
+/**
+ * What was asked for on the day `record` was made, replayed from `records`.
+ *
+ * The question two screens ask of one household — the counter, about the hand-out already on file
+ * today, and a same-day correction, about the record it is amending — so it is answered here once
+ * rather than in each of them. Both had the same four lines, and a derivation written twice is a
+ * derivation that can come to disagree with itself.
+ *
+ * The record's *own* payment is not folded in: {@link replayPayments} prices each row against the
+ * balance of the rows before it, which is exactly the figure the counter had in front of it that
+ * morning. Today's amount to pay is the wrong number to compare a stored payment against — it already
+ * counts that payment — and a household settling an old debt would read as paying ahead.
+ *
+ * `records` is the household's whole history and normally contains `record`. When it does not, the
+ * answer is the record's own price: that is what a settled household is asked for, and a record no
+ * history knows about has no earlier rows to be offset by.
+ */
+export function askedForRecord<T extends PaidRecord & { date: Date; id: number }>(
+  records: ReadonlyArray<T>,
+  record: T,
+): Cents {
+  const settlement = replayPayments(records).find((walked) => walked.record.id === record.id);
+  return settlement?.askedCents ?? record.priceCents;
+}

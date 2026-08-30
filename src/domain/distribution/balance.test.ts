@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   amountToPay,
+  askedForRecord,
   balanceKind,
   balanceOf,
   type PaidRecord,
@@ -222,5 +223,45 @@ describe("replayPayments", () => {
     ];
 
     expect(replayPayments(history).at(-1)?.balanceAfter).toBe(balanceOf(history));
+  });
+});
+
+/** One hand-out as `askedForRecord` sees it: a replayable row that a caller can also hold by id. */
+function identifiedHandOut(id: number, day: string, priceCents: number, paidCents: number) {
+  return { id, date: new Date(day), priceCents, paidCents };
+}
+
+describe("askedForRecord", () => {
+  const first = identifiedHandOut(1, "2026-01-08", 500, 200);
+  const second = identifiedHandOut(2, "2026-01-15", 500, 800);
+
+  it("states the bare price for the first hand-out a household ever had", () => {
+    expect(askedForRecord([first, second], first)).toBe(500);
+  });
+
+  it("adds the debt the earlier hand-outs left to a later one", () => {
+    // 3,00 € was left open on the first, so the second was asked for 8,00 € against a 5,00 € price.
+    expect(askedForRecord([first, second], second)).toBe(800);
+  });
+
+  it("leaves the record's own payment out of its own asking price", () => {
+    // The whole reason this is not "today's amount to pay": the 8,00 € on the second record settled
+    // the household, so asked-for-today would be 5,00 € — and the row would read as paying ahead.
+    expect(askedForRecord([first, second], second)).not.toBe(500);
+    expect(standingOf(second.paidCents, askedForRecord([first, second], second))).toBe("EXACT");
+  });
+
+  it("reads the same answer from a history handed over newest first", () => {
+    // The rows arrive in whatever order the store returns them; `replayPayments` sorts them itself.
+    expect(askedForRecord([second, first], second)).toBe(800);
+  });
+
+  it("falls back to the record's own price when the history does not hold it", () => {
+    // Not a case the two callers can reach — both pass a record that came out of the very list they
+    // pass with it — but the fallback is a stated rule rather than a shrug: a record no history
+    // knows about has no earlier rows to be offset by, which is what a settled household is asked.
+    const stranger = identifiedHandOut(99, "2026-02-05", 300, 0);
+
+    expect(askedForRecord([first, second], stranger)).toBe(300);
   });
 });

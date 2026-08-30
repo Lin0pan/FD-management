@@ -21,8 +21,7 @@ import type { CustomerStatus } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
 import type { HouseholdComposition } from "@/domain/customer/householdComposition";
 import { berlinDayKey, recordForDay } from "@/domain/distribution/attendance";
-import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
-import { amountToPay, balanceOf, replayPayments } from "@/domain/distribution/balance";
+import { amountToPay, askedForRecord, balanceOf } from "@/domain/distribution/balance";
 import { evaluateAtCounter, type Verdict } from "@/domain/distribution/counterVerdict";
 import type { Cents } from "@/domain/money";
 import { describeAllowance } from "../allowance/describe-allowance";
@@ -153,27 +152,6 @@ export interface TodaysRecordView {
 }
 
 /**
- * What the counter asked for on the day `todaysRecord` was made, replayed from the household's whole
- * history. Their own payment is *not* folded in: `replayPayments` prices each row against the
- * balance of the rows before it.
- *
- * A `reduce` rather than a `find`, deliberately. `todaysRecord` came out of `recordsForCustomer`, so
- * the row is always there — a `find` would need a fallback for a case that cannot arise, and an arm
- * nothing can reach fails the coverage gate. The seed is the record's own price, which is what the
- * counter asks a settled household for.
- */
-function askedForOn(
-  recordsForCustomer: ReadonlyArray<DistributionRecord>,
-  todaysRecord: DistributionRecord,
-): Cents {
-  return replayPayments(recordsForCustomer).reduce(
-    (asked, settlement) =>
-      settlement.record.id === todaysRecord.id ? settlement.askedCents : asked,
-    todaysRecord.priceCents,
-  );
-}
-
-/**
  * The result of a counter lookup: the verdict, and — unless the number belongs to nobody — who it is
  * about. `customer` is `null` exactly when the verdict is `NOT_FOUND`, so the screen has the
  * supporting data for every verdict it can act on.
@@ -267,7 +245,7 @@ export async function lookupCustomer(
           recordId: existing.id,
           at: existing.date,
           paidCents: existing.paidCents,
-          askedCents: askedForOn(recordsForCustomer, existing),
+          askedCents: askedForRecord(recordsForCustomer, existing),
           balanceWithoutRecordCents: balanceOf(
             recordsForCustomer.filter((record) => record.id !== existing.id),
           ),
