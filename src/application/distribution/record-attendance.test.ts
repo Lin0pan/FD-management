@@ -18,6 +18,7 @@ import type {
 import {
   AlreadyServedToday,
   CustomerNotFound,
+  InvalidPaymentAmount,
   NotClearToServe,
   OverpaymentNotConfirmed,
 } from "@/domain/errors";
@@ -370,6 +371,43 @@ describe("recordAttendance", () => {
     const record = await recordAttendance(deps(), { customerId: 1, paidCents: 0 as Cents });
 
     expect(record.paidCents).toBe(0);
+  });
+
+  it("refuses a negative amount, which the form cannot type but a caller could pass", async () => {
+    // `parseEuros` never produces one, so this guard is about every *other* caller (FR-8). It earns
+    // its place because the balance is derived: a negative amount written here has no stored figure
+    // to be corrected against and is carried by every later reading of this household's balance.
+    const error = await recordAttendance(deps(), {
+      customerId: 1,
+      paidCents: -100 as Cents,
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(InvalidPaymentAmount);
+    expect(records.creates).toBe(0);
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("refuses a fraction of a cent rather than rounding it", async () => {
+    const error = await recordAttendance(deps(), {
+      customerId: 1,
+      paidCents: 12.5 as Cents,
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(InvalidPaymentAmount);
+    expect(records.creates).toBe(0);
+  });
+
+  it("refuses a bad amount even when the overpayment was confirmed", async () => {
+    // The two guards are independent: confirming a credit says nothing about whether the number is
+    // an amount of money at all, so the confirmation must not carry a negative past the first guard.
+    const error = await recordAttendance(deps(), {
+      customerId: 1,
+      paidCents: -100 as Cents,
+      overpaymentConfirmed: true,
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(InvalidPaymentAmount);
+    expect(records.creates).toBe(0);
   });
 
   it("refuses an unconfirmed payment above the amount asked", async () => {

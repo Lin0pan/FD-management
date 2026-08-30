@@ -7,6 +7,7 @@ import type {
 } from "@/domain/distribution/distributionRecord";
 import {
   DistributionRecordNotFound,
+  InvalidPaymentAmount,
   OverpaymentNotConfirmed,
   RecordNoLongerCorrectable,
 } from "@/domain/errors";
@@ -123,6 +124,49 @@ describe("correctAttendance", () => {
     await correctAttendance(deps(), { recordId: 7, action: "SET_PAYMENT", paidCents: 0 as Cents });
 
     expect(records.records[0].paidCents).toBe(0);
+  });
+
+  it("refuses a negative correction, which the form cannot type but a caller could pass", async () => {
+    // The same guard `recordAttendance` applies, for the same reason: the balance is derived, so a
+    // negative amount here would be carried by every later reading of it with nothing to correct.
+    records = new FakeDistributionRecordRepository(record(TODAY));
+
+    const error = await correctAttendance(deps(), {
+      recordId: 7,
+      action: "SET_PAYMENT",
+      paidCents: -100 as Cents,
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(InvalidPaymentAmount);
+    expect(records.setPaymentCalls).toHaveLength(0);
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("refuses a fraction of a cent rather than rounding it", async () => {
+    records = new FakeDistributionRecordRepository(record(TODAY));
+
+    const error = await correctAttendance(deps(), {
+      recordId: 7,
+      action: "SET_PAYMENT",
+      paidCents: 12.5 as Cents,
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(InvalidPaymentAmount);
+    expect(records.setPaymentCalls).toHaveLength(0);
+  });
+
+  it("still refuses a record from an earlier day before it looks at the amount", async () => {
+    // Guard order: a record that may not be touched at all is refused as such, so a staff member is
+    // told the day has passed rather than being told to fix a number that would change nothing.
+    records = new FakeDistributionRecordRepository(record("2026-07-16T09:00:00.000Z"));
+
+    const error = await correctAttendance(deps(), {
+      recordId: 7,
+      action: "SET_PAYMENT",
+      paidCents: -100 as Cents,
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(RecordNoLongerCorrectable);
   });
 
   it("refuses an unconfirmed correction above the amount that was asked", async () => {

@@ -14,9 +14,10 @@
  *  2. **Once per day.** `canRecord` rejects a second record on the same Berlin day with
  *     {@link AlreadyServedToday}, and nothing is written. The database repeats the rule as a unique
  *     constraint (US-05.3), so a race that slips past this guard still cannot double-record.
- *  3. **The payment.** Only now is an amount looked at, and a payment above what was asked for is
- *     refused unless it was confirmed. Asked earlier, the screen would put a staff member to
- *     confirming a credit for a household that may not be served at all.
+ *  3. **The payment.** Only now is an amount looked at: `requirePayment` refuses one that is not
+ *     whole, non-negative cents, and a payment above what was asked for is refused unless it was
+ *     confirmed. Asked earlier, the screen would put a staff member to confirming a credit for a
+ *     household that may not be served at all.
  *
  * The price is resolved through `describeAllowance` at today's instant — the same seam the counter
  * screen reads — so the amount stored on the record is exactly the one staff saw. What the household
@@ -24,15 +25,17 @@
  * the once-per-day guard has already loaded: no second query, and no stored balance to disagree with
  * them (US-29).
  *
- * **A negative `paidCents` cannot arrive here.** `parseEuros` refuses one at the form boundary
- * (US-29.7) with the typed `InvalidEuroAmount`, and this use case deliberately does not re-check —
- * one parser, one refusal, in the layer that reads what a human typed.
+ * **The amount is checked here as well as at the form.** `parseEuros` already refuses a negative or
+ * fractional `paidCents` in the text a staff member typed (US-29.7), and `requirePayment` refuses
+ * one again in the number this use case was handed — the same belt-and-braces the settings prices
+ * get. A screen is not allowed to be the only guard (FR-8), and the balance is derived, so a bad
+ * amount that reached the store would have no stored figure to be corrected against (ADR-015).
  */
 
 import { canRecord } from "@/domain/distribution/attendance";
 import { amountToPay, balanceOf } from "@/domain/distribution/balance";
 import { evaluateAtCounter } from "@/domain/distribution/counterVerdict";
-import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
+import { requirePayment, type DistributionRecord } from "@/domain/distribution/distributionRecord";
 import { CustomerNotFound, NotClearToServe, OverpaymentNotConfirmed } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 import { describeAllowance } from "../allowance/describe-allowance";
@@ -79,12 +82,13 @@ export interface RecordAttendanceInput {
 /**
  * Record that the customer showed up today, and return the stored record.
  *
- * Nothing is written unless both guards pass.
+ * Nothing is written unless all three guards pass.
  *
  * @throws {CustomerNotFound} if no customer holds `customerId`.
  * @throws {NotClearToServe} if the counter verdict refuses this customer today.
  * @throws {AlreadyServedToday} if a record for the customer already exists on today's Berlin day.
  * @throws {NoSettingsInForce} if no settings version had taken effect by today.
+ * @throws {InvalidPaymentAmount} if the amount is not a whole, non-negative number of cents.
  * @throws {OverpaymentNotConfirmed} if more than the amount asked for was handed over unconfirmed.
  */
 export async function recordAttendance(
@@ -130,6 +134,7 @@ export async function recordAttendance(
   const allowance = await describeAllowance(deps, customer.details.householdMembers, now);
   const amountToPayCents = amountToPay(allowance.priceCents, balanceOf(history));
   const paidCents = input.paidCents ?? amountToPayCents;
+  requirePayment(paidCents);
   if (paidCents > amountToPayCents && input.overpaymentConfirmed !== true) {
     throw new OverpaymentNotConfirmed(paidCents, amountToPayCents);
   }

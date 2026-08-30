@@ -23,7 +23,8 @@
  */
 
 import { canCorrect } from "@/domain/distribution/attendance";
-import { replayPayments } from "@/domain/distribution/balance";
+import { askedForRecord } from "@/domain/distribution/balance";
+import { requirePayment } from "@/domain/distribution/distributionRecord";
 import {
   DistributionRecordNotFound,
   OverpaymentNotConfirmed,
@@ -46,8 +47,10 @@ export interface CorrectAttendanceDeps {
  * What to do to the record: set the amount that was handed over, or remove it. A discriminated union
  * so the caller states exactly one intent and the use case has no third, undefined case to handle.
  *
- * `paidCents` is trusted to be a whole, non-negative amount: `parseEuros` refuses anything else at
- * the form boundary (US-29.7), and this layer does not re-check it.
+ * `paidCents` is checked to be a whole, non-negative amount by `requirePayment` before anything is
+ * written — as it is in `recordAttendance`, and for the same reason: `parseEuros` refuses one at the
+ * form boundary (US-29.7), but a screen may not be the only guard (FR-8) and a derived balance has
+ * no stored figure to correct a bad amount against.
  */
 export type CorrectAttendanceInput =
   | {
@@ -64,6 +67,7 @@ export type CorrectAttendanceInput =
  *
  * @throws {DistributionRecordNotFound} if no record holds `recordId`.
  * @throws {RecordNoLongerCorrectable} if the record was made before today's Berlin day.
+ * @throws {InvalidPaymentAmount} if the amount is not a whole, non-negative number of cents.
  * @throws {OverpaymentNotConfirmed} if more than that day's amount was handed over unconfirmed.
  */
 export async function correctAttendance(
@@ -91,16 +95,15 @@ export async function correctAttendance(
     return;
   }
 
-  // What the counter asked for on the day this record was made. Nothing stores it, so the customer's
-  // history is replayed and the row belonging to this record read off the walk — its `askedCents` is
-  // the price offset by the balance of the *earlier* hand-outs only, which is the figure a staff
-  // member had in front of them. The record came out of `findById`, so it is one of these rows.
-  const settlements = replayPayments(await deps.records.listForCustomer(record.customerId));
-  const askedCents = settlements.reduce(
-    (asked, settlement) =>
-      settlement.record.id === input.recordId ? settlement.askedCents : asked,
-    record.priceCents,
-  );
+  // The shape of the amount before the meaning of it: an unreadable number is refused without a
+  // second read of the store, and the question below is only ever asked about a real amount.
+  requirePayment(input.paidCents);
+
+  // What the counter asked for on the day this record was made. Nothing stores it, so the household's
+  // history is replayed and this record's row read off the walk — the price offset by the balance of
+  // the *earlier* hand-outs only, which is the figure a staff member had in front of them. The same
+  // question `lookupCustomer` asks about today's record, so it is answered in one place.
+  const askedCents = askedForRecord(await deps.records.listForCustomer(record.customerId), record);
   if (input.paidCents > askedCents && input.overpaymentConfirmed !== true) {
     throw new OverpaymentNotConfirmed(input.paidCents, askedCents);
   }
