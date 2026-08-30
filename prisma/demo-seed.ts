@@ -54,6 +54,7 @@ import type {
 } from "../src/application/ports";
 import { addToWaitingList } from "../src/application/waiting-list/add-to-waiting-list";
 import { formatCardNumber } from "../src/domain/card/cardNumber";
+import { amountToPay, balanceOf } from "../src/domain/distribution/balance";
 import type { Address, HouseholdMemberDetails } from "../src/domain/customer/customer";
 import type { Cents } from "../src/domain/money";
 import type { WeekColour } from "../src/domain/policy/settings";
@@ -840,6 +841,17 @@ function distributionEvents(
   let servedSoFar = 0;
   /** How many hand-outs each household has had so far — what a scripted payment is keyed on. */
   const visits = new Map<string, number>();
+  /**
+   * Each household's balance as this fixture has left it, so the amount asked for is *derived* here
+   * with the domain's own arithmetic rather than read back off the record.
+   *
+   * This loop is the only writer of hand-outs in the seed, so its own running sum is the same number
+   * `balanceOf` would return from the store. Keeping it means the script below does not depend on
+   * `recordAttendance`'s omitted-amount default happening to be the asking price — a default no
+   * screen uses, which could change without a single test noticing that every scripted balance in
+   * the demo register had quietly become something else.
+   */
+  const balances = new Map<string, Cents>();
 
   return days.map((day) => ({
     at: day.at,
@@ -862,12 +874,14 @@ function distributionEvents(
           continue; // A no-show writes no record at all (US-05, FR-6).
         }
         servedSoFar += 1;
-        // Every hand-out is first written the ordinary way: no amount, which `recordAttendance`
-        // reads as "what the counter asked for" — the price plus whatever the household still owes.
-        // The record therefore comes back stating today's asking price, which is the figure both
-        // the scripted payments and the tally below are written against.
+        // Every hand-out is first written the ordinary way — no amount, which `recordAttendance`
+        // reads as "what the counter asked for". The price is not knowable until the record is
+        // priced, so the asking price is worked out from it and the balance carried in: the same
+        // `max(0, price − balance)` the counter shows, and the figure both the scripted payments and
+        // the tally below are written against.
         const record = await recordAttendance(deps, { customerId: id });
-        const askedCents = record.paidCents;
+        const balanceBefore = balances.get(shape.key) ?? 0;
+        const askedCents = amountToPay(record.priceCents, balanceBefore);
         const visit = (visits.get(shape.key) ?? 0) + 1;
         visits.set(shape.key, visit);
 
@@ -889,6 +903,12 @@ function distributionEvents(
         if (scripted !== null) {
           await deps.records.setPayment(record.id, scripted as Cents);
         }
+        // `balanceOf` over the two amounts this hand-out contributes, so the running sum is the
+        // domain's arithmetic and not a second copy of it written out by hand here.
+        balances.set(
+          shape.key,
+          balanceBefore + balanceOf([{ paidCents, priceCents: record.priceCents }]),
+        );
 
         tally.handOuts += 1;
         // Counted against what was asked, never against the price: a household handing over a

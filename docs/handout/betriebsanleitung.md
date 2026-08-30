@@ -90,8 +90,8 @@ Schwarzweiß ausdruckt, liest dasselbe am **−** oder **+** ab.
 
 In der Liste **Bisherige Ausgaben** beim Kunden trägt jede Zeile denselben Vorzeichen-Hinweis: neben
 dem gezahlten Betrag steht **−2,00 €**, wenn an dem Tag 2,00 € zu wenig übergeben wurden, **+2,00 €**,
-wenn es 2,00 € zu viel waren, und **genau**, wenn der geforderte Betrag genau gezahlt wurde. Die
-Zeilen sind zusätzlich rot, blau und grün hinterlegt — auch hier nur als Wiederholung dessen, was
+wenn es 2,00 € zu viel waren, und **genau**, wenn der geforderte Betrag genau gezahlt wurde. Dieser
+Hinweis ist zusätzlich rot, blau oder grün hinterlegt — auch hier nur als Wiederholung dessen, was
 schon dasteht. **Gefordert** ist dabei der Betrag, der an jenem Tag verlangt wurde (der Preis, um den
 damaligen Saldo verschoben), **Preis** die reinen Kosten der Woche.
 
