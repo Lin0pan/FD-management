@@ -11,8 +11,17 @@
  * a record corrected lives in the domain and the use cases — the eligibility re-check, the
  * once-per-day guard and the same-day-only correction are all theirs, not this layer's (FR-8).
  *
- * A `<input type="checkbox">` submits nothing when unchecked, so `paid` is read as the mere presence
- * of the field — the standard HTML-form idiom, and the reason the box is pre-checked in the markup.
+ * The one value read off these forms that is not an id is the **amount** a household handed over
+ * (US-29.7). It arrives as German text — `4`, `4,00`, `4.00` — and `parseEuros` is the single place
+ * that turns text into money, here at the boundary, so an unreadable amount is answered with a
+ * sentence about the field rather than an exception from three layers down. It is not the *guard*,
+ * though: both use cases check the number again with `requirePayment`, because a screen may not be
+ * the only thing standing between a typo and a household's balance (FR-8).
+ *
+ * An amount **above** what was asked for is a different matter, and deliberately not this layer's
+ * to judge. The submission goes without a confirmation, the use case answers with
+ * `OverpaymentNotConfirmed`, and that comes back as the `confirmOverpayment` state the form turns
+ * into a question with a second button. The screen never works out for itself whether to ask (FR-8).
  */
 
 import { revalidatePath } from "next/cache";
@@ -21,7 +30,10 @@ import { z } from "zod";
 import { isBlankDay, parseCalendarDay } from "@/domain/calendarDay";
 import { recordReminder } from "@/application/customers/record-reminder";
 import { renewCertificate } from "@/application/customers/renew-certificate";
-import { correctAttendance } from "@/application/distribution/correct-attendance";
+import {
+  correctAttendance,
+  type CorrectAttendanceInput,
+} from "@/application/distribution/correct-attendance";
 import { recordAttendance } from "@/application/distribution/record-attendance";
 import {
   AlreadyServedToday,
@@ -30,9 +42,11 @@ import {
   DistributionRecordNotFound,
   MissingRequiredField,
   NotClearToServe,
+  OverpaymentNotConfirmed,
   RecordNoLongerCorrectable,
   ReminderAlreadyLoggedToday,
 } from "@/domain/errors";
+import { parseEuros, type Cents } from "@/domain/money";
 import { customerFieldLabel, de } from "@/i18n/de";
 import { customerErrorField, fieldRefusals } from "../kunden/neu/registration-input";
 import { germanTime } from "@/i18n/format";
@@ -46,6 +60,39 @@ const surrogateId = z
   .string()
   .regex(/^\d+$/)
   .transform((value): number => Number(value));
+
+/**
+ * The amount a household handed over, as DF type it into the Betrag field: `4`, `4,00` or `4.00`,
+ * all read as 400 cents. `null` when the field holds something that is not an amount.
+ *
+ * `parseEuros` is the domain's own reader — the same one the settings screen's prices go through —
+ * and it is strict on purpose: a third decimal digit and a minus sign are both refused rather than
+ * rounded or absorbed. `InvalidEuroAmount` is the only thing it throws, and the caller has just one
+ * sentence to say about any of it, so the error becomes a `null` here rather than a typed refusal
+ * carried two frames to be flattened anyway.
+ *
+ * Not a Zod schema, unlike `surrogateId` above: there is no shape to describe and no second issue to
+ * report, only a reader that already exists. The use cases check the number again with
+ * `requirePayment`, so this is the form's convenience rather than the system's guard (US-29.4).
+ */
+function amountFrom(formData: FormData): Cents | null {
+  try {
+    return parseEuros(String(formData.get("betrag") ?? ""));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * That the staff member answered the overpayment question by pressing the confirm button.
+ *
+ * Read as the mere *presence* of the field, the standard HTML-form idiom: the confirm button is a
+ * second submit inside the same form, so clicking it re-sends the typed amount and this flag while
+ * the ordinary button sends only the amount.
+ */
+function confirmed(formData: FormData): boolean {
+  return formData.get("overpaymentConfirmed") !== null;
+}
 
 /**
  * A calendar day as DF type it — `TT.MM.JJJJ` — read as the UTC day it names.
@@ -107,34 +154,57 @@ function correctMessage(error: unknown): string {
 }
 
 /**
- * Record a hand-out for the customer named by the hidden `customerId`, paid unless the box was
- * cleared. On success the page is revalidated so today's record appears in place of the serve action,
- * and the returned time drives the confirmation the form shows while the number field re-focuses.
+ * Record a hand-out for the customer named by the hidden `customerId`, for the amount typed into the
+ * Betrag field. On success the page is revalidated so today's record appears in place of the serve
+ * action, and the returned time drives the confirmation the form shows while the number field is
+ * cleared for the next customer.
+ *
+ * An amount above what was asked for comes back as `confirmOverpayment` rather than as a failure —
+ * the counter shows the question and submits the same amount again with the flag.
  */
 export async function recordServe(_previous: ServeState, formData: FormData): Promise<ServeState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
   if (!customerId.success) {
     return { status: "error", message: de.distribution.serve.errors.unknown, tier: "error" };
   }
+  const paidCents = amountFrom(formData);
+  if (paidCents === null) {
+    // A refusal and not an error: nothing is wrong with the installation, the staff member typed
+    // something the field cannot read, and the sentence says what it can.
+    return {
+      status: "error",
+      message: de.distribution.serve.errors.notAnAmount,
+      tier: "refusal",
+    };
+  }
 
   try {
     const record = await recordAttendance(counterActionDeps, {
       customerId: customerId.data,
-      paid: formData.get("paid") !== null,
+      paidCents,
+      overpaymentConfirmed: confirmed(formData),
     });
     revalidatePath("/ausgabe");
     return { status: "recorded", at: germanTime(record.date) };
   } catch (error: unknown) {
+    if (error instanceof OverpaymentNotConfirmed) {
+      return {
+        status: "confirmOverpayment",
+        paidCents: error.paidCents,
+        amountToPayCents: error.amountToPayCents,
+      };
+    }
     return { status: "error", message: serveMessage(error), tier: tierOf(error) };
   }
 }
 
 /**
- * Amend or remove today's record. The clicked button names the intent through `action`: `SET_PAID`
- * writes the checkbox's new value, `REMOVE` deletes the record after the form's confirmation step.
+ * Amend or remove today's record. The clicked button names the intent through `action`:
+ * `SET_PAYMENT` writes the amount now in the Betrag field, `REMOVE` deletes the record after the
+ * form's confirmation step.
  *
  * The two answers leave by different routes, because a removal destroys the card that would show it.
- * `SET_PAID` comes back as `saved` and is read beside the button. `REMOVE` makes `todaysRecord` null,
+ * `SET_PAYMENT` comes back as `saved` and is read beside the button. `REMOVE` makes `todaysRecord` null,
  * so the whole correction card unmounts and takes the state holding the answer with it — which is
  * why this action's `removed` result was, for its whole life, a branch no component could render.
  * It redirects instead, keeping the number that was looked up so the household stays on screen,
@@ -149,21 +219,44 @@ export async function correctServe(
   if (!recordId.success) {
     return { status: "error", message: de.distribution.serve.errors.notFound, tier: "error" };
   }
-  const remove = formData.get("action") === "REMOVE";
+  // The two intents are read apart before anything is called, because only one of them has an amount
+  // to read: the removal button sits inside the same form and submits the Betrag field with it,
+  // and parsing what a removal is never going to use would refuse a removal over a typo.
+  let intent: CorrectAttendanceInput;
+  if (formData.get("action") === "REMOVE") {
+    intent = { recordId: recordId.data, action: "REMOVE" };
+  } else {
+    const paidCents = amountFrom(formData);
+    if (paidCents === null) {
+      return {
+        status: "error",
+        message: de.distribution.serve.errors.notAnAmount,
+        tier: "refusal",
+      };
+    }
+    intent = {
+      recordId: recordId.data,
+      action: "SET_PAYMENT",
+      paidCents,
+      overpaymentConfirmed: confirmed(formData),
+    };
+  }
 
   try {
-    await correctAttendance(
-      counterActionDeps,
-      remove
-        ? { recordId: recordId.data, action: "REMOVE" }
-        : { recordId: recordId.data, action: "SET_PAID", paid: formData.get("paid") !== null },
-    );
+    await correctAttendance(counterActionDeps, intent);
     revalidatePath("/ausgabe");
   } catch (error: unknown) {
+    if (error instanceof OverpaymentNotConfirmed) {
+      return {
+        status: "confirmOverpayment",
+        paidCents: error.paidCents,
+        amountToPayCents: error.amountToPayCents,
+      };
+    }
     return { status: "error", message: correctMessage(error), tier: tierOf(error) };
   }
 
-  if (remove) {
+  if (intent.action === "REMOVE") {
     const nummer = String(formData.get("nummer") ?? "");
     redirect(`/ausgabe?nummer=${encodeURIComponent(nummer)}&${RECORD_REMOVED}=1`);
   }

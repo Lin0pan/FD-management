@@ -5,8 +5,9 @@
  * Every number in DF's process — the quota, the price per head, the week-cycle anchor — is
  * configuration, not a constant (tasks/prd-us-14-configure-business-rules.md). A saved change is in
  * force immediately; superseded versions are kept rather than overwritten, because a distribution
- * record stores only a `paid` flag and the only way to answer "what did that customer owe last
- * March" is to resolve the version in force then.
+ * record stores what that hand-out cost and what was handed over for it, and nothing about the rule
+ * that produced either. The only way to answer "how many eggs did that household draw last March",
+ * or which colour that week carried, is to resolve the version in force then.
  *
  * This module is pure: it does no I/O, never reads the wall clock, and works over an array of
  * versions that the application layer has already loaded.

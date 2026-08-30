@@ -23,6 +23,7 @@ import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
+import type { Cents } from "@/domain/money";
 import type { SettingsVersion } from "@/domain/policy/settings";
 
 /** Injectable time source. Every time-dependent domain rule reads "now" through this port. */
@@ -415,8 +416,8 @@ export interface DistributionRecordRepository {
    * @throws {AlreadyServedToday} if a record for the customer's day already existed when this landed.
    */
   create(record: NewDistributionRecord): Promise<DistributionRecord>;
-  /** Amend the paid flag of a record made today, and return it as stored. */
-  setPaid(recordId: number, paid: boolean): Promise<DistributionRecord>;
+  /** Amend the amount handed over on a record made today, and return it as stored. */
+  setPayment(recordId: number, paidCents: Cents): Promise<DistributionRecord>;
   /** Remove a record made today — the one deletion the history permits (US-05, FR-7). */
   remove(recordId: number): Promise<void>;
 }

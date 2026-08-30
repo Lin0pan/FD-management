@@ -4,10 +4,10 @@
  * arithmetic and neither can disagree with the other (tasks/prd-us-07-portions-and-price.md §US-07.3).
  *
  * Everything here is derived, nothing stored: the grown-up/children split from the birthdates, the
- * price and the egg allowance from the settings **in force on the evaluated date**. A distribution record keeps only a
- * `paid` flag, so the only way to state what a past distribution cost is to resolve the version that
- * was in force then — which is why this takes a date and reads settings history rather than
- * `readCurrentSettings`.
+ * price and the egg allowance from the settings **in force on the evaluated date**. A distribution
+ * record keeps the money — what the week cost and what was handed over — and nothing else, so the
+ * only way to state what a past distribution *comprised* is to resolve the version that was in force
+ * then, which is why this takes a date and reads settings history rather than `readCurrentSettings`.
  */
 
 import { composition, type HouseholdMember } from "@/domain/customer/householdComposition";

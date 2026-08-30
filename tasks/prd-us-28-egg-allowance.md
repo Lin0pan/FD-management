@@ -451,8 +451,10 @@ including why it is stored as rows rather than as a number.
 - **No eggs on the customer list or the card view.** The list is scanned, not read, and its columns
   are already paid for out of the name. The card is a digital representation of a card designed and
   printed in a **separate system**, and the eggs are handed over at the counter, where the screen is.
-- **No egg count on a distribution record.** The record stores a `paid` flag and the price that was
-  owed; the eggs are free, so there is nothing about them for it to answer.
+- **No egg count on a distribution record.** The record stores what the household handed over and the
+  price that was owed (a `paid` flag, when this was written — see
+  [US-29](prd-us-29-customer-balance.md)); the eggs are free, so there is nothing about them for it
+  to answer.
 - **No stock, no inventory, no "eggs remaining today".** The software states an entitlement, not a
   supply.
 - **No charge for the eggs**, no egg-specific price, no interaction with the Maximalpreis in either

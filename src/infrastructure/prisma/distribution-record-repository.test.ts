@@ -36,6 +36,9 @@ const JUST_BEFORE_MIDNIGHT = new Date("2026-07-23T21:59:00.000Z"); // Berlin 202
 const JUST_AFTER_MIDNIGHT = new Date("2026-07-23T22:01:00.000Z"); // Berlin 2026-07-24 00:01
 
 const PRICE = 550 as Cents;
+/** Less than the price and more than it — the two cases a flag could not hold (US-29). */
+const PART_PAYMENT = 200 as Cents;
+const OVERPAYMENT = 800 as Cents;
 
 let directory: string;
 let prisma: PrismaClient;
@@ -95,27 +98,49 @@ function handOut(
     customerId,
     date: MORNING,
     showedUp: true,
-    paid: true,
+    paidCents: PRICE,
     priceCents: PRICE,
     ...overrides,
   };
 }
 
 describe("PrismaDistributionRecordRepository.create", () => {
-  it("stores the day, showed-up, paid flag and the price the hand-out was taken at", async () => {
+  it("stores the day, showed-up, the amount handed over and the price it was taken at", async () => {
     const customerId = await insertCustomer(50);
 
-    const record = await repository.create(handOut(customerId, { paid: false }));
+    const record = await repository.create(handOut(customerId, { paidCents: PART_PAYMENT }));
 
     expect(record).toEqual({
       id: expect.any(Number),
       customerId,
       date: MORNING,
       showedUp: true,
-      paid: false,
+      paidCents: PART_PAYMENT,
       priceCents: PRICE,
     });
     expect(await prisma.distributionRecord.count({ where: { customerId } })).toBe(1);
+  });
+
+  it("stores a payment of nothing as nothing, never as an absent one", async () => {
+    // The distinction the boolean could not make and the balance rests on: a household that handed
+    // over nothing owes the whole price, and the column must say `0` rather than leave it open.
+    const customerId = await insertCustomer(50);
+
+    const record = await repository.create(handOut(customerId, { paidCents: 0 as Cents }));
+
+    expect(record.paidCents).toBe(0);
+    const [row] = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      `SELECT "paidCents" FROM "DistributionRecord" WHERE "id" = ${record.id}`,
+    );
+    expect(row.paidCents).toBe(0);
+  });
+
+  it("stores a payment above the price, so paying ahead survives the round trip", async () => {
+    const customerId = await insertCustomer(50);
+
+    const record = await repository.create(handOut(customerId, { paidCents: OVERPAYMENT }));
+
+    expect((await repository.findById(record.id))?.paidCents).toBe(OVERPAYMENT);
   });
 
   it("stores a Berlin day-key column the unique constraint rests on", async () => {
@@ -257,14 +282,24 @@ describe("PrismaDistributionRecordRepository reads and corrections", () => {
     expect(await repository.findById(9_999)).toBeNull();
   });
 
-  it("amends the paid flag of a record made today", async () => {
+  it("amends the amount handed over on a record made today", async () => {
     const customerId = await insertCustomer(50);
-    const created = await repository.create(handOut(customerId, { paid: true }));
+    const created = await repository.create(handOut(customerId));
 
-    const amended = await repository.setPaid(created.id, false);
+    const amended = await repository.setPayment(created.id, PART_PAYMENT);
 
-    expect(amended.paid).toBe(false);
-    expect((await repository.findById(created.id))?.paid).toBe(false);
+    expect(amended.paidCents).toBe(PART_PAYMENT);
+    expect((await repository.findById(created.id))?.paidCents).toBe(PART_PAYMENT);
+  });
+
+  it("amends a payment down to nothing, and stores it as nothing", async () => {
+    const customerId = await insertCustomer(50);
+    const created = await repository.create(handOut(customerId));
+
+    const amended = await repository.setPayment(created.id, 0 as Cents);
+
+    expect(amended.paidCents).toBe(0);
+    expect((await repository.findById(created.id))?.paidCents).toBe(0);
   });
 
   it("removes a record made today, the one deletion the history permits", async () => {
@@ -277,7 +312,7 @@ describe("PrismaDistributionRecordRepository reads and corrections", () => {
   });
 
   it("reports DistributionRecordNotFound when a correction names no record", async () => {
-    await expect(repository.setPaid(9_999, false)).rejects.toBeInstanceOf(
+    await expect(repository.setPayment(9_999, PRICE)).rejects.toBeInstanceOf(
       DistributionRecordNotFound,
     );
     await expect(repository.remove(9_999)).rejects.toBeInstanceOf(DistributionRecordNotFound);

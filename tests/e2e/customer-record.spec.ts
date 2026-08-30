@@ -281,7 +281,7 @@ async function seedHouseholdWithHistory(customerNumber: number, handOuts: number
           date,
           dayKey: berlinDayKey(date),
           showedUp: true,
-          paid: true,
+          paidCents: 200,
           priceCents: 200,
         };
       }),
@@ -703,7 +703,7 @@ test.describe("Kundenakte pflegen", () => {
 
   test("a note written on the record is read out at the counter", async ({ page }) => {
     await page.goto(`/kunden/${id}`);
-    await page.getByTestId("notes-field").fill(NOTE);
+    await fillSticky(page.getByTestId("notes-field"), NOTE);
     await page.getByTestId("notes-submit").click();
     await expect(page.getByTestId("notes-saved")).toBeVisible();
 
@@ -726,7 +726,7 @@ test.describe("Kundenakte pflegen", () => {
     await page.goto(`/kunden/${id}`);
 
     const notes = page.getByTestId("notes-field");
-    await notes.fill("Erste Zeile");
+    await fillSticky(notes, "Erste Zeile");
     await notes.press("Enter");
     await notes.pressSequentially("Zweite Zeile");
 
@@ -753,7 +753,7 @@ test.describe("Kundenakte pflegen", () => {
     // block afterwards — a green banner beside a button that had just done something else, which is
     // exactly how somebody concludes an action succeeded when it never reported.
     await page.goto(`/kunden/${id}`);
-    await page.getByTestId("notes-field").fill(`${NOTE} (zweite Fassung)`);
+    await fillSticky(page.getByTestId("notes-field"), `${NOTE} (zweite Fassung)`);
     await page.getByTestId("notes-submit").click();
     await expect(page.getByTestId("notes-saved")).toBeVisible();
 
@@ -800,7 +800,7 @@ test.describe("Kundenakte pflegen", () => {
     // The note is typed *first* and the id rewritten after: the textarea is controlled, so filling
     // it re-renders the form, and React restores a controlled hidden input to the value its prop
     // says. Rewriting before typing puts the real id back before the submit ever reads it.
-    await page.getByTestId("notes-field").fill("Wird nicht gespeichert.");
+    await fillSticky(page.getByTestId("notes-field"), "Wird nicht gespeichert.");
     await page
       .locator('form:has([data-testid="notes-submit"]) input[name="customerId"]')
       .evaluate((input: HTMLInputElement): void => {

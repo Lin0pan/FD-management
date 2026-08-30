@@ -38,9 +38,10 @@ cap — the price is whatever the per-head arithmetic says. This is not the same
 express both. `0` is already a meaningful price everywhere else on that screen (a portions count of
 0, a child price of 0), so it cannot double as the off switch.
 
-**Why it must be versioned rather than a constant.** A distribution record stores a `paid` flag and
-the price that was owed; the settings history is how the software answers _what did that household
-owe last March_. A cap introduced now, or changed from 5,00 € to 6,00 € next year, must not silently
+**Why it must be versioned rather than a constant.** A distribution record stores what the household
+handed over and the price that was owed (a `paid` flag, when this was written — see
+[US-29](prd-us-29-customer-balance.md)); the settings history is how the software answers _what did
+that household owe last March_. A cap introduced now, or changed from 5,00 € to 6,00 € next year, must not silently
 restate what an older distribution cost. It lives on `SettingsVersion` alongside the two per-head
 prices, and `resolveSettingsAt` already does the rest.
 

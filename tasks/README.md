@@ -67,6 +67,12 @@ derived was withdrawn in US-27, because DF hand out food by judgement rather tha
 allowance US-28 added is derived beside the price rather than inside it — the eggs are free, counted
 per head of any age, and touch neither the sum nor the cap.
 
+What a household **hands over** on the day is that price offset by their balance: `max(0, price −
+balance)`, where the balance is `Σ (paid − price)` over their own hand-outs (US-29), derived from the
+history and never stored. So an old debt raises what is asked for and a credit lowers it, down to
+0,00 € — and the amount asked for is **not** capped, the Maximalpreis capping what a week of food
+costs rather than what a household is asked to pay off.
+
 ## Index
 
 | PRD                                                                            | Story | Tier | Depends on          |

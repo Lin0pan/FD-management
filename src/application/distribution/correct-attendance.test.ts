@@ -1,10 +1,17 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { balanceOf } from "@/domain/distribution/balance";
 import { berlinDayKey } from "@/domain/distribution/attendance";
 import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
-import { DistributionRecordNotFound, RecordNoLongerCorrectable } from "@/domain/errors";
+import {
+  DistributionRecordNotFound,
+  InvalidPaymentAmount,
+  OverpaymentNotConfirmed,
+  RecordNoLongerCorrectable,
+} from "@/domain/errors";
+import type { Cents } from "@/domain/money";
 import type { AuditEntry, AuditLog, Clock, DistributionRecordRepository } from "../ports";
 import { correctAttendance } from "./correct-attendance";
 
@@ -15,7 +22,7 @@ const TODAY = "2026-07-23T09:00:00.000Z";
 class FakeDistributionRecordRepository implements DistributionRecordRepository {
   readonly records: DistributionRecord[] = [];
   removed: number[] = [];
-  setPaidCalls: Array<{ recordId: number; paid: boolean }> = [];
+  setPaymentCalls: Array<{ recordId: number; paidCents: Cents }> = [];
 
   constructor(...records: DistributionRecord[]) {
     this.records.push(...records);
@@ -39,11 +46,11 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve(stored);
   }
 
-  setPaid(recordId: number, paid: boolean): Promise<DistributionRecord> {
-    this.setPaidCalls.push({ recordId, paid });
+  setPayment(recordId: number, paidCents: Cents): Promise<DistributionRecord> {
+    this.setPaymentCalls.push({ recordId, paidCents });
     const record = this.records.find((r) => r.id === recordId);
     if (record === undefined) throw new Error("test fake: no such record");
-    const updated = { ...record, paid };
+    const updated = { ...record, paidCents };
     this.records[this.records.indexOf(record)] = updated;
     return Promise.resolve(updated);
   }
@@ -69,8 +76,17 @@ function fakeClock(iso: string): Clock {
   return { now: () => new Date(iso) };
 }
 
-function record(date: string, paid = true): DistributionRecord {
-  return { id: 7, customerId: 1, date: new Date(date), showedUp: true, paid, priceCents: 300 };
+const PRICE = 300 as Cents;
+
+function record(date: string, paidCents: Cents = PRICE, id = 7): DistributionRecord {
+  return {
+    id,
+    customerId: 1,
+    date: new Date(date),
+    showedUp: true,
+    paidCents,
+    priceCents: PRICE,
+  };
 }
 
 describe("correctAttendance", () => {
@@ -85,20 +101,134 @@ describe("correctAttendance", () => {
     audit = new FakeAuditLog();
   });
 
-  it("flips the paid flag of a record made today and audits the correction", async () => {
-    records = new FakeDistributionRecordRepository(record(TODAY, true));
+  it("raises a payment recorded earlier today", async () => {
+    // They handed over 100 of the 300 asked for and came back with the rest before the day was out.
+    records = new FakeDistributionRecordRepository(record(TODAY, 100 as Cents));
 
-    await correctAttendance(deps(), { recordId: 7, action: "SET_PAID", paid: false });
+    await correctAttendance(deps(), { recordId: 7, action: "SET_PAYMENT", paidCents: PRICE });
 
-    expect(records.setPaidCalls).toEqual([{ recordId: 7, paid: false }]);
-    expect(records.records[0].paid).toBe(false);
+    expect(records.setPaymentCalls).toEqual([{ recordId: 7, paidCents: PRICE }]);
+    expect(records.records[0].paidCents).toBe(PRICE);
     expect(audit.entries).toHaveLength(1);
     expect(audit.entries[0]).toMatchObject({
       what: "distribution.corrected",
-      changedFields: ["paid"],
+      changedFields: ["paidCents"],
       why: "",
       when: new Date(TODAY),
     });
+  });
+
+  it("records a correction down to nothing without a question", async () => {
+    records = new FakeDistributionRecordRepository(record(TODAY));
+
+    await correctAttendance(deps(), { recordId: 7, action: "SET_PAYMENT", paidCents: 0 as Cents });
+
+    expect(records.records[0].paidCents).toBe(0);
+  });
+
+  it("refuses a negative correction, which the form cannot type but a caller could pass", async () => {
+    // The same guard `recordAttendance` applies, for the same reason: the balance is derived, so a
+    // negative amount here would be carried by every later reading of it with nothing to correct.
+    records = new FakeDistributionRecordRepository(record(TODAY));
+
+    const error = await correctAttendance(deps(), {
+      recordId: 7,
+      action: "SET_PAYMENT",
+      paidCents: -100 as Cents,
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(InvalidPaymentAmount);
+    expect(records.setPaymentCalls).toHaveLength(0);
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("refuses a fraction of a cent rather than rounding it", async () => {
+    records = new FakeDistributionRecordRepository(record(TODAY));
+
+    const error = await correctAttendance(deps(), {
+      recordId: 7,
+      action: "SET_PAYMENT",
+      paidCents: 12.5 as Cents,
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(InvalidPaymentAmount);
+    expect(records.setPaymentCalls).toHaveLength(0);
+  });
+
+  it("still refuses a record from an earlier day before it looks at the amount", async () => {
+    // Guard order: a record that may not be touched at all is refused as such, so a staff member is
+    // told the day has passed rather than being told to fix a number that would change nothing.
+    records = new FakeDistributionRecordRepository(record("2026-07-16T09:00:00.000Z"));
+
+    const error = await correctAttendance(deps(), {
+      recordId: 7,
+      action: "SET_PAYMENT",
+      paidCents: -100 as Cents,
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(RecordNoLongerCorrectable);
+  });
+
+  it("refuses an unconfirmed correction above the amount that was asked", async () => {
+    records = new FakeDistributionRecordRepository(record(TODAY, 100 as Cents));
+
+    const error = await correctAttendance(deps(), {
+      recordId: 7,
+      action: "SET_PAYMENT",
+      paidCents: 400 as Cents,
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(OverpaymentNotConfirmed);
+    expect(error).toMatchObject({ paidCents: 400, amountToPayCents: PRICE });
+    expect(records.setPaymentCalls).toHaveLength(0);
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("writes a confirmed correction above the amount that was asked", async () => {
+    records = new FakeDistributionRecordRepository(record(TODAY, 100 as Cents));
+
+    await correctAttendance(deps(), {
+      recordId: 7,
+      action: "SET_PAYMENT",
+      paidCents: 400 as Cents,
+      overpaymentConfirmed: true,
+    });
+
+    expect(records.records[0].paidCents).toBe(400);
+  });
+
+  it("judges a correction against what was asked that day, not against today's amount to pay", async () => {
+    // A fortnight ago they were asked for 300 and handed over 100, so today's hand-out was asked
+    // for 500. Correcting today's payment to 500 is settling up, not paying ahead — read against
+    // today's *amount to pay*, which already counts this record's own payment, it would look like
+    // an overpayment and staff would be asked to confirm a credit that does not exist.
+    records = new FakeDistributionRecordRepository(
+      record("2026-07-09T09:00:00.000Z", 100 as Cents, 6),
+      record(TODAY, 500 as Cents),
+    );
+
+    await correctAttendance(deps(), {
+      recordId: 7,
+      action: "SET_PAYMENT",
+      paidCents: 500 as Cents,
+    });
+
+    expect(records.setPaymentCalls).toEqual([{ recordId: 7, paidCents: 500 }]);
+    expect(balanceOf(records.records)).toBe(0);
+  });
+
+  it("restores the balance when a record is removed", async () => {
+    // The property the whole derive-don't-store choice was made for: nothing puts the balance back,
+    // because there is nothing to put back — the surviving rows are the balance.
+    records = new FakeDistributionRecordRepository(
+      record("2026-07-09T09:00:00.000Z", 100 as Cents, 6),
+      record(TODAY, 500 as Cents),
+    );
+    expect(balanceOf(records.records)).toBe(0);
+
+    await correctAttendance(deps(), { recordId: 7, action: "REMOVE" });
+
+    expect(balanceOf(records.records)).toBe(-200);
   });
 
   it("removes a record made today and audits the removal", async () => {
@@ -111,21 +241,21 @@ describe("correctAttendance", () => {
     expect(audit.entries[0]).toMatchObject({ what: "distribution.removed", why: "" });
   });
 
-  it("rejects correcting a record made on an earlier day, and changes nothing", async () => {
+  it("refuses to correct a record from an earlier day", async () => {
     // Recorded on the previous distribution day; the correction is attempted today.
     records = new FakeDistributionRecordRepository(record("2026-07-16T09:00:00.000Z"));
 
     const error = await correctAttendance(deps(), {
       recordId: 7,
-      action: "SET_PAID",
-      paid: false,
+      action: "SET_PAYMENT",
+      paidCents: 0 as Cents,
     }).catch((e) => e);
 
     expect(error).toBeInstanceOf(RecordNoLongerCorrectable);
     expect((error as RecordNoLongerCorrectable).recordDate).toEqual(
       new Date("2026-07-16T09:00:00.000Z"),
     );
-    expect(records.setPaidCalls).toHaveLength(0);
+    expect(records.setPaymentCalls).toHaveLength(0);
     expect(records.removed).toHaveLength(0);
     expect(audit.entries).toHaveLength(0);
   });

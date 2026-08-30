@@ -78,7 +78,11 @@ deliberately and say why in the commit; do not add an inline disable.
     as the card's number: what a card number _is_ stays the pair `customer.customerNumber` and
     `card.index` put through `formatCardNumber`, derived at every read.
 
-  Any further "just store it" needs an argument of that kind.
+  Any further "just store it" needs an argument of that kind. The **customer balance was asked to
+  be a fourth and refused** — it is `Σ (paidCents − priceCents)` over a household's hand-outs,
+  derived at every read (US-29, ADR-015). A stored balance beside the records that produce it is
+  two answers to one question, and a corrected or removed hand-out would leave them disagreeing
+  silently.
 
 - **Money is integer cents**, never a float. Format via `src/domain/money.ts`.
 - **Policy values are data, not constants** — the prices per head, the cap and the quota `N` live

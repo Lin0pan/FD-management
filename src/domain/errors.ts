@@ -46,7 +46,9 @@ export type DomainErrorCode =
   | "NotesTooLong"
   | "GroupUnchanged"
   | "DuplicateEggThreshold"
-  | "EggsNotIncreasing";
+  | "EggsNotIncreasing"
+  | "OverpaymentNotConfirmed"
+  | "InvalidPaymentAmount";
 
 /** Base class of every domain error. `code` lets callers switch over the closed set above. */
 export abstract class DomainError extends Error {
@@ -708,5 +710,55 @@ export class EggsNotIncreasing extends DomainError {
     this.eggs = eggs;
     this.lowerMinPersons = lowerMinPersons;
     this.lowerEggs = lowerEggs;
+  }
+}
+
+/**
+ * More was handed over than the household was asked for, and nobody has confirmed it (US-29.2).
+ *
+ * A mistyped credit is the one error this design cannot undo. It does not surface anywhere: the
+ * balance silently pays for the household's next weeks, and the first sign is a household being
+ * asked for nothing for a month. A **shortfall** needs no such guard — it shows up as an open amount
+ * at the very next hand-out, in front of the staff member who is serving them.
+ *
+ * So the staff member is being asked a question, not shown a fault: „50,00 € statt 8,00 € — wirklich
+ * so buchen?" The counter re-submits with the confirmation and the payment is written as typed;
+ * paying ahead is a thing households do and is never refused outright.
+ *
+ * Carries both amounts, so the question can name them rather than asking whether something
+ * unspecified was meant.
+ */
+export class OverpaymentNotConfirmed extends DomainError {
+  readonly code = "OverpaymentNotConfirmed";
+  readonly paidCents: number;
+  readonly amountToPayCents: number;
+
+  constructor(paidCents: number, amountToPayCents: number) {
+    super(`${paidCents} cents were handed over against the ${amountToPayCents} cents asked for`);
+    this.paidCents = paidCents;
+    this.amountToPayCents = amountToPayCents;
+  }
+}
+
+/**
+ * An amount handed over that is not a whole, non-negative number of cents (US-29).
+ *
+ * Distinct from {@link InvalidEuroAmount}, which is about *text a human typed* and carries that text
+ * back so the field can say what it read. This one is about a **number a caller passed**: it can only
+ * be raised by a path that did not go through `parseEuros`, and there is nothing to quote back.
+ *
+ * It exists because the balance is derived and therefore unrepairable. `Σ (paidCents − priceCents)`
+ * has no stored value to correct, so a negative or fractional amount that reaches the store is
+ * carried silently by every later reading of that household's balance, and by the amount the counter
+ * asks for. The counter cannot produce one — `parseEuros` refuses it at the form — but the counter is
+ * not the only caller (FR-8), and the seed already writes payments through the store directly.
+ */
+export class InvalidPaymentAmount extends DomainError {
+  readonly code = "InvalidPaymentAmount";
+  readonly paidCents: number;
+
+  constructor(paidCents: number) {
+    super(`${paidCents} is not a whole, non-negative number of cents`);
+    this.paidCents = paidCents;
   }
 }

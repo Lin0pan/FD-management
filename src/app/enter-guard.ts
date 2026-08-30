@@ -8,11 +8,14 @@
  * rather than the one they meant to pick. That save is not undone by a second keystroke — it burns a
  * customer number and issues a card.
  *
- * So on the six multi-field data-entry forms, Enter in a field does nothing and the form is saved by
- * its button. Not everywhere: the counter loop on `/ausgabe` is *driven* by Enter (US-21), and the
- * customer search and the archive search are search boxes. The guard therefore hangs on individual
- * `<form>` elements and never on the document — which is also what keeps the archive-search panel
- * working next to the registration form it sits beside on the same screen.
+ * So on the data-entry forms, Enter in a field does nothing and the form is saved by its button.
+ * The counter's two write forms are among them since US-29.7 gave them an amount to type: a stray
+ * Enter there would book a payment, and an unconfirmed overpayment is one keystroke from being
+ * confirmed. Not everywhere, though: the counter's *lookup* form on the same screen is **driven** by
+ * Enter (US-21), and the customer search and the archive search are search boxes. The guard
+ * therefore hangs on individual `<form>` elements and never on the document — which is what lets one
+ * screen carry both kinds, and keeps the archive-search panel working beside the registration form
+ * it sits next to.
  *
  * A plain module, no directive and no DOM at import time, so the rule below can be unit-tested in
  * Node while {@link guardEnter} does the narrowing in the browser.

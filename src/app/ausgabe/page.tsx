@@ -476,9 +476,14 @@ export default async function DistributionPage({
                   expired={counter.lookup.verdict.kind === "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED"}
                   reminderLoggedToday={counter.lookup.reminderLoggedToday}
                 />
+                {/* Every figure the payment turns on comes off the lookup, derived there from the
+                    household's own hand-out history (US-29.5). Nothing about money is worked out on
+                    this page: it hands the amounts down and the controls render them. */}
                 <ServeControls
                   customerId={counter.lookup.customerId}
                   canServe={permitsServing(counter.lookup.verdict)}
+                  amountToPayCents={counter.lookup.customer.amountToPayCents}
+                  balanceCents={counter.lookup.customer.balanceCents}
                   lookedUpNumber={typeof nummer === "string" ? nummer : ""}
                   todaysRecord={
                     counter.lookup.todaysRecord === null
@@ -486,7 +491,10 @@ export default async function DistributionPage({
                       : {
                           recordId: counter.lookup.todaysRecord.recordId,
                           time: germanTime(counter.lookup.todaysRecord.at),
-                          paid: counter.lookup.todaysRecord.paid,
+                          paidCents: counter.lookup.todaysRecord.paidCents,
+                          askedCents: counter.lookup.todaysRecord.askedCents,
+                          balanceWithoutRecordCents:
+                            counter.lookup.todaysRecord.balanceWithoutRecordCents,
                         }
                   }
                 />

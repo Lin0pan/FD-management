@@ -47,20 +47,26 @@ Business logic in `app/` is a defect, not a style preference. So is a Prisma cal
 
 ## Level 2 — inside each layer
 
-### `src/domain/` — 26 modules in four families
+### `src/domain/` — 27 modules in four families
 
-| Directory               | Responsibility                                                                                                                                                                                                                                         |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `customer/`             | What a household is and what may happen to it: composition from birthdates, the 13-year boundary, certificate expiry and state, the three-status state machine, group balancing, the free-slot arithmetic, name folding for search, waiting-list order |
-| `distribution/`         | What happens on a distribution day: the counter verdict and its fixed precedence, one hand-out per Berlin calendar day, week-colour alternation from a single anchor, the group roster walk, the served/expected tally, consecutive no-shows           |
-| `card/`                 | What a card is: the derived card number, "valid means highest index", and whether what is printed still matches the household                                                                                                                          |
-| `policy/`               | Settings as immutable versions, resolution at an instant, price per head with cap, the egg staircase and the count a household size yields, and the diff two versions produce                                                                          |
-| `errors.ts`, `money.ts` | The closed set of failure modes; money as integer cents with German formatting                                                                                                                                                                         |
+| Directory               | Responsibility                                                                                                                                                                                                                                                                               |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `customer/`             | What a household is and what may happen to it: composition from birthdates, the 13-year boundary, certificate expiry and state, the three-status state machine, group balancing, the free-slot arithmetic, name folding for search, waiting-list order                                       |
+| `distribution/`         | What happens on a distribution day: the counter verdict and its fixed precedence, one hand-out per Berlin calendar day, the customer balance and the amount to collect, week-colour alternation from a single anchor, the group roster walk, the served/expected tally, consecutive no-shows |
+| `card/`                 | What a card is: the derived card number, "valid means highest index", and whether what is printed still matches the household                                                                                                                                                                |
+| `policy/`               | Settings as immutable versions, resolution at an instant, price per head with cap, the egg staircase and the count a household size yields, and the diff two versions produce                                                                                                                |
+| `errors.ts`, `money.ts` | The closed set of failure modes; money as integer cents with German formatting                                                                                                                                                                                                               |
 
 The one module worth naming individually is `distribution/counterVerdict.ts`. It produces **exactly
 one** verdict from a fixed precedence chain — `NOT_FOUND → ARCHIVED → BLOCKED → WRONG_GROUP →
 OUTDATED_CARD → ALREADY_SERVED_TODAY → CLEAR_TO_SERVE_CERTIFICATE_EXPIRED → CLEAR_TO_SERVE`.
 Assembling that answer in JSX is the mistake the module exists to prevent.
+
+The second is `distribution/balance.ts`. A household's balance is `Σ (paidCents − priceCents)` over
+its own hand-outs and is **stored nowhere** ([ADR-015](adr/015-derive-the-customer-balance-from-the-hand-out-history-never-store-it.md));
+the amount to collect today is `max(0, priceCents − balance)`, and `replayPayments` re-derives what
+was asked for on each past day so the history explains itself. `balanceKind` is the one place the
+sign is read, so no screen compares a balance to zero itself.
 
 ### `src/application/` — 35 use cases behind ten ports
 
@@ -90,7 +96,7 @@ This table _is_ the boundary between the pure core and everything else.
 | `CustomerCounter`              | The count of non-archived households, for the quota check                                                                                                                    |
 | `CustomerRepository`           | The register: taken numbers, group counts, lookups by id and by number, filtered listing, archive search, create, the field-group updates, status and group changes, archive |
 | `CardRepository`               | Current card, highest index for a number, a customer's cards, issue counts, issue                                                                                            |
-| `DistributionRecordRepository` | Hand-outs for a customer and for a day, create, set paid, remove                                                                                                             |
+| `DistributionRecordRepository` | Hand-outs for a customer and for a day, create, amend the amount handed over, remove                                                                                         |
 | `ReminderLogRepository`        | Find a reminder on a day; record one together with the customer's count                                                                                                      |
 | `CertificateRepository`        | Append a renewal and reset the reminder count, in one transaction                                                                                                            |
 | `WaitingListRepository`        | The waiting rows, add, and remove — which stamps rather than deletes                                                                                                         |

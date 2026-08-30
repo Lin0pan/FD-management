@@ -15,7 +15,14 @@ import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
-import { AlreadyServedToday, CustomerNotFound, NotClearToServe } from "@/domain/errors";
+import {
+  AlreadyServedToday,
+  CustomerNotFound,
+  InvalidPaymentAmount,
+  NotClearToServe,
+  OverpaymentNotConfirmed,
+} from "@/domain/errors";
+import type { Cents } from "@/domain/money";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
 import type {
   ArchivedCustomer,
@@ -198,10 +205,10 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve(stored);
   }
 
-  setPaid(recordId: number, paid: boolean): Promise<DistributionRecord> {
+  setPayment(recordId: number, paidCents: Cents): Promise<DistributionRecord> {
     const record = this.records.find((r) => r.id === recordId);
     if (record === undefined) throw new Error("test fake: no such record");
-    const updated = { ...record, paid };
+    const updated = { ...record, paidCents };
     this.records[this.records.indexOf(record)] = updated;
     return Promise.resolve(updated);
   }
@@ -293,14 +300,22 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
   };
 }
 
-function existingRecord(date: string): DistributionRecord {
+interface RecordOverrides {
+  readonly id?: number;
+  readonly priceCents?: Cents;
+  readonly paidCents?: Cents;
+}
+
+/** A hand-out already on file. Paid in full unless a test says otherwise — the ordinary case. */
+function existingRecord(date: string, overrides: RecordOverrides = {}): DistributionRecord {
+  const priceCents = overrides.priceCents ?? (300 as Cents);
   return {
-    id: 99,
+    id: overrides.id ?? 99,
     customerId: 1,
     date: new Date(date),
     showedUp: true,
-    paid: true,
-    priceCents: 300,
+    paidCents: overrides.paidCents ?? priceCents,
+    priceCents,
   };
 }
 
@@ -321,30 +336,143 @@ describe("recordAttendance", () => {
     audit = new FakeAuditLog();
   });
 
-  it("records the hand-out with showedUp, the paid flag and the price in force today", async () => {
+  it("records the hand-out with showedUp, the payment and the price in force today", async () => {
     const record = await recordAttendance(deps(), { customerId: 1 });
 
     // One grown-up + one child at 200/100 per head = 300 cents.
     expect(record).toMatchObject({
       customerId: 1,
       showedUp: true,
-      paid: true,
+      paidCents: 300,
       priceCents: 300,
     });
     expect(record.date).toEqual(new Date(TODAY));
     expect(records.records).toHaveLength(1);
   });
 
-  it("defaults paid to true when it is not given", async () => {
+  it("records the amount asked for when none is given", async () => {
+    // Confirming what the counter asked for is the normal case, so an omitted amount is that
+    // figure — the same value the pre-filled field shows the staff member (US-29.7).
     const record = await recordAttendance(deps(), { customerId: 1 });
 
-    expect(record.paid).toBe(true);
+    expect(record.paidCents).toBe(300);
   });
 
-  it("stores paid as false when the staff member cleared the flag", async () => {
-    const record = await recordAttendance(deps(), { customerId: 1, paid: false });
+  it("records a part payment", async () => {
+    const record = await recordAttendance(deps(), { customerId: 1, paidCents: 100 as Cents });
 
-    expect(record.paid).toBe(false);
+    // Below what was asked, and written without a question: the household owes the rest, and the
+    // balance carries it to their next hand-out.
+    expect(record.paidCents).toBe(100);
+    expect(record.priceCents).toBe(300);
+  });
+
+  it("records a payment of nothing", async () => {
+    const record = await recordAttendance(deps(), { customerId: 1, paidCents: 0 as Cents });
+
+    expect(record.paidCents).toBe(0);
+  });
+
+  it("refuses a negative amount, which the form cannot type but a caller could pass", async () => {
+    // `parseEuros` never produces one, so this guard is about every *other* caller (FR-8). It earns
+    // its place because the balance is derived: a negative amount written here has no stored figure
+    // to be corrected against and is carried by every later reading of this household's balance.
+    const error = await recordAttendance(deps(), {
+      customerId: 1,
+      paidCents: -100 as Cents,
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(InvalidPaymentAmount);
+    expect(records.creates).toBe(0);
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("refuses a fraction of a cent rather than rounding it", async () => {
+    const error = await recordAttendance(deps(), {
+      customerId: 1,
+      paidCents: 12.5 as Cents,
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(InvalidPaymentAmount);
+    expect(records.creates).toBe(0);
+  });
+
+  it("refuses a bad amount even when the overpayment was confirmed", async () => {
+    // The two guards are independent: confirming a credit says nothing about whether the number is
+    // an amount of money at all, so the confirmation must not carry a negative past the first guard.
+    const error = await recordAttendance(deps(), {
+      customerId: 1,
+      paidCents: -100 as Cents,
+      overpaymentConfirmed: true,
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(InvalidPaymentAmount);
+    expect(records.creates).toBe(0);
+  });
+
+  it("refuses an unconfirmed payment above the amount asked", async () => {
+    const error = await recordAttendance(deps(), {
+      customerId: 1,
+      paidCents: 400 as Cents,
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(OverpaymentNotConfirmed);
+    expect(error).toMatchObject({ paidCents: 400, amountToPayCents: 300 });
+    expect(records.creates).toBe(0);
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("records a confirmed payment above the amount asked", async () => {
+    const record = await recordAttendance(deps(), {
+      customerId: 1,
+      paidCents: 400 as Cents,
+      overpaymentConfirmed: true,
+    });
+
+    // The 100 cents over become the household's credit; nothing is stored but the amount itself.
+    expect(record.paidCents).toBe(400);
+  });
+
+  it("asks for the price plus an old debt", async () => {
+    // A fortnight ago the household was asked for 300 and handed over 100, so they owe 200.
+    records = new FakeDistributionRecordRepository(
+      existingRecord("2026-07-09T09:00:00.000Z", { paidCents: 100 as Cents }),
+    );
+
+    const record = await recordAttendance(deps(), { customerId: 1 });
+
+    expect(record.paidCents).toBe(500);
+    expect(record.priceCents).toBe(300);
+  });
+
+  it("asks for nothing when the credit covers the price", async () => {
+    // They handed over 800 against a 300 price a fortnight ago, so 500 stands to them.
+    records = new FakeDistributionRecordRepository(
+      existingRecord("2026-07-09T09:00:00.000Z", { paidCents: 800 as Cents }),
+    );
+
+    const record = await recordAttendance(deps(), { customerId: 1 });
+
+    // Nothing to collect, and the week is still charged: the credit shrinks by the price to 200.
+    expect(record.paidCents).toBe(0);
+    expect(record.priceCents).toBe(300);
+  });
+
+  it("asks for a capped price plus an uncapped debt", async () => {
+    // The Maximalpreis caps what a week of food costs the household — 250 rather than 300 — and
+    // does not cap what they are asked for, so the 100 they still owe is added on top of the cap.
+    settings = new FakeSettingsRepository(version({ priceCap: 250 }));
+    records = new FakeDistributionRecordRepository(
+      existingRecord("2026-07-09T09:00:00.000Z", {
+        priceCents: 250 as Cents,
+        paidCents: 150 as Cents,
+      }),
+    );
+
+    const record = await recordAttendance(deps(), { customerId: 1 });
+
+    expect(record.priceCents).toBe(250);
+    expect(record.paidCents).toBe(350);
   });
 
   it("writes an audit entry with no actor for the recorded hand-out", async () => {
@@ -353,6 +481,7 @@ describe("recordAttendance", () => {
     expect(audit.entries).toHaveLength(1);
     expect(audit.entries[0]).toMatchObject({
       what: "distribution.recorded",
+      changedFields: ["showedUp", "paidCents", "priceCents"],
       why: "",
       when: new Date(TODAY),
     });

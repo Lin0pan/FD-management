@@ -54,7 +54,9 @@ import type {
 } from "../src/application/ports";
 import { addToWaitingList } from "../src/application/waiting-list/add-to-waiting-list";
 import { formatCardNumber } from "../src/domain/card/cardNumber";
+import { amountToPay, balanceOf } from "../src/domain/distribution/balance";
 import type { Address, HouseholdMemberDetails } from "../src/domain/customer/customer";
+import type { Cents } from "../src/domain/money";
 import type { WeekColour } from "../src/domain/policy/settings";
 import { startOfUtcDay } from "../src/domain/distribution/weekColour";
 import { PrismaAuditLog } from "../src/infrastructure/prisma/audit-log";
@@ -79,11 +81,11 @@ const DISTRIBUTION_DAYS_OF_HISTORY = 8;
  * household that does turn up leaves without paying.
  *
  * Counted rather than drawn at random, and deliberately so. A fixture exists to *guarantee* what it
- * demonstrates, and a random draw guarantees nothing — an early version of this file drew the paid
- * flag from Faker and produced 37 hand-outs of which every single one was paid, so the screens that
- * show an unpaid customer had nothing to show. Counting cannot have a bad day. The two moduli are
- * coprime and neither divides the six-or-so households served on a day, so the pattern shifts from
- * week to week instead of falling on the same people every time.
+ * demonstrates, and a random draw guarantees nothing — an early version of this file drew from Faker
+ * and produced 37 hand-outs on which every single household handed over what it was asked for, so
+ * the screens that state a debt had nothing to show. Counting cannot have a bad day. The two moduli
+ * are coprime and neither divides the six-or-so households served on a day, so the pattern shifts
+ * from week to week instead of falling on the same people every time.
  */
 const NO_SHOW_EVERY = 7;
 const UNPAID_EVERY = 5;
@@ -95,7 +97,7 @@ const UNPAID_EVERY = 5;
  * moduli above imply it should hold — a household blocked halfway through the history silently
  * shortens its own attendance, and a summary that did the arithmetic itself would not know.
  */
-const tally = { handOuts: 0, unpaid: 0, noShows: 0 };
+const tally = { handOuts: 0, unpaid: 0, partPayments: 0, paidAhead: 0, noShows: 0 };
 
 // ---------------------------------------------------------------------------------------------
 // Time
@@ -173,6 +175,65 @@ interface HouseholdShape {
   readonly reregistrationOf?: string;
   /** How many of this household's most recent distribution days they missed (US-10.4). */
   readonly missesLastDistributions?: number;
+  /** How this household pays, when the fixture puts a balance on it (US-29). */
+  readonly paymentHabit?: PaymentHabit;
+}
+
+/**
+ * A household whose hand-outs are scripted so the register shows what a balance can be (US-29).
+ *
+ * A hand-out records the **amount** handed over, so a household can end a day owing DF money or
+ * having paid ahead, and the screens that state a balance need all three states to be somewhere in
+ * the register. Every other household pays what it was asked for, or — on the counted pattern below
+ * — nothing at all.
+ *
+ *  - `OWES` hands over 2,00 € less than was asked, once, and pays only the week's own price after
+ *    that — so the debt stands rather than being settled by the next hand-out's asking price.
+ *  - `SETTLED_A_DEBT` is 3,00 € short one week and is asked for those 3,00 € on top the next, which
+ *    it hands over — the case the counter's amount-to-pay exists for — and it ends back at zero.
+ *  - `IN_CREDIT` hands over 5,00 € more than was asked, so as not to have to remember it next week,
+ *    and then pays each week's price so the credit stays where a screen can show it.
+ */
+type PaymentHabit = "OWES" | "SETTLED_A_DEBT" | "IN_CREDIT";
+
+/** The short payment a scripted household makes, and the amount it later hands over on top. */
+const SHORT_BY_CENTS = 200;
+const DEBT_CENTS = 300;
+const PAID_AHEAD_CENTS = 500;
+
+/**
+ * What a scripted household hands over on its `visit`-th hand-out, or `null` to hand over exactly
+ * what the counter asked for.
+ *
+ * `askedCents` is what they were asked for that day — the price offset by whatever the household
+ * owed or had standing to them — and every script is written against it rather than against the
+ * price, because that is the figure the staff member reads out (US-29). Paying the bare
+ * `priceCents` is how a household leaves a balance exactly where it was: the week is covered and
+ * nothing is put towards the debt or taken out of the credit.
+ *
+ * The visit numbers are low on purpose: eight distribution days alternate RED and BLUE, so a
+ * household sees about four of them and a no-show may take one of those away. A script that needed
+ * a fourth visit would silently do nothing for a household that only ever had three.
+ */
+function scriptedPaymentCents(
+  habit: PaymentHabit,
+  visit: number,
+  askedCents: number,
+  priceCents: number,
+): number | null {
+  switch (habit) {
+    case "OWES":
+      if (visit === 1) {
+        return null;
+      }
+      return visit === 2 ? Math.max(0, askedCents - SHORT_BY_CENTS) : priceCents;
+    case "SETTLED_A_DEBT":
+      // Short once. The next hand-out is asked for the debt on top and they hand it over, which is
+      // what an omitted amount already means — so there is nothing left to script.
+      return visit === 1 ? Math.max(0, askedCents - DEBT_CENTS) : null;
+    case "IN_CREDIT":
+      return visit === 1 ? askedCents + PAID_AHEAD_CENTS : priceCents;
+  }
 }
 
 /**
@@ -288,14 +349,15 @@ const CAST: ReadonlyArray<HouseholdShape> = [
   },
   {
     key: "young-family",
-    demonstrates: "two grown-ups, two small children",
+    demonstrates: "two grown-ups, two small children — and carries a debt from a part payment",
     registeredDaysAgo: 150,
     members: [{ years: 34 }, { years: 31 }, { years: 6 }, { years: 3 }],
     certificateValidInDays: 200,
+    paymentHabit: "OWES",
   },
   {
     key: "large-family",
-    demonstrates: "the biggest household — six heads, four of them children",
+    demonstrates: "six heads, four children — was short once and settled it exactly next time",
     registeredDaysAgo: 142,
     members: [
       { years: 41 },
@@ -307,13 +369,15 @@ const CAST: ReadonlyArray<HouseholdShape> = [
     ],
     certificateValidInDays: 120,
     notes: "Große Familie, kommt meist zu zweit und holt für alle mit ab.",
+    paymentHabit: "SETTLED_A_DEBT",
   },
   {
     key: "single-parent",
-    demonstrates: "one grown-up with two children",
+    demonstrates: "one grown-up with two children — paid ahead, so the household has credit",
     registeredDaysAgo: 134,
     members: [{ years: 29 }, { years: 4 }, { years: 2 }],
     certificateValidInDays: 95,
+    paymentHabit: "IN_CREDIT",
   },
   {
     key: "birthday-13",
@@ -775,6 +839,19 @@ function distributionEvents(
   // instead of landing on the same households every week.
   let eligible = 0;
   let servedSoFar = 0;
+  /** How many hand-outs each household has had so far — what a scripted payment is keyed on. */
+  const visits = new Map<string, number>();
+  /**
+   * Each household's balance as this fixture has left it, so the amount asked for is *derived* here
+   * with the domain's own arithmetic rather than read back off the record.
+   *
+   * This loop is the only writer of hand-outs in the seed, so its own running sum is the same number
+   * `balanceOf` would return from the store. Keeping it means the script below does not depend on
+   * `recordAttendance`'s omitted-amount default happening to be the asking price — a default no
+   * screen uses, which could change without a single test noticing that every scripted balance in
+   * the demo register had quietly become something else.
+   */
+  const balances = new Map<string, Cents>();
 
   return days.map((day) => ({
     at: day.at,
@@ -797,11 +874,51 @@ function distributionEvents(
           continue; // A no-show writes no record at all (US-05, FR-6).
         }
         servedSoFar += 1;
-        const paid = servedSoFar % UNPAID_EVERY !== 0;
-        await recordAttendance(deps, { customerId: id, paid });
+        // Every hand-out is first written the ordinary way — no amount, which `recordAttendance`
+        // reads as "what the counter asked for". The price is not knowable until the record is
+        // priced, so the asking price is worked out from it and the balance carried in: the same
+        // `max(0, price − balance)` the counter shows, and the figure both the scripted payments and
+        // the tally below are written against.
+        const record = await recordAttendance(deps, { customerId: id });
+        const balanceBefore = balances.get(shape.key) ?? 0;
+        const askedCents = amountToPay(record.priceCents, balanceBefore);
+        const visit = (visits.get(shape.key) ?? 0) + 1;
+        visits.set(shape.key, visit);
+
+        // A scripted household's payments are the script's business alone (US-29): the counted
+        // unpaid pattern would drop a zero into a history that exists to demonstrate one balance,
+        // and the debt or credit it ended on would be an accident of the modulus. `servedSoFar`
+        // counts them all the same, so which of the other households pay nothing is unchanged.
+        let scripted: number | null = null;
+        if (shape.paymentHabit !== undefined) {
+          scripted = scriptedPaymentCents(shape.paymentHabit, visit, askedCents, record.priceCents);
+        } else if (servedSoFar % UNPAID_EVERY === 0) {
+          scripted = 0;
+        }
+
+        // Anything other than paying what was asked is a second write through the store, which is
+        // what a same-day correction does anyway: neither the pattern nor a script can know the
+        // asking price before the hand-out that sets it.
+        const paidCents = scripted ?? askedCents;
+        if (scripted !== null) {
+          await deps.records.setPayment(record.id, scripted as Cents);
+        }
+        // `balanceOf` over the two amounts this hand-out contributes, so the running sum is the
+        // domain's arithmetic and not a second copy of it written out by hand here.
+        balances.set(
+          shape.key,
+          balanceBefore + balanceOf([{ paidCents, priceCents: record.priceCents }]),
+        );
+
         tally.handOuts += 1;
-        if (!paid) {
+        // Counted against what was asked, never against the price: a household handing over a
+        // capped price plus last week's debt has paid exactly what it owed, not paid ahead.
+        if (paidCents === 0) {
           tally.unpaid += 1;
+        } else if (paidCents < askedCents) {
+          tally.partPayments += 1;
+        } else if (paidCents > askedCents) {
+          tally.paidAhead += 1;
         }
       }
     },
@@ -866,6 +983,9 @@ async function printSummary(deps: DemoDeps, customerIds: Map<string, number>): P
     `\n  ${WAITING.length} applicants on the waiting list. ` +
       `${tally.handOuts} hand-outs over ${DISTRIBUTION_DAYS_OF_HISTORY} past distribution days, ` +
       `${tally.unpaid} of them unpaid, ${tally.noShows} no-shows.` +
+      `\n  Balances (US-29): ${tally.partPayments} part payments and ${tally.paidAhead} hand-outs` +
+      "\n  paid ahead, so the register carries a household that owes, one that has credit and one" +
+      "\n  that was short and settled it exactly the next time. Counted, not predicted." +
       "\n  Today has deliberately no hand-outs recorded — the counter is yours to play with." +
       "\n  Two numbers appear twice above: archiving releases the slot, so a later registration" +
       "\n  takes it while the archived record keeps the number it had. That is the rule, not a bug." +

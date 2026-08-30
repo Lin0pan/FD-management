@@ -21,6 +21,7 @@ import type { CustomerStatus } from "@/domain/customer/customer";
 import type { Group } from "@/domain/customer/group";
 import type { HouseholdComposition } from "@/domain/customer/householdComposition";
 import { berlinDayKey, recordForDay } from "@/domain/distribution/attendance";
+import { amountToPay, askedForRecord, balanceOf } from "@/domain/distribution/balance";
 import { evaluateAtCounter, type Verdict } from "@/domain/distribution/counterVerdict";
 import type { Cents } from "@/domain/money";
 import { describeAllowance } from "../allowance/describe-allowance";
@@ -101,18 +102,53 @@ export interface CounterCustomerView {
    * quiet note beside the household's data rather than as a warning.
    */
   readonly staleCard: StaleCardReason | null;
+  /**
+   * Where the household stands with DF (US-29): negative when they still owe money, positive when
+   * they have paid ahead, zero when they are square. Derived from the hand-out history the lookup
+   * has already loaded — `Σ (paidCents − priceCents)`, never stored — so it costs no further query.
+   *
+   * It is the balance **as it stands now**, today's hand-out included when one has been recorded.
+   * The screen words it through `balanceKind` rather than reading the sign itself.
+   */
+  readonly balanceCents: Cents;
+  /**
+   * What to collect from this household today: {@link priceCents} offset by {@link balanceCents} and
+   * floored at zero (US-29, rule 3). Derived here so the counter renders a figure rather than
+   * working one out.
+   *
+   * For a household already served today it is what they *would* be asked for if they were served
+   * again — their payment is already in the balance. The screen does not show it in that state
+   * (US-29.7); the record's own `askedCents` is what that half of the screen states.
+   */
+  readonly amountToPayCents: Cents;
 }
 
 /**
  * The record the looked-up customer already holds for today, if any — what the counter shows instead
  * of the serve action once a hand-out has been recorded (US-05.4). Carries the id so a same-day
- * correction can address it, the instant so the screen can name the time they were served, and the
- * paid flag so the correction control opens on the value that is stored.
+ * correction can address it, and the instant so the screen can name the time they were served.
+ *
+ * The three money figures are three different questions, and the screen asks all three: what was
+ * handed over, what was asked for on the day, and where a removal would leave the household.
  */
 export interface TodaysRecordView {
   readonly recordId: number;
   readonly at: Date;
-  readonly paid: boolean;
+  /** What the household handed over — the stored amount, which the correction form opens on. */
+  readonly paidCents: Cents;
+  /**
+   * What the counter asked for when this hand-out was recorded: the price offset by the balance of
+   * the household's *earlier* hand-outs only. Nothing stores it — it is replayed from the history
+   * (`replayPayments`), which is why a household settling an old debt reads as having paid what
+   * they were asked for rather than as having paid ahead.
+   */
+  readonly askedCents: Cents;
+  /**
+   * The balance the household would return to if this record were removed, so the removal warning
+   * can name it (US-29, rule 9). It is the balance of the other records — derived here rather than
+   * in the component, which would be the arithmetic decided a second time.
+   */
+  readonly balanceWithoutRecordCents: Cents;
 }
 
 /**
@@ -198,8 +234,22 @@ export async function lookupCustomer(
     deps.reminders.findOnDay(customer.id, berlinDayKey(today)),
   ]);
   const existing = recordForDay(recordsForCustomer, today);
+  // The balance and everything hanging off it come from the records just loaded — the counter still
+  // issues no second query (US-04.3, US-29.5). It is the balance as it stands *now*, so a hand-out
+  // already recorded today is counted in.
+  const balanceCents = balanceOf(recordsForCustomer);
   const todaysRecord =
-    existing === null ? null : { recordId: existing.id, at: existing.date, paid: existing.paid };
+    existing === null
+      ? null
+      : {
+          recordId: existing.id,
+          at: existing.date,
+          paidCents: existing.paidCents,
+          askedCents: askedForRecord(recordsForCustomer, existing),
+          balanceWithoutRecordCents: balanceOf(
+            recordsForCustomer.filter((record) => record.id !== existing.id),
+          ),
+        };
 
   const [allowance, consecutiveNoShows] = await Promise.all([
     describeAllowance(deps, customer.details.householdMembers, today),
@@ -228,6 +278,8 @@ export async function lookupCustomer(
       cardNumber: formatCardNumber(customer.customerNumber, customer.card.index),
       countsOnCard: customer.card.countsAtIssue,
       groupOnCard: customer.card.groupAtIssue,
+      balanceCents,
+      amountToPayCents: amountToPay(allowance.priceCents, balanceCents),
       staleCard: staleCardReason(
         { counts: customer.card.countsAtIssue, group: customer.card.groupAtIssue },
         {

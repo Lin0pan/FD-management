@@ -27,9 +27,10 @@ datasource db {
 /// One immutable set of the policy values DF can change without a deploy: the customer quota, the
 /// price per head and the week-cycle anchor.
 ///
-/// Versions are **append-only**. A distribution record stores only a `paid` flag and never an
-/// amount, so the sole way to answer "what did that customer owe last March" is to resolve the
-/// version that was in force then (tasks/prd-us-14-configure-business-rules.md, FR-1).
+/// Versions are **append-only**: the sole way to answer "what would that household owe under the
+/// policy of last March" is to resolve the version that was in force then
+/// (tasks/prd-us-14-configure-business-rules.md, FR-1). A hand-out captures the price it was taken
+/// at, so a past record can be read without replaying them — but only records that were written.
 model SettingsVersion {
   id Int @id @default(autoincrement())
 
@@ -361,8 +362,8 @@ model Card {
   @@unique([customerNumber, index])
 }
 
-/// One hand-out that actually happened: a customer showed up on a distribution day, paid or did not,
-/// and owed the price their household drew under the policy in force then (US-05, FR-1).
+/// One hand-out that actually happened: a customer showed up on a distribution day, handed over an
+/// amount, and owed the price their household drew under the policy in force then (US-05, FR-1).
 ///
 /// **Records outlive their customer.** There is deliberately no `onDelete: Cascade` on the relation:
 /// archiving is a status change, not a delete, and the distribution history must survive it — a report
@@ -394,8 +395,14 @@ model DistributionRecord {
   /// Whether the customer showed up. Always true today — a no-show writes no record at all (FR-6).
   showedUp Boolean
 
-  /// Whether they paid; a flag, never an amount.
-  paid Boolean
+  /// What the household handed over, in whole euro cents — the amount, not a flag (US-29). It may
+  /// be less than they were asked for (a part payment) and occasionally more (they pay ahead), so a
+  /// boolean could not hold it. `0` is "handed over nothing" and is stored as `0`, never as null.
+  ///
+  /// The household's **balance is derived** from this column and `priceCents` over their hand-outs
+  /// (`Σ (paidCents − priceCents)`), and is never stored: a stored balance beside the rows that
+  /// produce it would be two answers to one question.
+  paidCents Int
 
   /// What the household owed under the policy in force on `date`, in whole euro cents. This is
   /// **deliberate redundancy** alongside the settings history (PRD §6): the price could be re-derived

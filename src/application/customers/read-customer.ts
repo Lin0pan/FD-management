@@ -10,8 +10,10 @@ import { formatCardNumber, nextCardNumber } from "@/domain/card/cardNumber";
 import type { RegisteredCustomer } from "@/domain/customer/customer";
 import type { GroupCounts } from "@/domain/customer/group";
 import { ageInYears, type HouseholdComposition } from "@/domain/customer/householdComposition";
+import { balanceOf, replayPayments, type Settlement } from "@/domain/distribution/balance";
 import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
 import { CustomerNotFound } from "@/domain/errors";
+import type { Cents } from "@/domain/money";
 import { describeAllowance, type Allowance } from "../allowance/describe-allowance";
 import type {
   Clock,
@@ -66,15 +68,29 @@ export interface CustomerCardView {
    */
   readonly consecutiveNoShows: number;
   /**
+   * Where the household stands: `Σ (paidCents − priceCents)` over every hand-out below, negative
+   * when they owe DF money and positive when they have paid ahead (US-29.6).
+   *
+   * Derived on every read from the very records `history` lists — never stored, so removing a
+   * hand-out puts the balance back for free. An **archived** household keeps theirs: nothing here
+   * looks at the status, because leaving the register writes no debt off. A household that
+   * **re-registers** starts at zero for the same reason and with as little code — a new Customer row
+   * has no hand-outs hanging off its surrogate id (ADR-008).
+   */
+  readonly balanceCents: Cents;
+  /**
    * Every hand-out the household has collected, **most recent first** (US-16.5) — the day, whether
-   * they showed up, whether they paid, and what it cost them.
+   * they showed up, what they were asked for, what they handed over and where it left them.
    *
    * The price is the record's own rather than a fresh derivation: a distribution is priced by the
    * policy in force on the day it happened, and re-deriving it from today's settings would silently
-   * rewrite what a household paid last March (US-05, FR-2). The order is applied here rather than
-   * asked of the store, because the same rows feed the no-show count, which reads them as a set.
+   * rewrite what a household paid last March (US-05, FR-2). `askedCents` is likewise what was asked
+   * *then*, replayed from those same prices rather than looked up — nothing stores it.
+   *
+   * The order is applied here rather than asked of the store, because the same rows feed the no-show
+   * count, which reads them as a set.
    */
-  readonly history: ReadonlyArray<DistributionRecord>;
+  readonly history: ReadonlyArray<Settlement<DistributionRecord>>;
   /**
    * How many **active** households each balancing group holds, as of now.
    *
@@ -128,7 +144,10 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
     nextCardNumber: formatCardNumber(next.customerNumber, next.index),
     allowance,
     consecutiveNoShows: await countNoShows(deps, customer, records, today),
-    history: [...records].sort((a, b) => b.date.getTime() - a.date.getTime()),
+    balanceCents: balanceOf(records),
+    // `replayPayments` walks oldest first, because that is the only order a running balance can be
+    // built in; the reversal is the *display* order (US-16.5), not part of the arithmetic.
+    history: [...replayPayments(records)].reverse(),
     groupCounts,
     today,
   };

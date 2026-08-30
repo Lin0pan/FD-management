@@ -13,7 +13,8 @@ stores them as **configuration data** and gives staff a screen to edit them. A s
 force **immediately** — staff adjust the numbers when reality changes, and there is no date to pick.
 
 Superseded values are kept rather than overwritten, each stamped with the instant it took over: a
-distribution record stores only a `paid` flag and never an amount (US-05), so the **only** way to
+distribution record stored only a `paid` flag and never an amount (US-05 — since
+[US-29](prd-us-29-customer-balance.md) it stores the amount handed over), so the **only** way to
 answer "what did that customer owe last March" is to look up the version that was in force then.
 
 ## 2. Goals

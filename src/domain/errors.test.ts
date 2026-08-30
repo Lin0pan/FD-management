@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { CardNumberTaken, DomainError, MissingAuditReason } from "./errors";
+import {
+  CardNumberTaken,
+  DomainError,
+  MissingAuditReason,
+  OverpaymentNotConfirmed,
+} from "./errors";
 
 /**
  * `MissingAuditReason` is raised by the state changes that turn on a human judgement — blocking
@@ -32,5 +37,24 @@ describe("CardNumberTaken", () => {
     expect(error.customerNumber).toBe(66);
     expect(error.index).toBe(1);
     expect(error.message).toContain("66k1");
+  });
+});
+
+/**
+ * `OverpaymentNotConfirmed` is raised by `recordAttendance` and `correctAttendance` when the amount
+ * handed over is more than the household was asked for (US-29.4). Unlike the two above it, both of
+ * its callers exist; it is kept here for the two amounts it carries, which is what lets the question
+ * on screen name them rather than ask whether something unspecified was meant.
+ */
+describe("OverpaymentNotConfirmed", () => {
+  it("names the amount handed over and the amount that was asked for", () => {
+    const error = new OverpaymentNotConfirmed(5000, 800);
+
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe("OverpaymentNotConfirmed");
+    expect(error.paidCents).toBe(5000);
+    expect(error.amountToPayCents).toBe(800);
+    expect(error.message).toContain("5000");
+    expect(error.message).toContain("800");
   });
 });

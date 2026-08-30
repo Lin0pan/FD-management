@@ -1,6 +1,6 @@
 # 3. Context and scope
 
-_Last reviewed: 2026-08-25_
+_Last reviewed: 2026-08-29_
 
 The system's edges are unusually thin, and that is a design outcome rather than an accident: it runs
 on one machine, talks to no service, and every exchange with the world outside it happens on paper or
@@ -79,8 +79,9 @@ day.
 ## Explicitly not neighbours
 
 No cloud service, no hosted database, no authentication provider, no e-mail or SMS gateway, no
-payment processor, no analytics, no CDN, no printer driver. Payment happens in cash at the counter
-and the system records only a `paid` flag.
+payment processor, no analytics, no CDN, no printer driver. Payment happens in cash at the counter;
+the system records the **amount** handed over and derives one balance per household from it, and
+nothing about that money leaves the machine.
 
 ---
 
