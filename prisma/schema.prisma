@@ -338,9 +338,10 @@ model Card {
   /// SQLite has no enum type, so the word is a string the domain validates on the way in and out.
   groupAtIssue String
 
-  /// Why this card was handed over: `FIRST_ISSUE`, `LOST`, `STALE_COUNTS` or `OTHER`. SQLite has no
-  /// enum type, so the word is a string the domain validates on the way in and out. It is the one
-  /// thing about a superseded card that its index cannot say — why the household needed another one.
+  /// Why this card was handed over: `FIRST_ISSUE`, `LOST`, `STALE_COUNTS`, `CUSTOMER_NUMBER_CHANGED`
+  /// or `OTHER`. SQLite has no enum type, so the word is a string the domain validates on the way in
+  /// and out — which is why a fifth word costs the database nothing. It is the one thing about a
+  /// superseded card that its index cannot say — why the household needed another one.
   reason String
 
   /// The rule behind "exactly one valid card" (US-02, FR-3): validity is *being* the highest index,

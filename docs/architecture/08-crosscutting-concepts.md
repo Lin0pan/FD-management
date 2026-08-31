@@ -50,7 +50,7 @@ erDiagram
         int grownUpsAtIssue "snapshot of the printed card"
         int childrenAtIssue "snapshot of the printed card"
         string groupAtIssue "snapshot of the printed card"
-        string reason "FIRST_ISSUE LOST STALE_COUNTS OTHER"
+        string reason "FIRST_ISSUE LOST STALE_COUNTS CUSTOMER_NUMBER_CHANGED OTHER"
     }
     DistributionRecord {
         string dayKey "Europe/Berlin YYYY-MM-DD"

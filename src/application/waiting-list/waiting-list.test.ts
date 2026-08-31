@@ -167,6 +167,9 @@ class FakeCustomerRepository implements CustomerRepository {
   create(customer: NewCustomer): Promise<RegisteredCustomer> {
     const registered = {
       ...customer,
+      // The store fills the slot in: the card a registration prints is on the number it
+      // just took (US-30).
+      card: { ...customer.card, customerNumber: customer.customerNumber },
       id: this.customers.length + 1,
       blockReason: null,
       archiveReason: null,
@@ -266,6 +269,7 @@ function storedCustomer(customerNumber: number, id: number): RegisteredCustomer 
     status: "ACTIVE",
     reminderCount: 0,
     card: {
+      customerNumber,
       index: 1,
       issuedAt: at("2026-01-05"),
       reason: "FIRST_ISSUE",

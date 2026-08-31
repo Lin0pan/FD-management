@@ -24,7 +24,12 @@ import { issueCard, type IssueCardDeps } from "./issue-card";
 /**
  * Why a card was *replaced*. Every reason a card can carry except `FIRST_ISSUE`, which belongs to
  * the registration and to nothing else: `LOST` for a mislaid card (US-09), `STALE_COUNTS` for one a
- * birthday has overtaken (US-13) and `OTHER` for a damaged card.
+ * birthday has overtaken (US-13), `CUSTOMER_NUMBER_CHANGED` for the card a move to another customer
+ * number prints (US-30) and `OTHER` for a damaged card.
+ *
+ * It is stated as an exclusion rather than a list so a new reason is a replacement reason by
+ * default. Only the loss count draws a line through the set — it counts `LOST` alone, so a card a
+ * household never asked for is not held against them.
  */
 export type ReissueReason = Exclude<CardIssueReason, "FIRST_ISSUE">;
 

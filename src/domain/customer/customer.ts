@@ -12,7 +12,7 @@
  * The module is pure: `today` is a parameter, and nothing here knows how a customer is stored.
  */
 
-import type { IssuedCard } from "../card/card";
+import type { IssuedCard, NewCard } from "../card/card";
 import {
   CustomerNotInHousehold,
   InvalidCustomerRecord,
@@ -121,11 +121,15 @@ export interface NewCustomer {
   /**
    * The card the customer currently holds — the next one due on their slot for the one handed over
    * with the registration (index 1 only where nobody has held that number before, US-25), counting
-   * on with every reissue (US-09). It is an {@link IssuedCard} like any other: a card
-   * written with a registration and a card written by `issueCard` are the same thing, and two shapes
-   * would let the two paths drift apart.
+   * on with every reissue (US-09). It is a {@link NewCard} like any other card a writer passes: a
+   * card written with a registration and a card written by `issueCard` are the same thing, and two
+   * shapes would let the two paths drift apart.
+   *
+   * The slot it is printed under is not stated here because it is already stated above: a
+   * registration prints its first card on the very number this record is taking, and a card
+   * carrying a second copy of it is a card that could carry a different one.
    */
-  readonly card: IssuedCard;
+  readonly card: NewCard;
   /**
    * The archived record this registration was pre-filled from, or `null` — which is what almost
    * every registration is (US-11.3).
@@ -148,6 +152,14 @@ export interface NewCustomer {
  */
 export interface RegisteredCustomer extends NewCustomer {
   readonly id: number;
+  /**
+   * The card the household holds, as it was **stored** — so it names the slot it was printed under
+   * as well (US-30). For every household that has never been moved that is `customerNumber` again;
+   * for one that has, the superseded cards on the vacated slot keep the old number and only the
+   * current card carries the new one, which is the invariant every card-number derivation rests on:
+   * the card a household holds is always the highest index on the slot they hold.
+   */
+  readonly card: IssuedCard;
   /**
    * Why this customer is currently blocked, or `null` when they are not — non-null *exactly* when
    * `status` is `BLOCKED`. A block's reason is its only current record: it is written the moment the

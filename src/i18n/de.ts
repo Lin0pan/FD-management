@@ -593,6 +593,7 @@ export const de = {
       FIRST_ISSUE: "Erstausstellung",
       LOST: "Verlust",
       STALE_COUNTS: "Geänderte Haushaltszahlen",
+      CUSTOMER_NUMBER_CHANGED: "Kundennummer geändert",
       OTHER: "Sonstiger Grund",
     },
     /** The card view at /kunden/[id]/karte — what staff copy onto the physical card. */

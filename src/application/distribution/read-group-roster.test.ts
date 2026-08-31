@@ -137,6 +137,9 @@ class FakeCustomerRepository implements CustomerRepository {
     this.writes += 1;
     const registered = {
       ...customer,
+      // The store fills the slot in: the card a registration prints is on the number it
+      // just took (US-30).
+      card: { ...customer.card, customerNumber: customer.customerNumber },
       id: this.holders.length + 1,
       blockReason: null,
       archiveReason: null,
@@ -309,6 +312,7 @@ function customerRecord(overrides: CustomerOverrides): RegisteredCustomer {
     archivedAt: status === "ARCHIVED" ? new Date(RED_DISTRIBUTION_DAY) : null,
     reminderCount: 0,
     card: {
+      customerNumber: overrides.customerNumber,
       index: 1,
       issuedAt: new Date(RED_DISTRIBUTION_DAY),
       reason: "FIRST_ISSUE",

@@ -1,6 +1,6 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { CardIssueCounts, CardRepository } from "@/application/ports";
-import { parseCardIssueReason, type IssuedCard } from "@/domain/card/card";
+import { parseCardIssueReason, type IssuedCard, type NewCard } from "@/domain/card/card";
 import { parseGroup } from "@/domain/customer/group";
 import { CardIndexTaken, CardNumberTaken } from "@/domain/errors";
 
@@ -79,6 +79,7 @@ export class PrismaCardRepository implements CardRepository {
    * than trusted, like every other enum-shaped column SQLite keeps as a string.
    */
   private static toCard(row: {
+    customerNumber: number;
     index: number;
     issuedAt: Date;
     reason: string;
@@ -87,6 +88,7 @@ export class PrismaCardRepository implements CardRepository {
     groupAtIssue: string;
   }): IssuedCard {
     return {
+      customerNumber: row.customerNumber,
       index: row.index,
       issuedAt: row.issuedAt,
       reason: parseCardIssueReason(row.reason),
@@ -185,7 +187,7 @@ export class PrismaCardRepository implements CardRepository {
    * @throws {CardIndexTaken} if a concurrent issue took the index on this record first.
    * @throws {CardNumberTaken} if the card number had already been printed on this slot.
    */
-  async issue(customerId: number, card: IssuedCard): Promise<IssuedCard> {
+  async issue(customerId: number, card: NewCard): Promise<IssuedCard> {
     // Kept out here as well as written inside, so a refused card number can be named as staff know
     // it — `50k1` — rather than as an id nobody at the counter has ever seen.
     let slot = UNKNOWN_SLOT;

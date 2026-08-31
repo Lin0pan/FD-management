@@ -368,6 +368,9 @@ export class PrismaCustomerRepository implements CustomerRepository {
       archivedAt: row.archivedAt,
       reminderCount: row.reminderCount,
       card: {
+        // The slot the card was **printed under**, off the card row rather than off the customer's
+        // — the two part company for a household that has been moved to another number (US-30).
+        customerNumber: card.customerNumber,
         index: card.index,
         issuedAt: card.issuedAt,
         reason: parseCardIssueReason(card.reason),
@@ -473,6 +476,10 @@ export class PrismaCustomerRepository implements CustomerRepository {
       return {
         ...customer,
         id: row.id,
+        // The card as it was stored: printed under the very number this registration just took, and
+        // filled in here rather than by the caller for the reason `issue` gives — a caller that
+        // could pass the slot is a caller that could pass the wrong one.
+        card: { ...customer.card, customerNumber: customer.customerNumber },
         blockReason: null,
         archiveReason: null,
         archivedAt: null,

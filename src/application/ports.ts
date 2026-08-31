@@ -7,7 +7,7 @@
  * untested runtime code.
  */
 
-import type { IssuedCard } from "@/domain/card/card";
+import type { IssuedCard, NewCard } from "@/domain/card/card";
 import type { ValidUntilRange } from "@/domain/customer/certificate";
 import type {
   CustomerStatus,
@@ -380,8 +380,14 @@ export interface CardRepository {
    * the run by reason would be a second, quietly diverging statement of what counts as a loss.
    */
   issueCounts(customerId: number): Promise<CardIssueCounts>;
-  /** Write one card for a customer, and hand it back as it was stored. */
-  issue(customerId: number, card: IssuedCard): Promise<IssuedCard>;
+  /**
+   * Write one card for a customer, and hand it back as it was stored.
+   *
+   * The caller passes a {@link NewCard} — everything but the slot. The customer number the card is
+   * printed under is read off the customer row inside the write's own transaction, because a caller
+   * that could pass it is a caller that could pass the wrong one.
+   */
+  issue(customerId: number, card: NewCard): Promise<IssuedCard>;
 }
 
 /**

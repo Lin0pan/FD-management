@@ -1,6 +1,6 @@
 import { faker } from "@faker-js/faker";
 import { beforeEach, describe, expect, it } from "vitest";
-import type { IssuedCard } from "@/domain/card/card";
+import type { IssuedCard, NewCard } from "@/domain/card/card";
 import {
   createCustomerDetails,
   type CustomerStatus,
@@ -224,6 +224,9 @@ class FakeCustomerRepository implements CustomerRepository {
     }
     const registered: RegisteredCustomer = {
       ...customer,
+      // The store fills the slot in: the card a registration prints is on the number it
+      // just took (US-30).
+      card: { ...customer.card, customerNumber: customer.customerNumber },
       id: this.nextId,
       blockReason: null,
       archiveReason: null,
@@ -336,6 +339,8 @@ class FakeCardRepository implements CardRepository {
   place(customerId: number, ...indices: number[]): void {
     for (const index of indices) {
       this.cardsOf(customerId).push({
+        // Placed cards sit on the slot their household holds, like every card the store writes.
+        customerNumber: this.printedSlotOf(customerId),
         index,
         issuedAt: new Date(TODAY),
         reason: "FIRST_ISSUE",
@@ -390,15 +395,27 @@ class FakeCardRepository implements CardRepository {
     });
   }
 
-  issue(customerId: number, card: IssuedCard): Promise<IssuedCard> {
-    this.cardsOf(customerId).push(card);
-    return Promise.resolve(card);
+  // The slot is filled in here rather than passed in, as the adapter fills it in from the customer
+  // row inside the write's own transaction — so no caller can file a card under a number its
+  // household does not hold.
+  issue(customerId: number, card: NewCard): Promise<IssuedCard> {
+    const issued = { ...card, customerNumber: this.printedSlotOf(customerId) };
+    this.cardsOf(customerId).push(issued);
+    return Promise.resolve(issued);
   }
 
   private cardsOf(customerId: number): IssuedCard[] {
     const cards = this.cards.get(customerId) ?? [];
     this.cards.set(customerId, cards);
     return cards;
+  }
+
+  /**
+   * The slot a card written for this customer is printed under. An id the register does not know
+   * stands in as -1, which no household holds — the adapter's `UNKNOWN_SLOT` by another name.
+   */
+  private printedSlotOf(customerId: number): number {
+    return this.slotOf(customerId) ?? -1;
   }
 
   /** The slot the household holds, or `null` for an id the register does not know. */
