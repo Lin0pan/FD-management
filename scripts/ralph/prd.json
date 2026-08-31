@@ -46,8 +46,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done, and it landed wider than the ACs list. NewCustomer.card became a NewCard too — a registration prints its first card on the very number the record is taking, so a second copy of the slot on the card is a copy that could disagree; RegisteredCustomer re-declares card as an IssuedCard, which interface extension allows because IssuedCard is assignable to NewCard. That one decision turned ~50 fixture breaks into 17: the nine fake create() methods each fill the slot in ('card: { ...customer.card, customerNumber: customer.customerNumber }'), like PrismaCustomerRepository.create now does, and only the eight RegisteredCustomer fixture factories needed the field typed out. card-repository.test.ts's 38 errors vanished outright once issue() took a NewCard. Two toEqual assertions on a whole card had to gain the slot. Also updated: the reason word list in schema.prisma (comment only, no migration), the ER diagram in 08-crosscutting-concepts.md and the Reissue row of the glossary."
     },
     {
       "id": "US-003",

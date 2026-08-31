@@ -113,7 +113,24 @@ bullets that sat under „Where batch 29 starts“ are not carried over — they
   assertion. The same applies to an **exported type you delete or rename**: `grep -rn "<TypeName>"`
   finds the `{@link}`-shaped references left behind in comments, which no gate sees.
 - **Prettier does not reflow comments.** Shortening a sentence inside a `/** */` block leaves a
-  ragged short line that `prettier --check` happily accepts. Re-wrap the paragraph by hand.
+  ragged short line that `prettier --check` happily accepts — and so does an over-wide one, though
+  the repo's width is 100. Re-wrap the paragraph by hand, and **measure with Python, not `awk`**: an
+  em dash is three bytes, `awk` counts it as three columns, and every sentence carrying one is
+  reported as a violation it is not.
+  `git diff -U0 | python3 -c "import sys; [print(len(l[1:-1]), l) for l in sys.stdin if l.startswith('+') and not l.startswith('+++') and len(l[1:-1]) > 100]"`
+- **A `toEqual` on a *whole* record is the assertion a new field breaks, and `tsc` cannot see it.**
+  Adding a required field to a domain type (`IssuedCard.customerNumber`, batch 30) leaves every
+  `expect(x).toEqual({ …every field… })` typechecking and failing at run time with a one-line diff.
+  The compiler finds the *constructors*; only the suite finds the assertions. Same family as the
+  „renaming a Prisma column is not finished when `tsc` is green" bullet — run the tests even when
+  the wide break looks closed.
+- **A required field added to a type a *writer* passes is a signal to split the type**, not to teach
+  every writer the new field. `NewCard = Omit<IssuedCard, "customerNumber">` and `NewCustomer.card:
+  NewCard` kept the slot the store's to fill in — which is the actual invariant — and cut the fixture
+  break from ~50 errors to 17 as a side effect. `RegisteredCustomer extends NewCustomer` then
+  re-declares `card: IssuedCard`, which TypeScript allows because the stored shape is assignable to
+  the written one. Look for that split whenever a "wide break" is mostly test fixtures: it usually
+  means the field belongs to the read model alone.
 - **Prettier owns every markdown table in `docs/`, and `npm run lint` does not check it.** `lint` is
   `eslint` alone; markdown formatting is `npm run format:check` (the pre-commit hook runs it). Widen
   one cell and Prettier re-flows every row of that table, so run `npx prettier --write` on the files
@@ -299,4 +316,63 @@ moved to, and whether a chosen one may still be written. Nothing above the domai
 - **No German string yet.** `CustomerNumberUnchanged` is not rendered anywhere until the control
   exists (story 6) — the sentence belongs to `kunden/[id]/actions.ts` and `de.ts` with the screen
   that raises it, exactly as `GroupUnchanged`'s does.
+---
+
+## 2026-08-31 - US-002 — A card keeps the number it was printed under (domain + infrastructure)
+
+`IssuedCard` now carries the slot it was printed on, and `CUSTOMER_NUMBER_CHANGED` is the fifth
+reason word. Nothing above the store issues one yet.
+
+- `src/domain/card/card.ts` — `readonly customerNumber` as the fourth `AtIssue`-style snapshot,
+  `NewCard = Omit<IssuedCard, "customerNumber">`, and the fifth `CardIssueReason`.
+- `src/domain/card/card.test.ts` — `reads the new reason back`, `a card knows the slot it was
+  printed under`; the existing refusal test renamed to `refuses a reason word that is not one of the
+  five`.
+- `src/domain/customer/customer.ts` — `NewCustomer.card` is a `NewCard`; `RegisteredCustomer`
+  re-declares `card` as an `IssuedCard`.
+- `src/application/ports.ts` — `CardRepository.issue` takes a `NewCard`.
+- `src/application/customers/reissue-card.ts` — `ReissueReason`'s doc names the fifth word.
+- `src/i18n/de.ts` — „Kundennummer geändert“.
+- `src/infrastructure/prisma/card-repository.ts` — `toCard` selects and returns `customerNumber`;
+  `issue` takes a `NewCard`. `customer-repository.ts` — `toRegisteredCustomer` reads the slot off the
+  **card** row, and `create` fills it in from the customer it just wrote.
+- `src/infrastructure/prisma/card-repository.test.ts` — `reads a card back with the slot it was
+  printed under` (moves the household afterwards and re-reads) and `counts a card issued for a number
+  change as issued, never as a loss`.
+- Nine hand-written fake `create`s and eight `RegisteredCustomer` fixture factories updated.
+- Docs: the reason list in `prisma/schema.prisma` (comment only), the ER diagram in
+  `docs/architecture/08-crosscutting-concepts.md` and the Reissue row of `12-glossary.md`.
+
+**Learnings for future iterations:**
+
+- **`NewCustomer.card` had to become a `NewCard` too, and that decision is what kept the wide break
+  small.** The ACs only name `CardRepository.issue`, but `NewCustomer.card` is the *other* card a
+  writer passes — a registration prints its first card on the very number the record is taking, so a
+  second copy of the slot on the card is a copy that could disagree. `RegisteredCustomer extends
+  NewCustomer` then re-declares `card: IssuedCard`, which TypeScript allows because `IssuedCard` is
+  assignable to `NewCard`. Making that change turned ~50 fixture errors into 17 and made
+  `card-repository.test.ts`'s 38 errors vanish outright.
+- **The wide break came in two shapes, and only one of them was the fixtures.** Nine fake `create`
+  methods spread `...customer` into a `RegisteredCustomer` and now have to fill the slot in
+  (`card: { ...customer.card, customerNumber: customer.customerNumber }`), exactly as
+  `PrismaCustomerRepository.create` does — `git grep -n "\.\.\.customer,$"` finds all nine, and one
+  regex fixed them in a pass. The eight `RegisteredCustomer` fixture factories are the other shape
+  and had to be read one at a time, because the right value is whatever that factory calls the
+  household's number (`customerNumber`, `overrides.customerNumber ?? 50`, a literal).
+- **A `toEqual` on a whole card is the assertion a new field breaks, and typecheck cannot see it.**
+  Two of them in `card-repository.test.ts` passed `tsc` and failed at run time with `+ customerNumber`
+  in the diff. After adding a field to a domain record, run the suite even when the compiler is
+  happy — `grep -n "toEqual({" ` over the adapter tests finds the candidates.
+- **The fake card store fills the slot in the same way the adapter does.** `FakeCardRepository` in
+  `customers.test.ts` already held a reference to the register for `highestIndexForNumber`; `issue`
+  and `place` now both go through a `printedSlotOf` that falls back to `-1` for an unknown id, which
+  is the adapter's `UNKNOWN_SLOT` by another name. Keeping the fake's rule identical to the adapter's
+  is what stops a use case from being written against a store that lets the caller state the slot.
+- **`prettier --check` accepts an over-wide comment line but the repo's width is 100.** Prettier does
+  not reflow comments, so a new paragraph has to be wrapped by hand. Measure with Python, not `awk` —
+  an em dash is three bytes and `awk` reports it as three columns, which fabricates violations:
+  `git diff -U0 | python3 -c "…len(line[1:])>100…"`.
+- **No card is re-labelled yet.** `read-card.ts`'s `numberOf` still labels the whole run with
+  `customer.customerNumber`; story 5 is where that becomes wrong and has to change. The field now
+  exists to fix it with.
 ---
