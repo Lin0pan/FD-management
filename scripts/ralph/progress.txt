@@ -450,3 +450,64 @@ transaction. Nothing above the use case calls it yet.
   up as a dozen changed lines in `05-building-block-view.md`. Expected, not a mistake.
 - **No schema change and no migration, exactly as the batch says** — `prisma/migrations/` untouched,
   and `db:reset` was never needed.
+
+## 2026-08-31 - US-004 — What the record offers, and what each choice would print (application + ports + infrastructure)
+
+The record can now be handed every number a household may be moved to, each with the card number
+that move would print. Nothing renders it yet — the control is story 6.
+
+- `src/application/customers/list-number-choices.ts` — `listNumberChoices(deps, customer)`, reading
+  the quota in force, `takenActiveNumbers()` and every slot's run **once**, and formatting each
+  choice with `nextCardIndexOnMove` + `formatCardNumber`. An archived household gets `[]` and
+  neither store is asked.
+- `src/application/customers/list-number-choices.test.ts` — 7 named tests against purpose-built
+  fakes, written first and watched fail.
+- `src/application/ports.ts` — `CardRepository.highestIndexByNumber(): Promise<ReadonlyMap<number,
+  number>>`, documented as the plural of `highestIndexForNumber`, with an absent slot meaning „never
+  had a card“.
+- `src/application/customers/read-customer.ts` — `ReadCustomerDeps.cards`, and
+  `CustomerCardView.numberChoices` resolved in the existing `Promise.all`.
+- `src/infrastructure/prisma/card-repository.ts` — one `groupBy({ by: ["customerNumber"], _max: {
+  index } })`, no `where`.
+- `src/infrastructure/prisma/card-repository.test.ts` — the two integration tests the PRD names.
+- Three hand-written fake `CardRepository`s gained the method; `customers.test.ts` gained two
+  `readCustomer` tests and `change-customer-number.test.ts`'s `readDeps()` gained `cards`.
+- Docs: the `CardRepository` row of `05-building-block-view.md`.
+
+**Learnings for future iterations:**
+
+- **The AC „names k1 on a slot nobody has ever held" is not merely wrong for a household past their
+  first card — it can never be true at all.** Every household on the register holds a card, so
+  `customer.card.index >= 1` and `nextCardIndexOnMove(0, index) >= 2`. The test is therefore
+  „names the index above the household's own run on a slot nobody has ever held". US-003's learning
+  predicted this; stating it as an impossibility rather than an edge case is what stops the next
+  reader from restoring the AC's version.
+- **The dropdown's index rule and the write's index rule are one expression, and it is already
+  extracted**: `nextCardIndexOnMove(byNumber.get(n) ?? 0, customer.card.index)` here and
+  `nextCardIndexOnMove(await highestIndexForNumber(n), customer.card.index)` in
+  `changeCustomerNumber`. Two callers, one domain function — nothing further to pull out, and
+  US-008's ADR-016 should record the rule rather than either call site.
+- **`listNumberChoices` takes the customer, it does not fetch one.** `readCustomer` has already
+  loaded the row, and a second `findById` is the „two moments" fault the one-reading rule exists to
+  prevent — the fake's `findById` rejects, so a future edit that reached for one fails loudly.
+- **A fake whose unused methods `reject` is what makes „reads the register once" provable.** The
+  new test file's stores answer exactly two questions and refuse every other, including
+  `highestIndexForNumber` — so a rewrite that asked the slots one at a time would fail rather than
+  quietly cost 240 round trips. Same shape as `waiting-list.test.ts`'s `FakeCardRepository`, which
+  is the precedent for a small purpose-built fake rather than a copy of the big one.
+- **`readCustomer` now reads the settings history twice** — once through `describeAllowance` (prices
+  on a date) and once through `listNumberChoices` (the quota in force). Deliberate: the two are
+  different questions, `listNumberChoices` must read the quota itself so a screen open across a
+  quota change (US-14) cannot go on offering slots that are no longer slots, and threading a
+  `Settings` through the use-case boundary to save one query on a four-user application is the worse
+  trade. Said out loud in the module doc so it does not read as an oversight.
+- **`?? 0` on a Prisma `_max`, not a cast.** `groupBy` cannot produce an empty group, so the null is
+  unreachable — but `highestIndexForNumber` already reads the same aggregate that way, and there is
+  no `as` in `src/infrastructure/` to copy. Infrastructure is not coverage-gated, so the unreachable
+  arm costs nothing, while a cast would have been the file's first.
+- **Adding a field to `CustomerCardView` broke no `toEqual`** this time, because every readCustomer
+  test asserts a slice. Worth noting against the patterns bullet: the hazard is a whole-record
+  `toEqual`, and this read model has none.
+- **No UI, so no browser check.** The control that renders `numberChoices` is story 6; this story is
+  proved by the suite alone.
+---

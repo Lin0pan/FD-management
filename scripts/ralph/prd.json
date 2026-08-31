@@ -97,7 +97,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "MUST use the same index rule as US-003 or the dropdown promises a card number the write will not print: each choice is nextCardIndexOnMove(highestIndexByNumber.get(n) ?? 0, customer.card.index), NOT nextCardIndex of the slot alone. The AC 'names k1 on a slot nobody has ever held' is therefore wrong for any household past their first card — it names the index above their own run instead."
     },
     {
