@@ -117,7 +117,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "The invariant this story states — 'the card the household holds is on the number they hold' — is what US-003's index rule (nextCardIndexOnMove) exists to keep true. currentCard/listCards order by index, so a move must outrank the household's own run or the record would show the OLD card as current."
     },
     {

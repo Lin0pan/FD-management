@@ -182,6 +182,20 @@ bullets that sat under „Where batch 29 starts“ are not carried over — they
   (`navigation.spec.ts` „von Kunden verwalten aus …“, `waitForURL` timing out after the click). It
   passes alone and on re-run. If it recurs, the click needs the „wait for React to own the control“
   treatment `day.ts`'s `hydrated` gives the fields (#116) — worth watching rather than chasing.
+- **A test about „what the rest of the app reads after X" belongs in the suite that can *do* X.**
+  Several suites deliberately give a port method that *rejects* („moving one has its own suite"), so
+  a cross-use-case test written in the reading use case's own file has to hand-build a fixture that
+  merely looks like the outcome — or teach three fakes an act one already performs. Put it in the
+  writing act's suite instead and drive the real use case; it usually costs one small extra fake
+  (`FakeReminderLogRepository`, batch 30) rather than three copies of a big one. Related: **a fake
+  that lets a caller state a value the adapter derives** (a card's slot, read off the customer row)
+  turns a two-line story into a wide break, because every fixture then carries a value that can
+  disagree — keep the fake's rule identical to the adapter's.
+- **An AC that says „needs no change and gets tests proving it" produces tests that pass on the
+  first run, and that is the deliverable.** Eight of batch 30's nine US-005 tests were green before
+  the fix; only the one naming the defect was red. Do not read „green immediately" as a fixture
+  mistake and do not delete the test — it is the proof the AC asked for. Still run the suite
+  **before** implementing, so which ones are red is a fact rather than a guess.
 - **Prior runs' patterns are in the archive**, not in this file:
   `scripts/ralph/archive/2026-08-29-us-29-customer-balance/progress.txt` is the most recent (a
   boolean becoming an amount, a balance derived and never stored, a fifth schema regeneration and a
@@ -510,4 +524,63 @@ that move would print. Nothing renders it yet — the control is story 6.
   `toEqual`, and this read model has none.
 - **No UI, so no browser check.** The control that renders `numberChoices` is story 6; this story is
   proved by the suite alone.
+---
+
+## 2026-08-31 - US-005 — Every card under the number it was printed with (application)
+
+The card history now shows each card under **its own** number, so a household that has moved is
+never shown a card number naming a different card. Two lines of production code and nine tests.
+
+- `src/application/customers/read-card.ts` — `numberOf(card)` is
+  `formatCardNumber(card.customerNumber, card.index)`. It labels the current card **and** every
+  superseded one, so both come off the card's own slot. `nextCardNumber` still counts on from the
+  **household's** number, with a comment saying why it is the one number here that does.
+  `CardView.cardNumber`'s doc says it is read off the card rather than assumed to agree.
+- `src/application/customers/read-customer.ts` — `cardNumber` likewise from
+  `customer.card.customerNumber`; the `held` local is gone, since its two uses were two different
+  questions. `nextCardNumber` unchanged.
+- `src/application/customers/change-customer-number.test.ts` — a second describe,
+  `the record after a number change`: nine tests over the batch's worked example (id 1 on slot 5
+  carrying `5k4`, moved onto slot 23 whose archived holder left `23k5`). Plus a
+  `FakeReminderLogRepository`, which is all the counter's lookup needed that this file lacked.
+- `cards-due-for-reissue.ts` and `lookup-customer.ts` — **not touched**, as the ACs say, and now
+  covered by tests that say so.
+
+**Learnings for future iterations:**
+
+- **The cross-use-case tests belong where the fakes can move a household, not in each use case's own
+  suite.** `customers.test.ts`, `cards-due-for-reissue.test.ts` and `lookup-customer.test.ts` all
+  have a `changeCustomerNumber` that *rejects* on purpose („moving one has its own suite"), and
+  teaching three of them to move — each needing a card store, settings and an audit log it does not
+  have — would have been three copies of a fake that already exists. `change-customer-number.test.ts`
+  was already importing `readCustomer` for exactly this reason. **One new describe in that file, one
+  small `FakeReminderLogRepository`, and every test drives a real move rather than hand-building a
+  moved-looking fixture.** Worth generalising: when a story is „what does the rest of the app read
+  after X", the suite that can *do* X is the honest home for it.
+- **Eight of the nine tests were green before the fix, and that is the point of writing them.** Only
+  `keeps every superseded card under the number it was printed with` was red — the exact line the
+  PRD warns about. An AC that says „needs no change and gets tests proving it" produces tests that
+  pass on the first run, and a batch that treats „green immediately" as a mistake would delete the
+  proof it was asked for.
+- **`readCard`'s `numberOf` labels the current card too**, so changing one line covered both ACs at
+  once: `cardNumber: numberOf(current)` was already routed through it. Nothing in `readCard` had to
+  learn about moves.
+- **`nextCardNumber` is the one number that must NOT follow the card**, on both views, and both
+  places now say so in a comment. A reissue prints on the slot the household holds *today*; a slot
+  they have left has no say in it. After a move the two agree anyway — the move issues the card in
+  the same transaction — but a derivation that assumes the agreement would be stating a fact it has
+  not checked.
+- **No fixture in the repo needed re-pointing**, because every fake fills a card's slot in from the
+  household the way the adapter does (US-002's learning). `place`, `issue` and `create` all read the
+  slot off the register, so every existing card already carried the number it was printed under and
+  the change was invisible to 176 tests in `customers.test.ts`. **A fake that let a caller state the
+  slot would have made this story a wide break instead of a two-line one.**
+- **Documentation needed nothing.** `grep -rn "read-card\|readCustomer" docs/` is empty — no chapter
+  names these use cases — and the ADR-007 reversal that this line makes necessary is US-008's story,
+  which already carries it. Resisting the urge to start it here kept the commit one intent.
+- **The week colour on `TODAY` (2026-08-31) is RED** under the `2026-W02` anchor — ISO week 36, an
+  even number of weeks on — so the suite's RED households come back `CLEAR_TO_SERVE` rather than
+  `WRONG_GROUP`. Compute it (`datetime.date(...).isocalendar()`) rather than assuming; a lookup test
+  that asserts a verdict kind turns on it, and 2026-08-31 being a Monday does **not** matter,
+  because `evaluateAtCounter` never asks whether today is a distribution day.
 ---
