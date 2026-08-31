@@ -1,8 +1,10 @@
 # Ralph Progress Log
-Started: Fri Aug 28 2026 (batch 29 — US-29 the customer balance)
+Started: Mon Aug 31 2026 (batch 30 — US-30 changing a customer's customer number)
 
 The `## Codebase Patterns` block below is CARRIED OVER from earlier batches on purpose
-(`scripts/ralph/prds/README.md` point 2). Add to it; do not reset it.
+(`scripts/ralph/prds/README.md` point 2). Add to it; do not reset it. The batch-29-specific
+bullets that sat under „Where batch 29 starts“ are not carried over — they are in
+`scripts/ralph/archive/2026-08-29-us-29-customer-balance/progress.txt`.
 
 ## Codebase Patterns
 - **Adding a `DomainErrorCode` is a three-file change**: the union in `src/domain/errors.ts`, the
@@ -164,10 +166,13 @@ The `## Codebase Patterns` block below is CARRIED OVER from earlier batches on p
   passes alone and on re-run. If it recurs, the click needs the „wait for React to own the control“
   treatment `day.ts`'s `hydrated` gives the fields (#116) — worth watching rather than chasing.
 - **Prior runs' patterns are in the archive**, not in this file:
-  `scripts/ralph/archive/2026-08-25-us-28-egg-allowance/progress.txt` is the most recent (the first
-  list-valued policy value: a validated staircase, a child table on `SettingsVersion`, a repeating
-  add/remove form and a row-by-row diff), `archive/2026-08-24-us-27-remove-portion-allowance/`
-  before it (a deletion, run outside-in), and
+  `scripts/ralph/archive/2026-08-29-us-29-customer-balance/progress.txt` is the most recent (a
+  boolean becoming an amount, a balance derived and never stored, a fifth schema regeneration and a
+  two-screen rework — and it keeps the batch-29 hazards this file no longer carries),
+  `archive/2026-08-25-us-28-egg-allowance/` before it (the first list-valued policy value: a
+  validated staircase, a child table on `SettingsVersion`, a repeating add/remove form and a
+  row-by-row diff), `archive/2026-08-24-us-27-remove-portion-allowance/` before that (a deletion, run
+  outside-in), and
   `archive/2026-08-07-us-25-globally-unique-card-numbers/progress.txt` keeps a long consolidated list
   (playwright-cli usage, e2e customer-number bands, killing the dev server safely, testid greps).
   Read the most recent two before any UI or e2e story.
@@ -205,539 +210,50 @@ The `## Codebase Patterns` block below is CARRIED OVER from earlier batches on p
   scripted shape while still incrementing its counter, so the rest of the register is unchanged —
   and verify the fixture by querying the seeded database, never by reading the script.
 
-### Where batch 29 starts
 
-Batch 28 (the egg allowance) is **merged into `main`** — PR #121, squashed as `8187ebf`. So
-`Allowance` is `{ grownUps, children, priceCents, eggs }`, the counter/record/editor figures row is
-four tiles in four tracks with the price in the fourth, `EggAllowanceRow` hangs off `SettingsVersion`,
-and `SettingsChange` already has one member without `from`/`to`. Nothing in this batch touches eggs.
+### Where batch 30 starts
 
-**This batch changes what a hand-out *is*** — `paid: boolean` becomes `paidCents: Cents` — and derives
-one balance per customer from the hand-out history. Read `tasks/prd-us-29-customer-balance.md`
-§Introduction before writing a line of `balance.ts`; its worked five-week table is the specification.
+Batch 29 (the customer balance) is **merged into `main`** — PR #126, squashed as `4658e1a`. So a
+hand-out carries `paidCents` and no `paid` flag, the balance is `Σ(paidCents − priceCents)` derived
+on every read, and the counter shows „Zu zahlen" beside „Saldo". Nothing in this batch touches money.
 
-Five hazards, all stated in `prd.json` and worth reading twice:
+**This batch makes a customer number changeable.** It has been decided at registration and never
+again since US-24, and four documents say so in as many words. A staff member may now move an active
+or blocked household from the number it holds to any number that is free, from a section on the
+customer record beside the group control — and **a new card is issued in the same act and the same
+transaction**. Read `tasks/prd-us-30-change-customer-number.md` §Introduction before writing a line;
+its worked 5 → 23 table is the specification.
 
-- **The sum is against the PRICE, not the amount asked for.** `balance = Σ(paidCents − priceCents)`.
-  Against the amount to pay the definition never settles: a household paying the full 8,00 € they
-  were asked for gives `8,00 − 8,00 = 0` and their 3,00 € debt is charged again next week, and a
-  credit never shrinks. This was an ambiguity in DF's own requirement, corrected and confirmed on
-  2026-08-28. The `askedCents` the colour mark compares against is a *different* quantity, derived by
-  replaying the history. **Do not "simplify" the two into one.**
-- **Story 3 leaves a deliberate bridge.** Between story 3 and story 4 the use cases translate the old
-  boolean into an amount (`paid ? priceCents : 0`) — exactly today's behaviour, so the tree stays
-  green. Story 4 removes it. Do not leave the tree in that state.
-- **Fifth regeneration of `prisma/migrations/`.** Same drill as 25–28: delete `data/fd.db` first,
-  re-add the hand-written partial unique index, verify with `diff` against `git show HEAD:…`, and
-  `npm run db:reset` afterwards. The patterns bullet above has all four traps.
-- **`setPaid` becomes `setPayment` on the port**, so every hand-written fake
-  `DistributionRecordRepository` must gain it in the same commit — including the one in
-  `read-group-roster.test.ts`, which implements the port in full and has nothing to do with payments.
-  The suite will not compile otherwise.
-- **`tests/e2e/balance.spec.ts` is a new spec and takes a NEW customer-number band** (see the bands
-  bullet above — eggs took 331–334, so start at 341). It also needs a **second distribution day**;
-  `tests/e2e/day.ts` already does that for the age-13 and reminder specs. Both engines, registers of
-  its own.
-- **The doc sweep at the end of a batch has a fixed list, and two of its entries are not obvious.**
-  A cross-cutting change (a schema field, a new derivation) reaches: chapter 3's "explicitly not
-  neighbours" paragraph, chapter 4's strategy section on the rule it touches, chapter 5's module
-  count *and* its per-module and per-port descriptions, chapter 6's scenario, chapter 8's concept
-  section **and its ER diagram** (`08` draws the columns, so a renamed field is wrong in two places),
-  chapter 11 (its own rule: re-read whenever an ADR is added), chapter 12's glossary, `tasks/README.md`
-  §Seed values, and `docs/handout/` + its README row. `grep -rn '<old field name>' docs/ tasks/` is the
-  check, and `python3 .claude/skills/arc42/scripts/arc42.py check` catches only the mechanical faults.
-- **A superseded fact inside an accepted ADR or an old PRD is ANNOTATED, never rewritten.** ADR-005's
-  context said a record stores only a `paid` flag; it keeps saying so, under a dated `> ⚠️ Later note`
-  block that names what changed, links the new ADR and says the decision below is unaffected — the
-  same shape chapter 9's log already uses for the row ADR-013 superseded. Old PRDs get the same
-  treatment (US-05 carries a banner under its source line; US-14, US-26 and US-28 carry an inline
-  parenthesis), because a PRD is the record of what was asked for. "No document claims X" is satisfied
-  by the note, not by a deletion.
----
+Six hazards, all stated in `prd.json` and worth reading twice:
 
-## 2026-08-28 — US-001 The balance arithmetic (domain)
-- New pure module `src/domain/distribution/balance.ts`: `PaidRecord`, `balanceOf`, `amountToPay`,
-  `balanceKind` / `BalanceKind`. No I/O, no clock, no framework import; imports only `Cents`.
-- New `src/domain/distribution/balance.test.ts` — 17 tests, written first and run red (the module did
-  not exist) before a line of it was written.
-- Files changed: `src/domain/distribution/balance.ts` (new),
-  `src/domain/distribution/balance.test.ts` (new), `scripts/ralph/prd.json`, this log.
-- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1183 tests, domain/
-  and application/ still 100%), `npm run build` — all green.
-- **Learnings for future iterations:**
-  - **The named test that pins the formula is `consumes a credit larger than the price by the week it
-    pays for`.** It asserts *both* `balanceOf` and `amountToPay` on the week-4 row, because summing
-    against the amount asked for instead of the price passes every other test in the file — a
-    household that always hands over exactly what it is asked for gives 0 either way. If a later
-    change breaks only this test, the change is wrong, not the test.
-  - The module's doc comment forward-references `replayPayments`, which **US-002 adds to this same
-    file**. Nothing lints or type-checks a `{@link}`, so the reference is not load-bearing, but leave
-    it: US-002 makes it resolve.
-  - `distributionRecord.ts` shows as `0 | 0 | 0 | 0` in the coverage table and always has — it is
-    types only, so there is nothing to execute. It does not fail the 100% gate; do not "fix" it by
-    writing a test that constructs an interface.
-  - A test helper named with a snake_case local (`so_far`) passes ESLint here but reads wrong beside
-    the rest of the suite; the convention in `domain/` tests is a tiny camelCase factory at the top
-    of the file (`entry()` in `groupProgress.test.ts`, `handOut()` here) rather than object literals
-    repeated per case.
-  - **Docs are deliberately untouched.** `docs/architecture/05` lists `distribution/` module by
-    module and would take a `balance.ts` line, but US-010 owns every document in this batch — adding
-    it early would make that story's diff lie about what it did.
----
+- **No card is ever re-labelled, and `read-card.ts`'s `numberOf` is the one line where it would
+  happen.** It currently labels every card in the run with `customer.customerNumber`, so after a move
+  the superseded cards would render as `23k4`, `23k3` … The cards left on the vacated slot are exactly
+  what keeps that slot safe to hand out again: slot 5 has seen four cards, so the next household
+  starts at `5k5`. Re-label them under 23 and slot 5 looks untouched, and the next household is
+  printed a `5k1` that already exists out in the world.
+- **`IssuedCard` gains a required `customerNumber`, which breaks every fake and every card fixture at
+  once** — the same wide break `setPayment` and `highestIndexForNumber` levied. Story 2 owns it;
+  `NewCard = Omit<IssuedCard, "customerNumber">` stays what a *writer* passes, because the adapter
+  goes on reading the slot off the customer row inside the write's own transaction.
+- **The move and the card are ONE transaction**, in one new port method
+  `CustomerRepository.changeCustomerNumber(id, customerNumber, card)`. Split into two writes, a crash
+  between them leaves a household on 23 carrying `5k4` and no query in the system can detect it. The
+  precedent is `create`, which already writes a customer and their first card as one.
+- **There is NO schema change and NO migration** — the first post-MVP batch with none. Every column
+  exists, and `Card.reason` is a validated string, so the fifth reason word costs the database
+  nothing. **Do not touch `prisma/migrations/`**; the four regeneration traps in the patterns bullet
+  above are irrelevant here, and reaching for them would drop the hand-written partial unique index
+  for no reason at all.
+- **Two new port methods**, so two rounds of fake-updating: `changeCustomerNumber` on
+  `CustomerRepository` (story 3) and `highestIndexByNumber` on `CardRepository` (story 4).
+- **`tests/e2e/number-change.spec.ts` is a new spec and takes a NEW customer-number band** (see the
+  bands bullet above — balance took 341–344, so start at 351), and it needs numbers **below the quota
+  of 240** for the ones it moves *onto*, because those have to be pickable in the dropdown. Seed it
+  BLUE, for the `group-walk` reason in the same bullet. Both engines.
 
-## 2026-08-28 — US-002 The payment replay and the overpayment guard (domain)
-- `src/domain/distribution/balance.ts` gains `PaymentStanding`, `standingOf`, `Settlement<T>` and
-  `replayPayments` — the same module as US-001, because the replay is the balance walked in order.
-  `replayPayments` sorts a **copy** by `date` ascending itself; `askedCents` per row is
-  `amountToPay(priceCents, balance of the earlier rows)`, so it is exactly what the counter showed
-  that day. No `settlementOf` lookup helper, on purpose (a second way to ask the same question).
-- `src/domain/errors.ts` gains `OverpaymentNotConfirmed(paidCents, amountToPayCents)` and its code;
-  `src/app/notice-tier.ts` tiers it `refusal` (a question, not a fault) — its stale header count went
-  from „a 36th code" to „a 37th code" with it. No caller until US-004.
-- Files changed: `src/domain/distribution/balance.ts`, `src/domain/distribution/balance.test.ts`,
-  `src/domain/errors.ts`, `src/domain/errors.test.ts`, `src/app/notice-tier.ts`,
-  `scripts/ralph/prd.json`, this log.
-- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1195 tests, domain/
-  and application/ still 100%), `npm run build`, `npx prettier --check` — all green.
-- **Learnings for future iterations:**
-  - **The test that ties the two functions together is `agrees with the plain sum`**
-    (`replayPayments(records).at(-1)?.balanceAfter === balanceOf(records)`), and it is deliberately
-    fed an out-of-order history — in date order it would also pass if the replay never sorted. If a
-    later change makes only this one red, the change has split one number into two answers.
-  - **`standingOf` compares against `askedCents`, never `priceCents`**, and the test that guards it is
-    `marks clearing an old debt as exact, not over`. Every other standing test passes either way,
-    because they are all weeks where the price *is* the amount asked for.
-  - The forward reference US-001 left (`{@link replayPayments} in US-29.2`) is now resolved and the
-    „in US-29.2" dropped — a `{@link}` is checked by nothing, so a story that fulfils one has to go
-    and close it by hand.
-  - **US-003 renames nothing in this module.** `PaidRecord` is intentionally *not*
-    `DistributionRecord`, so the schema change lands beside it rather than through it; the only
-    coupling is that `replayPayments` needs its rows to carry a `date`, which the record already has.
-  - Docs still untouched — US-010 owns every document in this batch (same reasoning as US-001).
----
-
-## 2026-08-28 — US-003 A hand-out records an amount, not a flag (domain type, schema, infrastructure)
-- `NewDistributionRecord.paid: boolean` is now `readonly paidCents: Cents`; the flag is **gone**, not
-  kept alongside. `prisma/schema.prisma` follows (`paid Boolean` → `paidCents Int`, with the `///`
-  comment saying the balance is derived from it and `priceCents` and never stored), and the
-  `SettingsVersion` doc comment lost the sentence claiming a record stores no amount.
-- `prisma/migrations/` regenerated as `20260828131514_init` — fifth regeneration, same drill: delete
-  `data/fd.db` first, re-append the hand-written `Customer_customerNumber_onRegister_key` partial
-  unique index, `npm run db:reset` afterwards. `diff` against `git show HEAD:…/20260825000027_init`
-  is **exactly one line**, which is the whole check.
-- `setPaid` → `setPayment(recordId, paidCents)` on the port, the Prisma adapter and all five
-  hand-written fakes; `RecordRow`/`toRecord` carry `paidCents`. New integration tests: a payment of
-  `0` is stored as `0` and not as null (asserted through raw SQL, not only through the adapter), a
-  payment above the price round-trips, and a correction down to nothing.
-- `prisma/demo-seed.ts` gained a `paymentHabit` on three cast members — `OWES`, `SETTLED_A_DEBT`,
-  `IN_CREDIT` — and the closing tally counts part payments and hand-outs paid ahead beside the
-  unpaid ones. The scripted households come out at −2,00 €, 0,00 € and +5,00 € exactly.
-- The **deliberate bridge** US-004 removes: `recordAttendance` and `correctAttendance` still take the
-  boolean and translate it (`paid ? priceCents : 0`), and `lookupCustomer` reads it back
-  (`paidCents >= priceCents`). The screens are untouched and the app is green.
-- Files changed: `src/domain/distribution/distributionRecord.ts`, `prisma/schema.prisma`,
-  `prisma/migrations/20260828131514_init/` (new, replaces `20260825000027_init`),
-  `src/application/ports.ts`, `src/application/distribution/{record,correct}-attendance{,.test}.ts`,
-  `src/application/distribution/read-group-roster.test.ts`,
-  `src/application/customers/{customers,lookup-customer,maintain-customer}.test.ts`,
-  `src/application/customers/lookup-customer.ts`, `src/app/kunden/[id]/page.tsx`,
-  `src/infrastructure/prisma/distribution-record-repository{,.test}.ts`, `prisma/demo-seed.ts`,
-  `tests/e2e/{serve,price-cap,archive,reregistration,customer-record}.spec.ts`,
-  `scripts/ralph/prd.json`, this log.
-- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1199 tests, domain/
-  and application/ still 100%), `npm run build`, `npx prettier --check .`, `npm run test:e2e`
-  (177 passed) and `npm run test:e2e:webkit` (177 passed) — all green. `npm run db:reset` run, and
-  the partial index verified in the reset database rather than assumed.
-- **Learnings for future iterations:**
-  - **A scripted fixture must be exempted from `demo-seed.ts`'s counted patterns, not layered on top
-    of them.** `UNPAID_EVERY` writes a zero payment every fifth hand-out across the whole cast, so the
-    three balance households first came out at −12,00 €, −5,00 € and +1,00 € — the modulus, not the
-    script. They now skip the pattern (`shape.paymentHabit !== undefined || servedSoFar % … !== 0`)
-    while still incrementing `servedSoFar`, so which of the *other* households pay nothing is
-    unchanged. Any future fixture that demonstrates one state has the same problem.
-  - **The bridge is in three places, not two.** `recordAttendance` and `correctAttendance` are the
-    obvious ones; `lookupCustomer`'s `TodaysRecordView.paid` is the third, and it is what keeps the
-    correction checkbox opening on the stored value. A fourth, `history-paid` in
-    `src/app/kunden/[id]/page.tsx`, belongs to US-008. Each carries a comment naming the story that
-    removes it — `grep -rn "US-29.3" src/` finds all four.
-  - **`correctAttendance` needs the record it is correcting to know the price**, because the bridge
-    writes `record.priceCents`. It already loads the record for `canCorrect`, so nothing new is read —
-    but a use case that only had the id would have had to.
-  - **`select:` lists in e2e specs are a silent break.** Five specs name `paid: true` in a Prisma
-    `select`, which typechecks against the *generated client* — so the rename is not caught by
-    `tsc` on `src/` alone and would have failed only at run time. `grep -rn "paid" tests/e2e/`
-    after any column rename.
-
-## 2026-08-28 — US-004 Recording and correcting a payment (application)
-- `RecordAttendanceInput.paid?: boolean` is now `paidCents?: Cents` + `overpaymentConfirmed?: boolean`.
-  `recordAttendance` derives the balance from the history **it already loaded** for the once-per-day
-  guard (one `listForCustomer`, no second query), then `amountToPay(allowance.priceCents, balance)`.
-  An omitted amount **is** that figure; above it without confirmation throws `OverpaymentNotConfirmed`
-  and writes nothing; below it — down to 0 — is written silently. Guard order unchanged and now stated
-  in the doc comment: eligibility → once-per-day → payment. Audit `changedFields` is
-  `["showedUp", "paidCents", "priceCents"]`.
-- `CorrectAttendanceInput`'s `SET_PAID` is now `SET_PAYMENT` with `paidCents` and
-  `overpaymentConfirmed?`; `REMOVE` untouched. The correction judges the amount against
-  **what was asked on that record's own day**, from `replayPayments` over `listForCustomer`, and
-  audits `["paidCents"]`. Removal gained no code at all — a named test asserts the balance returns to
-  what it was, which is the property derive-don't-store was chosen for.
-- The **US-29.3 bridge is gone from both use cases**. The two that remain belong to later stories:
-  `lookupCustomer`'s `TodaysRecordView.paid` (US-29.5) and `history-paid` in
-  `src/app/kunden/[id]/page.tsx` (US-29.8).
-- A **new, smaller bridge in `app/`** takes its place, because US-29.7 still owns the amount field:
-  the serve checkbox maps to `paidCents: undefined` (= what was asked) or `0`, and the correction
-  checkbox maps to the day's price, carried into the action as a hidden `priceCents` field off
-  `counter.lookup.customer.priceCents`. `grep -rn "US-29.4" src/` finds all four sites.
-- `prisma/demo-seed.ts` reworked: every hand-out is first written with **no amount** (so the record
-  states what was asked), and every deviation — the counted unpaid pattern and the three scripted
-  habits alike — is a second write through `setPayment`. Scripts are written against `askedCents`,
-  and the tally counts part payments and paid-ahead against it too.
-- Files changed: `src/application/distribution/{record,correct}-attendance{,.test}.ts`,
-  `src/application/allowance/describe-allowance.ts` (stale „keeps only a paid flag" comment),
-  `src/app/ausgabe/{actions.ts,page.tsx,serve-controls.tsx}`, `prisma/demo-seed.ts`,
-  `scripts/ralph/prd.json`, this log.
-- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1209 tests, domain/
-  and application/ still 100%), `npm run build`, `npx prettier --write` on the touched files,
-  `npm run test:e2e` (177 passed) and `npm run test:e2e:webkit` (177 passed) — all green.
-  `npm run db:reset && npm run db:demo` run, and the fixture **verified by querying the database**.
-- **Learnings for future iterations:**
-  - **The balance changes what an unpaid week means in the seed, and it is not a bug.** A household
-    that pays nothing is asked for the price *plus the debt* at its next hand-out and — paying the
-    default — settles it. So the counted `UNPAID_EVERY` pattern no longer leaves standing debts: only
-    the households whose last hand-out was the unpaid one end negative (11 Maier −4,00 €, 15 Kneifel
-    −5,00 €). The three scripted ones come out at exactly −2,00 €, 0,00 € and +5,00 € as designed.
-  - **A demo script written against the price is wrong now; write it against `askedCents`.** `OWES`
-    and `IN_CREDIT` also need every *later* visit pinned to `record.priceCents` — paying the default
-    would settle the debt or eat the credit, and the register would have neither state left to show.
-    Paying exactly the price is how a household leaves a balance where it was.
-  - **The `askedCents` for a past record cannot be looked up, only replayed** — and the replay must
-    not fold in the record's own payment. `correctAttendance` reads it off the settlement whose
-    `record.id` matches, with a `reduce` rather than a `find`: a `find` needs a `?? fallback` for a
-    case that cannot happen, and that unreachable arm fails the 100% branch gate. The reduce's
-    ternary is covered by any test with two records.
-  - **`counter.lookup.customer.priceCents` already exists** (`counter-lookup.tsx` renders it), so an
-    app-layer bridge that needs the day's price does **not** need a new field on `TodaysRecordView` —
-    the page hands it to `ServeControls` directly. Worth checking before widening an application view
-    for something a sibling component already has.
-  - The correction bridge passes `overpaymentConfirmed: true`, deliberately: ticking the box writes
-    the day's price, which for a household in credit is more than they were asked for, and a checkbox
-    offers no way to answer the confirmation it would otherwise raise.
----
-
-## 2026-08-28 — US-005 The counter reads the amount to pay and the balance (application)
-- `CounterCustomerView` gains `balanceCents` and `amountToPayCents`; `TodaysRecordView` gains
-  `paidCents`, `askedCents` and `balanceWithoutRecordCents`, and **loses `paid`** — the last US-29.3
-  bridge in `application/` is gone. All five figures come out of the `recordsForCustomer` the lookup
-  already loads for `recordForDay` and `countNoShows`: **no second query** (US-04.3).
-- `balanceCents` is the balance *as it stands now*, today's hand-out included when one has been
-  recorded; `amountToPayCents` is `amountToPay(allowance.priceCents, balanceCents)`.
-  `balanceWithoutRecordCents` is `balanceOf` of the other rows, so the removal warning can name where
-  a household would land (rule 9).
-- `askedCents` is replayed, not looked up: a module-private `askedForOn` reduces over
-  `replayPayments`, seeded with the record's own price — the same shape `correctAttendance` uses, and
-  for the same reason (a `find(...) ?? fallback` would leave an arm nothing can reach, which the
-  branch gate refuses).
-- Nine tests written first and run **red** before a line of the implementation, including the four
-  that pin the formula against a household whose today-price (2,00 €) differs from every hand-out
-  behind them (5,00 €).
-- The app-layer bridge moved rather than grew: `src/app/ausgabe/page.tsx` now reads the checkbox's
-  `paid` back through the domain's own `standingOf(paidCents, askedCents) !== "SHORT"`. US-29.7
-  removes it with the checkbox.
-- Files changed: `src/application/customers/lookup-customer{,.test}.ts`, `src/app/ausgabe/page.tsx`,
-  `scripts/ralph/prd.json`, this log.
-- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1217 tests, domain/
-  and application/ still 100%), `npm run build`, `npx prettier --check .`, `npm run test:e2e`
-  (177 passed) and `npm run test:e2e:webkit` (177 passed, run **three** times) — all green.
-- **Learnings for future iterations:**
-  - **Two WebKit failures in this iteration were pre-existing, and proving it took a `git stash`.**
-    A full webkit run on clean `HEAD` failed the same settings spec, which is the only thing that
-    separates "my change broke it" from "this suite is flaky here". Do that before touching a spec
-    the story has no business in — and note that `npm run test:e2e:webkit` aborts the remaining
-    files after a failure (`6 did not run`), so one flake hides whatever was behind it.
-  - Both flakes were hazards this log already names, and both are now fixed in a commit of their
-    own: a controlled `<textarea>` filled with a plain `fill()` straight after `goto`
-    (`notes-field` — `fillSticky` is the helper for exactly that window), and two consecutive saves
-    on the settings screen without a `page.reload()` between them. **`selectOption` does not
-    reliably survive that race either**, contrary to what the patterns bullet said — it is now
-    corrected there.
-  - **Running one spec file against the shared register is not a free diagnostic.** Playwright
-    reuses an existing server locally (`reuseExistingServer: !process.env.CI`) and each invocation
-    deletes and re-seeds its own database, so a single-file run is honest — but the *order* it
-    implies is not the order the full suite has, and a spec that asserts a shared count will read
-    differently. Re-run the whole file set before concluding anything.
-  - **`amountToPayCents` is defined for a household already served today**, and is what they *would*
-    be asked for on a second hand-out. That is not a bug and not something to null out: the screen
-    simply does not render it in that state (US-29.7), and the record's own `askedCents` is what the
-    already-served half shows.
-  - Docs still untouched — US-010 owns every document in this batch (same reasoning as US-001..004).
----
-
-## 2026-08-28 — US-006 The customer record reads the balance and the payment history (application)
-- `CustomerCardView` gains `balanceCents: Cents`, and `history` becomes
-  `ReadonlyArray<Settlement<DistributionRecord>>` — each row now carrying `askedCents`, `standing`
-  and `balanceAfter` beside the record itself. Both come out of the `records` `readCustomer` already
-  loads for `countNoShows`: **no extra query**.
-- The display order is `[...replayPayments(records)].reverse()`, one line, commented as being the
-  *display* order rather than the arithmetic's — `replayPayments` must walk oldest first because a
-  running balance can only be built that way.
-- The price on each row is still the record's own, and `askedCents` is replayed from those same
-  prices: a policy change since then rewrites nothing.
-- **Nothing special-cases an archived household or a re-registered one**, which is the point — two
-  named tests pin the properties (`keeps an archived household's balance`, `starts a re-registered
-  household at zero`) because both are things somebody could break later, the second by keying
-  records on the customer number instead of the surrogate id (ADR-008).
-- Eight tests written first and run **red** (8 failing, including the adapted newest-first test)
-  before a line of the implementation.
-- `src/app/kunden/[id]/page.tsx` follows the type mechanically: `History` takes settlements and
-  destructures `({ record })`. The US-29.3 „Bezahlt: ja/nein" bridge stays exactly as it was —
-  US-008 owns the Gefordert/Gezahlt columns and the colour mark that replace it.
-- Files changed: `src/application/customers/{read-customer.ts,customers.test.ts}`,
-  `src/app/kunden/[id]/page.tsx`, `scripts/ralph/prd.json`, this log.
-- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1224 tests, domain/
-  and application/ still 100%), `npm run build`, `npx prettier --check` on the touched files,
-  `npm run test:e2e` (177 passed) and `npm run test:e2e:webkit` (177 passed) — all green.
-- **Learnings for future iterations:**
-  - **Widening a view's row type breaks its consumer's `.map` silently in the test file first.**
-    `view.history.map((record) => record.date)` still typechecks against a `Settlement` only if the
-    field names happen to collide — they do not here, so `tsc` caught it, but rename the lambda
-    parameter (`handOut`) rather than leaving a `record` that is no longer one. The same rename in
-    `page.tsx` is a destructure, `({ record })`, which keeps the body untouched.
-  - **`balanceOf(records)` beside `replayPayments(records)` is two computations of one number, and
-    that is fine here**: `balance.test.ts` already pins that the last `balanceAfter` equals
-    `balanceOf` of the same rows, so the two cannot drift without a domain test failing. Reaching
-    into the replay's last element instead would need a fallback for the empty history — an arm
-    nothing can reach, which the branch gate refuses (the same reason `askedForOn` is a `reduce`).
-  - **The `attend` helper in `customers.test.ts` now takes `paidCents`** (default 500, the seeded
-    price). Any later story needing a household in debt or credit in the `readCustomer` block should
-    use it rather than writing a bare `records.create`.
-  - Docs still untouched — US-010 owns every document in this batch, as US-001..005 each recorded.
----
-
-## 2026-08-28 — US-007 The counter collects an amount (presentation)
-- The paid checkbox is **gone from both counter forms**, replaced by a `Betrag` text field pre-filled
-  with the amount to pay (serve) or the stored payment (correction): `name="betrag"`,
-  `inputMode="decimal"`, `autoComplete="off"`, contents selected on focus, in the German amount form
-  `formatEuroAmount` writes and `parseEuros` reads — `4,00`, no currency symbol. Both forms took
-  `onKeyDown={guardEnter}`, so Enter no longer submits either of them.
-- A **payment row** above the serve form, in `ServeControls` rather than on the lookup card: `Zu
-  zahlen` (`counter-amount-to-pay`, `text-4xl`) and `Saldo` (`counter-balance`), worded and never
-  signed off `balanceKind`. The four derived tiles are untouched and the price is still fourth. The
-  already-served card shows the `Saldo` alone — the amount to pay in that state is what a *second*
-  hand-out would cost, which cannot happen.
-- The overpayment step is **driven from the server's refusal**: the form submits without a
-  confirmation, `OverpaymentNotConfirmed` comes back as the new `confirmOverpayment` status on both
-  `ServeState` and `CorrectState`, and the notice renders `refusal`-tiered with a second submit
-  button (`name="overpaymentConfirmed"`) beside it. No modal, nothing to dismiss.
-- `de.distribution.serve.paid` and `paidState` **deleted**. New: `serve.amount`, `serve.asked(cents)`,
-  `serve.overpayment.{question,confirm}`, `serve.errors.notAnAmount`, a reworded
-  `alreadyServed(time, paidCents, askedCents)`, `correct.save` → „Betrag speichern", and
-  `correct.removeConfirm(balanceWithoutRecordCents)`; plus `customers.derived.{amountToPay,balance,
-  balanceValue}`.
-- Files changed: `src/i18n/de.ts`, `src/app/ausgabe/{serve-controls.tsx,serve-state.ts,actions.ts,
-  page.tsx}`, `src/app/enter-guard.ts`, `tests/e2e/serve.spec.ts`, `scripts/ralph/prd.json`, this log.
-- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1224 tests, domain/
-  and application/ still 100%), `npm run build`, `npx prettier --check .`, `npm run test:e2e`
-  (177 passed) and `npm run test:e2e:webkit` (177 passed) — all green. Browser pass with
-  `playwright-cli` against `npm run start`, pinned to a BLUE distribution day over the demo register;
-  console 0 errors, `scrollWidth - clientWidth` 0 at 1440/1280/800/390.
-- **Learnings for future iterations:**
-  - **React resets an uncontrolled form once its action resolves, and that silently broke the
-    overpayment confirmation.** Typing 50,00 against 7,00 asked produced the right question — and the
-    field snapped back to `7,00` behind it, so pressing „Ja, Betrag so buchen" would have booked 7,00
-    with the flag. The browser pass is the only thing that found it; every gate was green. The fix is
-    to drive `defaultCents` from the refusal (`overpayment?.paidCents ?? default`) **and key the field
-    on it**, so a fresh input mounts on the refused amount whichever order React re-renders and resets
-    in. Any form that has to survive its own action's answer needs the same treatment.
-  - **`de.ts` now has imports, and it never had any before.** `formatEuros`, `balanceKind` and
-    `BalanceKind`, all pure domain. The PRD asked for `balanceValue(kind, cents)` and `asked(cents)`
-    by name, and formatting inside the dictionary is also what keeps a leading minus off every screen
-    at once rather than leaving each caller to remember `Math.abs`. The precedent it breaks —
-    `history.change(label, from, to)` takes ready-made strings — is left as it is.
-  - **A dictionary entry may not read `de` inside its own initialiser.** `removeConfirm` wanted
-    `de.customers.derived.balanceValue`, which makes `de` implicitly `any` (TS7022) even though it
-    would work at run time. Module-level `balanceWording` above the object is the shape the egg-rule
-    fragments (`eggRow`, `fromPersons`) already use for exactly this.
-  - **`whitespace-nowrap` on a `Stat` value is a narrow-screen bug.** „Offen 2,00 €" ran out through
-    the tile's own padding at 390px while `documentElement.scrollWidth - clientWidth` still read `0` —
-    the page does not overflow, the *tile* does, and only the screenshot shows it. Pass the width floor
-    where tiles are compared; let a phrase wrap where they are not.
-  - **The payment row shares the counts row's four-track grid** (`grid-cols-2 sm:grid-cols-4`, `Saldo`
-    spanning two), not a grid of its own two columns. The two cards are the same width with the same
-    padding, so four tracks put `Zu zahlen` on the same baseline as `Erwachsene`; a bare `grid-cols-2`
-    gave two half-width tiles that lined up with nothing above them.
-  - **`playwright-cli` takes a testid as a bare target** (`playwright-cli fill serve-amount "50,00"`)
-    only once the element is in the current snapshot — otherwise it errors with "does not match any
-    elements" and a `snapshot` first is what fixes it, not a different locator. `eval` is how you read
-    `selectionStart`/`activeElement`, which is the only honest check for select-on-focus and for
-    keyboard reachability of a confirm button.
-  - **`pkill -f "next-server"` kills the Bash tool** (exit 144, no output) exactly as this log's
-    pattern bullet warns — and `ui_styling_guide.md` §11 still prints `pkill -f next-server` in its
-    snippet. Kill by pid from `ps aux | grep "[n]ext-server"`.
-  - **Driving the counter needs `FD_FIXED_NOW_FILE` on the server**, not just a seeded register: the
-    demo day is deliberately not a distribution day, so no household is clear to serve. Pin a Thursday
-    in a week whose colour matches the household you want (anchor `2026-W02` = RED, so odd offsets are
-    BLUE) and restart `npm run start` with the variable set.
-  - Docs still untouched — US-010 owns every document in this batch, as US-001..006 each recorded.
----
-
-## 2026-08-28 — US-008 The record states the balance and marks each hand-out (presentation)
-- The record's history disclosure now answers two questions with the fold still shut: how many
-  hand-outs it holds (`history-count`, unchanged) and where the household stands
-  (`record-balance`, „Saldo: Offen 2,00 €“). Both live in the one `CardAction` slot, right-aligned,
-  the balance worded by `de.customers.derived.balanceValue` off `balanceKind` — the counter's own
-  wording, never signed. **Not a fifth tile** beside Erwachsene/Kinder/Eier/Preis: those four are
-  properties of the household, the balance is a property of what has happened to it.
-- The table's „Bezahlt: ja/nein“ bridge column (US-29.3) is gone. In its place **Gefordert**
-  (`history-asked`) and **Gezahlt** (`history-paid`), both `tabular-nums`, with `Preis` unchanged in
-  the last slot. The Gezahlt cell carries the amount and a `Badge` (`history-standing`) saying
-  „2,00 € offen“, „2,00 € zu viel“ or „genau“ — the amount and the badge in a `flex flex-wrap`, so
-  the figures stay aligned with Gefordert beside them and the mark drops under them at 390px.
-- `PAYMENT_STANDING_STYLES` joins `src/app/accents.ts` as one exported `Record<PaymentStanding,
-  string>`: red for SHORT, green for EXACT, blue for OVER, in the certificate chrome's
-  `border-…/40 bg-…/10` shape and deliberately not `GROUP_STYLES`' red-600/blue-700. The doc comment
-  places it as **standing state on a row**, like a lapsed certificate's amber.
-- The illustrative „−2,00 € offen“ **lost its minus**, as the story required: „offen“ says which way
-  the amount runs, and `historyStanding` abs's the difference exactly as `balanceWording` does.
-- The history hint gained the clause the software has no button for: a hand-out is correctable only
-  on the day it was recorded, and a later mistake is settled by a compensating amount at the next
-  hand-out.
-- Files changed: `src/app/accents.ts`, `src/app/kunden/[id]/page.tsx`, `src/i18n/de.ts`,
-  `docs/guideline/ui_styling_guide.md`, `scripts/ralph/prd.json`, this log.
-- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1224 tests, domain/
-  and application/ still 100%), `npm run build`, `npx prettier --check .`, `npm run test:e2e`
-  (177 passed) and `npm run test:e2e:webkit` (177 passed on the re-run — see the flake below) — all
-  green. Browser pass with `playwright-cli` against `npm run start` over the demo register.
-- **Learnings for future iterations:**
-  - **The demo register already scripts all three standings** (`paymentHabit` in `prisma/demo-seed.ts`):
-    customer 12 owes, 13 was short and settled it exactly, 14 has credit. `npm run db:demo -- --reset`
-    is therefore the whole fixture for a balance screen — no hand-written Prisma insert needed, and
-    the three records read as three different stories side by side. Customer 2 is archived **with**
-    a hand-out, which is the read-only variant.
-  - **A testid on a `CardAction` becomes wrong the moment the slot holds two facts.** `history-count`
-    moved from the `CardAction` itself onto the `<p>` inside it, so `toHaveText(historyCount(n))` in
-    `customer-record.spec.ts` still passes; had it stayed on the wrapper the balance line would have
-    silently joined the count's text. Put the testid on the sentence, never on the slot.
-  - **`ui_styling_guide.md` §5 says a badge most rows wear is texture, not emphasis — and this story
-    required exactly that.** „genau“ marks ~76% of hand-outs across the demo register. The column was
-    still built as specified (the criterion names „genau“ in a `Badge` twice, and the PRD is the
-    record of what is required), and the guide now carries the exception **by name** with its reason:
-    the column is one of *judgments*, and an amount with no mark beside it reads as unjudged. It is
-    written as the only such column on purpose — do not cite it for a second one.
-  - **A WebKit run failed once in `customer-list.spec.ts` (the certificate filter) and passed on both
-    a single-file re-run and a full re-run.** Nothing in this story touches that screen. Flake, not a
-    regression — but it is the second engine-specific flake this batch, so a spec failing there once
-    deserves a re-run before it is believed.
-  - The five-column table **scrolls horizontally inside its own region at 390px** (`scrollWidth` 440
-    against `clientWidth` 310) while `documentElement` overflow stays 0. That is the `Table`
-    primitive's own container doing its job, and the region already carries `tabIndex={0}`, so the
-    scroll is keyboard-reachable — but a sixth column would need a different answer.
-  - Docs: the styling guide is updated here because this story made it wrong. **US-010 still owns
-    every other document in the batch** (the handout, the arc42 chapters and ADR-015).
----
-
-## 2026-08-29 — US-009 E2E — a part payment carried to the next hand-out
-- New `tests/e2e/balance.spec.ts`: ten serial tests over four households of its own (341 carry,
-  342 small credit, 343 large credit, 344 capped), on **two** BLUE distribution days a fortnight
-  apart — Thursday 15.01. and 29.01.2026 — pinned through the same clock seam `age-13.spec.ts` and
-  `reminders.spec.ts` use, and released in `afterAll` so no later spec inherits a frozen January.
-- The spine: a household with no history is asked the bare price and reads „ausgeglichen“; 1,00 € of
-  3,00 € leaves „Offen 2,00 €“ beside the confirmation it landed in; the record states Gefordert,
-  Gezahlt and „2,00 € offen“ with the balance above the fold. **The carry**: a fortnight later the
-  same household is asked 5,00 € while `Preis` still reads 3,00 € — the figure nothing wrote down.
-- **The credit** is driven through the refusal, not around it: 4,00 € against 3,00 € asked shows the
-  question, `handOutsOf` proves **nothing was written while it was being asked**, and the confirm
-  button books the amount still in the field. 10,00 € gives a credit larger than a week, so the next
-  hand-out costs 0,00 € and the field opens on it. **The cap**: 11,00 € per head capped at 5,00 €,
-  2,00 € handed over, and a fortnight later `Zu zahlen` is 8,00 € above a `Preis` tile still on the
-  cap — the one case where the amount to pay exceeds the Maximalpreis, and not a cap being broken.
-- **The removal** obeys the panel-coupling rule: the household is settled, removed, and the balance
-  is asserted back at „Offen 2,00 €“ **on the screen the removal's confirmation landed on**, with no
-  `goto` between them. A balance that had stopped following the records passes every other test here.
-- `serve.spec.ts`'s `paid`/`unpaid` numbers renamed to `confirmed`/`nothing` — the flag's last names
-  in a spec, and both households now describe what is *done* to them rather than a boolean.
-  `src/domain/policy/settings.ts` and `prisma/demo-seed.ts` lost the two doc comments still claiming
-  a record stores a paid flag.
-- Files changed: `tests/e2e/balance.spec.ts` (new), `tests/e2e/serve.spec.ts`,
-  `src/domain/policy/settings.ts`, `prisma/demo-seed.ts`, `scripts/ralph/prd.json`, this log.
-- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1224 tests, domain/
-  and application/ still 100%), `npm run build`, `npx prettier --check .`, `npm run test:e2e`
-  (187 passed) and `npm run test:e2e:webkit` (187 passed) — all green, both engines first time, no
-  flake to re-run.
-- **Learnings for future iterations:**
-  - **The sweep came out clean, and what is left is deliberate.** `grep -rn '\bpaid\b' src/ prisma/
-    tests/` still hits `historyColumns.paid: "Gezahlt"`, the `history-paid` testid and a dozen
-    sentences of English prose („paid ahead“, „paid short“); `grep -rni 'bezahlt' src/ tests/` hits
-    four comments that name the removed flag with the reason it went. None is a leftover: the key
-    and the testid are the *amount* paid, named after `paidCents`, and CLAUDE.md's documentation rule
-    is that a withdrawn idea stays named with its reason. **Nothing boolean survives** — the honest
-    check is the grep filtered to non-comment lines, not the raw count.
-  - **A spec that seeds households can break a spec sorting after it without touching its screen.**
-    `group-walk.spec.ts` reads the whole shared register and asserts the highest walkable RED number
-    is its own 315, so this spec's four households had to be BLUE. Colour is not decoration in a new
-    band above 315 — the patterns bullet now says so.
-  - **`fillSticky` is required for `serve-amount` every time**, because the counter's amount field is
-    controlled and every one of these tests fills it straight after a `goto`. The overpayment path
-    fills it *twice* in effect — once by hand, once by React remounting it on the refused value — and
-    a plain `fill` there would book the pre-filled figure with a confirmed flag, silently.
-  - **Two households are read back out of SQLite and two are not**, on purpose: `handOutsOf` exists
-    to prove a *non-write* (the refusal) and a *removal*, which no screen can show. Everything else
-    is asserted through the counter, because a spec that reads the database for what the screen
-    already says is testing the query, not the chain.
-  - Docs still untouched — **US-010 owns every document in this batch**, as US-001..008 each
-    recorded, and it is now the only story left.
----
-
-## 2026-08-29 — US-010 The documents describe the balance, and an ADR records the derivation
-- **ADR-015 „derive the customer balance from the hand-out history, never store it“**, scaffolded
-  with `arc42.py new-adr` so it got its number and its chapter 9 row in one step, then written out
-  and set `Accepted` in both places. Its point is that the balance is **not** a fourth exception to
-  ADR-007: the considered options name the stored-column-in-the-same-transaction variant and say why
-  the transaction closes the obvious hole and leaves the real one, and the consequences state the
-  replay cost out loud (~50 rows a year, ~240 households) rather than implying it is free.
-- Chapter 9's intro count fourteen → fifteen. Chapter 5: 26 → 27 domain modules, `balance.ts` named
-  as the second module worth naming individually, `distribution/`'s responsibility line and the
-  `DistributionRecordRepository` row („set paid“ → „amend the amount handed over“). Chapter 6's
-  counter scenario redrawn — a `balance.ts` participant, the pre-filled field, an `alt` block for the
-  overpayment refusal, and `INSERT (…, paidCents, priceCents)` — with two new paragraphs, one of them
-  the exception that **nothing is written** while the question is being asked. Chapter 8's ER diagram
-  (`boolean paid` → `int paidCents`) and §Money, which gains the signed, derived balance and names
-  `balanceKind` as the one place the sign is read. Chapter 3's „explicitly not neighbours“ paragraph.
-  Chapter 4 §4 and its ADR arrow. Chapter 12 gains a **Balance** row. Chapter 11 carried no paid-flag
-  claim, but its own rule is to be re-read whenever an ADR lands, so it gains a debt row for the
-  replay (accepted, not scheduled) and its stale „PRDs through US-26“ is now US-29.
-- `docs/handout/betriebsanleitung.md` gains **Saldo — Guthaben und offene Beträge**: a three-row table
-  for the three standings, „Zu zahlen“ against „Preis“, then **Beim Erfassen** (the field is pre-filled
-  and normally just confirmed; less is a part payment; more is asked about once; **0** is allowed and
-  the household is served anyway) and **Einen Fehler berichtigen** — same-day only, and the
-  compensating amount at the next hand-out as a pull quote, because that procedure is the section's
-  reason to exist. Handout README row updated with it.
-- `tasks/README.md` §Seed values gains the balance paragraph (offsets the price, floors at zero, and
-  is **not** capped). §Index untouched, by the criterion.
-- Files changed: `docs/architecture/adr/015-*.md` (new), `docs/architecture/adr/005-*.md`,
-  `docs/architecture/03,04,05,06,08,09,11,12`, `docs/handout/betriebsanleitung.md`,
-  `docs/handout/README.md`, `tasks/README.md`, `tasks/prd-us-05|14|26|28-*.md`,
-  `scripts/ralph/prd.json`, this log.
-- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (52 files, 1224 tests, domain/
-  and application/ still 100%), `npm run build`, `npx prettier --check .` and
-  `arc42.py check` (no errors; the two open TODOs are chapter 7's pre-existing ones) — all green.
-  Documentation-only story: no e2e re-run and no browser pass, nothing rendered changed.
-- **Learnings for future iterations:**
-  - **Every placement claim in the handout had to be checked against the code, and two were wrong on
-    the first draft.** The balance is not „ganz oben“ on the customer record — it sits in the
-    `CardAction` of the **Bisherige Ausgaben** fold — and the correction controls are on **/ausgabe**,
-    not on the customer page, because `serve-controls.tsx` owns them. A handout that sends a volunteer
-    to the wrong screen is worse than no handout; `grep` for the German string in `de.ts` and then for
-    its component is the check, and it is cheap.
-  - **Quote the UI, do not paraphrase it.** Every German term in the new section is copied from
-    `src/i18n/de.ts` („Betrag“, „Ausgabe erfassen“, „Heutigen Eintrag korrigieren“, „Betrag speichern“,
-    „Eintrag entfernen“, „Guthaben“, „Offen“, „ausgeglichen“, „Zu zahlen“). A paraphrase is a second
-    vocabulary DF then has to map onto the screen.
-  - **`„…"` with a straight closing quote is a Python syntax error waiting to happen** in a
-    `python3 - <<'PY'` heredoc using `"` string delimiters — the closing quote ends the literal. Use
-    the proper `„…“` pair (which is also correct German) or `'''…'''`.
-  - **Two counts in chapter 5 go stale silently**: „26 modules in four families“ and the ports table.
-    `find src/domain -name '*.ts' ! -name '*.test.ts' | wc -l` is the check, and it matched exactly —
-    so the count is maintained and worth keeping right.
-  - The batch is complete: US-001..010 all pass. What is left for a human is the **real-Safari pass**
-    US-008 asked for (WebKit is not Safari) and reading the German section aloud to DF.
----
+The last story **reverses a written decision**: ADR-007 calls `Card.customerNumber` a key that
+„snapshots nothing … and is never read as the card's number", and both halves stop being true. That
+is ADR-016, plus corrections to ADR-007, ADR-008, the root `CLAUDE.md`, `schema.prisma`, `ports.ts`,
+the glossary and the German record hint — and the annotate-never-rewrite rule in the patterns block
+above applies to every one of them.
