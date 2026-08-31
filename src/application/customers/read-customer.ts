@@ -50,7 +50,11 @@ export interface CustomerCardView {
   readonly composition: HouseholdComposition;
   /** The household, each member carrying their current age. Same order as on the record. */
   readonly household: ReadonlyArray<HouseholdMemberView>;
-  /** The number printed on the card, e.g. `12k1`. Derived from the slot and the card index. */
+  /**
+   * The number printed on the card, e.g. `12k1` — derived from the slot **that card** was printed
+   * under and its index, never from the household's current number, so a household that has moved
+   * (US-30) is never shown a number naming a different card.
+   */
   readonly cardNumber: string;
   /**
    * The number a replacement would carry, e.g. `12k2` — the same slot, the next index. The record
@@ -143,8 +147,16 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
     listNumberChoices(deps, customer),
   ]);
 
-  const held = { customerNumber: customer.customerNumber, index: customer.card.index };
-  const next = nextCardNumber(held);
+  // Two different questions, and only the first is a property of the card. The number printed on
+  // the card they carry is read off **that card's own slot**, the way `readCard` reads every number
+  // in the run (US-30.5); the number a *reissue* would print is derived from the household, because
+  // a replacement is printed on the slot they hold today. After a move the two agree — the move
+  // issues the new card in the same transaction (US-30.3) — but agreement is not something either
+  // of them should have to assume.
+  const next = nextCardNumber({
+    customerNumber: customer.customerNumber,
+    index: customer.card.index,
+  });
 
   return {
     customer,
@@ -155,7 +167,7 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
       birthDate: member.birthDate,
       age: ageInYears(member.birthDate, today),
     })),
-    cardNumber: formatCardNumber(held.customerNumber, held.index),
+    cardNumber: formatCardNumber(customer.card.customerNumber, customer.card.index),
     nextCardNumber: formatCardNumber(next.customerNumber, next.index),
     allowance,
     consecutiveNoShows: await countNoShows(deps, customer, records, today),

@@ -45,7 +45,12 @@ export interface CardView {
    * would refuse.
    */
   readonly status: CustomerStatus;
-  /** The number printed on the card the customer holds today, e.g. `50k3`. */
+  /**
+   * The number printed on the card the customer holds today, e.g. `50k3` — read off the card's own
+   * slot like every other number here. It agrees with the household's number, because a move issues
+   * the new card in the same transaction as the move (US-30.3), and it is derived from the card so
+   * that it cannot state that agreement as a fact it has not checked.
+   */
   readonly cardNumber: string;
   /**
    * The number a replacement would carry, e.g. `50k4` — the same slot, the next index. The view
@@ -110,11 +115,17 @@ export async function readCard(deps: ReadCardDeps, id: number): Promise<CardView
   // (tasks/prd-us-09-reissue-card-after-loss.md §US-09.2).
   const counts = await deps.cards.issueCounts(id);
 
-  const numberOf = (card: IssuedCard): string =>
-    formatCardNumber(customer.customerNumber, card.index);
+  // The card's **own** slot, never the household's. A household that has moved (US-30) carries
+  // `23k6` over a run of `5k4`, `5k3`, `5k2`, `5k1`, and those four cards are exactly what makes
+  // slot 5 safe to hand out again: the next household on it asks the slot for its highest index
+  // and is printed `5k5`. Labelling them under the number the household holds today would put
+  // `5k1` back into the pool while the piece of card bearing it is still out in the world (US-25).
+  const numberOf = (card: IssuedCard): string => formatCardNumber(card.customerNumber, card.index);
 
   const allowance = await describeAllowance(deps, customer.details.householdMembers);
 
+  // The one number derived from the household rather than from a card: a replacement is printed on
+  // the slot they hold *today*, so a slot they have left has no say in it.
   const next = nextCardNumber({ customerNumber: customer.customerNumber, index: current.index });
 
   return {

@@ -34,9 +34,14 @@ import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  ReminderLogEntry,
+  ReminderLogRepository,
   SettingsRepository,
 } from "../ports";
+import { listCardsDueForReissue } from "./cards-due-for-reissue";
 import { changeCustomerNumber } from "./change-customer-number";
+import { lookupCustomer } from "./lookup-customer";
+import { readCard } from "./read-card";
 import { readCustomer } from "./read-customer";
 
 /**
@@ -120,6 +125,20 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
   remove(): Promise<void> {
     this.writes += 1;
     return Promise.resolve();
+  }
+}
+
+/**
+ * The reminder trail, empty throughout. The counter reads it on every lookup (US-06.4) and no test
+ * here gives a reminder, so answering `null` is the honest reading of a household nobody reminded.
+ */
+class FakeReminderLogRepository implements ReminderLogRepository {
+  findOnDay(): Promise<ReminderLogEntry | null> {
+    return Promise.resolve(null);
+  }
+
+  record(): Promise<void> {
+    return Promise.reject(new Error("no test here logs a reminder"));
   }
 }
 
@@ -713,5 +732,183 @@ describe("changeCustomerNumber", () => {
     const taken = await customers.takenActiveNumbers();
     expect(taken).not.toContain(5);
     expect(taken).toContain(23);
+  });
+});
+
+/**
+ * What the rest of the application reads once a household has moved (US-30.5).
+ *
+ * The move itself is the suite above; these are the four reads that a moved household passes
+ * through afterwards, and every one of them is about the same thing: **no card is ever
+ * re-labelled**. The household in every test is the batch's worked example — id 1 on slot 5
+ * carrying `5k4`, moved onto slot 23 whose last card was `23k5`, so they end up holding `23k6` over
+ * a run of `5k4`, `5k3`, `5k2`, `5k1`.
+ *
+ * They live here rather than in each use case's own suite because this file holds the only fakes
+ * that can move a household — the register writes the number and the card together, as the adapter
+ * does, so a card can only ever be filed under the slot its household held when it was printed.
+ */
+describe("the record after a number change", () => {
+  let customers: FakeCustomerRepository;
+  let cards: FakeCardRepository;
+  let settings: FakeSettingsRepository;
+  let audit: FakeAuditLog;
+  let records: FakeDistributionRecordRepository;
+  let reminders: FakeReminderLogRepository;
+
+  /** The household this suite moves, and the run an archived holder left on the slot they take. */
+  function register(...holders: RegisteredCustomer[]): void {
+    customers = new FakeCustomerRepository(...holders);
+    cards = new FakeCardRepository(customers);
+    customers.place(1, 5, 1, 2, 3, 4);
+    customers.place(2, 23, 1, 2, 3, 4, 5);
+  }
+
+  function moveDeps() {
+    return { customers, cards, settings, audit, clock: fakeClock(TODAY) };
+  }
+
+  function readCardDeps() {
+    return { customers, cards, settings, clock: fakeClock(TODAY) };
+  }
+
+  function readCustomerDeps() {
+    return { customers, cards, settings, records, clock: fakeClock(TODAY) };
+  }
+
+  function reissueDeps() {
+    return { customers, clock: fakeClock(TODAY) };
+  }
+
+  function counterDeps() {
+    return { customers, settings, records, reminders, clock: fakeClock(TODAY) };
+  }
+
+  /** Move the worked example from 5 to 23. */
+  async function moveToTwentyThree(): Promise<void> {
+    await changeCustomerNumber(moveDeps(), { customerId: 1, customerNumber: 23 });
+  }
+
+  beforeEach(() => {
+    register(household({ id: 1, customerNumber: 5, cardIndex: 4 }));
+    settings = new FakeSettingsRepository(version());
+    audit = new FakeAuditLog();
+    records = new FakeDistributionRecordRepository();
+    reminders = new FakeReminderLogRepository();
+  });
+
+  it("keeps every superseded card under the number it was printed with", async () => {
+    await moveToTwentyThree();
+
+    const view = await readCard(readCardDeps(), 1);
+
+    // The four cards left on slot 5 are what makes slot 5 safe to hand out again: the next
+    // household to take it is printed `5k5`. Re-labelling them under 23 would put `5k1` back into
+    // the pool while the piece of card bearing it is still out in the world (US-25).
+    expect(view.superseded.map((entry) => entry.number)).toEqual(["5k4", "5k3", "5k2", "5k1"]);
+  });
+
+  it("the card the household holds is on the number they hold", async () => {
+    await moveToTwentyThree();
+
+    const view = await readCard(readCardDeps(), 1);
+    const record = await readCustomer(readCustomerDeps(), 1);
+
+    // The invariant `nextCardIndexOnMove` exists to keep: the card a household holds is the highest
+    // index they have been issued, and a move prints it on the new slot in the same transaction, so
+    // reading the number off the card can never disagree with reading it off the household.
+    expect(view.cardNumber).toBe("23k6");
+    expect(record.cardNumber).toBe("23k6");
+    expect(record.customer.customerNumber).toBe(23);
+  });
+
+  it("names the next card on the slot the household now holds", async () => {
+    await moveToTwentyThree();
+
+    const view = await readCard(readCardDeps(), 1);
+    const record = await readCustomer(readCustomerDeps(), 1);
+
+    // A reissue prints on the slot the household holds today, so this one number is derived from
+    // the household rather than from a card — the slot they left has no say in it.
+    expect(view.nextCardNumber).toBe("23k7");
+    expect(record.nextCardNumber).toBe("23k7");
+  });
+
+  it("counts the household's own cards, not the indexes the slot has been through", async () => {
+    await moveToTwentyThree();
+
+    const view = await readCard(readCardDeps(), 1);
+
+    // Five rows on their record: `5k1` to `5k4` and the `23k6` the move printed. The jump from 4 to
+    // 6 is slot 23's history and not theirs, so it is not a card they have been through.
+    expect(view.cardsIssued).toBe(5);
+    expect(view.reissuesForLoss).toBe(0);
+  });
+
+  it("leaves a moved household off the reissue list, their new card printing what they are today", async () => {
+    await moveToTwentyThree();
+
+    const due = await listCardsDueForReissue(reissueDeps());
+
+    expect(due).toEqual([]);
+  });
+
+  it("takes a household off the reissue list as a side effect of the move", async () => {
+    // Their card prints a household of two grown-ups and no child, which they have not been since a
+    // member moved out — so they are on the list before the move (US-13.2).
+    register(
+      household({
+        id: 1,
+        customerNumber: 5,
+        cardIndex: 4,
+        countsAtIssue: { grownUps: 2, children: 0 },
+      }),
+    );
+
+    const before = await listCardsDueForReissue(reissueDeps());
+    await moveToTwentyThree();
+    const after = await listCardsDueForReissue(reissueDeps());
+
+    expect(before.map((row) => row.customerNumber)).toEqual([5]);
+    // Nothing asked for a reissue: the move printed a card, and a card printed today states today's
+    // household and today's group, which is all being on that list ever meant.
+    expect(after).toEqual([]);
+  });
+
+  it("answers for the number the household has left exactly as for one nobody has ever held", async () => {
+    await moveToTwentyThree();
+
+    const vacated = await lookupCustomer(counterDeps(), "5");
+    const neverHeld = await lookupCustomer(counterDeps(), "77");
+
+    // Slot 5 is simply unassigned again. Nothing at the counter says it was released, because
+    // nothing about a free number is any of the counter's business.
+    expect(vacated.verdict).toEqual(neverHeld.verdict);
+    expect(vacated.verdict.kind).toBe("NOT_FOUND");
+    expect(vacated.customer).toBeNull();
+  });
+
+  it("resolves a card number on the vacated slot to whoever holds that slot today", async () => {
+    await moveToTwentyThree();
+
+    const lookup = await lookupCustomer(counterDeps(), "5k4");
+
+    // `5k4` is a real piece of card in the household's drawer, and it names slot 5 — which nobody
+    // holds. The household it belonged to is not reachable through it, and never was: a card number
+    // resolves through the slot, not through a household (US-04.2).
+    expect(lookup.verdict.kind).toBe("NOT_FOUND");
+  });
+
+  it("finds the household under the number and the card number they now carry", async () => {
+    await moveToTwentyThree();
+
+    const byNumber = await lookupCustomer(counterDeps(), "23");
+    const byCardNumber = await lookupCustomer(counterDeps(), "23k6");
+
+    expect(byNumber.customerId).toBe(1);
+    expect(byNumber.customer?.cardNumber).toBe("23k6");
+    expect(byCardNumber.customerId).toBe(1);
+    // The card they carry is the current one, so it is not read as outdated.
+    expect(byCardNumber.verdict.kind).toBe("CLEAR_TO_SERVE");
   });
 });
