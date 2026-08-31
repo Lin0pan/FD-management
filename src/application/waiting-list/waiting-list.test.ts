@@ -225,6 +225,11 @@ class FakeCardRepository implements CardRepository {
     return Promise.resolve(this.highestPerSlot.get(customerNumber) ?? 0);
   }
 
+  /** The same runs, all at once — no promotion asks for them, but the port has the method. */
+  highestIndexByNumber(): Promise<ReadonlyMap<number, number>> {
+    return Promise.resolve(new Map(this.highestPerSlot));
+  }
+
   currentCard(): Promise<null> {
     return Promise.reject(new Error("A waiting-list use case never reads a card"));
   }

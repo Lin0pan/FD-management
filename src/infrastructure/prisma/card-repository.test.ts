@@ -483,6 +483,56 @@ describe("PrismaCardRepository.highestIndexForNumber", () => {
   });
 });
 
+describe("PrismaCardRepository.highestIndexByNumber", () => {
+  it("reports the highest index on every slot in one query", async () => {
+    const departed = await insertCustomer(50, "ARCHIVED");
+    const holder = await insertCustomer(51);
+    await repository.issue(departed, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+    await repository.issue(departed, {
+      index: 2,
+      issuedAt: LATER,
+      reason: "LOST",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+    await repository.issue(holder, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+
+    // The plural of `highestIndexForNumber`, and it answers the same for each slot: the archived
+    // holder's run counts, because 50k2 is still out in the world (US-25).
+    expect(await repository.highestIndexByNumber()).toEqual(
+      new Map([
+        [50, 2],
+        [51, 1],
+      ]),
+    );
+  });
+
+  it("reports nothing for a slot that has never had a card", async () => {
+    await insertCustomer(50);
+
+    // Registered, but never handed a card — and a slot nobody has been registered on at all is
+    // the same answer. Absent rather than 0: the caller reads `?? 0`, which is what makes a fresh
+    // slot's first card `k1` with no case of its own.
+    const highest = await repository.highestIndexByNumber();
+
+    expect(highest.has(50)).toBe(false);
+    expect(highest.has(404)).toBe(false);
+    expect(highest.size).toBe(0);
+  });
+});
+
 describe("PrismaCardRepository.currentCard", () => {
   it("gives null for a customer who holds no card yet", async () => {
     expect(await repository.currentCard(await insertCustomer(50))).toBeNull();

@@ -334,6 +334,15 @@ class FakeCardRepository implements CardRepository {
     return Promise.resolve([...this.cardsOf(customerId)].sort((a, b) => b.index - a.index));
   }
 
+  /** Every slot's run at once, keyed on the number each card was printed under (US-30.4). */
+  highestIndexByNumber(): Promise<ReadonlyMap<number, number>> {
+    const highest = new Map<number, number>();
+    for (const { card } of this.register.cards) {
+      highest.set(card.customerNumber, Math.max(highest.get(card.customerNumber) ?? 0, card.index));
+    }
+    return Promise.resolve(highest);
+  }
+
   issueCounts(customerId: number): Promise<CardIssueCounts> {
     const cards = this.cardsOf(customerId);
     return Promise.resolve({
@@ -488,7 +497,7 @@ describe("changeCustomerNumber", () => {
   }
 
   function readDeps() {
-    return { customers, settings, records, clock: fakeClock(TODAY) };
+    return { customers, cards, settings, records, clock: fakeClock(TODAY) };
   }
 
   beforeEach(() => {

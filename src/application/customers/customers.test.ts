@@ -373,6 +373,26 @@ class FakeCardRepository implements CardRepository {
   }
 
   /**
+   * The same question of every slot at once (US-30.4), grouped by the number the card was **printed
+   * under** rather than by the household holding it today — which is the adapter's `groupBy`, and
+   * the only reading that survives a household moving off a slot and leaving its run behind.
+   *
+   * A slot nobody has ever had a card on is absent, exactly as it is from the aggregate.
+   */
+  highestIndexByNumber(): Promise<ReadonlyMap<number, number>> {
+    const highest = new Map<number, number>();
+    for (const cards of this.cards.values()) {
+      for (const card of cards) {
+        highest.set(
+          card.customerNumber,
+          Math.max(highest.get(card.customerNumber) ?? 0, card.index),
+        );
+      }
+    }
+    return Promise.resolve(highest);
+  }
+
+  /**
    * The highest index ever printed on the slot, across every household that has held it — the
    * archived ones included, which is the only reason the method exists (US-25).
    */
@@ -1627,6 +1647,31 @@ describe("readCustomer", () => {
     const view = await readCustomer(deps(), registered.id);
 
     expect(view.groupCounts).toEqual({ red: 7, blue: 4 });
+  });
+
+  it("offers every number the household may be moved to, with the card each would print", async () => {
+    settings = new FakeSettingsRepository(version({ quotaN: 3 }));
+    customers = new FakeCustomerRepository([2]);
+    const registered = await registerCustomer(deps(), registerInput());
+
+    const view = await readCustomer(deps(), registered.id);
+
+    // The household took slot 1 and somebody active is on 2, so 1 and 3 are what they may hold.
+    // Their own number is always among them — it is what the control opens on (US-30.4) — and each
+    // choice carries the card that move would print: they hold `1k1`, so nothing below `k2` is left.
+    expect(view.numberChoices).toEqual([
+      { number: 1, nextCardNumber: "1k2" },
+      { number: 3, nextCardNumber: "3k2" },
+    ]);
+  });
+
+  it("offers an archived household no number at all, because they hold no slot", async () => {
+    const registered = await registerCustomer(deps(), registerInput());
+    await customers.archive(registered.id, "verzogen", new Date(TODAY));
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.numberChoices).toEqual([]);
   });
 
   it("refuses an id that belongs to nobody rather than showing an empty card", async () => {

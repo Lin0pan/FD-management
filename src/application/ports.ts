@@ -392,6 +392,20 @@ export interface CardRepository {
    */
   highestIndexForNumber(customerNumber: number): Promise<number>;
   /**
+   * The highest index ever issued on **each** customer number that has ever had a card, in one
+   * aggregate query — the plural of {@link CardRepository.highestIndexForNumber}, and archived
+   * holders count for the same reason.
+   *
+   * A slot **absent** from the map has never had a card on it, which is the honest answer rather
+   * than a `0` written down 240 times; callers read it as `map.get(n) ?? 0`, and `nextCardIndex`
+   * turns that 0 into a `k1` with no special case for a fresh slot.
+   *
+   * It is an aggregate for the reason {@link CardRepository.issueCounts} is one: the record's
+   * number control names the card number every slot would print (US-30.4), and asking the slots one
+   * at a time is ~240 round trips to render one dropdown.
+   */
+  highestIndexByNumber(): Promise<ReadonlyMap<number, number>>;
+  /**
    * Every card the customer has ever been issued, **highest index first** — so the first element is
    * the one they hold and the rest are the numbers it replaced. Ordering is the adapter's job
    * because the database can do it in the query; a caller sorting it again would be a second, silent

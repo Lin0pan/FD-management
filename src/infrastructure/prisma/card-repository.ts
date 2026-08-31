@@ -135,6 +135,30 @@ export class PrismaCardRepository implements CardRepository {
   }
 
   /**
+   * The highest index ever issued on **every** slot that has had a card, in one grouped aggregate —
+   * served by the leading column of `@@unique([customerNumber, index])`.
+   *
+   * No `where` at all: archived holders count, for the reason `highestIndexForNumber` states, and a
+   * slot that has never had a card is simply **absent** from the map rather than reported as 0. The
+   * caller reads it as `?? 0`, which is the same answer the singular method gives.
+   *
+   * One query rather than the ~240 `highestIndexForNumber` calls the record's number control would
+   * otherwise make to render a single dropdown (US-30.4) — the argument `issueCounts` makes for
+   * being an aggregate, at the width of the whole register.
+   */
+  async highestIndexByNumber(): Promise<ReadonlyMap<number, number>> {
+    const groups = await this.prisma.card.groupBy({
+      by: ["customerNumber"],
+      _max: { index: true },
+    });
+
+    // `_max` is nullable because an *empty* group would have no maximum, which a `groupBy` cannot
+    // produce; `?? 0` is `highestIndexForNumber`'s own reading of the same aggregate rather than an
+    // assertion about it, and 0 means the same thing here as an absent slot does.
+    return new Map(groups.map((group) => [group.customerNumber, group._max.index ?? 0]));
+  }
+
+  /**
    * Every card the customer has been issued, highest index first — the one they hold, then the
    * numbers it replaced. Superseded cards are kept rather than deleted, so an old card handed over
    * at the counter can still be recognised (US-09).
