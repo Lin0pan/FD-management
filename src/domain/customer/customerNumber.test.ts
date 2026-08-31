@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { CustomerNumberOutOfRange, CustomerNumberTaken, NoFreeCustomerNumber } from "../errors";
 import {
+  CustomerNumberOutOfRange,
+  CustomerNumberTaken,
+  CustomerNumberUnchanged,
+  NoFreeCustomerNumber,
+} from "../errors";
+import {
+  assertChoosableNumber,
   assertFreeNumber,
+  choosableNumbers,
   findLowestFreeNumber,
   freeNumbers,
   lowestFreeNumber,
@@ -182,5 +189,84 @@ describe("assertFreeNumber", () => {
 
   it("calls a number out of range rather than taken when it is both", () => {
     expect(() => assertFreeNumber(4, [4], 3)).toThrow(CustomerNumberOutOfRange);
+  });
+});
+
+/**
+ * The same question from the other end of a household's life (US-30): not which slot to give a new
+ * registration, but which slots this household may be *moved* to. The pool is `freeNumbers` plus
+ * the household's own number, because a household that is on the register holds a slot and is
+ * allowed to keep it.
+ */
+describe("choosableNumbers", () => {
+  it("offers every free number and the household's own", () => {
+    expect(choosableNumbers(2, [1, 2, 4], 5)).toEqual([2, 3, 5]);
+  });
+
+  it("offers the household's own number first when it is the lowest", () => {
+    expect(choosableNumbers(1, [1, 3], 4)).toEqual([1, 2, 4]);
+  });
+
+  it("offers a current number above the quota, last", () => {
+    expect(choosableNumbers(9, [1, 9], 4)).toEqual([2, 3, 4, 9]);
+  });
+
+  it("offers only the current number when the register is otherwise full", () => {
+    expect(choosableNumbers(2, [1, 2, 3], 3)).toEqual([2]);
+  });
+
+  it("never offers a number another active household holds", () => {
+    expect(choosableNumbers(2, [1, 2, 3], 4)).not.toContain(1);
+  });
+
+  it("offers the household's own number once, not twice", () => {
+    expect(choosableNumbers(3, [1, 3], 4)).toEqual([2, 3, 4]);
+  });
+
+  it("agrees with the pool a registration is offered on every other number", () => {
+    expect(choosableNumbers(2, [1, 2, 4], 6).filter((n) => n !== 2)).toEqual(
+      freeNumbers([1, 2, 4], 6),
+    );
+  });
+});
+
+/**
+ * The verdict on a number a staff member chose for a household already on the register. The
+ * unchanged check comes first on purpose: a household parked above a lowered quota that saves its
+ * own number is told it already holds it, rather than that the number is out of range.
+ */
+describe("assertChoosableNumber", () => {
+  it("accepts the lowest free number", () => {
+    expect(assertChoosableNumber(2, 5, [1, 5], 240)).toBe(2);
+  });
+
+  it("accepts a number an archived household once held", () => {
+    expect(assertChoosableNumber(3, 5, [1, 5], 240)).toBe(3);
+  });
+
+  it("refuses the number the household already holds", () => {
+    expect(() => assertChoosableNumber(5, 5, [1, 5], 240)).toThrow(CustomerNumberUnchanged);
+  });
+
+  it("refuses the household's own number even when it is above the quota", () => {
+    expect(() => assertChoosableNumber(300, 300, [300], 240)).toThrow(CustomerNumberUnchanged);
+  });
+
+  it("carries the number it already holds, so the message can name it", () => {
+    try {
+      assertChoosableNumber(5, 5, [1, 5], 240);
+      expect.unreachable("expected CustomerNumberUnchanged");
+    } catch (error) {
+      expect(error).toBeInstanceOf(CustomerNumberUnchanged);
+      expect((error as CustomerNumberUnchanged).customerNumber).toBe(5);
+    }
+  });
+
+  it("refuses a number outside the quota", () => {
+    expect(() => assertChoosableNumber(241, 5, [5], 240)).toThrow(CustomerNumberOutOfRange);
+  });
+
+  it("refuses a number an active household holds", () => {
+    expect(() => assertChoosableNumber(1, 5, [1, 5], 240)).toThrow(CustomerNumberTaken);
   });
 });

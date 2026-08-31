@@ -257,3 +257,46 @@ The last story **reverses a written decision**: ADR-007 calls `Card.customerNumb
 is ADR-016, plus corrections to ADR-007, ADR-008, the root `CLAUDE.md`, `schema.prisma`, `ports.ts`,
 the glossary and the German record hint — and the annotate-never-rewrite rule in the patterns block
 above applies to every one of them.
+
+## 2026-08-31 - US-001 — Which numbers a household may be moved to (domain)
+
+Implemented the pure rule US-30 rests on: which numbers a household already on the register may be
+moved to, and whether a chosen one may still be written. Nothing above the domain calls it yet.
+
+- `src/domain/customer/customerNumber.ts` — `choosableNumbers(currentNumber, takenNumbers, quotaN)`
+  and `assertChoosableNumber(requested, currentNumber, takenNumbers, quotaN)`, beside `freeNumbers`
+  and `assertFreeNumber` and built on them.
+- `src/domain/customer/customerNumber.test.ts` — 12 named tests, written first and watched fail.
+- `src/domain/errors.ts` — new `CustomerNumberUnchanged` carrying the number, and its code in the
+  `DomainErrorCode` union (the 39th).
+- `src/app/notice-tier.ts` — tiered `refusal`, and the header comment's count moved to „a 40th code“.
+
+**Learnings for future iterations:**
+
+- **`choosableNumbers` is a `Set` over `freeNumbers` plus `currentNumber`, sorted numerically — and
+  the shape is the point.** An `includes(currentNumber) ? free : [...free, currentNumber]` would
+  have been the obvious merge and it carries a branch that **cannot both-arm under the documented
+  contract** (`takenNumbers` contains `currentNumber`, so `free` never has it), which the 100%
+  branch gate would then demand a test for a case that cannot arise. The `Set` has no branch at all,
+  and the numeric sort puts a current number above the quota last for free rather than by a rule of
+  its own. Same family as the „unreachable `?? fallback`" bullet in the patterns block: **prefer the
+  branchless construction over the one whose dead arm you then have to feed.**
+- **Ordering refusals is how you avoid a special case.** `assertChoosableNumber` checks
+  `requested === currentNumber` first and then delegates the other two verdicts to
+  `assertFreeNumber` **unchanged** — because once unchanged is out of the way, any number still in
+  play is somebody else's, so no „except my own number" filter is needed anywhere. Had the range
+  check come first, a household parked above a lowered quota (US-14) that saved its own number would
+  have been told its number is out of range, which reads as an instruction to move, and there is
+  none.
+- **The three-file `DomainErrorCode` change from the patterns block held exactly as written**, and
+  the stale-count hazard in it is real: `notice-tier.ts`'s header said „a 39th code" with 38 in the
+  union. Count with
+  `python3 -c "import re,sys;print(len(re.findall(r'\"(\w+)\"',re.search(r'export type DomainErrorCode =(.*?);',open('src/domain/errors.ts').read(),re.S).group(1))))"`
+  rather than by eye. „The eight red ones" in the same comment is untouched — this code is a refusal.
+- **`notice-tier.test.ts` does not enumerate the codes and should not start**: the
+  `Record<DomainErrorCode, NoticeTier>` is proved by the compiler, and its tests are about the
+  *reading* of the table. A new refusal needs no test there.
+- **No German string yet.** `CustomerNumberUnchanged` is not rendered anywhere until the control
+  exists (story 6) — the sentence belongs to `kunden/[id]/actions.ts` and `de.ts` with the screen
+  that raises it, exactly as `GroupUnchanged`'s does.
+---

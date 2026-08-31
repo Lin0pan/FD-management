@@ -14,6 +14,7 @@ export type DomainErrorCode =
   | "NoFreeCustomerNumber"
   | "CustomerNumberTaken"
   | "CustomerNumberOutOfRange"
+  | "CustomerNumberUnchanged"
   | "CustomerNotFound"
   | "CustomerArchived"
   | "CustomerNotArchived"
@@ -227,6 +228,25 @@ export class CustomerNumberOutOfRange extends DomainError {
     super(`Customer number ${customerNumber} is not a slot in 1..${quotaN}`);
     this.customerNumber = customerNumber;
     this.quotaN = quotaN;
+  }
+}
+
+/**
+ * A household was moved to the customer number it already holds (US-30). Carries the number, so the
+ * screen can name it rather than reporting that something unspecified went wrong.
+ *
+ * Refused rather than quietly accepted for the reason {@link GroupUnchanged} is: a number change is
+ * not an idempotent save. It writes an audit entry and **consumes a card number** — the household
+ * would be printed a fresh card for a move that never happened — and a staff member who pressed the
+ * button would be told nothing at all.
+ */
+export class CustomerNumberUnchanged extends DomainError {
+  readonly code = "CustomerNumberUnchanged";
+  readonly customerNumber: number;
+
+  constructor(customerNumber: number) {
+    super(`The customer already holds customer number ${customerNumber}`);
+    this.customerNumber = customerNumber;
   }
 }
 

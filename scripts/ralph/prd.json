@@ -22,8 +22,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done. choosableNumbers is a Set over freeNumbers plus currentNumber, sorted numerically — no branch, so a current number above the quota sorts last for free and there is no duplicate case to cover. assertChoosableNumber checks unchanged first and delegates the other two verdicts to assertFreeNumber, so there is no 'except my own number' case. CustomerNumberUnchanged is the 39th DomainErrorCode, tiered refusal; notice-tier.ts's header comment counts them and now says 'a 40th code'."
     },
     {
       "id": "US-002",

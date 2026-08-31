@@ -16,7 +16,12 @@
  * whether the number was still free when the write landed (US-01.4).
  */
 
-import { CustomerNumberOutOfRange, CustomerNumberTaken, NoFreeCustomerNumber } from "../errors";
+import {
+  CustomerNumberOutOfRange,
+  CustomerNumberTaken,
+  CustomerNumberUnchanged,
+  NoFreeCustomerNumber,
+} from "../errors";
 
 /**
  * Every number in `1..quotaN` that nobody active holds, ascending.
@@ -107,4 +112,65 @@ export function assertFreeNumber(
   }
 
   return requested;
+}
+
+/**
+ * Every number this household may be moved to (US-30), ascending: the whole free pool **plus the
+ * number the household itself holds**.
+ *
+ * `currentNumber` has to be added back because `takenNumbers` **contains it** — the household is on
+ * the register, so it occupies its own slot and {@link freeNumbers} rightly leaves it out. The merge
+ * only looks like it is undoing a duplicate; remove it and the control would offer every number
+ * except the one the household is sitting on, which is the one a form has to open on.
+ *
+ * Built on {@link freeNumbers} rather than beside it, so the pool a registration is offered (US-24)
+ * and the pool this control offers can never come apart.
+ *
+ * A `currentNumber` **above `quotaN`** — which a lowered quota (US-14) produces without anybody
+ * doing anything wrong — is still in the list and sorts last, because the numeric sort puts it
+ * there. The household may keep that number and may move down into the quota, but is never forced
+ * to move: nothing here removes a slot somebody is living on.
+ */
+export function choosableNumbers(
+  currentNumber: number,
+  takenNumbers: ReadonlyArray<number>,
+  quotaN: number,
+): ReadonlyArray<number> {
+  const pool = new Set(freeNumbers(takenNumbers, quotaN));
+  pool.add(currentNumber);
+
+  return [...pool].sort((a, b) => a - b);
+}
+
+/**
+ * The verdict on a number a staff member chose for a household already on the register (US-30),
+ * given back unchanged when it may be written. The other half of {@link choosableNumbers}, exactly
+ * as {@link assertFreeNumber} is the other half of {@link freeNumbers}.
+ *
+ * The order of the three refusals is the rule, not an implementation detail. **Unchanged is checked
+ * first**, so a household parked above a lowered quota that saves the number it already holds is
+ * told it already holds it, rather than that its own number is out of range — which would read as
+ * an instruction to move, and there is none.
+ *
+ * Because unchanged comes first, the occupancy check needs **no "except my own number" special
+ * case**: any `requested` still in play here is somebody else's, so delegating the remaining two
+ * verdicts to {@link assertFreeNumber} is the whole of it.
+ *
+ * @throws {CustomerNumberUnchanged} when `requested` is the number the household already holds.
+ * @throws {CustomerNumberOutOfRange} when `requested` is not a whole number in `1..quotaN`.
+ * @throws {CustomerNumberTaken} when an active household holds it — the same error the partial
+ *   unique index raises, for the reason {@link assertFreeNumber} reuses it: it is the same fact
+ *   found earlier, and the index stays the final authority.
+ */
+export function assertChoosableNumber(
+  requested: number,
+  currentNumber: number,
+  takenNumbers: ReadonlyArray<number>,
+  quotaN: number,
+): number {
+  if (requested === currentNumber) {
+    throw new CustomerNumberUnchanged(requested);
+  }
+
+  return assertFreeNumber(requested, takenNumbers, quotaN);
 }

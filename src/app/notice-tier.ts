@@ -28,7 +28,7 @@ export type NoticeTier = "refusal" | "error";
  * The tier of every code the domain can raise.
  *
  * A `Record<DomainErrorCode, NoticeTier>` rather than a `switch` with a default, and that is the
- * whole point of the shape: a 39th code added to `src/domain/errors.ts` fails the build here until
+ * whole point of the shape: a 40th code added to `src/domain/errors.ts` fails the build here until
  * somebody decides what it means. A `default` would have quietly made it red, which is exactly the
  * state this module exists to leave behind.
  *
@@ -58,6 +58,7 @@ const TIERS: Record<DomainErrorCode, NoticeTier> = {
   NoFreeCustomerNumber: "refusal",
   CustomerNumberTaken: "refusal",
   CustomerNumberOutOfRange: "refusal",
+  CustomerNumberUnchanged: "refusal",
   QuotaBelowActiveCustomers: "refusal",
   WrongGroupForWeek: "refusal",
   OverpaymentNotConfirmed: "refusal",
