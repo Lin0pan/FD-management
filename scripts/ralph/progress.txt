@@ -376,3 +376,77 @@ reason word. Nothing above the store issues one yet.
   `customer.customerNumber`; story 5 is where that becomes wrong and has to change. The field now
   exists to fix it with.
 ---
+
+## 2026-08-31 - US-003 — Moving a household to another number (application + ports + infrastructure)
+
+A household can now be moved to a free number, with the card it prints written in the same
+transaction. Nothing above the use case calls it yet.
+
+- `src/application/customers/change-customer-number.ts` — `changeCustomerNumber(deps, { customerId,
+  customerNumber })`: one clock read, `readCurrentSettings` for the quota in force,
+  `assertChoosableNumber` over `takenActiveNumbers()`, the card derived here, two audit entries
+  (`customer.numberChanged` with `why: "customerNumber=5→23"`, then the card's own
+  `customer.card.issued`), and the stored `IssuedCard` returned.
+- `src/application/customers/change-customer-number.test.ts` — 16 named tests against hand-written
+  fakes. **It was already on disk, untracked, from an interrupted iteration**; two fixtures in it
+  were broken and are fixed (see learnings).
+- `src/application/customers/issue-card.ts` — `CARD_ISSUED` and `ISSUED_FIELDS` exported, so both
+  writers of a card issue state the entry from one constant instead of two matching literals.
+- `src/application/ports.ts` — `CustomerRepository.changeCustomerNumber(id, customerNumber, card)`,
+  documented as one transaction; `AuditEntry.why` now names both machine-written values.
+- `src/domain/card/cardNumber.ts` + its test — **`nextCardIndexOnMove(slotRun, heldIndex)`**, five
+  tests, written first. The deviation from the ACs, below.
+- `src/infrastructure/prisma/customer-repository.ts` — the adapter, one `$transaction`: update, then
+  insert the card reading the slot off the just-updated row. `P2002` on `["customerNumber"]` →
+  `CustomerNumberTaken`, on `["customerNumber","index"]` → `CardNumberTaken`.
+- `src/infrastructure/prisma/card-repository.ts` — `toCard` hoisted out of the class as an exported
+  `toIssuedCard`, because the customer register now writes cards too.
+- `src/infrastructure/prisma/customer-repository.test.ts` — the four integration tests the PRD names.
+- Nine hand-written fake `CustomerRepository`s gained a rejecting `changeCustomerNumber`.
+- Docs: the `CustomerRepository` row of `05-building-block-view.md`, and a dated row in the
+  `09-architectural-decisions.md` log for the index rule.
+
+**Learnings for future iterations:**
+
+- **THE INDEX RULE IN THE ACs IS INCOMPLETE, and the database is what says so.** `nextCardIndex(
+  highestIndexForNumber(newNumber))` alone prints `99k1` for a household carrying `5k4` moving onto
+  a slot nobody has ever held — an index they already hold — and `@@unique([customerId, index])`
+  refuses the row outright (`CardIndexTaken`). It is not only a constraint: `currentCard`,
+  `listCards` and `CUSTOMER_INCLUDE` all order a household's cards **by index**, so even without the
+  constraint the record would go on showing `5k4` as the card they hold. The card a household holds
+  *is* their highest-indexed one (US-02, FR-4). So the index is
+  `nextCardIndexOnMove(slotRun, customer.card.index)` — the later of the two next indexes — and the
+  domain states it once. **The worked example is untouched**: 5k4 onto slot 23's run of 5 still
+  prints 23k6, and only a slot shorter than the household's own run differs. `customer.card` is
+  always their highest index, so no new port method was needed to ask.
+  - **US-004 must use the same rule** or the dropdown promises a card number the write will not
+    print: `nextCardIndexOnMove(byNumber.get(n) ?? 0, customer.card.index)`. Its AC "names k1 on a
+    slot nobody has ever held" is wrong for any household past their first card. Extract the
+    expression the moment there are two callers.
+  - **US-008's ADR-016 should record it**, next to the reversal of ADR-007 it already carries.
+- **An untracked test file from a previous iteration is red for two reasons at once**, and only one
+  of them is the missing implementation. Both bugs here were fixtures, not rules: a test claiming the
+  old slot keeps its run never `place`d that run, and the `household()` factory generated the
+  customer's name beside the household instead of off it, which `createCustomerDetails` refuses
+  (`CustomerNotInHousehold`). **Run it before writing a line of implementation** and separate the
+  failures that are the point from the ones that are the fixture.
+- **A `P2002` test must break exactly one constraint or it is testing the database's mood.** The
+  first draft of "refuses a card index already printed on the slot" gave the moving household index
+  1 while they already held index 1 — breaking `(customerId,index)` and `(customerNumber,index)` at
+  once, and passing only because SQLite happened to name the second. The fixture now has the
+  archived holder leave `51k3` and the mover hold `50k1`, so only the global index can be what
+  refuses it. Same family as the P2002 bullet in the patterns block.
+- **Two writers of one audit event means exporting the constant, not repeating the string.**
+  `issue-card.ts` owns `CARD_ISSUED`/`ISSUED_FIELDS` and the number change imports them; a card
+  issued in the same transaction as the slot move cannot go through `issueCard` at all.
+- **`toCard` had to leave `PrismaCardRepository`** for the same reason: the customer register now
+  inserts a card, and reading the row back with a second mapper is exactly the drift the one
+  function prevents. It is `toIssuedCard`, module-level and exported.
+- **The 100-column comment rule is real but the repo does not hold to it** — `ports.ts` alone has 35
+  lines over 100 characters, and `prettier --check` passes on all of them, because Prettier does not
+  reflow comments. New paragraphs here were wrapped to 100 by hand. Measure with Python (characters,
+  not bytes) over the *files*, not `git diff -U0`, which counts the `+`.
+- **Prettier realigns a whole markdown table** when one cell grows, so a one-word doc edit can show
+  up as a dozen changed lines in `05-building-block-view.md`. Expected, not a mistake.
+- **No schema change and no migration, exactly as the batch says** — `prisma/migrations/` untouched,
+  and `db:reset` was never needed.

@@ -74,8 +74,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Done. One deviation, stated in the commit body: the card index is nextCardIndexOnMove(slot run, the household's own highest index), not the slot's run alone. A household carrying 5k4 moved onto a slot nobody has ever held would be printed 99k1 — an index they already hold — and @@unique([customerId, index]) refuses the row, because the card a household holds IS their highest-indexed one. The worked example is unchanged (5k4 onto a run of 5 still prints 23k6)."
     },
     {
       "id": "US-004",
@@ -98,7 +98,7 @@
       ],
       "priority": 4,
       "passes": false,
-      "notes": ""
+      "notes": "MUST use the same index rule as US-003 or the dropdown promises a card number the write will not print: each choice is nextCardIndexOnMove(highestIndexByNumber.get(n) ?? 0, customer.card.index), NOT nextCardIndex of the slot alone. The AC 'names k1 on a slot nobody has ever held' is therefore wrong for any household past their first card — it names the index above their own run instead."
     },
     {
       "id": "US-005",
@@ -118,7 +118,7 @@
       ],
       "priority": 5,
       "passes": false,
-      "notes": ""
+      "notes": "The invariant this story states — 'the card the household holds is on the number they hold' — is what US-003's index rule (nextCardIndexOnMove) exists to keep true. currentCard/listCards order by index, so a move must outrank the household's own run or the record would show the OLD card as current."
     },
     {
       "id": "US-006",
