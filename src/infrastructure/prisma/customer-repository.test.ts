@@ -17,6 +17,7 @@ import { faker } from "@faker-js/faker";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { listCardsDueForReissue } from "@/application/customers/cards-due-for-reissue";
+import type { NewCard } from "@/domain/card/card";
 import type { CustomerListQuery } from "@/application/ports";
 import { validUntilRangeFor } from "@/domain/customer/certificate";
 import {
@@ -539,6 +540,96 @@ describe("PrismaCustomerRepository.setGroup", () => {
     expect(after?.status).toBe(before?.status);
     expect(after?.details).toEqual(before?.details);
     expect(after?.card).toEqual(before?.card);
+  });
+});
+
+describe("PrismaCustomerRepository.changeCustomerNumber", () => {
+  /**
+   * The card a move prints. It carries no slot: the write reads that off the customer row it has
+   * just updated, so no caller can file a card under a number its household does not hold.
+   */
+  function movedCard(index: number): NewCard {
+    return {
+      index,
+      issuedAt: TODAY,
+      reason: "CUSTOMER_NUMBER_CHANGED",
+      countsAtIssue: { grownUps: 1, children: 1 },
+      groupAtIssue: "RED",
+    };
+  }
+
+  it("moves the number and writes the card in one transaction", async () => {
+    const { id } = await repository.create(newCustomer({ customerNumber: 50 }));
+
+    const card = await repository.changeCustomerNumber(id, 51, movedCard(2));
+
+    expect(card.customerNumber).toBe(51);
+    expect(card.reason).toBe("CUSTOMER_NUMBER_CHANGED");
+    const row = await prisma.customer.findUniqueOrThrow({
+      where: { id },
+      include: { cards: { orderBy: { index: "asc" } } },
+    });
+    expect(row.customerNumber).toBe(51);
+    // Two cards, and the first still says 50: the run left on the old slot is what makes that slot
+    // safe to hand out again, so nothing is ever re-labelled (US-25).
+    expect(row.cards.map((held) => [held.customerNumber, held.index])).toEqual([
+      [50, 1],
+      [51, 2],
+    ]);
+  });
+
+  it("refuses a number an active customer holds and writes neither", async () => {
+    const { id } = await repository.create(newCustomer({ customerNumber: 50 }));
+    await repository.create(newCustomer({ customerNumber: 51 }));
+
+    await expect(repository.changeCustomerNumber(id, 51, movedCard(2))).rejects.toBeInstanceOf(
+      CustomerNumberTaken,
+    );
+
+    // The whole transaction rolled back: the household is where it was and printed nothing.
+    expect((await repository.findById(id))?.customerNumber).toBe(50);
+    expect(await prisma.card.count({ where: { customerId: id } })).toBe(1);
+  });
+
+  it("refuses a card index already printed on the slot and writes neither", async () => {
+    const { id } = await repository.create(newCustomer({ customerNumber: 50 }));
+    // Slot 51 was held by a household since archived, who walked away with `51k3`. The slot is
+    // free; the card numbers printed on it are not. The index below is one they took — what a run
+    // read a moment too early yields — and it is not one this household holds, so only the global
+    // constraint can be what refuses the row.
+    const previous = await repository.create(
+      newCustomer({
+        customerNumber: 51,
+        card: {
+          index: 3,
+          issuedAt: TODAY,
+          reason: "FIRST_ISSUE",
+          countsAtIssue: { grownUps: 1, children: 1 },
+          groupAtIssue: "RED",
+        },
+      }),
+    );
+    await repository.archive(previous.id, "weggezogen", TODAY);
+
+    await expect(repository.changeCustomerNumber(id, 51, movedCard(3))).rejects.toBeInstanceOf(
+      CardNumberTaken,
+    );
+
+    expect((await repository.findById(id))?.customerNumber).toBe(50);
+    expect(await prisma.card.count({ where: { customerNumber: 51 } })).toBe(1);
+    expect(await prisma.card.count({ where: { customerId: id } })).toBe(1);
+  });
+
+  it("frees the old number for a later registration", async () => {
+    const { id } = await repository.create(newCustomer({ customerNumber: 50 }));
+
+    await repository.changeCustomerNumber(id, 51, movedCard(2));
+
+    // Nothing but the status frees a slot elsewhere; here it is the move itself, and the partial
+    // unique index accepts the next household on 50 — counting on from the run left behind.
+    const next = await repository.create(nextOnTheSlot({ customerNumber: 50 }));
+    expect(next.card.customerNumber).toBe(50);
+    expect(next.card.index).toBe(2);
   });
 });
 

@@ -253,6 +253,30 @@ export interface CustomerRepository {
    */
   setGroup(id: number, group: Group): Promise<void>;
   /**
+   * Move a customer to another slot **and issue the card that goes with it, in one transaction**
+   * (US-30): the number moves and the card is inserted together, or neither happens.
+   *
+   * The precedent is {@link create}, which writes the customer, the household, the certificate and
+   * the first card as one. Two writes would have a window in which a household holds 23 and carries
+   * `5k4`, and nothing in the system could notice — the record and the card in their pocket are the
+   * two sources of truth this application exists to keep from disagreeing.
+   *
+   * The card arrives as a {@link NewCard}, without the slot: it is read off the customer row
+   * *after* the update, inside the same transaction, for the reason {@link CardRepository.issue}
+   * gives — a caller that could pass the slot is a caller that could pass the wrong one. Its
+   * `index` is the caller's, because that is a rule (`nextCardIndex` over the **new** slot's run)
+   * rather than a column to copy.
+   *
+   * Nothing else on the row is touched, and **no card is re-labelled**: the run the household
+   * leaves on the old slot is what makes that slot safe to hand out again (US-25).
+   *
+   * @returns the card as it was stored, carrying the new slot.
+   * @throws {CustomerNumberTaken} if an active customer took the number first — the partial unique
+   *   index is the final authority, exactly as it is for a registration.
+   * @throws {CardNumberTaken} if the index was printed on the new slot in the meantime.
+   */
+  changeCustomerNumber(id: number, customerNumber: number, card: NewCard): Promise<IssuedCard>;
+  /**
    * Move a customer to a new status, storing `blockReason` with it in one transaction so the two
    * can never disagree: the trimmed reason for a move to `BLOCKED`, and `null` for any other status
    * (lifting a block clears it). The customer number, the cards and the distribution records are
@@ -491,9 +515,10 @@ export interface AuditEntry {
   readonly changedFields: ReadonlyArray<string>;
   readonly when: Date;
   /**
-   * The reason a human gave for the change, or `""` where none was required. The one machine-written
-   * value: a logged reminder records its resulting count here (`reminderCount=2`), because the entry
-   * must tell the trail's state on its own and no human reason is asked for (US-06.2).
+   * The reason a human gave for the change, or `""` where none was required. It is also the one
+   * machine-written value, for the changes that ask staff for no reason and must still tell their
+   * own story: a logged reminder records its resulting count here (`reminderCount=2`, US-06.2) and
+   * a move between slots records the two numbers (`customerNumber=5→23`, US-30).
    */
   readonly why: string;
 }

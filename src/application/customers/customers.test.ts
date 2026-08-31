@@ -289,6 +289,11 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve();
   }
 
+  /** Only {@link changeCustomerNumber}'s own suite moves a household between slots (US-30). */
+  changeCustomerNumber(): Promise<IssuedCard> {
+    return Promise.reject(new Error("a registration takes a number; moving one has its own suite"));
+  }
+
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
     const index = this.created.findIndex((customer) => customer.id === id);
     if (index === -1) {

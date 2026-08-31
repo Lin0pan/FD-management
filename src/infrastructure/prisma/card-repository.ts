@@ -43,6 +43,35 @@ function isCardCollision(error: unknown): boolean {
 }
 
 /**
+ * One stored card row as an {@link IssuedCard}. The two count columns are flat in SQLite and a
+ * value object in the domain, so the shape is put back together here — in one place, so
+ * `currentCard` and `listCards` cannot come to read the snapshot differently. The group word is
+ * checked rather than trusted, like every other enum-shaped column SQLite keeps as a string.
+ *
+ * It sits outside the class because a card is also written by the customer register: a number
+ * change inserts the card in the same transaction that moves the slot (US-30), and reading the row
+ * it wrote back differently is exactly the drift this one function exists to prevent.
+ */
+export function toIssuedCard(row: {
+  customerNumber: number;
+  index: number;
+  issuedAt: Date;
+  reason: string;
+  grownUpsAtIssue: number;
+  childrenAtIssue: number;
+  groupAtIssue: string;
+}): IssuedCard {
+  return {
+    customerNumber: row.customerNumber,
+    index: row.index,
+    issuedAt: row.issuedAt,
+    reason: parseCardIssueReason(row.reason),
+    countsAtIssue: { grownUps: row.grownUpsAtIssue, children: row.childrenAtIssue },
+    groupAtIssue: parseGroup(row.groupAtIssue),
+  };
+}
+
+/**
  * The SQLite-backed {@link CardRepository}.
  *
  * The adapter stores cards and reads them back; it decides nothing. In particular it never marks a
@@ -73,31 +102,6 @@ export class PrismaCardRepository implements CardRepository {
   }
 
   /**
-   * One stored row as an {@link IssuedCard}. The two count columns are flat in SQLite and a value
-   * object in the domain, so the shape is put back together here — in one place, so `currentCard`
-   * and `listCards` cannot come to read the snapshot differently. The group word is checked rather
-   * than trusted, like every other enum-shaped column SQLite keeps as a string.
-   */
-  private static toCard(row: {
-    customerNumber: number;
-    index: number;
-    issuedAt: Date;
-    reason: string;
-    grownUpsAtIssue: number;
-    childrenAtIssue: number;
-    groupAtIssue: string;
-  }): IssuedCard {
-    return {
-      customerNumber: row.customerNumber,
-      index: row.index,
-      issuedAt: row.issuedAt,
-      reason: parseCardIssueReason(row.reason),
-      countsAtIssue: { grownUps: row.grownUpsAtIssue, children: row.childrenAtIssue },
-      groupAtIssue: parseGroup(row.groupAtIssue),
-    };
-  }
-
-  /**
    * The customer's highest-indexed card — the one they actually hold — or `null` if they hold none.
    *
    * An unknown customer id also answers `null`: whether the household exists is the use case's
@@ -112,7 +116,7 @@ export class PrismaCardRepository implements CardRepository {
     if (row === null) {
       return null;
     }
-    return PrismaCardRepository.toCard(row);
+    return toIssuedCard(row);
   }
 
   /**
@@ -140,7 +144,7 @@ export class PrismaCardRepository implements CardRepository {
       where: { customerId },
       orderBy: { index: "desc" },
     });
-    return rows.map((row) => PrismaCardRepository.toCard(row));
+    return rows.map((row) => toIssuedCard(row));
   }
 
   /**
@@ -211,7 +215,7 @@ export class PrismaCardRepository implements CardRepository {
           },
         });
       });
-      return PrismaCardRepository.toCard(row);
+      return toIssuedCard(row);
     } catch (error: unknown) {
       if (isCardCollision(error)) {
         // Which of the two constraints refused the row is asked of the record rather than of the

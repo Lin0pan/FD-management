@@ -89,18 +89,18 @@ because that order is the guarantee that nobody falls off the list without becom
 
 This table _is_ the boundary between the pure core and everything else.
 
-| Port                           | What it abstracts                                                                                                                                                            |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Clock`                        | `now()` — the only way any rule learns what today is                                                                                                                         |
-| `SettingsRepository`           | `listVersions`, `append`. No update and no delete, by design                                                                                                                 |
-| `CustomerCounter`              | The count of non-archived households, for the quota check                                                                                                                    |
-| `CustomerRepository`           | The register: taken numbers, group counts, lookups by id and by number, filtered listing, archive search, create, the field-group updates, status and group changes, archive |
-| `CardRepository`               | Current card, highest index for a number, a customer's cards, issue counts, issue                                                                                            |
-| `DistributionRecordRepository` | Hand-outs for a customer and for a day, create, amend the amount handed over, remove                                                                                         |
-| `ReminderLogRepository`        | Find a reminder on a day; record one together with the customer's count                                                                                                      |
-| `CertificateRepository`        | Append a renewal and reset the reminder count, in one transaction                                                                                                            |
-| `WaitingListRepository`        | The waiting rows, add, and remove — which stamps rather than deletes                                                                                                         |
-| `AuditLog`                     | `append` only                                                                                                                                                                |
+| Port                           | What it abstracts                                                                                                                                                                                                              |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Clock`                        | `now()` — the only way any rule learns what today is                                                                                                                                                                           |
+| `SettingsRepository`           | `listVersions`, `append`. No update and no delete, by design                                                                                                                                                                   |
+| `CustomerCounter`              | The count of non-archived households, for the quota check                                                                                                                                                                      |
+| `CustomerRepository`           | The register: taken numbers, group counts, lookups by id and by number, filtered listing, archive search, create, the field-group updates, status and group changes, a move to another number with the card it prints, archive |
+| `CardRepository`               | Current card, highest index for a number, a customer's cards, issue counts, issue                                                                                                                                              |
+| `DistributionRecordRepository` | Hand-outs for a customer and for a day, create, amend the amount handed over, remove                                                                                                                                           |
+| `ReminderLogRepository`        | Find a reminder on a day; record one together with the customer's count                                                                                                                                                        |
+| `CertificateRepository`        | Append a renewal and reset the reminder count, in one transaction                                                                                                                                                              |
+| `WaitingListRepository`        | The waiting rows, add, and remove — which stamps rather than deletes                                                                                                                                                           |
+| `AuditLog`                     | `append` only                                                                                                                                                                                                                  |
 
 ### `src/infrastructure/` — 12 adapters
 

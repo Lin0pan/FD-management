@@ -1,5 +1,6 @@
 import { faker } from "@faker-js/faker";
 import { beforeEach, describe, expect, it } from "vitest";
+import type { IssuedCard } from "@/domain/card/card";
 import type {
   CustomerDetails,
   CustomerStatus,
@@ -183,6 +184,13 @@ class FakeCustomerRepository implements CustomerRepository {
   setGroup(): Promise<void> {
     this.writes += 1;
     return Promise.resolve();
+  }
+
+  /** Only {@link changeCustomerNumber}'s own suite moves a household between slots (US-30). */
+  changeCustomerNumber(): Promise<IssuedCard> {
+    return Promise.reject(
+      new Error("the customer list reads the register, it never moves a household"),
+    );
   }
 
   setStatus(): Promise<void> {

@@ -1,5 +1,6 @@
 import { faker } from "@faker-js/faker";
 import { beforeEach, describe, expect, it } from "vitest";
+import type { IssuedCard } from "@/domain/card/card";
 import type {
   CustomerStatus,
   HouseholdMemberDetails,
@@ -194,6 +195,13 @@ class FakeCustomerRepository implements CustomerRepository {
 
   setGroup(): Promise<void> {
     return Promise.reject(new Error("A waiting-list use case never moves a customer's group"));
+  }
+
+  /** Only {@link changeCustomerNumber}'s own suite moves a household between slots (US-30). */
+  changeCustomerNumber(): Promise<IssuedCard> {
+    return Promise.reject(
+      new Error("A waiting-list use case never moves a household to another number"),
+    );
   }
 
   setStatus(): Promise<void> {

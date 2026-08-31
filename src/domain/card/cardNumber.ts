@@ -160,6 +160,37 @@ export function nextCardIndex(highestIssuedOnSlot: number): number {
 }
 
 /**
+ * The index the card carries that is printed when a household **moves to another slot** (US-30),
+ * given the highest index ever issued on the slot they are moving to and the highest they hold
+ * themselves.
+ *
+ * A move asks the same counting question a registration does — what has this slot been through? —
+ * and one more that only a move can raise: the household is carrying cards of their own, and the
+ * card they hold is *the highest-indexed one they have been issued*. A household carrying `5k4`
+ * that moved onto a fresh slot as `99k1` would be holding two cards whose indexes say the old one
+ * is still the current one, and no read of their run could tell which piece of card is in their
+ * pocket. So the new card outranks both runs, and the answer is the later of the two next indexes.
+ *
+ * In the ordinary case the slot decides it: a household carrying `5k4` moving onto a slot whose
+ * last card was `23k5` is printed `23k6`, and the jump is the slot's history rather than theirs.
+ * The household's own run only decides it where the slot has been round fewer times — a fresh slot
+ * above all — and the indexes it skips on that slot are skipped for good, exactly as an archived
+ * household's are. Nothing is ever printed twice, which is the guarantee that matters (US-25).
+ *
+ * Both arguments are validated by {@link nextCardIndex}, not just the larger: an index that could
+ * never have come off a card means a run was computed wrongly, and taking the maximum first would
+ * hide it whenever the other side happened to win.
+ *
+ * @throws {InvalidCardNumber} for a negative or fractional index on either side.
+ */
+export function nextCardIndexOnMove(
+  highestIssuedOnSlot: number,
+  highestHeldByHousehold: number,
+): number {
+  return Math.max(nextCardIndex(highestIssuedOnSlot), nextCardIndex(highestHeldByHousehold));
+}
+
+/**
  * The card number that replaces `card` — the same slot, the next index.
  *
  * Issuing it invalidates every earlier card on that slot, because validity is *being the highest

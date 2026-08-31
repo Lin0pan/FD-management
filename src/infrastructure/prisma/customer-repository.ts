@@ -8,7 +8,7 @@ import type {
   CustomerRepository,
 } from "@/application/ports";
 import type { ValidUntilRange } from "@/domain/customer/certificate";
-import { parseCardIssueReason } from "@/domain/card/card";
+import { parseCardIssueReason, type IssuedCard, type NewCard } from "@/domain/card/card";
 import {
   parseCustomerStatus,
   type CustomerStatus,
@@ -25,6 +25,7 @@ import {
   CustomerNumberTaken,
   InvalidCustomerRecord,
 } from "@/domain/errors";
+import { toIssuedCard } from "./card-repository";
 
 /**
  * Everyone who still holds a customer number.
@@ -599,6 +600,63 @@ export class PrismaCustomerRepository implements CustomerRepository {
    */
   async setGroup(id: number, group: Group): Promise<void> {
     await this.prisma.customer.update({ where: { id }, data: { group } });
+  }
+
+  /**
+   * Move a customer to another slot and write the card that goes with it — **one `$transaction`**,
+   * so the register and the card in the household's pocket can never be left disagreeing (US-30).
+   *
+   * The update goes first and the card's slot is then read back off the row it just wrote, exactly
+   * as {@link PrismaCardRepository.issue} reads it off the customer: the card can only ever be
+   * printed under the number the household now holds, whatever a caller passed. Nothing else is
+   * touched — the earlier cards keep the numbers they were printed with, because the run left on
+   * the old slot is what makes that slot safe to hand out again (US-25).
+   *
+   * Either constraint refusing the write rolls the whole transaction back, so a lost race leaves
+   * neither a moved number nor a card.
+   *
+   * @throws {CustomerNumberTaken} if an active customer took the number first — the partial unique
+   *   index on the register.
+   * @throws {CardNumberTaken} if the index had already been printed on the new slot.
+   */
+  async changeCustomerNumber(
+    id: number,
+    customerNumber: number,
+    card: NewCard,
+  ): Promise<IssuedCard> {
+    try {
+      const row = await this.prisma.$transaction(async (tx) => {
+        const moved = await tx.customer.update({
+          where: { id },
+          data: { customerNumber },
+          select: { customerNumber: true },
+        });
+        return tx.card.create({
+          data: {
+            customerId: id,
+            customerNumber: moved.customerNumber,
+            index: card.index,
+            issuedAt: card.issuedAt,
+            reason: card.reason,
+            grownUpsAtIssue: card.countsAtIssue.grownUps,
+            childrenAtIssue: card.countsAtIssue.children,
+            groupAtIssue: card.groupAtIssue,
+          },
+        });
+      });
+      return toIssuedCard(row);
+    } catch (error: unknown) {
+      // The slot itself, refused by the register's partial unique index.
+      if (isCollisionOn(error, ["customerNumber"])) {
+        throw new CustomerNumberTaken(customerNumber);
+      }
+      // The card number on it, refused by `Card`'s global index — a different fault, and one no
+      // retry on this slot can answer (US-25).
+      if (isCollisionOn(error, ["customerNumber", "index"])) {
+        throw new CardNumberTaken(customerNumber, card.index);
+      }
+      throw error;
+    }
   }
 
   /**
