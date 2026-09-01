@@ -325,9 +325,6 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
     );
     await expect(row.getByTestId("cards-due-reason")).toHaveText(de.cardsDue.reasons.AGE_13);
 
-    // The screen says so before it says anything else: a card that has fallen behind can wait.
-    await expect(page.getByTestId("cards-due-not-urgent")).toHaveText(de.cardsDue.notUrgent);
-
     expect(await badgeCount(page)).toBe(dueBefore + 1);
   });
 

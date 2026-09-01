@@ -540,8 +540,14 @@ export const de = {
       bannerDetail: (date: string, reason: string): string =>
         `Archiviert am ${date}. Grund: „${reason}“`,
       bannerNoReason: "Zu dieser Archivierung ist kein Grund hinterlegt.",
+      /**
+       * „frei“ and „gehört bereits jemand anderem“ are two different facts, and the second is the
+       * one somebody acts on wrongly: the number is still printed on this record, and a staff member
+       * reading it has no way to see that it may since have been handed to another household.
+       */
       bannerReadOnly:
-        "Der Datensatz kann nicht mehr geändert werden; die Kundennummer ist wieder frei.",
+        "Der Datensatz kann nicht mehr geändert werden. Die Kundennummer ist wieder frei und " +
+        "gehört möglicherweise bereits einem anderen Haushalt.",
       errors: {
         missingReason: "Bitte einen Grund für die Archivierung angeben.",
         notArchivable: "Dieser Haushalt ist bereits archiviert. Bitte die Seite neu laden.",
@@ -596,7 +602,14 @@ export const de = {
          * a bare "Kundennummer" beside a name is exactly what would be copied onto a new card.
          */
         formerNumber: "Frühere Kundennummer",
-        formerNumberHint: "Nur zur Wiedererkennung — diese Nummer ist wieder frei.",
+        /**
+         * Same fact as {@link archive.bannerReadOnly}, and for the same reason — this panel exists to be
+         * read while a *new* number is being handed out, which is exactly when copying the old one
+         * across would be the natural mistake. „gehört möglicherweise …“ says „frei“ as well.
+         */
+        formerNumberHint:
+          "Nur zur Wiedererkennung — diese Nummer gehört möglicherweise bereits einem anderen " +
+          "Haushalt.",
         select: "Daten übernehmen",
         selecting: "Wird übernommen …",
         /** What the row that filled the form says instead of offering to fill it again. */
@@ -1113,15 +1126,19 @@ export const de = {
   cardsDue: {
     heading: "Karten neu ausstellen",
     /**
-     * The list itself, under the "keine Eile" sentence. Its count is `customerList.actions
-     * .cardsDueBadge`, deliberately not a second wording of its own: the hub states the same number
-     * in the same words, and two phrasings of one fact are how the two screens come to disagree.
+     * The list itself. Its count is `customerList.actions.cardsDueBadge`, deliberately not a second
+     * wording of its own: the hub states the same number in the same words, and two phrasings of one
+     * fact are how the two screens come to disagree.
      */
     listTitle: "Karten",
-    // The whole point of the screen in one line: nothing here is broken, and nobody is waiting on
-    // it. „nur ein Ausdruck“ is the reason, and it carries the rest — an printout cannot decide
-    // anything, so it cannot be grounds to turn anyone away.
-    notUrgent: "Das hat keine Eile — die Karte ist nur ein Ausdruck.",
+    /*
+     * No „Das hat keine Eile“ above the list any more. It said the screen was in no hurry while
+     * `record.householdHint` and {@link record.groupHint} — the two places a staff member is sent
+     * here from — say the card „muss neu ausgestellt werden“, and of the two the second is right:
+     * a reissue is not due this minute, but it is due. What the sentence was really there to guard
+     * is that a stale card turns nobody away, and that is said where it could be got wrong, at the
+     * counter ({@link distribution.counter.staleCard} — „Es gelten die heutigen Zahlen“).
+     */
     empty: "Zurzeit ist keine Karte neu auszustellen.",
     countsOnCard: "Auf der Karte gedruckt",
     countsToday: "Haushalt heute",
@@ -1213,10 +1230,16 @@ export const de = {
        * The example does the work — it is what makes „Freitext“ mean something other than an empty
        * box. The sentence refusing phone numbers and e-mail addresses stays, shortened: it is a
        * deliberate decision about DF's data and is stated nowhere else on any screen.
+       *
+       * Shortened by dropping the opening rather than the verb. „Keine Telefonnummern und
+       * E-Mail-Adressen“ puts one „keine“ in front of two nouns joined by „und“, which reads as
+       * forbidding the pair and leaves each of them alone, and it addresses the staff member as an
+       * instruction. Stating what the software does keeps the negation on both nouns and keeps this
+       * a decision rather than an order — „bewusst“ is the word that says it is one.
        */
       contactNoteHint:
-        "Freitext, z. B. „über die Nachbarin, dienstags vormittags“. Keine Telefonnummern und " +
-        "E-Mail-Adressen.",
+        "Freitext, z. B. „über die Nachbarin, dienstags vormittags“. Telefonnummern und " +
+        "E-Mail-Adressen werden bewusst nicht erfasst.",
       submit: "Auf die Warteliste setzen",
       submitting: "Wird gespeichert …",
       saved: (applicant: string): string => `${applicant} steht jetzt auf der Warteliste.`,
