@@ -400,6 +400,19 @@ export const de = {
         `möglich — bitte kürzen.`,
       groupUnchanged: (group: string): string =>
         `Der Haushalt gehört bereits zur Gruppe ${group}. Es wurde nichts geändert.`,
+      /**
+       * The number a household is moved to is the one they already hold (US-30) — refused rather
+       * than accepted, because it would print them a fresh card for a move that never happened.
+       *
+       * Written in {@link groupUnchanged}'s register, because it is the same refusal one field
+       * over. The control does not offer the step that produces it — the confirmation appears only
+       * once another number is picked — so this is read when the record was moved in a second tab
+       * while this one stood open, which is why it ends by asking for another number rather than
+       * for the same one again.
+       */
+      customerNumberUnchanged: (customerNumber: number): string =>
+        `Der Haushalt hat bereits die Kundennummer ${customerNumber}. Es wurde nichts geändert; ` +
+        `bitte eine andere Nummer wählen.`,
       unknown: "Die Aufnahme konnte nicht gespeichert werden.",
       notFound: "Dieser Kunde wurde nicht gefunden.",
     },
@@ -646,9 +659,15 @@ export const de = {
        */
       historyDisclosure: "Ausklappen, um alle bisherigen Ausgaben zu sehen",
       detailsHeading: "Person und Anschrift",
+      /**
+       * It ended with „Die Kundennummer lässt sich nicht ändern.“ until US-30, which is exactly what
+       * the section „Kundennummer“ below now does. Nothing replaced the sentence here: this hint is
+       * about the boxes above it, and a form that says where a *different* form lives is how a
+       * screen ends up cross-referencing itself. The section says it by existing.
+       */
       detailsHint:
         "Korrekturen an Name, Geburtsdatum und Anschrift. Der Name gilt zugleich für die Zeile " +
-        "dieser Person im Haushalt. Die Kundennummer lässt sich nicht ändern.",
+        "dieser Person im Haushalt.",
       detailsSubmit: "Person und Anschrift speichern",
       /**
        * Names all four derived figures, and says „aus dem Haushalt“ rather than „aus den
@@ -774,6 +793,65 @@ export const de = {
           "Dieser Haushalt ist archiviert; sein Datensatz kann nicht mehr geändert werden. Bitte " +
           "die Seite neu laden.",
       },
+    },
+    /**
+     * Moving a household to another customer number (US-30) — the section „Kundennummer“ on the
+     * record, directly under „Gruppe“.
+     *
+     * The words carry two things the screen cannot show: that a move prints a card, and *which*
+     * card. Both numbers are named before anything is written and again afterwards, for the reason
+     * {@link reissue} names its two — the new card number is what staff copy onto the physical card,
+     * and a move cannot be taken back by choosing the old number again (that would be a second move,
+     * printing a third card).
+     *
+     * There is no word here for a *reason*. Staff's reasons for wanting a particular number — a
+     * returning family, a block of numbers kept together, a number typed in wrongly — are theirs,
+     * and the use case asks for none (ADR-016).
+     */
+    numberChange: {
+      heading: "Kundennummer",
+      /**
+       * The three consequences, none of which is visible on this screen: the old slot is free the
+       * moment this is saved, the card in the household's hand stops being valid, and a replacement
+       * is printed straight away. Written in {@link record.groupHint}'s register — what follows from
+       * this? — because it answers the same question one section further down.
+       */
+      hint:
+        "Die bisherige Nummer wird sofort frei und kann neu vergeben werden. Die Karte, die der " +
+        "Haushalt bei sich hat, wird damit ungültig; eine neue Karte wird sofort ausgestellt.",
+      /**
+       * Said instead of „Noch N freie Nummern“ when the household's own number is the only one on
+       * offer. The dropdown is left enabled beside it: a greyed-out control states that something
+       * cannot be done and never why, and the one thing a staff member needs here is the reason.
+       */
+      noOtherNumber:
+        "Zurzeit ist keine andere Kundennummer frei. Es lässt sich erst wieder eine vergeben, " +
+        "wenn ein Haushalt archiviert oder die Höchstzahl in den Einstellungen erhöht wird.",
+      /** Reveals the confirmation. Nothing is written by it — {@link submit} is the save. */
+      action: "Kundennummer ändern",
+      /**
+       * What the confirmation says before anything happens: the number the household will hold, the
+       * card that stops being valid, and the card that will be printed. All three come off the read
+       * model; none of them is worked out in the browser.
+       */
+      confirm: (customerNumber: number, currentCard: string, nextCard: string): string =>
+        `Der Haushalt erhält die Kundennummer ${customerNumber}. Die Karte ${currentCard} wird ` +
+        `damit ungültig und darf an der Ausgabe nicht mehr angenommen werden; ausgestellt wird ` +
+        `die Nummer ${nextCard}.`,
+      submit: "Kundennummer jetzt ändern",
+      submitting: "Wird geändert …",
+      /**
+       * The receipt, naming all three facts the move settled.
+       *
+       * A **receipt, not a warning**: what it reports has happened, and the sentence that warned
+       * about it has already been read once, in {@link confirm}. It names the old number as well as
+       * the new one because the row it was read from is gone by the time this is on screen — the
+       * record above now says 23 everywhere, and „von 5“ is the only thing left saying which slot
+       * was freed.
+       */
+      saved: (from: number, to: number, cardNumber: string): string =>
+        `Die Kundennummer wurde von ${from} auf ${to} geändert; die neue Karte ${cardNumber} ist ` +
+        `ausgestellt.`,
     },
     /**
      * Reissuing a card after a loss (US-09). The action is offered on the customer record and on the

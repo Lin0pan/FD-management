@@ -2,9 +2,11 @@
 
 /**
  * The write actions that belong to the customer record **alone**: the reissue after a loss
- * (tasks/prd-us-09-reissue-card-after-loss.md §US-09.3) and the five edits the record is for —
+ * (tasks/prd-us-09-reissue-card-after-loss.md §US-09.3), the five edits the record is for —
  * household, personal data, notes, group and a renewed certificate
- * (tasks/prd-us-16-maintain-customer-record.md §US-16.5).
+ * (tasks/prd-us-16-maintain-customer-record.md §US-16.5) — and the move to another customer number
+ * (tasks/prd-us-30-change-customer-number.md §US-30.7), which is the record's alone because it is
+ * the only place in the application a number can be changed.
  *
  * The actions shared with the counter live one level up beside the components that use them:
  * `../block-actions.ts` and `../archive-actions.ts`. What is here is here because no other screen
@@ -24,17 +26,22 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { changeCustomerNumber } from "@/application/customers/change-customer-number";
 import { changeGroup } from "@/application/customers/change-group";
+import { listNumberChoices, type NumberChoice } from "@/application/customers/list-number-choices";
 import { reissueCard } from "@/application/customers/reissue-card";
 import { renewCertificate } from "@/application/customers/renew-certificate";
 import { updateCustomerDetails } from "@/application/customers/update-customer-details";
 import { updateHousehold } from "@/application/customers/update-household";
 import { updateNotes } from "@/application/customers/update-notes";
 import { formatCardNumber } from "@/domain/card/cardNumber";
+import type { RegisteredCustomer } from "@/domain/customer/customer";
 import { parseGroup } from "@/domain/customer/group";
 import {
   CertificateValidUntilInPast,
   CustomerArchived,
+  CustomerNumberTaken,
+  CustomerNumberUnchanged,
   GroupUnchanged,
   MissingRequiredField,
 } from "@/domain/errors";
@@ -48,6 +55,7 @@ import {
   fieldRefusals,
   householdRows,
 } from "../neu/registration-input";
+import { type NumberChangeState } from "./number-change-state";
 import { type ReissueState } from "./reissue-state";
 import { savedAfter, type RecordFormState } from "./record-state";
 
@@ -55,6 +63,20 @@ import { savedAfter, type RecordFormState } from "./record-state";
 const surrogateId = z
   .string()
   .regex(/^\d+$/)
+  .transform((value): number => Number(value));
+
+/**
+ * The customer number the move was asked for, as the `<select>` submits it: a positive whole number.
+ *
+ * Whether it is *a slot* — inside the quota in force, and not one an active household holds — is
+ * decided by `assertChoosableNumber` and, for a race, by the partial unique index. Nothing about the
+ * register is asserted here; this schema only says the string was a number at all, which is all an
+ * adapter can know (US-30). Separate from {@link surrogateId} because it rejects `0`: a customer
+ * number is a slot in `1..quotaN` and never a row id.
+ */
+const chosenNumber = z
+  .string()
+  .regex(/^[1-9]\d*$/)
   .transform((value): number => Number(value));
 
 /**
@@ -339,6 +361,122 @@ export async function changeGroupAction(
 
   revalidateRecord(customerId.data);
   return savedAfter(previous);
+}
+
+/**
+ * The numbers a refusal should carry back, as a patch to spread into the error state: the register
+ * as it stands now if `error` is a lost race for the chosen number, and nothing at all otherwise.
+ *
+ * The shape and the argument are `freshPoolAfterRace`'s (US-24), one screen over: a patch rather
+ * than a `ReadonlyArray<NumberChoice> | undefined` so the field stays *absent* on the refusals that
+ * did not re-read, which is what lets the control tell "no fresh list" from "an empty one".
+ *
+ * `CustomerNumberTaken` is the only code that re-reads, and the two that look like neighbours are
+ * deliberately not here. `CustomerNumberOutOfRange` means the quota moved under the open screen
+ * (US-14), which a re-read *would* correct — but it is a refusal of the register's shape rather than
+ * of one slot, and the registration form leaves it alone for the same reason. `CardNumberTaken` is
+ * tiered red precisely because a stale card run means the whole screen has to be read again
+ * (`notice-tier.ts`), and half-refreshing it here would hide that.
+ *
+ * It takes the customer that was read on the way in rather than fetching one: nothing was written,
+ * so that row is still what the register says, and a second `findById` would be a second moment.
+ */
+async function freshChoicesAfterRace(
+  customer: RegisteredCustomer,
+  error: unknown,
+): Promise<{ numberChoices?: ReadonlyArray<NumberChoice> }> {
+  if (!(error instanceof CustomerNumberTaken)) {
+    return {};
+  }
+  return { numberChoices: await listNumberChoices(customerDeps, customer) };
+}
+
+/**
+ * Move the household to another customer number and print the card that goes with it (US-30).
+ *
+ * One use case, which writes the move and the card in one transaction — the screen never does the
+ * two in turn, because a household whose record says 23 while their pocket says `5k4` is exactly the
+ * disagreement between two sources of truth this project exists to remove.
+ *
+ * Nothing is checked before the call. The control's confirmation step is a courtesy to whoever
+ * clicked it and `changeCustomerNumber` is what decides whether the move may happen, down to
+ * re-reading the quota: a screen that stood open while staff lowered it (US-14) is offering slots
+ * that are no longer slots, and only the use case can know that.
+ *
+ * The household is read **before** the move for one value only: the slot they are leaving. It is
+ * what the receipt names first, and by the time the receipt is on screen the row it came from says
+ * the new number — so it cannot be read afterwards, and echoing it back off the form would let the
+ * receipt say something the register never did. The two numbers it reports *after* the write come
+ * from the card the store handed back, for the reason {@link reissueCardAction} gives: the slot it
+ * was printed under and the index it was given are what was actually written.
+ */
+export async function changeCustomerNumberAction(
+  _previous: NumberChangeState,
+  formData: FormData,
+): Promise<NumberChangeState> {
+  const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
+  const customerNumber = chosenNumber.safeParse(String(formData.get("customerNumber") ?? ""));
+  if (!customerId.success || !customerNumber.success) {
+    return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
+  }
+
+  // A record that has gone since the page was rendered. It is the same answer a stale hidden
+  // `customerId` gets, because it is the same fact: the screen is describing a household the
+  // register cannot show it.
+  const customer = await customerDeps.customers.findById(customerId.data);
+  if (customer === null) {
+    return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
+  }
+
+  let card;
+  try {
+    card = await changeCustomerNumber(customerDeps, {
+      customerId: customerId.data,
+      customerNumber: customerNumber.data,
+    });
+  } catch (error: unknown) {
+    // `CustomerNumberUnchanged` is named here rather than in `recordMessage` for the reason
+    // `GroupUnchanged` is: the sentence quotes the value, and this is the layer holding it. The
+    // control does not offer the step that produces it — the confirmation appears only once another
+    // number is picked — so it is reached by a second tab or a stale form.
+    if (error instanceof CustomerNumberUnchanged) {
+      return {
+        status: "error",
+        message: de.customers.errors.customerNumberUnchanged(error.customerNumber),
+        tier: tierOf(error),
+      };
+    }
+    // `recordMessage` translates the rest: a taken number and one outside the quota into the
+    // sentence the registration screen uses for them, an archived household into the record's own,
+    // anything else into the record's last word.
+    //
+    // The *sentence* is shared with the record's five editors; `recordRefusal` is not, because it
+    // also carries the field to mark. A mark belongs to a form of typed boxes where the refusal has
+    // to say which one is wrong; this form has a single dropdown that the sentence beneath it is
+    // unambiguously about, and a red ring round the one control on screen would say nothing twice.
+    return {
+      status: "error",
+      message: recordMessage(error),
+      tier: tierOf(error),
+      ...(await freshChoicesAfterRace(customer, error)),
+    };
+  }
+
+  // Every screen that reads either half of what was written. The record and the card view show the
+  // new numbers; `/kunden` lists the number and counts the free slots, one of which the move has
+  // just released; the counter resolves numbers to households and both of these have changed under
+  // it; and `/karten-neuausstellung` lists households whose card is out of date, which the freshly
+  // printed one is not.
+  revalidateRecord(customerId.data);
+  revalidatePath(`/kunden/${customerId.data}/karte`);
+  revalidatePath("/kunden");
+  revalidatePath("/karten-neuausstellung");
+  return {
+    status: "saved",
+    from: customer.customerNumber,
+    to: card.customerNumber,
+    cardNumber: formatCardNumber(card.customerNumber, card.index),
+  };
 }
 
 /**
