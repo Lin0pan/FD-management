@@ -560,6 +560,20 @@ describe("lookupCustomer", () => {
     expect(result.customer?.staleCard).toBeNull();
   });
 
+  it("names the group printed on a superseded card, not today's", async () => {
+    // The household holds `50k3` and the volunteer is handed `50k1`, an earlier card of the same
+    // run. The week named is the one printed on **that** piece of card — read off its own slot, the
+    // way `readCard` reads every number in a run (US-30.5) — and it never has to be looked up
+    // against a stored word. A card printed under a slot the household has since left never gets
+    // this far: a card number resolves through the slot, and the slot has been released (US-04.2).
+    customers = new FakeCustomerRepository(customerRecord({ customerNumber: 50, cardIndex: 3 }));
+
+    const result = await lookupCustomer(deps(), "50k1");
+
+    expect(result.verdict.kind).toBe("OUTDATED_CARD");
+    expect(result.customer?.groupOnCard).toBe("BLUE");
+  });
+
   it("carries everything the screen shows below the verdict", async () => {
     customers = new FakeCustomerRepository(
       customerRecord({ cardIndex: 3, reminderCount: 1, notes: "ruft vorher an" }),

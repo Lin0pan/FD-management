@@ -32,6 +32,7 @@
 import type { IssuedCard } from "@/domain/card/card";
 import { nextCardIndexOnMove } from "@/domain/card/cardNumber";
 import { assertChoosableNumber } from "@/domain/customer/customerNumber";
+import { groupOf } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import { CustomerArchived, CustomerNotFound } from "@/domain/errors";
 import type {
@@ -74,7 +75,7 @@ export interface ChangeCustomerNumberInput {
  * Move the household and hand back the card the store wrote.
  *
  * A **blocked** household is moved like any other: a block pauses them at the counter and does not
- * freeze their record, the same division `changeGroup` and `issueCard` already make (US-08). An
+ * freeze their record, the same division `issueCard` and `updateHousehold` already make (US-08). An
  * **archived** one is not: their record is read-only, they hold no slot to move out of, and they
  * receive no cards.
  *
@@ -148,11 +149,19 @@ export async function changeCustomerNumber(
   // as the one machine-written value the port documents — no human reason is asked for, so the
   // entry has to tell its own story (ADR-006), and staff's reasons for wanting a particular number
   // are their own.
+  //
+  // The group is named **only when the parity changed**, because only then does it say something
+  // the two numbers do not. A move to the other week is the half of the story `37→106` merely
+  // implies, and a reader of the log a year later should not have to know the rule to see it; a
+  // move from 37 to 39 changes no week, and a line saying `group=RED→RED` would be noise.
+  const groupBefore = groupOf(customer.customerNumber);
+  const groupAfter = groupOf(customerNumber);
+  const groupMoved = groupBefore === groupAfter ? "" : `; group=${groupBefore}→${groupAfter}`;
   await deps.audit.append({
     what: NUMBER_CHANGED,
     changedFields: [...NUMBER_FIELDS],
     when: now,
-    why: `customerNumber=${customer.customerNumber}→${customerNumber}`,
+    why: `customerNumber=${customer.customerNumber}→${customerNumber}${groupMoved}`,
   });
   await deps.audit.append({
     what: CARD_ISSUED,

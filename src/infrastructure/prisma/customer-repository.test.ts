@@ -1338,18 +1338,6 @@ describe("PrismaCustomerRepository.list over a register of fifty households", ()
     expect(await found({ statuses: ["ARCHIVED"] })).toEqual(numbers(46, 50));
   });
 
-  it("narrows to one balancing group without touching the status filter", async () => {
-    // Even numbers are Blue and odd ones Red, so the two halves interleave rather than sitting in
-    // bands — which is exactly what a filter reading the register's numbers has to cope with.
-    const even = (customerNumber: number): boolean => customerNumber % 2 === 0;
-    expect(await found({ statuses: ON_THE_REGISTER, group: "BLUE" })).toEqual(
-      numbers(1, 45).filter(even),
-    );
-    expect(await found({ statuses: ON_THE_REGISTER, group: "RED" })).toEqual(
-      numbers(1, 45).filter((customerNumber) => !even(customerNumber)),
-    );
-  });
-
   it("matches a customer number exactly, so 1 does not drag in 10 to 19", async () => {
     expect(
       await found({
@@ -1405,13 +1393,23 @@ describe("PrismaCustomerRepository.list over a register of fifty households", ()
   });
 
   it("combines the filters rather than choosing between them", async () => {
+    // Household 5 is active and their certificate has lapsed, so each criterion on its own finds
+    // them. Asking for a *blocked* household of the same number finds nobody, which is what says
+    // the criteria are combined rather than chosen between.
+    expect(
+      await found({
+        statuses: ["ACTIVE"],
+        search: { kind: "CUSTOMER_NUMBER", customerNumber: 5 },
+        certificate: validUntilRangeFor("EXPIRED", TODAY),
+      }),
+    ).toEqual([5]);
     expect(
       await found({
         statuses: ["BLOCKED"],
-        group: "BLUE",
-        certificate: validUntilRangeFor("VALID", TODAY),
+        search: { kind: "CUSTOMER_NUMBER", customerNumber: 5 },
+        certificate: validUntilRangeFor("EXPIRED", TODAY),
       }),
-    ).toEqual([42, 44]);
+    ).toEqual([]);
   });
 
   it("counts both groups over the whole register, blocked included and archived not", async () => {
@@ -1433,7 +1431,6 @@ describe("PrismaCustomerRepository.list over a register of fifty households", ()
 
     await new PrismaCustomerRepository(logged).list({
       statuses: ["ACTIVE"],
-      group: "BLUE",
       search: { kind: "NAME", name: "mueller" },
     });
     await logged.$disconnect();
@@ -1445,7 +1442,7 @@ describe("PrismaCustomerRepository.list over a register of fifty households", ()
     // the select list, where the column names appear whatever the query does. The assertion is
     // coarse on purpose: what must not regress is that the filtering happens *there* at all.
     const where = customerQuery.slice(customerQuery.indexOf("WHERE"));
-    for (const column of ["status", "group", "lastNameFolded", "firstNameFolded"]) {
+    for (const column of ["status", "lastNameFolded", "firstNameFolded"]) {
       expect(where).toContain(column);
     }
   });

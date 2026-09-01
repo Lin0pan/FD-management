@@ -2,10 +2,10 @@
  * Which group is collecting, and where the number on screen sits in it (US-21).
  *
  * The counter is driven by a typed number (US-04), which is the right control when a household hands
- * over a card and the wrong one when nobody has: which numbers belong to Rot and which to Blau is the
- * software's decision (US-01), so working through a group by typing means guessing. This use case is
- * what the two walk controls read — it names the group and answers "the number before this one, and
- * the number after", so pressing a button is one click rather than a lookup staff have to phrase.
+ * over a card and the wrong one when nobody has: working through a group by typing means guessing
+ * which number comes next in it. This use case is what the two walk controls read — it names the
+ * group and answers "the number before this one, and the number after", so pressing a button is one
+ * click rather than a lookup staff have to phrase.
  *
  * Three decisions are worth stating, because each could plausibly have gone the other way:
  *
@@ -18,9 +18,11 @@
  * - **A looked-up number need not belong to the group.** `neighbours` compares numerically, so a Rot
  *   household looked up on a Blau day still positions the walk between the Blau numbers around it
  *   (§FR-5) rather than stranding the controls.
- * - **The membership query is the existing `CustomerRepository.list`**, which already filters by group
- *   and status and already answers lowest customer number first. No port method was added: at DF's
- *   ~240 customers this is the same read `/kunden` performs on every visit.
+ * - **The membership query is the existing `CustomerRepository.list`**, which filters by status and
+ *   answers lowest customer number first. No port method was added: at DF's ~240 customers this is
+ *   the same read `/kunden` performs on every visit. The **group** is narrowed here rather than in
+ *   the query, because a group is the parity of a customer number (`groupOf`, US-31) and SQLite has
+ *   no `% 2` in a `WHERE` clause — the same reason `listCustomers` narrows its own group filter.
  *
  * US-23 gave the same read a second job: how far through the group the afternoon is, and who is still
  * missing. It is the same question — *which households belong to today's group* — with one fact added
@@ -33,6 +35,7 @@
 
 import { counterQueryOrNull } from "@/domain/card/cardNumber";
 import type { CustomerStatus } from "@/domain/customer/customer";
+import { groupOf } from "@/domain/customer/group";
 import { berlinDayKey } from "@/domain/distribution/attendance";
 import { groupProgress, type Progress } from "@/domain/distribution/groupProgress";
 import { neighbours } from "@/domain/distribution/groupWalk";
@@ -122,7 +125,8 @@ export async function readGroupRoster(
 ): Promise<GroupRosterView> {
   const week = await getWeekColour(deps);
   const group = week.colour;
-  const households = await deps.customers.list({ statuses: WALKED_STATUSES, group });
+  const walkable = await deps.customers.list({ statuses: WALKED_STATUSES });
+  const households = walkable.filter((customer) => groupOf(customer.customerNumber) === group);
   // The whole afternoon in one query, then joined in memory: a group is ~120 households, and a query
   // apiece would make the counter's own screen the slowest in the app (US-23, §FR-4).
   const servedIds = new Set(

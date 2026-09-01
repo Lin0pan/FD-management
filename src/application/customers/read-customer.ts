@@ -8,7 +8,7 @@
 
 import { formatCardNumber, nextCardNumber } from "@/domain/card/cardNumber";
 import type { RegisteredCustomer } from "@/domain/customer/customer";
-import { groupOf, type Group, type GroupCounts } from "@/domain/customer/group";
+import { countByGroup, groupOf, type Group, type GroupCounts } from "@/domain/customer/group";
 import { ageInYears, type HouseholdComposition } from "@/domain/customer/householdComposition";
 import { balanceOf, replayPayments, type Settlement } from "@/domain/distribution/balance";
 import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
@@ -107,11 +107,14 @@ export interface CustomerCardView {
    */
   readonly history: ReadonlyArray<Settlement<DistributionRecord>>;
   /**
-   * How many **active** households each balancing group holds, as of now.
+   * How many **active** households each balancing group holds, as of now — counted from the numbers
+   * they hold, because that is all a group is (`countByGroup`, US-31).
    *
-   * The record is where a household is moved between RED and BLUE (US-16.4), and that decision is a
-   * comparison: staff move somebody in order to even the two groups out, so the sizes belong beside
-   * the choice rather than on a screen they would have to fetch first (PRD §FR-4).
+   * The record is where a household is moved between the two weeks, and that decision is a
+   * comparison: staff move somebody in order to even the groups out, so the sizes belong beside the
+   * choice rather than on a screen they would have to fetch first (PRD §FR-4). Moving them is now
+   * moving them to a number of the other parity (US-31), so the figures sit beside the number
+   * control that does it.
    */
   readonly groupCounts: GroupCounts;
   /**
@@ -147,12 +150,15 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
   }
 
   const today = deps.clock.now();
-  const [allowance, records, groupCounts, numberChoices] = await Promise.all([
+  const [allowance, records, takenNumbers, numberChoices] = await Promise.all([
     describeAllowance(deps, customer.details.householdMembers),
     deps.records.listForCustomer(customer.id),
-    deps.customers.groupCounts(),
+    deps.customers.takenActiveNumbers(),
     listNumberChoices(deps, customer),
   ]);
+  // Counted off the numbers the register holds rather than asked of it as a second question: the
+  // group is not a column, it is what a number is (`groupOf`, US-31), so the balance is arithmetic.
+  const groupCounts = countByGroup(takenNumbers);
 
   // Two different questions, and only the first is a property of the card. The number printed on
   // the card they carry is read off **that card's own slot**, the way `readCard` reads every number

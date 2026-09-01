@@ -17,7 +17,7 @@ import type {
   PersonalDetails,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
-import type { Group, GroupCounts } from "@/domain/customer/group";
+import type { GroupCounts } from "@/domain/customer/group";
 import type { WaitingListDetails } from "@/domain/customer/waitingList";
 import type {
   DistributionRecord,
@@ -95,9 +95,14 @@ export type CustomerListSearch =
   | { readonly kind: "CUSTOMER_NUMBER"; readonly customerNumber: number };
 
 /**
- * How the customer list narrows the register (US-15.2). Every criterion is a `WHERE` clause: nothing
- * here is filtered after loading, because the whole point of the screen is to *not* be a spreadsheet
- * that reads every row.
+ * How the customer list narrows the register (US-15.2). Every criterion here is a `WHERE` clause,
+ * because the whole point of the screen is to *not* be a spreadsheet that reads every row.
+ *
+ * **The group is not among them, and that is deliberate.** A group is the parity of a customer
+ * number (`groupOf`, US-31) rather than a column, SQLite cannot express `% 2` in a `WHERE` clause,
+ * and a stored parity key would be the second recording of the one fact US-31 exists to record
+ * once. `listCustomers` and `readGroupRoster` therefore narrow the rows this query returned — the
+ * register is bounded by the quota, so the widest either ever scans is `quotaN` rows.
  *
  * `statuses` is the one criterion that is never absent. "Which statuses does this list show" is a
  * decision with a default rather than an option — archived households are excluded unless they were
@@ -107,7 +112,6 @@ export interface CustomerListQuery {
   /** The statuses to include; never empty, and never implicitly all of them. */
   readonly statuses: ReadonlyArray<CustomerStatus>;
   readonly search?: CustomerListSearch;
-  readonly group?: Group;
   /**
    * The range the household's **current** certificate's `validUntil` must fall in, as
    * `validUntilRangeFor` computed it from today. The window is the domain's, so the filter and the

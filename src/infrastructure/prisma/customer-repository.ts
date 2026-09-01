@@ -222,10 +222,15 @@ export class PrismaCustomerRepository implements CustomerRepository {
   /**
    * The customers the customer list asked for, lowest customer number first (US-15.2).
    *
-   * Every criterion is a `WHERE` clause. The register is small enough that loading it and filtering
-   * in JavaScript would work, and that is exactly why it is written down here instead: the screen
-   * that replaces a spreadsheet must not *be* one, and the day someone adds a column to it the
-   * filtering should already be where a database can serve it from an index.
+   * Every criterion the query carries is a `WHERE` clause. The register is small enough that
+   * loading it and filtering in JavaScript would work, and that is exactly why it is written down
+   * here instead: the screen that replaces a spreadsheet must not *be* one, and the day someone
+   * adds a column to it the filtering should already be where a database can serve it from an
+   * index.
+   *
+   * The **group** is the one narrowing that is not here, and it is not a column either: it is the
+   * parity of a customer number (`groupOf`, US-31), which SQLite cannot ask for. `listCustomers`
+   * narrows the rows this returns, and `CustomerListQuery` says why.
    *
    * Names are compared folded, by the same `foldName` that wrote the columns, so this search and the
    * archive search (US-11.1) agree letter for letter — one normalisation in the codebase, not two. A
@@ -235,7 +240,6 @@ export class PrismaCustomerRepository implements CustomerRepository {
     const rows = await this.prisma.customer.findMany({
       where: {
         status: { in: [...query.statuses] },
-        ...(query.group === undefined ? {} : { group: query.group }),
         ...searchCondition(query.search),
         ...(query.certificate === undefined
           ? {}

@@ -8,7 +8,7 @@ import type {
   NewCustomer,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
-import { groupOf, type GroupCounts } from "@/domain/customer/group";
+import type { GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import { foldName } from "@/domain/customer/nameSearch";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
@@ -82,7 +82,6 @@ class FakeCustomerRepository implements CustomerRepository {
     const matches = this.holders.filter(
       (customer) =>
         query.statuses.includes(customer.status) &&
-        (query.group === undefined || groupOf(customer.customerNumber) === query.group) &&
         this.matchesSearch(customer, query) &&
         this.matchesCertificate(customer, query),
     );
@@ -110,12 +109,14 @@ class FakeCustomerRepository implements CustomerRepository {
     );
   }
 
+  /**
+   * Refused rather than answered. The balance is arithmetic over the numbers the register already
+   * hands out (`countByGroup`, US-31), so a use case reaching for a stored count is a use case
+   * asking a second source for one fact — this is what says so. The method goes with the port in
+   * US-31.5.
+   */
   groupCounts(): Promise<GroupCounts> {
-    const active = this.holders.filter((customer) => customer.status !== "ARCHIVED");
-    return Promise.resolve({
-      red: active.filter((customer) => groupOf(customer.customerNumber) === "RED").length,
-      blue: active.filter((customer) => groupOf(customer.customerNumber) === "BLUE").length,
-    });
+    return Promise.reject(new Error("the group balance is counted from the numbers (US-31)"));
   }
 
   listWithStatus(status: CustomerStatus): Promise<ReadonlyArray<RegisteredCustomer>> {
@@ -367,7 +368,7 @@ describe("listCustomers", () => {
     expect(result.rows.map((row) => row.customerNumber)).toEqual([8]);
   });
 
-  it("narrows the list to one balancing group", async () => {
+  it("narrows the list to one group", async () => {
     // 7 is odd and therefore RED, 8 is even and therefore BLUE — nothing says so on the record
     // (US-31).
     customers.holders.push(
@@ -378,6 +379,25 @@ describe("listCustomers", () => {
     const result = await listCustomers(deps(), { group: "BLUE" });
 
     expect(result.rows.map((row) => row.customerNumber)).toEqual([8]);
+  });
+
+  it("asks the register for both groups and narrows the parity itself", async () => {
+    // The register cannot answer "the even ones" — parity is not a column and SQLite has no `% 2`
+    // in a `WHERE` clause — so the group is the one criterion the use case applies to the rows it
+    // was handed. The fake mirrors the adapter, so a group that reached the query would show up
+    // here as a criterion no store can honour.
+    customers.holders.push(
+      customerRecord({ id: 1, customerNumber: 7 }),
+      customerRecord({ id: 2, customerNumber: 8 }),
+    );
+
+    await listCustomers(deps(), { group: "BLUE" });
+
+    expect(customers.lastQuery).toEqual({
+      statuses: ["ACTIVE", "BLOCKED"],
+      search: undefined,
+      certificate: undefined,
+    });
   });
 
   it("finds a last name typed without its umlaut", async () => {
@@ -516,6 +536,18 @@ describe("listCustomers", () => {
       "EXPIRING_SOON",
       "VALID",
     ]);
+  });
+
+  it("counts the register's groups off its numbers", async () => {
+    customers.holders.push(
+      customerRecord({ id: 1, customerNumber: 7 }),
+      customerRecord({ id: 2, customerNumber: 9 }),
+      customerRecord({ id: 3, customerNumber: 8 }),
+    );
+
+    const result = await listCustomers(deps(), {});
+
+    expect(result.groupCounts).toEqual({ red: 2, blue: 1 });
   });
 
   it("counts both groups whatever the list has been filtered to", async () => {

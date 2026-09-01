@@ -274,9 +274,21 @@ describe("listNumberChoices", () => {
     const choices = await listNumberChoices(deps(), household({ customerNumber: 2, cardIndex: 4 }));
 
     expect(choices).toEqual([
-      { number: 2, nextCardNumber: "2k5" },
-      { number: 3, nextCardNumber: "3k8" },
-      { number: 5, nextCardNumber: "5k5" },
+      { number: 2, group: "BLUE", nextCardNumber: "2k5" },
+      { number: 3, group: "RED", nextCardNumber: "3k8" },
+      { number: 5, group: "RED", nextCardNumber: "5k5" },
+    ]);
+  });
+
+  it("offers each number with the group it belongs to", async () => {
+    // The control filters the offer by group and the confirmation names it, and neither works the
+    // parity out for itself: the value comes from `groupOf` like every other reading (US-31).
+    const choices = await listNumberChoices(deps(), household({ customerNumber: 2 }));
+
+    expect(choices.map((choice) => [choice.number, choice.group])).toEqual([
+      [2, "BLUE"],
+      [3, "RED"],
+      [5, "RED"],
     ]);
   });
 
@@ -287,7 +299,7 @@ describe("listNumberChoices", () => {
 
     const choices = await listNumberChoices(deps(), household({ customerNumber: 2, cardIndex: 4 }));
 
-    expect(choices).toContainEqual({ number: 5, nextCardNumber: "5k5" });
+    expect(choices).toContainEqual({ number: 5, group: "RED", nextCardNumber: "5k5" });
   });
 
   it("continues the run of a slot an archived household left", async () => {
@@ -304,7 +316,7 @@ describe("listNumberChoices", () => {
 
     const choices = await listNumberChoices(deps(), household({ customerNumber: 5, cardIndex: 4 }));
 
-    expect(choices).toContainEqual({ number: 23, nextCardNumber: "23k6" });
+    expect(choices).toContainEqual({ number: 23, group: "RED", nextCardNumber: "23k6" });
   });
 
   it("offers only the household's own number when the register is otherwise full", async () => {

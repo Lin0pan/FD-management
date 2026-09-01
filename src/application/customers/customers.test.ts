@@ -120,18 +120,13 @@ class FakeCustomerRepository implements CustomerRepository {
   readonly created: RegisteredCustomer[] = [];
   /** How often the register was asked for its taken numbers — a proposal asks once (US-31.3). */
   reads = 0;
-  /** How often the old group query was asked. Nothing derives a balance from it any more. */
-  groupCountReads = 0;
   private nextId = 1;
   /** How many more writes a concurrent registration beats to the chosen number. */
   private stealsLeft = 0;
   /** How many more writes another card lands on the card number this one was about to print. */
   private cardStealsLeft = 0;
 
-  constructor(
-    private readonly taken: number[] = [],
-    private readonly counts: GroupCounts = { red: 0, blue: 0 },
-  ) {}
+  constructor(private readonly taken: number[] = []) {}
 
   /** Have another registration take the chosen number, just before this one writes it, `times` over. */
   stealNext(times: number): void {
@@ -158,9 +153,13 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve([...this.taken, ...held]);
   }
 
+  /**
+   * Refused rather than answered. Both group sizes are arithmetic over the numbers the register
+   * already hands out (`countByGroup`, US-31), so a use case that asked for a stored count would be
+   * asking a second source for one fact. The method goes with the port in US-31.5.
+   */
   groupCounts(): Promise<GroupCounts> {
-    this.groupCountReads += 1;
-    return Promise.resolve(this.counts);
+    return Promise.reject(new Error("the group balance is counted from the numbers (US-31)"));
   }
 
   findById(id: number): Promise<RegisteredCustomer | null> {
@@ -1374,7 +1373,6 @@ describe("proposeRegistration", () => {
     // The pool, the balance and the number the form opens on all come from one reading; a second
     // query is a second instant, and the three could then disagree.
     expect(customers.reads).toBe(1);
-    expect(customers.groupCountReads).toBe(0);
   });
 
   it("reports the day the form must judge the household against", async () => {
@@ -1711,13 +1709,28 @@ describe("readCustomer", () => {
     expect(view.today).toEqual(new Date(TODAY));
   });
 
-  it("reports both group sizes, so a move between them is judged against the balance", async () => {
-    customers = new FakeCustomerRepository([], { red: 7, blue: 4 });
+  it("reads a household's group off their number", async () => {
+    // 37 is odd, so the household is RED — and there is no second place the record could read it
+    // from, because the record no longer carries one (US-31).
+    customers = new FakeCustomerRepository();
+    const registered = await registerCustomer(deps(), registerInput({ customerNumber: 37 }));
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.group).toBe("RED");
+  });
+
+  it("counts the register's groups off its numbers", async () => {
+    // Three odd slots and one even one are held before this household registers, and it takes the
+    // lowest free number of the recommended group — BLUE, the smaller of the two — which is 2. The
+    // balance is then read off the five numbers held, not off a column anybody wrote.
+    customers = new FakeCustomerRepository([3, 4, 7, 9]);
     const registered = await registerCustomer(deps(), registerInput());
 
     const view = await readCustomer(deps(), registered.id);
 
-    expect(view.groupCounts).toEqual({ red: 7, blue: 4 });
+    expect(registered.customerNumber).toBe(2);
+    expect(view.groupCounts).toEqual({ red: 3, blue: 2 });
   });
 
   it("offers every number the household may be moved to, with the card each would print", async () => {
@@ -1731,8 +1744,8 @@ describe("readCustomer", () => {
     // Their own number is always among them — it is what the control opens on (US-30.4) — and each
     // choice carries the card that move would print: they hold `1k1`, so nothing below `k2` is left.
     expect(view.numberChoices).toEqual([
-      { number: 1, nextCardNumber: "1k2" },
-      { number: 3, nextCardNumber: "3k2" },
+      { number: 1, group: "RED", nextCardNumber: "1k2" },
+      { number: 3, group: "RED", nextCardNumber: "3k2" },
     ]);
   });
 

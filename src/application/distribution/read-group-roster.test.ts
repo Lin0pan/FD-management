@@ -91,11 +91,7 @@ class FakeCustomerRepository implements CustomerRepository {
 
   list(query: CustomerListQuery): Promise<ReadonlyArray<RegisteredCustomer>> {
     this.lastQuery = query;
-    const matches = this.holders.filter(
-      (customer) =>
-        query.statuses.includes(customer.status) &&
-        (query.group === undefined || groupOf(customer.customerNumber) === query.group),
-    );
+    const matches = this.holders.filter((customer) => query.statuses.includes(customer.status));
     return Promise.resolve([...matches].sort((a, b) => a.customerNumber - b.customerNumber));
   }
 
@@ -388,10 +384,25 @@ describe("readGroupRoster", () => {
     expect(roster.next).toBe(21);
   });
 
-  it("asks the register only for the walked group's active and blocked households", async () => {
+  it("asks the register only for the active and blocked households", async () => {
     await readGroupRoster(deps(), "11");
 
-    expect(customers.lastQuery).toEqual({ statuses: ["ACTIVE", "BLOCKED"], group: "RED" });
+    expect(customers.lastQuery).toEqual({ statuses: ["ACTIVE", "BLOCKED"] });
+  });
+
+  it("walks the week's group", async () => {
+    // Only the odd numbers are RED, and the week is RED — the register was asked for all four.
+    customers.holders.push(
+      customerRecord({ customerNumber: 11 }),
+      customerRecord({ customerNumber: 20 }),
+      customerRecord({ customerNumber: 31 }),
+      customerRecord({ customerNumber: 40 }),
+    );
+
+    const roster = await readGroupRoster(deps(), "");
+
+    expect(roster.group).toBe("RED");
+    expect(roster.members.map((member) => member.customerNumber)).toEqual([11, 31]);
   });
 
   it("positions the walk at the customer number a card number names", async () => {
