@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { groupOf } from "../customer/group";
 import { DomainError, InvalidCustomerRecord } from "../errors";
 import type { IssuedCard } from "./card";
 import { parseCardIssueReason } from "./card";
@@ -50,9 +51,24 @@ describe("IssuedCard", () => {
       issuedAt: new Date("2026-08-31T09:00:00Z"),
       reason: "CUSTOMER_NUMBER_CHANGED",
       countsAtIssue: { grownUps: 2, children: 1 },
-      groupAtIssue: "RED",
     };
 
     expect(formatCardNumber(card.customerNumber, card.index)).toBe("5k4");
+  });
+
+  it("a card no longer carries a group of its own", () => {
+    // The slot a card was printed under *is* the week it was printed for, so the snapshot that
+    // existed to catch a group move is the number itself: 5 is odd, so this card says RED, and it
+    // goes on saying RED however often its household is moved (US-31).
+    const card: IssuedCard = {
+      customerNumber: 5,
+      index: 4,
+      issuedAt: new Date("2026-08-31T09:00:00Z"),
+      reason: "CUSTOMER_NUMBER_CHANGED",
+      countsAtIssue: { grownUps: 2, children: 1 },
+    };
+
+    expect(Object.keys(card)).not.toContain("groupAtIssue");
+    expect(groupOf(card.customerNumber)).toBe("RED");
   });
 });

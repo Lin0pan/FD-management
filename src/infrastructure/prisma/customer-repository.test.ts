@@ -28,7 +28,7 @@ import {
   type NewCustomer,
 } from "@/domain/customer/customer";
 import { foldName } from "@/domain/customer/nameSearch";
-import type { Group } from "@/domain/customer/group";
+import { groupOf } from "@/domain/customer/group";
 import {
   CardIndexTaken,
   CardNumberTaken,
@@ -136,7 +136,6 @@ function newCustomer(overrides: Partial<Omit<NewCustomer, "details">> = {}): New
       TODAY,
     ),
     customerNumber: 50,
-    group: "RED",
     status: "ACTIVE",
     reminderCount: 0,
     card: {
@@ -144,7 +143,6 @@ function newCustomer(overrides: Partial<Omit<NewCustomer, "details">> = {}): New
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 1, children: 1 },
-      groupAtIssue: "RED",
     },
     previousCustomerId: null,
     ...overrides,
@@ -152,11 +150,7 @@ function newCustomer(overrides: Partial<Omit<NewCustomer, "details">> = {}): New
 }
 
 /** Write a row straight through Prisma, for the states no use case can reach yet. */
-async function insertCustomer(
-  customerNumber: number,
-  status: string,
-  group: Group = "RED",
-): Promise<void> {
+async function insertCustomer(customerNumber: number, status: string): Promise<void> {
   const firstName = faker.person.firstName();
   const lastName = faker.person.lastName();
   await prisma.customer.create({
@@ -173,7 +167,8 @@ async function insertCustomer(
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group,
+      // The leftover column, which the adapter writes off the number and US-31.5 drops.
+      group: groupOf(customerNumber),
       status,
       reminderCount: 0,
       notes: "",
@@ -194,7 +189,9 @@ describe("PrismaCustomerRepository.create", () => {
     expect(row.customerNumber).toBe(50);
     expect(row.firstName).toBe(customer.details.firstName);
     expect(row.city).toBe(customer.details.address.city);
-    expect(row.group).toBe("RED");
+    // 50 is even, so the row's leftover group column says BLUE — written off the number, never
+    // off a value the caller passed (US-31).
+    expect(row.group).toBe("BLUE");
     expect(row.status).toBe("ACTIVE");
     expect(row.reminderCount).toBe(0);
     expect(row.householdMembers).toHaveLength(2);
@@ -511,39 +508,6 @@ describe("PrismaCustomerRepository.updateDetails", () => {
   });
 });
 
-describe("PrismaCustomerRepository.setGroup", () => {
-  it("moves the customer to the other balancing group", async () => {
-    const { id } = await repository.create(newCustomer({ group: "RED" }));
-
-    await repository.setGroup(id, "BLUE");
-
-    expect((await repository.findById(id))?.group).toBe("BLUE");
-  });
-
-  it("leaves the card printing the group it was issued with", async () => {
-    const { id } = await repository.create(newCustomer({ group: "RED" }));
-
-    await repository.setGroup(id, "BLUE");
-
-    // The snapshot is what makes the move visible as a stale card (US-16.4); updating it here would
-    // hide the very difference the cards-due list is derived from.
-    expect((await repository.findById(id))?.card.groupAtIssue).toBe("RED");
-  });
-
-  it("touches nothing else on the record", async () => {
-    const { id } = await repository.create(newCustomer());
-    const before = await repository.findById(id);
-
-    await repository.setGroup(id, "BLUE");
-
-    const after = await repository.findById(id);
-    expect(after?.customerNumber).toBe(before?.customerNumber);
-    expect(after?.status).toBe(before?.status);
-    expect(after?.details).toEqual(before?.details);
-    expect(after?.card).toEqual(before?.card);
-  });
-});
-
 describe("PrismaCustomerRepository.changeCustomerNumber", () => {
   /**
    * The card a move prints. It carries no slot: the write reads that off the customer row it has
@@ -555,7 +519,6 @@ describe("PrismaCustomerRepository.changeCustomerNumber", () => {
       issuedAt: TODAY,
       reason: "CUSTOMER_NUMBER_CHANGED",
       countsAtIssue: { grownUps: 1, children: 1 },
-      groupAtIssue: "RED",
     };
   }
 
@@ -606,7 +569,6 @@ describe("PrismaCustomerRepository.changeCustomerNumber", () => {
           issuedAt: TODAY,
           reason: "FIRST_ISSUE",
           countsAtIssue: { grownUps: 1, children: 1 },
-          groupAtIssue: "RED",
         },
       }),
     );
@@ -636,7 +598,7 @@ describe("PrismaCustomerRepository.changeCustomerNumber", () => {
         reason: "LOST",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
-        groupAtIssue: "RED",
+        groupAtIssue: groupOf(50),
       },
     });
 
@@ -843,15 +805,17 @@ describe("PrismaCustomerRepository.takenActiveNumbers", () => {
 
 describe("PrismaCustomerRepository.groupCounts", () => {
   it("counts the two groups separately", async () => {
-    await insertCustomer(1, "ACTIVE", "RED");
-    await insertCustomer(2, "ACTIVE", "BLUE");
-    await insertCustomer(3, "BLOCKED", "BLUE");
+    // No fixture chooses a group any more: 1 is odd and therefore Red, 2 and 4 are even and
+    // therefore Blue, and a blocked household still holds their slot (US-31).
+    await insertCustomer(1, "ACTIVE");
+    await insertCustomer(2, "ACTIVE");
+    await insertCustomer(4, "BLOCKED");
 
     expect(await repository.groupCounts()).toEqual({ red: 1, blue: 2 });
   });
 
   it("does not count archived customers — they turn up to no distribution", async () => {
-    await insertCustomer(1, "ARCHIVED", "RED");
+    await insertCustomer(1, "ARCHIVED");
 
     expect(await repository.groupCounts()).toEqual({ red: 0, blue: 0 });
   });
@@ -900,7 +864,7 @@ describe("PrismaCustomerRepository.listWithStatus", () => {
         reason: "LOST",
         grownUpsAtIssue: 2,
         childrenAtIssue: 0,
-        groupAtIssue: "RED",
+        groupAtIssue: groupOf(50),
       },
     });
 
@@ -957,12 +921,11 @@ describe("PrismaCustomerRepository.findById", () => {
     expect(found?.card.reason).toBe("FIRST_ISSUE");
   });
 
-  it("narrows the stored group and status strings back into the domain's types", async () => {
-    const created = await repository.create(newCustomer({ group: "BLUE", status: "BLOCKED" }));
+  it("narrows the stored status string back into the domain's type", async () => {
+    const created = await repository.create(newCustomer({ status: "BLOCKED" }));
 
     const found = await repository.findById(created.id);
 
-    expect(found?.group).toBe("BLUE");
     expect(found?.status).toBe("BLOCKED");
   });
 
@@ -988,7 +951,7 @@ describe("PrismaCustomerRepository.findById", () => {
         reason: "LOST",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
-        groupAtIssue: "RED",
+        groupAtIssue: groupOf(50),
       },
     });
 
@@ -1007,7 +970,7 @@ describe("PrismaCustomerRepository.findById", () => {
         reason: "LOST",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
-        groupAtIssue: "RED",
+        groupAtIssue: groupOf(50),
       },
     });
 
@@ -1062,7 +1025,7 @@ describe("PrismaCustomerRepository.findByCustomerNumber", () => {
         reason: "LOST",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
-        groupAtIssue: "RED",
+        groupAtIssue: groupOf(50),
       },
     });
 
@@ -1280,11 +1243,11 @@ describe("PrismaCustomerRepository.list over a register of fifty households", ()
    * all three statuses and the three certificate states (US-15.2).
    *
    * It is a *table*, not a loop with conditions in it, because every expectation below is read off
-   * it — numbers 1–30 are Red and 31–50 Blue, 41–45 are blocked and 46–50 archived. Two households
-   * carry names chosen to exercise the fold from either side, and three carry certificates that put
-   * them in a state the rest are not in. Everything else is Faker's.
+   * it — 41–45 are blocked and 46–50 archived, and each household's group is simply its number's
+   * parity, which is the one thing the table no longer states because it cannot be chosen (US-31).
+   * Two households carry names chosen to exercise the fold from either side, and three carry
+   * certificates that put them in a state the rest are not in. Everything else is Faker's.
    */
-  const RED_UNTIL = 30;
   const BLOCKED_FROM = 41;
   const ARCHIVED_FROM = 46;
   const REGISTER_SIZE = 50;
@@ -1312,10 +1275,6 @@ describe("PrismaCustomerRepository.list over a register of fifty households", ()
   ]);
   const DEFAULT_VALID_UNTIL = "2027-01-31T00:00:00.000Z";
 
-  function groupOf(customerNumber: number): Group {
-    return customerNumber <= RED_UNTIL ? "RED" : "BLUE";
-  }
-
   function statusOf(customerNumber: number): CustomerStatus {
     if (customerNumber >= ARCHIVED_FROM) {
       return "ARCHIVED";
@@ -1342,7 +1301,6 @@ describe("PrismaCustomerRepository.list over a register of fifty households", ()
       const named = NAMED.get(customerNumber);
       const base = newCustomer({
         customerNumber,
-        group: groupOf(customerNumber),
         status: statusOf(customerNumber),
       });
       await repository.create({
@@ -1381,8 +1339,15 @@ describe("PrismaCustomerRepository.list over a register of fifty households", ()
   });
 
   it("narrows to one balancing group without touching the status filter", async () => {
-    expect(await found({ statuses: ON_THE_REGISTER, group: "BLUE" })).toEqual(numbers(31, 45));
-    expect(await found({ statuses: ON_THE_REGISTER, group: "RED" })).toEqual(numbers(1, 30));
+    // Even numbers are Blue and odd ones Red, so the two halves interleave rather than sitting in
+    // bands — which is exactly what a filter reading the register's numbers has to cope with.
+    const even = (customerNumber: number): boolean => customerNumber % 2 === 0;
+    expect(await found({ statuses: ON_THE_REGISTER, group: "BLUE" })).toEqual(
+      numbers(1, 45).filter(even),
+    );
+    expect(await found({ statuses: ON_THE_REGISTER, group: "RED" })).toEqual(
+      numbers(1, 45).filter((customerNumber) => !even(customerNumber)),
+    );
   });
 
   it("matches a customer number exactly, so 1 does not drag in 10 to 19", async () => {
@@ -1446,12 +1411,13 @@ describe("PrismaCustomerRepository.list over a register of fifty households", ()
         group: "BLUE",
         certificate: validUntilRangeFor("VALID", TODAY),
       }),
-    ).toEqual(numbers(41, 45));
+    ).toEqual([42, 44]);
   });
 
   it("counts both groups over the whole register, blocked included and archived not", async () => {
-    // 1–30 are Red and all still registered; of the Blue half only 31–45 are, because 46–50 left.
-    expect(await repository.groupCounts()).toEqual({ red: 30, blue: 15 });
+    // 1–45 are still registered — 46–50 left — and of those the 23 odd numbers are Red and the 22
+    // even ones Blue.
+    expect(await repository.groupCounts()).toEqual({ red: 23, blue: 22 });
   });
 
   it("filters in the database, not by loading the register and sieving it in JavaScript", async () => {

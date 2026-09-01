@@ -1,8 +1,8 @@
 /**
  * Which of the two "it did not happen" answers a failure is.
  *
- * The application used to have one. Every refusal, from „Der Haushalt gehört bereits zur Gruppe Rot."
- * to „Kunde nicht gefunden.", came back as `{ status: "error", message }` and was painted the same
+ * The application used to have one. Every refusal, from „Der Haushalt hat bereits die Kundennummer
+ * 37." to „Kunde nicht gefunden.", came back as `{ status: "error", message }` and was painted the same
  * red — so the screen had no way to say *"nothing is broken, the rules just say no"*, which is the
  * most common thing it has to say at a counter with a queue at it.
  *
@@ -28,7 +28,7 @@ export type NoticeTier = "refusal" | "error";
  * The tier of every code the domain can raise.
  *
  * A `Record<DomainErrorCode, NoticeTier>` rather than a `switch` with a default, and that is the
- * whole point of the shape: a 40th code added to `src/domain/errors.ts` fails the build here until
+ * whole point of the shape: a 39th code added to `src/domain/errors.ts` fails the build here until
  * somebody decides what it means. A `default` would have quietly made it red, which is exactly the
  * state this module exists to leave behind.
  *
@@ -51,7 +51,6 @@ const TIERS: Record<DomainErrorCode, NoticeTier> = {
   CertificateExpired: "refusal",
   NotClearToServe: "refusal",
   RecordNoLongerCorrectable: "refusal",
-  GroupUnchanged: "refusal",
   CustomerArchived: "refusal",
   CustomerNotArchived: "refusal",
   IllegalStatusTransition: "refusal",

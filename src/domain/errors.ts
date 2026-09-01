@@ -45,7 +45,6 @@ export type DomainErrorCode =
   | "InvalidEuroAmount"
   | "InvalidCalendarDay"
   | "NotesTooLong"
-  | "GroupUnchanged"
   | "DuplicateEggThreshold"
   | "EggsNotIncreasing"
   | "OverpaymentNotConfirmed"
@@ -235,10 +234,11 @@ export class CustomerNumberOutOfRange extends DomainError {
  * A household was moved to the customer number it already holds (US-30). Carries the number, so the
  * screen can name it rather than reporting that something unspecified went wrong.
  *
- * Refused rather than quietly accepted for the reason {@link GroupUnchanged} is: a number change is
- * not an idempotent save. It writes an audit entry and **consumes a card number** — the household
- * would be printed a fresh card for a move that never happened — and a staff member who pressed the
- * button would be told nothing at all.
+ * Refused rather than quietly accepted, because a number change is not an idempotent save. It
+ * writes an audit entry and **consumes a card number** — the household would be printed a fresh
+ * card for a move that never happened — and a staff member who pressed the button would be told
+ * nothing at all. Since US-31 it is the *only* such refusal on the record: a group is chosen by
+ * choosing a number, so choosing the number they already hold is the whole of "nothing moved".
  */
 export class CustomerNumberUnchanged extends DomainError {
   readonly code = "CustomerNumberUnchanged";
@@ -637,26 +637,6 @@ export class NotesTooLong extends DomainError {
     super(`A note may hold at most ${maxLength} characters, not ${length}`);
     this.length = length;
     this.maxLength = maxLength;
-  }
-}
-
-/**
- * A customer was moved to the group they are already in (US-16.4). Carries the group, so the screen
- * can name it rather than reporting that something unspecified went wrong.
- *
- * It is refused rather than quietly accepted because a group change is not an idempotent save: it
- * writes an audit entry, and it makes the card the household holds stale. Letting a no-op through
- * would fill the log with moves that never happened and put households on the cards-due list for a
- * change nobody made — and a staff member who pressed the button expecting something to happen
- * would be told nothing.
- */
-export class GroupUnchanged extends DomainError {
-  readonly code = "GroupUnchanged";
-  readonly group: string;
-
-  constructor(group: string) {
-    super(`The customer is already in group ${group}`);
-    this.group = group;
   }
 }
 

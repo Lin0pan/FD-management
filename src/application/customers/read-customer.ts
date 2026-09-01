@@ -8,7 +8,7 @@
 
 import { formatCardNumber, nextCardNumber } from "@/domain/card/cardNumber";
 import type { RegisteredCustomer } from "@/domain/customer/customer";
-import type { GroupCounts } from "@/domain/customer/group";
+import { groupOf, type Group, type GroupCounts } from "@/domain/customer/group";
 import { ageInYears, type HouseholdComposition } from "@/domain/customer/householdComposition";
 import { balanceOf, replayPayments, type Settlement } from "@/domain/distribution/balance";
 import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
@@ -46,6 +46,13 @@ export interface HouseholdMemberView {
 
 export interface CustomerCardView {
   readonly customer: RegisteredCustomer;
+  /**
+   * The week the household collects in, derived from the number they hold — even is BLUE, odd is
+   * RED (`groupOf`, US-31). It is on the read model rather than left to the screen for the reason
+   * every other derived figure here is: the record renders from one reading, so nothing on it can
+   * work the group out differently, and a household on 37 can never be shown as BLUE.
+   */
+  readonly group: Group;
   /** Derived from the birthdates as of today — never read from a stored count, which there is none of. */
   readonly composition: HouseholdComposition;
   /** The household, each member carrying their current age. Same order as on the record. */
@@ -160,6 +167,7 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
 
   return {
     customer,
+    group: groupOf(customer.customerNumber),
     composition: { grownUps: allowance.grownUps, children: allowance.children },
     household: customer.details.householdMembers.map((member) => ({
       firstName: member.firstName,

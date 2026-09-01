@@ -340,18 +340,13 @@ export function CustomerDetails({
             by this. A card that has fallen behind is never grounds to turn anyone away (FR-5). */}
         {customer.staleCard === null ? null : (
           <p data-testid="counter-stale-card" className="max-w-prose text-xs text-muted-foreground">
-            {customer.staleCard === "GROUP_CHANGE"
-              ? de.distribution.counter.staleCardGroup(
-                  customer.cardNumber,
-                  de.customers.groups[customer.groupOnCard],
-                )
-              : de.distribution.counter.staleCard(
-                  customer.cardNumber,
-                  de.customers.derived.countsValue(
-                    customer.countsOnCard.grownUps,
-                    customer.countsOnCard.children,
-                  ),
-                )}
+            {de.distribution.counter.staleCard(
+              customer.cardNumber,
+              de.customers.derived.countsValue(
+                customer.countsOnCard.grownUps,
+                customer.countsOnCard.children,
+              ),
+            )}
           </p>
         )}
         {/* The note, and the way to write one without leaving the screen (US-16.3).

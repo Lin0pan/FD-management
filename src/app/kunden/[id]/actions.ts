@@ -27,7 +27,6 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { changeCustomerNumber } from "@/application/customers/change-customer-number";
-import { changeGroup } from "@/application/customers/change-group";
 import { listNumberChoices, type NumberChoice } from "@/application/customers/list-number-choices";
 import { reissueCard } from "@/application/customers/reissue-card";
 import { renewCertificate } from "@/application/customers/renew-certificate";
@@ -37,13 +36,11 @@ import { updateNotes } from "@/application/customers/update-notes";
 import type { IssuedCard } from "@/domain/card/card";
 import { formatCardNumber } from "@/domain/card/cardNumber";
 import type { RegisteredCustomer } from "@/domain/customer/customer";
-import { GROUPS } from "@/domain/customer/group";
 import {
   CertificateValidUntilInPast,
   CustomerArchived,
   CustomerNumberTaken,
   CustomerNumberUnchanged,
-  GroupUnchanged,
   MissingRequiredField,
 } from "@/domain/errors";
 import { customerFieldLabel, de } from "@/i18n/de";
@@ -328,49 +325,6 @@ export async function updateNotesAction(
 }
 
 /**
- * Move the household to the other balancing group (US-16.4).
- *
- * `GroupUnchanged` is named here rather than in {@link recordMessage} because the sentence quotes
- * the group, and this is the layer that holds it as a parsed `Group` — the error carries the value
- * as a bare string, and re-parsing it to look up a German word would be inventing a way for it to
- * fail.
- */
-export async function changeGroupAction(
-  previous: RecordFormState,
-  formData: FormData,
-): Promise<RecordFormState> {
-  const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
-  if (!customerId.success) {
-    return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
-  }
-
-  const group = GROUPS.find((candidate) => candidate === String(formData.get("group") ?? ""));
-  if (group === undefined) {
-    return {
-      status: "error",
-      message: de.customers.errors.missingField(de.customers.fields.group),
-      tier: "refusal",
-    };
-  }
-
-  try {
-    await changeGroup(customerDeps, { customerId: customerId.data, group });
-  } catch (error: unknown) {
-    if (error instanceof GroupUnchanged) {
-      return {
-        status: "error",
-        message: de.customers.errors.groupUnchanged(de.customers.groups[group]),
-        tier: tierOf(error),
-      };
-    }
-    return recordRefusal(error);
-  }
-
-  revalidateRecord(customerId.data);
-  return savedAfter(previous);
-}
-
-/**
  * The numbers a refusal should carry back, as a patch to spread into the error state: the register
  * as it stands now if `error` is a lost race for the chosen number, and nothing at all otherwise.
  *
@@ -442,8 +396,8 @@ export async function changeCustomerNumberAction(
       customerNumber: customerNumber.data,
     });
   } catch (error: unknown) {
-    // `CustomerNumberUnchanged` is named here rather than in `recordMessage` for the reason
-    // `GroupUnchanged` is: the sentence quotes the value, and this is the layer holding it. The
+    // `CustomerNumberUnchanged` is named here rather than in `recordMessage` because the sentence
+    // quotes the number, and this is the layer holding it. The
     // control does not offer the step that produces it — the confirmation appears only once another
     // number is picked — so it is reached by a second tab or a stale form.
     if (error instanceof CustomerNumberUnchanged) {

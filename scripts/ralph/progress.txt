@@ -310,6 +310,15 @@ bullets that sat under „Where batch 30 starts" are not carried over — they a
   registration helper — not a hand-written Prisma row, which would skip the intake's own allocation
   and prove nothing about the refusal staff actually meet.
 
+- **`tests/**` is inside `tsconfig`'s `include`, so a dictionary key cannot be deleted alone.**
+  `npm run typecheck` covers `tests/e2e/*.spec.ts`, which read their expected text out of
+  `src/i18n/de.ts` — removing a string breaks the typecheck until every spec quoting it goes too.
+  Delete the German and the specs in one commit, or leave both and say which story takes them.
+- **`prisma/demo-seed.ts` belongs to no story and breaks on every domain deletion.** It drives the
+  real use cases, so it holds a call to almost all of them, and the
+  `npm run typecheck 2>&1 | grep -E "^src/"` filter in the bullets above **hides it** — it is the
+  one file outside `src/` that a wide domain change always reaches. Grep the raw typecheck output.
+
 
 ### Where batch 31 starts
 
@@ -428,4 +437,57 @@ PRDs — which are **annotated, never rewritten**, per the patterns block above.
   - Only one application test asserts a suggestion (`customers.test.ts` "suggests the smaller group
     when staff made no choice", and the proposal's `suggestedGroup` at ~1309). Both survived the new
     signature unchanged, because in a small register both groups still have free numbers.
+---
+
+## 2026-09-01 — US-002 (US-31.2): the group stops being a stored fact (domain)
+
+- `RegisteredCustomer.group`, `IssuedCard.groupAtIssue` and `NewCard.groupAtIssue` are **gone**, and
+  `staleCard` lost its group arguments with them: `StaleCardReason` is now `AGE_13 |
+  HOUSEHOLD_CHANGE`, and the doc comment says why the third case is *impossible* rather than
+  unhandled — a household's current card is always the highest index on the slot they hold, so its
+  number is their number and its group is their group. `GroupUnchanged` is deleted from `errors.ts`,
+  from `DomainErrorCode` and from `TIERS` (38 codes now, 8 of them red; both counts in prose
+  updated).
+- Tests written first, one per rule: „a card no longer carries a group of its own", „a household
+  record no longer carries a group", „a thirteenth birthday still makes a card stale", „a member
+  added still makes a card stale", „a current card never names another group".
+- The deletion cascades, and the cascade **is** the story: 41 files. `card.ts`, `staleCard.ts`,
+  `customer.ts`, `errors.ts` in the domain; every reader in `application/` now calls
+  `groupOf(customer.customerNumber)`; the adapter writes the two leftover columns off the number;
+  `notice-tier.ts`, `counter-lookup.tsx`, `karten-neuausstellung/page.tsx` and the record page follow.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (56 files, 1296 tests, domain
+  and application both 100%) and `npm run build` all pass.
+
+- **Learnings for future iterations:**
+  - **Deleting `GroupUnchanged` deletes `changeGroup`, and with it three ACs that the PRD had filed
+    under later stories.** The error is the use case's only refusal, so the use case cannot compile
+    without it; `setGroup` then has no caller, and `GroupControl`/`changeGroupAction` no screen. So
+    US-31.4's first AC (changeGroup and its tests deleted), part of US-31.5's third (`setGroup` off
+    the port and the adapter) and part of US-31.7's (`GroupControl`, `changeGroupAction`) landed
+    **here**. What is still open in those stories: `groupCounts()` and `CustomerListQuery.group` on
+    the port, the group filter moving out of SQL, the audit `why` naming both groups, `NumberChoice`
+    gaining a group, the two columns and the migration, and both forms.
+  - **The record page's group is on the read model, not worked out in the component.** `readCustomer`
+    returns `group` beside `customer`, which is what keeps a screen from deriving it a second way.
+    Do the same for any other view that grows one.
+  - **`staleCardReason` now takes two `HouseholdComposition`s**, not two `CardFacts` — `CardFacts` is
+    deleted. A caller that used to build `{ counts, group }` passes the counts straight through.
+  - **The e2e suite and three German strings are knowingly left dangling for US-31.7/31.8.**
+    `de.customers.errors.groupUnchanged`, `de.distribution.counter.staleCardGroup` and
+    `de.cardsDue.reasons.GROUP_CHANGE` no longer have a caller in `src/`, and
+    `tests/e2e/customer-record.spec.ts` still drives the deleted `GroupControl` in three tests
+    (~lines 639, 678, 774). They were left because `tests/**` is inside `tsconfig`'s `include`, so
+    deleting a dictionary key **fails `npm run typecheck`** until the specs go with it — and those
+    specs are US-31.8's to rewrite as `number-group.spec.ts`. Delete the strings in the same commit
+    as the specs, not before.
+  - **`prisma/demo-seed.ts` is not covered by any story's ACs and breaks on every domain deletion.**
+    Its `group-moved` household is now `week-moved`: the fixture moves it to the lowest free slot of
+    the other parity through `changeCustomerNumber`, which is what a group change *is* now. Its
+    distribution loop reads the week off `groupOf(customer.customerNumber)`. Sweep it with
+    `npm run typecheck` — it is the file the `src/`-only error filter in the patterns block hides.
+  - **The infrastructure tests still assert the leftover columns**, because US-31.5 owns dropping
+    them. They no longer *choose* a group, though: fixtures write `groupOf(customerNumber)`, and the
+    list register's 1–50 are now Red and Blue interleaved rather than banded 1–30 / 31–50 — the
+    expectations that read as ranges (`numbers(31, 45)`) became parity filters. A test that seeds
+    a group by hand is a test that will contradict the rule the moment US-31.5 lands.
 ---

@@ -13,6 +13,7 @@
  */
 
 import type { RegisteredCustomer } from "@/domain/customer/customer";
+import { groupOf } from "@/domain/customer/group";
 import type { AttendanceRecord } from "@/domain/distribution/attendance";
 import { consecutiveNoShows } from "@/domain/distribution/noShows";
 import { resolveSettingsAt } from "@/domain/policy/settings";
@@ -39,7 +40,7 @@ export async function countNoShows(
 ): Promise<number> {
   return consecutiveNoShows({
     records,
-    customerGroup: customer.group,
+    customerGroup: groupOf(customer.customerNumber),
     registeredOn: customer.registeredOn,
     settings: resolveSettingsAt(await deps.settings.listVersions(), today),
     today,

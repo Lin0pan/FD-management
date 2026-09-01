@@ -1,12 +1,11 @@
 /**
- * Which households hold a card that no longer prints what their record says (US-13.2, US-16.4).
+ * Which households hold a card that no longer prints the counts their record says (US-13.2).
  *
  * Nothing here reclassifies anybody and nothing here moves anybody. A child becomes a grown-up on
- * their 13th birthday because the counts are derived from the birthdates every time they are read,
- * and a household is in the group its column says — there is no job, no trigger and no event, and
- * this query writes nothing (PRD §5). What it adds is the *consequence*: the piece of card in the
- * household's pocket still shows the old numbers, or names the wrong week, so somebody should print
- * a new one.
+ * their 13th birthday because the counts are derived from the birthdates every time they are read —
+ * there is no job, no trigger and no event, and this query writes nothing (PRD §5). What it adds is
+ * the *consequence*: the piece of card in the household's pocket still shows the old numbers, so
+ * somebody should print a new one.
  *
  * The tone matters as much as the result. This is a to-do list, not an alert queue: a stale card is
  * never grounds to turn anyone away (FR-5), and nothing downstream of this list may act on its own.
@@ -14,7 +13,6 @@
 
 import { formatCardNumber } from "@/domain/card/cardNumber";
 import { staleCardReason, type StaleCardReason } from "@/domain/card/staleCard";
-import type { Group } from "@/domain/customer/group";
 import { composition, type HouseholdComposition } from "@/domain/customer/householdComposition";
 import type { Clock, CustomerRepository } from "../ports";
 
@@ -43,10 +41,6 @@ export interface CardDueForReissue {
   readonly countsOnCard: HouseholdComposition;
   /** What the household is today, derived from the birthdates like everywhere else. */
   readonly countsToday: HouseholdComposition;
-  /** The group printed on that piece of card. Read for comparison only, never as the household's. */
-  readonly groupOnCard: Group;
-  /** The group the household is in today — the column, which is the only editable one. */
-  readonly groupToday: Group;
   readonly reason: StaleCardReason;
 }
 
@@ -78,10 +72,10 @@ export async function listCardsDueForReissue(
   for (const customer of active) {
     const countsOnCard = customer.card.countsAtIssue;
     const countsToday = composition(customer.details.householdMembers, today);
-    const reason = staleCardReason(
-      { counts: countsOnCard, group: customer.card.groupAtIssue },
-      { counts: countsToday, group: customer.group },
-    );
+    // Only the counts are compared. A household's current card is always the highest index on the
+    // slot they hold, so its group is theirs by construction (`groupOf`, US-31) and a card naming
+    // another week is not a case this list can meet.
+    const reason = staleCardReason(countsOnCard, countsToday);
     if (reason === null) {
       continue;
     }
@@ -94,8 +88,6 @@ export async function listCardsDueForReissue(
       nextCardNumber: formatCardNumber(customer.customerNumber, customer.card.index + 1),
       countsOnCard,
       countsToday,
-      groupOnCard: customer.card.groupAtIssue,
-      groupToday: customer.group,
       reason,
     });
   }

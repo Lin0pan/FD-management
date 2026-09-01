@@ -20,8 +20,8 @@ import {
   type CustomerDetailsInput,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
-import { assertFreeNumber, freeNumbers, lowestFreeNumber } from "@/domain/customer/customerNumber";
-import { suggestGroup, type Group } from "@/domain/customer/group";
+import { assertFreeNumber, lowestFreeNumber } from "@/domain/customer/customerNumber";
+import type { Group } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import type {
   AuditLog,
@@ -92,8 +92,11 @@ export interface RegisterCustomerDeps {
 
 export interface RegisterCustomerInput extends CustomerDetailsInput {
   /**
-   * The group staff picked, overriding the balancing suggestion — a household that shares a lift
-   * with a neighbour belongs in the neighbour's week. Left out, the smaller group is suggested.
+   * The group staff picked. **Nothing reads it any more**: a group follows from the customer number
+   * (`groupOf`, US-31), so the slot the registration settles on is the week the household collects
+   * in, and a group submitted beside it could only disagree with the number. The field is removed
+   * with the screen that posts it (US-31.3 and US-31.6); it is left here for one story so that the
+   * form and the two registration actions change once rather than twice.
    */
   readonly group?: Group;
   /**
@@ -163,16 +166,10 @@ export async function registerCustomer(
   for (;;) {
     attemptsLeft -= 1;
     const takenNumbers = await deps.customers.takenActiveNumbers();
-    // Asked of the pool this attempt read, and asked before the slot is settled: US-31.3 removes
-    // `input.group` and this line with it, because the number the loop allocates *is* the group.
-    // A register with nothing free is refused a line below, by the allocation rather than here.
-    const group =
-      input.group ??
-      suggestGroup(
-        freeNumbers(takenNumbers, settings.quotaN),
-        await deps.customers.groupCounts(),
-      ) ??
-      "RED";
+    // No group is decided here any more: the number *is* the group (`groupOf`, US-31), so the slot
+    // this attempt settles on says which week the household collects in. US-31.3 makes the
+    // allocation choose that slot inside the recommended group; until it does, the lowest free
+    // number decides both, and `input.group` decides nothing.
     const customerNumber =
       chosen === undefined
         ? lowestFreeNumber(takenNumbers, settings.quotaN)
@@ -187,7 +184,6 @@ export async function registerCustomer(
       const customer = await deps.customers.create({
         details,
         customerNumber,
-        group,
         status: "ACTIVE",
         reminderCount: 0,
         card: {
@@ -195,7 +191,6 @@ export async function registerCustomer(
           issuedAt: now,
           reason: "FIRST_ISSUE",
           countsAtIssue,
-          groupAtIssue: group,
         },
         previousCustomerId,
       });

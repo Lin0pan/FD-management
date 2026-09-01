@@ -138,10 +138,10 @@ export async function changeCustomerNumber(
     index,
     issuedAt: now,
     reason: NUMBER_CHANGE_REASON,
-    // Today's household and today's group, derived here exactly as `issueCard` derives them: the
-    // card the move prints states the household as it stands now, not as the card it replaces did.
+    // Today's household, derived here exactly as `issueCard` derives it: the card the move prints
+    // states the household as it stands now, not as the card it replaces did. The week it prints
+    // needs no field — it is the new slot, which the store fills in (`groupOf`, US-31).
     countsAtIssue: composition(customer.details.householdMembers, now),
-    groupAtIssue: customer.group,
   });
 
   // Two entries, because two things happened and each is read on its own. The numbers ride in `why`

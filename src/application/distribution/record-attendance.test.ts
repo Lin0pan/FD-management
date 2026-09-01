@@ -9,7 +9,6 @@ import type {
   PersonalDetails,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
-import type { Group } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import { berlinDayKey } from "@/domain/distribution/attendance";
 import type {
@@ -156,12 +155,6 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve();
   }
 
-  setGroup(id: number, group: Group): Promise<void> {
-    const index = this.holders.findIndex((customer) => customer.id === id);
-    this.holders[index] = { ...this.holders[index], group };
-    return Promise.resolve();
-  }
-
   /** Only {@link changeCustomerNumber}'s own suite moves a household between slots (US-30). */
   changeCustomerNumber(): Promise<IssuedCard> {
     return Promise.reject(
@@ -274,7 +267,7 @@ function member(birthDate: string): HouseholdMemberDetails {
 
 interface CustomerOverrides {
   readonly id?: number;
-  readonly group?: Group;
+  readonly customerNumber?: number;
   readonly status?: CustomerStatus;
   readonly householdMembers?: ReadonlyArray<HouseholdMemberDetails>;
 }
@@ -291,20 +284,19 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
   };
   return {
     id: overrides.id ?? 1,
-    customerNumber: 50,
-    group: overrides.group ?? "RED",
+    // 49 is odd and therefore RED, which is the colour of the week these tests run in (US-31).
+    customerNumber: overrides.customerNumber ?? 49,
     status: overrides.status ?? "ACTIVE",
     blockReason: overrides.status === "BLOCKED" ? "gesperrt" : null,
     archiveReason: overrides.status === "ARCHIVED" ? "archiviert" : null,
     archivedAt: overrides.status === "ARCHIVED" ? new Date(TODAY) : null,
     reminderCount: 0,
     card: {
-      customerNumber: 50,
+      customerNumber: overrides.customerNumber ?? 49,
       index: 1,
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
-      groupAtIssue: overrides.group ?? "RED",
     },
     registeredOn: new Date(TODAY),
     previousCustomerId: null,
@@ -529,7 +521,8 @@ describe("recordAttendance", () => {
   });
 
   it("refuses to record for a customer of the wrong group for the week", async () => {
-    customers = new FakeCustomerRepository(customerRecord({ group: "BLUE" }));
+    // 50 is even and therefore BLUE, in a RED week.
+    customers = new FakeCustomerRepository(customerRecord({ customerNumber: 50 }));
 
     const error = await recordAttendance(deps(), { customerId: 1 }).catch((e) => e);
 

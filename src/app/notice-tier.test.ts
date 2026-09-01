@@ -5,7 +5,7 @@ import {
   CustomerNotFound,
   CustomerNumberOutOfRange,
   CustomerNumberTaken,
-  GroupUnchanged,
+  CustomerNumberUnchanged,
   MissingRequiredField,
   NoSettingsInForce,
   NotesTooLong,
@@ -20,7 +20,7 @@ import { tierOf } from "./notice-tier";
  */
 describe("tierOf", () => {
   it("calls a rule saying no a refusal, not an error", () => {
-    expect(tierOf(new GroupUnchanged("RED"))).toBe("refusal");
+    expect(tierOf(new CustomerNumberUnchanged(37))).toBe("refusal");
   });
 
   it("calls a field the staff member can fix a refusal", () => {

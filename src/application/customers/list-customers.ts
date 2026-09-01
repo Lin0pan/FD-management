@@ -20,7 +20,7 @@ import {
   type CertificateState,
 } from "@/domain/customer/certificate";
 import type { CustomerStatus, RegisteredCustomer } from "@/domain/customer/customer";
-import type { Group, GroupCounts } from "@/domain/customer/group";
+import { groupOf, type Group, type GroupCounts } from "@/domain/customer/group";
 import type { Cents } from "@/domain/money";
 import { describeAllowances, type Allowance } from "../allowance/describe-allowance";
 import type { Clock, CustomerListSearch, CustomerRepository, SettingsRepository } from "../ports";
@@ -174,7 +174,7 @@ function toRow(customer: RegisteredCustomer, allowance: Allowance, today: Date):
     customerNumber: customer.customerNumber,
     firstName: customer.details.firstName,
     lastName: customer.details.lastName,
-    group: customer.group,
+    group: groupOf(customer.customerNumber),
     status: customer.status,
     grownUps: allowance.grownUps,
     children: allowance.children,

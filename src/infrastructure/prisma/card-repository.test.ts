@@ -18,6 +18,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { formatCardNumber } from "@/domain/card/cardNumber";
+import { groupOf } from "@/domain/customer/group";
 import { foldName } from "@/domain/customer/nameSearch";
 import { composition } from "@/domain/customer/householdComposition";
 import { CardIndexTaken, CardNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
@@ -75,7 +76,9 @@ async function insertCustomer(customerNumber: number, status = "ACTIVE"): Promis
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "RED",
+      // The leftover column, written off the number the way the adapter writes it — US-31.5 drops
+      // it, and until then nothing may store a word the number does not imply.
+      group: groupOf(customerNumber),
       status,
       reminderCount: 0,
       notes: "",
@@ -108,7 +111,6 @@ describe("the counts printed on a card", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 1, children: 1 },
-      groupAtIssue: "RED",
     });
 
     const card = await repository.currentCard(customerId);
@@ -129,7 +131,6 @@ describe("the counts printed on a card", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 3, children: 2 },
-      groupAtIssue: "RED",
     });
 
     const row = await prisma.card.findFirstOrThrow({ where: { customerId } });
@@ -144,7 +145,6 @@ describe("the counts printed on a card", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     // The household is moved to another slot, as US-30 moves one. The card in their pocket still
@@ -158,21 +158,22 @@ describe("the counts printed on a card", () => {
     ]);
   });
 
-  it("keeps the group the card printed after the household has been moved to the other one", async () => {
+  it("keeps naming the week it was printed for, which is its own slot's", async () => {
     const customerId = await insertCustomer(50);
     await repository.issue(customerId, {
       index: 1,
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 1, children: 0 },
-      groupAtIssue: "RED",
     });
 
-    await prisma.customer.update({ where: { id: customerId }, data: { group: "BLUE" } });
+    // The household is moved to an odd slot, so they collect in the RED week from now on. The card
+    // in their pocket was printed on 50 and goes on saying BLUE, because its week follows from its
+    // own slot and nothing about it was stored (US-31).
+    await prisma.customer.update({ where: { id: customerId }, data: { customerNumber: 67 } });
 
-    // The same difference the counts prove, in the other direction: the card is out in the world
-    // naming a week the household no longer collects in (US-16.4).
-    expect((await repository.currentCard(customerId))?.groupAtIssue).toBe("RED");
+    const card = await repository.currentCard(customerId);
+    expect(card === null ? null : groupOf(card.customerNumber)).toBe("BLUE");
   });
 });
 
@@ -185,7 +186,6 @@ describe("PrismaCardRepository.issue", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     expect(card).toEqual({
@@ -194,7 +194,6 @@ describe("PrismaCardRepository.issue", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
     const rows = await prisma.card.findMany({ where: { customerId } });
     expect(rows).toHaveLength(1);
@@ -208,7 +207,6 @@ describe("PrismaCardRepository.issue", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     await repository.issue(customerId, {
@@ -216,7 +214,6 @@ describe("PrismaCardRepository.issue", () => {
       issuedAt: LATER,
       reason: "LOST",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     expect(await prisma.card.count({ where: { customerId } })).toBe(2);
@@ -229,7 +226,6 @@ describe("PrismaCardRepository.issue", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     const [row] = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
@@ -245,7 +241,6 @@ describe("PrismaCardRepository.issue", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     await expect(
@@ -254,7 +249,6 @@ describe("PrismaCardRepository.issue", () => {
         issuedAt: LATER,
         reason: "LOST",
         countsAtIssue: PRINTED,
-        groupAtIssue: "RED",
       }),
     ).rejects.toBeInstanceOf(CardIndexTaken);
   });
@@ -268,14 +262,12 @@ describe("PrismaCardRepository.issue", () => {
         issuedAt: TODAY,
         reason: "FIRST_ISSUE",
         countsAtIssue: PRINTED,
-        groupAtIssue: "RED",
       }),
       repository.issue(customerId, {
         index: 1,
         issuedAt: TODAY,
         reason: "LOST",
         countsAtIssue: PRINTED,
-        groupAtIssue: "RED",
       }),
     ]);
 
@@ -296,7 +288,6 @@ describe("the card number across customers", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     // 50k1 is printed on a card the departed household walked away with. Handing it out again is
@@ -307,7 +298,6 @@ describe("the card number across customers", () => {
         issuedAt: LATER,
         reason: "FIRST_ISSUE",
         countsAtIssue: PRINTED,
-        groupAtIssue: "RED",
       }),
     ).rejects.toBeInstanceOf(CardNumberTaken);
     expect(await prisma.card.count({ where: { customerNumber: 50 } })).toBe(1);
@@ -321,7 +311,6 @@ describe("the card number across customers", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     const refused = await repository
@@ -330,7 +319,6 @@ describe("the card number across customers", () => {
         issuedAt: LATER,
         reason: "FIRST_ISSUE",
         countsAtIssue: PRINTED,
-        groupAtIssue: "RED",
       })
       .catch((error: unknown) => error);
 
@@ -348,7 +336,6 @@ describe("the card number across customers", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     const refused = await repository
@@ -357,7 +344,6 @@ describe("the card number across customers", () => {
         issuedAt: LATER,
         reason: "LOST",
         countsAtIssue: PRINTED,
-        groupAtIssue: "RED",
       })
       .catch((error: unknown) => error);
 
@@ -374,14 +360,12 @@ describe("the card number across customers", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
     await repository.issue(second, {
       index: 2,
       issuedAt: LATER,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     const [firstCard, secondCard] = await Promise.all([
@@ -399,7 +383,6 @@ describe("the card number across customers", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     const row = await prisma.card.findFirstOrThrow({ where: { customerId } });
@@ -425,14 +408,12 @@ describe("PrismaCardRepository.highestIndexForNumber", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
     await repository.issue(departed, {
       index: 2,
       issuedAt: LATER,
       reason: "LOST",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     // Nothing about status is consulted: the household is gone and 50k2 is still out in the world.
@@ -447,14 +428,12 @@ describe("PrismaCardRepository.highestIndexForNumber", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
     await repository.issue(holder, {
       index: 2,
       issuedAt: LATER,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     expect(await repository.highestIndexForNumber(50)).toBe(2);
@@ -469,14 +448,12 @@ describe("PrismaCardRepository.highestIndexForNumber", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
     await repository.issue(customerId, {
       index: 4,
       issuedAt: LATER,
       reason: "OTHER",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     expect(await repository.highestIndexForNumber(50)).toBe(4);
@@ -492,21 +469,18 @@ describe("PrismaCardRepository.highestIndexByNumber", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
     await repository.issue(departed, {
       index: 2,
       issuedAt: LATER,
       reason: "LOST",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
     await repository.issue(holder, {
       index: 1,
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     // The plural of `highestIndexForNumber`, and it answers the same for each slot: the archived
@@ -549,14 +523,12 @@ describe("PrismaCardRepository.currentCard", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
     await repository.issue(customerId, {
       index: 2,
       issuedAt: LATER,
       reason: "LOST",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     expect(await repository.currentCard(customerId)).toEqual({
@@ -565,7 +537,6 @@ describe("PrismaCardRepository.currentCard", () => {
       issuedAt: LATER,
       reason: "LOST",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
   });
 
@@ -576,14 +547,12 @@ describe("PrismaCardRepository.currentCard", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
     await repository.issue(customerId, {
       index: 4,
       issuedAt: LATER,
       reason: "OTHER",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     expect((await repository.currentCard(customerId))?.index).toBe(4);
@@ -600,7 +569,7 @@ describe("PrismaCardRepository.currentCard", () => {
         reason: "VERLOREN",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
-        groupAtIssue: "RED",
+        groupAtIssue: groupOf(50),
       },
     });
 
@@ -616,14 +585,12 @@ describe("PrismaCardRepository.listCards", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
     await repository.issue(customerId, {
       index: 2,
       issuedAt: LATER,
       reason: "LOST",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     const cards = await repository.listCards(customerId);
@@ -640,21 +607,18 @@ describe("PrismaCardRepository.listCards", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
     await repository.issue(other, {
       index: 1,
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
     await repository.issue(other, {
       index: 2,
       issuedAt: LATER,
       reason: "LOST",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     expect(await repository.listCards(one)).toHaveLength(1);
@@ -682,7 +646,7 @@ describe("PrismaCardRepository.issueCounts", () => {
           reason,
           grownUpsAtIssue: 1,
           childrenAtIssue: 1,
-          groupAtIssue: "RED",
+          groupAtIssue: groupOf(customerNumber),
         },
       });
     }
@@ -735,14 +699,12 @@ describe("PrismaCardRepository.issueCounts", () => {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
     await repository.issue(customerId, {
       index: 4,
       issuedAt: LATER,
       reason: "LOST",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     expect(await repository.issueCounts(customerId)).toEqual({
@@ -760,7 +722,6 @@ describe("PrismaCardRepository.issueCounts", () => {
       issuedAt: LATER,
       reason: "FIRST_ISSUE",
       countsAtIssue: PRINTED,
-      groupAtIssue: "RED",
     });
 
     // 66k4 is the household's *first* card. Reading the index as a count would put three losses

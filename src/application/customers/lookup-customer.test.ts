@@ -9,7 +9,6 @@ import type {
   PersonalDetails,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
-import type { Group } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import { berlinDayKey } from "@/domain/distribution/attendance";
 import type {
@@ -32,8 +31,9 @@ import { lookupCustomer } from "./lookup-customer";
 
 /**
  * Hand-written fakes, per the testing standard, and synthetic data only. `2026-07-23` falls an even
- * number of weeks from the `2026-W02` anchor, so with a RED anchor it is a RED week — a RED customer
- * is in the right group and a BLUE one is not.
+ * number of weeks from the `2026-W02` anchor, so with a BLUE anchor it is a BLUE week — and the
+ * household these tests default to holds 50, which is even and therefore BLUE (US-31). One on an
+ * odd number is in the wrong week, and nothing on either record says which week that is.
  */
 
 faker.seed(20260723);
@@ -169,13 +169,6 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve();
   }
 
-  setGroup(id: number, group: Group): Promise<void> {
-    this.writes += 1;
-    const index = this.holders.findIndex((customer) => customer.id === id);
-    this.holders[index] = { ...this.holders[index], group };
-    return Promise.resolve();
-  }
-
   /** Only {@link changeCustomerNumber}'s own suite moves a household between slots (US-30). */
   changeCustomerNumber(): Promise<IssuedCard> {
     return Promise.reject(new Error("the counter reads the register, it never moves a household"));
@@ -300,7 +293,7 @@ function fakeClock(iso: string): Clock {
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
     quotaN: 240,
-    weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
+    weekAnchor: { isoWeek: "2026-W02", colour: "BLUE" },
     distributionWeekday: 4,
     pricePerGrownUp: 200,
     pricePerChild: 100,
@@ -338,7 +331,6 @@ const PRICE_TODAY = 200;
 
 interface CustomerOverrides {
   readonly customerNumber?: number;
-  readonly group?: Group;
   readonly status?: CustomerStatus;
   readonly cardIndex?: number;
   readonly certificateValidUntil?: string;
@@ -348,8 +340,6 @@ interface CustomerOverrides {
   readonly id?: number;
   /** The day the household joined, when a test needs distributions to lie behind them. */
   readonly registeredOn?: string;
-  /** The group printed on their card, when a test needs it to differ from the one they are in. */
-  readonly groupOnCard?: Group;
 }
 
 /** A customer as the register already holds them — built directly so the status is the test's to set. */
@@ -369,7 +359,6 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
   return {
     id: overrides.id ?? 1,
     customerNumber: overrides.customerNumber ?? 50,
-    group: overrides.group ?? "RED",
     status: overrides.status ?? "ACTIVE",
     blockReason: overrides.status === "BLOCKED" ? "gesperrt" : null,
     archiveReason: overrides.status === "ARCHIVED" ? "archiviert" : null,
@@ -381,7 +370,6 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
-      groupAtIssue: overrides.groupOnCard ?? overrides.group ?? "RED",
     },
     // Registered today unless a test says otherwise, so no distribution lies behind the household
     // and the no-show count of an unrelated case is zero rather than incidental.
@@ -416,7 +404,7 @@ describe("lookupCustomer", () => {
   });
 
   it("resolves a bare number to the slot's active holder and clears them to serve", async () => {
-    customers = new FakeCustomerRepository(customerRecord({ group: "RED" }));
+    customers = new FakeCustomerRepository(customerRecord());
 
     const result = await lookupCustomer(deps(), "50");
 
@@ -437,7 +425,7 @@ describe("lookupCustomer", () => {
   });
 
   it("blocks a blocked customer, ahead of any other reason, carrying the stored reason", async () => {
-    customers = new FakeCustomerRepository(customerRecord({ status: "BLOCKED", group: "BLUE" }));
+    customers = new FakeCustomerRepository(customerRecord({ status: "BLOCKED" }));
 
     const result = await lookupCustomer(deps(), "50");
 
@@ -447,14 +435,15 @@ describe("lookupCustomer", () => {
   });
 
   it("sends away a customer of the wrong colour for the week", async () => {
-    customers = new FakeCustomerRepository(customerRecord({ group: "BLUE" }));
+    // 51 is odd and therefore RED, in a BLUE week. Nothing was set to make it so.
+    customers = new FakeCustomerRepository(customerRecord({ customerNumber: 51 }));
 
-    const result = await lookupCustomer(deps(), "50");
+    const result = await lookupCustomer(deps(), "51");
 
     expect(result.verdict.kind).toBe("WRONG_GROUP");
     if (result.verdict.kind !== "WRONG_GROUP") throw new Error("unreachable");
-    expect(result.verdict.group).toBe("BLUE");
-    expect(result.verdict.weekColour).toBe("RED");
+    expect(result.verdict.group).toBe("RED");
+    expect(result.verdict.weekColour).toBe("BLUE");
   });
 
   it("marks a card whose index is below the current one as outdated", async () => {
@@ -558,14 +547,17 @@ describe("lookupCustomer", () => {
     expect(result.customer?.staleCard).toBeNull();
   });
 
-  it("notes that the card names the group the household has since been moved out of", async () => {
-    customers = new FakeCustomerRepository(customerRecord({ group: "BLUE", groupOnCard: "RED" }));
+  it("names the week printed on the card — the slot it was printed under, not a stored word", async () => {
+    customers = new FakeCustomerRepository(customerRecord());
 
     const result = await lookupCustomer(deps(), "50");
 
-    expect(result.customer?.staleCard).toBe("GROUP_CHANGE");
-    expect(result.customer?.groupOnCard).toBe("RED");
+    // Both come from `groupOf`, one off the card's slot and one off the household's, so while a
+    // household holds the slot their card was printed on the two cannot disagree — and the card
+    // never falls stale for its week (US-31).
+    expect(result.customer?.groupOnCard).toBe("BLUE");
     expect(result.customer?.group).toBe("BLUE");
+    expect(result.customer?.staleCard).toBeNull();
   });
 
   it("carries everything the screen shows below the verdict", async () => {
@@ -579,7 +571,7 @@ describe("lookupCustomer", () => {
       firstName: "Mira",
       lastName: "Aalto",
       customerNumber: 50,
-      group: "RED",
+      group: "BLUE",
       status: "ACTIVE",
       reminderCount: 1,
       notes: "ruft vorher an",
@@ -613,7 +605,7 @@ describe("lookupCustomer", () => {
       [new FakeCustomerRepository(), "50"], // NOT_FOUND
       [new FakeCustomerRepository(customerRecord({ status: "ARCHIVED" })), "50"], // ARCHIVED
       [new FakeCustomerRepository(customerRecord({ status: "BLOCKED" })), "50"], // BLOCKED
-      [new FakeCustomerRepository(customerRecord({ group: "BLUE" })), "50"], // WRONG_GROUP
+      [new FakeCustomerRepository(customerRecord({ customerNumber: 51 })), "51"], // WRONG_GROUP
       [new FakeCustomerRepository(customerRecord({ cardIndex: 3 })), "50k1"], // OUTDATED_CARD
       [
         new FakeCustomerRepository(

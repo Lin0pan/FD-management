@@ -1,8 +1,8 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { CardIssueCounts, CardRepository } from "@/application/ports";
 import { parseCardIssueReason, type IssuedCard, type NewCard } from "@/domain/card/card";
-import { GROUPS, type Group } from "@/domain/customer/group";
-import { CardIndexTaken, CardNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
+import { groupOf } from "@/domain/customer/group";
+import { CardIndexTaken, CardNumberTaken } from "@/domain/errors";
 
 /**
  * The slot stood in for a customer id nobody holds. It is never written: the insert fails on the
@@ -48,29 +48,11 @@ export function isCardCollision(error: unknown): boolean {
 }
 
 /**
- * Read the stored group word back as a {@link Group}, refusing anything else rather than quietly
- * making a household RED.
- *
- * It lives in the adapter rather than in the domain because it is about a *column*: US-31 derives a
- * group from the customer number, so nothing submits or stores a group word any more. The two
- * columns that still hold one — `Customer.group` and `Card.groupAtIssue` — are dropped by US-31.2
- * and US-31.5, and this function goes with the last of them.
- *
- * @throws {InvalidCustomerRecord} for anything that is not `RED` or `BLUE`.
- */
-export function parseStoredGroup(value: string): Group {
-  const group = GROUPS.find((candidate) => candidate === value);
-  if (group === undefined) {
-    throw new InvalidCustomerRecord("group", value);
-  }
-  return group;
-}
-
-/**
  * One stored card row as an {@link IssuedCard}. The two count columns are flat in SQLite and a
  * value object in the domain, so the shape is put back together here — in one place, so
- * `currentCard` and `listCards` cannot come to read the snapshot differently. The group word is
- * checked rather than trusted, like every other enum-shaped column SQLite keeps as a string.
+ * `currentCard` and `listCards` cannot come to read the snapshot differently. The `groupAtIssue`
+ * column is deliberately **not** selected: a card's week follows from the slot it was printed
+ * under (`groupOf`, US-31), and the column itself is dropped by US-31.5.
  *
  * It sits outside the class because a card is also written by the customer register: a number
  * change inserts the card in the same transaction that moves the slot (US-30), and reading the row
@@ -83,7 +65,6 @@ export function toIssuedCard(row: {
   reason: string;
   grownUpsAtIssue: number;
   childrenAtIssue: number;
-  groupAtIssue: string;
 }): IssuedCard {
   return {
     customerNumber: row.customerNumber,
@@ -91,7 +72,6 @@ export function toIssuedCard(row: {
     issuedAt: row.issuedAt,
     reason: parseCardIssueReason(row.reason),
     countsAtIssue: { grownUps: row.grownUpsAtIssue, children: row.childrenAtIssue },
-    groupAtIssue: parseStoredGroup(row.groupAtIssue),
   };
 }
 
@@ -259,7 +239,10 @@ export class PrismaCardRepository implements CardRepository {
             reason: card.reason,
             grownUpsAtIssue: card.countsAtIssue.grownUps,
             childrenAtIssue: card.countsAtIssue.children,
-            groupAtIssue: card.groupAtIssue,
+            // Written off the slot the card is being printed under, not off a value a caller could
+            // pass: the column is a leftover that US-31.5 drops, and until it does the only word it
+            // may hold is the one the number implies.
+            groupAtIssue: groupOf(slot),
           },
         });
       });

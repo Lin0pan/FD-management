@@ -108,10 +108,6 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.reject(new Error("listing the choices writes nothing"));
   }
 
-  setGroup(): Promise<void> {
-    return Promise.reject(new Error("listing the choices writes nothing"));
-  }
-
   setStatus(): Promise<void> {
     return Promise.reject(new Error("listing the choices writes nothing"));
   }
@@ -222,7 +218,6 @@ function household({
   );
   const stored: NewCustomer = {
     customerNumber,
-    group: "RED",
     status,
     reminderCount: 0,
     details,
@@ -231,7 +226,6 @@ function household({
       issuedAt: new Date("2026-01-15T09:00:00.000Z"),
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 1, children: 1 },
-      groupAtIssue: "RED",
     },
     previousCustomerId: null,
   };

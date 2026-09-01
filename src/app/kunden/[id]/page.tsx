@@ -57,7 +57,6 @@ import { customerDeps } from "../deps";
 import { STATUS_CHROME, StateWord } from "../state-word";
 import { formatCalendarDay } from "@/domain/calendarDay";
 import { DetailsEditor } from "./details-editor";
-import { GroupControl } from "./group-control";
 import { NumberControl } from "./number-control";
 import { HouseholdEditor } from "./household-editor";
 import { NotesEditor } from "./notes-editor";
@@ -355,7 +354,7 @@ function CustomerRecord({
   /** Whether the archive control on this record was what brought the page back — same mechanism. */
   justArchived: boolean;
 }): React.ReactElement {
-  const { customer, household, cardNumber, nextCardNumber, groupCounts, numberChoices } = view;
+  const { customer, group, household, cardNumber, nextCardNumber, numberChoices } = view;
   const { details } = customer;
   const archived = customer.status === "ARCHIVED";
   const words = de.customers.record;
@@ -400,8 +399,8 @@ function CustomerRecord({
               `GROUP_STYLES` then overrides only the *background*, leaving white text on a 10%
               tint. The colour word is the datum here (guide rule 9), so it has to be legible;
               `outline` sets `text-foreground` and lets the tint be the tint. */}
-            <Badge variant="outline" className={GROUP_STYLES[customer.group]}>
-              {de.customers.groups[customer.group]}
+            <Badge variant="outline" className={GROUP_STYLES[group]}>
+              {de.customers.groups[group]}
             </Badge>
             <StateWord
               word={de.customers.status[customer.status]}
@@ -611,12 +610,12 @@ function CustomerRecord({
           )}
         </Section>
 
+        {/* Read-only for everybody, archived or not: the group follows from the customer number
+          (US-31), so it is moved by moving the household to another number in the section below —
+          there is no control here to offer. US-31.7 merges the two sections into one, which is
+          where a staff member will read the pair as the single decision it is. */}
         <Section heading={words.groupHeading}>
-          {archived ? (
-            <Field label={de.customers.fields.group} value={de.customers.groups[customer.group]} />
-          ) : (
-            <GroupControl customerId={customer.id} group={customer.group} counts={groupCounts} />
-          )}
+          <Field label={de.customers.fields.group} value={de.customers.groups[group]} />
         </Section>
 
         {/* Directly under „Gruppe“, and for the same reason it is a section rather than a control in

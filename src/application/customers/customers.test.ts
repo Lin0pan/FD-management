@@ -11,7 +11,7 @@ import {
 } from "@/domain/customer/customer";
 import { lowestFreeNumber } from "@/domain/customer/customerNumber";
 import { foldName } from "@/domain/customer/nameSearch";
-import type { Group, GroupCounts } from "@/domain/customer/group";
+import { groupOf, type GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import { berlinDayKey } from "@/domain/distribution/attendance";
 import type {
@@ -280,15 +280,6 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve();
   }
 
-  setGroup(id: number, group: Group): Promise<void> {
-    const index = this.created.findIndex((customer) => customer.id === id);
-    if (index === -1) {
-      return Promise.reject(new CustomerNotFound(id));
-    }
-    this.created[index] = { ...this.created[index], group };
-    return Promise.resolve();
-  }
-
   /** Only {@link changeCustomerNumber}'s own suite moves a household between slots (US-30). */
   changeCustomerNumber(): Promise<IssuedCard> {
     return Promise.reject(new Error("a registration takes a number; moving one has its own suite"));
@@ -353,7 +344,6 @@ class FakeCardRepository implements CardRepository {
         // tests — they are about which index falls due — so every placed card prints the shape
         // `storedCustomer` builds: one grown-up, one child.
         countsAtIssue: { grownUps: 1, children: 1 },
-        groupAtIssue: "RED",
       });
     }
   }
@@ -607,7 +597,6 @@ function storedCustomer(
   return {
     details,
     customerNumber: 50,
-    group: "RED",
     status,
     reminderCount: 0,
     card: {
@@ -615,7 +604,6 @@ function storedCustomer(
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
-      groupAtIssue: "RED",
     },
     previousCustomerId: null,
   };
@@ -706,20 +694,23 @@ describe("registerCustomer", () => {
     expect(audit.entries[0].when).toEqual(new Date(TODAY));
   });
 
-  it("suggests the smaller group when staff made no choice", async () => {
+  it("registers a household into the group their number decides, and stores no group", async () => {
+    // The lowest free slot is 1, which is odd and therefore RED — nothing was chosen and nothing
+    // was written. US-31.3 makes the allocation pick inside the recommended group instead; what is
+    // fixed here is that the record itself never states one (US-31).
     useRegister(new FakeCustomerRepository([], { red: 10, blue: 8 }));
 
     const customer = await registerCustomer(deps(), registerInput({ group: undefined }));
 
-    expect(customer.group).toBe("BLUE");
+    expect(Object.keys(customer)).not.toContain("group");
+    expect(groupOf(customer.customerNumber)).toBe("RED");
   });
 
-  it("lets an explicit group win over the suggestion", async () => {
-    useRegister(new FakeCustomerRepository([], { red: 10, blue: 8 }));
+  it("writes no group on the card it prints either", async () => {
+    const customer = await registerCustomer(deps(), registerInput());
 
-    const customer = await registerCustomer(deps(), registerInput({ group: "RED" }));
-
-    expect(customer.group).toBe("RED");
+    expect(Object.keys(customer.card)).not.toContain("groupAtIssue");
+    expect(groupOf(customer.card.customerNumber)).toBe(groupOf(customer.customerNumber));
   });
 
   it("stores no household counts — they are derived from the birthdates", async () => {
@@ -1211,7 +1202,7 @@ describe("reissueCard", () => {
     await expect(cards.currentCard(customerId)).resolves.toMatchObject({ index: 11 });
   });
 
-  it("leaves status, customer number, group and reminder count as they were", async () => {
+  it("leaves status, customer number and reminder count as they were", async () => {
     const customerId = await holderOfCardOne();
     const before = await customers.findById(customerId);
 
@@ -1221,7 +1212,6 @@ describe("reissueCard", () => {
     expect(after).toMatchObject({
       status: before?.status,
       customerNumber: before?.customerNumber,
-      group: before?.group,
       reminderCount: before?.reminderCount,
     });
   });
@@ -1394,11 +1384,15 @@ describe("readCustomer", () => {
     return { customers, cards, settings, records, clock: fakeClock(today), audit };
   }
 
-  /** A RED household registered on 2026-05-01, i.e. with five own distributions behind them. */
+  /**
+   * A RED household registered on 2026-05-01, i.e. with five own distributions behind them. RED
+   * because 49 is odd, which is the whole of what makes a household RED (US-31) — the distributions
+   * above are the Thursdays of *their* week.
+   */
   async function seedLongStanding(): Promise<RegisteredCustomer> {
     return customers.create({
       ...storedCustomer("ACTIVE"),
-      group: "RED",
+      customerNumber: 49,
       card: {
         ...storedCustomer("ACTIVE").card,
         issuedAt: new Date("2026-05-01T09:00:00.000Z"),
@@ -1791,7 +1785,8 @@ describe("readCard", () => {
   });
 
   it("carries the name and the group the card is printed with", async () => {
-    const customer = await registered({ firstName: "Mira", lastName: "Aalto", group: "BLUE" });
+    // Slot 2 is even, so the card prints BLUE — the number is the whole of the choice (US-31).
+    const customer = await registered({ firstName: "Mira", lastName: "Aalto", customerNumber: 2 });
 
     const view = await readCard(deps(), customer.id);
 
@@ -2136,7 +2131,6 @@ describe("archiveCustomer", () => {
       cards: await cards.listCards(customerId),
       records: await distribution.listForCustomer(customerId),
       customerNumber: customer?.customerNumber,
-      group: customer?.group,
       reminderCount: customer?.reminderCount,
       details: customer?.details,
     });

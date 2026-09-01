@@ -10,7 +10,7 @@ import {
   type PersonalDetails,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
-import type { Group, GroupCounts } from "@/domain/customer/group";
+import { groupOf, type GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
 import {
@@ -19,7 +19,6 @@ import {
   CustomerNotFound,
   CustomerNotInHousehold,
   EmptyHousehold,
-  GroupUnchanged,
   MissingRequiredField,
   NotesTooLong,
 } from "@/domain/errors";
@@ -36,7 +35,6 @@ import type {
   SettingsRepository,
 } from "../ports";
 import { listCardsDueForReissue } from "./cards-due-for-reissue";
-import { changeGroup } from "./change-group";
 import { lookupCustomer } from "./lookup-customer";
 import { updateCustomerDetails, type UpdateCustomerDetailsInput } from "./update-customer-details";
 import { updateHousehold } from "./update-household";
@@ -210,15 +208,14 @@ class FakeCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * The two group sizes, counted off the holders like the adapter counts rows — archived households
-   * excluded, because they turn up to nothing. `changeGroup` reports these numbers back to its
-   * caller, so a stub would prove only that a constant travels.
+   * The two group sizes, counted off the numbers the holders hold — the parity *is* the group
+   * (US-31) — with archived households excluded, because they turn up to nothing.
    */
   groupCounts(): Promise<GroupCounts> {
     const onRegister = this.holders.filter((customer) => customer.status !== "ARCHIVED");
     return Promise.resolve({
-      red: onRegister.filter((customer) => customer.group === "RED").length,
-      blue: onRegister.filter((customer) => customer.group === "BLUE").length,
+      red: onRegister.filter((customer) => groupOf(customer.customerNumber) === "RED").length,
+      blue: onRegister.filter((customer) => groupOf(customer.customerNumber) === "BLUE").length,
     });
   }
 
@@ -282,15 +279,6 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve();
   }
 
-  setGroup(id: number, group: Group): Promise<void> {
-    const index = this.holders.findIndex((customer) => customer.id === id);
-    if (index === -1) {
-      return Promise.reject(new CustomerNotFound(id));
-    }
-    this.holders[index] = { ...this.holders[index], group };
-    return Promise.resolve();
-  }
-
   /** Only {@link changeCustomerNumber}'s own suite moves a household between slots (US-30). */
   changeCustomerNumber(): Promise<IssuedCard> {
     return Promise.reject(new Error("moving a household to another number has its own suite"));
@@ -333,8 +321,6 @@ interface HouseholdOptions {
    * the shape a registration leaves behind, where the first row *is* the registered person.
    */
   readonly members?: ReadonlyArray<HouseholdMemberDetails>;
-  /** Which half of the cycle they collect in. Defaults to `RED`, which their card also prints. */
-  readonly group?: Group;
 }
 
 /** A customer as the register already holds them, with a card printing what they were at issue. */
@@ -346,7 +332,6 @@ function household({
   lastName = faker.person.lastName(),
   notes = "",
   members,
-  group = "RED",
 }: HouseholdOptions): RegisteredCustomer {
   const details = createCustomerDetails(
     {
@@ -371,7 +356,6 @@ function household({
   return {
     id,
     customerNumber,
-    group,
     status,
     blockReason: status === "BLOCKED" ? "Hausverbot" : null,
     archiveReason: status === "ARCHIVED" ? "Weggezogen" : null,
@@ -384,7 +368,6 @@ function household({
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
-      groupAtIssue: group,
     },
     registeredOn: new Date(TODAY),
     previousCustomerId: null,
@@ -902,149 +885,6 @@ describe("updateNotes", () => {
 
   it("refuses an id that belongs to nobody rather than annotating nothing at all", async () => {
     await expect(updateNotes(deps(), { customerId: 99, notes: "Neue Notiz" })).rejects.toThrow(
-      CustomerNotFound,
-    );
-    expect(audit.entries).toEqual([]);
-  });
-});
-
-/**
- * `changeGroup` (US-16.4).
- *
- * Two things are asserted by driving the *real* downstream reads rather than the stored column: the
- * counter's verdict, which is what "in force immediately" means, and the cards-due list, which is
- * the consequence the household is left carrying. Neither is a flag this use case sets.
- */
-describe("changeGroup", () => {
-  /** A Wednesday in a RED week under {@link SETTINGS}; {@link TODAY} itself falls in a BLUE one. */
-  const RED_DISTRIBUTION_DAY = "2026-08-05T09:00:00.000Z";
-
-  let customers: FakeCustomerRepository;
-  let audit: FakeAuditLog;
-
-  function deps(now = TODAY) {
-    return { customers, audit, clock: fakeClock(now) };
-  }
-
-  function storedGroup(id = 1): Group | undefined {
-    return customers.holders.find((customer) => customer.id === id)?.group;
-  }
-
-  /** The counter reading the same register, so the verdict is derived and not asserted from a flag. */
-  function counterDeps(now: string) {
-    return {
-      customers,
-      settings: new FakeSettingsRepository(SETTINGS),
-      records: new FakeDistributionRecordRepository(),
-      reminders: new FakeReminderLogRepository(),
-      clock: fakeClock(now),
-    };
-  }
-
-  beforeEach(() => {
-    customers = new FakeCustomerRepository(
-      household({ id: 1, customerNumber: 50, group: "BLUE" }),
-      household({ id: 2, customerNumber: 51, group: "RED" }),
-      household({ id: 3, customerNumber: 52, group: "RED" }),
-    );
-    audit = new FakeAuditLog();
-  });
-
-  it("moves the customer to the group it was given", async () => {
-    await changeGroup(deps(), { customerId: 1, group: "RED" });
-
-    expect(storedGroup()).toBe("RED");
-  });
-
-  it("reports the group sizes as they stand after the move, not before it", async () => {
-    const counts = await changeGroup(deps(), { customerId: 1, group: "RED" });
-
-    expect(counts).toEqual({ red: 3, blue: 0 });
-  });
-
-  it("counts only households still on the register in the sizes it reports", async () => {
-    customers.holders.push(household({ id: 4, customerNumber: 53, status: "ARCHIVED" }));
-
-    const counts = await changeGroup(deps(), { customerId: 1, group: "RED" });
-
-    expect(counts).toEqual({ red: 3, blue: 0 });
-  });
-
-  it("serves a household moved to Red in a Red week on the same day", async () => {
-    // Before the move they are BLUE in a RED week, which the counter turns away.
-    const before = await lookupCustomer(counterDeps(RED_DISTRIBUTION_DAY), "50");
-    expect(before.verdict.kind).toBe("WRONG_GROUP");
-
-    await changeGroup(deps(RED_DISTRIBUTION_DAY), { customerId: 1, group: "RED" });
-
-    const after = await lookupCustomer(counterDeps(RED_DISTRIBUTION_DAY), "50");
-    expect(after.verdict.kind).toBe("CLEAR_TO_SERVE");
-  });
-
-  it("puts the household on the cards-due list, because the card prints the group", async () => {
-    await changeGroup(deps(), { customerId: 1, group: "RED" });
-
-    const due = await listCardsDueForReissue({ customers, clock: fakeClock(TODAY) });
-
-    expect(due).toHaveLength(1);
-    expect(due[0].customerId).toBe(1);
-    expect(due[0].reason).toBe("GROUP_CHANGE");
-    expect(due[0].groupOnCard).toBe("BLUE");
-    expect(due[0].groupToday).toBe("RED");
-  });
-
-  it("leaves the counts printed on the card exactly as they were", async () => {
-    await changeGroup(deps(), { customerId: 1, group: "RED" });
-
-    // A group move changes no birthdate, so the printed counts are still true — only the week is
-    // wrong, which is what the reason above says.
-    const stored = customers.holders[0];
-    expect(stored.card.countsAtIssue).toEqual({ grownUps: 1, children: 1 });
-    expect(stored.card.groupAtIssue).toBe("BLUE");
-  });
-
-  it("records the change under a stable event name, naming the group as the field that moved", async () => {
-    await changeGroup(deps(), { customerId: 1, group: "RED" });
-
-    expect(audit.entries).toEqual([
-      {
-        what: "customer.groupChanged",
-        changedFields: ["group"],
-        when: new Date(TODAY),
-        why: "",
-      },
-    ]);
-  });
-
-  it("refuses a move to the group the household is already in, writing nothing", async () => {
-    await expect(changeGroup(deps(), { customerId: 1, group: "BLUE" })).rejects.toThrow(
-      GroupUnchanged,
-    );
-
-    expect(storedGroup()).toBe("BLUE");
-    expect(audit.entries).toEqual([]);
-  });
-
-  it("moves a blocked household — balancing the groups is DF's business, not theirs", async () => {
-    customers.holders.push(household({ id: 4, customerNumber: 53, status: "BLOCKED" }));
-
-    await changeGroup(deps(), { customerId: 4, group: "BLUE" });
-
-    expect(storedGroup(4)).toBe("BLUE");
-  });
-
-  it("refuses to move an archived household, whose record is read-only", async () => {
-    customers.holders.push(household({ id: 4, customerNumber: 53, status: "ARCHIVED" }));
-
-    await expect(changeGroup(deps(), { customerId: 4, group: "BLUE" })).rejects.toThrow(
-      CustomerArchived,
-    );
-    expect(storedGroup(4)).toBe("RED");
-    expect(audit.entries).toEqual([]);
-  });
-
-  it("refuses an id that belongs to nobody rather than moving nothing at all", async () => {
-    await expect(changeGroup(deps(), { customerId: 99, group: "BLUE" })).rejects.toThrow(
       CustomerNotFound,
     );
     expect(audit.entries).toEqual([]);

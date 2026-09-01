@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { groupOf } from "../customer/group";
 import { staleCardReason } from "./staleCard";
 
-/** The card as it was printed, so each test states only the part it is about. */
-const printed = (grownUps: number, children: number, group: "RED" | "BLUE" = "RED") => ({
-  counts: { grownUps, children },
-  group,
-});
+/** The counts as they were printed, so each test states only the part it is about. */
+const printed = (grownUps: number, children: number) => ({ grownUps, children });
 
 describe("staleCardReason", () => {
   it("says nothing is stale when the card prints what the household is today", () => {
@@ -16,7 +14,7 @@ describe("staleCardReason", () => {
     expect(staleCardReason(printed(1, 0), printed(1, 0))).toBeNull();
   });
 
-  it("blames a 13th birthday when a child became a grown-up and nobody joined or left", () => {
+  it("a thirteenth birthday still makes a card stale", () => {
     expect(staleCardReason(printed(1, 1), printed(2, 0))).toBe("AGE_13");
   });
 
@@ -24,7 +22,7 @@ describe("staleCardReason", () => {
     expect(staleCardReason(printed(1, 3), printed(3, 1))).toBe("AGE_13");
   });
 
-  it("blames the household when a member joined", () => {
+  it("a member added still makes a card stale", () => {
     expect(staleCardReason(printed(2, 0), printed(2, 1))).toBe("HOUSEHOLD_CHANGE");
   });
 
@@ -40,19 +38,16 @@ describe("staleCardReason", () => {
     expect(staleCardReason(printed(2, 0), printed(1, 1))).toBe("HOUSEHOLD_CHANGE");
   });
 
-  it("blames the group when the household is unchanged but it moved to the other group", () => {
-    expect(staleCardReason(printed(2, 1, "RED"), printed(2, 1, "BLUE"))).toBe("GROUP_CHANGE");
-  });
+  it("a current card never names another group", () => {
+    // The card a household holds is always the highest index on the slot they hold: a registration
+    // prints on the slot it takes, a reissue on the slot the household holds, and a move prints
+    // inside the transaction that moves them. So the card's slot *is* their slot, and by `groupOf`
+    // its group is their group — there is no pair of values here that could disagree, which is why
+    // the reason is gone rather than merely unhandled.
+    const slotTheHouseholdHolds = 37;
+    const slotThatPrintedTheirCard = slotTheHouseholdHolds;
 
-  it("blames the group in the other direction too", () => {
-    expect(staleCardReason(printed(1, 0, "BLUE"), printed(1, 0, "RED"))).toBe("GROUP_CHANGE");
-  });
-
-  it("names the counts, not the group, when both the household and the group moved", () => {
-    expect(staleCardReason(printed(2, 0, "RED"), printed(2, 1, "BLUE"))).toBe("HOUSEHOLD_CHANGE");
-  });
-
-  it("names the birthday, not the group, when a child came of age and the group moved", () => {
-    expect(staleCardReason(printed(1, 1, "RED"), printed(2, 0, "BLUE"))).toBe("AGE_13");
+    expect(groupOf(slotThatPrintedTheirCard)).toBe(groupOf(slotTheHouseholdHolds));
+    expect(staleCardReason(printed(2, 1), printed(2, 1))).toBeNull();
   });
 });

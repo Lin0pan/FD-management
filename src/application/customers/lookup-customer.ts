@@ -18,7 +18,7 @@
 import { formatCardNumber, parseCounterQuery } from "@/domain/card/cardNumber";
 import { staleCardReason, type StaleCardReason } from "@/domain/card/staleCard";
 import type { CustomerStatus } from "@/domain/customer/customer";
-import type { Group } from "@/domain/customer/group";
+import { groupOf, type Group } from "@/domain/customer/group";
 import type { HouseholdComposition } from "@/domain/customer/householdComposition";
 import { berlinDayKey, recordForDay } from "@/domain/distribution/attendance";
 import { amountToPay, askedForRecord, balanceOf } from "@/domain/distribution/balance";
@@ -90,12 +90,16 @@ export interface CounterCustomerView {
    * household *is* is `grownUps`/`children` above, derived from the birthdates like everywhere.
    */
   readonly countsOnCard: HouseholdComposition;
-  /** The group printed on that same piece of card, read only to be compared with `group` above. */
+  /**
+   * The group printed on that same piece of card — the slot it was printed under, which is what
+   * says its week (`groupOf`, US-31). It is the household's own group unless a **superseded** card
+   * was presented, which is exactly when the counter needs to see it.
+   */
   readonly groupOnCard: Group;
   /**
    * Why the card in the household's pocket no longer prints what is true of them, or `null` when it
-   * still does (US-13.4, US-16.4). It is compared against the counts and the group just read above,
-   * so the note and the values beside it can never tell different stories.
+   * still does (US-13.4). It is compared against the counts just read above, so the note and the
+   * values beside it can never tell different stories.
    *
    * Nothing follows from it. A stale card is never grounds to turn anyone away (FR-5): the verdict
    * is decided by `evaluateAtCounter`, which never sees this field, and the screen states it as a
@@ -205,7 +209,7 @@ export async function lookupCustomer(
         : {
             customerNumber: customer.customerNumber,
             status: customer.status,
-            group: customer.group,
+            group: groupOf(customer.customerNumber),
             blockReason: customer.blockReason,
             currentCardIndex: customer.card.index,
             certificateValidUntil: customer.details.certificate.validUntil,
@@ -264,7 +268,7 @@ export async function lookupCustomer(
       firstName: customer.details.firstName,
       lastName: customer.details.lastName,
       customerNumber: customer.customerNumber,
-      group: customer.group,
+      group: groupOf(customer.customerNumber),
       grownUps: allowance.grownUps,
       children: allowance.children,
       priceCents: allowance.priceCents,
@@ -277,16 +281,15 @@ export async function lookupCustomer(
       notes: customer.details.notes,
       cardNumber: formatCardNumber(customer.card.customerNumber, customer.card.index),
       countsOnCard: customer.card.countsAtIssue,
-      groupOnCard: customer.card.groupAtIssue,
+      // Off the card's **own** slot, so a superseded card presented at the counter names the week
+      // it was printed for rather than the one its household collects in today (US-30, US-31).
+      groupOnCard: groupOf(customer.card.customerNumber),
       balanceCents,
       amountToPayCents: amountToPay(allowance.priceCents, balanceCents),
-      staleCard: staleCardReason(
-        { counts: customer.card.countsAtIssue, group: customer.card.groupAtIssue },
-        {
-          counts: { grownUps: allowance.grownUps, children: allowance.children },
-          group: customer.group,
-        },
-      ),
+      staleCard: staleCardReason(customer.card.countsAtIssue, {
+        grownUps: allowance.grownUps,
+        children: allowance.children,
+      }),
     },
   };
 }
