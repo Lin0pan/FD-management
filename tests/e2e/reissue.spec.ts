@@ -35,6 +35,18 @@ import { releaseNumbers } from "./seeding";
 // stays a literal, because a distribution day and a valid certificate are decided by dates.
 faker.seed(20260726);
 
+/**
+ * A German string as itself inside a pattern.
+ *
+ * The one assertion below spells out a whole section — heading, both labels, both figures and
+ * nothing between them — so it is built out of the dictionary rather than out of copied words. The
+ * dictionary is prose, though, and „(optional)“, „z. B.“ or a „·“ would be read as syntax the day
+ * one of these strings gains it: the pattern would go on matching, quietly, against something else.
+ */
+function literal(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
 const NOW_FILE = SHARED.now;
 
@@ -235,7 +247,6 @@ test.describe("Karte nach Verlust neu ausstellen", () => {
     await page.waitForURL(/\/kunden\/\d+\/karte$/);
 
     await expect(page.getByTestId("card-number")).toHaveText(card(2));
-    await expect(page.getByRole("main")).toContainText(de.customers.cardView.current);
     // The replaced number stays on record with the day and the reason *it* was handed over — a
     // superseded card is invalid, not deleted.
     await expect(page.getByTestId("superseded-card")).toHaveText(
@@ -314,9 +325,17 @@ test.describe("Karte nach Verlust neu ausstellen", () => {
     await expect(page.getByTestId("reissues-for-loss")).toHaveText("3");
 
     // The count is information, not a verdict: the screen states it and offers the next reissue in
-    // the same breath, with no warning attached to it (FR-4, §5).
-    await expect(page.getByRole("main")).toContainText(de.customers.cardView.issuedHint);
+    // the same breath, with no warning attached to it (FR-4, §5). The screen used to promise that in
+    // a sentence; what proves it is the section itself — after a third loss it holds the two counts
+    // and nothing else, and the next reissue is offered exactly as it was for the first.
     await expect(page.getByTestId("reissue-open")).toBeVisible();
+    await expect(page.getByTestId("cards-issued-section")).toHaveText(
+      new RegExp(
+        `^${literal(de.customers.cardView.issuedHeading)}\\s*` +
+          `${literal(de.customers.cardView.issuedCount)}\\s*4\\s*` +
+          `${literal(de.customers.cardView.lossCount)}\\s*3$`,
+      ),
+    );
 
     // And the household is still just a household — three losses have moved no status and every
     // superseded number is on record rather than deleted.

@@ -58,9 +58,6 @@ function eggPath(index: number, part: EggPart): string {
   return `eggRule.${index}.${part}`;
 }
 
-/** The id of the hint that states the rule, named by the table it explains. */
-const HINT_ID = "egg-rule-hint";
-
 /**
  * One cell of the table: the control, and the mark under it when that field was refused.
  *
@@ -152,7 +149,7 @@ export function EggRuleTable({
         // The rows are shown in threshold order **as stored**, and are never re-sorted while
         // somebody is typing into them — that would move the row under the cursor. The domain
         // sorts, the save settles the order, and the reloaded screen shows the sorted result.
-        <Table aria-describedby={HINT_ID}>
+        <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead>{words.thresholdColumn}</TableHead>
@@ -207,12 +204,6 @@ export function EggRuleTable({
           {words.addRow}
         </Button>
       </div>
-
-      {/* A sibling paragraph reached by `aria-describedby`, not a `<span>` inside a label: nested,
-          it is concatenated into the accessible name and announced as part of it (§3.7). */}
-      <p id={HINT_ID} className="max-w-prose text-sm text-muted-foreground">
-        {words.hint}
-      </p>
     </div>
   );
 }

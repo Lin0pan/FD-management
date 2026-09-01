@@ -215,16 +215,6 @@ export default async function CardsDuePage({
         <Confirmation text={de.customers.reissue.saved(issued)} testId="stale-reissue-saved" />
       )}
 
-      {/* Above the list, not beneath it: whoever opens this screen has to read that nothing here is
-          urgent before they read the first row, not after they have worked through it. A `status`
-          region and not an `alert`, and no icon — on a screen whose whole point is that nothing here
-          is urgent, being announced as an alert would say the opposite of the words. */}
-      <Alert role="status">
-        <AlertDescription data-testid="cards-due-not-urgent" className="max-w-prose">
-          {de.cardsDue.notUrgent}
-        </AlertDescription>
-      </Alert>
-
       {/* One card with divided rows, not a card per household: two nested rounded boxes read as a
           pile of panels, and this is a list. */}
       <Card>

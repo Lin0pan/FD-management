@@ -609,10 +609,7 @@ export function RegistrationForm({
         </div>
       </Section>
 
-      <Section
-        heading={de.customers.new.householdHeading}
-        description={de.customers.new.householdHint}
-      >
+      <Section heading={de.customers.new.householdHeading}>
         {/* Three fields repeating per member with identical meanings is tabular data. As a list of
             labelled grids the row identity had to live in the first field's label
             ("Haushaltsmitglied 1 — Vorname"), which wrapped to two lines in its column and started
@@ -705,7 +702,6 @@ export function RegistrationForm({
             className="min-w-40"
           />
         </div>
-        <p className="text-xs text-muted-foreground">{de.customers.derived.hint}</p>
       </Section>
 
       <Section

@@ -205,11 +205,12 @@ export const de = {
         `Die nächste Ausgabe findet am ${date} statt (${colour}).`,
       /**
        * An unseeded database is not an error screen (FR-10). The date above still stands; only the
-       * distribution rhythm is missing, and the way to supply it is named.
+       * distribution rhythm is missing.
+       *
+       * It went on to name the two settings that would supply it, which the `Einstellungen` link
+       * directly beneath already does — and this line is read once, during setup, and never again.
        */
-      notConfigured:
-        "Der Ausgaberhythmus ist noch nicht hinterlegt. Sobald Ausgabetag und Wochenfarbe in den " +
-        "Einstellungen stehen, steht hier die nächste Ausgabe.",
+      notConfigured: "Der Ausgaberhythmus ist noch nicht hinterlegt.",
     },
     /** Also the way off the distribution screen and the hub when no settings are in force. */
     settingsLink: "Einstellungen",
@@ -227,26 +228,9 @@ export const de = {
     /** The registration screen. */
     new: {
       heading: "Neuen Kunden aufnehmen",
-      /**
-       * „schlägt die Anwendung vor“ was true of both fields until US-24, and is now true of one:
-       * the number is the staff member's to pick from a list, with the lowest free one preselected.
-       * „vorausgewählt … können geändert werden“ is right about both.
-       */
-      intro:
-        "Kundennummer und Gruppe sind vorausgewählt und können geändert werden. Erwachsene und " +
-        "Kinder werden aus den Geburtsdaten berechnet und können nicht eingetragen werden.",
       addressHeading: "Anschrift",
       certificateHeading: "Bedarfsnachweis",
       householdHeading: "Haushalt",
-      /**
-       * Says which row is the applicant's and why it cannot be typed in, rather than promising it
-       * is the first: a form filled from an archived record or a waiting-list entry carries the
-       * household as that record listed it, and the applicant may stand anywhere in it.
-       */
-      householdHint:
-        "Die aufgenommene Person zählt selbst zum Haushalt. Ihre Zeile wird oben aus Name und " +
-        "Geburtsdatum übernommen und lässt sich hier nicht ändern oder entfernen. Weitere " +
-        "Mitglieder bitte ergänzen.",
       assignmentHeading: "Zuordnung",
       addMember: "Weiteres Haushaltsmitglied",
       removeMember: "Zeile entfernen",
@@ -324,8 +308,6 @@ export const de = {
       balance: "Saldo",
       /** A balance, signed — {@link balanceWording}, which says why the sign is the word. */
       balanceValue: balanceWording,
-      hint: "Berechnet aus den Geburtsdaten — nicht eingebbar.",
-      standardValues: "Standardpreis; am Ausgabetisch nicht anpassbar.",
       unknown: "—",
     },
     assignment: {
@@ -502,9 +484,6 @@ export const de = {
       currentReason: "Sperrgrund",
       action: "Sperren",
       reasonLabel: "Grund der Sperre",
-      reasonHint:
-        "Der Grund wird an der Ausgabe wortwörtlich angezeigt und ist die einzige Notiz zur " +
-        "Sperre. Bitte so schreiben, dass jede Kollegin und jeder Kollege sie versteht.",
       submit: "Sperren",
       submitting: "Wird gesperrt …",
       unblock: "Sperre aufheben",
@@ -529,21 +508,21 @@ export const de = {
     },
     /**
      * Archiving a household (US-10). It is how someone leaves the register and the only action that
-     * frees a customer number, so the confirmation says both of the things staff would otherwise
-     * learn from a support call: the number goes back into circulation, and nothing is deleted.
+     * frees a customer number, which is why the confirmation names the number at all.
+     *
+     * The confirmation recited four facts and now states two. „Der Datensatz bleibt erhalten“ went
+     * because nothing in this application deletes anything, so it was reassuring staff about a
+     * danger they had not been in; the free number and the one-way door are what is actually acted
+     * on. The irreversibility is stated **here and only here** — `record.dangerHint` used to carry
+     * it too, a screen away from any button, and now leaves it to the click that does it.
      */
     archive: {
       heading: "Archivieren",
       action: "Diesen Haushalt archivieren",
       reasonLabel: "Grund der Archivierung",
-      reasonHint:
-        "Der Grund bleibt dauerhaft auf dem archivierten Datensatz stehen und ist die einzige " +
-        "Erklärung, die spätere Kolleginnen und Kollegen dazu finden.",
       confirm: (customerNumber: number): string =>
-        `Die Kundennummer ${customerNumber} wird sofort frei und kann bei der nächsten Aufnahme ` +
-        `neu vergeben werden — möglicherweise schon morgen an einen anderen Haushalt. Der ` +
-        `Datensatz bleibt vollständig erhalten und auffindbar; gelöscht wird nichts. Rückgängig ` +
-        `machen lässt sich die Archivierung nicht: Wer zurückkommt, wird neu aufgenommen.`,
+        `Die Kundennummer ${customerNumber} wird frei. Rückgängig machen lässt sich die ` +
+        `Archivierung nicht.`,
       submit: "Jetzt archivieren",
       submitting: "Wird archiviert …",
       /**
@@ -561,9 +540,14 @@ export const de = {
       bannerDetail: (date: string, reason: string): string =>
         `Archiviert am ${date}. Grund: „${reason}“`,
       bannerNoReason: "Zu dieser Archivierung ist kein Grund hinterlegt.",
+      /**
+       * „frei“ and „gehört bereits jemand anderem“ are two different facts, and the second is the
+       * one somebody acts on wrongly: the number is still printed on this record, and a staff member
+       * reading it has no way to see that it may since have been handed to another household.
+       */
       bannerReadOnly:
-        "Der Datensatz wird nur noch angezeigt und kann nicht mehr geändert werden. Die " +
-        "Kundennummer ist freigegeben und gehört möglicherweise bereits einem anderen Haushalt.",
+        "Der Datensatz kann nicht mehr geändert werden. Die Kundennummer ist wieder frei und " +
+        "gehört möglicherweise bereits einem anderen Haushalt.",
       errors: {
         missingReason: "Bitte einen Grund für die Archivierung angeben.",
         notArchivable: "Dieser Haushalt ist bereits archiviert. Bitte die Seite neu laden.",
@@ -618,9 +602,14 @@ export const de = {
          * a bare "Kundennummer" beside a name is exactly what would be copied onto a new card.
          */
         formerNumber: "Frühere Kundennummer",
+        /**
+         * Same fact as {@link archive.bannerReadOnly}, and for the same reason — this panel exists to be
+         * read while a *new* number is being handed out, which is exactly when copying the old one
+         * across would be the natural mistake. „gehört möglicherweise …“ says „frei“ as well.
+         */
         formerNumberHint:
-          "Nur zur Wiedererkennung. Diese Nummer ist seit der Archivierung wieder frei und " +
-          "gehört möglicherweise bereits einem anderen Haushalt.",
+          "Nur zur Wiedererkennung — diese Nummer gehört möglicherweise bereits einem anderen " +
+          "Haushalt.",
         select: "Daten übernehmen",
         selecting: "Wird übernommen …",
         /** What the row that filled the form says instead of offering to fill it again. */
@@ -648,10 +637,7 @@ export const de = {
         detail: (name: string, formerNumber: number, archivedOn: string): string =>
           `Übernommen von „${name}“, archiviert am ${archivedOn} unter der Kundennummer ` +
           `${formerNumber}. Es wird ein neuer Datensatz mit einer neu vergebenen Kundennummer und ` +
-          `einer neuen Karte angelegt. Der archivierte Datensatz bleibt unverändert erhalten.`,
-        editableHint:
-          "Alle übernommenen Felder können geändert werden — der Haushalt kann seither " +
-          "gewachsen, kleiner geworden oder umgezogen sein.",
+          `einer neuen Karte angelegt.`,
         clear: "Übernahme verwerfen und leer beginnen",
       },
       errors: {
@@ -672,12 +658,17 @@ export const de = {
       CUSTOMER_NUMBER_CHANGED: "Kundennummer geändert",
       OTHER: "Sonstiger Grund",
     },
-    /** The card view at /kunden/[id]/karte — what staff copy onto the physical card. */
+    /**
+     * The card view at /kunden/[id]/karte — what staff copy onto the physical card.
+     *
+     * Three sentences of explanation are gone from this screen: that this card is the valid one and
+     * earlier ones are not, that the counts are derived on every request, and that the reissue count
+     * carries no warning with it. Each restated something the screen itself shows — the card number
+     * under a heading, the superseded numbers listed beneath it, the next reissue offered with no
+     * mark on it. What is left is the card.
+     */
     cardView: {
       heading: "Kundenkarte",
-      current:
-        "Dies ist die aktuell gültige Karte. Frühere Karten sind damit ungültig und dürfen an " +
-        "der Ausgabe nicht mehr angenommen werden.",
       issuedAt: "Ausgestellt am",
       issuedBecause: "Grund der Ausstellung",
       supersededHeading: "Ersetzte Kartennummern",
@@ -686,16 +677,12 @@ export const de = {
       // replacement, so it reads as a note on that line rather than as the cause of the reissue.
       supersededEntry: (number: string, date: string, reason: string): string =>
         `${number} — ausgestellt am ${date}, Grund: ${reason}`,
-      countsHint: "Erwachsene und Kinder werden bei jedem Aufruf aus den Geburtsdaten berechnet.",
       issuedHeading: "Ausgestellte Karten",
       issuedCount: "Karten insgesamt",
       lossCount: "davon nach Verlust",
-      // Stated as plainly as the numbers themselves: DF decides case by case whether a household
-      // loses cards too often, and the software must not tilt that judgement with a warning
-      // (tasks/prd-us-09-reissue-card-after-loss.md §FR-4).
-      issuedHint:
-        "Die Zahlen dienen nur der Information. Neuausstellungen sind unbegrenzt möglich; die " +
-        "Anwendung begrenzt und mahnt nichts an.",
+      // The two counts stand unadorned. DF decides case by case whether a household loses cards too
+      // often, and the software must not tilt that judgement (prd-us-09 §FR-4) — which the *absence*
+      // of any mark on them says better than a sentence promising there is no mark.
       backToCustomer: "Zurück zur Kundenübersicht",
     },
     /**
@@ -727,36 +714,34 @@ export const de = {
        * the section „Kundennummer“ below now does. Nothing replaced the sentence here: this hint is
        * about the boxes above it, and a form that says where a *different* form lives is how a
        * screen ends up cross-referencing itself. The section says it by existing.
+       *
+       * The same argument later took the second sentence, which said the name also governs this
+       * person's row in the household below. That row now carries the corrected name the moment
+       * this form is saved, in front of whoever saved it — a screen that narrates its own effect is
+       * describing something the next scroll shows.
        */
-      detailsHint:
-        "Korrekturen an Name, Geburtsdatum und Anschrift. Der Name gilt zugleich für die Zeile " +
-        "dieser Person im Haushalt.",
+      detailsHint: "Korrekturen an Name, Geburtsdatum und Anschrift.",
       detailsSubmit: "Person und Anschrift speichern",
       /**
-       * Names all four derived figures, and says „aus dem Haushalt“ rather than „aus den
-       * Geburtsdaten“ since US-28: the eggs follow the number of people and not their ages, so the
-       * older wording would have been wrong about the fourth tile. It stops at *that* the figures
-       * are derived — which rule turns a household into six eggs is not something a staff member
-       * has to know at the table.
+       * The one thing saving a household does that this screen cannot show: the card in their hand
+       * still names the old counts.
+       *
+       * It opened by naming all four derived figures and saying they apply immediately — which the
+       * tiles above answer by *being* the figures, and which a save taking effect is anyway. Worded
+       * to match {@link groupHint} word for word: the two forms sit one above the other, they have
+       * the same consequence, and two phrasings of it would read as two different consequences.
        */
       householdHint:
-        "Erwachsene, Kinder, Eier und Preis werden aus dem Haushalt berechnet und gelten " +
-        "sofort. Ändert sich dabei die Zahl der Köpfe, steht der Haushalt danach auf der Liste " +
-        "„Karten neu ausstellen“ — die Karte nennt die alten Zahlen.",
+        "Ändert sich die Zahl der Köpfe, muss die Karte unter „Karten neu ausstellen“ neu " +
+        "ausgestellt werden.",
       householdSubmit: "Haushalt speichern",
-      /**
-       * Why one row's „Zeile entfernen“ is greyed out and its Felder nicht beschreibbar sind. It
-       * says where the correction *does* belong, because the form that owns it is on the same page,
-       * directly above.
-       */
-      customerRowHint:
-        "Die aufgenommene Person zählt selbst zum Haushalt: Ihre Zeile lässt sich hier weder " +
-        "entfernen noch ändern. Name und Geburtsdatum werden oben unter „Person und Anschrift“ " +
-        "korrigiert.",
       notesHeading: "Bemerkung",
-      notesHint:
-        "Die Bemerkung wird an der Ausgabe angezeigt, sobald die Kundennummer eingegeben wird. " +
-        "Leer lassen ist erlaubt.",
+      /**
+       * Where the note is read. „sobald die Kundennummer eingegeben wird“ described the counter's
+       * mechanics to somebody who is not at the counter, and „Leer lassen ist erlaubt“ said that an
+       * optional field is optional.
+       */
+      notesHint: "Die Bemerkung wird an der Ausgabe angezeigt.",
       notesSubmit: "Bemerkung speichern",
       notesEmpty: "Keine Bemerkung hinterlegt.",
       groupHeading: "Gruppe",
@@ -777,16 +762,15 @@ export const de = {
       /** The hand-out history (US-16.5) — newest first, each row priced as it was priced then. */
       historyHeading: "Bisherige Ausgaben",
       /**
-       * Two sentences under the table: what the price on a row means, and what to do about a wrong
-       * one. The second is there because the software offers no answer to it — a hand-out can be
-       * corrected only on the day it was recorded (US-29.4), so a mistake found a week later is put
-       * right by asking for more or less at the next hand-out, which the balance then carries. The
-       * screen states the procedure rather than leaving a staff member to look for a button.
+       * The one fact under the table that the table cannot show: the correction window (US-29.4).
+       *
+       * There is no control anywhere that closes at midnight in front of somebody, so a staff member
+       * looking at a week-old row would otherwise hunt for a button that is not there. What went
+       * with it: that a row is priced as it was priced then — visible in the column itself — and how
+       * a late mistake is settled, which is DF's procedure rather than the software's, and belongs
+       * in `docs/handout/`.
        */
-      historyHint:
-        "Der Preis ist der, der an diesem Tag galt — spätere Änderungen an den Einstellungen " +
-        "ändern ihn nicht. Eine Ausgabe lässt sich nur am selben Tag korrigieren; ein später " +
-        "bemerkter Fehler wird bei der nächsten Ausgabe über den geforderten Betrag ausgeglichen.",
+      historyHint: "Korrekturen sind nur am selben Tag möglich.",
       historyEmpty: "Für diesen Haushalt ist noch keine Ausgabe erfasst.",
       /**
        * The accessible name of the scrolling box the history sits in. It has to be spoken, because
@@ -852,9 +836,12 @@ export const de = {
        * (PRD §6); each control inside it keeps its own confirmation.
        */
       dangerHeading: "Aktionen mit Folgen",
-      dangerHint:
-        "Diese Aktionen wirken sofort und werden einzeln bestätigt. Eine Archivierung lässt sich " +
-        "nicht rückgängig machen.",
+      /**
+       * That the archive is a one-way door was the second sentence here and is now only in
+       * {@link archive.confirm} — beside the button that does it, rather than in a caption over a
+       * section holding three different actions, two of which are reversible.
+       */
+      dangerHint: "Diese Aktionen wirken sofort und werden einzeln bestätigt.",
       saving: "Wird gespeichert …",
       saved: "Gespeichert.",
       errors: {
@@ -885,9 +872,7 @@ export const de = {
        * offer. The dropdown is left enabled beside it: a greyed-out control states that something
        * cannot be done and never why, and the one thing a staff member needs here is the reason.
        */
-      noOtherNumber:
-        "Zurzeit ist keine andere Kundennummer frei. Es lässt sich erst wieder eine vergeben, " +
-        "wenn ein Haushalt archiviert oder die Höchstzahl in den Einstellungen erhöht wird.",
+      noOtherNumber: "Zurzeit ist keine andere Kundennummer frei.",
       /** Reveals the confirmation. Nothing is written by it — {@link submit} is the save. */
       action: "Kundennummer ändern",
       /**
@@ -938,12 +923,14 @@ export const de = {
     reissue: {
       heading: "Kartenverlust",
       action: "Karte neu ausstellen (Verlust)",
+      /**
+       * The two numbers and nothing else, in the shape {@link numberChange.confirm} already uses:
+       * the one that dies and the one to write on the physical card. That a replaced card is dead is
+       * a rule the four people using this know, and a confirmation reciting the rules is one that
+       * gets clicked past unread.
+       */
       confirm: (current: string, next: string): string =>
-        `Die Karte ${current} wird damit ungültig und darf an der Ausgabe nicht mehr angenommen ` +
-        `werden. Ausgestellt wird die Nummer ${next}.`,
-      hint:
-        "Status, Kundennummer, Gruppe und bisherige Ausgaben bleiben unverändert. Ein Kartenverlust " +
-        "kostet den Haushalt nichts.",
+        `Karte ${current} wird ungültig. Neue Karte: ${next}.`,
       submit: "Neue Karte jetzt ausstellen",
       submitting: "Wird ausgestellt …",
       /**
@@ -1055,9 +1042,10 @@ export const de = {
     },
     /** The group balance above the table — the number staff keep even (FR-3). */
     groupBalance: (red: number, blue: number): string => `Rot: ${red} · Blau: ${blue}`,
-    groupBalanceHint:
-      "Alle aktiven Haushalte, unabhängig von den gewählten Filtern. Die kleinere Gruppe wird bei " +
-      "der nächsten Aufnahme vorgeschlagen.",
+    // „Alle“ carries the filter-independence in one word, which is the misreading this caption
+    // exists to prevent. That the smaller group is proposed at registration belongs to the
+    // registration screen, and is said there.
+    groupBalanceHint: "Alle aktiven Haushalte je Gruppe.",
     /** How many rows are shown; German inflects the one. */
     resultCount: (count: number): string => (count === 1 ? "1 Haushalt" : `${count} Haushalte`),
     table: {
@@ -1138,15 +1126,19 @@ export const de = {
   cardsDue: {
     heading: "Karten neu ausstellen",
     /**
-     * The list itself, under the "keine Eile" sentence. Its count is `customerList.actions
-     * .cardsDueBadge`, deliberately not a second wording of its own: the hub states the same number
-     * in the same words, and two phrasings of one fact are how the two screens come to disagree.
+     * The list itself. Its count is `customerList.actions.cardsDueBadge`, deliberately not a second
+     * wording of its own: the hub states the same number in the same words, and two phrasings of one
+     * fact are how the two screens come to disagree.
      */
     listTitle: "Karten",
-    notUrgent:
-      "Das hat keine Eile. Erwachsene, Kinder und Preis berechnet die Anwendung bei " +
-      "jedem Aufruf neu; die Karte ist nur ein Ausdruck. Eine veraltete Karte ist nie ein Grund, " +
-      "jemanden an der Ausgabe wegzuschicken.",
+    /*
+     * No „Das hat keine Eile“ above the list any more. It said the screen was in no hurry while
+     * `record.householdHint` and {@link record.groupHint} — the two places a staff member is sent
+     * here from — say the card „muss neu ausgestellt werden“, and of the two the second is right:
+     * a reissue is not due this minute, but it is due. What the sentence was really there to guard
+     * is that a stale card turns nobody away, and that is said where it could be got wrong, at the
+     * counter ({@link distribution.counter.staleCard} — „Es gelten die heutigen Zahlen“).
+     */
     empty: "Zurzeit ist keine Karte neu auszustellen.",
     countsOnCard: "Auf der Karte gedruckt",
     countsToday: "Haushalt heute",
@@ -1200,9 +1192,7 @@ export const de = {
     waitingCount: (count: number): string =>
       count === 0 ? "niemand wartet" : count === 1 ? "1 Wartende:r" : `${count} Wartende`,
     /** The list's own description, because it is the rule the list exists to keep. */
-    orderRule:
-      "Die Reihenfolge ist das Datum der Anmeldung — wer am längsten wartet, steht oben und ist " +
-      "als Nächstes an der Reihe. Die Liste lässt sich bewusst nicht umsortieren.",
+    orderRule: "Wer am längsten wartet, steht oben. Die Liste lässt sich nicht umsortieren.",
     empty: "Zurzeit steht niemand auf der Warteliste.",
     position: "Platz",
     addedOn: "Angemeldet am",
@@ -1235,12 +1225,20 @@ export const de = {
     /** Putting somebody on the list. */
     add: {
       heading: "Auf die Warteliste setzen",
-      hint:
-        "Der Haushalt wird erst bei der Aufnahme erfasst. Hier genügen die Person, die Anschrift " +
-        "und der Bedarfsnachweis.",
       contactNoteLabel: "Erreichbarkeit (optional)",
+      /**
+       * The example does the work — it is what makes „Freitext“ mean something other than an empty
+       * box. The sentence refusing phone numbers and e-mail addresses stays, shortened: it is a
+       * deliberate decision about DF's data and is stated nowhere else on any screen.
+       *
+       * Shortened by dropping the opening rather than the verb. „Keine Telefonnummern und
+       * E-Mail-Adressen“ puts one „keine“ in front of two nouns joined by „und“, which reads as
+       * forbidding the pair and leaves each of them alone, and it addresses the staff member as an
+       * instruction. Stating what the software does keeps the negation on both nouns and keeps this
+       * a decision rather than an order — „bewusst“ is the word that says it is one.
+       */
       contactNoteHint:
-        "Freitext, zum Beispiel „über die Nachbarin, dienstags vormittags“. Telefonnummern und " +
+        "Freitext, z. B. „über die Nachbarin, dienstags vormittags“. Telefonnummern und " +
         "E-Mail-Adressen werden bewusst nicht erfasst.",
       submit: "Auf die Warteliste setzen",
       submitting: "Wird gespeichert …",
@@ -1264,9 +1262,7 @@ export const de = {
        * one place DF's data must not end up is a browser history. What is left to say is that the
        * entry was kept, which is the thing the shortened list does not say.
        */
-      saved:
-        "Der Eintrag ist von der Warteliste genommen. Er bleibt mit dem Grund erhalten, damit die " +
-        "Reihenfolge nachvollziehbar bleibt.",
+      saved: "Der Eintrag ist von der Warteliste genommen.",
     },
     /** Registering the applicant a freed slot belongs to. */
     promote: {
@@ -1282,9 +1278,8 @@ export const de = {
        */
       expiredHeading: "Der Bedarfsnachweis ist abgelaufen",
       expiredDetail: (validUntil: string): string =>
-        `Der bei der Anmeldung vorgelegte Nachweis galt bis zum ${validUntil}. Für die Aufnahme ` +
-        `wird ein aktueller Nachweis benötigt — bitte ihn vorlegen lassen und das Feld unten ` +
-        `entsprechend ändern.`,
+        `Der vorgelegte Nachweis galt bis zum ${validUntil}. Für die Aufnahme wird ein aktueller ` +
+        `Nachweis benötigt.`,
       expiredContinue: "Verstanden, jetzt aufnehmen",
       backToList: "Zurück zur Warteliste",
     },
@@ -1383,24 +1378,29 @@ export const de = {
       /**
        * The note for a card whose printed counts the household has outgrown (US-13.4).
        *
-       * Deliberately not a verdict and deliberately not a warning: it names the difference, says
-       * which numbers apply, and stops. A stale card is never grounds to turn anyone away (FR-5),
-       * so the sentence must not read as one — no "Achtung", no exclamation mark, and nothing that
-       * asks the counter to do anything before the next customer is served.
+       * Deliberately not a verdict and deliberately not a warning: it names what is on the card,
+       * says which numbers apply, and stops. A stale card is never grounds to turn anyone away
+       * (FR-5), so the sentence must not read as one — no "Achtung", no exclamation mark, and
+       * nothing that asks the counter to do anything before the next customer is served. DF were
+       * offered "Achtung" when this was shortened and did not want it either.
+       *
+       * The household's counts today are **not** repeated here. They are tiles a thumb's width
+       * away, and this is the most-read text in the product: a sentence quoting the screen back to
+       * itself is paid for at every lookup of every afternoon. Neither note offers a new card any
+       * more — `/karten-neuausstellung` lists exactly these households, and says on its own heading
+       * that it is in no hurry.
+       *
        */
-      staleCard: (cardNumber: string, onCard: string, today: string): string =>
-        `Die Karte ${cardNumber} ist noch mit anderen Zahlen gedruckt (${onCard}); heute zählt ` +
-        `der Haushalt ${today}. Ausgegeben wird nach den heutigen Zahlen. Eine neue Karte kann bei ` +
-        `Gelegenheit ausgestellt werden.`,
+      staleCard: (cardNumber: string, onCard: string): string =>
+        `Karte ${cardNumber} ist veraltet — gedruckt: ${onCard}. Es gelten die heutigen Zahlen.`,
       /**
        * The same note for a card that names the wrong group (US-16.4). Its own sentence rather than
        * the one above with other words in it: nothing about the household's numbers has changed, and
        * quoting two identical counts at the counter would read as a mistake.
        */
-      staleCardGroup: (cardNumber: string, onCard: string, today: string): string =>
-        `Die Karte ${cardNumber} ist noch für die Gruppe ${onCard} gedruckt; der Haushalt ` +
-        `gehört jetzt zu ${today}. Es gilt die heutige Gruppe. Eine neue Karte kann bei ` +
-        `Gelegenheit ausgestellt werden.`,
+      staleCardGroup: (cardNumber: string, onCard: string): string =>
+        `Karte ${cardNumber} ist veraltet — gedruckt für Gruppe ${onCard}. Es gilt die heutige ` +
+        `Gruppe.`,
       /**
        * The way from the counter to the whole record (US-16.5). Named after what it leads to rather
        * than "Mehr": the counter shows a slice of the record, and the next question — who else lives
@@ -1512,8 +1512,7 @@ export const de = {
       overpayment: {
         question: (paidCents: number, amountToPayCents: number): string =>
           `${formatEuros(paidCents)} statt ${formatEuros(amountToPayCents)} — wirklich so buchen? ` +
-          `Der Rest von ${formatEuros(paidCents - amountToPayCents)} bleibt als Guthaben stehen ` +
-          `und wird bei der nächsten Ausgabe verrechnet.`,
+          `${formatEuros(paidCents - amountToPayCents)} bleiben als Guthaben stehen.`,
         /** Names the act rather than answering „ja“, so the button says what pressing it does. */
         confirm: "Ja, Betrag so buchen",
       },
@@ -1523,14 +1522,13 @@ export const de = {
         saved: "Eintrag aktualisiert.",
         remove: "Eintrag entfernen",
         /**
-         * The whole consequence of a removal, in the order it is felt: the hand-out goes, the
-         * payment goes with it, and the household's balance returns to where it stood before today
-         * (US-29, rule 9). The third clause is the one no other line on the screen carries — the
-         * balance is a derivation over the surviving records, so a removal moves it.
+         * The one consequence of a removal that is not simply what „entfernen“ means: the
+         * household's balance returns to where it stood before today (US-29, rule 9). The balance is
+         * a derivation over the surviving records, so a removal moves it — and it is the only figure
+         * on the screen that a removal changes without the change being visible.
          */
         removeConfirm: (balanceWithoutRecordCents: number): string =>
-          `Diesen Eintrag wirklich entfernen? Die Ausgabe gilt dann als nicht erfolgt, und der ` +
-          `gezahlte Betrag wird mit entfernt. Der Saldo des Haushalts steht danach wieder bei: ` +
+          `Diesen Eintrag wirklich entfernen? Der Saldo steht danach wieder bei: ` +
           `${balanceWording(balanceKind(balanceWithoutRecordCents), balanceWithoutRecordCents)}.`,
         removeConfirmButton: "Ja, entfernen",
         removed: "Eintrag entfernt. Der Haushalt kann heute erneut erfasst werden.",
@@ -1569,9 +1567,12 @@ export const de = {
       },
       renewal: {
         heading: "Neuen Bedarfsnachweis erfassen",
-        hint:
-          "Bringt der Haushalt den verlängerten Nachweis mit, hier eintragen. Die Erinnerungen " +
-          "werden dabei auf 0 zurückgesetzt.",
+        /**
+         * The side effect, which is the only part of this form that the form does not show. „Bringt
+         * der Haushalt den verlängerten Nachweis mit, hier eintragen“ was the heading again, in a
+         * longer sentence. Read on two screens — the counter and the record.
+         */
+        hint: "Erinnerungen werden dabei auf 0 zurückgesetzt.",
         submit: "Nachweis speichern",
         saved: "Nachweis gespeichert. Erinnerungen zurückgesetzt: 0.",
         errors: {
@@ -1600,9 +1601,7 @@ export const de = {
   },
   settings: {
     heading: "Einstellungen",
-    intro:
-      "Änderungen gelten sofort. Beim Speichern wird eine neue Fassung angelegt; frühere " +
-      "Fassungen bleiben erhalten, damit vergangene Ausgaben nachvollziehbar bleiben.",
+    intro: "Änderungen gelten sofort. Frühere Fassungen bleiben erhalten.",
     /**
      * The three card headings, and they are the grouping: the four settings that decide *what* a
      * household gets, the three that decide *when*, and the write itself. What stood here before
@@ -1656,10 +1655,6 @@ export const de = {
        */
       fieldLabel: (position: number, part: "minPersons" | "eggs"): string =>
         `Eier, Zeile ${position}: ${part === "minPersons" ? EGG_THRESHOLD_COLUMN : EGG_COUNT_COLUMN}`,
-      /** The rule in one sentence, under the table — both halves of it, including the bottom. */
-      hint:
-        "Ein Haushalt erhält die Eier der höchsten Stufe, die er erreicht. Ein Haushalt, der keine " +
-        "Stufe erreicht, erhält keine Eier.",
       /**
        * What an empty table says. No rows is a legitimate setting, and an empty area on a screen
        * cannot be told apart from one that failed to render — so it is stated in words.
@@ -1724,14 +1719,15 @@ export const de = {
     },
     prices: {
       /**
-       * Both halves of the rule, because the screen now holds both: the per-head calculation and
-       * the ceiling on it. The last sentence is what makes an empty field readable as a decision
-       * rather than as something nobody has filled in yet.
+       * What makes an empty Maximalpreis readable as a decision rather than as a field nobody has
+       * filled in yet — the one thing on this screen that can be got wrong by doing nothing, and the
+       * reason `aria-describedby` still points here from that field.
+       *
+       * The two sentences before it explained per-head pricing and what a cap is, to a reader who
+       * has „Preis je Erwachsenem“, „Preis je Kind“ and „Maximalpreis je Ausgabe“ as the field
+       * labels in front of them.
        */
-      hint:
-        "Der Preis wird je Kopf berechnet: je Erwachsenem und je Kind. Der Maximalpreis ist der " +
-        "Höchstbetrag, den ein Haushalt je Ausgabe zahlt, ganz gleich wie groß er ist. Bleibt das " +
-        "Feld leer, gibt es keinen Maximalpreis.",
+      hint: "Leer lassen: kein Maximalpreis.",
       /**
        * What an empty Maximalpreis says, wherever a cap is read back — the history and the version
        * summary. „kein Maximalpreis“ and „0,00 €“ are two different configurations: the second one

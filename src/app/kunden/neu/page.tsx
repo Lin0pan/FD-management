@@ -64,7 +64,6 @@ export default async function NewCustomerPage(): Promise<React.ReactElement> {
     <main className={SHELL}>
       <header className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">{de.customers.new.heading}</h1>
-        <p className="max-w-prose text-muted-foreground">{de.customers.new.intro}</p>
       </header>
 
       {/* Above the form, so it is read before the first field is typed: the number this screen is

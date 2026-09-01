@@ -147,8 +147,24 @@ test("the counts and the price are derived from the household, not stored", asyn
   await expect(page.getByTestId("children")).toHaveText("1");
   await expect(page.getByTestId("price")).toHaveText(PRICE_AS_SEEDED);
 
-  // These are the standard values, and the screen says so — there is no control to adjust them.
-  await expect(page.getByRole("main")).toContainText(de.customers.derived.standardValues);
+  // Read-only throughout: the three figures are printed, and the record offers nothing to type a
+  // count or a price into. The sentence that used to say so was dropped as one DF already knew, so
+  // what stands in for it is the markup — a `Stat` renders its value as a `<span>`, and this fails
+  // the day one of the three becomes a field. Deliberately *not* a `getByLabel(…).toHaveCount(0)`:
+  // a `Stat` labels its value with a plain `<span>` rather than a `<label>` or an `aria-label`, so
+  // a query by label matches nothing on this screen however editable the screen has become — an
+  // assertion that cannot fail is not one.
+  for (const [testId, label] of [
+    ["grown-ups", de.customers.derived.grownUps],
+    ["children", de.customers.derived.children],
+    ["price", de.customers.derived.price],
+  ] as const) {
+    const value = page.getByTestId(testId);
+    await expect(value).toHaveJSProperty("tagName", "SPAN");
+    // And the figure is still labelled by the tile it sits in — `Stat` keeps the label and the
+    // value inside one element on purpose, so the pair is asserted the way it is announced.
+    await expect(value.locator("xpath=..")).toContainText(label);
+  }
 
   // A second child joins the household. Nothing else is touched — no count and no price column is
   // written, because there is none.

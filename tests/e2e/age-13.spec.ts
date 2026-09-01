@@ -325,9 +325,6 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
     );
     await expect(row.getByTestId("cards-due-reason")).toHaveText(de.cardsDue.reasons.AGE_13);
 
-    // The screen says so before it says anything else: a card that has fallen behind can wait.
-    await expect(page.getByTestId("cards-due-not-urgent")).toHaveText(de.cardsDue.notUrgent);
-
     expect(await badgeCount(page)).toBe(dueBefore + 1);
   });
 
@@ -350,11 +347,7 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
     await expect(page.getByTestId("counter-eggs")).toHaveText(AFTER.eggs);
     await expect(page.getByTestId("counter-price")).toHaveText(AFTER.price);
     await expect(page.getByTestId("counter-stale-card")).toHaveText(
-      de.distribution.counter.staleCard(
-        card(1),
-        de.customers.derived.countsValue(1, 2),
-        de.customers.derived.countsValue(2, 1),
-      ),
+      de.distribution.counter.staleCard(card(1), de.customers.derived.countsValue(1, 2)),
     );
   });
 

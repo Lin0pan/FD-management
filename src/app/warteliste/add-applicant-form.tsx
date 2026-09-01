@@ -30,7 +30,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -220,7 +220,6 @@ export function AddApplicantForm(): React.ReactElement {
         <CardTitle className="text-lg">
           <h2>{de.waitingList.add.heading}</h2>
         </CardTitle>
-        <CardDescription className="max-w-prose">{de.waitingList.add.hint}</CardDescription>
       </CardHeader>
       <CardContent>
         <form ref={form} action={action} onKeyDown={guardEnter} className="flex flex-col gap-4">

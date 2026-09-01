@@ -94,6 +94,12 @@ deliberately and say why in the commit; do not add an inline disable.
 - Throw **typed domain errors** from `errors.ts`; no bare `throw new Error("…")`.
 - **Identifiers English, UI strings German**, and only in `src/i18n/de.ts` — no German literals in
   components.
+- **Don't explain the screen on the screen.** DF know what the software does and are handed
+  `docs/handout/`; a hint restating what is already visible is clutter that they have now asked to
+  have removed five times. Before writing a hint, intro or card description, ask what it says that
+  the screen does not already show — a side effect, a one-way door, a closing window, the meaning of
+  an _empty_ field, an example for a free-text box. If the answer is "nothing", don't write it.
+  `docs/guideline/ui_styling_guide.md` §8 has the test and the surviving examples.
 - Prefer pure functions and value objects (`CardNumber`) over primitives passed around.
 - Formatting and import order are Prettier's and ESLint's job — never argue about them in review.
 

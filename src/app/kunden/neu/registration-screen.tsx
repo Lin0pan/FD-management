@@ -87,7 +87,6 @@ export function RegistrationScreen({
                 germanDate(selection.match.archivedAt),
               )}
             </p>
-            <p className="text-sm">{words.editableHint}</p>
             <Button
               type="button"
               variant="ghost"

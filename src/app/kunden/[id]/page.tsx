@@ -230,8 +230,6 @@ function HouseholdReadOnly({ view }: { view: CustomerCardView }): React.ReactEle
           ))}
         </TableBody>
       </Table>
-      <p className="text-xs text-muted-foreground">{de.customers.derived.hint}</p>
-      <p className="text-xs text-muted-foreground">{de.customers.derived.standardValues}</p>
     </>
   );
 }
