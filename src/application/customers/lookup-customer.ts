@@ -275,7 +275,7 @@ export async function lookupCustomer(
       reminderCount: customer.reminderCount,
       consecutiveNoShows,
       notes: customer.details.notes,
-      cardNumber: formatCardNumber(customer.customerNumber, customer.card.index),
+      cardNumber: formatCardNumber(customer.card.customerNumber, customer.card.index),
       countsOnCard: customer.card.countsAtIssue,
       groupOnCard: customer.card.groupAtIssue,
       balanceCents,

@@ -189,11 +189,11 @@ export async function reissueCardAction(
   let cardNumber: string;
   try {
     const card = await reissueCard(customerDeps, { customerId: customerId.data, reason: "LOST" });
-    const customer = await customerDeps.customers.findById(customerId.data);
-    if (customer === null) {
-      return { status: "error", message: de.customers.reissue.errors.unknown, tier: "error" };
-    }
-    cardNumber = formatCardNumber(customer.customerNumber, card.index);
+    // Both halves off the card the store handed back. The slot it was printed under is on the row
+    // itself (US-30), so the household does not have to be read a second time to be asked a number
+    // the card already carries — and the receipt names what was written rather than what agrees
+    // with it.
+    cardNumber = formatCardNumber(card.customerNumber, card.index);
   } catch (error: unknown) {
     if (error instanceof CustomerArchived) {
       return {

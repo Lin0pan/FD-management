@@ -90,7 +90,7 @@ export async function listCardsDueForReissue(
       customerNumber: customer.customerNumber,
       firstName: customer.details.firstName,
       lastName: customer.details.lastName,
-      cardNumber: formatCardNumber(customer.customerNumber, customer.card.index),
+      cardNumber: formatCardNumber(customer.card.customerNumber, customer.card.index),
       nextCardNumber: formatCardNumber(customer.customerNumber, customer.card.index + 1),
       countsOnCard,
       countsToday,
