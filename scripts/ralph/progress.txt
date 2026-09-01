@@ -1,10 +1,10 @@
 # Ralph Progress Log
-Started: Mon Aug 31 2026 (batch 30 — US-30 changing a customer's customer number)
+Started: Tue Sep 01 2026 (batch 31 — US-31 the customer number decides the group)
 
 The `## Codebase Patterns` block below is CARRIED OVER from earlier batches on purpose
-(`scripts/ralph/prds/README.md` point 2). Add to it; do not reset it. The batch-29-specific
-bullets that sat under „Where batch 29 starts“ are not carried over — they are in
-`scripts/ralph/archive/2026-08-29-us-29-customer-balance/progress.txt`.
+(`scripts/ralph/prds/README.md` point 2). Add to it; do not reset it. The batch-30-specific
+bullets that sat under „Where batch 30 starts" are not carried over — they are in
+`scripts/ralph/archive/2026-09-01-us-30-change-customer-number/progress.txt`.
 
 ## Codebase Patterns
 - **Adding a `DomainErrorCode` is a three-file change**: the union in `src/domain/errors.ts`, the
@@ -129,6 +129,13 @@ bullets that sat under „Where batch 29 starts“ are not carried over — they
   The compiler finds the *constructors*; only the suite finds the assertions. Same family as the
   „renaming a Prisma column is not finished when `tsc` is green" bullet — run the tests even when
   the wide break looks closed.
+- **A domain story that changes a signature is not domain-only.** Deleting an exported function or
+  giving one a second argument breaks `app/`, `application/` and `infrastructure/` in the same
+  commit, and those call sites are that story's own work — the tree has to be green at every
+  iteration. Two rules keep it honest: change the *shape* only and never the behaviour, and write in
+  a comment which later story deletes the line. Where a narrowing is still needed for one more
+  iteration because a column still holds the old value, push it *down* into the adapter rather than
+  keeping the domain function alive (batch 31's `parseStoredGroup` in `card-repository.ts`).
 - **A required field added to a type a *writer* passes is a signal to split the type**, not to teach
   every writer the new field. `NewCard = Omit<IssuedCard, "customerNumber">` and `NewCustomer.card:
   NewCard` kept the slot the store's to fill in — which is the actual invariant — and cut the fixture
@@ -177,7 +184,10 @@ bullets that sat under „Where batch 29 starts“ are not carried over — they
 - **An unreachable `?? fallback` fails the 100% branch gate.** Where a lookup cannot miss (a row that
   came out of `findById` being in that customer's own list), reduce over the list with a ternary
   instead of `find(...) ?? x` — both arms of the ternary are covered by any test with two rows, and
-  nothing pretends to handle a case that cannot arise.
+  nothing pretends to handle a case that cannot arise. Where the fallback *is* wanted — a domain
+  answer that went nullable and one caller not ready for it — **move the expression to where a test
+  already goes** instead: batch 31's `suggestGroup(...) ?? "RED"` sits above the allocation inside
+  `registerCustomer`'s retry loop, so the full-register test reaches it before the allocation throws.
 - **Two files carry the story range and neither is anybody's story:**
   `docs/architecture/01-introduction-and-goals.md` („one PRD per user story, US-01 to US-nn“) and
   the `tasks/` row of `docs/architecture/README.md` say the same thing, and both go stale on every
@@ -289,560 +299,133 @@ bullets that sat under „Where batch 29 starts“ are not carried over — they
   balance households first came out at −12,00 €, −5,00 € and +1,00 €). Skip the pattern for the
   scripted shape while still incrementing its counter, so the rest of the register is unchanged —
   and verify the fixture by querying the seeded database, never by reading the script.
+- **`/warteliste` has no free-slot count, and a move can never change one.** The waiting list names
+  *one* free number and *one* applicant in a banner, and `/kunden` carries a boolean „Platz frei"
+  badge — neither is a figure that can go up. „Noch N freie Nummern" lives on `/kunden/neu` and on
+  the record's number control, and a household moving between slots swaps one taken number for
+  another, so `|taken|` is invariant. Batch 30 wrote an AC asserting a count that rose on a screen
+  that has none; assert the *composition* of the offer (the vacated number is offered, the taken one
+  is not) rather than its size.
+- **A lost race is driven with a second real tab**, `page.context().newPage()` plus the same
+  registration helper — not a hand-written Prisma row, which would skip the intake's own allocation
+  and prove nothing about the refusal staff actually meet.
 
 
-### Where batch 30 starts
+### Where batch 31 starts
 
-Batch 29 (the customer balance) is **merged into `main`** — PR #126, squashed as `4658e1a`. So a
-hand-out carries `paidCents` and no `paid` flag, the balance is `Σ(paidCents − priceCents)` derived
-on every read, and the counter shows „Zu zahlen" beside „Saldo". Nothing in this batch touches money.
+Batch 30 (a customer number may be changed) is **merged into `main`** — PR #127, squashed as
+`c61a432`, with #129 and #130 following it. So a household may be moved between slots, every card
+carries the slot it was printed under, `Card.customerNumber` is read as the card's number (ADR-016),
+and `changeCustomerNumber` writes the move and the new card in one transaction. **This batch builds
+directly on that transaction and adds no second one.**
 
-**This batch makes a customer number changeable.** It has been decided at registration and never
-again since US-24, and four documents say so in as many words. A staff member may now move an active
-or blocked household from the number it holds to any number that is free, from a section on the
-customer record beside the group control — and **a new card is issued in the same act and the same
-transaction**. Read `tasks/prd-us-30-change-customer-number.md` §Introduction before writing a line;
-its worked 5 → 23 table is the specification.
+**This batch makes DF's oldest rule the software's rule: even customer numbers are BLUE, odd ones are
+RED.** The group stops being a fact about a household and becomes a consequence of the number, derived
+at every read. Read `tasks/prd-us-31-number-decides-the-group.md` §Introduction before writing a
+line; its worked 37 → 106 table is the specification, and §9 of
+`local_only/number-group-relation/refined-requirements.md` is why no validation is added anywhere.
 
-Six hazards, all stated in `prd.json` and worth reading twice:
+**Almost all of this batch is deletion.** Going: `Customer.group`, `Card.groupAtIssue`,
+`@@index([group])`, `CustomerRepository.setGroup`, `CustomerRepository.groupCounts`,
+`CustomerListQuery.group`, `NewCustomer.group`, `RegisterCustomerInput.group`, the `changeGroup` use
+case and its whole test file, `GroupUnchanged`, `parseGroup`, the `GROUP_CHANGE` stale-card reason,
+the `customer.groupChanged` audit event, `GroupControl` and `changeGroupAction`. If a story finds
+itself *adding* a way to store a group, it has misread the PRD.
 
-- **No card is ever re-labelled, and `read-card.ts`'s `numberOf` is the one line where it would
-  happen.** It currently labels every card in the run with `customer.customerNumber`, so after a move
-  the superseded cards would render as `23k4`, `23k3` … The cards left on the vacated slot are exactly
-  what keeps that slot safe to hand out again: slot 5 has seen four cards, so the next household
-  starts at `5k5`. Re-label them under 23 and slot 5 looks untouched, and the next household is
-  printed a `5k1` that already exists out in the world.
-- **`IssuedCard` gains a required `customerNumber`, which breaks every fake and every card fixture at
-  once** — the same wide break `setPayment` and `highestIndexForNumber` levied. Story 2 owns it;
-  `NewCard = Omit<IssuedCard, "customerNumber">` stays what a *writer* passes, because the adapter
-  goes on reading the slot off the customer row inside the write's own transaction.
-- **The move and the card are ONE transaction**, in one new port method
-  `CustomerRepository.changeCustomerNumber(id, customerNumber, card)`. Split into two writes, a crash
-  between them leaves a household on 23 carrying `5k4` and no query in the system can detect it. The
-  precedent is `create`, which already writes a customer and their first card as one.
-- **There is NO schema change and NO migration** — the first post-MVP batch with none. Every column
-  exists, and `Card.reason` is a validated string, so the fifth reason word costs the database
-  nothing. **Do not touch `prisma/migrations/`**; the four regeneration traps in the patterns bullet
-  above are irrelevant here, and reaching for them would drop the hand-written partial unique index
-  for no reason at all.
-- **Two new port methods**, so two rounds of fake-updating: `changeCustomerNumber` on
-  `CustomerRepository` (story 3) and `highestIndexByNumber` on `CardRepository` (story 4).
-- **`tests/e2e/number-change.spec.ts` is a new spec and takes a NEW customer-number band** (see the
-  bands bullet above — balance took 341–344, so start at 351), and it needs numbers **below the quota
-  of 240** for the ones it moves *onto*, because those have to be pickable in the dropdown. Seed it
-  BLUE, for the `group-walk` reason in the same bullet. Both engines.
+Eight hazards, all stated in `prd.json` and worth reading twice:
 
-The last story **reverses a written decision**: ADR-007 calls `Card.customerNumber` a key that
-„snapshots nothing … and is never read as the card's number", and both halves stop being true. That
-is ADR-016, plus corrections to ADR-007, ADR-008, the root `CLAUDE.md`, `schema.prisma`, `ports.ts`,
-the glossary and the German record hint — and the annotate-never-rewrite rule in the patterns block
-above applies to every one of them.
+- **The migration history IS regenerated this time** — the exact opposite of batch 30's note. Two
+  columns and an index are dropped, so the four regeneration traps in the patterns bullet above all
+  apply: delete `data/fd.db` first, re-add the hand-written partial unique index deliberately, verify
+  with `diff` against `git show HEAD:prisma/migrations/<old>/migration.sql`, `npm run db:reset`
+  afterwards, and grep for the renamed directory. **Re-confirm before deleting anything that DF still
+  holds no real data** (ADR-009); the moment they enter their first customer this story is wrong.
+- **Removing `RegisteredCustomer.group` and `IssuedCard.groupAtIssue` breaks every fake and every
+  fixture at once**, the same wide break `IssuedCard.customerNumber` levied in batch 30 — except
+  inverted, so the compiler leads you to every reader rather than every writer. Story 2 owns it. Get
+  the *files* out of the break rather than the errors:
+  `npm run typecheck 2>&1 | grep -E "^src/" | cut -d'(' -f1 | sort -u`.
+- **Two port methods are removed, so two rounds of fake-updating**, and `CustomerListQuery.group`
+  goes with them. Every hand-written fake in `src/application/**` that answers `groupCounts()` or
+  filters `list` by group has to lose the method, not stub it.
+- **The group filter deliberately leaves SQL.** SQLite cannot express `% 2` in a `WHERE` clause, so
+  `listCustomers` and `readGroupRoster` narrow with `groupOf` after the query. **Do not "fix" this
+  with a stored parity column or an `IN (1,3,5,…)` list** — the first is the second recording of the
+  one fact this batch exists to record once, the second is a second expression of parity that has to
+  agree with `groupOf` for ever. The register is quota-bounded at ~240 rows and four users.
+- **The e2e re-banding is the widest change in the batch, and it breaks a shared invariant.** A
+  fixture may no longer choose a group, so every seeded household's group is now its number's parity.
+  `group-walk.spec.ts` seeds 311–315 RED and asserts that its own **315 is the highest walkable RED**
+  in the shared register — but 321 (price cap), 331/333 (eggs) and 341/343 (balance) all become RED
+  under the rule. Re-band so each spec's households carry the parity they claim, update
+  `tests/e2e/registers.ts` and the seeds with them, and re-run the sweep:
+  `grep -rhno "\b[23][0-9][0-9]\b" tests/e2e/*.spec.ts | cut -d: -f2 | sort -un`. Both engines, one
+  run each.
+- **`GROUP_CHANGE` is impossible, not merely unhandled.** A household's current card is always the
+  highest index on the slot they currently hold — registration prints on the slot they take, a reissue
+  on the slot they hold, and a move prints inside the transaction that moves them — so a current card
+  can never name another group. State that as a named test rather than leaving it implicit; two
+  derivations rest on it.
+- **US-20's folded group choice is reversed on purpose.** The fold went in because DF accept the
+  proposal; it comes out because the group now *drives the number list beneath it* and a folded
+  control cannot say „Blau ist voll". Say so in the file's comment, naming US-20, or the next reader
+  will re-fold it.
+- **A group can be full while the register is not**, and that is the one genuinely new fact on both
+  screens. It is why the free-number figures become per-group, why a full group is shown unselectable
+  with its reason rather than as an empty dropdown, and why the waiting list is still only for a
+  register with **no** free number at all.
 
-## 2026-08-31 - US-001 — Which numbers a household may be moved to (domain)
+The last story **narrows a written decision rather than reversing one**: ADR-007's first exception
+loses `Card.groupAtIssue`, ADR-008 gains that a slot now carries which week it collects in, and
+ADR-016 gains that a card keeping its number keeps its group. That is ADR-017, plus the root
+`CLAUDE.md`, three architecture chapters, and a superseded-by note at the top of the US-16 and US-20
+PRDs — which are **annotated, never rewritten**, per the patterns block above.
 
-Implemented the pure rule US-30 rests on: which numbers a household already on the register may be
-moved to, and whether a chosen one may still be written. Nothing above the domain calls it yet.
+## 2026-09-01 — US-001 (US-31.1): the number decides the group (domain)
 
-- `src/domain/customer/customerNumber.ts` — `choosableNumbers(currentNumber, takenNumbers, quotaN)`
-  and `assertChoosableNumber(requested, currentNumber, takenNumbers, quotaN)`, beside `freeNumbers`
-  and `assertFreeNumber` and built on them.
-- `src/domain/customer/customerNumber.test.ts` — 12 named tests, written first and watched fail.
-- `src/domain/errors.ts` — new `CustomerNumberUnchanged` carrying the number, and its code in the
-  `DomainErrorCode` union (the 39th).
-- `src/app/notice-tier.ts` — tiered `refusal`, and the header comment's count moved to „a 40th code“.
-
-**Learnings for future iterations:**
-
-- **`choosableNumbers` is a `Set` over `freeNumbers` plus `currentNumber`, sorted numerically — and
-  the shape is the point.** An `includes(currentNumber) ? free : [...free, currentNumber]` would
-  have been the obvious merge and it carries a branch that **cannot both-arm under the documented
-  contract** (`takenNumbers` contains `currentNumber`, so `free` never has it), which the 100%
-  branch gate would then demand a test for a case that cannot arise. The `Set` has no branch at all,
-  and the numeric sort puts a current number above the quota last for free rather than by a rule of
-  its own. Same family as the „unreachable `?? fallback`" bullet in the patterns block: **prefer the
-  branchless construction over the one whose dead arm you then have to feed.**
-- **Ordering refusals is how you avoid a special case.** `assertChoosableNumber` checks
-  `requested === currentNumber` first and then delegates the other two verdicts to
-  `assertFreeNumber` **unchanged** — because once unchanged is out of the way, any number still in
-  play is somebody else's, so no „except my own number" filter is needed anywhere. Had the range
-  check come first, a household parked above a lowered quota (US-14) that saved its own number would
-  have been told its number is out of range, which reads as an instruction to move, and there is
-  none.
-- **The three-file `DomainErrorCode` change from the patterns block held exactly as written**, and
-  the stale-count hazard in it is real: `notice-tier.ts`'s header said „a 39th code" with 38 in the
-  union. Count with
-  `python3 -c "import re,sys;print(len(re.findall(r'\"(\w+)\"',re.search(r'export type DomainErrorCode =(.*?);',open('src/domain/errors.ts').read(),re.S).group(1))))"`
-  rather than by eye. „The eight red ones" in the same comment is untouched — this code is a refusal.
-- **`notice-tier.test.ts` does not enumerate the codes and should not start**: the
-  `Record<DomainErrorCode, NoticeTier>` is proved by the compiler, and its tests are about the
-  *reading* of the table. A new refusal needs no test there.
-- **No German string yet.** `CustomerNumberUnchanged` is not rendered anywhere until the control
-  exists (story 6) — the sentence belongs to `kunden/[id]/actions.ts` and `de.ts` with the screen
-  that raises it, exactly as `GroupUnchanged`'s does.
----
-
-## 2026-08-31 - US-002 — A card keeps the number it was printed under (domain + infrastructure)
-
-`IssuedCard` now carries the slot it was printed on, and `CUSTOMER_NUMBER_CHANGED` is the fifth
-reason word. Nothing above the store issues one yet.
-
-- `src/domain/card/card.ts` — `readonly customerNumber` as the fourth `AtIssue`-style snapshot,
-  `NewCard = Omit<IssuedCard, "customerNumber">`, and the fifth `CardIssueReason`.
-- `src/domain/card/card.test.ts` — `reads the new reason back`, `a card knows the slot it was
-  printed under`; the existing refusal test renamed to `refuses a reason word that is not one of the
-  five`.
-- `src/domain/customer/customer.ts` — `NewCustomer.card` is a `NewCard`; `RegisteredCustomer`
-  re-declares `card` as an `IssuedCard`.
-- `src/application/ports.ts` — `CardRepository.issue` takes a `NewCard`.
-- `src/application/customers/reissue-card.ts` — `ReissueReason`'s doc names the fifth word.
-- `src/i18n/de.ts` — „Kundennummer geändert“.
-- `src/infrastructure/prisma/card-repository.ts` — `toCard` selects and returns `customerNumber`;
-  `issue` takes a `NewCard`. `customer-repository.ts` — `toRegisteredCustomer` reads the slot off the
-  **card** row, and `create` fills it in from the customer it just wrote.
-- `src/infrastructure/prisma/card-repository.test.ts` — `reads a card back with the slot it was
-  printed under` (moves the household afterwards and re-reads) and `counts a card issued for a number
-  change as issued, never as a loss`.
-- Nine hand-written fake `create`s and eight `RegisteredCustomer` fixture factories updated.
-- Docs: the reason list in `prisma/schema.prisma` (comment only), the ER diagram in
-  `docs/architecture/08-crosscutting-concepts.md` and the Reissue row of `12-glossary.md`.
-
-**Learnings for future iterations:**
-
-- **`NewCustomer.card` had to become a `NewCard` too, and that decision is what kept the wide break
-  small.** The ACs only name `CardRepository.issue`, but `NewCustomer.card` is the *other* card a
-  writer passes — a registration prints its first card on the very number the record is taking, so a
-  second copy of the slot on the card is a copy that could disagree. `RegisteredCustomer extends
-  NewCustomer` then re-declares `card: IssuedCard`, which TypeScript allows because `IssuedCard` is
-  assignable to `NewCard`. Making that change turned ~50 fixture errors into 17 and made
-  `card-repository.test.ts`'s 38 errors vanish outright.
-- **The wide break came in two shapes, and only one of them was the fixtures.** Nine fake `create`
-  methods spread `...customer` into a `RegisteredCustomer` and now have to fill the slot in
-  (`card: { ...customer.card, customerNumber: customer.customerNumber }`), exactly as
-  `PrismaCustomerRepository.create` does — `git grep -n "\.\.\.customer,$"` finds all nine, and one
-  regex fixed them in a pass. The eight `RegisteredCustomer` fixture factories are the other shape
-  and had to be read one at a time, because the right value is whatever that factory calls the
-  household's number (`customerNumber`, `overrides.customerNumber ?? 50`, a literal).
-- **A `toEqual` on a whole card is the assertion a new field breaks, and typecheck cannot see it.**
-  Two of them in `card-repository.test.ts` passed `tsc` and failed at run time with `+ customerNumber`
-  in the diff. After adding a field to a domain record, run the suite even when the compiler is
-  happy — `grep -n "toEqual({" ` over the adapter tests finds the candidates.
-- **The fake card store fills the slot in the same way the adapter does.** `FakeCardRepository` in
-  `customers.test.ts` already held a reference to the register for `highestIndexForNumber`; `issue`
-  and `place` now both go through a `printedSlotOf` that falls back to `-1` for an unknown id, which
-  is the adapter's `UNKNOWN_SLOT` by another name. Keeping the fake's rule identical to the adapter's
-  is what stops a use case from being written against a store that lets the caller state the slot.
-- **`prettier --check` accepts an over-wide comment line but the repo's width is 100.** Prettier does
-  not reflow comments, so a new paragraph has to be wrapped by hand. Measure with Python, not `awk` —
-  an em dash is three bytes and `awk` reports it as three columns, which fabricates violations:
-  `git diff -U0 | python3 -c "…len(line[1:])>100…"`.
-- **No card is re-labelled yet.** `read-card.ts`'s `numberOf` still labels the whole run with
-  `customer.customerNumber`; story 5 is where that becomes wrong and has to change. The field now
-  exists to fix it with.
----
-
-## 2026-08-31 - US-003 — Moving a household to another number (application + ports + infrastructure)
-
-A household can now be moved to a free number, with the card it prints written in the same
-transaction. Nothing above the use case calls it yet.
-
-- `src/application/customers/change-customer-number.ts` — `changeCustomerNumber(deps, { customerId,
-  customerNumber })`: one clock read, `readCurrentSettings` for the quota in force,
-  `assertChoosableNumber` over `takenActiveNumbers()`, the card derived here, two audit entries
-  (`customer.numberChanged` with `why: "customerNumber=5→23"`, then the card's own
-  `customer.card.issued`), and the stored `IssuedCard` returned.
-- `src/application/customers/change-customer-number.test.ts` — 16 named tests against hand-written
-  fakes. **It was already on disk, untracked, from an interrupted iteration**; two fixtures in it
-  were broken and are fixed (see learnings).
-- `src/application/customers/issue-card.ts` — `CARD_ISSUED` and `ISSUED_FIELDS` exported, so both
-  writers of a card issue state the entry from one constant instead of two matching literals.
-- `src/application/ports.ts` — `CustomerRepository.changeCustomerNumber(id, customerNumber, card)`,
-  documented as one transaction; `AuditEntry.why` now names both machine-written values.
-- `src/domain/card/cardNumber.ts` + its test — **`nextCardIndexOnMove(slotRun, heldIndex)`**, five
-  tests, written first. The deviation from the ACs, below.
-- `src/infrastructure/prisma/customer-repository.ts` — the adapter, one `$transaction`: update, then
-  insert the card reading the slot off the just-updated row. `P2002` on `["customerNumber"]` →
-  `CustomerNumberTaken`, on `["customerNumber","index"]` → `CardNumberTaken`.
-- `src/infrastructure/prisma/card-repository.ts` — `toCard` hoisted out of the class as an exported
-  `toIssuedCard`, because the customer register now writes cards too.
-- `src/infrastructure/prisma/customer-repository.test.ts` — the four integration tests the PRD names.
-- Nine hand-written fake `CustomerRepository`s gained a rejecting `changeCustomerNumber`.
-- Docs: the `CustomerRepository` row of `05-building-block-view.md`, and a dated row in the
-  `09-architectural-decisions.md` log for the index rule.
-
-**Learnings for future iterations:**
-
-- **THE INDEX RULE IN THE ACs IS INCOMPLETE, and the database is what says so.** `nextCardIndex(
-  highestIndexForNumber(newNumber))` alone prints `99k1` for a household carrying `5k4` moving onto
-  a slot nobody has ever held — an index they already hold — and `@@unique([customerId, index])`
-  refuses the row outright (`CardIndexTaken`). It is not only a constraint: `currentCard`,
-  `listCards` and `CUSTOMER_INCLUDE` all order a household's cards **by index**, so even without the
-  constraint the record would go on showing `5k4` as the card they hold. The card a household holds
-  *is* their highest-indexed one (US-02, FR-4). So the index is
-  `nextCardIndexOnMove(slotRun, customer.card.index)` — the later of the two next indexes — and the
-  domain states it once. **The worked example is untouched**: 5k4 onto slot 23's run of 5 still
-  prints 23k6, and only a slot shorter than the household's own run differs. `customer.card` is
-  always their highest index, so no new port method was needed to ask.
-  - **US-004 must use the same rule** or the dropdown promises a card number the write will not
-    print: `nextCardIndexOnMove(byNumber.get(n) ?? 0, customer.card.index)`. Its AC "names k1 on a
-    slot nobody has ever held" is wrong for any household past their first card. Extract the
-    expression the moment there are two callers.
-  - **US-008's ADR-016 should record it**, next to the reversal of ADR-007 it already carries.
-- **An untracked test file from a previous iteration is red for two reasons at once**, and only one
-  of them is the missing implementation. Both bugs here were fixtures, not rules: a test claiming the
-  old slot keeps its run never `place`d that run, and the `household()` factory generated the
-  customer's name beside the household instead of off it, which `createCustomerDetails` refuses
-  (`CustomerNotInHousehold`). **Run it before writing a line of implementation** and separate the
-  failures that are the point from the ones that are the fixture.
-- **A `P2002` test must break exactly one constraint or it is testing the database's mood.** The
-  first draft of "refuses a card index already printed on the slot" gave the moving household index
-  1 while they already held index 1 — breaking `(customerId,index)` and `(customerNumber,index)` at
-  once, and passing only because SQLite happened to name the second. The fixture now has the
-  archived holder leave `51k3` and the mover hold `50k1`, so only the global index can be what
-  refuses it. Same family as the P2002 bullet in the patterns block.
-- **Two writers of one audit event means exporting the constant, not repeating the string.**
-  `issue-card.ts` owns `CARD_ISSUED`/`ISSUED_FIELDS` and the number change imports them; a card
-  issued in the same transaction as the slot move cannot go through `issueCard` at all.
-- **`toCard` had to leave `PrismaCardRepository`** for the same reason: the customer register now
-  inserts a card, and reading the row back with a second mapper is exactly the drift the one
-  function prevents. It is `toIssuedCard`, module-level and exported.
-- **The 100-column comment rule is real but the repo does not hold to it** — `ports.ts` alone has 35
-  lines over 100 characters, and `prettier --check` passes on all of them, because Prettier does not
-  reflow comments. New paragraphs here were wrapped to 100 by hand. Measure with Python (characters,
-  not bytes) over the *files*, not `git diff -U0`, which counts the `+`.
-- **Prettier realigns a whole markdown table** when one cell grows, so a one-word doc edit can show
-  up as a dozen changed lines in `05-building-block-view.md`. Expected, not a mistake.
-- **No schema change and no migration, exactly as the batch says** — `prisma/migrations/` untouched,
-  and `db:reset` was never needed.
-
-## 2026-08-31 - US-004 — What the record offers, and what each choice would print (application + ports + infrastructure)
-
-The record can now be handed every number a household may be moved to, each with the card number
-that move would print. Nothing renders it yet — the control is story 6.
-
-- `src/application/customers/list-number-choices.ts` — `listNumberChoices(deps, customer)`, reading
-  the quota in force, `takenActiveNumbers()` and every slot's run **once**, and formatting each
-  choice with `nextCardIndexOnMove` + `formatCardNumber`. An archived household gets `[]` and
-  neither store is asked.
-- `src/application/customers/list-number-choices.test.ts` — 7 named tests against purpose-built
-  fakes, written first and watched fail.
-- `src/application/ports.ts` — `CardRepository.highestIndexByNumber(): Promise<ReadonlyMap<number,
-  number>>`, documented as the plural of `highestIndexForNumber`, with an absent slot meaning „never
-  had a card“.
-- `src/application/customers/read-customer.ts` — `ReadCustomerDeps.cards`, and
-  `CustomerCardView.numberChoices` resolved in the existing `Promise.all`.
-- `src/infrastructure/prisma/card-repository.ts` — one `groupBy({ by: ["customerNumber"], _max: {
-  index } })`, no `where`.
-- `src/infrastructure/prisma/card-repository.test.ts` — the two integration tests the PRD names.
-- Three hand-written fake `CardRepository`s gained the method; `customers.test.ts` gained two
-  `readCustomer` tests and `change-customer-number.test.ts`'s `readDeps()` gained `cards`.
-- Docs: the `CardRepository` row of `05-building-block-view.md`.
-
-**Learnings for future iterations:**
-
-- **The AC „names k1 on a slot nobody has ever held" is not merely wrong for a household past their
-  first card — it can never be true at all.** Every household on the register holds a card, so
-  `customer.card.index >= 1` and `nextCardIndexOnMove(0, index) >= 2`. The test is therefore
-  „names the index above the household's own run on a slot nobody has ever held". US-003's learning
-  predicted this; stating it as an impossibility rather than an edge case is what stops the next
-  reader from restoring the AC's version.
-- **The dropdown's index rule and the write's index rule are one expression, and it is already
-  extracted**: `nextCardIndexOnMove(byNumber.get(n) ?? 0, customer.card.index)` here and
-  `nextCardIndexOnMove(await highestIndexForNumber(n), customer.card.index)` in
-  `changeCustomerNumber`. Two callers, one domain function — nothing further to pull out, and
-  US-008's ADR-016 should record the rule rather than either call site.
-- **`listNumberChoices` takes the customer, it does not fetch one.** `readCustomer` has already
-  loaded the row, and a second `findById` is the „two moments" fault the one-reading rule exists to
-  prevent — the fake's `findById` rejects, so a future edit that reached for one fails loudly.
-- **A fake whose unused methods `reject` is what makes „reads the register once" provable.** The
-  new test file's stores answer exactly two questions and refuse every other, including
-  `highestIndexForNumber` — so a rewrite that asked the slots one at a time would fail rather than
-  quietly cost 240 round trips. Same shape as `waiting-list.test.ts`'s `FakeCardRepository`, which
-  is the precedent for a small purpose-built fake rather than a copy of the big one.
-- **`readCustomer` now reads the settings history twice** — once through `describeAllowance` (prices
-  on a date) and once through `listNumberChoices` (the quota in force). Deliberate: the two are
-  different questions, `listNumberChoices` must read the quota itself so a screen open across a
-  quota change (US-14) cannot go on offering slots that are no longer slots, and threading a
-  `Settings` through the use-case boundary to save one query on a four-user application is the worse
-  trade. Said out loud in the module doc so it does not read as an oversight.
-- **`?? 0` on a Prisma `_max`, not a cast.** `groupBy` cannot produce an empty group, so the null is
-  unreachable — but `highestIndexForNumber` already reads the same aggregate that way, and there is
-  no `as` in `src/infrastructure/` to copy. Infrastructure is not coverage-gated, so the unreachable
-  arm costs nothing, while a cast would have been the file's first.
-- **Adding a field to `CustomerCardView` broke no `toEqual`** this time, because every readCustomer
-  test asserts a slice. Worth noting against the patterns bullet: the hazard is a whole-record
-  `toEqual`, and this read model has none.
-- **No UI, so no browser check.** The control that renders `numberChoices` is story 6; this story is
-  proved by the suite alone.
----
-
-## 2026-08-31 - US-005 — Every card under the number it was printed with (application)
-
-The card history now shows each card under **its own** number, so a household that has moved is
-never shown a card number naming a different card. Two lines of production code and nine tests.
-
-- `src/application/customers/read-card.ts` — `numberOf(card)` is
-  `formatCardNumber(card.customerNumber, card.index)`. It labels the current card **and** every
-  superseded one, so both come off the card's own slot. `nextCardNumber` still counts on from the
-  **household's** number, with a comment saying why it is the one number here that does.
-  `CardView.cardNumber`'s doc says it is read off the card rather than assumed to agree.
-- `src/application/customers/read-customer.ts` — `cardNumber` likewise from
-  `customer.card.customerNumber`; the `held` local is gone, since its two uses were two different
-  questions. `nextCardNumber` unchanged.
-- `src/application/customers/change-customer-number.test.ts` — a second describe,
-  `the record after a number change`: nine tests over the batch's worked example (id 1 on slot 5
-  carrying `5k4`, moved onto slot 23 whose archived holder left `23k5`). Plus a
-  `FakeReminderLogRepository`, which is all the counter's lookup needed that this file lacked.
-- `cards-due-for-reissue.ts` and `lookup-customer.ts` — **not touched**, as the ACs say, and now
-  covered by tests that say so.
-
-**Learnings for future iterations:**
-
-- **The cross-use-case tests belong where the fakes can move a household, not in each use case's own
-  suite.** `customers.test.ts`, `cards-due-for-reissue.test.ts` and `lookup-customer.test.ts` all
-  have a `changeCustomerNumber` that *rejects* on purpose („moving one has its own suite"), and
-  teaching three of them to move — each needing a card store, settings and an audit log it does not
-  have — would have been three copies of a fake that already exists. `change-customer-number.test.ts`
-  was already importing `readCustomer` for exactly this reason. **One new describe in that file, one
-  small `FakeReminderLogRepository`, and every test drives a real move rather than hand-building a
-  moved-looking fixture.** Worth generalising: when a story is „what does the rest of the app read
-  after X", the suite that can *do* X is the honest home for it.
-- **Eight of the nine tests were green before the fix, and that is the point of writing them.** Only
-  `keeps every superseded card under the number it was printed with` was red — the exact line the
-  PRD warns about. An AC that says „needs no change and gets tests proving it" produces tests that
-  pass on the first run, and a batch that treats „green immediately" as a mistake would delete the
-  proof it was asked for.
-- **`readCard`'s `numberOf` labels the current card too**, so changing one line covered both ACs at
-  once: `cardNumber: numberOf(current)` was already routed through it. Nothing in `readCard` had to
-  learn about moves.
-- **`nextCardNumber` is the one number that must NOT follow the card**, on both views, and both
-  places now say so in a comment. A reissue prints on the slot the household holds *today*; a slot
-  they have left has no say in it. After a move the two agree anyway — the move issues the card in
-  the same transaction — but a derivation that assumes the agreement would be stating a fact it has
-  not checked.
-- **No fixture in the repo needed re-pointing**, because every fake fills a card's slot in from the
-  household the way the adapter does (US-002's learning). `place`, `issue` and `create` all read the
-  slot off the register, so every existing card already carried the number it was printed under and
-  the change was invisible to 176 tests in `customers.test.ts`. **A fake that let a caller state the
-  slot would have made this story a wide break instead of a two-line one.**
-- **Documentation needed nothing.** `grep -rn "read-card\|readCustomer" docs/` is empty — no chapter
-  names these use cases — and the ADR-007 reversal that this line makes necessary is US-008's story,
-  which already carries it. Resisting the urge to start it here kept the commit one intent.
-- **The week colour on `TODAY` (2026-08-31) is RED** under the `2026-W02` anchor — ISO week 36, an
-  even number of weeks on — so the suite's RED households come back `CLEAR_TO_SERVE` rather than
-  `WRONG_GROUP`. Compute it (`datetime.date(...).isocalendar()`) rather than assuming; a lookup test
-  that asserts a verdict kind turns on it, and 2026-08-31 being a Monday does **not** matter,
-  because `evaluateAtCounter` never asks whether today is a distribution day.
----
-
-## 2026-09-01 - US-006 (the number control on the record)
-
-Wired the record's „Kundennummer“ section: a section of its own, directly under „Gruppe“, holding a
-controlled `<select>` of `view.numberChoices`, the three-consequence hint, the free-number count and
-the reissue's two-step save. An archived household reads the number as a `Field`, as they read their
-group. `detailsHint` loses „Die Kundennummer lässt sich nicht ändern.“ and is replaced by nothing
-there.
-
-Files changed:
-- `src/app/kunden/[id]/number-control.tsx` (new) — the client component.
-- `src/app/kunden/[id]/number-change-state.ts` (new) — the state union, outside the `"use server"`
-  module, carrying `from`/`to`/`cardNumber` on success and optional fresh `numberChoices` on a lost
-  race.
-- `src/app/kunden/[id]/actions.ts` — `changeCustomerNumberAction` and `freshChoicesAfterRace`.
-- `src/app/kunden/[id]/page.tsx` — the section, the archived `Field`, `numberChoices` destructured.
-- `src/i18n/de.ts` — `customers.numberChange.*`, `errors.customerNumberUnchanged`, the shortened
-  `detailsHint`.
+- Rewrote `src/domain/customer/group.ts`. `groupOf(customerNumber)` — even is BLUE, odd is RED — is
+  now the only place parity is read as a group; `inGroup(numbers, group)` filters a pool in order;
+  `countByGroup(numbers)` counts a set of numbers by parity (the arithmetic that replaces the
+  `groupCounts()` port method in US-31.3/5); `suggestGroup(freeNumbers, counts)` is rewritten to the
+  smaller group **that still has a free number**, `null` when neither has, tie-break still RED.
+  `parseGroup` is gone. The module header no longer says a group is a property of a customer that DF
+  may override by hand.
+- `src/domain/customer/group.test.ts` rewritten first, 16 tests, all the AC's named rules plus
+  "says nothing beyond the recommendation — no warning, no threshold, no second output".
+- Files: `src/domain/customer/group.ts`, `group.test.ts`,
+  `src/application/customers/propose-registration.ts`, `register-customer.ts`,
+  `src/app/kunden/neu/registration-input.ts`, `src/app/kunden/[id]/actions.ts`,
+  `src/infrastructure/prisma/card-repository.ts`, `customer-repository.ts`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (56 files, 1312 tests, domain
+  and application both 100%) and `npm run build` all pass.
 
 - **Learnings for future iterations:**
-  - **A `<select>` in a form on the record needs `guardEnter`, and this is the case that shows why.**
-    `submitsOnEnter` returns `true` for `SELECT`, and the submit Enter would reach here lives
-    *inside* the `<details>` confirmation — so a stray Enter while scrolling 226 options would print
-    a card without the sentence naming it ever having been on screen. Neither typecheck, lint nor
-    the unit suite sees it; only pressing Enter in a browser does. `group-control.tsx` next door has
-    the same exposure through its radios and no guard — noted, not fixed here, because it is not
-    this story's form.
-  - **The two-step save is a house pattern, copied verbatim from `reissue-controls.tsx`**: a
-    `<summary>` wearing `buttonVariants({ variant: "outline" })` with `list-none` and the
-    `[&::-webkit-details-marker]:hidden` escape, then an `<Alert>` and the real submit inside. It
-    reads in the accessibility tree as `group > generic "…" + alert + button`, and tabbing goes
-    select → summary → submit. **Match it rather than inventing a second shape** — the record now
-    carries five `<summary>`s and they are all this one.
-  - **`npm run db:demo` is what makes the record worth looking at**; `db:reset` alone seeds settings
-    only, so `/kunden/<id>` 404s for every id. In the demo register ids 1–5 are ARCHIVED, 6/9/10 are
-    ACTIVE and 7/8 are BLOCKED — so **id 6 is the active record to drive and id 1 the archived one**
-    (the older bullet saying „seed customer 6 is archived" is about `seed.ts`, not the demo seed).
-    Numbers 1 and 2 are held by re-registrations, so the free pool starts at 3.
-  - **The whole US-006 acceptance list is verifiable in one browser session with `--raw eval`**, and
-    that is cheaper than a screenshot per claim: one `JSON.stringify({...})` over the five testids
-    proved the receipt, the revalidated top facts, the control reopening on the new number and the
-    confirmation collapsing, all in one call. A screenshot at 390 and one at 1280 is what the eye is
-    still needed for.
-  - **A move that swaps one slot for another leaves the free count unchanged** („Noch 225 freie
-    Nummern" before and after), which looks like the count failing to refresh and is not. The
-    vacated number appearing in the options is the assertion that actually proves the re-read — read
-    `[...select.options].map(o => o.value)`, not the count.
-  - **`npx prettier --write` the files before committing even when `npm run lint` is silent.** `lint`
-    is `eslint` alone; the pre-commit hook runs `prettier --write` and would otherwise rewrite a file
-    underneath the commit. `actions.ts` had a collapsible import that only `format:check` saw.
-  - **101-character comment lines are the repo's normal**, not a violation to fix: `group-control.tsx`
-    and `reissue-controls.tsx` both carry them, Prettier accepts them, and re-wrapping a paragraph to
-    chase 100 is noise in the diff. The width bullet above is about lines that are *well* over.
-  - **Documentation needed nothing again.** `grep -rn "group-control\|reissue-controls\|number-control"
-    docs/` is empty — no chapter names the record's components — and the ADR-007 reversal plus the
-    hint's disappearance from the handout are US-008's story, which carries both.
----
-
-## 2026-09-01 - US-007 — E2E: a household moves, and both slots stay honest
-
-One new spec, `tests/e2e/number-change.spec.ts`, eight tests, green on **both** engines
-(`npm run test:e2e` and `npm run test:e2e:webkit`, 196 passed / 1 skipped each). No production code
-changed — the story is the proof, not a fix.
-
-The walk: a household holding `224k4` moves onto slot 225, which an archived household left five
-cards deep, and is printed `225k6`. Then the card view (every superseded card under **its own**
-number, „Karten insgesamt" = 5), the intake's pool, the counter on four different queries, the
-cards-due list either side of a second move, a fresh registration onto the vacated 224 printed
-`224k5`, and the lost race.
-
-- `tests/e2e/number-change.spec.ts` (new). Band **224–228**; reuses `releaseNumbers`,
-  `fillPersonalData`, `hydrated` and the `dueRow`/`badgeCount` shapes from `age-13.spec.ts`.
-
-**Learnings for future iterations:**
-
-- **The batch note's „take a new band, start at 351" does not survive this story's own constraint.**
-  Both the slot moved *onto* and the slot *vacated* have to be pickable in a dropdown — the record's
-  control offers `1..quotaN` and `/kunden/neu` offers the free ones — so every number here is inside
-  the quota of 240. The band is **224–228**, which was free of every other spec (below 240 the taken
-  ones are 201–207, 211, 221–223, 231–236, 239) and below 315, so `group-walk.spec.ts`'s highest
-  walkable RED number is untouched and the households could be seeded RED. Being RED is what let the
-  spec reuse the RED distribution Thursday `2026-01-08` that `reissue.spec.ts` and
-  `card-number.spec.ts` already pin — a BLUE band would have needed a different day for one
-  assertion. **Read the band bullet as two rules, not one: „a new band" and „inside the quota if a
-  dropdown has to offer it", and the second one wins.** The consolidated numbers-in-use sweep is one
-  command: `grep -rhno "\b2[0-9][0-9]\b" tests/e2e/*.spec.ts | cut -d: -f2 | sort -un`.
-- **Two ACs describe a screen and an arithmetic that do not exist, and both were written as what is
-  true.** „The free-slot count on the waiting list is one higher immediately after the move" fails
-  twice over: `/warteliste` has no free-slot count at all (a banner naming *one* free number and an
-  applicant, plus a boolean „Platz frei" badge on `/kunden`), and **a move can never change the
-  count** — it swaps one taken number for another, so `|taken|` is invariant. US-006's browser check
-  had already noticed the second half („Noch 225 freie Nummern" before and after). The honest
-  version is asserted on `/kunden/neu`, where the count actually lives: the vacated number is on
-  offer, the taken one is not, and the figure is unchanged — with the comment saying that „it went
-  up" is the first thing a reader expects here and would be wrong. Third AC in this batch to be
-  contradicted by the register itself, after US-003's index rule and US-004's `k1`.
-- **A card number resolves through the *slot*, so „the old card number resolves to whoever holds
-  that slot today" has two answers and both are worth asserting.** `findByCustomerNumber` prefers
-  the active holder and falls back to the most recent archived one, so `224k4` is `NOT_FOUND` while
-  nobody holds 224 and becomes the *successor's* superseded card the moment somebody is registered
-  on it — `OUTDATED_CARD`, naming `224k5`. Neither answer is ever the household who carried it. The
-  same lookup is why the mover can move **onto** 225 while the archived household still sits on that
-  number: the partial unique index is `WHERE status <> 'ARCHIVED'`.
-- **A move is the one write that can only ever *shorten* „Karten neu ausstellen".** It issues a card
-  with today's counts and today's group, so a household on the list for stale counts leaves it and
-  no move can put one on. Asserted with `badgeCount` either side of two moves — unchanged across the
-  first, one lower across the second — which is the self-comparing shape `age-13.spec.ts` uses for a
-  figure that counts the whole shared register.
-- **`selectOption` needs `hydrated()` before it, on both selects this spec drives.** The record's
-  number control and the intake's number dropdown are both controlled, and the patterns block's
-  „`selectOption` loses the race too" bullet is about exactly this window. `pickNumber` wraps
-  `hydrated` + `toPass`, which is `fillSticky`'s shape for a `<select>`; `card-number.spec.ts` does
-  a bare `selectOption` right after `goto` and has been lucky.
-- **The lost race is driven with a second real tab**, `page.context().newPage()` and the same
-  `register` helper, rather than a Prisma insert: „the number is taken by another registration" is
-  the AC, and a hand-written row would not exercise the intake's own allocation. The refusal comes
-  back as `de.customers.errors.customerNumberUnavailable` — the intake's sentence, shared — and
-  `freshChoicesAfterRace` is what makes the follow-up assertions possible: the number is gone from
-  the options and the control has fallen back to the household's own number in the same render.
-- **The seeded card reason word is `LOST`, not `LOSS`** — `cardReasons.LOST` / `"LOST"` in the
-  `Card.reason` column. `tsc` catches the dictionary half; the Prisma half is a validated string and
-  would have failed at run time.
-- **`de.customers.cardView.supersededEntry` over `toHaveText([…])` is the assertion that proves the
-  whole story in one line**: four entries, in order, each naming `224kN` with its own issue date and
-  reason. A `toContainText` would have passed on a re-labelled list.
----
-
-## 2026-09-01 — US-008 (batch 30, US-30.9): the record stops saying a number cannot be changed
-
-Documentation only. No behaviour changed, `prisma/migrations/` untouched, and the one `.prisma`
-edit is a doc comment.
-
-- **ADR-016** „A customer number may be changed, and a card keeps the number it was printed with“ —
-  written through `arc42.py new-adr`, then finished by hand: Accepted in the file *and* in the
-  chapter 9 row, the intro count „fifteen“ → „sixteen“, `_Last reviewed_` moved to 2026-09-01. Its
-  Consequences say the three things a later reader has to be able to find: `Card.customerNumber` is
-  now a snapshot **and** is read as the card's number, the vacated slot's own run is what stops a
-  card number being printed twice, and the card history reveals past numbers as a side effect and is
-  left correct rather than obscured.
-- **ADR-007** — the `Card.customerNumber` row of the derive-don't-store table rewritten (key *and*
-  snapshot, read as the card's number, links to ADR-016), plus a paragraph under the table saying it
-  was **amended, not superseded**: the principle holds, one entry changed.
-- **ADR-008** — the Decision gained the between-numbers sentence (a slot is released by archiving
-  *or* by its holder moving), argued as *strengthening* „a slot, not an identity“.
-- Corrected everywhere else the old claim was stated as fact: root `CLAUDE.md` (the third
-  derive-don't-store exception), `prisma/schema.prisma` (**both** `customerNumber` comments — the
-  card's and the customer's own, which said „never edited“), `src/application/ports.ts`
-  (`updateDetails`), `src/app/kunden/[id]/actions.ts` (`updateDetailsAction`'s header),
-  `docs/architecture/12-glossary.md` (customer number **and** card number),
-  `08-crosscutting-concepts.md` (the ER note on both models plus the rules list),
-  `05-building-block-view.md` (the two new modules, 35 → 37 use cases, the record's forms),
-  `tasks/README.md` §Conventions.
-- The two **PRDs** that state the old rule (US-24 Non-Goals + its `customerErrorMessage` bullet,
-  US-25's doc-comment AC + its „a key, not a fact“ bullet) got dated `> **Note (2026-09-01).**`
-  blockquotes rather than rewrites — a PRD is the record of what was asked for.
-- Swept up two stale-by-batch counts nobody's story owns: `01-introduction-and-goals.md` and
-  `docs/architecture/README.md` still said the PRDs run „US-01 to US-28“.
-
-**Files changed:** `docs/architecture/adr/016-…md` (new), `adr/007-…md`, `adr/008-…md`,
-`09-architectural-decisions.md`, `08-crosscutting-concepts.md`, `05-building-block-view.md`,
-`12-glossary.md`, `01-introduction-and-goals.md`, `README.md`, `CLAUDE.md`, `prisma/schema.prisma`,
-`src/application/ports.ts`, `src/app/kunden/[id]/actions.ts`, `tasks/README.md`,
-`tasks/prd-us-24-choose-customer-number.md`, `tasks/prd-us-25-globally-unique-card-numbers.md`.
-
-**Learnings for future iterations:**
-
-- **The AC's „final grep“ is the story, not its closing check — and it finds files the PRD did not
-  list.** Four documents were named; the sweep turned up two more that stated the rule as fact:
-  `Customer.customerNumber`'s *own* schema comment („The slot this household holds“ — silent on
-  whether it may move) and `updateDetailsAction`'s header in `src/app/`, which repeated ports.ts's
-  sentence almost word for word. The pattern is worth keeping: **a claim that is worth writing once
-  gets copied**, so grep the *phrasing* (`"fixed at registration"`, `"released only by archiving"`,
-  `"never edited"`, `"nicht ändern"`) rather than the concept, across `src/ prisma/ docs/ tasks/`.
-  What it must *not* flag: `scripts/ralph/prds/*.json` (the batch inputs are a historical record of
-  what was asked, like the PRDs) and the identical wording used about settings versions and
-  certificates, which really are never edited.
-- **Correcting a claim is not deleting it.** Every rewrite here kept the *argument* and changed only
-  what stopped being true — ADR-007's row still says why the column is stored, ADR-008 still says a
-  number is a slot, US-24's Non-Goal still says a number change is not a record correction (which is
-  precisely why US-30 gave it its own section rather than a field in the details form). A rewrite
-  that drops the reasoning leaves the next reader with a rule and no way to tell whether it still
-  applies.
-- **A superseded ADR row is amended in place, with the amendment stated out loud.** ADR-007 is not
-  superseded by ADR-016 — one of its four exceptions changed shape. The note under the table names
-  which row and says „amended, not superseded“, because a reader who finds ADR-016 first needs to
-  know ADR-007 still stands, and a reader who finds ADR-007 first needs to know one row moved.
-- **`arc42.py new-adr` writes the row as `Pending` and does not touch the intro count.** Four manual
-  steps after it, every time: Accepted in the file, Accepted in the row, the counting word in the
-  intro sentence, and `npx prettier --write` on chapter 9 (the appended row is narrower than the
-  table and Prettier re-flows all of it). This iteration added a fifth: the **row Prettier writes is
-  wider than the table**, so the intro paragraph one line above it went to 105 characters when
-  „fifteen“ became „sixteen“ — Prettier does not reflow prose, so re-wrap it by hand.
-- **`prettier --check` cannot parse `prisma/schema.prisma`** (no parser inferred) — it is excluded
-  from `npm run format:check`, so a schema comment is hand-wrapped and nothing checks the width.
-  Measure it the same way as a `/** */` block, with Python and not `awk`.
-- **A code span must not be wrapped across two lines in Markdown.** Prettier reacts by *removing the
-  indentation* of the continuation line, which silently breaks the list item it sits in — it showed
-  up here as `card.index)` landing in column 0 inside a nested bullet in root `CLAUDE.md`. Keep the
-  span on one line and rewrap the sentence around it.
-- **Chapter 9's „Ordered by date“ smaller-decisions table had drifted**: batch 30's own
-  2026-08-31 row had been appended after 2026-08-07 rather than sorted in. Moved. A table that
-  states its own ordering rule is worth re-checking whenever a batch appends to it.
-- **The counts in chapter 5 are approximations that a batch inherits.** „35 use cases“ was already
-  one below the 36 exported use-case functions at `main` (`describeAllowances` and
-  `countCardsDueForReissue` sit beside their siblings in one file each), so the honest move is to
-  carry the **delta** — +2 for this batch — rather than to recount and silently restate someone
-  else's number. „five separate forms saving through five use cases“ on `/kunden/[id]` was stale in
-  the other direction: there are seven form actions in `[id]/actions.ts`, now stated as such.
-- **The handout was checked and deliberately left alone.** `docs/handout/betriebsanleitung.md` is
-  operations for DF — start/stop, backup, eggs, balance, correcting a hand-out — and has no
-  per-screen administrative how-tos, so a number change has nowhere to go in it without inventing a
-  section. If DF ever ask for one, that is a story, not a documentation sweep.
+  - **A domain story that changes a signature is not domain-only, and the four call sites are the
+    story's own work.** Deleting `parseGroup` and giving `suggestGroup` a second argument broke ten
+    lines across `app/`, `application/` and `infrastructure/`. Two rules kept the adaptations honest:
+    change *shape* only, never behaviour, and say in a comment which later story deletes the line.
+  - **The stored group word had to stay readable for one more iteration**, so the narrowing moved
+    *down* into the adapter as `parseStoredGroup` in `card-repository.ts` (exported, because
+    `customer-repository.ts` already imports `toIssuedCard` from there and the dependency runs that
+    way — the reverse would be a cycle). It dies with `Customer.group` and `Card.groupAtIssue` in
+    US-31.2/US-31.5. **Do not** re-derive the column in the repository yet: three infra tests
+    (`setGroup` moving a household, `narrows the stored group…`) still assert the stored word, and
+    they are US-31.5's to delete.
+  - **`GROUPS.find(candidate => candidate === value)` is the whole of a form-level group parse**, and
+    it removes the try/catch the zod transform needed. It also fixed a TS7053 in `actions.ts`: `let
+    group;` inferred `any`, so `de.customers.groups[group]` was an implicit-any index — a `const` off
+    `find` narrows to `Group | undefined` and the guard does the rest.
+  - **A nullable domain answer needs its null branch *reachable* where the 100% gate can see it.**
+    `suggestGroup(...) ?? "RED"` in `proposeRegistration` is covered by the existing "proposes no
+    number when the register is full" test. In `registerCustomer` the same fallback is only covered
+    because the suggestion was moved **above** the `customerNumber` line inside the retry loop: with
+    a full register the group line runs first and the allocation throws a line later. Put a
+    `?? fallback` where a test already goes, or it fails the gate (see the older bullet on
+    unreachable fallbacks).
+  - **`registerCustomer` needs no extra read for the free pool**: `takenNumbers` is already read at
+    the top of the retry loop, and `freeNumbers(takenNumbers, settings.quotaN)` is the pool. US-31.3
+    deletes the whole line anyway — the group will be `groupOf(customerNumber)`.
+  - Only one application test asserts a suggestion (`customers.test.ts` "suggests the smaller group
+    when staff made no choice", and the proposal's `suggestedGroup` at ~1309). Both survived the new
+    signature unchanged, because in a small register both groups still have free numbers.
 ---

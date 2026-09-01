@@ -37,7 +37,7 @@ import { updateNotes } from "@/application/customers/update-notes";
 import type { IssuedCard } from "@/domain/card/card";
 import { formatCardNumber } from "@/domain/card/cardNumber";
 import type { RegisteredCustomer } from "@/domain/customer/customer";
-import { parseGroup } from "@/domain/customer/group";
+import { GROUPS } from "@/domain/customer/group";
 import {
   CertificateValidUntilInPast,
   CustomerArchived,
@@ -344,10 +344,8 @@ export async function changeGroupAction(
     return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
   }
 
-  let group;
-  try {
-    group = parseGroup(String(formData.get("group") ?? ""));
-  } catch {
+  const group = GROUPS.find((candidate) => candidate === String(formData.get("group") ?? ""));
+  if (group === undefined) {
     return {
       status: "error",
       message: de.customers.errors.missingField(de.customers.fields.group),

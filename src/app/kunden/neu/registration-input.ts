@@ -19,7 +19,7 @@ import { z } from "zod";
 import type { RegistrationDraft } from "@/application/customers/draft-from-archived";
 import { formatCalendarDay, isBlankDay, parseCalendarDay } from "@/domain/calendarDay";
 import { formatCardNumber } from "@/domain/card/cardNumber";
-import { parseGroup } from "@/domain/customer/group";
+import { GROUPS } from "@/domain/customer/group";
 import {
   BirthDateInFuture,
   CardIndexTaken,
@@ -64,12 +64,12 @@ export const calendarDay = z.string().transform((value, ctx): Date => {
 });
 
 const group = z.string().transform((value, ctx) => {
-  try {
-    return parseGroup(value);
-  } catch {
+  const chosen = GROUPS.find((candidate) => candidate === value);
+  if (chosen === undefined) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: de.customers.errors.fieldRequired });
     return z.NEVER;
   }
+  return chosen;
 });
 
 /**

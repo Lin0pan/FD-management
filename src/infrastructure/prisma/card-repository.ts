@@ -1,8 +1,8 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { CardIssueCounts, CardRepository } from "@/application/ports";
 import { parseCardIssueReason, type IssuedCard, type NewCard } from "@/domain/card/card";
-import { parseGroup } from "@/domain/customer/group";
-import { CardIndexTaken, CardNumberTaken } from "@/domain/errors";
+import { GROUPS, type Group } from "@/domain/customer/group";
+import { CardIndexTaken, CardNumberTaken, InvalidCustomerRecord } from "@/domain/errors";
 
 /**
  * The slot stood in for a customer id nobody holds. It is never written: the insert fails on the
@@ -48,6 +48,25 @@ export function isCardCollision(error: unknown): boolean {
 }
 
 /**
+ * Read the stored group word back as a {@link Group}, refusing anything else rather than quietly
+ * making a household RED.
+ *
+ * It lives in the adapter rather than in the domain because it is about a *column*: US-31 derives a
+ * group from the customer number, so nothing submits or stores a group word any more. The two
+ * columns that still hold one — `Customer.group` and `Card.groupAtIssue` — are dropped by US-31.2
+ * and US-31.5, and this function goes with the last of them.
+ *
+ * @throws {InvalidCustomerRecord} for anything that is not `RED` or `BLUE`.
+ */
+export function parseStoredGroup(value: string): Group {
+  const group = GROUPS.find((candidate) => candidate === value);
+  if (group === undefined) {
+    throw new InvalidCustomerRecord("group", value);
+  }
+  return group;
+}
+
+/**
  * One stored card row as an {@link IssuedCard}. The two count columns are flat in SQLite and a
  * value object in the domain, so the shape is put back together here — in one place, so
  * `currentCard` and `listCards` cannot come to read the snapshot differently. The group word is
@@ -72,7 +91,7 @@ export function toIssuedCard(row: {
     issuedAt: row.issuedAt,
     reason: parseCardIssueReason(row.reason),
     countsAtIssue: { grownUps: row.grownUpsAtIssue, children: row.childrenAtIssue },
-    groupAtIssue: parseGroup(row.groupAtIssue),
+    groupAtIssue: parseStoredGroup(row.groupAtIssue),
   };
 }
 

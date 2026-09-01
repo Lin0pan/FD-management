@@ -70,7 +70,10 @@ export async function proposeRegistration(
   return {
     customerNumber: free.length === 0 ? null : free[0],
     freeNumbers: free,
-    suggestedGroup: suggestGroup(groupCounts),
+    // US-31.3 makes the proposal's group nullable; until then the one case the recommendation
+    // declines — neither group has a free number — is the full register `customerNumber: null`
+    // already reports, and the form renders that state rather than a group.
+    suggestedGroup: suggestGroup(free, groupCounts) ?? "RED",
     groupCounts,
     quotaN: settings.quotaN,
     today,

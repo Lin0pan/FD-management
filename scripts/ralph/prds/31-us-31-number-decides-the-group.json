@@ -23,8 +23,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Domain rewritten: groupOf, inGroup, countByGroup, suggestGroup(freeNumbers, counts) and parseGroup deleted. Call sites adapted mechanically to stay green — the stored group word is narrowed in the adapter (parseStoredGroup in card-repository.ts, dies with the columns in US-31.2/US-31.5), the two form parses use GROUPS.find, and proposeRegistration/registerCustomer pass the free pool with a `?? \"RED\"` the nullable proposal of US-31.3 removes."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",

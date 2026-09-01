@@ -20,7 +20,7 @@ import {
   type CustomerDetailsInput,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
-import { assertFreeNumber, lowestFreeNumber } from "@/domain/customer/customerNumber";
+import { assertFreeNumber, freeNumbers, lowestFreeNumber } from "@/domain/customer/customerNumber";
 import { suggestGroup, type Group } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import type {
@@ -144,7 +144,6 @@ export async function registerCustomer(
   const now = deps.clock.now();
   const details = createCustomerDetails(input, now);
   const settings = await readCurrentSettings({ settings: deps.settings, clock: deps.clock });
-  const group = input.group ?? suggestGroup(await deps.customers.groupCounts());
   // The counts printed on the card handed over with the registration — the same snapshot `issueCard`
   // takes, because a first card and a replacement are the same object (US-13.3). Derived, not stored:
   // the record itself still carries no count.
@@ -164,6 +163,16 @@ export async function registerCustomer(
   for (;;) {
     attemptsLeft -= 1;
     const takenNumbers = await deps.customers.takenActiveNumbers();
+    // Asked of the pool this attempt read, and asked before the slot is settled: US-31.3 removes
+    // `input.group` and this line with it, because the number the loop allocates *is* the group.
+    // A register with nothing free is refused a line below, by the allocation rather than here.
+    const group =
+      input.group ??
+      suggestGroup(
+        freeNumbers(takenNumbers, settings.quotaN),
+        await deps.customers.groupCounts(),
+      ) ??
+      "RED";
     const customerNumber =
       chosen === undefined
         ? lowestFreeNumber(takenNumbers, settings.quotaN)

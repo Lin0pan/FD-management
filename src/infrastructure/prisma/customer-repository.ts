@@ -17,7 +17,7 @@ import {
   type PersonalDetails,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
-import { parseGroup, type Group, type GroupCounts } from "@/domain/customer/group";
+import type { Group, GroupCounts } from "@/domain/customer/group";
 import { foldName } from "@/domain/customer/nameSearch";
 import {
   CardIndexTaken,
@@ -26,7 +26,7 @@ import {
   CustomerNumberTaken,
   InvalidCustomerRecord,
 } from "@/domain/errors";
-import { isCardCollision, toIssuedCard } from "./card-repository";
+import { isCardCollision, parseStoredGroup, toIssuedCard } from "./card-repository";
 
 /**
  * Everyone who still holds a customer number.
@@ -363,7 +363,7 @@ export class PrismaCustomerRepository implements CustomerRepository {
     return {
       id: row.id,
       customerNumber: row.customerNumber,
-      group: parseGroup(row.group),
+      group: parseStoredGroup(row.group),
       status: parseCustomerStatus(row.status),
       blockReason: row.blockReason,
       archiveReason: row.archiveReason,
@@ -380,7 +380,7 @@ export class PrismaCustomerRepository implements CustomerRepository {
         // two part company on a 13th birthday, which is the whole point of storing it (US-13.3).
         countsAtIssue: { grownUps: card.grownUpsAtIssue, children: card.childrenAtIssue },
         // Likewise the group: what the card names as their week, not the group they are in today.
-        groupAtIssue: parseGroup(card.groupAtIssue),
+        groupAtIssue: parseStoredGroup(card.groupAtIssue),
       },
       registeredOn: firstCard.issuedAt,
       previousCustomerId: row.previousCustomerId,
