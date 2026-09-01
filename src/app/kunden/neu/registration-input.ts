@@ -244,8 +244,8 @@ export function fieldRefusals(
  * `EmptyHousehold` and `CustomerNotInHousehold` are statements about the whole table — the second
  * names a person, and the row it wants is the one that is *not* there — `NoFreeCustomerNumber` is
  * about the register, the two card races are about a run that was read stale rather than about
- * anything on the form at all, and `BirthDateInFuture` carries only the date — it is raised for the customer's own birthdate and
- * for every household row alike, and nothing on it says which. Naming that one needs the error to
+ * anything on the form at all, and `BirthDateInFuture` carries only the date — it is raised for the
+ * customer's own birthdate and for every household row alike, and nothing on it says which. Naming that one needs the error to
  * carry its row; until it does, it stays a summary that marks nothing rather than a mark that
  * guesses.
  *

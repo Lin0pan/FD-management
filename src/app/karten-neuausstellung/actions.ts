@@ -12,9 +12,9 @@
  * card view is only readable because each reissue says why it happened.
  *
  * Nothing is decided here. Whether the customer may be issued a card is `reissueCard`'s judgement,
- * and every refusal it can give this screen is a row that went stale under it — an archived
- * household, or one of the two lost card races — reaching it only via a list rendered before
- * somebody else archived them or issued their card.
+ * and every refusal it can give this screen is a row that went stale under it: an archived
+ * household, one of the two lost card races, or a record that has left the register altogether.
+ * Each reaches it only via a list rendered before somebody else changed what it was describing.
  */
 
 import { revalidatePath } from "next/cache";

@@ -18,15 +18,14 @@ describe("customerErrorMessage", () => {
     expect(customerErrorMessage(new CardNumberTaken(50, 3))).toContain("50k3");
   });
 
-  it("names no card number when the index was taken on the record", () => {
+  it("names no number at all when the index was taken on the record", () => {
     const message = customerErrorMessage(new CardIndexTaken(7, 3));
 
-    // Neither a card number composed from what the error happens to carry, nor the surrogate id it
-    // carries instead of a slot: the card that took the index may have been printed under a number
-    // this household has since left, so any number here would name a card nobody printed.
+    // No digit, rather than "not the id" and "not a card number" in turn: the arm returns a
+    // constant, so the whole class can be asserted, and forbidding only the two values this error
+    // happens to carry would pass a sentence that leaked the other one.
     expect(message).not.toBeNull();
-    expect(message).not.toMatch(/\dk\d/);
-    expect(message).not.toContain("7");
+    expect(message).not.toMatch(/\d/);
   });
 
   it("still answers null for an error it has no words for", () => {

@@ -448,17 +448,24 @@ export const de = {
        * {@link customerNumberUnavailable}'s register — the value first, then what to do — and the
        * answer is to read the slot's run again, i.e. reload.
        *
+       * A *Nummer* is „vergeben“ and a *Karte* is „ausgestellt“, the way `noFreeCustomerNumber` and
+       * {@link reissue.saved} have it: a card number that is spent is both at once, and swapping
+       * the two verbs round is the kind of German that makes staff read a sentence twice.
+       *
        * It takes the number **already formatted**, because writing `50k3` is `formatCardNumber`'s
        * and this module has no business owning a second spelling of it; the same reason
        * {@link reissue.confirm} takes its two numbers as strings.
        */
       cardNumberTaken: (cardNumber: string): string =>
-        `Die Kartennummer ${cardNumber} wurde bereits ausgestellt und wird kein zweites Mal ` +
-        `vergeben. Es wurde nichts gespeichert — bitte die Seite neu laden.`,
+        `Die Kartennummer ${cardNumber} ist bereits vergeben und wird kein zweites Mal ` +
+        `ausgestellt. Es wurde nichts gespeichert. Bitte die Seite neu laden.`,
       /**
        * `cardIndexTaken` is the *record's* run read stale: the household was issued another card
-       * while this one was being decided, from a second window. So the answer is to read the
-       * record again, and the sentence points at the household rather than at a number.
+       * while this one was being decided — a second tab, or the colleague at the next chair, since
+       * DF share one machine. So the answer is to read the record again, and the sentence points at
+       * the household rather than at a number. It does **not** guess which of the two happened:
+       * naming a second window would send somebody hunting through their own tabs for a card a
+       * colleague issued.
        *
        * It names **no** card number, and deliberately so. The error carries a `customerId` and an
        * index — no slot — and the card that took the index may well have been printed under the
@@ -467,8 +474,8 @@ export const de = {
        * look for it would be looking for nothing.
        */
       cardIndexTaken:
-        "Für diesen Haushalt wurde inzwischen eine neue Karte ausgestellt — vermutlich in einem " +
-        "zweiten Fenster. Es wurde nichts gespeichert — bitte die Seite neu laden.",
+        "Für diesen Haushalt wurde inzwischen eine neue Karte ausgestellt. Es wurde nichts " +
+        "gespeichert. Bitte die Seite neu laden.",
       unknown: "Die Aufnahme konnte nicht gespeichert werden.",
       notFound: "Dieser Kunde wurde nicht gefunden.",
     },

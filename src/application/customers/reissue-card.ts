@@ -52,6 +52,10 @@ export interface ReissueCardInput {
  * @throws {CustomerNotFound} if no customer has that id.
  * @throws {CustomerArchived} if the customer has left the register — the only status that refuses a
  *   card. A blocked household is turned away at the counter but still holds their slot (US-08).
+ * @throws {CardNumberTaken} if the card number was printed on the slot in the meantime, and
+ * @throws {CardIndexTaken} if the household was issued another card at that index — the two lost
+ *   card races, straight through from {@link issueCard}. This function adds nothing to them but the
+ *   reason word, and both reissue screens report them in words of their own.
  */
 export function reissueCard(
   deps: ReissueCardDeps,

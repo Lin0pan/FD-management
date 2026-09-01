@@ -89,6 +89,10 @@ export interface ChangeCustomerNumberInput {
  * @throws {CardNumberTaken} if the card number this move was about to print was issued on the new
  *   slot between the read of its run and the write. It is not retried: what went stale is the run,
  *   which the screen has to read again (US-25).
+ * @throws {CardIndexTaken} if the household was issued a card at that index while the move was
+ *   being decided. The index here is the later of *two* runs (`nextCardIndexOnMove`), so the
+ *   household's own can go stale under this write while the slot they are moving to is untouched —
+ *   a fault an ordinary issue cannot produce, answered by re-reading the record.
  */
 export async function changeCustomerNumber(
   deps: ChangeCustomerNumberDeps,
