@@ -174,6 +174,27 @@ bullets that sat under „Where batch 29 starts“ are not carried over — they
   clean `HEAD`.** It is the only thing that separates a regression from this suite's WebKit
   flakiness. Note that a failure **aborts the files behind it** (`6 did not run`), so one flake hides
   whatever else would have failed — and a green run after a fix is worth repeating twice.
+- **A `<select>` or a text input inside a form on a *record* screen needs `onKeyDown={guardEnter}`.**
+  `submitsOnEnter` (`src/app/enter-guard.ts`) returns `true` for `SELECT`, so Enter in a dropdown
+  submits the form around it — and where the save sits inside a `<details>` confirmation, that
+  keystroke performs the write with the sentence describing it never having been on screen. No gate
+  sees this: typecheck, lint and the unit suite are all green either way. Press Enter in the control
+  in a browser. (`group-control.tsx`'s radios have the same exposure and no guard.)
+- **The two-step save has one shape in this repo, and it is `reissue-controls.tsx`'s**: a `<summary>`
+  wearing `buttonVariants({ variant: "outline" })` plus `list-none
+  [&::-webkit-details-marker]:hidden`, then an `<Alert>` naming what will happen and the real
+  `<Button type="submit">` inside the same `<details>`. It tabs select → summary → submit and reads
+  as `group > generic + alert + button` in the accessibility tree. Copy it; do not invent a second.
+- **`npm run db:demo` is what makes a record worth driving in the browser.** `db:reset` seeds
+  settings only, so every `/kunden/<id>` is a 404 and „the screen is broken" is the wrong conclusion.
+  In the demo register ids 1–5 are ARCHIVED, 6/9/10 ACTIVE, 7/8 BLOCKED — **id 6 is the active record
+  and id 1 the archived one**. (The „seed customer 6 is archived" bullet elsewhere is about
+  `seed.ts`, a different register.) Slots 1 and 2 are held by re-registrations, so the free pool
+  starts at 3.
+- **Verify a screen's acceptance list with one `--raw eval` returning `JSON.stringify({...})` over
+  its testids**, rather than a snapshot per claim: a receipt, the revalidated facts above it, a
+  control's post-save value and a collapsed disclosure come back in one call for a fraction of the
+  tokens. Screenshots at 390 and 1280 are for what the eye is needed for, not for reading text back.
 - **`playwright-cli` needs a role locator, not a testid, to fill the counter's Nummer input**, and a
   `cmd-a || cmd-b` shell chain hides a silent no-op — the first command exits 0 without filling
   anything. Run the fill on its own and re-snapshot to confirm it landed. Verify against
@@ -583,4 +604,61 @@ never shown a card number naming a different card. Two lines of production code 
   `WRONG_GROUP`. Compute it (`datetime.date(...).isocalendar()`) rather than assuming; a lookup test
   that asserts a verdict kind turns on it, and 2026-08-31 being a Monday does **not** matter,
   because `evaluateAtCounter` never asks whether today is a distribution day.
+---
+
+## 2026-09-01 - US-006 (the number control on the record)
+
+Wired the record's „Kundennummer“ section: a section of its own, directly under „Gruppe“, holding a
+controlled `<select>` of `view.numberChoices`, the three-consequence hint, the free-number count and
+the reissue's two-step save. An archived household reads the number as a `Field`, as they read their
+group. `detailsHint` loses „Die Kundennummer lässt sich nicht ändern.“ and is replaced by nothing
+there.
+
+Files changed:
+- `src/app/kunden/[id]/number-control.tsx` (new) — the client component.
+- `src/app/kunden/[id]/number-change-state.ts` (new) — the state union, outside the `"use server"`
+  module, carrying `from`/`to`/`cardNumber` on success and optional fresh `numberChoices` on a lost
+  race.
+- `src/app/kunden/[id]/actions.ts` — `changeCustomerNumberAction` and `freshChoicesAfterRace`.
+- `src/app/kunden/[id]/page.tsx` — the section, the archived `Field`, `numberChoices` destructured.
+- `src/i18n/de.ts` — `customers.numberChange.*`, `errors.customerNumberUnchanged`, the shortened
+  `detailsHint`.
+
+- **Learnings for future iterations:**
+  - **A `<select>` in a form on the record needs `guardEnter`, and this is the case that shows why.**
+    `submitsOnEnter` returns `true` for `SELECT`, and the submit Enter would reach here lives
+    *inside* the `<details>` confirmation — so a stray Enter while scrolling 226 options would print
+    a card without the sentence naming it ever having been on screen. Neither typecheck, lint nor
+    the unit suite sees it; only pressing Enter in a browser does. `group-control.tsx` next door has
+    the same exposure through its radios and no guard — noted, not fixed here, because it is not
+    this story's form.
+  - **The two-step save is a house pattern, copied verbatim from `reissue-controls.tsx`**: a
+    `<summary>` wearing `buttonVariants({ variant: "outline" })` with `list-none` and the
+    `[&::-webkit-details-marker]:hidden` escape, then an `<Alert>` and the real submit inside. It
+    reads in the accessibility tree as `group > generic "…" + alert + button`, and tabbing goes
+    select → summary → submit. **Match it rather than inventing a second shape** — the record now
+    carries five `<summary>`s and they are all this one.
+  - **`npm run db:demo` is what makes the record worth looking at**; `db:reset` alone seeds settings
+    only, so `/kunden/<id>` 404s for every id. In the demo register ids 1–5 are ARCHIVED, 6/9/10 are
+    ACTIVE and 7/8 are BLOCKED — so **id 6 is the active record to drive and id 1 the archived one**
+    (the older bullet saying „seed customer 6 is archived" is about `seed.ts`, not the demo seed).
+    Numbers 1 and 2 are held by re-registrations, so the free pool starts at 3.
+  - **The whole US-006 acceptance list is verifiable in one browser session with `--raw eval`**, and
+    that is cheaper than a screenshot per claim: one `JSON.stringify({...})` over the five testids
+    proved the receipt, the revalidated top facts, the control reopening on the new number and the
+    confirmation collapsing, all in one call. A screenshot at 390 and one at 1280 is what the eye is
+    still needed for.
+  - **A move that swaps one slot for another leaves the free count unchanged** („Noch 225 freie
+    Nummern" before and after), which looks like the count failing to refresh and is not. The
+    vacated number appearing in the options is the assertion that actually proves the re-read — read
+    `[...select.options].map(o => o.value)`, not the count.
+  - **`npx prettier --write` the files before committing even when `npm run lint` is silent.** `lint`
+    is `eslint` alone; the pre-commit hook runs `prettier --write` and would otherwise rewrite a file
+    underneath the commit. `actions.ts` had a collapsible import that only `format:check` saw.
+  - **101-character comment lines are the repo's normal**, not a violation to fix: `group-control.tsx`
+    and `reissue-controls.tsx` both carry them, Prettier accepts them, and re-wrapping a paragraph to
+    chase 100 is noise in the diff. The width bullet above is about lines that are *well* over.
+  - **Documentation needed nothing again.** `grep -rn "group-control\|reissue-controls\|number-control"
+    docs/` is empty — no chapter names the record's components — and the ADR-007 reversal plus the
+    hint's disappearance from the handout are US-008's story, which carries both.
 ---
