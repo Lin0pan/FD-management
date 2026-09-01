@@ -1,6 +1,6 @@
 # FD-Management — Betriebsanleitung
 
-**Testversion · Stand: 29. August 2026**
+**Testversion · Stand: 1. September 2026**
 
 Diese Software unterstützt die Kundenverwaltung und die Ausgabe des Delbrücker Füllhorns. Sie läuft
 auf **einem einzigen Rechner**, ohne Internet und ohne Anmeldung.
@@ -135,6 +135,32 @@ dafür einen einfachen Weg:
 
 Notieren Sie einen solchen Fall bitte kurz, solange Sie ihn im Kopf haben — die Software kann nicht
 wissen, dass eine spätere Zahlung eine Berichtigung war.
+
+## Kundennummer ändern
+
+Die Kundennummer eines Haushalts liegt nicht mehr für immer fest. Sie können sie beim Kunden im
+Abschnitt **Kundennummer** auf jede freie Nummer umstellen — etwa wenn eine Familie zurückkommt und
+ihre alte Nummer wieder haben möchte, wenn Nummern beieinander liegen sollen oder wenn sich jemand
+schlicht vertippt hat. Einen Grund fragt die Software nicht ab.
+
+Bevor gespeichert wird, nennt Ihnen die Software beide Zahlen: die neue Kundennummer und die neue
+**Kartennummer**. Beides brauchen Sie:
+
+> **Mit dem Speichern wird eine neue Karte ausgestellt.** Schreiben Sie die genannte Kartennummer auf
+> eine Karte und geben Sie sie dem Haushalt mit. Die alte Karte ist ab sofort ungültig und darf an
+> der Ausgabe nicht mehr angenommen werden — bitte nehmen Sie sie wieder an sich.
+
+Zwei Dinge sehen dabei ungewohnt aus und sind trotzdem richtig:
+
+- **Die neue Kartennummer zählt nicht bei dem Haushalt weiter, sondern bei der Nummer.** Wer bisher
+  `100k2` hatte und auf die 105 wechselt, bekommt vielleicht `105k7` — weil auf der 105 schon sechs
+  Karten ausgegeben wurden. Der Sprung gehört zur Nummer, nicht zum Haushalt.
+- **Die alten Karten behalten in der Übersicht ihre alten Nummern.** Sie werden nicht umgeschrieben.
+  Nur so kann keine Kartennummer zweimal in Umlauf geraten.
+
+Die frei gewordene Nummer steht **sofort** wieder für eine Aufnahme zur Verfügung. Rückgängig machen
+lässt sich ein Wechsel nicht: Wenn Sie die alte Nummer wieder vergeben möchten, ist das ein zweiter
+Wechsel — und der stellt wieder eine neue Karte aus.
 
 ## Wenn etwas nicht funktioniert
 
