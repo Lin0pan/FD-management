@@ -36,7 +36,9 @@ order the layering implies ([chapter 5](../docs/architecture/05-building-block-v
 - Policy values are **data**, not constants — a change applies immediately and is kept as history.
 - No actor is ever recorded — DF has no login, so records say _what / when / why_, never _who_.
 - `Customer.id` (surrogate int) is identity and the target of every FK; the `1..N` customer number
-  is a **reusable slot attribute**, not an identity.
+  is a **reusable slot attribute**, not an identity — a household may be **moved from one slot to
+  another** (US-30), which is the strongest statement of that rule there is: a thing a household can
+  be moved off is plainly not what identifies them.
 - German UI, English code.
 
 ## Seed values

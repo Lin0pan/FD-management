@@ -36,7 +36,7 @@ erDiagram
     }
     Customer {
         int id PK "the only identity"
-        int customerNumber "a slot, partial-unique while not archived"
+        int customerNumber "a slot; released by archiving or a move"
         string firstNameFolded "search key"
         string lastNameFolded "search key"
         string group "RED or BLUE"
@@ -45,7 +45,7 @@ erDiagram
         int previousCustomerId FK "display metadata only"
     }
     Card {
-        int customerNumber "key the constraint needs"
+        int customerNumber "the slot this card was printed under"
         int index "unique per customerNumber"
         int grownUpsAtIssue "snapshot of the printed card"
         int childrenAtIssue "snapshot of the printed card"
@@ -78,6 +78,9 @@ is not a customer, and an audit entry outlives whatever it describes.
 
 - Every foreign key targets `Customer.id`, never `customerNumber`. Confusing the two is the mistake
   the spreadsheet made — [ADR-008](adr/008-treat-a-customer-number-as-a-reusable-slot-not-an-identity.md).
+  A slot is released by archiving **or by a move to another number**, and a card keeps the slot it was
+  printed under either way —
+  [ADR-016](adr/016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md).
 - Nothing computable is stored, with four argued exceptions, each carrying its argument in the schema
   comments — [ADR-007](adr/007-derive-anything-computable-rather-than-storing-it.md). Do not "fix"
   them.

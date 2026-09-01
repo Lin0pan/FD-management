@@ -188,8 +188,8 @@
         "Lint passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "ADR-016 recorded and accepted, with its chapter 9 row; ADR-007's Card.customerNumber row rewritten (amended, not superseded) and ADR-008 given the between-numbers sentence. Root CLAUDE.md, prisma/schema.prisma (both customerNumber comments), ports.ts updateDetails, app/kunden/[id]/actions.ts updateDetailsAction, the glossary, chapter 8's ER note and rules, chapter 5 (two new modules, 37 use cases, seven record forms) and tasks/README.md corrected. The superseded claims in the US-24 and US-25 PRDs got dated notes rather than rewrites, per the project's PRD convention. prisma/migrations/ untouched."
     }
   ]
 }

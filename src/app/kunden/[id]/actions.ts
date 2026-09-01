@@ -251,8 +251,9 @@ export async function updateHouseholdAction(
 /**
  * Correct the customer's name, birthdate and address (US-16.2).
  *
- * The customer number is not among the fields read here, and the use case takes none: a slot is
- * assigned at registration and released by archiving, never edited (FR-7).
+ * The customer number is not among the fields read here, and the use case takes none. Moving a
+ * household to another slot is its own act with its own form and its own confirmation
+ * ({@link changeCustomerNumberAction}, US-30) — not a correction of who the customer is (FR-7).
  */
 export async function updateDetailsAction(
   previous: RecordFormState,

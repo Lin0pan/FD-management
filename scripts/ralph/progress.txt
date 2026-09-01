@@ -146,7 +146,30 @@ bullets that sat under „Where batch 29 starts“ are not carried over — they
   set `Accepted` in the file **and** the row, **re-count** the intro sentence („The thirteen
   decisions …“), and `npx prettier --write` chapter 9 — the appended row is narrower than the table
   and Prettier re-flows every row of it. Finish with `arc42.py check`, which sees structure and dead
-  links but never staleness.
+  links but never staleness. **Batch 30 adds a fifth step:** a long ADR title widens the table, and
+  the intro paragraph above it then breaks the 100-column wrap — Prettier does not reflow prose, so
+  re-wrap that sentence by hand after changing the counting word.
+- **An ADR that corrects an older one is an amendment unless the whole decision fell.** ADR-016
+  changed one row of ADR-007's four-exception table, so ADR-007 stays `Accepted` and gains a
+  paragraph saying which row moved and that it is „amended, not superseded“ — a reader arriving from
+  either side has to be able to tell what still holds. Reserve `Superseded` for a decision that is
+  wholly replaced, and keep the *argument* in whatever you rewrite: a corrected rule with its
+  reasoning deleted is a rule nobody can later tell is still right.
+- **A claim worth writing once has been copied, so correct it by grepping the phrasing.** When a
+  story reverses a stated rule, sweep `src/ prisma/ docs/ tasks/` for the *sentences* („fixed at
+  registration", „released only by archiving", „never edited", „lässt sich nicht ändern") rather
+  than for the concept. Batch 30's PRD named four documents and the sweep found six: schema comments
+  and server-action headers repeat ports.ts's wording almost verbatim. Out of scope by convention:
+  `scripts/ralph/prds/*.json` and the per-story PRDs are records of what was **asked for** — they
+  get a dated `> **Note (YYYY-MM-DD).**` blockquote after the block carrying the claim, never a
+  rewrite.
+- **`prettier --check` cannot parse `prisma/schema.prisma`** — „no parser could be inferred", so it
+  is outside `npm run format:check` and nothing checks the width of a schema doc comment. Measure it
+  by hand (Python, not `awk`) like any `/** */` block.
+- **Never wrap a Markdown code span across two lines.** Prettier removes the continuation line's
+  indentation, which silently breaks the list item around it — in root `CLAUDE.md` it dropped
+  `` `card.index)` `` into column 0 inside a nested bullet. Keep the span on one line and rewrap the
+  sentence.
 - **A use case that already loads a customer's records must not load them twice.** `recordAttendance`
   reads `listForCustomer` for the once-per-day guard and the balance both; `lookupCustomer` reads it
   for `recordForDay`, `countNoShows` and the balance. One `const history = await …` at the top, and
@@ -735,4 +758,91 @@ cards-due list either side of a second move, a fresh registration onto the vacat
 - **`de.customers.cardView.supersededEntry` over `toHaveText([…])` is the assertion that proves the
   whole story in one line**: four entries, in order, each naming `224kN` with its own issue date and
   reason. A `toContainText` would have passed on a re-labelled list.
+---
+
+## 2026-09-01 — US-008 (batch 30, US-30.9): the record stops saying a number cannot be changed
+
+Documentation only. No behaviour changed, `prisma/migrations/` untouched, and the one `.prisma`
+edit is a doc comment.
+
+- **ADR-016** „A customer number may be changed, and a card keeps the number it was printed with“ —
+  written through `arc42.py new-adr`, then finished by hand: Accepted in the file *and* in the
+  chapter 9 row, the intro count „fifteen“ → „sixteen“, `_Last reviewed_` moved to 2026-09-01. Its
+  Consequences say the three things a later reader has to be able to find: `Card.customerNumber` is
+  now a snapshot **and** is read as the card's number, the vacated slot's own run is what stops a
+  card number being printed twice, and the card history reveals past numbers as a side effect and is
+  left correct rather than obscured.
+- **ADR-007** — the `Card.customerNumber` row of the derive-don't-store table rewritten (key *and*
+  snapshot, read as the card's number, links to ADR-016), plus a paragraph under the table saying it
+  was **amended, not superseded**: the principle holds, one entry changed.
+- **ADR-008** — the Decision gained the between-numbers sentence (a slot is released by archiving
+  *or* by its holder moving), argued as *strengthening* „a slot, not an identity“.
+- Corrected everywhere else the old claim was stated as fact: root `CLAUDE.md` (the third
+  derive-don't-store exception), `prisma/schema.prisma` (**both** `customerNumber` comments — the
+  card's and the customer's own, which said „never edited“), `src/application/ports.ts`
+  (`updateDetails`), `src/app/kunden/[id]/actions.ts` (`updateDetailsAction`'s header),
+  `docs/architecture/12-glossary.md` (customer number **and** card number),
+  `08-crosscutting-concepts.md` (the ER note on both models plus the rules list),
+  `05-building-block-view.md` (the two new modules, 35 → 37 use cases, the record's forms),
+  `tasks/README.md` §Conventions.
+- The two **PRDs** that state the old rule (US-24 Non-Goals + its `customerErrorMessage` bullet,
+  US-25's doc-comment AC + its „a key, not a fact“ bullet) got dated `> **Note (2026-09-01).**`
+  blockquotes rather than rewrites — a PRD is the record of what was asked for.
+- Swept up two stale-by-batch counts nobody's story owns: `01-introduction-and-goals.md` and
+  `docs/architecture/README.md` still said the PRDs run „US-01 to US-28“.
+
+**Files changed:** `docs/architecture/adr/016-…md` (new), `adr/007-…md`, `adr/008-…md`,
+`09-architectural-decisions.md`, `08-crosscutting-concepts.md`, `05-building-block-view.md`,
+`12-glossary.md`, `01-introduction-and-goals.md`, `README.md`, `CLAUDE.md`, `prisma/schema.prisma`,
+`src/application/ports.ts`, `src/app/kunden/[id]/actions.ts`, `tasks/README.md`,
+`tasks/prd-us-24-choose-customer-number.md`, `tasks/prd-us-25-globally-unique-card-numbers.md`.
+
+**Learnings for future iterations:**
+
+- **The AC's „final grep“ is the story, not its closing check — and it finds files the PRD did not
+  list.** Four documents were named; the sweep turned up two more that stated the rule as fact:
+  `Customer.customerNumber`'s *own* schema comment („The slot this household holds“ — silent on
+  whether it may move) and `updateDetailsAction`'s header in `src/app/`, which repeated ports.ts's
+  sentence almost word for word. The pattern is worth keeping: **a claim that is worth writing once
+  gets copied**, so grep the *phrasing* (`"fixed at registration"`, `"released only by archiving"`,
+  `"never edited"`, `"nicht ändern"`) rather than the concept, across `src/ prisma/ docs/ tasks/`.
+  What it must *not* flag: `scripts/ralph/prds/*.json` (the batch inputs are a historical record of
+  what was asked, like the PRDs) and the identical wording used about settings versions and
+  certificates, which really are never edited.
+- **Correcting a claim is not deleting it.** Every rewrite here kept the *argument* and changed only
+  what stopped being true — ADR-007's row still says why the column is stored, ADR-008 still says a
+  number is a slot, US-24's Non-Goal still says a number change is not a record correction (which is
+  precisely why US-30 gave it its own section rather than a field in the details form). A rewrite
+  that drops the reasoning leaves the next reader with a rule and no way to tell whether it still
+  applies.
+- **A superseded ADR row is amended in place, with the amendment stated out loud.** ADR-007 is not
+  superseded by ADR-016 — one of its four exceptions changed shape. The note under the table names
+  which row and says „amended, not superseded“, because a reader who finds ADR-016 first needs to
+  know ADR-007 still stands, and a reader who finds ADR-007 first needs to know one row moved.
+- **`arc42.py new-adr` writes the row as `Pending` and does not touch the intro count.** Four manual
+  steps after it, every time: Accepted in the file, Accepted in the row, the counting word in the
+  intro sentence, and `npx prettier --write` on chapter 9 (the appended row is narrower than the
+  table and Prettier re-flows all of it). This iteration added a fifth: the **row Prettier writes is
+  wider than the table**, so the intro paragraph one line above it went to 105 characters when
+  „fifteen“ became „sixteen“ — Prettier does not reflow prose, so re-wrap it by hand.
+- **`prettier --check` cannot parse `prisma/schema.prisma`** (no parser inferred) — it is excluded
+  from `npm run format:check`, so a schema comment is hand-wrapped and nothing checks the width.
+  Measure it the same way as a `/** */` block, with Python and not `awk`.
+- **A code span must not be wrapped across two lines in Markdown.** Prettier reacts by *removing the
+  indentation* of the continuation line, which silently breaks the list item it sits in — it showed
+  up here as `card.index)` landing in column 0 inside a nested bullet in root `CLAUDE.md`. Keep the
+  span on one line and rewrap the sentence around it.
+- **Chapter 9's „Ordered by date“ smaller-decisions table had drifted**: batch 30's own
+  2026-08-31 row had been appended after 2026-08-07 rather than sorted in. Moved. A table that
+  states its own ordering rule is worth re-checking whenever a batch appends to it.
+- **The counts in chapter 5 are approximations that a batch inherits.** „35 use cases“ was already
+  one below the 36 exported use-case functions at `main` (`describeAllowances` and
+  `countCardsDueForReissue` sit beside their siblings in one file each), so the honest move is to
+  carry the **delta** — +2 for this batch — rather than to recount and silently restate someone
+  else's number. „five separate forms saving through five use cases“ on `/kunden/[id]` was stale in
+  the other direction: there are seven form actions in `[id]/actions.ts`, now stated as such.
+- **The handout was checked and deliberately left alone.** `docs/handout/betriebsanleitung.md` is
+  operations for DF — start/stop, backup, eggs, balance, correcting a hand-out — and has no
+  per-screen administrative how-tos, so a number change has nowhere to go in it without inventing a
+  section. If DF ever ask for one, that is a story, not a documentation sweep.
 ---

@@ -29,11 +29,15 @@ different families the day the slot was reused.
 ## Decision
 
 `Customer.id` is the surrogate primary key and the only identity in the system; every foreign key
-targets it. `customerNumber` is a slot in `1..quotaN`, released by archiving and refilled by the next
-registration. At most one non-archived customer may hold a given number — enforced by a **partial
-unique index** over non-archived rows, hand-written at the end of the init migration because Prisma
-has no syntax for one. Since US-24 the staff choose the number at registration from the free ones
-rather than being assigned the lowest free slot.
+targets it. `customerNumber` is a slot in `1..quotaN`, released by archiving — or by its holder being
+moved to another one — and refilled by the next registration. At most one non-archived customer may
+hold a given number, enforced by a **partial unique index** over non-archived rows, hand-written at
+the end of the init migration because Prisma has no syntax for one. Since US-24 the staff choose the
+number at registration from the free ones rather than being assigned the lowest free slot, and since
+[ADR-016](016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md) a
+number changes hands not only **between households** but **between numbers for one household** — a
+household already on the register may be moved to any free slot. That strengthens this decision
+rather than weakening it: a thing a household can be moved off is plainly not its identity.
 
 ## Consequences
 
@@ -55,6 +59,7 @@ rather than being assigned the lowest free slot.
 
 - [Chapter 6 — registering a customer](../06-runtime-view.md#scenario-2--registering-a-customer)
 - [Chapter 12 — glossary](../12-glossary.md)
+- [ADR-016 — a customer number may be changed, and a card keeps the number it was printed with](016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md)
 - `src/domain/customer/customerNumber.ts`, `src/domain/card/cardNumber.ts`,
   `prisma/migrations/*_init/migration.sql`
 - Commits `5beb708`, `57ee3d9`, `3f9da6d`

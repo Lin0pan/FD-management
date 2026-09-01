@@ -218,8 +218,10 @@ export interface CustomerRepository {
    * same way. It goes out even when nothing in it moved, so there is one code path rather than a
    * branch that decides when the two halves may be written apart.
    *
-   * The customer number is not among the fields, and there is deliberately no way to reach it: a
-   * slot is assigned at registration and released by archiving, never edited (PRD §FR-7).
+   * The customer number is not among the fields, and there is deliberately no way to reach it
+   * *here*. There is a way — {@link changeCustomerNumber}, its own act with its own audit entry and
+   * the card it prints — but a slot is not part of who the customer is, so correcting a misspelt
+   * name is not the moment to move one (US-16.2 §FR-7, US-30).
    *
    * The folded search keys are the adapter's to rewrite in the same statement as the names they come
    * from — they are stored, so an edit that moved a name without them would leave the register

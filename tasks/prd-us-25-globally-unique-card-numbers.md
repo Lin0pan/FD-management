@@ -136,6 +136,15 @@ guarantee does not rest on every future caller remembering to ask the right ques
       CLAUDE.md names for a schema that drifted from the database.
 - [ ] `npm run lint` and `npm run typecheck` pass.
 
+> **Note (2026-09-01).** The doc-comment criterion above — „it is **not** a snapshot … a customer's
+> number is fixed at registration … never read as the card's number" — was superseded by **US-30**,
+> which lets a household be moved to another slot. `Card.customerNumber` is now a key **and** a
+> snapshot, and it _is_ what the card's number is read from; the column, the constraint and the
+> index argument in this story are unchanged. See
+> [ADR-016](../docs/architecture/adr/016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md)
+> and the rewritten row in
+> [ADR-007](../docs/architecture/adr/007-derive-anything-computable-rather-than-storing-it.md).
+
 ### US-025.3: The repository answers for the slot (infrastructure)
 
 **Description:** As a developer, I want the store to be able to say what the highest index ever issued
@@ -382,7 +391,10 @@ because three of them argue for it explicitly and would otherwise read as a deci
 - **`Card.customerNumber` is a key, not a fact.** It is written by the adapter, from the customer row,
   in the transaction that writes the card. Nothing reads it to answer what the card's number is. The
   precedent is `firstNameFolded`, not `groupAtIssue` — and unlike either, it cannot go stale, because
-  a customer number is fixed at registration (US-24, Non-Goals).
+  a customer number is fixed at registration (US-24, Non-Goals). **US-30 reversed the second half of this
+  bullet** (2026-09-01): a household may be moved to another number, the card keeps the slot it was
+  printed under, and that slot _is_ what its card number is read from — ADR-016. The first half
+  stands: the column exists because the constraint needs it, and the adapter is still what writes it.
 - `nextCardIndex` accepting `0` is deliberate and is what removes the `current === null ? 1 : …`
   branch from `issueCard` and the `index: 1` literal from `registerCustomer`. Two special cases become
   one call.
