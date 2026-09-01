@@ -357,11 +357,37 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 
 - **German only from `src/i18n/de.ts`.** A new card title is a new key there, never a literal.
   Identifiers stay English.
+- **A screen explains itself by what it shows; a paragraph saying so is not text, it is clutter.**
+  Before writing a hint, an intro or a card description, ask the one question: _what does this say
+  that the screen does not already show?_ „Berechnet aus den Geburtsdaten — nicht eingebbar“ under
+  two figures that have no input beside them, „gilt sofort“ under a save button, a confirmation
+  reciting that a replaced card is invalid — each answers **nothing**. Four people use this weekly
+  and they are handed `docs/handout/`; they do not read the screen to find out what the software
+  does. Text earns its place by naming something **invisible**:
+  - a side effect — „Erinnerungen werden dabei auf 0 zurückgesetzt“
+  - a one-way door — „Rückgängig machen lässt sich die Archivierung nicht“
+  - a window that closes — „Korrekturen sind nur am selben Tag möglich“
+  - what an **empty** field means — „Leer lassen: kein Maximalpreis“
+  - an example that makes a free-text box answerable — „z. B. über die Nachbarin, dienstags
+    vormittags“
+  - a rule the missing control would otherwise raise — „Die Liste lässt sich nicht umsortieren“
+
+  This has now been cut back five times, and it grows back every time, because each sentence is
+  reasonable **on its own** — it is only redundant next to the thing it sits under. So the test is
+  never „is this true?“ but „where else does this screen already say it?“ Where the answer is
+  „nowhere“, keep it and keep it to one sentence.
+
 - Enum values become records keyed by the enum literal (`groups: { RED: "Rot", BLUE: "Blau" }`) so a
   screen writes `de.customers.groups[row.group]` with no mapping code.
 - Parameterised strings are typed arrow functions. Pluralisation is written per string.
 - **Every write control gets the trio**: action label, in-flight label, confirmation
-  (`submit` / `submitting` / `saved`). Destructive ones add `confirm`, `reasonLabel`, `reasonHint`.
+  (`submit` / `submitting` / `saved`). Destructive ones add `confirm` and `reasonLabel`. A
+  `reasonHint` only where it carries an example (`waitingList.remove`) or names where the words end
+  up (`settings` — „im Änderungsprotokoll festgehalten“); the block and the archive have none,
+  because „bitte verständlich schreiben“ is advice, not information.
+- **A confirmation names the figures that are about to change and stops.** „Karte 7k1 wird ungültig.
+  Neue Karte: 7k2.“ — not the rule about superseded cards. One that recites the rules is one that
+  gets clicked past unread, which is the opposite of what a confirmation is for.
 - Errors live in a per-section `errors` object keyed by cause, ending with `unknown`.
 - Where two screens state the same fact, write one key in terms of the other. Two phrasings of one
   number is how two screens come to disagree.
