@@ -166,8 +166,8 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "The two ACs the register contradicts are implemented as what is true and said so in the spec: a move can never raise the free-slot count (it swaps one slot for another), and the app has no free-slot count on the waiting list — the intake's „Noch N freie Nummern“ is asserted instead, together with the vacated number being on offer and the taken one gone. Band 224–228, all inside the quota of 240 because both moved-onto and vacated slots must be pickable in a dropdown."
     },
     {
       "id": "US-008",

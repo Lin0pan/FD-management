@@ -85,7 +85,12 @@ bullets that sat under „Where batch 29 starts“ are not carried over — they
   spec's numbers. **And a band above 315 must be seeded BLUE**: `group-walk.spec.ts` reads the whole
   shared register and asserts that the highest walkable RED number *is* its own 315, so one RED
   household seeded higher fails a spec the new one has no business in — `eggs` and `balance` are both
-  BLUE for that reason and not by taste.
+  BLUE for that reason and not by taste. **Below 240 the band may be RED**, which is what lets a spec
+  reuse the RED distribution Thursday `2026-01-08` the reissue and card-number specs already pin —
+  `number-change` (224–228) took that route because every number it drives has to be **pickable in a
+  dropdown**: a slot moved onto, or a vacated slot handed to the next household, is offered from
+  `1..quotaN`, so „a new band" and „inside the quota" are two rules and the second one wins. Sweep the
+  numbers in use with `grep -rhno "\b2[0-9][0-9]\b" tests/e2e/*.spec.ts | cut -d: -f2 | sort -un`.
 - **e2e spec files run in alphabetical path order, one worker, one shared database.** So a spec that
   *writes* shared state is only ever seen by the files sorting after it — `npx playwright test --list`
   prints the order, and a **rename moves a spec in that order** (batch 27's `portions.spec.ts` →
@@ -661,4 +666,73 @@ Files changed:
   - **Documentation needed nothing again.** `grep -rn "group-control\|reissue-controls\|number-control"
     docs/` is empty — no chapter names the record's components — and the ADR-007 reversal plus the
     hint's disappearance from the handout are US-008's story, which carries both.
+---
+
+## 2026-09-01 - US-007 — E2E: a household moves, and both slots stay honest
+
+One new spec, `tests/e2e/number-change.spec.ts`, eight tests, green on **both** engines
+(`npm run test:e2e` and `npm run test:e2e:webkit`, 196 passed / 1 skipped each). No production code
+changed — the story is the proof, not a fix.
+
+The walk: a household holding `224k4` moves onto slot 225, which an archived household left five
+cards deep, and is printed `225k6`. Then the card view (every superseded card under **its own**
+number, „Karten insgesamt" = 5), the intake's pool, the counter on four different queries, the
+cards-due list either side of a second move, a fresh registration onto the vacated 224 printed
+`224k5`, and the lost race.
+
+- `tests/e2e/number-change.spec.ts` (new). Band **224–228**; reuses `releaseNumbers`,
+  `fillPersonalData`, `hydrated` and the `dueRow`/`badgeCount` shapes from `age-13.spec.ts`.
+
+**Learnings for future iterations:**
+
+- **The batch note's „take a new band, start at 351" does not survive this story's own constraint.**
+  Both the slot moved *onto* and the slot *vacated* have to be pickable in a dropdown — the record's
+  control offers `1..quotaN` and `/kunden/neu` offers the free ones — so every number here is inside
+  the quota of 240. The band is **224–228**, which was free of every other spec (below 240 the taken
+  ones are 201–207, 211, 221–223, 231–236, 239) and below 315, so `group-walk.spec.ts`'s highest
+  walkable RED number is untouched and the households could be seeded RED. Being RED is what let the
+  spec reuse the RED distribution Thursday `2026-01-08` that `reissue.spec.ts` and
+  `card-number.spec.ts` already pin — a BLUE band would have needed a different day for one
+  assertion. **Read the band bullet as two rules, not one: „a new band" and „inside the quota if a
+  dropdown has to offer it", and the second one wins.** The consolidated numbers-in-use sweep is one
+  command: `grep -rhno "\b2[0-9][0-9]\b" tests/e2e/*.spec.ts | cut -d: -f2 | sort -un`.
+- **Two ACs describe a screen and an arithmetic that do not exist, and both were written as what is
+  true.** „The free-slot count on the waiting list is one higher immediately after the move" fails
+  twice over: `/warteliste` has no free-slot count at all (a banner naming *one* free number and an
+  applicant, plus a boolean „Platz frei" badge on `/kunden`), and **a move can never change the
+  count** — it swaps one taken number for another, so `|taken|` is invariant. US-006's browser check
+  had already noticed the second half („Noch 225 freie Nummern" before and after). The honest
+  version is asserted on `/kunden/neu`, where the count actually lives: the vacated number is on
+  offer, the taken one is not, and the figure is unchanged — with the comment saying that „it went
+  up" is the first thing a reader expects here and would be wrong. Third AC in this batch to be
+  contradicted by the register itself, after US-003's index rule and US-004's `k1`.
+- **A card number resolves through the *slot*, so „the old card number resolves to whoever holds
+  that slot today" has two answers and both are worth asserting.** `findByCustomerNumber` prefers
+  the active holder and falls back to the most recent archived one, so `224k4` is `NOT_FOUND` while
+  nobody holds 224 and becomes the *successor's* superseded card the moment somebody is registered
+  on it — `OUTDATED_CARD`, naming `224k5`. Neither answer is ever the household who carried it. The
+  same lookup is why the mover can move **onto** 225 while the archived household still sits on that
+  number: the partial unique index is `WHERE status <> 'ARCHIVED'`.
+- **A move is the one write that can only ever *shorten* „Karten neu ausstellen".** It issues a card
+  with today's counts and today's group, so a household on the list for stale counts leaves it and
+  no move can put one on. Asserted with `badgeCount` either side of two moves — unchanged across the
+  first, one lower across the second — which is the self-comparing shape `age-13.spec.ts` uses for a
+  figure that counts the whole shared register.
+- **`selectOption` needs `hydrated()` before it, on both selects this spec drives.** The record's
+  number control and the intake's number dropdown are both controlled, and the patterns block's
+  „`selectOption` loses the race too" bullet is about exactly this window. `pickNumber` wraps
+  `hydrated` + `toPass`, which is `fillSticky`'s shape for a `<select>`; `card-number.spec.ts` does
+  a bare `selectOption` right after `goto` and has been lucky.
+- **The lost race is driven with a second real tab**, `page.context().newPage()` and the same
+  `register` helper, rather than a Prisma insert: „the number is taken by another registration" is
+  the AC, and a hand-written row would not exercise the intake's own allocation. The refusal comes
+  back as `de.customers.errors.customerNumberUnavailable` — the intake's sentence, shared — and
+  `freshChoicesAfterRace` is what makes the follow-up assertions possible: the number is gone from
+  the options and the control has fallen back to the household's own number in the same render.
+- **The seeded card reason word is `LOST`, not `LOSS`** — `cardReasons.LOST` / `"LOST"` in the
+  `Card.reason` column. `tsc` catches the dictionary half; the Prisma half is a validated string and
+  would have failed at run time.
+- **`de.customers.cardView.supersededEntry` over `toHaveText([…])` is the assertion that proves the
+  whole story in one line**: four entries, in order, each naming `224kN` with its own issue date and
+  reason. A `toContainText` would have passed on a re-labelled list.
 ---
