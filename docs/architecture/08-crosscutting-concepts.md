@@ -36,7 +36,7 @@ erDiagram
     }
     Customer {
         int id PK "the only identity"
-        int customerNumber "a slot, partial-unique while not archived"
+        int customerNumber "a slot; released by archiving or a move"
         string firstNameFolded "search key"
         string lastNameFolded "search key"
         string group "RED or BLUE"
@@ -45,12 +45,12 @@ erDiagram
         int previousCustomerId FK "display metadata only"
     }
     Card {
-        int customerNumber "key the constraint needs"
+        int customerNumber "the slot this card was printed under"
         int index "unique per customerNumber"
         int grownUpsAtIssue "snapshot of the printed card"
         int childrenAtIssue "snapshot of the printed card"
         string groupAtIssue "snapshot of the printed card"
-        string reason "FIRST_ISSUE LOST STALE_COUNTS OTHER"
+        string reason "FIRST_ISSUE LOST STALE_COUNTS CUSTOMER_NUMBER_CHANGED OTHER"
     }
     DistributionRecord {
         string dayKey "Europe/Berlin YYYY-MM-DD"
@@ -78,6 +78,9 @@ is not a customer, and an audit entry outlives whatever it describes.
 
 - Every foreign key targets `Customer.id`, never `customerNumber`. Confusing the two is the mistake
   the spreadsheet made — [ADR-008](adr/008-treat-a-customer-number-as-a-reusable-slot-not-an-identity.md).
+  A slot is released by archiving **or by a move to another number**, and a card keeps the slot it was
+  printed under either way —
+  [ADR-016](adr/016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md).
 - Nothing computable is stored, with four argued exceptions, each carrying its argument in the schema
   comments — [ADR-007](adr/007-derive-anything-computable-rather-than-storing-it.md). Do not "fix"
   them.
@@ -230,6 +233,12 @@ with its reminder-count reset, a reminder entry with the incremented count.
 - `src/i18n/format.ts` holds the date and time formatting: `germanDate` formats in UTC (dates are
   days stored at midnight UTC), `germanTime` in Europe/Berlin (a hand-out is an instant). The split
   mirrors the two calendars above.
+- **Emphasis inside a sentence is the dictionary's, not a component's.** An entry that needs a
+  fragment set in bold returns `Segment[]` (`{ text, strong? }`) instead of a string, and
+  `app/notice.tsx`'s `Sentence` renders it; `plain()` flattens it back for a test. The words, their
+  order and their punctuation therefore stay in one file — a component assembling German from pieces
+  would be the rule above broken in a way no lint rule can see. Used by the two sentences a customer
+  number change produces, and nowhere else.
 
 ## Testing strategy
 

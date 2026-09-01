@@ -265,6 +265,14 @@ whole feature is the difference between what the form offered and what the datab
 - **Not** a change to the group choice, the household table, the derived counts or the certificate
   fields.
 
+> **Note (2026-09-01).** The first bullet was superseded by **US-30**: a household on the register may
+> now be moved from the number it holds to any free one, from its own section on the record, with a
+> new card issued in the same transaction. The reasoning above still holds in full — moving a number
+> is a different act from correcting a record, it is emphatically not part of `updateDetails`, and
+> that is exactly why US-30 gave it a use case, a section and a confirmation of its own rather than a
+> field in the details form. See
+> [ADR-016](../docs/architecture/adr/016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md).
+
 ## Design Considerations
 
 - The dropdown **replaces** the „Vorgeschlagene Kundennummer" `Stat` rather than sitting beside it.
@@ -309,6 +317,12 @@ whole feature is the difference between what the form offered and what the datab
 - The Zod schema is shared by the registration screen and the waiting-list promotion
   (`registration-input.ts`), so the field is added once and both screens get it. That is why it lives
   there and not in `actions.ts`.
+
+> **Note (2026-09-01).** „`/kunden/[id]` … never changes a number" stopped being true with **US-30**:
+> the record gained a „Kundennummer" section that moves a household to another slot, and it reports
+> `CustomerNumberTaken` and `CustomerNumberOutOfRange` through that same shared
+> `customerErrorMessage`. The point the bullet makes — one sentence for staff, two codes for the code
+> — is unchanged, and the shared reader is what made the new screen cost nothing here.
 
 ## Success Metrics
 

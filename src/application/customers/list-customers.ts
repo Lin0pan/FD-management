@@ -182,6 +182,6 @@ function toRow(customer: RegisteredCustomer, allowance: Allowance, today: Date):
     certificateValidUntil: customer.details.certificate.validUntil,
     certificateState: certificateState(customer.details.certificate, today),
     reminderCount: customer.reminderCount,
-    cardNumber: formatCardNumber(customer.customerNumber, customer.card.index),
+    cardNumber: formatCardNumber(customer.card.customerNumber, customer.card.index),
   };
 }

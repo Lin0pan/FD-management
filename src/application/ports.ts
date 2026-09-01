@@ -7,7 +7,7 @@
  * untested runtime code.
  */
 
-import type { IssuedCard } from "@/domain/card/card";
+import type { IssuedCard, NewCard } from "@/domain/card/card";
 import type { ValidUntilRange } from "@/domain/customer/certificate";
 import type {
   CustomerStatus,
@@ -218,8 +218,10 @@ export interface CustomerRepository {
    * same way. It goes out even when nothing in it moved, so there is one code path rather than a
    * branch that decides when the two halves may be written apart.
    *
-   * The customer number is not among the fields, and there is deliberately no way to reach it: a
-   * slot is assigned at registration and released by archiving, never edited (PRD §FR-7).
+   * The customer number is not among the fields, and there is deliberately no way to reach it
+   * *here*. There is a way — {@link changeCustomerNumber}, its own act with its own audit entry and
+   * the card it prints — but a slot is not part of who the customer is, so correcting a misspelt
+   * name is not the moment to move one (US-16.2 §FR-7, US-30).
    *
    * The folded search keys are the adapter's to rewrite in the same statement as the names they come
    * from — they are stored, so an edit that moved a name without them would leave the register
@@ -252,6 +254,30 @@ export interface CustomerRepository {
    * household's, and it gets its own audit entry saying so.
    */
   setGroup(id: number, group: Group): Promise<void>;
+  /**
+   * Move a customer to another slot **and issue the card that goes with it, in one transaction**
+   * (US-30): the number moves and the card is inserted together, or neither happens.
+   *
+   * The precedent is {@link create}, which writes the customer, the household, the certificate and
+   * the first card as one. Two writes would have a window in which a household holds 23 and carries
+   * `5k4`, and nothing in the system could notice — the record and the card in their pocket are the
+   * two sources of truth this application exists to keep from disagreeing.
+   *
+   * The card arrives as a {@link NewCard}, without the slot: it is read off the customer row
+   * *after* the update, inside the same transaction, for the reason {@link CardRepository.issue}
+   * gives — a caller that could pass the slot is a caller that could pass the wrong one. Its
+   * `index` is the caller's, because that is a rule (`nextCardIndex` over the **new** slot's run)
+   * rather than a column to copy.
+   *
+   * Nothing else on the row is touched, and **no card is re-labelled**: the run the household
+   * leaves on the old slot is what makes that slot safe to hand out again (US-25).
+   *
+   * @returns the card as it was stored, carrying the new slot.
+   * @throws {CustomerNumberTaken} if an active customer took the number first — the partial unique
+   *   index is the final authority, exactly as it is for a registration.
+   * @throws {CardNumberTaken} if the index was printed on the new slot in the meantime.
+   */
+  changeCustomerNumber(id: number, customerNumber: number, card: NewCard): Promise<IssuedCard>;
   /**
    * Move a customer to a new status, storing `blockReason` with it in one transaction so the two
    * can never disagree: the trimmed reason for a move to `BLOCKED`, and `null` for any other status
@@ -368,6 +394,20 @@ export interface CardRepository {
    */
   highestIndexForNumber(customerNumber: number): Promise<number>;
   /**
+   * The highest index ever issued on **each** customer number that has ever had a card, in one
+   * aggregate query — the plural of {@link CardRepository.highestIndexForNumber}, and archived
+   * holders count for the same reason.
+   *
+   * A slot **absent** from the map has never had a card on it, which is the honest answer rather
+   * than a `0` written down 240 times; callers read it as `map.get(n) ?? 0`, and `nextCardIndex`
+   * turns that 0 into a `k1` with no special case for a fresh slot.
+   *
+   * It is an aggregate for the reason {@link CardRepository.issueCounts} is one: the record's
+   * number control names the card number every slot would print (US-30.4), and asking the slots one
+   * at a time is ~240 round trips to render one dropdown.
+   */
+  highestIndexByNumber(): Promise<ReadonlyMap<number, number>>;
+  /**
    * Every card the customer has ever been issued, **highest index first** — so the first element is
    * the one they hold and the rest are the numbers it replaced. Ordering is the adapter's job
    * because the database can do it in the query; a caller sorting it again would be a second, silent
@@ -380,8 +420,14 @@ export interface CardRepository {
    * the run by reason would be a second, quietly diverging statement of what counts as a loss.
    */
   issueCounts(customerId: number): Promise<CardIssueCounts>;
-  /** Write one card for a customer, and hand it back as it was stored. */
-  issue(customerId: number, card: IssuedCard): Promise<IssuedCard>;
+  /**
+   * Write one card for a customer, and hand it back as it was stored.
+   *
+   * The caller passes a {@link NewCard} — everything but the slot. The customer number the card is
+   * printed under is read off the customer row inside the write's own transaction, because a caller
+   * that could pass it is a caller that could pass the wrong one.
+   */
+  issue(customerId: number, card: NewCard): Promise<IssuedCard>;
 }
 
 /**
@@ -485,9 +531,10 @@ export interface AuditEntry {
   readonly changedFields: ReadonlyArray<string>;
   readonly when: Date;
   /**
-   * The reason a human gave for the change, or `""` where none was required. The one machine-written
-   * value: a logged reminder records its resulting count here (`reminderCount=2`), because the entry
-   * must tell the trail's state on its own and no human reason is asked for (US-06.2).
+   * The reason a human gave for the change, or `""` where none was required. It is also the one
+   * machine-written value, for the changes that ask staff for no reason and must still tell their
+   * own story: a logged reminder records its resulting count here (`reminderCount=2`, US-06.2) and
+   * a move between slots records the two numbers (`customerNumber=5→23`, US-30).
    */
   readonly why: string;
 }

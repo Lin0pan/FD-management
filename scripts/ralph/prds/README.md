@@ -5,7 +5,7 @@ number). Each file is a complete, self-contained Ralph run: its own `branchName`
 starting at `US-001`, its own priorities `1..n`.
 
 [`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
-it. It currently holds **batch 29**, the next one to run. `done/` holds the finished copy of each
+it. It currently holds **batch 30**, the next one to run. `done/` holds the finished copy of each
 batch that has run — the same file with every story's `passes` flipped to `true`.
 
 ## Workflow
@@ -108,8 +108,9 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 27  | `27-us-27-remove-portion-allowance.json`     | 6       | `ralph/us-27-remove-portion-allowance`     |
 | 28  | `28-us-28-egg-allowance.json`                | 9       | `ralph/us-28-egg-allowance`                |
 | 29  | `29-us-29-customer-balance.json`             | 10      | `ralph/us-29-customer-balance`             |
+| 30  | `30-us-30-change-customer-number.json`       | 8       | `ralph/us-30-change-customer-number`       |
 
-154 stories total — the rows sum to it. Every story cites its source PRD section in its
+162 stories total — the rows sum to it. Every story cites its source PRD section in its
 `description`, so an iteration can read the full context when a criterion is ambiguous.
 
 Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 onwards are not
@@ -225,6 +226,32 @@ so the app stays green — that is why story 4 is in this batch and not a follow
 Story 3 renames the port method `setPaid` to `setPayment`, so every hand-written fake
 `DistributionRecordRepository` gains it in the same commit — including the one in
 `read-group-roster.test.ts`, which implements the port in full and has nothing to do with payments.
+
+**Batch 30 (US-30)** is the fifth change DF asked for after the testing phase, and it undoes a rule
+the project wrote down twice: a customer number is decided at registration and never again. DF have
+reasons the software cannot see for wanting a particular household on a particular number — a
+returning family going back to the number their neighbours know them by, a block of numbers kept
+together, a number typed in wrongly and noticed a week later — so the US-24 choice is extended to a
+household already on the register. The move and the **new card** are one act and one transaction:
+there is no state in which a household holds 23 and carries a card printed `5k4`. Domain +
+application + one new port method on each repository + presentation + e2e + docs and an ADR.
+
+Four things about 30 to hold on to. It is the **first post-MVP batch with no schema change at all** —
+every column it needs exists, `Card.reason` is a string the domain validates, and it must **not**
+touch `prisma/migrations/`, which keeps ADR-009 out of it entirely. **No card is ever re-labelled**:
+the cards left on the vacated slot are exactly what makes that slot safe to hand out again (slot 5
+has seen four cards, so the next household starts at `5k5`), and re-labelling them under 23 would
+have the next household printed a `5k1` that already exists — this is the single thing an implementer
+will get wrong, and `read-card.ts`'s `numberOf` is the one line where it happens. It **reverses a
+written decision**: ADR-007 calls `Card.customerNumber` a key that "snapshots nothing … and is never
+read as the card's number", and both halves stop being true, which is why the last story writes
+ADR-016 and corrects ADR-007, ADR-008, the root `CLAUDE.md`, `schema.prisma`, `ports.ts` and the
+German record hint. And it adds **two new port methods** — `CustomerRepository.changeCustomerNumber`
+(the transactional one) and `CardRepository.highestIndexByNumber` — plus a required field on
+`IssuedCard`, so every hand-written fake and every card fixture has to gain them in the story that
+introduces them or the suite does not compile. That is why the PRD's infrastructure section
+(`§US-30.6`) is spread across stories 2, 3 and 4 rather than being a story of its own: the adapter,
+the port and the fakes break together and there is no reason to pay that three times.
 
 Batches 27, 28 and 29 all **regenerate `prisma/migrations/`** — the third, fourth and fifth batches
 to do so — so the hand-written partial unique index on `Customer.customerNumber` has to be re-added

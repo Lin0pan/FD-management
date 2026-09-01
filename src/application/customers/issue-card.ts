@@ -14,8 +14,15 @@ import { composition } from "@/domain/customer/householdComposition";
 import { CustomerArchived, CustomerNotFound } from "@/domain/errors";
 import type { AuditLog, CardRepository, Clock, CustomerRepository } from "../ports";
 
-/** The audit event name every card issue is recorded under. */
-const CARD_ISSUED = "customer.card.issued";
+/**
+ * The audit event name every card issue is recorded under.
+ *
+ * Exported because a card is issued from two places: here, and by a number change, which prints the
+ * card in the same transaction that moves the slot and so cannot go through this use case (US-30).
+ * Sharing the constant is what makes "written exactly as `issueCard` writes it" true by
+ * construction rather than by two string literals agreeing.
+ */
+export const CARD_ISSUED = "customer.card.issued";
 
 /**
  * What the audit entry names as changed.
@@ -23,7 +30,7 @@ const CARD_ISSUED = "customer.card.issued";
  * A card issue changes exactly one thing about the customer — which card they hold — and the index
  * it moved to is on the card itself, so listing it here would only repeat the row.
  */
-const ISSUED_FIELDS = ["card"] as const;
+export const ISSUED_FIELDS = ["card"] as const;
 
 export interface IssueCardDeps {
   readonly customers: CustomerRepository;

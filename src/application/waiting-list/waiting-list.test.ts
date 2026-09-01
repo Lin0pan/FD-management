@@ -1,5 +1,6 @@
 import { faker } from "@faker-js/faker";
 import { beforeEach, describe, expect, it } from "vitest";
+import type { IssuedCard } from "@/domain/card/card";
 import type {
   CustomerStatus,
   HouseholdMemberDetails,
@@ -167,6 +168,9 @@ class FakeCustomerRepository implements CustomerRepository {
   create(customer: NewCustomer): Promise<RegisteredCustomer> {
     const registered = {
       ...customer,
+      // The store fills the slot in: the card a registration prints is on the number it
+      // just took (US-30).
+      card: { ...customer.card, customerNumber: customer.customerNumber },
       id: this.customers.length + 1,
       blockReason: null,
       archiveReason: null,
@@ -193,6 +197,13 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.reject(new Error("A waiting-list use case never moves a customer's group"));
   }
 
+  /** Only {@link changeCustomerNumber}'s own suite moves a household between slots (US-30). */
+  changeCustomerNumber(): Promise<IssuedCard> {
+    return Promise.reject(
+      new Error("A waiting-list use case never moves a household to another number"),
+    );
+  }
+
   setStatus(): Promise<void> {
     return Promise.reject(new Error("A waiting-list use case never changes a customer's status"));
   }
@@ -212,6 +223,11 @@ class FakeCardRepository implements CardRepository {
 
   highestIndexForNumber(customerNumber: number): Promise<number> {
     return Promise.resolve(this.highestPerSlot.get(customerNumber) ?? 0);
+  }
+
+  /** The same runs, all at once — no promotion asks for them, but the port has the method. */
+  highestIndexByNumber(): Promise<ReadonlyMap<number, number>> {
+    return Promise.resolve(new Map(this.highestPerSlot));
   }
 
   currentCard(): Promise<null> {
@@ -266,6 +282,7 @@ function storedCustomer(customerNumber: number, id: number): RegisteredCustomer 
     status: "ACTIVE",
     reminderCount: 0,
     card: {
+      customerNumber,
       index: 1,
       issuedAt: at("2026-01-05"),
       reason: "FIRST_ISSUE",

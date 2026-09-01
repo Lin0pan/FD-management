@@ -16,15 +16,19 @@ import { CustomerNotFound } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 import { describeAllowance, type Allowance } from "../allowance/describe-allowance";
 import type {
+  CardRepository,
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
   SettingsRepository,
 } from "../ports";
 import { countNoShows } from "./count-no-shows";
+import { listNumberChoices, type NumberChoice } from "./list-number-choices";
 
 export interface ReadCustomerDeps {
   readonly customers: CustomerRepository;
+  /** Read only, for the number control: how far the run on every slot has got (US-30.4). */
+  readonly cards: CardRepository;
   readonly settings: SettingsRepository;
   /** Read only, for the no-show count: a hand-out history is what says which days were not missed. */
   readonly records: DistributionRecordRepository;
@@ -46,7 +50,11 @@ export interface CustomerCardView {
   readonly composition: HouseholdComposition;
   /** The household, each member carrying their current age. Same order as on the record. */
   readonly household: ReadonlyArray<HouseholdMemberView>;
-  /** The number printed on the card, e.g. `12k1`. Derived from the slot and the card index. */
+  /**
+   * The number printed on the card, e.g. `12k1` — derived from the slot **that card** was printed
+   * under and its index, never from the household's current number, so a household that has moved
+   * (US-30) is never shown a number naming a different card.
+   */
   readonly cardNumber: string;
   /**
    * The number a replacement would carry, e.g. `12k2` — the same slot, the next index. The record
@@ -100,6 +108,16 @@ export interface CustomerCardView {
    */
   readonly groupCounts: GroupCounts;
   /**
+   * Every number this household may be moved to (US-30), each with the card number that move would
+   * print — the whole free pool **plus the number they already hold**, which is what the control
+   * opens on and therefore why it is always among them.
+   *
+   * It is here for the reason `nextCardNumber` and `groupCounts` are: the record renders its
+   * controls from one read model, so nothing on the screen has to work out a card number and
+   * nothing can work one out differently. An **archived** household gets none — they hold no slot.
+   */
+  readonly numberChoices: ReadonlyArray<NumberChoice>;
+  /**
    * The day every derived figure above was worked out as of — and the day the record's household
    * editor must judge its rows against while they are being typed (US-16.5).
    *
@@ -122,14 +140,23 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
   }
 
   const today = deps.clock.now();
-  const [allowance, records, groupCounts] = await Promise.all([
+  const [allowance, records, groupCounts, numberChoices] = await Promise.all([
     describeAllowance(deps, customer.details.householdMembers),
     deps.records.listForCustomer(customer.id),
     deps.customers.groupCounts(),
+    listNumberChoices(deps, customer),
   ]);
 
-  const held = { customerNumber: customer.customerNumber, index: customer.card.index };
-  const next = nextCardNumber(held);
+  // Two different questions, and only the first is a property of the card. The number printed on
+  // the card they carry is read off **that card's own slot**, the way `readCard` reads every number
+  // in the run (US-30.5); the number a *reissue* would print is derived from the household, because
+  // a replacement is printed on the slot they hold today. After a move the two agree — the move
+  // issues the new card in the same transaction (US-30.3) — but agreement is not something either
+  // of them should have to assume.
+  const next = nextCardNumber({
+    customerNumber: customer.customerNumber,
+    index: customer.card.index,
+  });
 
   return {
     customer,
@@ -140,7 +167,7 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
       birthDate: member.birthDate,
       age: ageInYears(member.birthDate, today),
     })),
-    cardNumber: formatCardNumber(held.customerNumber, held.index),
+    cardNumber: formatCardNumber(customer.card.customerNumber, customer.card.index),
     nextCardNumber: formatCardNumber(next.customerNumber, next.index),
     allowance,
     consecutiveNoShows: await countNoShows(deps, customer, records, today),
@@ -149,6 +176,7 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
     // built in; the reversal is the *display* order (US-16.5), not part of the arithmetic.
     history: [...replayPayments(records)].reverse(),
     groupCounts,
+    numberChoices,
     today,
   };
 }

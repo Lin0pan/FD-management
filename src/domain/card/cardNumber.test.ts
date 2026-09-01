@@ -4,6 +4,7 @@ import {
   counterQueryOrNull,
   formatCardNumber,
   nextCardIndex,
+  nextCardIndexOnMove,
   nextCardNumber,
   parseCardNumber,
   parseCounterQuery,
@@ -205,6 +206,34 @@ describe("nextCardIndex", () => {
 
   it("refuses a fractional highest index, because cards are counted whole", () => {
     expect(() => nextCardIndex(1.5)).toThrow(InvalidCardNumber);
+  });
+});
+
+describe("nextCardIndexOnMove", () => {
+  it("counts on from the slot's run when the slot has been round more often", () => {
+    // The worked example of US-30: a household carrying 5k4 moves onto a slot whose last card was
+    // 23k5, and is printed 23k6 — the jump is the slot's history, not theirs.
+    expect(nextCardIndexOnMove(5, 4)).toBe(6);
+  });
+
+  it("counts on from the household's own cards when the slot's run is the shorter", () => {
+    // A slot nobody has ever held answers 0, but k1 is a card this household already carries, and a
+    // household holds exactly one valid card: the highest-indexed one they have been issued.
+    expect(nextCardIndexOnMove(0, 4)).toBe(5);
+  });
+
+  it("issues k1 where neither the slot nor the household has ever had a card", () => {
+    expect(nextCardIndexOnMove(0, 0)).toBe(1);
+  });
+
+  it("refuses a negative highest index on the slot", () => {
+    expect(() => nextCardIndexOnMove(-1, 4)).toThrow(InvalidCardNumber);
+  });
+
+  it("refuses a fractional index held by the household, even when the slot outranks it", () => {
+    // Checked on its own rather than through the larger of the two: an impossible index means a run
+    // was computed wrongly, and the maximum would hide it whenever the other side happened to win.
+    expect(() => nextCardIndexOnMove(9, 1.5)).toThrow(InvalidCardNumber);
   });
 });
 

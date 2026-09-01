@@ -121,9 +121,10 @@ model EggAllowanceRow {
 ///
 /// `id` is the surrogate key and the **only identity** there is. `customerNumber` is a *slot*: it is
 /// what staff and the customer's card say, but an archived household releases it and the next
-/// registration fills the gap (tasks/prd-us-01-register-customer.md §US-01.2). Confusing the two is
-/// the mistake the Excel sheet made, so every foreign key in this file targets `id` and never
-/// `customerNumber`.
+/// registration fills the gap (tasks/prd-us-01-register-customer.md §US-01.2) — and since US-30 a
+/// household on the register may be **moved** to another free slot, releasing this one just as
+/// immediately (ADR-016). Confusing the two is the mistake the Excel sheet made, so every foreign key
+/// in this file targets `id` and never `customerNumber`.
 ///
 /// **There is deliberately no `grownUps` and no `children` column.** Both are derived from the
 /// household's birthdates wherever they are needed (`src/domain/customer/householdComposition.ts`);
@@ -140,8 +141,11 @@ model EggAllowanceRow {
 model Customer {
   id Int @id @default(autoincrement())
 
-  /// The slot this household holds, 1..`quotaN`. Not unique on its own — see the partial unique
-  /// index added by hand in the migration, which exempts archived rows.
+  /// The slot this household holds *today*, 1..`quotaN`. Not unique on its own — see the partial
+  /// unique index added by hand in the migration, which exempts archived rows. Updatable: a
+  /// household may be moved to another free slot, which writes this column and the card it prints in
+  /// one transaction (US-30). It is never a correction of who the customer is, which is why
+  /// `updateDetails` cannot reach it.
   customerNumber Int
 
   firstName String
@@ -290,20 +294,24 @@ model Card {
   customerId Int
   customer   Customer @relation(fields: [customerId], references: [id])
 
-  /// The slot this card was printed under — `Customer.customerNumber` as it stood, which is to say
-  /// as it will always stand: a number is fixed at registration and released only by archiving
-  /// (US-24, Non-Goals), so unlike the three `AtIssue` columns below this one snapshots nothing.
-  /// There is no moment at which it could come to differ from the customer's number.
+  /// The slot this card was printed under — `Customer.customerNumber` **as it stood on the day**.
+  /// Since US-30 a household may be moved to another number (ADR-016), so this is a snapshot in the
+  /// same sense the three `AtIssue` columns below are, and it may differ from the holder's current
+  /// number for good. Never updated when they move: the cards left on a vacated slot are what tell
+  /// the next household to take it which index to start above, so re-labelling them would put a card
+  /// number into the world twice.
   ///
-  /// It is stored for the same reason `Customer.firstNameFolded` is: a **key the constraint needs**.
+  /// It is also stored for the reason `Customer.firstNameFolded` is: a **key the constraint needs**.
   /// `@@unique([customerNumber, index])` cannot reach through the relation, and the guarantee that a
   /// card number is never handed out twice has to rest on the database rather than on every future
   /// caller remembering to ask the right question first. Not nullable and with no default, so every
   /// writer must state it; the adapter reads it off the customer row in the same transaction as the
-  /// insert, so the two can never disagree.
+  /// insert — including the transaction that moves the number — so a card is never written under a
+  /// slot its household did not hold at that moment.
   ///
-  /// Never read as the card's number. What a card number *is* remains
-  /// `formatCardNumber(customer.customerNumber, card.index)`, derived at every read.
+  /// This *is* the card's number, together with `index`: `formatCardNumber(card.customerNumber,
+  /// card.index)`, derived at every read from the card's own slot and never from whichever number
+  /// the household holds today.
   customerNumber Int
 
   index    Int
@@ -338,9 +346,10 @@ model Card {
   /// SQLite has no enum type, so the word is a string the domain validates on the way in and out.
   groupAtIssue String
 
-  /// Why this card was handed over: `FIRST_ISSUE`, `LOST`, `STALE_COUNTS` or `OTHER`. SQLite has no
-  /// enum type, so the word is a string the domain validates on the way in and out. It is the one
-  /// thing about a superseded card that its index cannot say — why the household needed another one.
+  /// Why this card was handed over: `FIRST_ISSUE`, `LOST`, `STALE_COUNTS`, `CUSTOMER_NUMBER_CHANGED`
+  /// or `OTHER`. SQLite has no enum type, so the word is a string the domain validates on the way in
+  /// and out — which is why a fifth word costs the database nothing. It is the one thing about a
+  /// superseded card that its index cannot say — why the household needed another one.
   reason String
 
   /// The rule behind "exactly one valid card" (US-02, FR-3): validity is *being* the highest index,

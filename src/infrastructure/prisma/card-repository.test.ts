@@ -137,6 +137,27 @@ describe("the counts printed on a card", () => {
     expect(row.childrenAtIssue).toBe(2);
   });
 
+  it("reads a card back with the slot it was printed under", async () => {
+    const customerId = await insertCustomer(50);
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+
+    // The household is moved to another slot, as US-30 moves one. The card in their pocket still
+    // says 50k1, and every way of reading it back has to say so too — labelling it under 66 would
+    // name a card that was never printed and would make 50k1 look free to hand out again.
+    await prisma.customer.update({ where: { id: customerId }, data: { customerNumber: 66 } });
+
+    expect((await repository.currentCard(customerId))?.customerNumber).toBe(50);
+    expect((await repository.listCards(customerId)).map((card) => card.customerNumber)).toEqual([
+      50,
+    ]);
+  });
+
   it("keeps the group the card printed after the household has been moved to the other one", async () => {
     const customerId = await insertCustomer(50);
     await repository.issue(customerId, {
@@ -168,6 +189,7 @@ describe("PrismaCardRepository.issue", () => {
     });
 
     expect(card).toEqual({
+      customerNumber: 50,
       index: 1,
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
@@ -461,6 +483,56 @@ describe("PrismaCardRepository.highestIndexForNumber", () => {
   });
 });
 
+describe("PrismaCardRepository.highestIndexByNumber", () => {
+  it("reports the highest index on every slot in one query", async () => {
+    const departed = await insertCustomer(50, "ARCHIVED");
+    const holder = await insertCustomer(51);
+    await repository.issue(departed, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+    await repository.issue(departed, {
+      index: 2,
+      issuedAt: LATER,
+      reason: "LOST",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+    await repository.issue(holder, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+      groupAtIssue: "RED",
+    });
+
+    // The plural of `highestIndexForNumber`, and it answers the same for each slot: the archived
+    // holder's run counts, because 50k2 is still out in the world (US-25).
+    expect(await repository.highestIndexByNumber()).toEqual(
+      new Map([
+        [50, 2],
+        [51, 1],
+      ]),
+    );
+  });
+
+  it("reports nothing for a slot that has never had a card", async () => {
+    await insertCustomer(50);
+
+    // Registered, but never handed a card — and a slot nobody has been registered on at all is
+    // the same answer. Absent rather than 0: the caller reads `?? 0`, which is what makes a fresh
+    // slot's first card `k1` with no case of its own.
+    const highest = await repository.highestIndexByNumber();
+
+    expect(highest.has(50)).toBe(false);
+    expect(highest.has(404)).toBe(false);
+    expect(highest.size).toBe(0);
+  });
+});
+
 describe("PrismaCardRepository.currentCard", () => {
   it("gives null for a customer who holds no card yet", async () => {
     expect(await repository.currentCard(await insertCustomer(50))).toBeNull();
@@ -488,6 +560,7 @@ describe("PrismaCardRepository.currentCard", () => {
     });
 
     expect(await repository.currentCard(customerId)).toEqual({
+      customerNumber: 50,
       index: 2,
       issuedAt: LATER,
       reason: "LOST",
@@ -622,6 +695,19 @@ describe("PrismaCardRepository.issueCounts", () => {
     expect(await repository.issueCounts(customerId)).toEqual({
       cardsIssued: 4,
       reissuesForLoss: 2,
+    });
+  });
+
+  it("counts a card issued for a number change as issued, never as a loss", async () => {
+    const customerId = await insertCustomer(50);
+    await issueRun(customerId, "FIRST_ISSUE", "CUSTOMER_NUMBER_CHANGED");
+
+    // `ReissueReason` takes the fifth word in for free, so the count is the thing that has to say
+    // no: whether a household loses cards unusually often is a judgement staff make, and a move
+    // they asked for is not evidence of it (US-09.2).
+    expect(await repository.issueCounts(customerId)).toEqual({
+      cardsIssued: 2,
+      reissuesForLoss: 0,
     });
   });
 

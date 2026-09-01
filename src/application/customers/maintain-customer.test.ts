@@ -1,5 +1,6 @@
 import { faker } from "@faker-js/faker";
 import { beforeEach, describe, expect, it } from "vitest";
+import type { IssuedCard } from "@/domain/card/card";
 import {
   createCustomerDetails,
   NOTES_MAX_LENGTH,
@@ -224,6 +225,9 @@ class FakeCustomerRepository implements CustomerRepository {
   create(customer: NewCustomer): Promise<RegisteredCustomer> {
     const registered: RegisteredCustomer = {
       ...customer,
+      // The store fills the slot in: the card a registration prints is on the number it
+      // just took (US-30).
+      card: { ...customer.card, customerNumber: customer.customerNumber },
       id: this.holders.length + 1,
       blockReason: null,
       archiveReason: null,
@@ -285,6 +289,11 @@ class FakeCustomerRepository implements CustomerRepository {
     }
     this.holders[index] = { ...this.holders[index], group };
     return Promise.resolve();
+  }
+
+  /** Only {@link changeCustomerNumber}'s own suite moves a household between slots (US-30). */
+  changeCustomerNumber(): Promise<IssuedCard> {
+    return Promise.reject(new Error("moving a household to another number has its own suite"));
   }
 
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
@@ -370,6 +379,7 @@ function household({
     reminderCount: 0,
     details,
     card: {
+      customerNumber,
       index: 1,
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",

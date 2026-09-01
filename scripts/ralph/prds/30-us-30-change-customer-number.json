@@ -22,8 +22,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Done. choosableNumbers is a Set over freeNumbers plus currentNumber, sorted numerically — no branch, so a current number above the quota sorts last for free and there is no duplicate case to cover. assertChoosableNumber checks unchanged first and delegates the other two verdicts to assertFreeNumber, so there is no 'except my own number' case. CustomerNumberUnchanged is the 39th DomainErrorCode, tiered refusal; notice-tier.ts's header comment counts them and now says 'a 40th code'."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -46,8 +46,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Done, and it landed wider than the ACs list. NewCustomer.card became a NewCard too — a registration prints its first card on the very number the record is taking, so a second copy of the slot on the card is a copy that could disagree; RegisteredCustomer re-declares card as an IssuedCard, which interface extension allows because IssuedCard is assignable to NewCard. That one decision turned ~50 fixture breaks into 17: the nine fake create() methods each fill the slot in ('card: { ...customer.card, customerNumber: customer.customerNumber }'), like PrismaCustomerRepository.create now does, and only the eight RegisteredCustomer fixture factories needed the field typed out. card-repository.test.ts's 38 errors vanished outright once issue() took a NewCard. Two toEqual assertions on a whole card had to gain the slot. Also updated: the reason word list in schema.prisma (comment only, no migration), the ER diagram in 08-crosscutting-concepts.md and the Reissue row of the glossary."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
@@ -74,8 +74,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Done. One deviation, stated in the commit body: the card index is nextCardIndexOnMove(slot run, the household's own highest index), not the slot's run alone. A household carrying 5k4 moved onto a slot nobody has ever held would be printed 99k1 — an index they already hold — and @@unique([customerId, index]) refuses the row, because the card a household holds IS their highest-indexed one. The worked example is unchanged (5k4 onto a run of 5 still prints 23k6)."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
@@ -97,8 +97,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "MUST use the same index rule as US-003 or the dropdown promises a card number the write will not print: each choice is nextCardIndexOnMove(highestIndexByNumber.get(n) ?? 0, customer.card.index), NOT nextCardIndex of the slot alone. The AC 'names k1 on a slot nobody has ever held' is therefore wrong for any household past their first card — it names the index above their own run instead."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
@@ -117,8 +117,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "The invariant this story states — 'the card the household holds is on the number they hold' — is what US-003's index rule (nextCardIndexOnMove) exists to keep true. currentCard/listCards order by index, so a move must outrank the household's own run or the record would show the OLD card as current."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-006",
@@ -144,7 +144,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 6,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -166,8 +166,8 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "The two ACs the register contradicts are implemented as what is true and said so in the spec: a move can never raise the free-slot count (it swaps one slot for another), and the app has no free-slot count on the waiting list — the intake's „Noch N freie Nummern“ is asserted instead, together with the vacated number being on offer and the taken one gone. Band 224–228, all inside the quota of 240 because both moved-onto and vacated slots must be pickable in a dropdown."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-008",
@@ -188,8 +188,8 @@
         "Lint passes"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "ADR-016 recorded and accepted, with its chapter 9 row; ADR-007's Card.customerNumber row rewritten (amended, not superseded) and ADR-008 given the between-numbers sentence. Root CLAUDE.md, prisma/schema.prisma (both customerNumber comments), ports.ts updateDetails, app/kunden/[id]/actions.ts updateDetailsAction, the glossary, chapter 8's ER note and rules, chapter 5 (two new modules, 37 use cases, seven record forms) and tasks/README.md corrected. The superseded claims in the US-24 and US-25 PRDs got dated notes rather than rewrites, per the project's PRD convention. prisma/migrations/ untouched."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

@@ -32,12 +32,18 @@ from something already on file plus, in some cases, today's date.
 Anything computable is derived at the point of use and is not stored. A stored duplicate of a
 derivable fact needs an argument of its own kind, and there are exactly four:
 
-| Stored value                                              | Why it is not a violation                                                                                                                                                                                                                      |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Card.grownUpsAtIssue`, `childrenAtIssue`, `groupAtIssue` | A snapshot of what was _printed on a physical card_, so a birthday or a group move that overtook it can be spotted. Never read as the household's counts or group; never updated — a reissue is how a change is recorded.                      |
-| `Customer.firstNameFolded`, `lastNameFolded`              | A **search key**, not a fact. SQLite can fold neither umlauts nor Unicode case in a `WHERE` clause, so the fold cannot live in the query. Never displayed; written from the names in the same statement, so a name edit rewrites them with it. |
-| `Card.customerNumber`                                     | A **key the constraint needs**: `@@unique([customerNumber, index])` cannot reach through the relation. It snapshots nothing — a customer number is fixed at registration — and is never read as the card's number.                             |
-| `DistributionRecord.priceCents`                           | Deliberate redundancy so a past hand-out is self-describing in a single-table read, alongside the settings history that could re-derive it. Not to be "cleaned up".                                                                            |
+| Stored value                                              | Why it is not a violation                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Card.grownUpsAtIssue`, `childrenAtIssue`, `groupAtIssue` | A snapshot of what was _printed on a physical card_, so a birthday or a group move that overtook it can be spotted. Never read as the household's counts or group; never updated — a reissue is how a change is recorded.                                                                                                                                                                                                              |
+| `Customer.firstNameFolded`, `lastNameFolded`              | A **search key**, not a fact. SQLite can fold neither umlauts nor Unicode case in a `WHERE` clause, so the fold cannot live in the query. Never displayed; written from the names in the same statement, so a name edit rewrites them with it.                                                                                                                                                                                         |
+| `Card.customerNumber`                                     | A **key the constraint needs** _and_ a snapshot: `@@unique([customerNumber, index])` cannot reach through the relation, and since [ADR-016](016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md) a household may move to another number, so this is the slot the card was **printed under** and is read as the card's number. Never updated — the household's number is `Customer.customerNumber`. |
+| `DistributionRecord.priceCents`                           | Deliberate redundancy so a past hand-out is self-describing in a single-table read, alongside the settings history that could re-derive it. Not to be "cleaned up".                                                                                                                                                                                                                                                                    |
+
+The third row was **rewritten, not withdrawn**, by
+[ADR-016](016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md):
+once a household can be moved to another number, the slot a card was printed under is a fact
+about that card and nothing else derives it. This ADR is amended by that one, not superseded —
+the principle holds and one entry in the table changed.
 
 ## Consequences
 
@@ -57,6 +63,7 @@ derivable fact needs an argument of its own kind, and there are exactly four:
 ## More information
 
 - [Chapter 8 — domain model and persistence](../08-crosscutting-concepts.md#domain-model-and-persistence)
+- [ADR-016 — a customer number may be changed, and a card keeps the number it was printed with](016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md)
 - `src/domain/customer/householdComposition.ts`, `src/domain/card/staleCard.ts`,
   `src/domain/customer/nameSearch.ts`, `prisma/schema.prisma`
 - Commits `5beb708`, `2a20e60`, `df666a5`, `e52505c`, `f1853c5`, `3f9da6d`

@@ -58,6 +58,7 @@ import { STATUS_CHROME, StateWord } from "../state-word";
 import { formatCalendarDay } from "@/domain/calendarDay";
 import { DetailsEditor } from "./details-editor";
 import { GroupControl } from "./group-control";
+import { NumberControl } from "./number-control";
 import { HouseholdEditor } from "./household-editor";
 import { NotesEditor } from "./notes-editor";
 import { ReissueControls } from "./reissue-controls";
@@ -356,7 +357,7 @@ function CustomerRecord({
   /** Whether the archive control on this record was what brought the page back — same mechanism. */
   justArchived: boolean;
 }): React.ReactElement {
-  const { customer, household, cardNumber, nextCardNumber, groupCounts } = view;
+  const { customer, household, cardNumber, nextCardNumber, groupCounts, numberChoices } = view;
   const { details } = customer;
   const archived = customer.status === "ARCHIVED";
   const words = de.customers.record;
@@ -617,6 +618,30 @@ function CustomerRecord({
             <Field label={de.customers.fields.group} value={de.customers.groups[customer.group]} />
           ) : (
             <GroupControl customerId={customer.id} group={customer.group} counts={groupCounts} />
+          )}
+        </Section>
+
+        {/* Directly under „Gruppe“, and for the same reason it is a section rather than a control in
+          „Aktionen mit Folgen“: both are administrative decisions about the register, taken for DF's
+          sake, and neither takes anything away from the household. What this one borrows from the
+          danger zone is only the confirmation, because it prints a card (US-30.7).
+
+          This is the *only* place a number can be changed — the list, the counter and the card view
+          offer nothing — so an archived household reads it as a fact, exactly as they read their
+          group. They hold no slot to move out of, which is also why `numberChoices` is empty for
+          them and there is no control to render. */}
+        <Section heading={de.customers.numberChange.heading}>
+          {archived ? (
+            <Field
+              label={de.customers.fields.customerNumber}
+              value={String(customer.customerNumber)}
+            />
+          ) : (
+            <NumberControl
+              customerId={customer.id}
+              customerNumber={customer.customerNumber}
+              choices={numberChoices}
+            />
           )}
         </Section>
 

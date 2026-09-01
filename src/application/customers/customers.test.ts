@@ -1,6 +1,6 @@
 import { faker } from "@faker-js/faker";
 import { beforeEach, describe, expect, it } from "vitest";
-import type { IssuedCard } from "@/domain/card/card";
+import type { IssuedCard, NewCard } from "@/domain/card/card";
 import {
   createCustomerDetails,
   type CustomerStatus,
@@ -224,6 +224,9 @@ class FakeCustomerRepository implements CustomerRepository {
     }
     const registered: RegisteredCustomer = {
       ...customer,
+      // The store fills the slot in: the card a registration prints is on the number it
+      // just took (US-30).
+      card: { ...customer.card, customerNumber: customer.customerNumber },
       id: this.nextId,
       blockReason: null,
       archiveReason: null,
@@ -286,6 +289,11 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve();
   }
 
+  /** Only {@link changeCustomerNumber}'s own suite moves a household between slots (US-30). */
+  changeCustomerNumber(): Promise<IssuedCard> {
+    return Promise.reject(new Error("a registration takes a number; moving one has its own suite"));
+  }
+
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
     const index = this.created.findIndex((customer) => customer.id === id);
     if (index === -1) {
@@ -336,6 +344,8 @@ class FakeCardRepository implements CardRepository {
   place(customerId: number, ...indices: number[]): void {
     for (const index of indices) {
       this.cardsOf(customerId).push({
+        // Placed cards sit on the slot their household holds, like every card the store writes.
+        customerNumber: this.printedSlotOf(customerId),
         index,
         issuedAt: new Date(TODAY),
         reason: "FIRST_ISSUE",
@@ -360,6 +370,26 @@ class FakeCardRepository implements CardRepository {
     // Highest index first, like the adapter's `orderBy`, and deliberately not insertion order — a
     // card placed into a gap must still come back below the one that supersedes it.
     return Promise.resolve([...this.cardsOf(customerId)].sort((a, b) => b.index - a.index));
+  }
+
+  /**
+   * The same question of every slot at once (US-30.4), grouped by the number the card was **printed
+   * under** rather than by the household holding it today — which is the adapter's `groupBy`, and
+   * the only reading that survives a household moving off a slot and leaving its run behind.
+   *
+   * A slot nobody has ever had a card on is absent, exactly as it is from the aggregate.
+   */
+  highestIndexByNumber(): Promise<ReadonlyMap<number, number>> {
+    const highest = new Map<number, number>();
+    for (const cards of this.cards.values()) {
+      for (const card of cards) {
+        highest.set(
+          card.customerNumber,
+          Math.max(highest.get(card.customerNumber) ?? 0, card.index),
+        );
+      }
+    }
+    return Promise.resolve(highest);
   }
 
   /**
@@ -390,15 +420,27 @@ class FakeCardRepository implements CardRepository {
     });
   }
 
-  issue(customerId: number, card: IssuedCard): Promise<IssuedCard> {
-    this.cardsOf(customerId).push(card);
-    return Promise.resolve(card);
+  // The slot is filled in here rather than passed in, as the adapter fills it in from the customer
+  // row inside the write's own transaction — so no caller can file a card under a number its
+  // household does not hold.
+  issue(customerId: number, card: NewCard): Promise<IssuedCard> {
+    const issued = { ...card, customerNumber: this.printedSlotOf(customerId) };
+    this.cardsOf(customerId).push(issued);
+    return Promise.resolve(issued);
   }
 
   private cardsOf(customerId: number): IssuedCard[] {
     const cards = this.cards.get(customerId) ?? [];
     this.cards.set(customerId, cards);
     return cards;
+  }
+
+  /**
+   * The slot a card written for this customer is printed under. An id the register does not know
+   * stands in as -1, which no household holds — the adapter's `UNKNOWN_SLOT` by another name.
+   */
+  private printedSlotOf(customerId: number): number {
+    return this.slotOf(customerId) ?? -1;
   }
 
   /** The slot the household holds, or `null` for an id the register does not know. */
@@ -1605,6 +1647,31 @@ describe("readCustomer", () => {
     const view = await readCustomer(deps(), registered.id);
 
     expect(view.groupCounts).toEqual({ red: 7, blue: 4 });
+  });
+
+  it("offers every number the household may be moved to, with the card each would print", async () => {
+    settings = new FakeSettingsRepository(version({ quotaN: 3 }));
+    customers = new FakeCustomerRepository([2]);
+    const registered = await registerCustomer(deps(), registerInput());
+
+    const view = await readCustomer(deps(), registered.id);
+
+    // The household took slot 1 and somebody active is on 2, so 1 and 3 are what they may hold.
+    // Their own number is always among them — it is what the control opens on (US-30.4) — and each
+    // choice carries the card that move would print: they hold `1k1`, so nothing below `k2` is left.
+    expect(view.numberChoices).toEqual([
+      { number: 1, nextCardNumber: "1k2" },
+      { number: 3, nextCardNumber: "3k2" },
+    ]);
+  });
+
+  it("offers an archived household no number at all, because they hold no slot", async () => {
+    const registered = await registerCustomer(deps(), registerInput());
+    await customers.archive(registered.id, "verzogen", new Date(TODAY));
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.numberChoices).toEqual([]);
   });
 
   it("refuses an id that belongs to nobody rather than showing an empty card", async () => {

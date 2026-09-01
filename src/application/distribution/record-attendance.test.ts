@@ -1,5 +1,6 @@
 import { faker } from "@faker-js/faker";
 import { beforeEach, describe, expect, it } from "vitest";
+import type { IssuedCard } from "@/domain/card/card";
 import type {
   CustomerDetails,
   CustomerStatus,
@@ -102,6 +103,9 @@ class FakeCustomerRepository implements CustomerRepository {
   create(customer: NewCustomer): Promise<RegisteredCustomer> {
     const registered = {
       ...customer,
+      // The store fills the slot in: the card a registration prints is on the number it
+      // just took (US-30).
+      card: { ...customer.card, customerNumber: customer.customerNumber },
       id: this.holders.length + 1,
       blockReason: null,
       archiveReason: null,
@@ -156,6 +160,13 @@ class FakeCustomerRepository implements CustomerRepository {
     const index = this.holders.findIndex((customer) => customer.id === id);
     this.holders[index] = { ...this.holders[index], group };
     return Promise.resolve();
+  }
+
+  /** Only {@link changeCustomerNumber}'s own suite moves a household between slots (US-30). */
+  changeCustomerNumber(): Promise<IssuedCard> {
+    return Promise.reject(
+      new Error("recording a hand-out never moves a household to another number"),
+    );
   }
 
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
@@ -288,6 +299,7 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
     archivedAt: overrides.status === "ARCHIVED" ? new Date(TODAY) : null,
     reminderCount: 0,
     card: {
+      customerNumber: 50,
       index: 1,
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",

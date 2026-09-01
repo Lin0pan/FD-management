@@ -9,9 +9,9 @@
  * a consequence of the write rather than through a second step that could be forgotten (FR-2).
  *
  * What the narrower {@link ReissueReason} adds is the one thing delegation alone cannot say: a
- * replacement can never be recorded as a `FIRST_ISSUE`. The reason a card was reissued is what makes
- * the count of losses readable later (FR-5), and a replacement filed as a first issue would be lost
- * from that count for good.
+ * replacement can never be recorded as a `FIRST_ISSUE`, nor as a `CUSTOMER_NUMBER_CHANGED`. The
+ * reason a card was reissued is what makes the count of losses readable later (FR-5), and a card
+ * filed under the wrong one is lost from that count — or claims an act that never happened.
  *
  * There is deliberately **no limit check** (FR-4). The tenth reissue is written exactly like the
  * second; whether a household is losing cards too often is a judgement staff make from the count the
@@ -22,11 +22,20 @@ import type { CardIssueReason, IssuedCard } from "@/domain/card/card";
 import { issueCard, type IssueCardDeps } from "./issue-card";
 
 /**
- * Why a card was *replaced*. Every reason a card can carry except `FIRST_ISSUE`, which belongs to
- * the registration and to nothing else: `LOST` for a mislaid card (US-09), `STALE_COUNTS` for one a
- * birthday has overtaken (US-13) and `OTHER` for a damaged card.
+ * Why a card was *replaced* through this use case: `LOST` for a mislaid card (US-09),
+ * `STALE_COUNTS` for one a birthday has overtaken (US-13) and `OTHER` for a damaged card.
+ *
+ * The two excluded reasons are the two that belong to the act that writes them. `FIRST_ISSUE` is
+ * the registration's, and a replacement filed as one would drop out of the card run's history for
+ * good. `CUSTOMER_NUMBER_CHANGED` is `changeCustomerNumber`'s (US-30), which prints its card inside
+ * the transaction that moves the slot and therefore cannot come through here at all — so a card
+ * reaching this path with that reason would be claiming a move the register never made.
+ *
+ * Still an exclusion rather than a list, because the question it answers is which reasons are *not*
+ * this use case's to write. Only the loss count draws a further line through the set — it counts
+ * `LOST` alone, so a card a household never asked for is not held against them.
  */
-export type ReissueReason = Exclude<CardIssueReason, "FIRST_ISSUE">;
+export type ReissueReason = Exclude<CardIssueReason, "FIRST_ISSUE" | "CUSTOMER_NUMBER_CHANGED">;
 
 export type ReissueCardDeps = IssueCardDeps;
 

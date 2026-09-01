@@ -1,30 +1,31 @@
 # 9. Architectural decisions
 
-_Last reviewed: 2026-08-29_
+_Last reviewed: 2026-09-01_
 
-A timeline. The fifteen decisions that constrain future work and are hard to reverse have an ADR of their
-own in [`adr/`](adr/); the smaller ones below them are recorded as a row and nothing more, because a
-decision log full of trivia teaches people to skim it.
+A timeline. The sixteen decisions that constrain future work and are hard to reverse have an ADR of
+their own in [`adr/`](adr/); the smaller ones below them are recorded as a row and nothing more,
+because a decision log full of trivia teaches people to skim it.
 
 ## Decision log
 
-| ADR                                                                                       | Decision                                                                | Status   | Date       |
-| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | -------- | ---------- |
-| [001](adr/001-layer-the-system-hexagonal-lite-and-enforce-the-boundary-in-the-build.md)   | Layer the system hexagonal-lite and enforce the boundary in the build   | Accepted | 2026-07-21 |
-| [002](adr/002-store-the-register-in-a-single-sqlite-file.md)                              | Store the register in a single SQLite file                              | Accepted | 2026-07-21 |
-| [003](adr/003-ship-without-login-and-bind-the-application-to-localhost.md)                | Ship without login and bind the application to localhost                | Accepted | 2026-07-21 |
-| [004](adr/004-pin-the-next-js-major-and-keep-the-core-outside-the-framework.md)           | Pin the Next.js major and keep the core outside the framework           | Accepted | 2026-07-21 |
-| [005](adr/005-keep-business-rules-as-dated-append-only-settings-data.md)                  | Keep business rules as dated, append-only settings data                 | Accepted | 2026-07-22 |
-| [006](adr/006-record-what-when-and-why-in-the-audit-log-never-who.md)                     | Record what, when and why in the audit log, never who                   | Accepted | 2026-07-22 |
-| [007](adr/007-derive-anything-computable-rather-than-storing-it.md)                       | Derive anything computable rather than storing it                       | Accepted | 2026-07-22 |
-| [008](adr/008-treat-a-customer-number-as-a-reusable-slot-not-an-identity.md)              | Treat a customer number as a reusable slot, not an identity             | Accepted | 2026-07-22 |
-| [009](adr/009-regenerate-migration-history-until-fd-holds-real-data.md)                   | Regenerate migration history until DF holds real data                   | Accepted | 2026-07-22 |
-| [010](adr/010-never-hard-delete-a-record-archive-and-let-the-database-refuse.md)          | Never hard-delete a record: archive, and let the database refuse        | Accepted | 2026-07-27 |
-| [011](adr/011-track-the-newest-even-numbered-node-release.md)                             | Track the newest even-numbered Node release                             | Accepted | 2026-08-08 |
-| [012](adr/012-support-safari-and-chromium-based-browsers-and-gate-both-in-ci.md)          | Support Safari and Chromium-based browsers, and gate both in CI         | Accepted | 2026-08-21 |
-| [013](adr/013-type-calendar-days-as-tt-mm-jjjj-instead-of-using-the-native-date-input.md) | Type calendar days as TT.MM.JJJJ instead of using the native date input | Accepted | 2026-08-21 |
-| [014](adr/014-store-the-egg-allowance-as-versioned-threshold-rows.md)                     | Store the egg allowance as versioned threshold rows                     | Accepted | 2026-08-25 |
-| [015](adr/015-derive-the-customer-balance-from-the-hand-out-history-never-store-it.md)    | Derive the customer balance from the hand-out history, never store it   | Accepted | 2026-08-29 |
+| ADR                                                                                                | Decision                                                                          | Status   | Date       |
+| -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | -------- | ---------- |
+| [001](adr/001-layer-the-system-hexagonal-lite-and-enforce-the-boundary-in-the-build.md)            | Layer the system hexagonal-lite and enforce the boundary in the build             | Accepted | 2026-07-21 |
+| [002](adr/002-store-the-register-in-a-single-sqlite-file.md)                                       | Store the register in a single SQLite file                                        | Accepted | 2026-07-21 |
+| [003](adr/003-ship-without-login-and-bind-the-application-to-localhost.md)                         | Ship without login and bind the application to localhost                          | Accepted | 2026-07-21 |
+| [004](adr/004-pin-the-next-js-major-and-keep-the-core-outside-the-framework.md)                    | Pin the Next.js major and keep the core outside the framework                     | Accepted | 2026-07-21 |
+| [005](adr/005-keep-business-rules-as-dated-append-only-settings-data.md)                           | Keep business rules as dated, append-only settings data                           | Accepted | 2026-07-22 |
+| [006](adr/006-record-what-when-and-why-in-the-audit-log-never-who.md)                              | Record what, when and why in the audit log, never who                             | Accepted | 2026-07-22 |
+| [007](adr/007-derive-anything-computable-rather-than-storing-it.md)                                | Derive anything computable rather than storing it                                 | Accepted | 2026-07-22 |
+| [008](adr/008-treat-a-customer-number-as-a-reusable-slot-not-an-identity.md)                       | Treat a customer number as a reusable slot, not an identity                       | Accepted | 2026-07-22 |
+| [009](adr/009-regenerate-migration-history-until-fd-holds-real-data.md)                            | Regenerate migration history until DF holds real data                             | Accepted | 2026-07-22 |
+| [010](adr/010-never-hard-delete-a-record-archive-and-let-the-database-refuse.md)                   | Never hard-delete a record: archive, and let the database refuse                  | Accepted | 2026-07-27 |
+| [011](adr/011-track-the-newest-even-numbered-node-release.md)                                      | Track the newest even-numbered Node release                                       | Accepted | 2026-08-08 |
+| [012](adr/012-support-safari-and-chromium-based-browsers-and-gate-both-in-ci.md)                   | Support Safari and Chromium-based browsers, and gate both in CI                   | Accepted | 2026-08-21 |
+| [013](adr/013-type-calendar-days-as-tt-mm-jjjj-instead-of-using-the-native-date-input.md)          | Type calendar days as TT.MM.JJJJ instead of using the native date input           | Accepted | 2026-08-21 |
+| [014](adr/014-store-the-egg-allowance-as-versioned-threshold-rows.md)                              | Store the egg allowance as versioned threshold rows                               | Accepted | 2026-08-25 |
+| [015](adr/015-derive-the-customer-balance-from-the-hand-out-history-never-store-it.md)             | Derive the customer balance from the hand-out history, never store it             | Accepted | 2026-08-29 |
+| [016](adr/016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md) | A customer number may be changed, and a card keeps the number it was printed with | Accepted | 2026-09-01 |
 
 ## Smaller decisions, recorded without an ADR
 
@@ -54,6 +55,7 @@ Each is reversible, or binds only one corner of the system. Ordered by date.
 | 2026-08-05 | The notice tier is decided from `DomainErrorCode`, not from the German sentence                        | A sentence is the thing most likely to be reworded; a tier read out of one changes when somebody fixes a comma                                                                                                                                                                                   |
 | 2026-08-06 | `Card.index` counts the cards issued on a _slot_, not on a household                                   | Restarting at `k1` per holder would put two physical cards bearing one number into the world                                                                                                                                                                                                     |
 | 2026-08-07 | Eleven UI documents replaced by one `ui_styling_guide.md`                                              | The cost of finding a rule had come to exceed the cost of the rule                                                                                                                                                                                                                               |
+| 2026-08-31 | A move to another slot prints the index above **both** runs — the new slot's and the household's own   | A household carrying `5k4` moved onto a fresh slot as `99k1` would hold two cards whose indexes disagree about which is current, and `@@unique([customerId, index])` refuses the row outright                                                                                                    |
 
 ## Decisions that were reversed
 

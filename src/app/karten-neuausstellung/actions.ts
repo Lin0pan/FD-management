@@ -63,11 +63,10 @@ export async function reissueStaleCardAction(
       customerId: customerId.data,
       reason: "STALE_COUNTS",
     });
-    const customer = await customerDeps.customers.findById(customerId.data);
-    if (customer === null) {
-      return { status: "error", message: de.customers.reissue.errors.unknown, tier: "error" };
-    }
-    cardNumber = formatCardNumber(customer.customerNumber, card.index);
+    // Both halves off the card the store handed back, as on the record's own control: the slot it
+    // was printed under is on the row itself (US-30), so nothing has to read the household again to
+    // ask it a number the card already carries.
+    cardNumber = formatCardNumber(card.customerNumber, card.index);
   } catch (error: unknown) {
     if (error instanceof CustomerArchived) {
       return {

@@ -8,7 +8,7 @@ import type {
   CustomerRepository,
 } from "@/application/ports";
 import type { ValidUntilRange } from "@/domain/customer/certificate";
-import { parseCardIssueReason } from "@/domain/card/card";
+import { parseCardIssueReason, type IssuedCard, type NewCard } from "@/domain/card/card";
 import {
   parseCustomerStatus,
   type CustomerStatus,
@@ -20,11 +20,13 @@ import {
 import { parseGroup, type Group, type GroupCounts } from "@/domain/customer/group";
 import { foldName } from "@/domain/customer/nameSearch";
 import {
+  CardIndexTaken,
   CardNumberTaken,
   CustomerNotFound,
   CustomerNumberTaken,
   InvalidCustomerRecord,
 } from "@/domain/errors";
+import { isCardCollision, toIssuedCard } from "./card-repository";
 
 /**
  * Everyone who still holds a customer number.
@@ -368,6 +370,9 @@ export class PrismaCustomerRepository implements CustomerRepository {
       archivedAt: row.archivedAt,
       reminderCount: row.reminderCount,
       card: {
+        // The slot the card was **printed under**, off the card row rather than off the customer's
+        // — the two part company for a household that has been moved to another number (US-30).
+        customerNumber: card.customerNumber,
         index: card.index,
         issuedAt: card.issuedAt,
         reason: parseCardIssueReason(card.reason),
@@ -473,6 +478,10 @@ export class PrismaCustomerRepository implements CustomerRepository {
       return {
         ...customer,
         id: row.id,
+        // The card as it was stored: printed under the very number this registration just took, and
+        // filled in here rather than by the caller for the reason `issue` gives — a caller that
+        // could pass the slot is a caller that could pass the wrong one.
+        card: { ...customer.card, customerNumber: customer.customerNumber },
         blockReason: null,
         archiveReason: null,
         archivedAt: null,
@@ -592,6 +601,78 @@ export class PrismaCustomerRepository implements CustomerRepository {
    */
   async setGroup(id: number, group: Group): Promise<void> {
     await this.prisma.customer.update({ where: { id }, data: { group } });
+  }
+
+  /**
+   * Move a customer to another slot and write the card that goes with it — **one `$transaction`**,
+   * so the register and the card in the household's pocket can never be left disagreeing (US-30).
+   *
+   * The update goes first and the card's slot is then read back off the row it just wrote, exactly
+   * as {@link PrismaCardRepository.issue} reads it off the customer: the card can only ever be
+   * printed under the number the household now holds, whatever a caller passed. Nothing else is
+   * touched — the earlier cards keep the numbers they were printed with, because the run left on
+   * the old slot is what makes that slot safe to hand out again (US-25).
+   *
+   * Any of the three constraints refusing the write rolls the whole transaction back, so a lost
+   * race leaves neither a moved number nor a card.
+   *
+   * @throws {CustomerNumberTaken} if an active customer took the number first — the partial unique
+   *   index on the register.
+   * @throws {CardNumberTaken} if the index had already been printed on the new slot.
+   * @throws {CardIndexTaken} if the household was issued a card at that index while the move was
+   *   being decided — a reissue in another tab, or a second move. Their own run is half of what
+   *   picks the index (`nextCardIndexOnMove`), so it can go stale under this write exactly as the
+   *   slot's run can, and it is answered by re-reading the record rather than the slot.
+   */
+  async changeCustomerNumber(
+    id: number,
+    customerNumber: number,
+    card: NewCard,
+  ): Promise<IssuedCard> {
+    try {
+      const row = await this.prisma.$transaction(async (tx) => {
+        const moved = await tx.customer.update({
+          where: { id },
+          data: { customerNumber },
+          select: { customerNumber: true },
+        });
+        return tx.card.create({
+          data: {
+            customerId: id,
+            customerNumber: moved.customerNumber,
+            index: card.index,
+            issuedAt: card.issuedAt,
+            reason: card.reason,
+            grownUpsAtIssue: card.countsAtIssue.grownUps,
+            childrenAtIssue: card.countsAtIssue.children,
+            groupAtIssue: card.groupAtIssue,
+          },
+        });
+      });
+      return toIssuedCard(row);
+    } catch (error: unknown) {
+      // The slot itself, refused by the register's partial unique index. Checked first, and it is
+      // unambiguous: `Customer`'s index names one column where both of `Card`'s name two.
+      if (isCollisionOn(error, ["customerNumber"])) {
+        throw new CustomerNumberTaken(customerNumber);
+      }
+      // One of `Card`'s two unique indexes, and *which* is asked of the record rather than of the
+      // error — `PrismaCardRepository.issue`'s own reading, shared with it so the two writers of a
+      // card cannot come to translate one constraint two ways.
+      //
+      // Both faults are reachable here and they are answered differently. A card number already
+      // printed on the slot moved onto is re-read from the slot's run (US-25); an index the
+      // household already holds is re-read from the record, and it is the fault a move raises that
+      // an ordinary issue cannot — the index is the later of two runs (`nextCardIndexOnMove`), so a
+      // reissue landing in another tab can take it while the slot they are moving to is untouched.
+      if (isCardCollision(error)) {
+        const held = await this.prisma.card.count({ where: { customerId: id, index: card.index } });
+        throw held > 0
+          ? new CardIndexTaken(id, card.index)
+          : new CardNumberTaken(customerNumber, card.index);
+      }
+      throw error;
+    }
   }
 
   /**

@@ -69,14 +69,17 @@ deliberately and say why in the commit; do not add an inline disable.
     fold neither umlauts nor Unicode case in a `WHERE` clause, so `foldName`'s output is stored and
     indexed. Never displayed and never read as the name; written from the names in the same
     statement, so a write that changes a name must rewrite them with it.
-  - `Card.customerNumber` — a **key**, in the same sense `firstNameFolded` is one (US-25). The
+  - `Card.customerNumber` — a **key** in the same sense `firstNameFolded` is one (US-25), **and** a
+    snapshot in the same sense the three `AtIssue` fields are (US-30, ADR-016). The
     `@@unique([customerNumber, index])` that makes a card number unique for good needs the slot on
     the card row itself, and `MAX(index) WHERE customerNumber = ?` is the question the counting rule
-    asks. Unlike the three `AtIssue` fields it snapshots **nothing**: a customer number is fixed at
-    registration and released only by archiving, so there is no later value for it to disagree with.
-    Written by the adapter off the customer row in the same transaction as the insert, and never read
-    as the card's number: what a card number _is_ stays the pair `customer.customerNumber` and
-    `card.index` put through `formatCardNumber`, derived at every read.
+    asks. Since a household may be moved to another number, this column is also the slot the card was
+    **printed under**, and it _is_ read as the card's number — off the card's own slot, never off the
+    holder's current one, or a household that moved would find its old cards re-labelled under a slot
+    they were never printed on. Those cards left behind are exactly what stops the vacated slot
+    printing a number twice. Written by the adapter off the customer row in the same transaction as
+    the insert and never updated afterwards: what the _household_ holds today is
+    `Customer.customerNumber`, which is a different question.
 
   Any further "just store it" needs an argument of that kind. The **customer balance was asked to
   be a fourth and refused** — it is `Σ (paidCents − priceCents)` over a household's hand-outs,

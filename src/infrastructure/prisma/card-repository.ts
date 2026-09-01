@@ -1,6 +1,6 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { CardIssueCounts, CardRepository } from "@/application/ports";
-import { parseCardIssueReason, type IssuedCard } from "@/domain/card/card";
+import { parseCardIssueReason, type IssuedCard, type NewCard } from "@/domain/card/card";
 import { parseGroup } from "@/domain/customer/group";
 import { CardIndexTaken, CardNumberTaken } from "@/domain/errors";
 
@@ -26,8 +26,13 @@ const CARD_UNIQUE_INDEXES = [
  * the customer's row, so a second card on an index the customer already holds breaks both indexes at
  * once, and which of them the database then names is its own business rather than a fact about the
  * fault. {@link PrismaCardRepository.issue} asks the record itself instead.
+ *
+ * Exported for the reason {@link toIssuedCard} is: a card is also written by the customer register,
+ * whose number change inserts one in the transaction that moves the slot (US-30). Both writers have
+ * to read a refusal the same way, or one of them ends up translating a constraint the other treats
+ * as a fault of its own.
  */
-function isCardCollision(error: unknown): boolean {
+export function isCardCollision(error: unknown): boolean {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
     return false;
   }
@@ -40,6 +45,35 @@ function isCardCollision(error: unknown): boolean {
       target.length === columns.length &&
       columns.every((column, position) => target[position] === column),
   );
+}
+
+/**
+ * One stored card row as an {@link IssuedCard}. The two count columns are flat in SQLite and a
+ * value object in the domain, so the shape is put back together here — in one place, so
+ * `currentCard` and `listCards` cannot come to read the snapshot differently. The group word is
+ * checked rather than trusted, like every other enum-shaped column SQLite keeps as a string.
+ *
+ * It sits outside the class because a card is also written by the customer register: a number
+ * change inserts the card in the same transaction that moves the slot (US-30), and reading the row
+ * it wrote back differently is exactly the drift this one function exists to prevent.
+ */
+export function toIssuedCard(row: {
+  customerNumber: number;
+  index: number;
+  issuedAt: Date;
+  reason: string;
+  grownUpsAtIssue: number;
+  childrenAtIssue: number;
+  groupAtIssue: string;
+}): IssuedCard {
+  return {
+    customerNumber: row.customerNumber,
+    index: row.index,
+    issuedAt: row.issuedAt,
+    reason: parseCardIssueReason(row.reason),
+    countsAtIssue: { grownUps: row.grownUpsAtIssue, children: row.childrenAtIssue },
+    groupAtIssue: parseGroup(row.groupAtIssue),
+  };
 }
 
 /**
@@ -73,29 +107,6 @@ export class PrismaCardRepository implements CardRepository {
   }
 
   /**
-   * One stored row as an {@link IssuedCard}. The two count columns are flat in SQLite and a value
-   * object in the domain, so the shape is put back together here — in one place, so `currentCard`
-   * and `listCards` cannot come to read the snapshot differently. The group word is checked rather
-   * than trusted, like every other enum-shaped column SQLite keeps as a string.
-   */
-  private static toCard(row: {
-    index: number;
-    issuedAt: Date;
-    reason: string;
-    grownUpsAtIssue: number;
-    childrenAtIssue: number;
-    groupAtIssue: string;
-  }): IssuedCard {
-    return {
-      index: row.index,
-      issuedAt: row.issuedAt,
-      reason: parseCardIssueReason(row.reason),
-      countsAtIssue: { grownUps: row.grownUpsAtIssue, children: row.childrenAtIssue },
-      groupAtIssue: parseGroup(row.groupAtIssue),
-    };
-  }
-
-  /**
    * The customer's highest-indexed card — the one they actually hold — or `null` if they hold none.
    *
    * An unknown customer id also answers `null`: whether the household exists is the use case's
@@ -110,7 +121,7 @@ export class PrismaCardRepository implements CardRepository {
     if (row === null) {
       return null;
     }
-    return PrismaCardRepository.toCard(row);
+    return toIssuedCard(row);
   }
 
   /**
@@ -129,6 +140,30 @@ export class PrismaCardRepository implements CardRepository {
   }
 
   /**
+   * The highest index ever issued on **every** slot that has had a card, in one grouped aggregate —
+   * served by the leading column of `@@unique([customerNumber, index])`.
+   *
+   * No `where` at all: archived holders count, for the reason `highestIndexForNumber` states, and a
+   * slot that has never had a card is simply **absent** from the map rather than reported as 0. The
+   * caller reads it as `?? 0`, which is the same answer the singular method gives.
+   *
+   * One query rather than the ~240 `highestIndexForNumber` calls the record's number control would
+   * otherwise make to render a single dropdown (US-30.4) — the argument `issueCounts` makes for
+   * being an aggregate, at the width of the whole register.
+   */
+  async highestIndexByNumber(): Promise<ReadonlyMap<number, number>> {
+    const groups = await this.prisma.card.groupBy({
+      by: ["customerNumber"],
+      _max: { index: true },
+    });
+
+    // `_max` is nullable because an *empty* group would have no maximum, which a `groupBy` cannot
+    // produce; `?? 0` is `highestIndexForNumber`'s own reading of the same aggregate rather than an
+    // assertion about it, and 0 means the same thing here as an absent slot does.
+    return new Map(groups.map((group) => [group.customerNumber, group._max.index ?? 0]));
+  }
+
+  /**
    * Every card the customer has been issued, highest index first — the one they hold, then the
    * numbers it replaced. Superseded cards are kept rather than deleted, so an old card handed over
    * at the counter can still be recognised (US-09).
@@ -138,7 +173,7 @@ export class PrismaCardRepository implements CardRepository {
       where: { customerId },
       orderBy: { index: "desc" },
     });
-    return rows.map((row) => PrismaCardRepository.toCard(row));
+    return rows.map((row) => toIssuedCard(row));
   }
 
   /**
@@ -185,7 +220,7 @@ export class PrismaCardRepository implements CardRepository {
    * @throws {CardIndexTaken} if a concurrent issue took the index on this record first.
    * @throws {CardNumberTaken} if the card number had already been printed on this slot.
    */
-  async issue(customerId: number, card: IssuedCard): Promise<IssuedCard> {
+  async issue(customerId: number, card: NewCard): Promise<IssuedCard> {
     // Kept out here as well as written inside, so a refused card number can be named as staff know
     // it — `50k1` — rather than as an id nobody at the counter has ever seen.
     let slot = UNKNOWN_SLOT;
@@ -209,7 +244,7 @@ export class PrismaCardRepository implements CardRepository {
           },
         });
       });
-      return PrismaCardRepository.toCard(row);
+      return toIssuedCard(row);
     } catch (error: unknown) {
       if (isCardCollision(error)) {
         // Which of the two constraints refused the row is asked of the record rather than of the

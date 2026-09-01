@@ -53,6 +53,30 @@ const EGG_THRESHOLD_COLUMN = "Ab wie vielen Personen";
 const EGG_COUNT_COLUMN = "Eier";
 
 /**
+ * A sentence written as parts, some of which are emphasised when it is rendered.
+ *
+ * The dictionary goes on owning the whole sentence — the words, their order and their punctuation
+ * are all here, as they are for every other entry — and only says which fragments carry the weight.
+ * The alternative would be a component assembling German from pieces, which is precisely the split
+ * `CLAUDE.md` §Coding style forbids.
+ *
+ * Used by the two sentences a customer-number move produces, and by nothing else. Emphasis is for
+ * the figure a staff member acts on off the screen: the number they will write on a physical card,
+ * and the slot the household now occupies. A sentence where everything matters marks nothing.
+ */
+export type Segment = { readonly text: string; readonly strong?: true };
+
+/**
+ * A segmented sentence as flat text — what a test asserts and what a screen reader is read.
+ *
+ * It exists so that a spec can compare against the dictionary rather than a copy of it: the words
+ * are asserted from the same source that renders them, exactly as the string entries are.
+ */
+export function plain(segments: ReadonlyArray<Segment>): string {
+  return segments.map((segment) => segment.text).join("");
+}
+
+/**
  * A directed amount, written with its sign in front: „+2,00 €“, „−2,00 €“.
  *
  * **The house form for any amount that runs two ways**, and there are exactly two of them — a
@@ -400,6 +424,19 @@ export const de = {
         `möglich — bitte kürzen.`,
       groupUnchanged: (group: string): string =>
         `Der Haushalt gehört bereits zur Gruppe ${group}. Es wurde nichts geändert.`,
+      /**
+       * The number a household is moved to is the one they already hold (US-30) — refused rather
+       * than accepted, because it would print them a fresh card for a move that never happened.
+       *
+       * Written in {@link groupUnchanged}'s register, because it is the same refusal one field
+       * over. The control does not offer the step that produces it — the confirmation appears only
+       * once another number is picked — so this is read when the record was moved in a second tab
+       * while this one stood open, which is why it ends by asking for another number rather than
+       * for the same one again.
+       */
+      customerNumberUnchanged: (customerNumber: number): string =>
+        `Der Haushalt hat bereits die Kundennummer ${customerNumber}. Es wurde nichts geändert; ` +
+        `bitte eine andere Nummer wählen.`,
       unknown: "Die Aufnahme konnte nicht gespeichert werden.",
       notFound: "Dieser Kunde wurde nicht gefunden.",
     },
@@ -593,6 +630,7 @@ export const de = {
       FIRST_ISSUE: "Erstausstellung",
       LOST: "Verlust",
       STALE_COUNTS: "Geänderte Haushaltszahlen",
+      CUSTOMER_NUMBER_CHANGED: "Kundennummer geändert",
       OTHER: "Sonstiger Grund",
     },
     /** The card view at /kunden/[id]/karte — what staff copy onto the physical card. */
@@ -645,9 +683,15 @@ export const de = {
        */
       historyDisclosure: "Ausklappen, um alle bisherigen Ausgaben zu sehen",
       detailsHeading: "Person und Anschrift",
+      /**
+       * It ended with „Die Kundennummer lässt sich nicht ändern.“ until US-30, which is exactly what
+       * the section „Kundennummer“ below now does. Nothing replaced the sentence here: this hint is
+       * about the boxes above it, and a form that says where a *different* form lives is how a
+       * screen ends up cross-referencing itself. The section says it by existing.
+       */
       detailsHint:
         "Korrekturen an Name, Geburtsdatum und Anschrift. Der Name gilt zugleich für die Zeile " +
-        "dieser Person im Haushalt. Die Kundennummer lässt sich nicht ändern.",
+        "dieser Person im Haushalt.",
       detailsSubmit: "Person und Anschrift speichern",
       /**
        * Names all four derived figures, and says „aus dem Haushalt“ rather than „aus den
@@ -677,9 +721,16 @@ export const de = {
       notesSubmit: "Bemerkung speichern",
       notesEmpty: "Keine Bemerkung hinterlegt.",
       groupHeading: "Gruppe",
-      groupHint:
-        "Der Wechsel gilt sofort, auch für eine Ausgabe am selben Tag. Die Karte nennt weiterhin " +
-        "die alte Gruppe; der Haushalt steht danach auf der Liste „Karten neu ausstellen“.",
+      /**
+       * The one thing a group change does that this screen cannot show: the card in the household's
+       * hand still names the old group. It used to open with „Der Wechsel gilt sofort“ and name the
+       * stale card as a fact; both went, because a save taking effect is what a save is, and the
+       * fact was worth stating only as the thing left to do. Named by the screen that does it, in
+       * the words the hub's own link to it uses ({@link customerList.actions.cardsDue}), so it can
+       * be found — and „von Hand“ went with them, since a sentence telling somebody where to do a
+       * thing has already said that nobody else will.
+       */
+      groupHint: "Die Karte muss danach unter „Karten neu ausstellen“ neu ausgestellt werden.",
       groupSubmit: "Gruppe wechseln",
       /** Both sizes beside the choice, because a move is decided by comparing them (FR-4). */
       groupSizes: (red: number, blue: number): string =>
@@ -773,6 +824,72 @@ export const de = {
           "Dieser Haushalt ist archiviert; sein Datensatz kann nicht mehr geändert werden. Bitte " +
           "die Seite neu laden.",
       },
+    },
+    /**
+     * Moving a household to another customer number (US-30) — the section „Kundennummer“ on the
+     * record, directly under „Gruppe“.
+     *
+     * The words carry two things the screen cannot show: that a move prints a card, and *which*
+     * card. The number and the card it prints are both named before anything is written and again
+     * afterwards, for the reason {@link reissue} names the card it prints — the new card number is
+     * what staff copy onto the physical card, and a move cannot be taken back by choosing the old
+     * number again (that would be a second move, printing a third card).
+     *
+     * There is no word here for a *reason*. Staff's reasons for wanting a particular number — a
+     * returning family, a block of numbers kept together, a number typed in wrongly — are theirs,
+     * and the use case asks for none (ADR-016).
+     */
+    numberChange: {
+      heading: "Kundennummer",
+      /**
+       * Said instead of „Noch N freie Nummern“ when the household's own number is the only one on
+       * offer. The dropdown is left enabled beside it: a greyed-out control states that something
+       * cannot be done and never why, and the one thing a staff member needs here is the reason.
+       */
+      noOtherNumber:
+        "Zurzeit ist keine andere Kundennummer frei. Es lässt sich erst wieder eine vergeben, " +
+        "wenn ein Haushalt archiviert oder die Höchstzahl in den Einstellungen erhöht wird.",
+      /** Reveals the confirmation. Nothing is written by it — {@link submit} is the save. */
+      action: "Kundennummer ändern",
+      /**
+       * What the confirmation says before anything happens: the number the household will hold and
+       * the card that will be printed. Both come off the read model; neither is worked out in the
+       * browser.
+       *
+       * It named the outgoing card too — „Die Karte 100k2 wird damit ungültig und darf an der
+       * Ausgabe nicht mehr angenommen werden“ — and no longer does. That a replaced card is dead is
+       * a rule the four people using this know, and a confirmation that recites the rules is one
+       * that gets clicked past unread. What is left is the two figures the sentence exists for.
+       */
+      confirm: (customerNumber: number, nextCard: string): ReadonlyArray<Segment> => [
+        { text: "Neue Kundennummer " },
+        { text: String(customerNumber), strong: true },
+        { text: ", neue Karte " },
+        { text: nextCard, strong: true },
+        { text: "." },
+      ],
+      submit: "Kundennummer jetzt ändern",
+      submitting: "Wird geändert …",
+      /**
+       * The receipt, naming all three facts the move settled.
+       *
+       * A **receipt, not a warning**: what it reports has happened, and the sentence that warned
+       * about it has already been read once, in {@link confirm}. It names the old number as well as
+       * the new one because the row it was read from is gone by the time this is on screen — the
+       * record above now says 23 everywhere, and the number left of the arrow is the only thing
+       * still saying which slot was freed.
+       *
+       * The two figures that are *acted on* carry the weight: the slot the household now occupies,
+       * and the number to be written on the physical card. The one they moved off is read only as
+       * the other end of the arrow, so it stays plain.
+       */
+      saved: (from: number, to: number, cardNumber: string): ReadonlyArray<Segment> => [
+        { text: `Kundennummer geändert ${from} → ` },
+        { text: String(to), strong: true },
+        { text: "; neue Karte " },
+        { text: cardNumber, strong: true },
+        { text: " ausgestellt." },
+      ],
     },
     /**
      * Reissuing a card after a loss (US-09). The action is offered on the customer record and on the

@@ -24,8 +24,10 @@
  * components can both render it — the same deliberate choice `stat.tsx` and `shell.ts` make.
  */
 
+import { Fragment } from "react";
 import { Check, CircleAlert, TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import type { Segment } from "@/i18n/de";
 import { CONFIRMATION_ACCENT, REFUSAL_ACCENT } from "./accents";
 import type { NoticeTier } from "./notice-tier";
 
@@ -59,13 +61,44 @@ const TONES: Record<
   error: { Icon: CircleAlert, box: "border-destructive/40 bg-destructive/5", destructive: true },
 };
 
+/**
+ * A dictionary sentence on screen, with the fragments it marks as carrying weight set in bold.
+ *
+ * Rendered here rather than at the call sites so that emphasis has one appearance in the
+ * application, for the reason this whole module exists. A plain string is the ordinary case and
+ * stays a string: only the two sentences a number change produces are segmented, and widening the
+ * prop is what let them be without touching the twenty call sites that are not.
+ */
+export function Sentence({ text }: { text: string | ReadonlyArray<Segment> }): React.ReactElement {
+  if (typeof text === "string") {
+    return <>{text}</>;
+  }
+  // Keyed by position, which is the one case that is not a smell: the sentence is fixed in the
+  // dictionary, a fragment has no identity apart from where it sits, and the list is never
+  // reordered or filtered.
+  return (
+    <>
+      {text.map((segment, index) => (
+        <Fragment key={index}>
+          {segment.strong ? (
+            <strong className="font-semibold">{segment.text}</strong>
+          ) : (
+            segment.text
+          )}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
 export function Notice({
   tone,
   text,
   testId,
 }: {
   tone: NoticeTone;
-  text: string;
+  /** A whole sentence, or one written as parts so that a figure in it can be emphasised. */
+  text: string | ReadonlyArray<Segment>;
   /** Goes on the sentence, so a spec asserts the words rather than the box around them. */
   testId: string;
 }): React.ReactElement {
@@ -85,7 +118,7 @@ export function Notice({
         // message here, not a note under one. The destructive variant has already coloured it.
         className={destructive ? "max-w-prose" : "max-w-prose text-foreground"}
       >
-        {text}
+        <Sentence text={text} />
       </AlertDescription>
     </Alert>
   );
@@ -101,7 +134,7 @@ export function Confirmation({
   text,
   testId,
 }: {
-  text: string;
+  text: string | ReadonlyArray<Segment>;
   testId: string;
 }): React.ReactElement {
   return <Notice tone="success" text={text} testId={testId} />;

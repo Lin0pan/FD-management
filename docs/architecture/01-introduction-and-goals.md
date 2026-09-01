@@ -22,7 +22,7 @@ five years or more with little maintenance, possibly in the hands of a different
 
 ## Requirements overview
 
-The story-by-story record is [`tasks/`](../../tasks/), one PRD per user story, US-01 to US-28.
+The story-by-story record is [`tasks/`](../../tasks/), one PRD per user story, US-01 to US-30.
 (`docs/archiv/user_stories_mvp.md` describes an early MVP scope the system has since moved past; it is not
 current — see [chapter 11](11-risks-and-technical-debt.md).) What matters architecturally:
 
