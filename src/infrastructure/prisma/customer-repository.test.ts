@@ -30,6 +30,7 @@ import {
 import { foldName } from "@/domain/customer/nameSearch";
 import type { Group } from "@/domain/customer/group";
 import {
+  CardIndexTaken,
   CardNumberTaken,
   CustomerNotFound,
   CustomerNumberTaken,
@@ -618,6 +619,36 @@ describe("PrismaCustomerRepository.changeCustomerNumber", () => {
     expect((await repository.findById(id))?.customerNumber).toBe(50);
     expect(await prisma.card.count({ where: { customerNumber: 51 } })).toBe(1);
     expect(await prisma.card.count({ where: { customerId: id } })).toBe(1);
+  });
+
+  it("refuses a card index the household already holds and writes neither", async () => {
+    const { id } = await repository.create(newCustomer({ customerNumber: 50 }));
+    // The other half of the index a move picks. Slot 51 has never had a card, so the index comes
+    // from the household's *own* run (`nextCardIndexOnMove`) — and a reissue landing between the
+    // read of that run and this write takes it. `51k2` is free and the register's slot is free, so
+    // the household's own `@@unique([customerId, index])` is the only thing that can refuse the row.
+    await prisma.card.create({
+      data: {
+        customerId: id,
+        customerNumber: 50,
+        index: 2,
+        issuedAt: TODAY,
+        reason: "LOST",
+        grownUpsAtIssue: 1,
+        childrenAtIssue: 1,
+        groupAtIssue: "RED",
+      },
+    });
+
+    await expect(repository.changeCustomerNumber(id, 51, movedCard(2))).rejects.toBeInstanceOf(
+      CardIndexTaken,
+    );
+
+    // A different fault from the one above, and reported as one: this is answered by re-reading the
+    // record rather than the slot. The transaction rolled back either way.
+    expect((await repository.findById(id))?.customerNumber).toBe(50);
+    expect(await prisma.card.count({ where: { customerId: id } })).toBe(2);
+    expect(await prisma.card.count({ where: { customerNumber: 51 } })).toBe(0);
   });
 
   it("frees the old number for a later registration", async () => {

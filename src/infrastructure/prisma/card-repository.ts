@@ -26,8 +26,13 @@ const CARD_UNIQUE_INDEXES = [
  * the customer's row, so a second card on an index the customer already holds breaks both indexes at
  * once, and which of them the database then names is its own business rather than a fact about the
  * fault. {@link PrismaCardRepository.issue} asks the record itself instead.
+ *
+ * Exported for the reason {@link toIssuedCard} is: a card is also written by the customer register,
+ * whose number change inserts one in the transaction that moves the slot (US-30). Both writers have
+ * to read a refusal the same way, or one of them ends up translating a constraint the other treats
+ * as a fault of its own.
  */
-function isCardCollision(error: unknown): boolean {
+export function isCardCollision(error: unknown): boolean {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
     return false;
   }
