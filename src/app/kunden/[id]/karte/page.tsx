@@ -102,8 +102,6 @@ function Card({ view }: { view: CardView }): React.ReactElement {
         </div>
       </div>
 
-      <p className="text-xs text-foreground/70">{de.customers.derived.standardValues}</p>
-
       <dl className="grid gap-2 text-sm text-foreground/70 sm:grid-cols-2">
         <div>
           <dt className="inline">{de.customers.cardView.issuedAt}: </dt>
@@ -152,7 +150,7 @@ function Superseded({ view }: { view: CardView }): React.ReactElement {
  */
 function Issued({ view }: { view: CardView }): React.ReactElement {
   return (
-    <section className="flex flex-col gap-2">
+    <section data-testid="cards-issued-section" className="flex flex-col gap-2">
       <h2 className="text-xl font-semibold">{de.customers.cardView.issuedHeading}</h2>
       <div className="grid gap-6 sm:grid-cols-2">
         <Count
@@ -166,7 +164,6 @@ function Issued({ view }: { view: CardView }): React.ReactElement {
           testId="reissues-for-loss"
         />
       </div>
-      <p className="max-w-prose text-xs text-foreground/60">{de.customers.cardView.issuedHint}</p>
     </section>
   );
 }
@@ -200,9 +197,7 @@ export default async function CardPage({
     <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 p-8">
       <h1 className="text-3xl font-semibold">{de.customers.cardView.heading}</h1>
       <Card view={view} />
-      <p className="max-w-prose text-foreground/80">{de.customers.cardView.current}</p>
       <Superseded view={view} />
-      <p className="text-xs text-foreground/60">{de.customers.cardView.countsHint}</p>
 
       <Issued view={view} />
 

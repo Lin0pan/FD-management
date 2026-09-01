@@ -97,5 +97,4 @@ test("a registration on an untouched number issues card k1 and the card view sho
   // A first card replaces nothing, and the view says so rather than showing an empty list.
   await expect(page.getByTestId("superseded-card")).toHaveCount(0);
   await expect(page.getByRole("main")).toContainText(de.customers.cardView.supersededNone);
-  await expect(page.getByRole("main")).toContainText(de.customers.cardView.current);
 });

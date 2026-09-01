@@ -65,9 +65,6 @@ export function ReissueControls({
           <Button type="submit" disabled={pending} data-testid="reissue-submit">
             {pending ? de.customers.reissue.submitting : de.customers.reissue.submit}
           </Button>
-          <span className="max-w-prose text-xs text-muted-foreground">
-            {de.customers.reissue.hint}
-          </span>
         </div>
       </details>
       {/* The number again, after the write. The record and the card view both re-render it from the

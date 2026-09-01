@@ -94,7 +94,6 @@ export function ArchiveControls({
             value={reason}
             onChange={(event) => setReason(event.target.value)}
           />
-          <span className="text-xs text-muted-foreground">{de.customers.archive.reasonHint}</span>
         </div>
         <Button
           type="submit"

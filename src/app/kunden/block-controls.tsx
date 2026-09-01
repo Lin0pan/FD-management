@@ -76,7 +76,6 @@ function BlockForm({
             value={reason}
             onChange={(event) => setReason(event.target.value)}
           />
-          <span className="text-xs text-muted-foreground">{de.customers.block.reasonHint}</span>
         </div>
         {/* `destructive` is a soft tint, not the solid `bg-red-700` this replaced — which was the
             only solid red in the application and shouted louder than the archive above it. */}

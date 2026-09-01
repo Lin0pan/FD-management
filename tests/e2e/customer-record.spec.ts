@@ -671,11 +671,7 @@ test.describe("Kundenakte pflegen", () => {
     // The card still names the group they have left. It is stated as a remark beside the verdict,
     // never instead of it: a card that has fallen behind turns nobody away.
     await expect(page.getByTestId("counter-stale-card")).toHaveText(
-      de.distribution.counter.staleCardGroup(
-        card(2),
-        de.customers.groups.BLUE,
-        de.customers.groups.RED,
-      ),
+      de.distribution.counter.staleCardGroup(card(2), de.customers.groups.BLUE),
     );
   });
 

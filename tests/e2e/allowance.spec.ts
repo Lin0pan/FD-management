@@ -147,8 +147,9 @@ test("the counts and the price are derived from the household, not stored", asyn
   await expect(page.getByTestId("children")).toHaveText("1");
   await expect(page.getByTestId("price")).toHaveText(PRICE_AS_SEEDED);
 
-  // These are the standard values, and the screen says so — there is no control to adjust them.
-  await expect(page.getByRole("main")).toContainText(de.customers.derived.standardValues);
+  // Read-only throughout: the three figures are printed, and the record offers nothing to type a
+  // count or a price into. The sentence that used to say so was dropped as one DF already knew.
+  await expect(page.getByRole("main").getByLabel(de.customers.derived.price)).toHaveCount(0);
 
   // A second child joins the household. Nothing else is touched — no count and no price column is
   // written, because there is none.

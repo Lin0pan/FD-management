@@ -372,10 +372,6 @@ export function HouseholdEditor({
         </Button>
       </div>
 
-      <p className="text-xs text-muted-foreground">{de.customers.record.customerRowHint}</p>
-      <p className="text-xs text-muted-foreground">{de.customers.derived.hint}</p>
-      <p className="text-xs text-muted-foreground">{de.customers.derived.standardValues}</p>
-
       <FormFooter>
         <p className="max-w-prose text-sm text-muted-foreground">
           {de.customers.record.householdHint}

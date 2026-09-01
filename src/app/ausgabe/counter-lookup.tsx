@@ -344,7 +344,6 @@ export function CustomerDetails({
               ? de.distribution.counter.staleCardGroup(
                   customer.cardNumber,
                   de.customers.groups[customer.groupOnCard],
-                  de.customers.groups[customer.group],
                 )
               : de.distribution.counter.staleCard(
                   customer.cardNumber,
@@ -352,7 +351,6 @@ export function CustomerDetails({
                     customer.countsOnCard.grownUps,
                     customer.countsOnCard.children,
                   ),
-                  de.customers.derived.countsValue(customer.grownUps, customer.children),
                 )}
           </p>
         )}

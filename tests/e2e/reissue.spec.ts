@@ -235,7 +235,6 @@ test.describe("Karte nach Verlust neu ausstellen", () => {
     await page.waitForURL(/\/kunden\/\d+\/karte$/);
 
     await expect(page.getByTestId("card-number")).toHaveText(card(2));
-    await expect(page.getByRole("main")).toContainText(de.customers.cardView.current);
     // The replaced number stays on record with the day and the reason *it* was handed over — a
     // superseded card is invalid, not deleted.
     await expect(page.getByTestId("superseded-card")).toHaveText(
@@ -314,9 +313,15 @@ test.describe("Karte nach Verlust neu ausstellen", () => {
     await expect(page.getByTestId("reissues-for-loss")).toHaveText("3");
 
     // The count is information, not a verdict: the screen states it and offers the next reissue in
-    // the same breath, with no warning attached to it (FR-4, §5).
-    await expect(page.getByRole("main")).toContainText(de.customers.cardView.issuedHint);
+    // the same breath, with no warning attached to it (FR-4, §5). The screen used to promise that in
+    // a sentence; what proves it is the section itself — after a third loss it holds the two counts
+    // and nothing else, and the next reissue is offered exactly as it was for the first.
     await expect(page.getByTestId("reissue-open")).toBeVisible();
+    await expect(page.getByTestId("cards-issued-section")).toHaveText(
+      new RegExp(
+        `^${de.customers.cardView.issuedHeading}\\s*${de.customers.cardView.issuedCount}\\s*4\\s*${de.customers.cardView.lossCount}\\s*3$`,
+      ),
+    );
 
     // And the household is still just a household — three losses have moved no status and every
     // superseded number is on record rather than deleted.
