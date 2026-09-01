@@ -94,8 +94,8 @@ sequenceDiagram
 
     Staff->>Page: opens the screen
     Page->>Propose: which numbers are free?
-    Propose->>DB: taken numbers, group counts, settings in force
-    Propose-->>Page: free slots, suggested group, today
+    Propose->>DB: taken numbers, settings in force
+    Propose-->>Page: free slots, recommended group and its lowest, today
     Note over Page: a proposal, not a reservation
 
     Staff->>Register: submits — chosen number, people, address, certificate

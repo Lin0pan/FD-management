@@ -71,7 +71,6 @@ export async function submitPromotedRegistration(
       certificate: { type: form.certificateType, validUntil: form.certificateValidUntil },
       householdMembers: form.householdMembers,
       notes: form.notes,
-      group: form.group,
       customerNumber: form.customerNumber,
       previousCustomerId: form.previousCustomerId,
     });

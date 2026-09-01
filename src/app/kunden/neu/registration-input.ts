@@ -63,6 +63,12 @@ export const calendarDay = z.string().transform((value, ctx): Date => {
   }
 });
 
+/**
+ * The group radios, read but **no longer passed on**: `RegisterCustomerInput` has no group, because
+ * the number the form submits beside these radios already is one (`groupOf`, US-31.3). The schema
+ * entry goes with the control itself in US-31.6, where the radios stop being a field of their own
+ * and become the filter over the number list.
+ */
 const group = z.string().transform((value, ctx) => {
   const chosen = GROUPS.find((candidate) => candidate === value);
   if (chosen === undefined) {

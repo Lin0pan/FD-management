@@ -1,11 +1,12 @@
 /**
- * Register an applicant as a customer: give them the lowest free number, a balancing group and
- * their first card, in one transaction.
+ * Register an applicant as a customer: give them a free number in the group that balances the two
+ * weeks, and their first card, in one transaction.
  *
  * This is the whole of what "registration" means in the system — the card is not a separate action
  * staff can forget (tasks/prd-us-01-register-customer.md §7). Everything the form does not ask for
- * is decided here rather than typed: the number, the suggested group, the status and the reminder
- * count. Nothing derivable is stored, so no household count is written anywhere.
+ * is decided here rather than typed: the number — and with it the week the household collects in,
+ * because the number *is* the group (`groupOf`, US-31) — the status and the reminder count. Nothing
+ * derivable is stored, so no household count and no group is written anywhere.
  *
  * It is also the **only** registration path, which is what makes re-registering a returning
  * household (US-11.3) a matter of where the form's values came from rather than of different code:
@@ -20,8 +21,8 @@ import {
   type CustomerDetailsInput,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
-import { assertFreeNumber, lowestFreeNumber } from "@/domain/customer/customerNumber";
-import type { Group } from "@/domain/customer/group";
+import { assertFreeNumber, freeNumbers, lowestFreeNumber } from "@/domain/customer/customerNumber";
+import { countByGroup, inGroup, suggestGroup, type Group } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import type {
   AuditLog,
@@ -58,11 +59,11 @@ const RE_REGISTERED_FIELD = "previousCustomerId";
  * How often a lost race for a customer number is retried before the failure reaches the caller.
  *
  * With four users the race is rare but real: two registrations can read the same free slot before
- * either writes. A retry re-reads the taken numbers and moves to the next free one, so the second
- * registration succeeds instead of showing staff an error they can only answer by pressing the
- * button again. Three attempts is enough for a register that sees a handful of writes a week, and
- * the bound matters more than its size — an unbounded loop would turn a repository fault into a
- * hang.
+ * either writes. A retry re-reads the taken numbers and moves to the next free one **of the same
+ * group**, so the second registration succeeds instead of showing staff an error they can only
+ * answer by pressing the button again. Three attempts is enough for a register that sees a handful
+ * of writes a week, and the bound matters more than its size — an unbounded loop would turn a
+ * repository fault into a hang.
  */
 const MAX_ATTEMPTS = 3;
 
@@ -75,6 +76,30 @@ const MAX_ATTEMPTS = 3;
  * one. So the refusal goes back to the screen, where they can pick another (US-24.3).
  */
 const CHOSEN_NUMBER_ATTEMPTS = 1;
+
+/**
+ * The slot an allocation takes: the lowest free number **of `group`**, so that the household lands
+ * in the week the balance chose for them — the number is the group (`groupOf`, US-31), and picking
+ * the lowest free number of the register as a whole would decide the week by accident.
+ *
+ * It falls back to the whole pool in the two cases that are really one — the group has no number to
+ * offer — and they are worth telling apart. `group` is `null` when the recommendation declined,
+ * which is the register being full: {@link lowestFreeNumber} then raises `NoFreeCustomerNumber`,
+ * which goes on meaning exactly what it has always meant. A **named** group with nothing left is
+ * only reachable on a retry — `suggestGroup` never names an empty one — and there the other group's
+ * lowest slot is the right answer: turning an applicant away while a slot stands empty is what the
+ * waiting list exists to prevent (US-12, FR-3), and the balance is a recommendation, not a quota of
+ * its own.
+ */
+function allocateInGroup(
+  group: Group | null,
+  takenNumbers: ReadonlyArray<number>,
+  quotaN: number,
+): number {
+  const offer = group === null ? [] : inGroup(freeNumbers(takenNumbers, quotaN), group);
+
+  return offer.length === 0 ? lowestFreeNumber(takenNumbers, quotaN) : offer[0];
+}
 
 export interface RegisterCustomerDeps {
   readonly customers: CustomerRepository;
@@ -92,16 +117,14 @@ export interface RegisterCustomerDeps {
 
 export interface RegisterCustomerInput extends CustomerDetailsInput {
   /**
-   * The group staff picked. **Nothing reads it any more**: a group follows from the customer number
-   * (`groupOf`, US-31), so the slot the registration settles on is the week the household collects
-   * in, and a group submitted beside it could only disagree with the number. The field is removed
-   * with the screen that posts it (US-31.3 and US-31.6); it is left here for one story so that the
-   * form and the two registration actions change once rather than twice.
-   */
-  readonly group?: Group;
-  /**
    * The slot staff chose from the free ones the form offered them (US-24), left out when nobody
-   * looked at the dropdown — in which case the lowest free number is allocated, exactly as before.
+   * looked at the dropdown — in which case the lowest free number of the recommended group is
+   * allocated.
+   *
+   * **There is no group beside it, and that is the point.** A group follows from the customer
+   * number (`groupOf`, US-31), so this one field says both which slot the household takes and which
+   * week they collect in: a group that cannot be submitted cannot be submitted wrongly, and no
+   * validation is needed to keep the two agreeing because there are no longer two of them.
    *
    * Given, it is used **as given**: it is checked against the register and refused if it is not
    * free, never quietly replaced. The number the form showed when staff pressed the button is the
@@ -111,7 +134,7 @@ export interface RegisterCustomerInput extends CustomerDetailsInput {
   /**
    * The archived record this form was pre-filled from (US-11.3), left out for a walk-in.
    *
-   * Passing it changes **nothing** about the registration: the household still gets the lowest free
+   * Passing it changes **nothing** about the registration: the household still gets an allocated
    * number, the next card on that number's run and a reminder count of zero, exactly as if they had
    * never been here before. It is stored so that a later screen can show the history, and there is no
    * branch on it anywhere — a re-registration that took a different path would be the merge US-11
@@ -163,16 +186,27 @@ export async function registerCustomer(
   // where the number comes from and in how many attempts they are worth, and in nothing else.
   const chosen = input.customerNumber;
   let attemptsLeft = chosen === undefined ? MAX_ATTEMPTS : CHOSEN_NUMBER_ATTEMPTS;
+  // The group an allocation settles in, decided from the **first** reading of the register and then
+  // held for every retry. A retry that re-decided it would cross to the other group the moment the
+  // lost number levelled the balance, and the household would be registered into a different week
+  // than the one that was chosen for them, with nothing on any screen saying so — the one bug this
+  // loop could grow. A number staff *chose* leaves it `null`: that path decides no group, because
+  // the number they picked already did.
+  let allocatedGroup: Group | null = null;
   for (;;) {
     attemptsLeft -= 1;
     const takenNumbers = await deps.customers.takenActiveNumbers();
-    // No group is decided here any more: the number *is* the group (`groupOf`, US-31), so the slot
-    // this attempt settles on says which week the household collects in. US-31.3 makes the
-    // allocation choose that slot inside the recommended group; until it does, the lowest free
-    // number decides both, and `input.group` decides nothing.
+    if (chosen === undefined) {
+      // Counted off the numbers the register holds rather than asked of it: the group is no longer
+      // a column, it is what a number is (`groupOf`, US-31).
+      allocatedGroup ??= suggestGroup(
+        freeNumbers(takenNumbers, settings.quotaN),
+        countByGroup(takenNumbers),
+      );
+    }
     const customerNumber =
       chosen === undefined
-        ? lowestFreeNumber(takenNumbers, settings.quotaN)
+        ? allocateInGroup(allocatedGroup, takenNumbers, settings.quotaN)
         : assertFreeNumber(chosen, takenNumbers, settings.quotaN);
     // Read after the number is settled and inside the loop, because the run belongs to the *slot*:
     // an allocated number can move to a different one on a retry, and an index read before that

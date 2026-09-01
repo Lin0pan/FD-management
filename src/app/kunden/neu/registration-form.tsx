@@ -49,7 +49,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { composition } from "@/domain/customer/householdComposition";
-import { GROUPS } from "@/domain/customer/group";
+import { GROUPS, type Group } from "@/domain/customer/group";
 import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { GROUP_STYLES } from "../../accents";
@@ -419,10 +419,16 @@ export function RegistrationForm({
   // Controlled for the reason the number is: `defaultChecked` is undone by React's post-action
   // `form.reset()`, so an override to the other group was silently rewound to the proposal by the
   // very refusal the staff member was about to correct.
-  const [chosenGroup, setChosenGroup] = useState(proposal.suggestedGroup);
+  const [chosenGroup, setChosenGroup] = useState<Group>(proposal.suggestedGroup ?? "RED");
 
   const counts = derivedCounts(members, proposal.today);
   const full = proposal.customerNumber === null;
+  // The recommendation is absent exactly when the register is full (US-31.3), and that state is
+  // rendered by the alert at the top of the form with everything below it disabled. The disclosure
+  // still needs a word on its summary while it is standing there greyed out, so it falls back to
+  // the group a tie is broken to. US-31.6 rebuilds this whole block around the pair — group first,
+  // then that group's numbers — and the fallback goes with it.
+  const suggestedGroup = proposal.suggestedGroup ?? "RED";
 
   // The numbers the dropdown offers: the register as the action re-read it after a lost race if it
   // sent one back, otherwise the reading the page was rendered with. Preferring the fresh list is
@@ -823,8 +829,8 @@ export function RegistrationForm({
                     "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden",
                   )}
                 >
-                  <Badge variant="outline" className={GROUP_STYLES[proposal.suggestedGroup]}>
-                    {de.customers.groups[proposal.suggestedGroup]}
+                  <Badge variant="outline" className={GROUP_STYLES[suggestedGroup]}>
+                    {de.customers.groups[suggestedGroup]}
                   </Badge>
                   <span className="font-normal text-muted-foreground">
                     {de.customers.assignment.groupChoiceOverride}
@@ -861,10 +867,7 @@ export function RegistrationForm({
               </details>
 
               <p className="text-xs text-muted-foreground">
-                {de.customers.assignment.suggestedGroup(
-                  de.customers.groups[proposal.suggestedGroup],
-                )}{" "}
-                ·{" "}
+                {de.customers.assignment.suggestedGroup(de.customers.groups[suggestedGroup])} ·{" "}
                 {de.customers.assignment.groupSizes(
                   proposal.groupCounts.red,
                   proposal.groupCounts.blue,
