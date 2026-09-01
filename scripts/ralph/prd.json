@@ -91,8 +91,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "changeGroup and its tests were already deleted in US-31.2 (GroupUnchanged is its only refusal, so the use case could not compile without it). Landed here: the group filter moved out of SQL into listCustomers and readGroupRoster, CustomerListQuery.group off the port and the adapter, groupCounts derived with countByGroup(takenActiveNumbers()) in readCustomer and listCustomers, NumberChoice.group, and the move's audit `why` naming both groups only when the parity changed. CustomerRepository.groupCounts is now callerless and is US-31.5's to remove from the port and the adapter — both fakes that still implement it reject rather than answer, so a use case reaching for it fails."
     },
     {
       "id": "US-005",

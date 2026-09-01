@@ -560,3 +560,75 @@ PRDs — which are **annotated, never rewritten**, per the patterns block above.
     to the recommended group. The claim to keep is „the vacated number is offered again"; the
     preselection is not that claim.
 ---
+
+## 2026-09-01 — US-004 (US-31.4): the group is derived wherever it is read (application)
+
+- **The group filter left SQL.** `CustomerListQuery.group` is off the port and out of the adapter's
+  `where`; `listCustomers` narrows the rows the register returned with `groupOf`, and
+  `readGroupRoster` does the same to the week's walkable households. Both carry the argument in a
+  comment: parity is not a column, SQLite has no `% 2` in a `WHERE` clause, and a stored parity key
+  would be the second recording of the one fact this batch records once. The register is
+  quota-bounded, so the widest either scans is `quotaN` rows.
+- **The group balance stopped being a query.** `readCustomer` and `listCustomers` derive
+  `groupCounts` from `countByGroup(takenActiveNumbers())` — one reading each, no `groupCounts()`
+  call left anywhere in `src/`.
+- **`NumberChoice` gained `group`**, derived from its own number, so US-31.7's control can filter the
+  offer and name the group without the browser working parity out.
+- **The move's audit `why` names both groups only when the parity changed**:
+  `customerNumber=5→24; group=RED→BLUE` against `customerNumber=5→23`.
+- Tests first, one per rule: „narrows the list to one group", „asks the register for both groups and
+  narrows the parity itself", „counts the register's groups off its numbers" (twice — the list and
+  the record), „reads a household's group off their number", „walks the week's group", „asks the
+  register only for the active and blocked households", „names the group printed on a superseded
+  card, not today's", „offers each number with the group it belongs to", „names both groups in the
+  audit entry when the parity changed", „names only the numbers when the parity did not change",
+  „keeps every superseded card in the group it was printed for". „never reports a card as stale for
+  its group" already landed in US-31.2.
+- Files: `ports.ts`, `list-customers.ts`, `read-customer.ts`, `list-number-choices.ts`,
+  `change-customer-number.ts`, `read-group-roster.ts`, their five test files, `customers.test.ts`,
+  `lookup-customer.test.ts`, and `infrastructure/prisma/customer-repository.ts` + its test.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (56 files, 1308 tests, domain
+  and application both 100%), `npm run build` and `npx prettier --check .` all pass.
+
+- **Learnings for future iterations:**
+  - **A fake that *rejects* a port method is how you prove nothing calls it any more.** Both
+    `FakeCustomerRepository`s that still have to implement `groupCounts()` — the port keeps it until
+    US-31.5 — now `Promise.reject` with „the group balance is counted from the numbers (US-31)".
+    That turns „no caller" from a grep into a red test, and the method is deleted rather than
+    re-stubbed when the port loses it. Better than a call counter: the old `groupCountReads` counter
+    could only be asserted in the one test that thought to.
+  - **Removing a criterion from `CustomerListQuery` breaks the adapter *and* its integration
+    tests**, because an excess property in an object literal is a typecheck error. The infra test
+    „narrows to one balancing group" was deleted rather than moved — the claim now lives in
+    `list-customers.test.ts` — and „filters in the database" lost `group` from both the query it
+    logs and the column names it greps out of the generated SQL. `Customer_group_idx` and
+    `repository.groupCounts()` are still asserted there; they are US-31.5's, with the column.
+  - **A test that combined filters on the group needs a different second criterion.** The infra
+    „combines the filters rather than choosing between them" case was status + group + certificate.
+    Rebuilt as status + customer number + certificate on household 5 (active, lapsed certificate),
+    asserting the same query with `statuses: ["BLOCKED"]` finds nobody — a name search would have
+    depended on the other forty-nine Faker draws, which the fixture's own comment warns about.
+  - **At the counter a card can never name another group, and the reason is worth stating:** a card
+    number resolves through its *slot*, and a household that moved has released theirs, so `5k4`
+    after a move to 23 is `NOT_FOUND` rather than a card naming an older week. The place a superseded
+    card really keeps its own group is the **card view**, `readCard`'s `superseded` list, and the
+    test for it belongs in `change-customer-number.test.ts` — the suite that can perform the move.
+    `lookup-customer.test.ts` states the counter's half: an outdated index on the household's own
+    slot is answered with that slot's group.
+  - **`registerCustomer`'s allocation makes fixtures counter-intuitive.** A register of `[3, 4, 7, 9]`
+    is RED 3 / BLUE 1, so the recommendation is BLUE and the household lands on **2** — not on the
+    lowest free number, and not on the lowest free *even* number above the taken ones. Assert the
+    allocated number in any test whose expectation depends on it, or the failure reads as a bug in
+    the thing under test.
+  - **Two comments still named `changeGroup`** a story after it was deleted (`change-customer-number.ts`
+    and its test, both about a block not freezing the record). Fixed to `issueCard` and
+    `updateHousehold`. `grep -rn "<deletedName>"` after a deletion story finds the `{@link}`-shaped
+    prose no gate sees — the patterns block says this and it still caught two.
+  - **What US-31.5 inherits:** `CustomerRepository.groupCounts` (callerless, both fakes reject it),
+    the two columns and `@@index([group])`, `NewCustomer.group`, `parseStoredGroup` in
+    `card-repository.ts`, and the three infra assertions that still read the stored words
+    (`Customer_group_idx`, `repository.groupCounts()`, the `groupAtIssue` fixtures).
+  - `docs/architecture/05-building-block-view.md:97` still lists „status and group changes" on
+    `CustomerRepository` and `12-glossary.md` still calls a group „a property of the household,
+    editable". Both are **US-31.9's** by name; left alone deliberately rather than half-corrected.
+---
