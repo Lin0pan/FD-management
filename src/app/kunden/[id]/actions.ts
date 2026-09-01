@@ -34,6 +34,7 @@ import { renewCertificate } from "@/application/customers/renew-certificate";
 import { updateCustomerDetails } from "@/application/customers/update-customer-details";
 import { updateHousehold } from "@/application/customers/update-household";
 import { updateNotes } from "@/application/customers/update-notes";
+import type { IssuedCard } from "@/domain/card/card";
 import { formatCardNumber } from "@/domain/card/cardNumber";
 import type { RegisteredCustomer } from "@/domain/customer/customer";
 import { parseGroup } from "@/domain/customer/group";
@@ -429,7 +430,7 @@ export async function changeCustomerNumberAction(
     return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
   }
 
-  let card;
+  let card: IssuedCard;
   try {
     card = await changeCustomerNumber(customerDeps, {
       customerId: customerId.data,

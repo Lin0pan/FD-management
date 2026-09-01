@@ -92,9 +92,11 @@ export function NumberControl({
   const choice = offered.find((candidate) => candidate.number === chosen) ?? null;
 
   // Free numbers, not choices: the household's own is on the list so the control can open on it, and
-  // it is the one entry that is not free. At zero the count is replaced rather than shown, because
-  // „Noch 0 freie Nummern“ states a shortage without saying what to do about it.
-  const free = offered.length - 1;
+  // it is the one entry that is not free. Counted rather than subtracted, so the figure rests on the
+  // same lookup `choice` does instead of on the list's length being right about what is in it. At
+  // zero the count is replaced rather than shown, because „Noch 0 freie Nummern“ states a shortage
+  // without saying what to do about it.
+  const free = offered.filter((candidate) => candidate.number !== customerNumber).length;
 
   return (
     // Enter in the `<select>` would otherwise submit this form, and the submit it would reach is the
