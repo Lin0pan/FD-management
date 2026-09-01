@@ -437,6 +437,38 @@ export const de = {
       customerNumberUnchanged: (customerNumber: number): string =>
         `Der Haushalt hat bereits die Kundennummer ${customerNumber}. Es wurde nichts geändert; ` +
         `bitte eine andere Nummer wählen.`,
+      /**
+       * The two ways a card write loses a race, and they get two sentences because they are
+       * answered differently — which is the whole reason they are two codes. Both are red in
+       * `notice-tier.ts`: they mean „reload, don't retype“, and neither is fixed by pressing the
+       * button again.
+       *
+       * `cardNumberTaken` is the slot's run read stale (US-25): the number was printed on that slot
+       * already, and a card number is never printed twice. So it names the card, in
+       * {@link customerNumberUnavailable}'s register — the value first, then what to do — and the
+       * answer is to read the slot's run again, i.e. reload.
+       *
+       * It takes the number **already formatted**, because writing `50k3` is `formatCardNumber`'s
+       * and this module has no business owning a second spelling of it; the same reason
+       * {@link reissue.confirm} takes its two numbers as strings.
+       */
+      cardNumberTaken: (cardNumber: string): string =>
+        `Die Kartennummer ${cardNumber} wurde bereits ausgestellt und wird kein zweites Mal ` +
+        `vergeben. Es wurde nichts gespeichert — bitte die Seite neu laden.`,
+      /**
+       * `cardIndexTaken` is the *record's* run read stale: the household was issued another card
+       * while this one was being decided, from a second window. So the answer is to read the
+       * record again, and the sentence points at the household rather than at a number.
+       *
+       * It names **no** card number, and deliberately so. The error carries a `customerId` and an
+       * index — no slot — and the card that took the index may well have been printed under the
+       * number a move is leaving (`PrismaCustomerRepository.changeCustomerNumber`), so composing
+       * one from the slot in hand would quote a card that was never printed. A staff member sent to
+       * look for it would be looking for nothing.
+       */
+      cardIndexTaken:
+        "Für diesen Haushalt wurde inzwischen eine neue Karte ausgestellt — vermutlich in einem " +
+        "zweiten Fenster. Es wurde nichts gespeichert — bitte die Seite neu laden.",
       unknown: "Die Aufnahme konnte nicht gespeichert werden.",
       notFound: "Dieser Kunde wurde nicht gefunden.",
     },

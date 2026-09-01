@@ -12,8 +12,9 @@
  * card view is only readable because each reissue says why it happened.
  *
  * Nothing is decided here. Whether the customer may be issued a card is `reissueCard`'s judgement,
- * and the only refusal it can give this screen is an archived household — which can reach it only via
- * a list rendered before somebody else archived them.
+ * and every refusal it can give this screen is a row that went stale under it — an archived
+ * household, or one of the two lost card races — reaching it only via a list rendered before
+ * somebody else archived them or issued their card.
  */
 
 import { revalidatePath } from "next/cache";
@@ -25,6 +26,7 @@ import { CustomerArchived } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { tierOf } from "../notice-tier";
 import { customerDeps } from "../kunden/deps";
+import { customerErrorMessage } from "../kunden/neu/registration-input";
 import { ISSUED_CARD } from "./issued-card";
 import { type StaleReissueState } from "./reissue-state";
 
@@ -75,7 +77,14 @@ export async function reissueStaleCardAction(
         tier: tierOf(error),
       };
     }
-    return { status: "error", message: de.customers.reissue.errors.unknown, tier: tierOf(error) };
+    // The two lost card races say what happened, in the sentences the registration and the record
+    // read them with — `customerErrorMessage` is where they live, so one race cannot come to be
+    // reported three ways on the three screens that can lose it. The last word stays this screen's.
+    return {
+      status: "error",
+      message: customerErrorMessage(error) ?? de.customers.reissue.errors.unknown,
+      tier: tierOf(error),
+    };
   }
 
   revalidatePath("/karten-neuausstellung");
