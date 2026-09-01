@@ -18,9 +18,12 @@
 import { z } from "zod";
 import type { RegistrationDraft } from "@/application/customers/draft-from-archived";
 import { formatCalendarDay, isBlankDay, parseCalendarDay } from "@/domain/calendarDay";
+import { formatCardNumber } from "@/domain/card/cardNumber";
 import { parseGroup } from "@/domain/customer/group";
 import {
   BirthDateInFuture,
+  CardIndexTaken,
+  CardNumberTaken,
   CertificateValidUntilInPast,
   CustomerNotInHousehold,
   CustomerNumberOutOfRange,
@@ -237,11 +240,12 @@ export function fieldRefusals(
 /**
  * The field a typed domain error names, or `null` where it names none.
  *
- * Four of the errors this layer knows are about one value staff typed, and four are not:
+ * Four of the errors this layer knows are about one value staff typed, and six are not:
  * `EmptyHousehold` and `CustomerNotInHousehold` are statements about the whole table — the second
  * names a person, and the row it wants is the one that is *not* there — `NoFreeCustomerNumber` is
- * about the register, and `BirthDateInFuture` carries only the date — it is raised for the customer's own birthdate and
- * for every household row alike, and nothing on it says which. Naming that one needs the error to
+ * about the register, the two card races are about a run that was read stale rather than about
+ * anything on the form at all, and `BirthDateInFuture` carries only the date — it is raised for the
+ * customer's own birthdate and for every household row alike, and nothing on it says which. Naming that one needs the error to
  * carry its row; until it does, it stays a summary that marks nothing rather than a mark that
  * guesses.
  *
@@ -272,11 +276,11 @@ export function customerErrorField(error: unknown): FieldRefusal | null {
 }
 
 /**
- * The German sentence for a typed domain error about *customer data*, or `null` for anything this
- * layer has no words for.
+ * The German sentence for a typed domain error about a *household* — its data, its slot, or the card
+ * that goes with it — or `null` for anything this layer has no words for.
  *
- * Every error carries the values that made it fail, so the message can name the concrete field or
- * quota without re-deriving anything here.
+ * Every error carries the values that made it fail, so the message can name the concrete field,
+ * quota or card without re-deriving anything here.
  *
  * It stops short of a fallback on purpose. The rules it translates — a blank field, a future
  * birthdate, an empty household, an over-long note — are the same whether they were broken while
@@ -309,6 +313,19 @@ export function customerErrorMessage(error: unknown): string | null {
   // the retry in `registerCustomer`, the tier in `notice-tier.ts` — is the code, not this.
   if (error instanceof CustomerNumberTaken || error instanceof CustomerNumberOutOfRange) {
     return de.customers.errors.customerNumberUnavailable(error.customerNumber);
+  }
+  // The two lost card races, and here they part company where the customer-number pair above did
+  // not: a spent card number is answered by re-reading the *slot's* run, a taken index by
+  // re-reading the *record*. Two moves, so two sentences — one that names the card and one that
+  // cannot. Both stay red; the tier is `notice-tier.ts`'s and is read off the code, never off these
+  // words.
+  if (error instanceof CardNumberTaken) {
+    return de.customers.errors.cardNumberTaken(formatCardNumber(error.customerNumber, error.index));
+  }
+  // Named after `CardNumberTaken` rather than before it because the order is the reader's, not the
+  // program's: the two are distinct classes and neither is a subtype of the other.
+  if (error instanceof CardIndexTaken) {
+    return de.customers.errors.cardIndexTaken;
   }
   return null;
 }

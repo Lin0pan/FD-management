@@ -52,6 +52,10 @@ export interface IssueCardInput {
  * @throws {CardNumberTaken} if the index this issue was about to print was taken on the slot
  *   between the read of its run and the write — the run was read stale and has to be re-read
  *   (US-25).
+ * @throws {CardIndexTaken} if the household was issued a card at that index while this one was
+ *   being decided — the *record's* run read stale rather than the slot's, and re-read from the
+ *   record. Not previously listed here, which read as a promise this function cannot keep: the
+ *   store raises both races and only the screens can tell them apart (`registration-input.ts`).
  */
 export async function issueCard(
   deps: IssueCardDeps,

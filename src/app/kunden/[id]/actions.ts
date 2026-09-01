@@ -203,7 +203,14 @@ export async function reissueCardAction(
         tier: tierOf(error),
       };
     }
-    return { status: "error", message: de.customers.reissue.errors.unknown, tier: tierOf(error) };
+    // A lost card race has words of its own — the shared `customerErrorMessage` holds them, because
+    // the same two races refuse a registration and a move on other screens. Only what is left when
+    // nothing matched is this control's: the card could not be issued.
+    return {
+      status: "error",
+      message: customerErrorMessage(error) ?? de.customers.reissue.errors.unknown,
+      tier: tierOf(error),
+    };
   }
 
   revalidatePath(`/kunden/${customerId.data}`);
