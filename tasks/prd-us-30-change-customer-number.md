@@ -386,12 +386,11 @@ and be told exactly which card I am about to print before anything happens.
 - [ ] Saving is **two steps**, the way a reissue after a loss is: the first button reveals a
       confirmation naming the chosen number and the card number that will be issued on it (from
       `numberChoices`, never worked out in the component), and only the second button writes. It can
-      only be shown once a number has been chosen, and the card in the household's hand becoming
-      invalid is named in it
-- [ ] A hint under the control states the three consequences, none of which is visible on this screen:
-      the old number is free immediately, the card the household carries becomes invalid, and a new
-      card is printed now. Plus „Noch N freie Nummern" in the wording `assignment.freeNumberCount`
-      already uses
+      only be shown once a number has been chosen. It does **not** state that the card in the
+      household's hand becomes invalid — see „What DF cut from the wording" below
+- [ ] „Noch N freie Nummern" under the control, in the wording `assignment.freeNumberCount` already
+      uses. There is **no** hint beside it. One was built, stating the three consequences that are
+      not visible on this screen, and DF had it removed on review — see below
 - [ ] When the household's own number is the **only** choice, the hint says no other number is free.
       The control is **not** disabled — a disabled control tells a staff member nothing about why
 - [ ] `changeCustomerNumberAction` in `src/app/kunden/[id]/actions.ts`: Zod-validate, call exactly one
@@ -405,9 +404,9 @@ and be told exactly which card I am about to print before anything happens.
       provably cannot be saved. Other refusals leave the list alone
 - [ ] German only in `src/i18n/de.ts`, under `customers.record` / a new `customers.numberChange`:
       heading, hint, the no-other-number hint, both button labels, the pending label, the confirmation
-      sentence naming both numbers and the card, the success receipt and one short sentence per
-      refusal (taken, out of range, unchanged, archived). The success receipt is a receipt, not a
-      warning: „Die Kundennummer wurde von 5 auf 23 geändert; die neue Karte 23k6 ist ausgestellt."
+      sentence naming the number and the card it prints, the success receipt and one short sentence
+      per refusal (taken, out of range, unchanged, archived). The success receipt is a receipt, not a
+      warning: „Kundennummer geändert 5 → **23**; neue Karte **23k6** ausgestellt."
 - [ ] `customers.record.detailsHint` loses „Die Kundennummer lässt sich nicht ändern." — the statement
       has stopped being true. It is replaced by nothing there; the new section says where the number
       is changed
@@ -586,6 +585,24 @@ same control, and the same „Noch N freie Nummern" wording underneath.
 **The two-step save is one decision, not two.** The first button is not a save — it reveals what
 saving would do. The accessibility snapshot is what says whether that reads correctly, which is why
 the `playwright-cli` skill drives this screen rather than a screenshot review.
+
+**What DF cut from the wording.** The screen was built to the three bullets above and then shown to
+DF, who found it explained too much. Three things went, and the reason is one reason: **every rule
+these sentences recited is a rule the four people using this already know**, and a sentence that
+recites what the reader knows is a sentence they learn to click past — taking the one figure that
+_is_ new with it. So the hint under the dropdown went entirely; the confirmation lost „Die Karte
+100k2 wird damit ungültig und darf an der Ausgabe nicht mehr angenommen werden" and is now „Neue
+Kundennummer **105**, neue Karte **105k3**."; and the receipt was shortened to „Kundennummer geändert
+100 → **105**; neue Karte **105k3** ausgestellt." The group control's hint was cut the same way in the
+same pass, down to the one thing it says that no other screen does: „Die Karte muss danach unter
+„Karten neu ausstellen" neu ausgestellt werden."
+
+**What is set in bold, and why only that.** The two figures a staff member acts on _off_ the screen:
+the number the household now occupies and the number they are about to write on a physical card. Both
+sentences are read at a counter, in passing, and the bold is what makes them findable without
+reading. The number moved _off_ stays plain — it is read only as the other end of the arrow. This is
+the dictionary's own doing: `Segment` lets an entry say which of its fragments carry weight, so the
+German and its emphasis stay in `de.ts` and no component assembles a sentence.
 
 **Nothing counts, compares or warns.** There is no threshold on how often a household may be moved, no
 sentence that appears at a high number of moves, and nothing that suggests a move. The software

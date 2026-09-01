@@ -640,7 +640,6 @@ function CustomerRecord({
             <NumberControl
               customerId={customer.id}
               customerNumber={customer.customerNumber}
-              cardNumber={cardNumber}
               choices={numberChoices}
             />
           )}

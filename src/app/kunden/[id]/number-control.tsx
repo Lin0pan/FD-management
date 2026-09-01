@@ -42,7 +42,7 @@ import { cn } from "@/lib/utils";
 import { guardEnter } from "../../enter-guard";
 import { changeCustomerNumberAction } from "./actions";
 import { initialNumberChangeState } from "./number-change-state";
-import { Confirmation, Notice } from "../../notice";
+import { Confirmation, Notice, Sentence } from "../../notice";
 import { useNoticeSlot } from "../../notice-board";
 import { selectClass } from "../../select";
 
@@ -51,14 +51,11 @@ const SELECT = selectClass("h-8");
 export function NumberControl({
   customerId,
   customerNumber,
-  cardNumber,
   choices,
 }: {
   customerId: number;
   /** The slot the household holds today — where the dropdown opens, and what a move frees. */
   customerNumber: number;
-  /** The card they are carrying, which any move makes invalid. Off the read model, not counted. */
-  cardNumber: string;
   /**
    * Every slot they may be moved to, ascending, each with the card it would print. The household's
    * own number is always among them, which is what lets the control open on it.
@@ -129,7 +126,6 @@ export function NumberControl({
           ))}
         </select>
       </div>
-      <p className="max-w-prose text-sm text-muted-foreground">{words.hint}</p>
       {/* Never disabled when nothing else is free, and this line is why: a greyed-out dropdown says
           that something cannot be done and never why, and the reason is the only thing worth saying
           here — it names both ways another number becomes available. */}
@@ -157,7 +153,7 @@ export function NumberControl({
           <div className="mt-3 flex flex-col items-start gap-3">
             <Alert>
               <AlertDescription data-testid="number-change-confirm" className="max-w-prose">
-                {words.confirm(choice.number, cardNumber, choice.nextCardNumber)}
+                <Sentence text={words.confirm(choice.number, choice.nextCardNumber)} />
               </AlertDescription>
             </Alert>
             <Button type="submit" disabled={pending} data-testid="number-change-submit">

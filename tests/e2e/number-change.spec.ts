@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { de } from "@/i18n/de";
+import { de, plain } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
@@ -256,13 +256,13 @@ async function pickNumber(page: Page, number: number): Promise<void> {
 }
 
 /** Move the household on the open record to the given number, confirming what it will print first. */
-async function move(page: Page, to: number, currentCard: string, nextCard: string): Promise<void> {
+async function move(page: Page, to: number, nextCard: string): Promise<void> {
   await pickNumber(page, to);
   await page.getByTestId("number-change-open").click();
   // Asserted rather than clicked past: the card number in this sentence is what staff copy onto the
   // physical card, and it is the one number on the screen that no other screen has said yet.
   await expect(page.getByTestId("number-change-confirm")).toHaveText(
-    de.customers.numberChange.confirm(to, currentCard, nextCard),
+    plain(de.customers.numberChange.confirm(to, nextCard)),
   );
 
   await page.getByTestId("number-change-submit").click();
@@ -421,7 +421,7 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
     await page.goto(`/kunden/${moverId}`);
     // Six, because the slot has printed five — and the household is holding their fourth card. The
     // index counts the slot's whole run including households since archived (US-25).
-    await move(page, TARGET, card(START, 4), card(TARGET, 6));
+    await move(page, TARGET, card(TARGET, 6));
 
     // The record above the control re-renders both numbers from the store, which is what says the
     // move and the card were one act rather than two.
@@ -430,7 +430,7 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
     // The receipt names the slot that was freed as well, which is the one fact the revalidated
     // record above it cannot state: the row it was read from now says 225 everywhere.
     await expect(page.getByTestId("number-change-saved")).toHaveText(
-      words.saved(START, TARGET, card(TARGET, 6)),
+      plain(words.saved(START, TARGET, card(TARGET, 6))),
     );
 
     // And the control comes back on the number just saved, with the vacated slot now among the
@@ -537,7 +537,7 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
     await page.goto(`/kunden/${staleId}`);
     // A slot nobody has ever held still does not print `227k1`: the household holds their first
     // card, so the index is the higher of the slot's next and their own next (US-30.3).
-    await move(page, STALE_TARGET, card(STALE, 1), card(STALE_TARGET, 2));
+    await move(page, STALE_TARGET, card(STALE_TARGET, 2));
     await expect(page.getByTestId("card-number")).toHaveText(card(STALE_TARGET, 2));
 
     await page.goto("/karten-neuausstellung");
@@ -578,7 +578,7 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
     await pickNumber(page, RACE);
     await page.getByTestId("number-change-open").click();
     await expect(page.getByTestId("number-change-confirm")).toHaveText(
-      words.confirm(RACE, card(TARGET, 6), card(RACE, 7)),
+      plain(words.confirm(RACE, card(RACE, 7))),
     );
 
     // Somebody else registers a household on it while this screen stands open, in a second tab —

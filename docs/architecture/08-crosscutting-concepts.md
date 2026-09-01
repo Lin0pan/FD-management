@@ -233,6 +233,12 @@ with its reminder-count reset, a reminder entry with the incremented count.
 - `src/i18n/format.ts` holds the date and time formatting: `germanDate` formats in UTC (dates are
   days stored at midnight UTC), `germanTime` in Europe/Berlin (a hand-out is an instant). The split
   mirrors the two calendars above.
+- **Emphasis inside a sentence is the dictionary's, not a component's.** An entry that needs a
+  fragment set in bold returns `Segment[]` (`{ text, strong? }`) instead of a string, and
+  `app/notice.tsx`'s `Sentence` renders it; `plain()` flattens it back for a test. The words, their
+  order and their punctuation therefore stay in one file — a component assembling German from pieces
+  would be the rule above broken in a way no lint rule can see. Used by the two sentences a customer
+  number change produces, and nowhere else.
 
 ## Testing strategy
 
