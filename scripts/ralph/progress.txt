@@ -491,3 +491,72 @@ PRDs — which are **annotated, never rewritten**, per the patterns block above.
     expectations that read as ranges (`numbers(31, 45)`) became parity filters. A test that seeds
     a group by hand is a test that will contradict the rule the moment US-31.5 lands.
 ---
+
+## 2026-09-01 — US-003 (US-31.3): registration allocates inside a group (application)
+
+- `proposeRegistration` reads the register **once** — `takenActiveNumbers()` alone — and derives the
+  pool (`freeNumbers`), both group sizes (`countByGroup`), the recommendation (`suggestGroup`) and
+  the number the form opens on (`inGroup(free, suggested)[0]`) from that one reading. The
+  `groupCounts()` call and the `Promise.all` around it are gone. `suggestedGroup` is `Group | null`,
+  absent exactly when `customerNumber` is.
+- `registerCustomer` allocates the lowest free number **of the recommended group** via a new
+  file-local `allocateInGroup`. The group is decided from the first reading and held in
+  `allocatedGroup` for every retry, so a lost race moves to the next slot of the same parity rather
+  than crossing to the other week. `RegisterCustomerInput.group` is removed; the doc comment carries
+  §9's argument (one field for the pair, so there is nothing to validate).
+- Tests first, in `customers.test.ts`: `puts an allocated household in the recommended group`,
+  `writes no group anywhere`, `retries within the same group after losing a number`,
+  `crosses to the other group only when the one it started in has run out`,
+  `registers the household on the number staff chose`, and for the proposal
+  `recommends the smaller group…`, `recommends the other group when the smaller one is full`,
+  `opens on the lowest free number of the recommended group`,
+  `offers the whole free pool, not only the recommendation's`,
+  `reports a full register as no number and no recommendation`, `reads the register once`.
+- Files: `propose-registration.ts`, `register-customer.ts`, `customers.test.ts`,
+  `kunden/neu/actions.ts`, `warteliste/[entryId]/registrieren/actions.ts`,
+  `kunden/neu/registration-input.ts`, `kunden/neu/registration-form.tsx`,
+  `docs/architecture/06-runtime-view.md` (scenario 2 no longer reads „group counts" from the DB).
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (56 files, 1301 tests, domain
+  and application both 100%) and `npm run build` all pass, plus `npx prettier --check .`.
+
+- **Learnings for future iterations:**
+  - **„The retry stays inside its parity" needs the group hoisted out of the loop, and the loop then
+    needs a way out of a group that emptied.** `allocateInGroup(group, taken, quotaN)` falls back to
+    `lowestFreeNumber` over the whole pool for the two cases that are really one — the group has no
+    number to offer. `group === null` is the full register (`NoFreeCustomerNumber`, unchanged
+    meaning); a *named* group with nothing left is only reachable on a retry, and refusing an
+    applicant there while a slot stands empty is precisely what the waiting list exists to prevent.
+    Both branches are covered by tests, which the 100% gate demands — an unreachable fallback would
+    have failed it.
+  - **A register of `[2, 5, 7]` is the fixture that tells the new rule from the old one**: RED holds
+    two slots and BLUE one, so the recommendation is BLUE and the allocation is **4** while the
+    lowest free number is **1**. Steal 4 and the parities level at two apiece, so a retry that
+    re-decided the group would allocate 1 — which is exactly what the retry test asserts it does
+    not. Any test that wants to prove „by group" needs the recommendation and `free[0]` to disagree,
+    and they agree far more often than you would guess.
+  - **„The smaller group is full" needs households parked ABOVE the quota**, because with an even
+    quota a full BLUE means every even slot is taken, and BLUE is then never strictly smaller. A
+    quota lowered to 4 with the register holding `[2, 4, 11, 13, 15]` is the shape: RED 3, BLUE 2,
+    BLUE full inside the quota. That is a real state (US-14), not a contrived one.
+  - **Two existing tests were asserting the old allocation and had to move**: „moves to the next free
+    number when another registration won the race" became the parity-locked retry, and „re-reads the
+    card run for the slot a lost race moved the registration to" moved its second archived holder
+    from slot 2 to slot 3. When a batch changes an allocation rule, sweep the tests that assert a
+    *number* rather than a property of one.
+  - **`RegisterCustomerInput.group` cannot be removed without touching both registration actions**
+    (`/kunden/neu` and `/warteliste/[entryId]/registrieren`) — an excess property in an object
+    literal is a typecheck error, so the two `group: form.group` lines are this story's work even
+    though the form and the schema are US-31.6's. `registration-input.ts` keeps its `group` schema
+    with a comment naming the story that deletes it; the radios still post a field nobody reads for
+    one iteration.
+  - **A nullable `suggestedGroup` breaks the form in three places** (`GROUP_STYLES[…]`,
+    `de.customers.groups[…]`, `useState`). The stopgap is one `?? "RED"` at the top of
+    `registration-form.tsx` with a comment saying US-31.6 rebuilds the block — it is only ever
+    rendered on a full register, where the alert and the disabled form are the real answer.
+  - **Two e2e specs now assert the old rule and are US-31.8's to fix**: `archive.spec.ts` („the freed
+    number is handed to the next household…", ~line 347) and `reregistration.spec.ts` („their number
+    is handed to somebody else…", ~line 310) both expect `/kunden/neu` to open on the number the
+    archived household gave up. It is now offered in the dropdown but preselected only if it belongs
+    to the recommended group. The claim to keep is „the vacated number is offered again"; the
+    preselection is not that claim.
+---
