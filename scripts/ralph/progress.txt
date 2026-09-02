@@ -938,3 +938,85 @@ PRDs — which are **annotated, never rewritten**, per the patterns block above.
     green twice. The patterns bullet above already predicts roughly this rate, and the tell is the
     error-context snapshot: a browser error page in it means the engine, not the assertion.
 ---
+
+## 2026-09-02 — US-009 (US-31.9): The record says the number decides the group
+
+- **ADR-017 „The customer number decides the group"**, written through the `record-adr` skill's
+  scaffold (`arc42.py new-adr`), accepted in both the file and its chapter 9 row. It states DF's rule
+  as the software's rule, rejects the four alternatives an implementer reaches for — validate the two
+  columns, filter the dropdown, make the mapping configurable, derive the number from the group — and
+  carries the cost the PRD insisted on: **a group can be full while the register is not**, raising the
+  quota by one adds a slot to only one parity, and lowering it can leave the *smaller* group as the
+  full one.
+- **Chapter 9** also gains a row in „Decisions that were reversed" (group membership: a property of
+  the household → the parity of the number), and its intro count went sixteen → seventeen, which
+  broke the 100-column wrap one word later.
+- **Three ADRs amended, none superseded.** ADR-007's exception table loses `Card.groupAtIssue` from
+  its first row and gains „is read as the card's **group**" on the `Card.customerNumber` row — still
+  four exceptions, one of them a column narrower. ADR-008 gains a paragraph: the slot now carries
+  which week it collects in, which makes it *more* of a slot. ADR-016 gains that a card keeping its
+  number now means keeping its week — and a note that its own „beside the group control" no longer
+  names anything. ADR-006's audited-state-change list said „group move" and now says a number change.
+- **Chapters 1, 5, 6, 8 and 12**: chapter 1 gains the derivation as a requirement and drops „or a
+  group move" from what makes a card stale; chapter 5's `CustomerRepository` row loses „group counts"
+  and „group changes" (neither is a port method any more) and `customers/` loses „change group";
+  chapter 6's stale-card paragraph drops the third snapshot column; chapter 8's ER diagram drops both
+  columns and the rules list gains „a household's group is not a column"; chapter 12's **Group**,
+  **Stale card**, **Week colour**, **Customer number** and **Quota** rows all moved.
+- **Root `CLAUDE.md`**: the derive-don't-store bullet gains the group as a derived value, the first
+  exception loses `groupAtIssue` (and the `Card.customerNumber` bullet's „three `AtIssue` fields"
+  became two), and the closing paragraph names the group as the third refusal after the balance. The
+  „Don'ts" audit list said „group move" and now says „number change".
+- **Two PRDs got a banner and no rewrite**: `prd-us-16` §16.4 (what `changeGroup` was for survives as
+  `changeCustomerNumber`) and `prd-us-20` (its own non-goal predicted this batch — „removing the
+  ability to choose a group at intake … is a product change, not a layout one").
+- **The handout** told DF nothing to correct, so it gained one blockquote instead: the even/odd rule,
+  why there is no separate setting for the group, and that one week can be full while the other is
+  not. It is the answer to „why can't I pick 106 for this household", which the screen states only by
+  omitting the number.
+- **Three source comments named something that no longer exists**: `notice-board.tsx`'s observed bug
+  („the „Gespeichert." from a group move"), `noShows.test.ts`'s „after a group change", and
+  `counterVerdict.ts`'s `CounterCustomer.group`, which had no comment saying it is derived.
+  `register-customer.ts`'s `REGISTERED_FIELDS` keeps `"group"` deliberately and now says why.
+- Files: `docs/architecture/adr/017-…` (new), ADRs 006/007/008/016, chapters 01/05/06/08/09/12,
+  `docs/architecture/README.md`, `CLAUDE.md`, `docs/handout/betriebsanleitung.md`,
+  `tasks/prd-us-16-…`, `tasks/prd-us-20-…`, `src/app/notice-board.tsx`,
+  `src/application/customers/register-customer.ts`, `src/domain/distribution/counterVerdict.ts`,
+  `src/domain/distribution/noShows.test.ts`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (56 files, 1309 tests, domain
+  and application both 100%), `npm run build`, `npx prettier --check .` and
+  `arc42.py check` all pass. No UI changed, so no browser check was needed.
+
+- **Learnings for future iterations:**
+  - **The final grep an AC asks for has to be written as three greps, not one**, because the true
+    negatives all look like hits. Sweep separately for (1) the stored columns, (2) the *act* („set the
+    group", „changeGroup", „Gruppe wechseln"), and (3) the *claim* („a property of the household").
+    Then filter the results by hand: a file that says „`groupAtIssue` **stood** here", a test asserting
+    `not.toContain("groupAtIssue")`, and chapter 9's reversal row naming what it reversed **from** are
+    all correct and must survive. Tailwind's `className="group"` is noise in every sweep.
+  - **A phrase inside an accepted ADR can go stale without the decision going stale.** ADR-016 says
+    the move is made „from a section on the customer record beside the group control", and there is no
+    group control. The rule „never rewrite an accepted ADR" is about the *decision*; a dangling
+    reference is corrected in the amendment paragraph, which says the phrase is now empty and what
+    replaced it — the reader arriving from either side can still tell what held when.
+  - **`arc42.py new-adr` dates the file wrong.** It rendered `2026-08-07` (a template default) while
+    the index row it appended carried today's date. Set the `Date:` line by hand and check it against
+    the row, or the log and the file disagree on their first line.
+  - **A count in prose is a three-way check after an ADR lands**: the chapter 9 intro („The seventeen
+    decisions"), ADR-007's „there are exactly four" and root `CLAUDE.md`'s „exactly three exceptions"
+    and „the three `AtIssue` fields". Only one of those four was in this story's stated scope; the
+    other three were found by reading the sentence around the edit.
+  - **Both files carrying the story range were stale again** — `docs/architecture/README.md` and
+    `01-introduction-and-goals.md` still said „US-01 to US-30" although US-31's PRD landed before this
+    batch started. The patterns bullet predicts this; it is worth running `grep -rn "US-01 to US" docs/`
+    in the *documentation* story of every batch rather than the story that adds the PRD.
+  - **A superseded-PRD banner is two paragraphs, not one.** What was superseded, and — the half that
+    is easy to skip — **what survives**. §16.4's audit entry, its immediate effect on today's verdict
+    and its card all survive under another name, and a banner that only says „superseded" would send
+    the next reader looking for requirements that were never dropped.
+  - **The handout's test is different from the screen's.** Root `CLAUDE.md` forbids explaining the
+    screen on the screen, but a handout is where a rule the screen *enforces without stating* belongs:
+    DF see a filtered list of numbers and no explanation of the filter. The blockquote added here says
+    only what the screen cannot — the rule, the absence of a group setting, and that the two halves
+    fill independently.
+---
