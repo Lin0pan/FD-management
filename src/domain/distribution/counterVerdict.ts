@@ -32,6 +32,11 @@ import { startOfUtcDay } from "./weekColour";
 export interface CounterCustomer {
   readonly customerNumber: number;
   readonly status: CustomerStatus;
+  /**
+   * The week this household collects in, which the application derives from the number above with
+   * `groupOf` — even is BLUE, odd is RED (US-31). It is not a stored property and cannot disagree
+   * with the number; it is passed in rather than derived here so the rule stays about the verdict.
+   */
   readonly group: Group;
   /**
    * The reason recorded when the customer was blocked (US-08), or `null` when they are not blocked.

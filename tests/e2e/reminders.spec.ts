@@ -45,7 +45,7 @@ const DAYS = [
 /** The Europe/Berlin day keys of {@link DAYS}, as `berlinDayKey` writes them to the reminder log. */
 const DAY_KEYS = ["2026-01-08", "2026-01-22", "2026-02-05"] as const;
 
-/** The number this spec owns — clear of the counter's 201–206/239, allowance's 211, serve's 221–222. */
+/** The number this spec owns — clear of the counter's 201–207/239, allowance's 211, serve's 213–217. */
 const CUSTOMER_NUMBER = 231;
 
 /** Born well before 13 years ago: a grown-up. Comfortably inside the last 13 years: a child. */
@@ -95,7 +95,6 @@ async function seedHousehold(): Promise<void> {
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "RED",
       status: "ACTIVE",
       reminderCount: 0,
       notes: "",
@@ -125,7 +124,6 @@ async function seedHousehold(): Promise<void> {
             reason: "FIRST_ISSUE",
             grownUpsAtIssue: 1,
             childrenAtIssue: 1,
-            groupAtIssue: "RED",
           },
         ],
       },

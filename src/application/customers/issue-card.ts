@@ -93,9 +93,6 @@ export async function issueCard(
     issuedAt: now,
     reason,
     countsAtIssue,
-    // The group is printed beside them and is snapshotted for the same reason: it tells the
-    // household which week to come in, so moving them between groups makes this card wrong (US-16.4).
-    groupAtIssue: customer.group,
   });
   // The reason *is* the why: it was chosen by a human from a closed set, and a sentence typed beside
   // it would say the same thing less legibly to whoever reads the log months later.

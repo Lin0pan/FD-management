@@ -10,7 +10,7 @@ import {
   type PersonalDetails,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
-import type { Group, GroupCounts } from "@/domain/customer/group";
+import { groupOf, type GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import type {
   DistributionRecord,
@@ -174,7 +174,6 @@ class FakeCustomerRepository implements CustomerRepository {
           issuedAt: new Date(TODAY),
           reason: "FIRST_ISSUE",
           countsAtIssue: { grownUps: 1, children: 1 },
-          groupAtIssue: "RED",
         },
       });
     }
@@ -224,8 +223,8 @@ class FakeCustomerRepository implements CustomerRepository {
   groupCounts(): Promise<GroupCounts> {
     const onRegister = this.holders.filter((customer) => customer.status !== "ARCHIVED");
     return Promise.resolve({
-      red: onRegister.filter((customer) => customer.group === "RED").length,
-      blue: onRegister.filter((customer) => customer.group === "BLUE").length,
+      red: onRegister.filter((customer) => groupOf(customer.customerNumber) === "RED").length,
+      blue: onRegister.filter((customer) => groupOf(customer.customerNumber) === "BLUE").length,
     });
   }
 
@@ -268,11 +267,6 @@ class FakeCustomerRepository implements CustomerRepository {
   updateNotes(id: number, notes: string): Promise<void> {
     this.writes += 1;
     return this.replace(id, (held) => ({ ...held, details: { ...held.details, notes } }));
-  }
-
-  setGroup(id: number, group: Group): Promise<void> {
-    this.writes += 1;
-    return this.replace(id, (held) => ({ ...held, group }));
   }
 
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
@@ -415,11 +409,8 @@ interface HouseholdOptions {
   readonly id: number;
   readonly customerNumber: number;
   readonly status?: CustomerStatus;
-  readonly group?: Group;
   /** The index of the card the household is holding — the top of the run on their own slot. */
   readonly cardIndex?: number;
-  /** Which group the card in their pocket prints; defaults to the one they are in. */
-  readonly groupAtIssue?: Group;
   readonly members?: ReadonlyArray<HouseholdMemberDetails>;
   /** What the card in their pocket printed; defaults to the household as it stands today. */
   readonly countsAtIssue?: { readonly grownUps: number; readonly children: number };
@@ -430,9 +421,7 @@ function household({
   id,
   customerNumber,
   status = "ACTIVE",
-  group = "RED",
   cardIndex = 1,
-  groupAtIssue = group,
   members,
   countsAtIssue,
 }: HouseholdOptions): RegisteredCustomer {
@@ -463,7 +452,6 @@ function household({
   return {
     id,
     customerNumber,
-    group,
     status,
     blockReason: status === "BLOCKED" ? "Hausverbot" : null,
     archiveReason: status === "ARCHIVED" ? "Weggezogen" : null,
@@ -476,7 +464,6 @@ function household({
       issuedAt: new Date("2026-01-15T09:00:00.000Z"),
       reason: "FIRST_ISSUE",
       countsAtIssue: countsAtIssue ?? composition(details.householdMembers, new Date(TODAY)),
-      groupAtIssue,
     },
     registeredOn: new Date("2026-01-15T09:00:00.000Z"),
     previousCustomerId: null,
@@ -543,8 +530,8 @@ describe("changeCustomerNumber", () => {
   });
 
   it("moves a blocked household", async () => {
-    // A block pauses a household at the counter; it does not freeze their record, the same division
-    // `changeGroup` and `issueCard` already make (US-08).
+    // A block pauses a household at the counter; it does not freeze their record, the same
+    // division `issueCard` and `updateHousehold` already make (US-08).
     register(household({ id: 1, customerNumber: 5, cardIndex: 4, status: "BLOCKED" }));
 
     await changeCustomerNumber(deps(), { customerId: 1, customerNumber: 23 });
@@ -637,16 +624,15 @@ describe("changeCustomerNumber", () => {
     expect(formatCardNumber(card.customerNumber, card.index)).toBe("99k5");
   });
 
-  it("prints today's counts and today's group on the new card", async () => {
-    // The card in their pocket printed a child who has since turned 13, and a group they have since
-    // been moved out of. The card the move prints states the household as it is now.
+  it("prints today's counts on the new card, and the week the new slot collects in", async () => {
+    // The card in their pocket printed a child who has since turned 13. The card the move prints
+    // states the household as it is now — and its week follows from the slot it is printed on, so
+    // moving from odd 5 to even 24 makes it BLUE with nothing being set (US-31).
     register(
       household({
         id: 1,
         customerNumber: 5,
         cardIndex: 4,
-        group: "BLUE",
-        groupAtIssue: "RED",
         countsAtIssue: { grownUps: 1, children: 1 },
         members: [
           member({ birthDate: GROWN_UP_BIRTH_DATE }),
@@ -655,10 +641,10 @@ describe("changeCustomerNumber", () => {
       }),
     );
 
-    const card = await changeCustomerNumber(deps(), { customerId: 1, customerNumber: 23 });
+    const card = await changeCustomerNumber(deps(), { customerId: 1, customerNumber: 24 });
 
     expect(card.countsAtIssue).toEqual({ grownUps: 2, children: 0 });
-    expect(card.groupAtIssue).toBe("BLUE");
+    expect(groupOf(card.customerNumber)).toBe("BLUE");
     expect(card.issuedAt).toEqual(new Date(TODAY));
   });
 
@@ -675,9 +661,11 @@ describe("changeCustomerNumber", () => {
     });
   });
 
-  it("writes the two numbers into the audit entry", async () => {
+  it("names only the numbers when the parity did not change", async () => {
     await changeCustomerNumber(deps(), { customerId: 1, customerNumber: 23 });
 
+    // 5 and 23 are both odd, so the household stayed RED. Naming a group that did not move would
+    // be an entry restating what the two numbers already say.
     expect(audit.entries[0]).toEqual({
       what: "customer.numberChanged",
       changedFields: ["customerNumber"],
@@ -686,6 +674,19 @@ describe("changeCustomerNumber", () => {
     });
     // Two entries, because two things happened and each is read on its own.
     expect(audit.entries).toHaveLength(2);
+  });
+
+  it("names both groups in the audit entry when the parity changed", async () => {
+    await changeCustomerNumber(deps(), { customerId: 1, customerNumber: 24 });
+
+    // "The household moved to the other week" is the half of the story the two numbers only imply,
+    // and the entry has to tell its own (ADR-006).
+    expect(audit.entries[0]).toEqual({
+      what: "customer.numberChanged",
+      changedFields: ["customerNumber"],
+      when: new Date(TODAY),
+      why: "customerNumber=5→24; group=RED→BLUE",
+    });
   });
 
   it("writes nothing when the number is refused", async () => {
@@ -806,6 +807,23 @@ describe("the record after a number change", () => {
     // household to take it is printed `5k5`. Re-labelling them under 23 would put `5k1` back into
     // the pool while the piece of card bearing it is still out in the world (US-25).
     expect(view.superseded.map((entry) => entry.number)).toEqual(["5k4", "5k3", "5k2", "5k1"]);
+  });
+
+  it("keeps every superseded card in the group it was printed for", async () => {
+    // Moved to an **even** slot, so the household is BLUE from here on. The four cards left behind
+    // on odd slot 5 stay RED, because 5 is still odd — a card carries the slot it was printed
+    // under, and the slot is the whole of what says its week (US-31).
+    await changeCustomerNumber(moveDeps(), { customerId: 1, customerNumber: 24 });
+
+    const view = await readCard(readCardDeps(), 1);
+
+    expect(view.group).toBe("BLUE");
+    expect(view.superseded.map((entry) => groupOf(entry.card.customerNumber))).toEqual([
+      "RED",
+      "RED",
+      "RED",
+      "RED",
+    ]);
   });
 
   it("the card the household holds is on the number they hold", async () => {

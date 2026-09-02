@@ -4,6 +4,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { inGroup } from "@/domain/customer/group";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
@@ -60,18 +61,26 @@ const TODAY = "2026-01-08T09:00:00.000Z";
 const SATURDAY_OF_THE_SAME_WEEK = "2026-01-10T09:00:00.000Z";
 
 /**
- * The numbers this spec owns: one contiguous band, above every other spec's (the highest is the
- * customer-record spec's 291), so the households below sit next to each other in the walk.
+ * The numbers this spec owns: one contiguous band, above every other spec's that carries an odd
+ * number, so the households below sit next to each other in the walk.
+ *
+ * The **parity is the fixture** (US-31): a walked household is one on an odd number, and the BLUE
+ * household in the middle is BLUE because 314 is even. Nothing here seeds a group, because a group
+ * is not a thing a fixture can choose any more — which is also why `eggs.spec.ts` (332–338) and
+ * `balance.spec.ts` (342–348) hold nothing but even numbers: both sort *before* this file, so an odd
+ * number there would be a RED household above {@link NUMBERS.last} and the end of the group asserted
+ * below would not be an end. `price-cap.spec.ts`'s 321 is odd and higher still, and is no trouble at
+ * all: it sorts after this file, so its household does not exist yet while this one runs.
  */
 const NUMBERS = {
   first: 311,
   /** Blocked: turned away at the counter, but it still holds its slot, so the walk visits it. */
-  blocked: 312,
-  /** Archived: the slot is released, so the walk steps over it. */
-  archived: 313,
-  /** BLUE, between two RED numbers: today is RED, so it is not in the group being walked. */
+  blocked: 313,
+  /** Archived: the slot is released, so the walk steps over it — and it is RED, so that is why. */
+  archived: 315,
+  /** Even, and therefore BLUE, between two RED numbers: today is RED, so it is not walked. */
   otherGroup: 314,
-  last: 315,
+  last: 317,
 } as const;
 
 /** The numbers of this block a walk through RED actually visits, in the order it visits them. */
@@ -98,7 +107,6 @@ function pinToday(): void {
 
 interface Household {
   readonly customerNumber: number;
-  readonly group: "RED" | "BLUE";
   readonly status: "ACTIVE" | "BLOCKED" | "ARCHIVED";
 }
 
@@ -126,7 +134,6 @@ async function seedHousehold(household: Household): Promise<void> {
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: household.group,
       status: household.status,
       // Both columns are non-null exactly when the status calls for them, as the schema documents.
       blockReason: household.status === "BLOCKED" ? "Hausverbot bis auf Weiteres." : null,
@@ -148,7 +155,6 @@ async function seedHousehold(household: Household): Promise<void> {
           reason: "FIRST_ISSUE",
           grownUpsAtIssue: 1,
           childrenAtIssue: 0,
-          groupAtIssue: household.group,
         },
       },
     },
@@ -165,11 +171,17 @@ async function seedHousehold(household: Household): Promise<void> {
  */
 async function walkableRedNumbers(): Promise<ReadonlyArray<number>> {
   const rows = await prisma.customer.findMany({
-    where: { group: "RED", status: { in: ["ACTIVE", "BLOCKED"] } },
+    where: { status: { in: ["ACTIVE", "BLOCKED"] } },
     select: { customerNumber: true },
     orderBy: { customerNumber: "asc" },
   });
-  return rows.map((row) => row.customerNumber);
+  // The group is not a column to filter on: it is the parity of the number (US-31), and SQLite has
+  // no `% 2` in a `WHERE` clause — so the register comes back whole and the walk's own half is
+  // taken from it here, exactly as `readGroupRoster` does it on the other side of the screen.
+  return inGroup(
+    rows.map((row) => row.customerNumber),
+    "RED",
+  );
 }
 
 /**
@@ -223,11 +235,11 @@ test.describe("Gruppe durchgehen", () => {
   test.beforeAll(async () => {
     pinToday();
     for (const household of [
-      { customerNumber: NUMBERS.first, group: "RED", status: "ACTIVE" },
-      { customerNumber: NUMBERS.blocked, group: "RED", status: "BLOCKED" },
-      { customerNumber: NUMBERS.archived, group: "RED", status: "ARCHIVED" },
-      { customerNumber: NUMBERS.otherGroup, group: "BLUE", status: "ACTIVE" },
-      { customerNumber: NUMBERS.last, group: "RED", status: "ACTIVE" },
+      { customerNumber: NUMBERS.first, status: "ACTIVE" },
+      { customerNumber: NUMBERS.blocked, status: "BLOCKED" },
+      { customerNumber: NUMBERS.archived, status: "ARCHIVED" },
+      { customerNumber: NUMBERS.otherGroup, status: "ACTIVE" },
+      { customerNumber: NUMBERS.last, status: "ACTIVE" },
     ] as const satisfies ReadonlyArray<Household>) {
       await seedHousehold(household);
     }
@@ -257,9 +269,9 @@ test.describe("Gruppe durchgehen", () => {
     page,
   }) => {
     // A blocked household is turned away at the counter but still holds its slot, so a staff member
-    // working through the group meets it. The archived one between 312 and 315 has released its
-    // slot, and 314 belongs to BLUE — neither is in the group collecting today, so the walk passes
-    // straight from 312 to 315 in one step.
+    // working through the group meets it. The archived one between 313 and 317 has released its
+    // slot, and 314 is even and therefore BLUE — neither is in the group collecting today, so the
+    // walk passes straight from 313 to 317 in one step.
     await standOn(page, NUMBERS.first);
     await step(page, "walk-next", NUMBERS.blocked);
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.BLOCKED);
@@ -321,8 +333,9 @@ test.describe("Gruppe durchgehen", () => {
 
   test("stays on the week's own group on the Saturday after its distribution", async ({ page }) => {
     // The week is still RED here while the next Ausgabe is the BLUE one of the week after, and the
-    // banner says both. Following the next distribution instead would put 314 — the BLUE household
-    // sitting in the middle of this block — behind Weiter, under a badge naming the week RED.
+    // banner says both. Following the next distribution instead would put 314 — the even, and so
+    // BLUE, household sitting in the middle of this block — behind Weiter, under a badge naming the
+    // week RED.
     // Pinned last in the file, and the pin is dropped in `afterAll` with the rest.
     writeFileSync(NOW_FILE, SATURDAY_OF_THE_SAME_WEEK, "utf8");
 

@@ -28,9 +28,10 @@ import { releaseNumbers } from "./seeding";
  * payment carried to the next hand-out — is `balance.spec.ts`'s (US-29.9).
  *
  * Three households are seeded straight through Prisma: all RED, active, current certificate, one card.
- * They take numbers in the 220s so the registration and card specs, which allocate the *lowest* free
- * number in the shared `data/e2e.db`, keep the low sequence they assert against, and so they stay
- * clear of the counter spec's 201–206/239 and the allowance spec's 211.
+ * They take odd numbers in the 210s so the registration and card specs, which allocate the *lowest*
+ * free number in the shared `data/e2e.db`, keep the low sequence they assert against, and so they
+ * stay clear of the counter spec's 201–207/239, the allowance spec's 211 and the number-change
+ * spec's 221–229.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -54,13 +55,20 @@ const SERVED_AT = germanTime(new Date(TODAY));
 /** The Europe/Berlin calendar day of {@link TODAY}, as `berlinDayKey` writes it to the record. */
 const TODAYS_DAY_KEY = "2026-01-08";
 
-/** The numbers this spec owns. Well clear of the low sequence the other specs consume. */
+/**
+ * The numbers this spec owns. Well clear of the low sequence the other specs consume.
+ *
+ * All three are **odd, and therefore RED** (US-31): a household is in the week its number puts it
+ * in, so „seeded RED" is now „seeded on an odd slot" and there is nothing else to set. They have to
+ * be RED because everything here happens on a RED distribution day — a household of the other week
+ * would be turned away before the Betrag field this spec is about ever rendered.
+ */
 const NUMBERS = {
   /** Served for the amount the field opens on, which is what staff confirm on an ordinary day. */
-  confirmed: 221,
+  confirmed: 213,
   /** Served for a typed-over `0,00` — a hand-out of nothing, and the record that is then removed. */
-  nothing: 222,
-  inView: 223,
+  nothing: 215,
+  inView: 217,
 } as const;
 
 /**
@@ -115,7 +123,6 @@ async function seedHousehold(customerNumber: number): Promise<void> {
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "RED",
       status: "ACTIVE",
       reminderCount: 0,
       notes: "",
@@ -145,7 +152,6 @@ async function seedHousehold(customerNumber: number): Promise<void> {
             reason: "FIRST_ISSUE",
             grownUpsAtIssue: 1,
             childrenAtIssue: 1,
-            groupAtIssue: "RED",
           },
         ],
       },

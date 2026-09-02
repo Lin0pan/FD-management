@@ -79,7 +79,6 @@ async function insertCustomer(customerNumber: number, status = "ACTIVE"): Promis
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "RED",
       status,
       reminderCount: 0,
       notes: "",

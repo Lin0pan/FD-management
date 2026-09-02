@@ -8,7 +8,6 @@ import type {
   PersonalDetails,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
-import type { Group } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import {
   CertificateStillValid,
@@ -132,12 +131,6 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve();
   }
 
-  setGroup(id: number, group: Group): Promise<void> {
-    const index = this.holders.findIndex((customer) => customer.id === id);
-    this.holders[index] = { ...this.holders[index], group };
-    return Promise.resolve();
-  }
-
   /** Only {@link changeCustomerNumber}'s own suite moves a household between slots (US-30). */
   changeCustomerNumber(): Promise<IssuedCard> {
     return Promise.reject(new Error("a reminder never moves a household to another number"));
@@ -250,7 +243,6 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
   return {
     id: 1,
     customerNumber: 50,
-    group: "RED",
     status: "ACTIVE",
     blockReason: null,
     archiveReason: null,
@@ -262,7 +254,6 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
-      groupAtIssue: "RED",
     },
     registeredOn: new Date(TODAY),
     previousCustomerId: null,

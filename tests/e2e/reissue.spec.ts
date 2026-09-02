@@ -28,7 +28,8 @@ import { releaseNumbers } from "./seeding";
  * One household is seeded straight through Prisma: RED, active, current certificate, one card. It
  * takes number 251 so the registration and card specs, which allocate the *lowest* free number in
  * the shared `data/e2e.db`, keep the low sequence they assert against, and so it stays clear of the
- * counter (201–206/239), allowance (211), serve (221–222), reminders (231) and block (241) specs.
+ * counter (201–207/239), allowance (211), serve (213–217), number change (221–229), reminders (231)
+ * and block (241) specs.
  */
 
 // A fixed seed so a failure is reproducible; only the name and address come from Faker. Every date
@@ -120,7 +121,6 @@ async function seedHousehold(): Promise<number> {
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "RED",
       status: "ACTIVE",
       reminderCount: 0,
       notes: "",
@@ -150,7 +150,6 @@ async function seedHousehold(): Promise<number> {
             reason: "FIRST_ISSUE",
             grownUpsAtIssue: 1,
             childrenAtIssue: 1,
-            groupAtIssue: "RED",
           },
         ],
       },
@@ -172,7 +171,7 @@ async function snapshotHousehold(id: number): Promise<string> {
   const [customer, cards, records, auditEntries] = await Promise.all([
     prisma.customer.findUniqueOrThrow({
       where: { id },
-      select: { customerNumber: true, status: true, group: true, reminderCount: true },
+      select: { customerNumber: true, status: true, reminderCount: true },
     }),
     prisma.card.count({ where: { customerId: id } }),
     prisma.distributionRecord.count({ where: { customerId: id } }),

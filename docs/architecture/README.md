@@ -52,7 +52,7 @@ This tree is the **architecture record**. The other documents each keep a distin
 | Document                                                                 | Job                                                                                          |
 | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
 | [`docs/archiv/domain_analysis.md`](../archiv/domain_analysis.md)         | DF's process as it is run today — the source material                                        |
-| [`tasks/`](../../tasks/)                                                 | What the software must do, story by story — one PRD each, US-01 to US-30. The current record |
+| [`tasks/`](../../tasks/)                                                 | What the software must do, story by story — one PRD each, US-01 to US-31. The current record |
 | [`docs/guideline/ui_styling_guide.md`](../guideline/ui_styling_guide.md) | How to build a screen. Still the whole UI standard                                           |
 | [`CLAUDE.md`](../../CLAUDE.md)                                           | The binding engineering standard for anyone, human or agent, writing code here               |
 | [`docs/archiv/user_stories_mvp.md`](../archiv/user_stories_mvp.md)       | **Not current.** An early MVP scope the system has moved past; `tasks/` is the record        |

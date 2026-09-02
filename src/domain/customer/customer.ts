@@ -19,7 +19,6 @@ import {
   MissingRequiredField,
   NotesTooLong,
 } from "../errors";
-import type { Group } from "./group";
 import { composition, type HouseholdMember } from "./householdComposition";
 
 /**
@@ -114,8 +113,14 @@ export interface CustomerDetails extends CustomerDetailsInput {
 /** A customer about to be written: the typed details plus everything registration decided. */
 export interface NewCustomer {
   readonly details: CustomerDetails;
+  /**
+   * The slot the household holds — and with it the week they collect in, because a group follows
+   * from a number: even is BLUE, odd is RED (`groupOf`, US-31). There is deliberately no `group`
+   * beside it. A stored one would be a second answer to a question this already answers, free to
+   * disagree the moment a household is moved to another slot (US-30), and a reader could hold it
+   * while the number moved underneath — which is the fault DF's paper register never had.
+   */
   readonly customerNumber: number;
-  readonly group: Group;
   readonly status: CustomerStatus;
   readonly reminderCount: number;
   /**

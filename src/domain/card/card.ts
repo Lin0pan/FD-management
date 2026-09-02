@@ -9,7 +9,6 @@
  * The module is pure: it says what a card is, not how one is stored or when a new one falls due.
  */
 
-import type { Group } from "../customer/group";
 import type { HouseholdComposition } from "../customer/householdComposition";
 import { InvalidCustomerRecord } from "../errors";
 
@@ -40,7 +39,7 @@ const CARD_ISSUE_REASONS: ReadonlyArray<CardIssueReason> = [
 
 /**
  * Read a stored reason word back as a {@link CardIssueReason}. SQLite has no enum type, so the word
- * is checked rather than trusted — the same treatment `group` and `status` get on the way in.
+ * is checked rather than trusted — the same treatment `status` gets on the way in.
  *
  * @throws {InvalidCustomerRecord} for anything that is not one of the five known words.
  */
@@ -58,16 +57,22 @@ export interface IssuedCard {
    * The customer number this card was **printed under** — the slot the household held when it was
    * handed over.
    *
-   * The fourth snapshot beside the three `AtIssue` fields below, and read under the same rule: a
+   * The third snapshot beside the two `AtIssue` counts below, and read under the same rule: a
    * fact about a physical object, never the household's customer number, which is always
    * `Customer.customerNumber`. The two part company the moment a household is moved to another
    * number (US-30): a card printed as `5k4` goes on saying `5k4` while its household holds 23, and
    * showing it as `23k4` would name a card that either never existed or belongs to somebody else.
    *
+   * It also names the **week the card was printed for**, because a group follows from a number
+   * (`groupOf`, US-31) and this is the card's own. The snapshot that used to exist for that —
+   * `groupAtIssue` — was a second copy of what the slot already said, so the card carrying its slot
+   * is the whole of it: a card printed on 5 says RED for as long as it exists, whatever week its
+   * household collects in today.
+   *
    * Never update it. A card printed under another number is a different card, and issuing one is
    * how the change is recorded — which is why a move issues a card in the same act.
    *
-   * It also does a second job the other three do not: it is the key that
+   * It also does a job the two counts do not: it is the key that
    * `@@unique([customerNumber, index])` rests on, so the run of a **vacated** slot survives the
    * household that left it and no card number is printed twice (US-25). The four cards left behind
    * on slot 5 are exactly what makes slot 5 safe to hand out again — the next household asks the
@@ -81,7 +86,7 @@ export interface IssuedCard {
   /**
    * The household counts as they were **printed on this piece of card** when it was handed over.
    *
-   * This is the one place a count is kept rather than derived, and it is not an exception to
+   * These are the only counts kept rather than derived, and they are not an exception to
    * "derive, don't store" but the reason that rule needs a counterpart: the physical card is a real
    * object out in the world with two numbers written on it, and those numbers stop being true the
    * moment a child turns 13. Nothing reads this to answer *what the household is* — that is always
@@ -92,18 +97,6 @@ export interface IssuedCard {
    * the change is recorded.
    */
   readonly countsAtIssue: HouseholdComposition;
-  /**
-   * The group as it was **printed on this piece of card** when it was handed over.
-   *
-   * The card tells the household which week to come in, so the group is on it in the same sense the
-   * counts are: a fact about a printed object rather than about the household. It is stored for the
-   * same single purpose and read under the same rule — never as the household's group, which is
-   * always `customer.group`, and only to answer what the card in their pocket claims, so a move
-   * between groups can put them on the cards-due list (US-16.4).
-   *
-   * Never update it, for the same reason: a card printed with the other group is a different card.
-   */
-  readonly groupAtIssue: Group;
 }
 
 /**

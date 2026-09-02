@@ -17,7 +17,6 @@ import {
   type PersonalDetails,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
-import { parseGroup, type Group, type GroupCounts } from "@/domain/customer/group";
 import { foldName } from "@/domain/customer/nameSearch";
 import {
   CardIndexTaken,
@@ -148,21 +147,12 @@ export class PrismaCustomerRepository implements CustomerRepository {
     return rows.map((row) => row.customerNumber);
   }
 
-  /** How many customers each balancing group holds. Archived households turn up to nothing. */
-  async groupCounts(): Promise<GroupCounts> {
-    const [red, blue] = await Promise.all([
-      this.prisma.customer.count({ where: { ...ON_REGISTER, group: "RED" } }),
-      this.prisma.customer.count({ where: { ...ON_REGISTER, group: "BLUE" } }),
-    ]);
-    return { red, blue };
-  }
-
   /**
    * The customer behind a surrogate id, with their household, certificate and current card.
    *
    * Archived customers come back like any other — their data stays queryable (US-10, US-11). The
-   * stored `group` and `status` strings re-enter the domain through its own parsers, so a
-   * hand-edited row fails loudly instead of quietly becoming an active RED household.
+   * stored `status` string re-enters the domain through its own parser, so a hand-edited row fails
+   * loudly instead of quietly becoming an active household.
    */
   async findById(id: number): Promise<RegisteredCustomer | null> {
     const row = await this.prisma.customer.findUnique({
@@ -222,10 +212,15 @@ export class PrismaCustomerRepository implements CustomerRepository {
   /**
    * The customers the customer list asked for, lowest customer number first (US-15.2).
    *
-   * Every criterion is a `WHERE` clause. The register is small enough that loading it and filtering
-   * in JavaScript would work, and that is exactly why it is written down here instead: the screen
-   * that replaces a spreadsheet must not *be* one, and the day someone adds a column to it the
-   * filtering should already be where a database can serve it from an index.
+   * Every criterion the query carries is a `WHERE` clause. The register is small enough that
+   * loading it and filtering in JavaScript would work, and that is exactly why it is written down
+   * here instead: the screen that replaces a spreadsheet must not *be* one, and the day someone
+   * adds a column to it the filtering should already be where a database can serve it from an
+   * index.
+   *
+   * The **group** is the one narrowing that is not here, and it is not a column either: it is the
+   * parity of a customer number (`groupOf`, US-31), which SQLite cannot ask for. `listCustomers`
+   * narrows the rows this returns, and `CustomerListQuery` says why.
    *
    * Names are compared folded, by the same `foldName` that wrote the columns, so this search and the
    * archive search (US-11.1) agree letter for letter — one normalisation in the codebase, not two. A
@@ -235,7 +230,6 @@ export class PrismaCustomerRepository implements CustomerRepository {
     const rows = await this.prisma.customer.findMany({
       where: {
         status: { in: [...query.statuses] },
-        ...(query.group === undefined ? {} : { group: query.group }),
         ...searchCondition(query.search),
         ...(query.certificate === undefined
           ? {}
@@ -339,9 +333,10 @@ export class PrismaCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * Map a loaded row into the domain record, validating the stored `group` and `status` strings on
-   * the way back in — a hand-edited row fails loudly rather than quietly becoming an active RED
-   * household.
+   * Map a loaded row into the domain record, validating the stored `status` string on the way back
+   * in — a hand-edited row fails loudly rather than quietly becoming an active household. There is
+   * no group to validate: it is the parity of the customer number (`groupOf`, US-31), so a row
+   * cannot carry one that disagrees with the slot it holds.
    *
    * @throws {InvalidCustomerRecord} if the certificate or the current card is missing. Registration
    *   writes both in the same transaction as the customer, so a row without them can only come from
@@ -363,7 +358,6 @@ export class PrismaCustomerRepository implements CustomerRepository {
     return {
       id: row.id,
       customerNumber: row.customerNumber,
-      group: parseGroup(row.group),
       status: parseCustomerStatus(row.status),
       blockReason: row.blockReason,
       archiveReason: row.archiveReason,
@@ -379,8 +373,6 @@ export class PrismaCustomerRepository implements CustomerRepository {
         // What is printed on the card the household holds, not what their household is today — the
         // two part company on a 13th birthday, which is the whole point of storing it (US-13.3).
         countsAtIssue: { grownUps: card.grownUpsAtIssue, children: card.childrenAtIssue },
-        // Likewise the group: what the card names as their week, not the group they are in today.
-        groupAtIssue: parseGroup(card.groupAtIssue),
       },
       registeredOn: firstCard.issuedAt,
       previousCustomerId: row.previousCustomerId,
@@ -431,7 +423,6 @@ export class PrismaCustomerRepository implements CustomerRepository {
           houseNumber: details.address.houseNumber,
           zip: details.address.zip,
           city: details.address.city,
-          group: customer.group,
           status: customer.status,
           reminderCount: customer.reminderCount,
           notes: details.notes,
@@ -466,7 +457,6 @@ export class PrismaCustomerRepository implements CustomerRepository {
               reason: customer.card.reason,
               grownUpsAtIssue: customer.card.countsAtIssue.grownUps,
               childrenAtIssue: customer.card.countsAtIssue.children,
-              groupAtIssue: customer.card.groupAtIssue,
             },
           },
         },
@@ -593,17 +583,6 @@ export class PrismaCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * Move a customer to the other balancing group — a single column, and nothing beside it (US-16.4).
-   *
-   * The cards the household has been issued are deliberately left alone: each printed the group that
-   * was true when it left the counter, and updating that snapshot is what would hide the fact that
-   * the card in their pocket now names the wrong week.
-   */
-  async setGroup(id: number, group: Group): Promise<void> {
-    await this.prisma.customer.update({ where: { id }, data: { group } });
-  }
-
-  /**
    * Move a customer to another slot and write the card that goes with it — **one `$transaction`**,
    * so the register and the card in the household's pocket can never be left disagreeing (US-30).
    *
@@ -645,7 +624,6 @@ export class PrismaCustomerRepository implements CustomerRepository {
             reason: card.reason,
             grownUpsAtIssue: card.countsAtIssue.grownUps,
             childrenAtIssue: card.countsAtIssue.children,
-            groupAtIssue: card.groupAtIssue,
           },
         });
       });

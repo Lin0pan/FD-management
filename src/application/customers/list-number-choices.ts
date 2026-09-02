@@ -29,6 +29,7 @@
 import { formatCardNumber, nextCardIndexOnMove } from "@/domain/card/cardNumber";
 import type { RegisteredCustomer } from "@/domain/customer/customer";
 import { choosableNumbers } from "@/domain/customer/customerNumber";
+import { groupOf, type Group } from "@/domain/customer/group";
 import type { CardRepository, Clock, CustomerRepository, SettingsRepository } from "../ports";
 import { readCurrentSettings } from "../settings/read-current-settings";
 
@@ -43,6 +44,13 @@ export interface ListNumberChoicesDeps {
 export interface NumberChoice {
   /** The customer number itself — the household's own is always among them. */
   readonly number: number;
+  /**
+   * The week the slot collects in, derived from the number itself (`groupOf`, US-31). It rides on
+   * the choice so the record's control can filter the offer and the confirmation can name the group
+   * without the browser working parity out for itself — a read model carrying the domain's answer,
+   * not a second statement of the rule.
+   */
+  readonly group: Group;
   /**
    * The card number a move onto this slot would print, e.g. `23k6`. It is the *later* of the two
    * runs (`nextCardIndexOnMove`): the slot's history decides it in the ordinary case, and the
@@ -80,6 +88,7 @@ export async function listNumberChoices(
 
   return choosableNumbers(customer.customerNumber, takenNumbers, settings.quotaN).map((number) => ({
     number,
+    group: groupOf(number),
     // A slot missing from the map has never had a card, and `0` is what says so — the same value
     // `highestIndexForNumber` answers with, so a fresh slot needs no case of its own here either.
     nextCardNumber: formatCardNumber(

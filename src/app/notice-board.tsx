@@ -5,9 +5,10 @@
  *
  * The customer record carries eight write controls — five editors, the reissue, the block, the
  * archive — and each holds its own `useActionState`, which keeps its last result until the component
- * unmounts. Nothing ever cleared one. Observed on `/kunden/266`: the „Gespeichert." from a group move
- * was still on screen through a card reissue and a block afterwards, because neither of those had
- * anything to say.
+ * unmounts. Nothing ever cleared one. Observed on `/kunden/266`: the „Gespeichert." from the group
+ * control — a control US-31 has since removed, because a group is the parity of a number — was still
+ * on screen through a card reissue and a block afterwards, because neither of those had anything to
+ * say.
  *
  * That was untidy while most writes said nothing. Now that every write confirms, it is the way a
  * staff member concludes an action succeeded when it never reported: a green banner sitting beside a

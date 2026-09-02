@@ -139,16 +139,27 @@ wissen, dass eine spätere Zahlung eine Berichtigung war.
 ## Kundennummer ändern
 
 Die Kundennummer eines Haushalts liegt nicht mehr für immer fest. Sie können sie beim Kunden im
-Abschnitt **Kundennummer** auf jede freie Nummer umstellen — etwa wenn eine Familie zurückkommt und
-ihre alte Nummer wieder haben möchte, wenn Nummern beieinander liegen sollen oder wenn sich jemand
-schlicht vertippt hat. Einen Grund fragt die Software nicht ab.
+Abschnitt **Gruppe und Kundennummer** auf jede freie Nummer umstellen — etwa wenn eine Familie
+zurückkommt und ihre alte Nummer wieder haben möchte, wenn Nummern beieinander liegen sollen oder
+wenn sich jemand schlicht vertippt hat. Einen Grund fragt die Software nicht ab.
 
-Bevor gespeichert wird, nennt Ihnen die Software beide Zahlen: die neue Kundennummer und die neue
-**Kartennummer**. Beides brauchen Sie:
+Sie wählen dort zuerst die Gruppe und darunter eine Nummer — angeboten werden die freien Nummern
+dieser Gruppe. Ist in einer Gruppe keine Nummer mehr frei, steht das dort und die Gruppe lässt sich
+nicht wählen.
+
+> **Die Nummer bestimmt die Gruppe**, so wie im Papierregister: **gerade Nummern sind BLAU, ungerade
+> ROT.** Deshalb gibt es keine eigene Einstellung für die Gruppe — wer den Haushalt in die andere
+> Woche holen will, gibt ihm eine Nummer der anderen Sorte. Und weil beide Hälften getrennt voll
+> laufen können, kann in einer Woche keine Nummer mehr frei sein, während in der anderen noch
+> welche sind.
+
+Bevor gespeichert wird, nennt Ihnen die Software alle drei Angaben: die neue Kundennummer, die
+**Gruppe** und die neue **Kartennummer**. Alle drei brauchen Sie:
 
 > **Mit dem Speichern wird eine neue Karte ausgestellt.** Schreiben Sie die genannte Kartennummer auf
-> eine Karte und geben Sie sie dem Haushalt mit. Die alte Karte ist ab sofort ungültig und darf an
-> der Ausgabe nicht mehr angenommen werden — bitte nehmen Sie sie wieder an sich.
+> eine Karte der genannten Gruppe und geben Sie sie dem Haushalt mit. Die alte Karte ist ab sofort
+> ungültig und darf an der Ausgabe nicht mehr angenommen werden — bitte nehmen Sie sie wieder an
+> sich.
 
 Zwei Dinge sehen dabei ungewohnt aus und sind trotzdem richtig:
 

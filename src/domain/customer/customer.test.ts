@@ -18,8 +18,10 @@ import {
   replaceHouseholdMember,
   type CustomerDetailsInput,
   type HouseholdMemberDetails,
+  type NewCustomer,
   type PersonalDetails,
 } from "./customer";
+import { groupOf } from "./group";
 
 /**
  * Synthetic data only, per the testing standard — never a real name, address or certificate. The
@@ -469,5 +471,30 @@ describe("parseCustomerStatus", () => {
       expect((error as InvalidCustomerRecord).field).toBe("status");
       expect((error as InvalidCustomerRecord).value).toBe("GESPERRT");
     }
+  });
+});
+
+describe("NewCustomer", () => {
+  it("a household record no longer carries a group", () => {
+    // The week a household collects in follows from the slot they hold, so the record states the
+    // slot and nothing else: 37 is odd, so this household is RED, and moving them to 106 makes
+    // them BLUE without anything being set (US-31). A `group` beside the number would be a second
+    // answer to one question — the value readers could hold while the number moved underneath.
+    const customer: NewCustomer = {
+      details: createCustomerDetails(detailsInput(), TODAY),
+      customerNumber: 37,
+      status: "ACTIVE",
+      reminderCount: 0,
+      card: {
+        index: 1,
+        issuedAt: TODAY,
+        reason: "FIRST_ISSUE",
+        countsAtIssue: { grownUps: 1, children: 0 },
+      },
+      previousCustomerId: null,
+    };
+
+    expect(Object.keys(customer)).not.toContain("group");
+    expect(groupOf(customer.customerNumber)).toBe("RED");
   });
 });

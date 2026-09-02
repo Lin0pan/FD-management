@@ -312,25 +312,32 @@ export const de = {
     },
     assignment: {
       /**
-       * The hint under the number dropdown (US-24): how much of the register is left. Inflected at
-       * one, because „1 freie Nummern“ is the kind of German that makes staff distrust the rest of
-       * the screen.
+       * The hint under the number dropdown on **both** screens that offer one — the intake
+       * (US-31.6) and the record's number control (US-31.7): how many slots each group has left.
        *
-       * It said „die niedrigste ist vorausgewählt“ as well until the field was narrowed to the two
-       * columns a three-digit box asks for, where that ran to three ragged lines. The preselection
-       * is said once, in the page's intro, and the control shows the number it opened on — so what
-       * is left here is the one fact only this line carries: how many are still free.
+       * Two figures rather than one total, because a group can be full while the register is not —
+       * there are only 120 even slots below a quota of 240 — and this line is the only place staff
+       * would find that out before the radio above it turns out to be unselectable. The single
+       * „Noch N freie Nummern“ the record used to state was exactly that missing answer, and it went
+       * with the merge rather than being kept beside its replacement.
+       *
+       * On the record the household's own slot is not counted: they hold it, so it is not free.
        */
-      freeNumberCount: (count: number): string =>
-        count === 1 ? "Noch 1 freie Nummer" : `Noch ${count} freie Nummern`,
+      freeNumbersByGroup: (red: number, blue: number): string =>
+        `Noch frei — Rot: ${red}, Blau: ${blue}`,
       /**
-       * The folded group choice (US-20): what the summary offers, after the badge naming the
-       * proposed group in its own colour — and a colour never travels without the word it names
-       * (US-03.4). It used to be prefixed with „Gruppe:“, which the column's own field label now
-       * says once, above the control rather than inside it.
+       * Why a group cannot be picked (US-31.6). It stands beside the disabled radio and is what it
+       * is described by, so a staff member reading the screen with a screen reader hears the reason
+       * rather than meeting a control that refuses without one.
        */
-      groupChoiceOverride: "andere Gruppe wählen",
+      groupFull: (group: string): string => `In ${group} ist keine Nummer mehr frei.`,
       suggestedGroup: (group: string): string => `Vorschlag: ${group}`,
+      /**
+       * Both group sizes, beside the choice on the two screens that offer it. That is what the
+       * decision is made of: staff pick a week — or move a household to another one — *in order to*
+       * even the register out, and a control that made them fetch the balance from another screen
+       * first would be a control they used blind (FR-4).
+       */
       groupSizes: (red: number, blue: number): string =>
         `Aktuell: Rot ${red}, Blau ${blue} Haushalte`,
     },
@@ -404,17 +411,16 @@ export const de = {
       notesTooLong: (maxLength: number, length: number): string =>
         `Die Notiz ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
         `möglich — bitte kürzen.`,
-      groupUnchanged: (group: string): string =>
-        `Der Haushalt gehört bereits zur Gruppe ${group}. Es wurde nichts geändert.`,
       /**
        * The number a household is moved to is the one they already hold (US-30) — refused rather
        * than accepted, because it would print them a fresh card for a move that never happened.
        *
-       * Written in {@link groupUnchanged}'s register, because it is the same refusal one field
-       * over. The control does not offer the step that produces it — the confirmation appears only
-       * once another number is picked — so this is read when the record was moved in a second tab
-       * while this one stood open, which is why it ends by asking for another number rather than
-       * for the same one again.
+       * It had a twin until US-31, „Der Haushalt gehört bereits zur Gruppe Rot", and the twin is
+       * gone with the act: a week is the number's parity now, so asking for the week a household is
+       * already in *is* asking for the number they already hold. The control does not offer the step
+       * that produces this either — the confirmation appears only once another number is picked — so
+       * it is read when the record was moved in a second tab while this one stood open, which is why
+       * it ends by asking for another number rather than for the same one again.
        */
       customerNumberUnchanged: (customerNumber: number): string =>
         `Der Haushalt hat bereits die Kundennummer ${customerNumber}. Es wurde nichts geändert; ` +
@@ -711,9 +717,9 @@ export const de = {
       detailsHeading: "Person und Anschrift",
       /**
        * It ended with „Die Kundennummer lässt sich nicht ändern.“ until US-30, which is exactly what
-       * the section „Kundennummer“ below now does. Nothing replaced the sentence here: this hint is
-       * about the boxes above it, and a form that says where a *different* form lives is how a
-       * screen ends up cross-referencing itself. The section says it by existing.
+       * the section „Gruppe und Kundennummer“ below now does. Nothing replaced the sentence here:
+       * this hint is about the boxes above it, and a form that says where a *different* form lives
+       * is how a screen ends up cross-referencing itself. The section says it by existing.
        *
        * The same argument later took the second sentence, which said the name also governs this
        * person's row in the household below. That row now carries the corrected name the moment
@@ -727,9 +733,10 @@ export const de = {
        * still names the old counts.
        *
        * It opened by naming all four derived figures and saying they apply immediately — which the
-       * tiles above answer by *being* the figures, and which a save taking effect is anyway. Worded
-       * to match {@link groupHint} word for word: the two forms sit one above the other, they have
-       * the same consequence, and two phrasings of it would read as two different consequences.
+       * tiles above answer by *being* the figures, and which a save taking effect is anyway. It was
+       * worded to match a second hint over the group control, which said the same of a group change;
+       * that control is gone (US-31.7), and this is now the only place on the record where a save
+       * leaves a card to be reissued by hand.
        */
       householdHint:
         "Ändert sich die Zahl der Köpfe, muss die Karte unter „Karten neu ausstellen“ neu " +
@@ -744,21 +751,21 @@ export const de = {
       notesHint: "Die Bemerkung wird an der Ausgabe angezeigt.",
       notesSubmit: "Bemerkung speichern",
       notesEmpty: "Keine Bemerkung hinterlegt.",
-      groupHeading: "Gruppe",
       /**
-       * The one thing a group change does that this screen cannot show: the card in the household's
-       * hand still names the old group. It used to open with „Der Wechsel gilt sofort“ and name the
-       * stale card as a fact; both went, because a save taking effect is what a save is, and the
-       * fact was worth stating only as the thing left to do. Named by the screen that does it, in
-       * the words the hub's own link to it uses ({@link customerList.actions.cardsDue}), so it can
-       * be found — and „von Hand“ went with them, since a sentence telling somebody where to do a
-       * thing has already said that nobody else will.
+       * The number and the week it collects in, on the badge beside the household's name (US-31.7,
+       * R-27). Reading „37“ and knowing „Rot“ without looking anything up is the whole benefit of
+       * DF's rule, so the two are shown as one thing wherever either is shown — the list row puts
+       * them in neighbouring columns, and this is the record's version of the same pairing.
+       *
+       * The tile below still states the number on its own: that is the figure staff copy onto a
+       * card, and it is labelled. This is a heading badge, so it says what the number *is* for.
+       *
+       * Nothing here replaced „Gruppe wechseln“ and the hint that a group change leaves the card
+       * stale. There is no such act any more: the group is moved by moving the household to another
+       * number, which prints the new card in the same breath (US-31).
        */
-      groupHint: "Die Karte muss danach unter „Karten neu ausstellen“ neu ausgestellt werden.",
-      groupSubmit: "Gruppe wechseln",
-      /** Both sizes beside the choice, because a move is decided by comparing them (FR-4). */
-      groupSizes: (red: number, blue: number): string =>
-        `Aktuell: Rot ${red}, Blau ${blue} Haushalte`,
+      numberAndGroup: (customerNumber: number, group: string): string =>
+        `Nr. ${customerNumber} · ${group}`,
       /** The hand-out history (US-16.5) — newest first, each row priced as it was priced then. */
       historyHeading: "Bisherige Ausgaben",
       /**
@@ -852,42 +859,60 @@ export const de = {
       },
     },
     /**
-     * Moving a household to another customer number (US-30) — the section „Kundennummer“ on the
-     * record, directly under „Gruppe“.
+     * Moving a household to another customer number (US-30), and with it to the other week
+     * (US-31.7) — the one section „Gruppe und Kundennummer“ on the record.
+     *
+     * It was two sections until US-31, a group choice above a number choice, as if they were two
+     * settings that happened to sit together. They are two halves of one sentence — *which group,
+     * and which number in it* — because the number is what says which week a household collects.
+     * Choosing a group here is choosing among that group's free numbers; there is nothing else to
+     * save, and nothing left that could disagree.
      *
      * The words carry two things the screen cannot show: that a move prints a card, and *which*
-     * card. The number and the card it prints are both named before anything is written and again
-     * afterwards, for the reason {@link reissue} names the card it prints — the new card number is
-     * what staff copy onto the physical card, and a move cannot be taken back by choosing the old
-     * number again (that would be a second move, printing a third card).
+     * card. The number, the group and the card are all named before anything is written and again
+     * afterwards, for the reason {@link reissue} names the card it prints — the three are what staff
+     * copy onto the physical card, and a move cannot be taken back by choosing the old number again
+     * (that would be a second move, printing a third card).
      *
      * There is no word here for a *reason*. Staff's reasons for wanting a particular number — a
      * returning family, a block of numbers kept together, a number typed in wrongly — are theirs,
      * and the use case asks for none (ADR-016).
      */
     numberChange: {
-      heading: "Kundennummer",
+      heading: "Gruppe und Kundennummer",
       /**
-       * Said instead of „Noch N freie Nummern“ when the household's own number is the only one on
-       * offer. The dropdown is left enabled beside it: a greyed-out control states that something
-       * cannot be done and never why, and the one thing a staff member needs here is the reason.
+       * Said instead of the two per-group figures ({@link customers.assignment.freeNumbersByGroup})
+       * when the household's own number is the only one on offer anywhere — „Noch frei — Rot: 0,
+       * Blau: 0“ would state a shortage twice without saying what it means. The dropdown is left
+       * enabled beside it: a greyed-out control states that something cannot be done and never why,
+       * and the one thing a staff member needs here is the reason.
        */
       noOtherNumber: "Zurzeit ist keine andere Kundennummer frei.",
       /** Reveals the confirmation. Nothing is written by it — {@link submit} is the save. */
       action: "Kundennummer ändern",
       /**
-       * What the confirmation says before anything happens: the number the household will hold and
-       * the card that will be printed. Both come off the read model; neither is worked out in the
-       * browser.
+       * What the confirmation says before anything happens: the number the household will hold, the
+       * week that number collects in, and the card that will be printed. All three come off the read
+       * model; none is worked out in the browser.
+       *
+       * The group is named whether or not the parity changed. It is printed on the physical card, so
+       * it is one of the values being copied out by hand rather than a status line reporting what
+       * the move did — and a sentence that appeared only sometimes would be read as a warning.
        *
        * It named the outgoing card too — „Die Karte 100k2 wird damit ungültig und darf an der
        * Ausgabe nicht mehr angenommen werden“ — and no longer does. That a replaced card is dead is
        * a rule the four people using this know, and a confirmation that recites the rules is one
        * that gets clicked past unread. What is left is the two figures the sentence exists for.
        */
-      confirm: (customerNumber: number, nextCard: string): ReadonlyArray<Segment> => [
+      confirm: (
+        customerNumber: number,
+        group: string,
+        nextCard: string,
+      ): ReadonlyArray<Segment> => [
         { text: "Neue Kundennummer " },
         { text: String(customerNumber), strong: true },
+        { text: ", Gruppe " },
+        { text: group, strong: true },
         { text: ", neue Karte " },
         { text: nextCard, strong: true },
         { text: "." },
@@ -895,7 +920,8 @@ export const de = {
       submit: "Kundennummer jetzt ändern",
       submitting: "Wird geändert …",
       /**
-       * The receipt, naming all three facts the move settled.
+       * The receipt, naming the same three values the confirmation named plus the slot that was
+       * freed.
        *
        * A **receipt, not a warning**: what it reports has happened, and the sentence that warned
        * about it has already been read once, in {@link confirm}. It names the old number as well as
@@ -903,13 +929,21 @@ export const de = {
        * record above now says 23 everywhere, and the number left of the arrow is the only thing
        * still saying which slot was freed.
        *
-       * The two figures that are *acted on* carry the weight: the slot the household now occupies,
-       * and the number to be written on the physical card. The one they moved off is read only as
-       * the other end of the arrow, so it stays plain.
+       * What is *acted on* carries the weight: the slot the household now occupies, the week to
+       * write beside it, and the card number — the three things copied onto the card in the
+       * household's hand. The slot they moved off is read only as the other end of the arrow, so it
+       * stays plain.
        */
-      saved: (from: number, to: number, cardNumber: string): ReadonlyArray<Segment> => [
+      saved: (
+        from: number,
+        to: number,
+        group: string,
+        cardNumber: string,
+      ): ReadonlyArray<Segment> => [
         { text: `Kundennummer geändert ${from} → ` },
         { text: String(to), strong: true },
+        { text: "; Gruppe " },
+        { text: group, strong: true },
         { text: "; neue Karte " },
         { text: cardNumber, strong: true },
         { text: " ausgestellt." },
@@ -1133,20 +1167,25 @@ export const de = {
     listTitle: "Karten",
     /*
      * No „Das hat keine Eile“ above the list any more. It said the screen was in no hurry while
-     * `record.householdHint` and {@link record.groupHint} — the two places a staff member is sent
-     * here from — say the card „muss neu ausgestellt werden“, and of the two the second is right:
-     * a reissue is not due this minute, but it is due. What the sentence was really there to guard
+     * {@link record.householdHint} — the place a staff member is sent here from — says the card
+     * „muss neu ausgestellt werden“, and of the two the hint is right: a reissue is not due this
+     * minute, but it is due. What the sentence was really there to guard
      * is that a stale card turns nobody away, and that is said where it could be got wrong, at the
      * counter ({@link distribution.counter.staleCard} — „Es gelten die heutigen Zahlen“).
      */
     empty: "Zurzeit ist keine Karte neu auszustellen.",
     countsOnCard: "Auf der Karte gedruckt",
     countsToday: "Haushalt heute",
-    /** Why the card and the record differ — the three cases `StaleCardReason` names. */
+    /**
+     * Why the card and the record differ — the two cases `StaleCardReason` names.
+     *
+     * There were three until US-31. „Gruppe gewechselt" is gone because a household's week is now
+     * the parity of its number: the move that changes one prints the card in the same transaction,
+     * so a current card can never name another week and there is nothing for this list to report.
+     */
     reasons: {
       AGE_13: "13. Geburtstag",
       HOUSEHOLD_CHANGE: "Haushalt geändert",
-      GROUP_CHANGE: "Gruppe gewechselt",
     },
     /**
      * The row's action. Only the label is its own: the confirmation, the button and the rejections
@@ -1393,14 +1432,6 @@ export const de = {
        */
       staleCard: (cardNumber: string, onCard: string): string =>
         `Karte ${cardNumber} ist veraltet — gedruckt: ${onCard}. Es gelten die heutigen Zahlen.`,
-      /**
-       * The same note for a card that names the wrong group (US-16.4). Its own sentence rather than
-       * the one above with other words in it: nothing about the household's numbers has changed, and
-       * quoting two identical counts at the counter would read as a mistake.
-       */
-      staleCardGroup: (cardNumber: string, onCard: string): string =>
-        `Karte ${cardNumber} ist veraltet — gedruckt für Gruppe ${onCard}. Es gilt die heutige ` +
-        `Gruppe.`,
       /**
        * The way from the counter to the whole record (US-16.5). Named after what it leads to rather
        * than "Mehr": the counter shows a slice of the record, and the next question — who else lives

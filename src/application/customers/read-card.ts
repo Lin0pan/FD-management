@@ -13,7 +13,7 @@
 import type { IssuedCard } from "@/domain/card/card";
 import { formatCardNumber, nextCardNumber } from "@/domain/card/cardNumber";
 import type { CustomerStatus } from "@/domain/customer/customer";
-import type { Group } from "@/domain/customer/group";
+import { groupOf, type Group } from "@/domain/customer/group";
 import type { HouseholdComposition } from "@/domain/customer/householdComposition";
 import { CustomerNotFound, InvalidCustomerRecord } from "@/domain/errors";
 import { describeAllowance, type Allowance } from "../allowance/describe-allowance";
@@ -132,7 +132,7 @@ export async function readCard(deps: ReadCardDeps, id: number): Promise<CardView
     customerId: customer.id,
     firstName: customer.details.firstName,
     lastName: customer.details.lastName,
-    group: customer.group,
+    group: groupOf(customer.customerNumber),
     status: customer.status,
     cardNumber: numberOf(current),
     nextCardNumber: formatCardNumber(next.customerNumber, next.index),

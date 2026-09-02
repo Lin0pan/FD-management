@@ -27,7 +27,8 @@ import { releaseNumbers } from "./seeding";
  * One household is seeded straight through Prisma: RED, active, current certificate, one card. It
  * takes a number in the 240s so the registration and card specs, which allocate the *lowest* free
  * number in the shared `data/e2e.db`, keep the low sequence they assert against, and so it stays
- * clear of the counter (201–206/239), allowance (211), serve (221–222) and reminders (231) specs.
+ * clear of the counter (201–207/239), allowance (211), serve (213–217), number change (221–229)
+ * and reminders (231) specs.
  */
 
 // A fixed seed so a failure is reproducible; only the name and address come from Faker. Every date
@@ -106,7 +107,6 @@ async function seedHousehold(): Promise<{ id: number; name: string }> {
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "RED",
       status: "ACTIVE",
       reminderCount: 0,
       notes: "",
@@ -138,7 +138,6 @@ async function seedHousehold(): Promise<{ id: number; name: string }> {
             // spec here trips the cards-due-for-reissue list (US-13).
             grownUpsAtIssue: 1,
             childrenAtIssue: 1,
-            groupAtIssue: "RED",
           },
         ],
       },

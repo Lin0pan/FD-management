@@ -20,7 +20,7 @@ import {
   type CertificateState,
 } from "@/domain/customer/certificate";
 import type { CustomerStatus, RegisteredCustomer } from "@/domain/customer/customer";
-import type { Group, GroupCounts } from "@/domain/customer/group";
+import { countByGroup, groupOf, type Group, type GroupCounts } from "@/domain/customer/group";
 import type { Cents } from "@/domain/money";
 import { describeAllowances, type Allowance } from "../allowance/describe-allowance";
 import type { Clock, CustomerListSearch, CustomerRepository, SettingsRepository } from "../ports";
@@ -47,6 +47,13 @@ export interface ListCustomersInput {
   readonly search?: string;
   /** The statuses to show. Absent or empty means "do not filter by status". */
   readonly status?: ReadonlyArray<CustomerStatus>;
+  /**
+   * Show one week's households only. It is the one criterion the **use case** applies rather than
+   * the store: a group is the parity of a customer number (`groupOf`, US-31), SQLite cannot express
+   * `% 2` in a `WHERE` clause, and a stored parity key would be exactly the second recording of one
+   * fact this project refuses. The register is bounded by the quota, so the widest this ever
+   * narrows is `quotaN` rows on a four-user application.
+   */
   readonly group?: Group;
   readonly certificate?: CertificateState;
   /**
@@ -89,7 +96,8 @@ export interface CustomerListRow {
  * `groupCounts` is deliberately **not** a count of the rows above: staff read it while registering
  * somebody (US-01) to decide which group keeps the two weeks even, and a number that moved with the
  * current filter would be a different question wearing the same label. It counts every active
- * household, always (PRD FR-3).
+ * household, always (PRD FR-3) — by the parity of the numbers they hold, which is the whole of what
+ * a group is (US-31).
  */
 export interface CustomerListView {
   readonly rows: ReadonlyArray<CustomerListRow>;
@@ -142,16 +150,24 @@ export async function listCustomers(
   const today = deps.clock.now();
   // One instant for the whole list: the filter, the counts and the certificate labels are all
   // answered as of the same moment, so no two rows can be described on different days.
-  const [found, groupCounts] = await Promise.all([
+  const [matched, takenNumbers] = await Promise.all([
     deps.customers.list({
       statuses: statusesFor(input),
       search: readSearch(input.search),
-      group: input.group,
       certificate:
         input.certificate === undefined ? undefined : validUntilRangeFor(input.certificate, today),
     }),
-    deps.customers.groupCounts(),
+    deps.customers.takenActiveNumbers(),
   ]);
+  // The group is narrowed here and nowhere else, for the reason `ListCustomersInput.group` gives.
+  const found =
+    input.group === undefined
+      ? matched
+      : matched.filter((customer) => groupOf(customer.customerNumber) === input.group);
+  // Both sizes counted off the numbers the register holds, never off `found`: staff read them while
+  // deciding which week keeps the two even, and a figure that moved with the filter would be a
+  // different question wearing the same label (PRD FR-3).
+  const groupCounts = countByGroup(takenNumbers);
 
   // One allowance per household, in the order the households were handed over — so the settings
   // history is read once for the whole screen rather than once per row.
@@ -174,7 +190,7 @@ function toRow(customer: RegisteredCustomer, allowance: Allowance, today: Date):
     customerNumber: customer.customerNumber,
     firstName: customer.details.firstName,
     lastName: customer.details.lastName,
-    group: customer.group,
+    group: groupOf(customer.customerNumber),
     status: customer.status,
     grownUps: allowance.grownUps,
     children: allowance.children,

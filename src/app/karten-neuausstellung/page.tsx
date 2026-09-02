@@ -22,9 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCardNumber, parseCardNumber } from "@/domain/card/cardNumber";
-import type { Group } from "@/domain/customer/group";
 import { de } from "@/i18n/de";
-import { GROUP_STYLES } from "../accents";
 import { ISSUED_CARD } from "./issued-card";
 import { customerDeps } from "../kunden/deps";
 import { Confirmation } from "../notice";
@@ -50,21 +48,17 @@ export const dynamic = "force-dynamic";
  *
  * The label and the value stay inside one `<p>`: split into two stacked nodes they are announced as
  * two unrelated facts, with only the layout joining them. That much is `Stat`'s, shared with the
- * counter and the customer screens; what this screen adds is the width floor, the one-line value and
- * the group hanging off the tile — the three things the comparison needs and a single figure does
- * not.
+ * counter and the customer screens; what this screen adds is the width floor and the one-line value
+ * — the two things the comparison needs and a single figure does not.
  */
 function Counts({
   label,
   counts,
   testId,
-  group,
 }: {
   label: string;
   counts: { grownUps: number; children: number };
   testId: string;
-  /** The group on this side of the comparison, when the group is what changed — otherwise `null`. */
-  group: { value: Group; testId: string } | null;
 }): React.ReactElement {
   return (
     <Stat
@@ -73,31 +67,11 @@ function Counts({
       testId={testId}
       className="min-w-56 gap-0.5"
       valueClassName="text-base whitespace-nowrap"
-    >
-      {group === null ? null : (
-        <span className="mt-1 flex flex-wrap items-center gap-1.5 text-sm">
-          <span className="text-muted-foreground">{de.customers.fields.group}:</span>
-          {/* The one colour on this screen, and the only place it is allowed: RED and BLUE *are*
-              the printed card, which is what this screen is about being wrong. The word is inside
-              the tint and never replaced by it. */}
-          <Badge variant="outline" className={GROUP_STYLES[group.value]}>
-            <span data-testid={group.testId}>{de.customers.groups[group.value]}</span>
-          </Badge>
-        </span>
-      )}
-    </Stat>
+    />
   );
 }
 
 function Row({ due }: { due: CardDueForReissue }): React.ReactElement {
-  /**
-   * On a group move the two count sets agree, so without this the row's most prominent device shows
-   * two identical values and the fact that actually changed — the colour the card was printed —
-   * appears nowhere. It is not shown on the other two reasons: a mark every row wears is texture
-   * rather than emphasis, and the record answers "which group are they in" in one click.
-   */
-  const groupChanged = due.reason === "GROUP_CHANGE";
-
   return (
     <li
       data-testid="cards-due-row"
@@ -134,16 +108,12 @@ function Row({ due }: { due: CardDueForReissue }): React.ReactElement {
           label={de.cardsDue.countsOnCard}
           counts={due.countsOnCard}
           testId="cards-due-counts-on-card"
-          group={
-            groupChanged ? { value: due.groupOnCard, testId: "cards-due-group-on-card" } : null
-          }
         />
         <ArrowRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
         <Counts
           label={de.cardsDue.countsToday}
           counts={due.countsToday}
           testId="cards-due-counts-today"
-          group={groupChanged ? { value: due.groupToday, testId: "cards-due-group-today" } : null}
         />
       </div>
 

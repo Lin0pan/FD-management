@@ -37,7 +37,8 @@ import { releaseNumbers } from "./seeding";
  * step of the rule at all — a household of two would read `0` on both days whatever the rule said.
  *
  * It takes number 271, clear of the low sequence the registration and card specs allocate against
- * and of the counter (201–206/239), allowance (211), serve (221–222), reminders (231), block (241)
+ * and of the counter (201–207/239), allowance (211), serve (213–217), number change (221–229),
+ * reminders (231), block (241)
  * and reissue (251) specs in the shared `data/e2e.db`.
  */
 
@@ -144,7 +145,6 @@ async function seedHousehold(): Promise<number> {
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "RED",
       status: "ACTIVE",
       reminderCount: 0,
       notes: "",
@@ -180,7 +180,6 @@ async function seedHousehold(): Promise<number> {
           // about the cards-due list follows from this pair going out of date on its own.
           grownUpsAtIssue: 1,
           childrenAtIssue: 2,
-          groupAtIssue: "RED",
         },
       },
     },
@@ -203,7 +202,7 @@ async function snapshotHousehold(id: number): Promise<string> {
   const [customer, members, cards, records, auditEntries] = await Promise.all([
     prisma.customer.findUniqueOrThrow({
       where: { id },
-      select: { customerNumber: true, status: true, group: true, reminderCount: true },
+      select: { customerNumber: true, status: true, reminderCount: true },
     }),
     prisma.householdMember.findMany({
       where: { customerId: id },

@@ -323,6 +323,23 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   Hand values back **raw, exactly as typed, never parsed**: the value the domain could not read is
   precisely the one that has to be seen to be fixed.
 
+- **Controlled is not enough for a radio or a checkbox.** React keeps a controlled input's
+  `defaultValue` attribute in step with its value and does **not** do the same for `defaultChecked`,
+  so the reset restores the dot from the attribute the _server_ rendered while the unchanged
+  `checked` prop makes React repaint nothing — the control rewinds and the state it is meant to show
+  does not. Keep the default equal to the state on the input itself, which makes the reset a no-op:
+
+  ```tsx
+  ref={(node) => {
+    if (node !== null) {
+      node.defaultChecked = option === chosen;
+    }
+  }}
+  ```
+
+  Passing `checked` and `defaultChecked` together instead is a React warning, not a fix. No gate sees
+  this one: it is a browser check or nothing.
+
 - Mark a rejected field by the input's **`name`**, carried on the action state — never by
   string-matching the message. Reddened label, `aria-invalid`, `aria-describedby`, and a short
   `text-sm text-destructive` line under the control, alongside the form-level `Notice`. A refusal

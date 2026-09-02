@@ -32,6 +32,7 @@
  * amount that reached the store would have no stored figure to be corrected against (ADR-015).
  */
 
+import { groupOf } from "@/domain/customer/group";
 import { canRecord } from "@/domain/distribution/attendance";
 import { amountToPay, balanceOf } from "@/domain/distribution/balance";
 import { evaluateAtCounter } from "@/domain/distribution/counterVerdict";
@@ -108,7 +109,7 @@ export async function recordAttendance(
     customer: {
       customerNumber: customer.customerNumber,
       status: customer.status,
-      group: customer.group,
+      group: groupOf(customer.customerNumber),
       blockReason: null,
       currentCardIndex: customer.card.index,
       certificateValidUntil: customer.details.certificate.validUntil,

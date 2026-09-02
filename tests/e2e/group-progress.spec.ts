@@ -4,6 +4,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { groupOf } from "@/domain/customer/group";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
@@ -30,10 +31,10 @@ import { releaseNumbers } from "./seeding";
  * the three households whose rows are asserted one by one, and the move: exactly one of them is
  * served, so the delta is this spec's whatever the base is.
  *
- * The numbers sit at 301–303 rather than above `group-walk.spec.ts`'s 311–315. That spec runs
- * *after* this one (the suite is serial in alphabetical file order) and asserts that 315 is the last
- * RED number in the whole register, so a RED household seeded above it here would fail a spec this
- * one is not allowed to touch.
+ * The numbers sit at 301–305 rather than above `group-walk.spec.ts`'s 311–317. That spec runs
+ * *after* this one (the suite is serial in alphabetical file order) and asserts that 317 is the last
+ * RED number in the whole register, so an odd — and therefore RED (US-31) — household seeded above it
+ * here would fail a spec this one is not allowed to touch.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -56,14 +57,20 @@ const TODAY = "2026-01-08T09:00:00.000Z";
 /** The Europe/Berlin calendar day of {@link TODAY}, as `berlinDayKey` writes it to a record. */
 const TODAYS_DAY_KEY = "2026-01-08";
 
-/** The numbers this spec owns — see the note above on why they sit below the walk spec's block. */
+/**
+ * The numbers this spec owns — see the note above on why they sit below the walk spec's block.
+ *
+ * All three are **odd, and therefore RED** (US-31). That is not a decoration on the fixture, it is
+ * the fixture: the tally lists the households collecting today, and today is a RED distribution day,
+ * so „seeded RED" is now „seeded on an odd slot" and there is nothing else to set.
+ */
 const NUMBERS = {
   /** Served through the UI here: the household the tally must move for. */
   served: 301,
   /** Left alone all the way through, so the marks can be shown to mark the exception only. */
-  unserved: 302,
+  unserved: 303,
   /** Blocked: listed, because the counter has to state the block — but never expected to collect. */
-  blocked: 303,
+  blocked: 305,
 } as const;
 
 /** Born well before 13 years ago: a grown-up on any day this spec could run. */
@@ -109,7 +116,6 @@ async function seedHousehold(customerNumber: number, blocked: boolean): Promise<
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "RED",
       status: blocked ? "BLOCKED" : "ACTIVE",
       // Non-null exactly when the status calls for it, as the schema documents.
       blockReason: blocked ? "Hausverbot bis auf Weiteres." : null,
@@ -129,7 +135,6 @@ async function seedHousehold(customerNumber: number, blocked: boolean): Promise<
           reason: "FIRST_ISSUE",
           grownUpsAtIssue: 1,
           childrenAtIssue: 0,
-          groupAtIssue: "RED",
         },
       },
     },
@@ -153,7 +158,7 @@ interface Member {
 async function todaysGroup(): Promise<ReadonlyArray<Member>> {
   const [customers, records] = await Promise.all([
     prisma.customer.findMany({
-      where: { group: "RED", status: { in: ["ACTIVE", "BLOCKED"] } },
+      where: { status: { in: ["ACTIVE", "BLOCKED"] } },
       select: { id: true, customerNumber: true, status: true },
       orderBy: { customerNumber: "asc" },
     }),
@@ -165,11 +170,15 @@ async function todaysGroup(): Promise<ReadonlyArray<Member>> {
     }),
   ]);
   const servedIds = new Set(records.map((record) => record.customerId));
-  return customers.map((customer) => ({
-    customerNumber: customer.customerNumber,
-    blocked: customer.status === "BLOCKED",
-    servedToday: servedIds.has(customer.id),
-  }));
+  // RED is a parity, not a column (US-31): the register comes back whole and the week's own half is
+  // taken from it here, because SQLite has no `% 2` to put in a `WHERE` clause.
+  return customers
+    .filter((customer) => groupOf(customer.customerNumber) === "RED")
+    .map((customer) => ({
+      customerNumber: customer.customerNumber,
+      blocked: customer.status === "BLOCKED",
+      servedToday: servedIds.has(customer.id),
+    }));
 }
 
 /**
@@ -260,7 +269,7 @@ test.describe("Gruppenfortschritt", () => {
     }
 
     // The register's order, read off the page and compared with the database's — the list must not
-    // re-sort, and 301 → 302 → 303 alone would pass on a page that sorted by anything at all.
+    // re-sort, and 301 → 303 → 305 alone would pass on a page that sorted by anything at all.
     const rendered = await page
       .getByTestId(/^group-member-/)
       .evaluateAll((rows) =>
@@ -282,7 +291,7 @@ test.describe("Gruppenfortschritt", () => {
   test("leaves a blocked household out of the households expected to collect", async ({ page }) => {
     const members = await todaysGroup();
     const walkable = members.length;
-    // The households listed but unable to collect (US-08). 303 is one of them, which is what makes
+    // The households listed but unable to collect (US-08). 305 is one of them, which is what makes
     // the subtraction below a statement about *this* spec's household rather than an identity.
     const cannotCollect = members.filter((member) => member.blocked && !member.servedToday);
     expect(cannotCollect.map((member) => member.customerNumber)).toContain(NUMBERS.blocked);

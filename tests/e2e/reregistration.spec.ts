@@ -6,7 +6,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { SHARED } from "./registers";
-import { fillDay, fillSticky, typedDay } from "./day";
+import { fillDay, fillSticky, hydrated, typedDay } from "./day";
 
 /**
  * A household that was archived coming back and being registered again, driven through the built app
@@ -103,8 +103,9 @@ interface Household {
  * sharing one: the household that comes back, and the active household who was given their number
  * in the meantime and must therefore *not* appear in an archive search for that name (FR-6).
  *
- * The group is checked by hand rather than accepted from the balancing suggestion: the hand-out
- * below depends on it, since only a RED household is clear to serve in a RED week.
+ * The week is checked by hand rather than accepted from the recommendation: the hand-out below
+ * depends on it, since only a RED household is clear to serve in a RED week — and since US-31 that
+ * choice *is* the choice of number, because the list beneath the radios is the odd slots.
  *
  * @returns the number the proposal offered — which, on a serial run, is the number the save assigns.
  */
@@ -119,6 +120,11 @@ async function register(page: Page, lastName: string): Promise<Household> {
   };
 
   await page.goto("/kunden/neu");
+  // The week first: it decides the numbers on offer, so a RED household is one registered on an odd
+  // slot and nothing else (US-31). Waited for, because a click before React owns the radio moves the
+  // dot without moving the list beneath it.
+  await hydrated(page.locator("#group-RED"));
+  await page.locator("#group-RED").check();
   const customerNumber = await page.getByTestId("customer-number-select").inputValue();
 
   await fillSticky(page.locator("#firstName"), applicant.firstName);
@@ -130,12 +136,6 @@ async function register(page: Page, lastName: string): Promise<Household> {
   await fillSticky(page.locator("#city"), address.city);
   await fillSticky(page.locator("#certificateType"), "Jobcenter-Bescheid");
   await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
-
-  // Both disclosures on this screen start closed. This one is the group choice (US-20.2): clicked
-  // for real, once per page load, because a radio inside a closed `<details>` has no bounding box —
-  // the same reason `searchArchive` below clicks its own summary rather than setting `open`.
-  await page.getByTestId("group-choice-open").click();
-  await page.locator("#group-RED").check();
 
   // The applicant mirrors into the first household row; only the child is added by hand.
   await page.getByTestId("add-member").click();
@@ -181,7 +181,6 @@ async function belongings(id: number): Promise<string> {
         firstName: true,
         lastName: true,
         status: true,
-        group: true,
         reminderCount: true,
         archiveReason: true,
         archivedAt: true,
@@ -306,7 +305,11 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     // Archiving freed the number, so it is the lowest free one again and the next registration is
     // offered it. That is what makes the re-registration below an honest test: the old number is
     // gone, and a path that tried to restore it would have to collide with an active household.
+    // Read on RED's list, because the pool is offered a week at a time now (US-31) and the number
+    // they gave up is an odd one.
     await page.goto("/kunden/neu");
+    await hydrated(page.locator("#group-RED"));
+    await page.locator("#group-RED").check();
     await expect(page.getByTestId("customer-number-select")).toHaveValue(returning.customerNumber);
 
     successor = await register(page, surname);

@@ -57,7 +57,6 @@ import { customerDeps } from "../deps";
 import { STATUS_CHROME, StateWord } from "../state-word";
 import { formatCalendarDay } from "@/domain/calendarDay";
 import { DetailsEditor } from "./details-editor";
-import { GroupControl } from "./group-control";
 import { NumberControl } from "./number-control";
 import { HouseholdEditor } from "./household-editor";
 import { NotesEditor } from "./notes-editor";
@@ -355,7 +354,7 @@ function CustomerRecord({
   /** Whether the archive control on this record was what brought the page back — same mechanism. */
   justArchived: boolean;
 }): React.ReactElement {
-  const { customer, household, cardNumber, nextCardNumber, groupCounts, numberChoices } = view;
+  const { customer, group, household, cardNumber, nextCardNumber, numberChoices } = view;
   const { details } = customer;
   const archived = customer.status === "ARCHIVED";
   const words = de.customers.record;
@@ -395,13 +394,23 @@ function CustomerRecord({
             <h1 className="text-3xl font-semibold tracking-tight">
               {details.firstName} {details.lastName}
             </h1>
-            {/* `variant="outline"`, as on /kunden and /karten-neuausstellung. Without it the badge
+            {/* The number and the week it collects in, on one badge (US-31.7, R-27). Reading „37“
+              and knowing „Rot“ without looking anything up is the whole point of DF's rule, and the
+              two are read off each other only where they are shown together — which is how the list
+              row already shows them, in neighbouring columns. The tile below still states the number
+              on its own, labelled, because that is the figure staff copy onto a card.
+
+              `variant="outline"`, as on /kunden and /karten-neuausstellung. Without it the badge
               takes the `default` variant — `bg-primary text-primary-foreground` — and
               `GROUP_STYLES` then overrides only the *background*, leaving white text on a 10%
               tint. The colour word is the datum here (guide rule 9), so it has to be legible;
               `outline` sets `text-foreground` and lets the tint be the tint. */}
-            <Badge variant="outline" className={GROUP_STYLES[customer.group]}>
-              {de.customers.groups[customer.group]}
+            <Badge
+              variant="outline"
+              className={GROUP_STYLES[group]}
+              data-testid="record-number-group"
+            >
+              {words.numberAndGroup(customer.customerNumber, de.customers.groups[group])}
             </Badge>
             <StateWord
               word={de.customers.status[customer.status]}
@@ -611,33 +620,36 @@ function CustomerRecord({
           )}
         </Section>
 
-        <Section heading={words.groupHeading}>
-          {archived ? (
-            <Field label={de.customers.fields.group} value={de.customers.groups[customer.group]} />
-          ) : (
-            <GroupControl customerId={customer.id} group={customer.group} counts={groupCounts} />
-          )}
-        </Section>
+        {/* One section where „Gruppe“ and „Kundennummer“ were two, in the position „Gruppe“ held
+          (US-31.7). They are two halves of one sentence — which week, and which number in it —
+          because the number is what says which week a household collects (US-31). Moving a
+          household between the weeks is moving them to a number of the other parity, so there is
+          one act here and one card printed by it.
 
-        {/* Directly under „Gruppe“, and for the same reason it is a section rather than a control in
-          „Aktionen mit Folgen“: both are administrative decisions about the register, taken for DF's
-          sake, and neither takes anything away from the household. What this one borrows from the
-          danger zone is only the confirmation, because it prints a card (US-30.7).
+          A section rather than a control in „Aktionen mit Folgen“: it is an administrative decision
+          about the register, taken for DF's sake, and it takes nothing away from the household. What
+          it borrows from the danger zone is only the confirmation, because it prints a card
+          (US-30.7).
 
           This is the *only* place a number can be changed — the list, the counter and the card view
-          offer nothing — so an archived household reads it as a fact, exactly as they read their
-          group. They hold no slot to move out of, which is also why `numberChoices` is empty for
-          them and there is no control to render. */}
+          offer nothing — so an archived household reads both as facts. They hold no slot to move out
+          of, which is also why `numberChoices` is empty for them and there is no control to render;
+          their group is still the one their old number names, which is what their cards were printed
+          for. */}
         <Section heading={de.customers.numberChange.heading}>
           {archived ? (
-            <Field
-              label={de.customers.fields.customerNumber}
-              value={String(customer.customerNumber)}
-            />
+            <>
+              <Field label={de.customers.fields.group} value={de.customers.groups[group]} />
+              <Field
+                label={de.customers.fields.customerNumber}
+                value={String(customer.customerNumber)}
+              />
+            </>
           ) : (
             <NumberControl
               customerId={customer.id}
               customerNumber={customer.customerNumber}
+              groupCounts={view.groupCounts}
               choices={numberChoices}
             />
           )}

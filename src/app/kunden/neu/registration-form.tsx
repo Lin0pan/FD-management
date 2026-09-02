@@ -8,15 +8,17 @@
  * calls the domain rule (`composition`) against the day the server handed it, so the number on
  * screen is the same number the save will derive. There is no input for them by design.
  *
- * The form holds no other rules. Which number, which group and whether the household holds together
- * are all decided behind `registerCustomer`.
+ * The form holds no other rules. Which number a household gets and whether it holds together are
+ * decided behind `registerCustomer`, and so is the group — it is the number's parity (US-31), which
+ * is why the group radios in `Zuordnung` submit nothing at all: they filter the number list in the
+ * browser, out of the pool the server sent, and the form posts the number alone.
  *
  * It may arrive pre-filled — from an archived record (US-11.4) or from a waiting-list entry
  * (US-12.4). The draft is read once, as the initial value of every field: the screen remounts the
  * form when the selection changes, so there is no second source of truth to keep in step, and every
- * pre-filled field is as editable as one that was typed. Neither draft carries a number or a group,
- * because those are decided afresh; whether it carries a certificate is the one honest difference
- * between them, and `PrefillDraft` says why.
+ * pre-filled field is as editable as one that was typed. Neither draft carries a number, because a
+ * slot is taken afresh and the group comes with it; whether it carries a certificate is the one
+ * honest difference between them, and `PrefillDraft` says why.
  *
  * The action it submits to is a prop for the same reason the parsing is shared: a promotion off the
  * waiting list must register *and* clear the entry, in that order, and that pairing belongs in a use
@@ -27,8 +29,7 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 import type { RegistrationProposal } from "@/application/customers/propose-registration";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -49,9 +50,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { composition } from "@/domain/customer/householdComposition";
-import { GROUPS } from "@/domain/customer/group";
+import { GROUPS, inGroup, type Group } from "@/domain/customer/group";
 import { de } from "@/i18n/de";
-import { cn } from "@/lib/utils";
 import { GROUP_STYLES } from "../../accents";
 import { guardEnter } from "../../enter-guard";
 import { FieldRejection, useFocusFirstRefusal } from "../../field-mark";
@@ -322,20 +322,6 @@ function Section({
 const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
 
 /**
- * A field's two rows — the label and the control — laid on the grid's own tracks, from
- * `einstellungen/settings-form.tsx`.
- *
- * `Zuordnung` is where this form needs it, and for the reason the guide's `/kunden/neu` finding now
- * records: not a label that wraps, but a column that had no label row at all. The group choice
- * carried its name inside its own summary button, so the `Kundennummer` select sat 26px below its
- * neighbour and the two hint lines under them 24px apart. Each column spans two of the parent's rows
- * and inherits them, so both controls land on one baseline whatever the labels do — and it re-solves
- * itself when the grid collapses at `sm`. Each field then has exactly two children; a hint under the
- * control wraps both in one element.
- */
-const FIELD_ROWS = "grid grid-rows-subgrid row-span-2 gap-1.5";
-
-/**
  * A native `<select>` at the height of this form's `Input`s.
  *
  * `/einstellungen` puts every control on `h-9`, this screen leaves `Input` at its `h-8` default, and
@@ -416,10 +402,12 @@ export function RegistrationForm({
   );
 
   const [picked, setPicked] = useState<number | null>(proposal.customerNumber);
-  // Controlled for the reason the number is: `defaultChecked` is undone by React's post-action
-  // `form.reset()`, so an override to the other group was silently rewound to the proposal by the
-  // very refusal the staff member was about to correct.
-  const [chosenGroup, setChosenGroup] = useState(proposal.suggestedGroup);
+  // Controlled, and for a reason of its own beyond the number's: the group is not a field any more
+  // (US-31.6), so this state *is* the choice — nothing about it comes back from the server, and a
+  // staff member who picked BLUE and lost the race for a number has to come back to BLUE's
+  // remaining slots rather than to the proposal's. On a full register the value is never read: both
+  // radios are then disabled and the alert at the top of the form is the answer.
+  const [chosenGroup, setChosenGroup] = useState<Group>(proposal.suggestedGroup ?? "RED");
 
   const counts = derivedCounts(members, proposal.today);
   const full = proposal.customerNumber === null;
@@ -430,11 +418,35 @@ export function RegistrationForm({
   // staff member's obvious next move, picking it again, would fail identically.
   const freeNumbers = state.freeNumbers ?? proposal.freeNumbers;
 
-  // The number the control shows: the staff member's own pick, unless a lost race has just taken it
-  // out of the register — then the lowest that is still free, which is where the dropdown opened in
-  // the first place. Derived rather than stored, so the correction happens in the same render the
-  // fresh pool arrives in and there is no effect that could show a dead number for a frame.
-  const chosen = picked !== null && freeNumbers.includes(picked) ? picked : (freeNumbers[0] ?? "");
+  // What the pool leaves each group — the one derivation the whole assignment block reads from: the
+  // radios take whether a group has anything to offer, the select takes its options, and the hint
+  // beneath takes the two figures. Split here rather than at each of them, so the three cannot
+  // disagree about what „frei" means.
+  const freeInGroup: Record<Group, ReadonlyArray<number>> = {
+    RED: inGroup(freeNumbers, "RED"),
+    BLUE: inGroup(freeNumbers, "BLUE"),
+  };
+  const otherGroup: Group = chosenGroup === "RED" ? "BLUE" : "RED";
+  // The group the controls stand on: the staff member's own choice, unless a lost race has emptied
+  // it since — a group that can no longer be chosen must not stay chosen either, or the select
+  // below would be an empty list under a checked radio. On a full register neither group has
+  // anything, and the choice is left where it was because nothing below it can be used anyway.
+  const group =
+    freeInGroup[chosenGroup].length > 0 || freeInGroup[otherGroup].length === 0
+      ? chosenGroup
+      : otherGroup;
+
+  // The numbers that group offers, filtered in the browser from the pool the server sent: changing
+  // the radio is a decision the screen already holds the answer to, and a round trip to re-ask
+  // would be a round trip to look at a list it has.
+  const offered = freeInGroup[group];
+
+  // The number the control shows: the staff member's own pick, unless the group moved under it or a
+  // lost race has just taken it out of the register — then the lowest this group still has, which
+  // is where the dropdown opened in the first place. Derived rather than stored, so the correction
+  // happens in the same render the fresh pool arrives in and there is no effect that could show a
+  // dead number for a frame.
+  const chosen = picked !== null && offered.includes(picked) ? picked : (offered[0] ?? "");
 
   // One form on this screen, so the whole document is the right place to look for the control the
   // refusal named — see `useFocusFirstRefusal` for the screens where it is not.
@@ -722,155 +734,175 @@ export function RegistrationForm({
           </>
         }
       >
-        <div className={GRID}>
+        {/*
+         * One block for one decision: the group first, the numbers that group offers beneath it,
+         * and what each group has left under that. The group is the meaningful choice and the
+         * number is administrative, so that is the reading order — and the two are the *same*
+         * decision now, because the number is what says which week the household collects (US-31).
+         */}
+        <div className="flex flex-col gap-4">
           {/*
-           * The number, as a control rather than as a figure (US-24).
+           * The group choice, unfolded — the `<details>` US-20 put around it is gone, deliberately.
+           *
+           * It was folded because DF accept the proposal, so two permanently visible radios were a
+           * control for a decision almost nobody makes. That argument does not survive US-31: the
+           * group now *drives the list beneath it*, and a folded control cannot show that BLUE has
+           * nothing left to offer. Re-folding it would hide the one thing on this screen a staff
+           * member cannot work out for themselves.
+           *
+           * The radios carry **no `name`**: a named control is submitted, and this pair is browser
+           * state. The form posts the number alone, which is the whole of US-31 on one screen — a
+           * group that cannot be submitted cannot be submitted disagreeing with the number beside
+           * it. Mutual exclusion is React's, off `checked`.
+           *
+           * Each option wears the colour it names and always carries the word: a colour is a
+           * distinction only some of the staff can make (US-03.4). `#group-RED` is reached by CSS
+           * id in the e2e suite, so the ids are load-bearing too.
+           */}
+          <fieldset className="flex flex-col gap-1.5">
+            <legend className="mb-1.5 text-sm font-medium">{de.customers.fields.group}</legend>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              {GROUPS.map((option) => {
+                // A group with nothing to offer cannot be chosen, and the sentence beside it says
+                // why. Not an empty dropdown and not a refusal at save time: the register can be
+                // half free and this half of it full, and this is where staff meet that.
+                const soldOut = freeInGroup[option].length === 0;
+                return (
+                  <div key={option} className="flex items-center gap-2">
+                    <label
+                      className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${GROUP_STYLES[option]} ${soldOut ? "opacity-60" : ""}`.trimEnd()}
+                    >
+                      <input
+                        type="radio"
+                        id={`group-${option}`}
+                        value={option}
+                        checked={option === group}
+                        // What keeps that `checked` standing through a refusal. React resets the
+                        // form once its action resolves, and a reset restores a radio from its
+                        // `checked` **attribute** — the one the server rendered — while the
+                        // `checked` *prop* has not changed, so React repaints nothing and the dot
+                        // silently rewinds to the proposal under a list that is still filtered by
+                        // the group staff picked. Keeping the default equal to the state makes the
+                        // reset a no-op, which is the whole fix; the text fields get it for free,
+                        // because React syncs `defaultValue` for them and not `defaultChecked`.
+                        ref={(node) => {
+                          if (node !== null) {
+                            node.defaultChecked = option === group;
+                          }
+                        }}
+                        // Disabled on a full register too, where the alert at the top of the form
+                        // and the disabled submit are the message and a per-group reason would be
+                        // three ways of saying the same thing.
+                        disabled={full || soldOut}
+                        aria-describedby={soldOut && !full ? `group-${option}-full` : undefined}
+                        onChange={() => {
+                          setChosenGroup(option);
+                          // Back to the group's own lowest, rather than keeping a number that
+                          // belongs to the group they just left — it is not on the list any more.
+                          setPicked(null);
+                        }}
+                        className="accent-current"
+                      />
+                      <span>{de.customers.groups[option]}</span>
+                    </label>
+                    {soldOut && !full ? (
+                      <p
+                        id={`group-${option}-full`}
+                        className="max-w-prose text-xs text-muted-foreground"
+                      >
+                        {de.customers.assignment.groupFull(de.customers.groups[option])}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+            {/* The recommendation and the two group sizes: what an override is decided from. The
+                sizes stay whatever the register looks like — a staff member must be able to see for
+                themselves that it has drifted — while the proposal is named only where there is
+                one, which is everywhere but a full register (US-31.3). */}
+            <p data-testid="group-proposal" className="max-w-prose text-xs text-muted-foreground">
+              {proposal.suggestedGroup === null
+                ? null
+                : `${de.customers.assignment.suggestedGroup(
+                    de.customers.groups[proposal.suggestedGroup],
+                  )} · `}
+              {de.customers.assignment.groupSizes(
+                proposal.groupCounts.red,
+                proposal.groupCounts.blue,
+              )}
+            </p>
+          </fieldset>
+
+          {/*
+           * The number, as a control rather than as a figure (US-24), and now as the second half of
+           * the choice above: it offers the numbers of the group that is checked, and changing that
+           * radio re-filters it in the browser.
            *
            * It used to be a read-only `Stat` beside a form that could not change it, which made the
            * one decision on this screen the software's rather than the staff member's. The tile is
            * *replaced* rather than joined by a control: two things showing one number is how they
            * start disagreeing.
            *
-           * Native, not `components/ui/select.tsx`, for the reason the group radios below give: the
-           * action reads `customerNumber` out of the `FormData` and a Radix select submits nothing
-           * of its own. A native one is also type-ahead searchable over 240 options — typing `1`
-           * then `5` lands on 15 — with no JavaScript of ours.
+           * Native, not `components/ui/select.tsx`: the action reads `customerNumber` out of the
+           * `FormData` and a Radix select submits nothing of its own. A native one is also
+           * type-ahead searchable over 240 options — typing `1` then `5` lands on 15 — with no
+           * JavaScript of ours.
            *
-           * Controlled, opening on the lowest free slot, so that a refused save leaves the staff
-           * member's own choice standing rather than snapping back to the proposal (#91). It used
-           * to be a `defaultValue` for that, which is precisely what React's post-action
-           * `form.reset()` undoes — see {@link DetailsDraft}. When a lost race removes their number
-           * from the register, {@link chosen} falls back to the lowest that is still free.
+           * Controlled, opening on the lowest free slot of the recommended group, so that a refused
+           * save leaves the staff member's own choice standing rather than snapping back to the
+           * proposal (#91). It used to be a `defaultValue` for that, which is precisely what
+           * React's post-action `form.reset()` undoes — see {@link DetailsDraft}. When a lost race
+           * removes their number from the register, {@link chosen} falls back to the lowest that
+           * is still free in the group they are standing in.
            */}
-          <div className={`${FIELD_ROWS} lg:col-span-2`}>
+          <div className="flex flex-col gap-1.5">
             <label
               htmlFor="customerNumber"
-              className={`self-start text-sm font-medium ${
+              className={`text-sm font-medium ${
                 numberProblem === null ? "" : "text-destructive"
               }`.trimEnd()}
             >
               {de.customers.fields.customerNumber}
             </label>
-            {/* One grid row, two elements, so the subgrid above still sees a single row. Two of
-                twelve is what a box holding at most three digits asks for — the span `PLZ` gets in
-                `Person und Anschrift` — and it is what the hint beneath was shortened to fit. */}
-            <div className="flex flex-col gap-1.5">
-              <select
-                className={SELECT}
-                name="customerNumber"
-                id="customerNumber"
-                data-testid="customer-number-select"
-                value={chosen}
-                onChange={(event) => setPicked(Number(event.target.value))}
-                disabled={full}
-                {...marking("customerNumber", "customerNumber", numberProblem)}
+            {/* A box holding at most three digits, at the width the record's control has for the
+                same list (`kunden/[id]/number-control.tsx`) — the two are one decision made in two
+                places, and R-11 asks them to look it. */}
+            <select
+              className={`${SELECT} sm:w-32`}
+              name="customerNumber"
+              id="customerNumber"
+              data-testid="customer-number-select"
+              value={chosen}
+              onChange={(event) => setPicked(Number(event.target.value))}
+              disabled={full}
+              {...marking("customerNumber", "customerNumber", numberProblem)}
+            >
+              {offered.map((number) => (
+                <option key={number} value={number}>
+                  {number}
+                </option>
+              ))}
+            </select>
+            {numberProblem === null ? null : (
+              <Rejection id="customerNumber" problem={numberProblem} />
+            )}
+            {/* Two figures rather than one total, because a group can be full while the register is
+                not — this is the only place on the screen that fact is a number. No hint at all on
+                a full register: „Noch frei — Rot: 0, Blau: 0“ would be a shortage stated twice, and
+                the `Alert` at the top of the form is the message there, offering the waiting list
+                with it. */}
+            {full ? null : (
+              <p
+                data-testid="free-numbers-by-group"
+                className="max-w-prose text-xs text-muted-foreground"
               >
-                {freeNumbers.map((number) => (
-                  <option key={number} value={number}>
-                    {number}
-                  </option>
-                ))}
-              </select>
-              {numberProblem === null ? null : (
-                <Rejection id="customerNumber" problem={numberProblem} />
-              )}
-              {/* No hint on a full register: „0 freie Nummern — die niedrigste ist vorausgewählt“
-                  would be a sentence about a preselection that does not exist. The `Alert` at the
-                  top of the form is the message there, and it offers the waiting list with it. */}
-              {full ? null : (
-                <p data-testid="free-number-count" className="text-xs text-muted-foreground">
-                  {de.customers.assignment.freeNumberCount(freeNumbers.length)}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/*
-           * The group choice, behind a disclosure (US-20). DF accept the proposal, so two
-           * permanently visible radios were a control for a decision almost nobody makes, and they
-           * made a card that can be two lines into five.
-           *
-           * What is *not* folded is the proposal and the two group sizes below: the sizes are what
-           * an override is decided from, and a staff member must not have to open a control to see
-           * that the register is lopsided. The summary names the proposed group in the group's own
-           * colour and always with the word — a colour is a distinction only some of the staff can
-           * make (US-03.4), and it is the word the specs assert.
-           *
-           * The `<details>` sits inside the `<form>` on purpose: a `<details>` is not a form
-           * boundary, so the radios are submitted with everything else and a registration that
-           * never opened it saves the `defaultChecked` proposal.
-           *
-           * It renders closed on every load and the state is not persisted anywhere: which group
-           * the last registration chose says nothing about this one, and a control that remembers
-           * being open would put the decision back on screen for the staff who never make it.
-           */}
-          <div className={`${FIELD_ROWS} lg:col-span-6`}>
-            {/* A `<span>`, not a `<label>`: `<summary>` is not a labelable element, and this names a
-                set of radios rather than one control. It is the field label the column was missing —
-                the summary used to carry „Gruppe:“ itself, which read as a label but sat in the
-                control's own row and left this one empty. */}
-            <span id="groupChoice-label" className="self-start text-sm font-medium">
-              {de.customers.fields.group}
-            </span>
-            <div className="flex flex-col gap-1.5">
-              <details>
-                {/* `w-fit` is right here, unlike the archive search's summary: this one is a control,
-                    not a card header (`docs/guideline/ui_styling_guide.md` §6). */}
-                <summary
-                  data-testid="group-choice-open"
-                  className={cn(
-                    buttonVariants({ variant: "outline" }),
-                    "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden",
-                  )}
-                >
-                  <Badge variant="outline" className={GROUP_STYLES[proposal.suggestedGroup]}>
-                    {de.customers.groups[proposal.suggestedGroup]}
-                  </Badge>
-                  <span className="font-normal text-muted-foreground">
-                    {de.customers.assignment.groupChoiceOverride}
-                  </span>
-                </summary>
-
-                {/* Native radios, not Radix: the action reads `group` out of the `FormData` and a
-                    `RadioGroup` submits nothing of its own. `#group-RED` is reached by CSS id in
-                    three specs, so the ids are load-bearing too. Each option wears the colour it
-                    names — this is the one screen where the group is actually *chosen*, and it was
-                    the one screen showing RED and BLUE in black and white.
-
-                    Named by the label above rather than by a `<legend>` of its own, which would put
-                    „Gruppe“ on screen twice in one column. */}
-                <fieldset className="mt-3 flex flex-wrap gap-2" aria-labelledby="groupChoice-label">
-                  {GROUPS.map((group) => (
-                    <label
-                      key={group}
-                      className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${GROUP_STYLES[group]}`}
-                    >
-                      <input
-                        type="radio"
-                        name="group"
-                        id={`group-${group}`}
-                        value={group}
-                        checked={group === chosenGroup}
-                        onChange={() => setChosenGroup(group)}
-                        className="accent-current"
-                      />
-                      <span>{de.customers.groups[group]}</span>
-                    </label>
-                  ))}
-                </fieldset>
-              </details>
-
-              <p className="text-xs text-muted-foreground">
-                {de.customers.assignment.suggestedGroup(
-                  de.customers.groups[proposal.suggestedGroup],
-                )}{" "}
-                ·{" "}
-                {de.customers.assignment.groupSizes(
-                  proposal.groupCounts.red,
-                  proposal.groupCounts.blue,
+                {de.customers.assignment.freeNumbersByGroup(
+                  freeInGroup.RED.length,
+                  freeInGroup.BLUE.length,
                 )}
               </p>
-            </div>
+            )}
           </div>
         </div>
       </Section>

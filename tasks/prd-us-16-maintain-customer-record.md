@@ -3,6 +3,21 @@
 > Source story: `docs/archiv/user_stories_mvp.md` §US-16 (Tier 3). Depends on **US-06** (certificate renewal),
 > **US-13** (cards due for reissue) and **US-15** (list as entry point).
 
+> **Note (2026-09-02).** **§US-16.4 — the `changeGroup` use case — was superseded by US-31**, and this
+> PRD is left as it was written: it is the record of what was asked for at the time. A group is no
+> longer a property of a household that can be set at all. It is the parity of the customer number —
+> even is BLUE, odd is RED — derived at every read
+> ([ADR-017](../docs/architecture/adr/017-the-customer-number-decides-the-group.md)), so
+> `Customer.group` and the use case that wrote it are gone, and with them the `GROUP_CHANGE` stale
+> reason and the `GroupUnchanged` no-op refusal §16.4 asked for.
+>
+> **What survives** is everything §16.4 was actually for. Moving a household between weeks is still
+> one act on the record, it still takes effect immediately including for today's counter verdict, it
+> still writes an audit entry, and it still prints a new card — only now it is `changeCustomerNumber`
+> ([US-30](prd-us-30-change-customer-number.md), ADR-016) doing all four, because choosing the week
+> _is_ choosing a number. The two group sizes §16.5 puts on the screen survive too; they are derived
+> from the numbers on the register rather than counted from a column.
+
 ## 1. Introduction
 
 Households change: a baby is born, someone moves out, a family moves house, a certificate is renewed,

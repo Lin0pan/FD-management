@@ -25,21 +25,24 @@ import { releaseNumbers } from "./seeding";
  * - a child is added, and the counts and the price move **before the save** (FR-1),
  *   then the cards-due list says the card in the customer's hand is behind (FR-3);
  * - a renewed certificate is recorded, and the reminder count is back to 0 (FR-6);
- * - the household moves group, both sizes move with it, and the counter's verdict for *today* flips
- *   from "wrong group" to "clear to serve" — one write, no waiting for next week (FR-4);
  * - a note is written, and it is read out at the counter (FR-5).
  *
  * The order is not arbitrary. The certificate is seeded expired, because that is what a reminder
  * count of 2 means, and the renewal has to come before the counter tests or their verdict would be
- * the certificate's rather than the group's. The card is reissued in the middle for the same reason
- * the group test needs it: with the printed counts already out of date, `HOUSEHOLD_CHANGE` would
- * answer the cards-due list first and the group's own reason would never be visible.
+ * the certificate's rather than the note's. The card is reissued in the middle so that the
+ * cards-due list is empty again by the time the note is written and read back.
  *
- * One household is seeded straight through Prisma: BLUE, active, expired certificate, two reminders
- * sent, one card printed with the counts and the group it really had. It takes number 291, clear of
+ * **The week is not among the edits any more.** It was, until US-31 made a household's week the
+ * parity of its number: moving between weeks is moving between slots, so it belongs to the number
+ * control and is proved in `number-group.spec.ts`.
+ *
+ * One household is seeded straight through Prisma: active, expired certificate, two reminders sent,
+ * one card printed with the counts it really had. It takes number 291 — odd, and therefore RED,
+ * which is what lets it be looked up and served on the RED distribution day pinned below — clear of
  * the low sequence the registration, card, archive and re-registration specs allocate against, and
- * of the counter (201–206/239), allowance (211), serve (221–222), reminders (231), block (241),
- * reissue (251), age-13 (271) and customer-list (281–285) specs in the shared `data/e2e.db`.
+ * of the counter (201–207/239), allowance (211), serve (213–217), number change (221–229),
+ * reminders (231), registration (232–236), card numbers (237), block (241), reissue (251), age-13
+ * (271) and customer-list (281–285) specs in the shared `data/e2e.db`.
  *
  * The hand-out history at the foot of the record is a second subject with a second pair of
  * households behind it — 292 with a long history, 293 with none — so this spec owns **291–293**.
@@ -58,9 +61,9 @@ const NOW_FILE = SHARED.now;
  * The day this spec is judged on: Thursday 08.01.2026, 09:00 UTC.
  *
  * It follows from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor `2026-W02`
- * = RED, distributions on ISO weekday 4. So it is a **RED** distribution day — which is the whole
- * point for a household seeded BLUE: they are turned away at the counter this morning, and the same
- * counter serves them once the group is corrected, with nothing but the edit in between.
+ * = RED, distributions on ISO weekday 4. So it is a **RED** distribution day, and the household this
+ * spec follows holds an odd number — which is the whole of what puts them in that week (US-31), and
+ * therefore what lets the counter answer for them at all.
  */
 const TODAY = "2026-01-08T09:00:00.000Z";
 
@@ -139,8 +142,8 @@ function utcMidnight(date: string): Date {
 }
 
 /**
- * Insert one BLUE, active household: a grown-up, a child, a lapsed certificate with two reminders
- * behind it, and a card printed with the counts and the group the household really had.
+ * Insert one active household: a grown-up, a child, a lapsed certificate with two reminders behind
+ * it, and a card printed with the counts the household really had.
  *
  * @returns the surrogate id the record page is addressed by (the URL takes the id, not the number).
  */
@@ -166,7 +169,6 @@ async function seedHousehold(): Promise<number> {
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "BLUE",
       status: "ACTIVE",
       reminderCount: REMINDERS_SENT,
       notes: "",
@@ -194,10 +196,9 @@ async function seedHousehold(): Promise<number> {
           issuedAt: utcMidnight("2026-01-02"),
           reason: "FIRST_ISSUE",
           // True when it was printed, and the reference every assertion about the cards-due list is
-          // made against: the counts go out of date on the household edit, the group on the move.
+          // made against: the counts go out of date on the household edit below.
           grownUpsAtIssue: 1,
           childrenAtIssue: 1,
-          groupAtIssue: "BLUE",
         },
       },
     },
@@ -239,7 +240,6 @@ async function seedHouseholdWithHistory(customerNumber: number, handOuts: number
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "BLUE",
       status: "ACTIVE",
       reminderCount: 0,
       notes: "",
@@ -261,7 +261,6 @@ async function seedHouseholdWithHistory(customerNumber: number, handOuts: number
           reason: "FIRST_ISSUE",
           grownUpsAtIssue: 1,
           childrenAtIssue: 0,
-          groupAtIssue: "BLUE",
         },
       },
     },
@@ -303,24 +302,6 @@ function dueRow(page: Page): Locator {
   return page.locator(`[data-testid="cards-due-row"][data-customer-number="${CUSTOMER_NUMBER}"]`);
 }
 
-/**
- * The two group sizes as the record states them.
- *
- * Read rather than asserted outright: they count the whole register, and the other specs sharing
- * `data/e2e.db` register households of their own. What this spec can claim is that a move takes one
- * from one side and adds it to the other, so the figures are only ever compared with themselves.
- */
-async function groupSizes(page: Page): Promise<{ red: number; blue: number }> {
-  const text = await page.getByTestId("group-sizes").innerText();
-  const match = /Rot (\d+), Blau (\d+)/.exec(text);
-  expect(match).not.toBeNull();
-  // Narrowed for the compiler, and a failure here is the same failure as the expectation above.
-  if (match === null) {
-    throw new Error(`unreadable group sizes: ${text}`);
-  }
-  return { red: Number(match[1]), blue: Number(match[2]) };
-}
-
 /** Type a number at the counter and press Enter, exactly as staff do it. */
 async function lookUp(page: Page, query: string): Promise<void> {
   await page.goto("/ausgabe");
@@ -354,8 +335,8 @@ test.describe("Kundenakte pflegen", () => {
     await expect(page.getByTestId("card-number")).toHaveText(card(1));
     await expect(page.getByTestId("reminder-count")).toHaveText(String(REMINDERS_SENT));
 
-    // The card prints what the household is and which group they are in, so there is nothing yet to
-    // reissue — every row this spec later finds on that list was put there by an edit.
+    // The card prints what the household is, so there is nothing yet to reissue — every row this
+    // spec later finds on that list was put there by an edit.
     await page.goto("/karten-neuausstellung");
     await expect(dueRow(page)).toHaveCount(0);
   });
@@ -619,8 +600,8 @@ test.describe("Kundenakte pflegen", () => {
   });
 
   test("the reissued card catches up with the household", async ({ page }) => {
-    // Before the group can be judged on its own, the printed counts have to agree with the record:
-    // they answer the cards-due list first, and the group's reason would never be reached.
+    // The card catches up with the household the baby joined, which is what takes the row this
+    // spec put on „Karten neu ausstellen" off it again.
     await page.goto(`/kunden/${id}`);
     await page.getByTestId("reissue-open").click();
     await expect(page.getByTestId("reissue-confirm")).toHaveText(
@@ -636,66 +617,15 @@ test.describe("Kundenakte pflegen", () => {
     await expect(dueRow(page)).toHaveCount(0);
   });
 
-  test("the group move is in force at the counter the same morning", async ({ page }) => {
-    // A BLUE household on a RED distribution day: turned away, and nothing on the screen offers to
-    // hand anything out.
-    await lookUp(page, card(2));
-    await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
-      "data-verdict",
-      "WRONG_GROUP",
-    );
-    await expect(page.getByTestId("serve-button")).toHaveCount(0);
-
-    await page.goto(`/kunden/${id}`);
-    const before = await groupSizes(page);
-
-    await page.getByTestId("group-RED").check();
-    await page.getByTestId("group-submit").click();
-    await expect(page.getByTestId("group-saved")).toBeVisible();
-
-    // Both sizes move, because a move is a transfer: the decision this control exists to inform is
-    // made by comparing them, so the screen has to be right about both at once (FR-4).
-    await expect(page.getByTestId("group-sizes")).toHaveText(
-      de.customers.record.groupSizes(before.red + 1, before.blue - 1),
-    );
-
-    // The same card, the same morning, the opposite answer — with one edit in between and no wait
-    // for the next RED week.
-    await lookUp(page, card(2));
-    await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
-      "data-verdict",
-      "CLEAR_TO_SERVE",
-    );
-    await expect(page.getByTestId("serve-button")).toBeVisible();
-
-    // The card still names the group they have left. It is stated as a remark beside the verdict,
-    // never instead of it: a card that has fallen behind turns nobody away.
-    await expect(page.getByTestId("counter-stale-card")).toHaveText(
-      de.distribution.counter.staleCardGroup(card(2), de.customers.groups.BLUE),
-    );
-  });
-
-  test("the printed group is what now puts the household on the cards-due list", async ({
-    page,
-  }) => {
-    await page.goto("/karten-neuausstellung");
-
-    const row = dueRow(page);
-    await expect(row).toHaveCount(1);
-    // The counts on both sides agree — this row is the group's doing and the screen says so.
-    await expect(row.getByTestId("cards-due-counts-on-card")).toHaveText(
-      de.customers.derived.countsValue(1, 2),
-    );
-    await expect(row.getByTestId("cards-due-counts-today")).toHaveText(
-      de.customers.derived.countsValue(1, 2),
-    );
-    await expect(row.getByTestId("cards-due-reason")).toHaveText(de.cardsDue.reasons.GROUP_CHANGE);
-
-    // ...and because they agree, the row has to print the thing that does not: the colour on the
-    // card against the colour the household is in today. Both in words, never only as a tint.
-    await expect(row.getByTestId("cards-due-group-on-card")).toHaveText(de.customers.groups.BLUE);
-    await expect(row.getByTestId("cards-due-group-today")).toHaveText(de.customers.groups.RED);
-  });
+  /*
+   * The two tests that stood here are gone with the act they drove.
+   *
+   * A household's week is the parity of its number since US-31, so „move this household to RED" is
+   * „move this household to an odd slot" — one act, on the number control, and it is proved end to
+   * end in `number-group.spec.ts`, which is the file that can also show the card and the counter
+   * following it. The second test asserted a `GROUP_CHANGE` row on „Karten neu ausstellen"; that
+   * reason no longer exists, because a card is printed by the move that would have caused it.
+   */
 
   test("a note written on the record is read out at the counter", async ({ page }) => {
     await page.goto(`/kunden/${id}`);
@@ -745,7 +675,7 @@ test.describe("Kundenakte pflegen", () => {
 
   test("shows the answer to the last thing asked, and no older one", async ({ page }) => {
     // Eight write controls stand on this record and each keeps its own last result. Observed before
-    // the board: a „Gespeichert." from a group move was still on screen through a card reissue and a
+    // the board: a „Gespeichert." from one save was still on screen through a card reissue and a
     // block afterwards — a green banner beside a button that had just done something else, which is
     // exactly how somebody concludes an action succeeded when it never reported.
     await page.goto(`/kunden/${id}`);
@@ -769,20 +699,12 @@ test.describe("Kundenakte pflegen", () => {
    * *the red tier* — four specs assert `toHaveCount(0)` on one to mean nothing was refused, and a
    * separate id for amber would leave them asserting the absence of something that no longer
    * renders. The tier is on `data-tier`, off the same locator, exactly as the counter's verdict is.
+   *
+   * Only the red half is below. The amber one used to be a group move that changed nothing, and
+   * there is no such act since US-31; the two amber refusals this record can still reach are the
+   * refused renewal above — which asserts the tier where it stands — and the number control losing
+   * a race, in `number-change.spec.ts`.
    */
-
-  test("a rule saying no is amber, not red", async ({ page }) => {
-    // The household is RED by now — the group test above moved it there. Asking for RED again is
-    // `GroupUnchanged`: refused rather than quietly accepted, because a move writes an audit entry
-    // and makes the printed card stale, and neither should happen for a change nobody made.
-    await page.goto(`/kunden/${id}`);
-    await page.getByTestId("group-RED").check();
-    await page.getByTestId("group-submit").click();
-
-    const refusal = page.getByTestId("group-error");
-    await expect(refusal).toHaveText(de.customers.errors.groupUnchanged(de.customers.groups.RED));
-    await expect(refusal).toHaveAttribute("data-tier", "refusal");
-  });
 
   test("a record that is no longer there is red", async ({ page }) => {
     await page.goto(`/kunden/${id}`);

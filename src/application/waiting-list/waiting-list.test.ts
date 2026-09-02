@@ -193,10 +193,6 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.reject(new Error("A waiting-list use case never edits a customer's notes"));
   }
 
-  setGroup(): Promise<void> {
-    return Promise.reject(new Error("A waiting-list use case never moves a customer's group"));
-  }
-
   /** Only {@link changeCustomerNumber}'s own suite moves a household between slots (US-30). */
   changeCustomerNumber(): Promise<IssuedCard> {
     return Promise.reject(
@@ -278,7 +274,6 @@ function storedCustomer(customerNumber: number, id: number): RegisteredCustomer 
       notes: "",
     },
     customerNumber,
-    group: "RED",
     status: "ACTIVE",
     reminderCount: 0,
     card: {
@@ -287,7 +282,6 @@ function storedCustomer(customerNumber: number, id: number): RegisteredCustomer 
       issuedAt: at("2026-01-05"),
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 1, children: 0 },
-      groupAtIssue: "RED",
     },
     previousCustomerId: null,
     blockReason: null,

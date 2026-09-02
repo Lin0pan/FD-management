@@ -33,7 +33,7 @@ import { faker } from "@faker-js/faker/locale/de";
 import { PrismaClient } from "@prisma/client";
 import { archiveCustomer } from "../src/application/customers/archive-customer";
 import { blockCustomer } from "../src/application/customers/block-customer";
-import { changeGroup } from "../src/application/customers/change-group";
+import { changeCustomerNumber } from "../src/application/customers/change-customer-number";
 import { recordReminder } from "../src/application/customers/record-reminder";
 import { registerCustomer } from "../src/application/customers/register-customer";
 import { reissueCard } from "../src/application/customers/reissue-card";
@@ -52,10 +52,13 @@ import type {
   SettingsRepository,
   WaitingListRepository,
 } from "../src/application/ports";
+import { readCurrentSettings } from "../src/application/settings/read-current-settings";
 import { addToWaitingList } from "../src/application/waiting-list/add-to-waiting-list";
 import { formatCardNumber } from "../src/domain/card/cardNumber";
 import { amountToPay, balanceOf } from "../src/domain/distribution/balance";
 import type { Address, HouseholdMemberDetails } from "../src/domain/customer/customer";
+import { freeNumbers } from "../src/domain/customer/customerNumber";
+import { groupOf, inGroup } from "../src/domain/customer/group";
 import type { Cents } from "../src/domain/money";
 import type { WeekColour } from "../src/domain/policy/settings";
 import { startOfUtcDay } from "../src/domain/distribution/weekColour";
@@ -165,8 +168,8 @@ interface HouseholdShape {
   readonly archived?: { readonly daysAgo: number; readonly reason: string };
   /** A card reported lost and replaced. */
   readonly cardLostDaysAgo?: number;
-  /** A move between RED and BLUE, which leaves the printed card wrong (US-16.4). */
-  readonly groupChangedDaysAgo?: number;
+  /** A move to the other week, which under US-31 is a move to a slot of the other parity. */
+  readonly weekChangedDaysAgo?: number;
   /** Reminder days, each after the certificate lapsed — the trail an expired certificate starts. */
   readonly remindersDaysAgo?: ReadonlyArray<number>;
   /** A renewal brought in, which appends a certificate and resets the reminder count. */
@@ -387,12 +390,12 @@ const CAST: ReadonlyArray<HouseholdShape> = [
     certificateValidInDays: 180,
   },
   {
-    key: "group-moved",
-    demonstrates: "moved between RED and BLUE — the printed card names the old group (US-16.4)",
+    key: "week-moved",
+    demonstrates: "moved to a slot of the other week — the card was replaced with it (US-30/31)",
     registeredDaysAgo: 118,
     members: [{ years: 52 }, { years: 50 }, { years: 17 }],
     certificateValidInDays: 160,
-    groupChangedDaysAgo: 20,
+    weekChangedDaysAgo: 20,
     notes: "Fährt mit der Nachbarin, deshalb in deren Woche umgetragen.",
   },
   {
@@ -731,20 +734,26 @@ function householdEvents(
     });
   }
 
-  if (shape.groupChangedDaysAgo !== undefined) {
+  if (shape.weekChangedDaysAgo !== undefined) {
     events.push({
-      at: at(-shape.groupChangedDaysAgo),
+      at: at(-shape.weekChangedDaysAgo),
       run: async () => {
-        // Which group they were put in was the balancer's decision, so the move is expressed as
-        // "the other one" rather than as a colour this file has no way of knowing.
+        // A household moves to the other week by moving to a slot of the other parity: there is no
+        // group to set any more (US-31), and the move prints the card that goes with it in the same
+        // act (US-30). Which slot they came from was the allocator's decision, so the target is
+        // read off the register as "the lowest free one of the other week" rather than named here.
         const customer = await deps.customers.findById(idOf());
         if (customer === null) {
-          throw new Error(`${shape.key} vanished before its group change.`);
+          throw new Error(`${shape.key} vanished before its move to the other week.`);
         }
-        await changeGroup(deps, {
-          customerId: customer.id,
-          group: customer.group === "RED" ? "BLUE" : "RED",
-        });
+        const settings = await readCurrentSettings(deps);
+        const free = freeNumbers(await deps.customers.takenActiveNumbers(), settings.quotaN);
+        const other = groupOf(customer.customerNumber) === "RED" ? "BLUE" : "RED";
+        const [target] = inGroup(free, other);
+        if (target === undefined) {
+          throw new Error(`No free ${other} slot for ${shape.key} to move to.`);
+        }
+        await changeCustomerNumber(deps, { customerId: customer.id, customerNumber: target });
       },
     });
   }
@@ -862,7 +871,11 @@ function distributionEvents(
           continue; // Not registered yet on this day.
         }
         const customer = await deps.customers.findById(id);
-        if (customer === null || customer.status !== "ACTIVE" || customer.group !== day.colour) {
+        if (
+          customer === null ||
+          customer.status !== "ACTIVE" ||
+          groupOf(customer.customerNumber) !== day.colour
+        ) {
           continue;
         }
         if (missed.get(shape.key)?.has(day.at.getTime()) === true) {

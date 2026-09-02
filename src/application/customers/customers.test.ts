@@ -11,7 +11,7 @@ import {
 } from "@/domain/customer/customer";
 import { lowestFreeNumber } from "@/domain/customer/customerNumber";
 import { foldName } from "@/domain/customer/nameSearch";
-import type { Group, GroupCounts } from "@/domain/customer/group";
+import { groupOf, type GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import { berlinDayKey } from "@/domain/distribution/attendance";
 import type {
@@ -118,16 +118,15 @@ function matchesArchiveQuery(customer: ArchivedCustomer, query: ArchiveSearchQue
  */
 class FakeCustomerRepository implements CustomerRepository {
   readonly created: RegisteredCustomer[] = [];
+  /** How often the register was asked for its taken numbers — a proposal asks once (US-31.3). */
+  reads = 0;
   private nextId = 1;
   /** How many more writes a concurrent registration beats to the chosen number. */
   private stealsLeft = 0;
   /** How many more writes another card lands on the card number this one was about to print. */
   private cardStealsLeft = 0;
 
-  constructor(
-    private readonly taken: number[] = [],
-    private readonly counts: GroupCounts = { red: 0, blue: 0 },
-  ) {}
+  constructor(private readonly taken: number[] = []) {}
 
   /** Have another registration take the chosen number, just before this one writes it, `times` over. */
   stealNext(times: number): void {
@@ -144,6 +143,7 @@ class FakeCustomerRepository implements CustomerRepository {
   }
 
   takenActiveNumbers(): Promise<ReadonlyArray<number>> {
+    this.reads += 1;
     // Derived from live status, like the real partial index: a customer holds their slot while they
     // are ACTIVE or BLOCKED and releases it only when ARCHIVED, so a block never frees a number.
     // `taken` carries the seeded numbers and any a concurrent registration stole.
@@ -153,8 +153,13 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve([...this.taken, ...held]);
   }
 
+  /**
+   * Refused rather than answered. Both group sizes are arithmetic over the numbers the register
+   * already hands out (`countByGroup`, US-31), so a use case that asked for a stored count would be
+   * asking a second source for one fact. The method goes with the port in US-31.5.
+   */
   groupCounts(): Promise<GroupCounts> {
-    return Promise.resolve(this.counts);
+    return Promise.reject(new Error("the group balance is counted from the numbers (US-31)"));
   }
 
   findById(id: number): Promise<RegisteredCustomer | null> {
@@ -280,15 +285,6 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve();
   }
 
-  setGroup(id: number, group: Group): Promise<void> {
-    const index = this.created.findIndex((customer) => customer.id === id);
-    if (index === -1) {
-      return Promise.reject(new CustomerNotFound(id));
-    }
-    this.created[index] = { ...this.created[index], group };
-    return Promise.resolve();
-  }
-
   /** Only {@link changeCustomerNumber}'s own suite moves a household between slots (US-30). */
   changeCustomerNumber(): Promise<IssuedCard> {
     return Promise.reject(new Error("a registration takes a number; moving one has its own suite"));
@@ -353,7 +349,6 @@ class FakeCardRepository implements CardRepository {
         // tests — they are about which index falls due — so every placed card prints the shape
         // `storedCustomer` builds: one grown-up, one child.
         countsAtIssue: { grownUps: 1, children: 1 },
-        groupAtIssue: "RED",
       });
     }
   }
@@ -607,7 +602,6 @@ function storedCustomer(
   return {
     details,
     customerNumber: 50,
-    group: "RED",
     status,
     reminderCount: 0,
     card: {
@@ -615,7 +609,6 @@ function storedCustomer(
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
-      groupAtIssue: "RED",
     },
     previousCustomerId: null,
   };
@@ -706,20 +699,23 @@ describe("registerCustomer", () => {
     expect(audit.entries[0].when).toEqual(new Date(TODAY));
   });
 
-  it("suggests the smaller group when staff made no choice", async () => {
-    useRegister(new FakeCustomerRepository([], { red: 10, blue: 8 }));
+  it("puts an allocated household in the recommended group", async () => {
+    // RED holds two slots and BLUE one, so the balance recommends BLUE — and the household is put
+    // on the lowest free *even* number rather than on the lowest free number, which is 1.
+    useRegister(new FakeCustomerRepository([2, 5, 7]));
 
-    const customer = await registerCustomer(deps(), registerInput({ group: undefined }));
+    const customer = await registerCustomer(deps(), registerInput());
 
-    expect(customer.group).toBe("BLUE");
+    expect(customer.customerNumber).toBe(4);
+    expect(groupOf(customer.customerNumber)).toBe("BLUE");
   });
 
-  it("lets an explicit group win over the suggestion", async () => {
-    useRegister(new FakeCustomerRepository([], { red: 10, blue: 8 }));
+  it("writes no group anywhere — the number is the whole of it", async () => {
+    const customer = await registerCustomer(deps(), registerInput());
 
-    const customer = await registerCustomer(deps(), registerInput({ group: "RED" }));
-
-    expect(customer.group).toBe("RED");
+    expect(Object.keys(customer)).not.toContain("group");
+    expect(Object.keys(customer.card)).not.toContain("groupAtIssue");
+    expect(groupOf(customer.card.customerNumber)).toBe(groupOf(customer.customerNumber));
   });
 
   it("stores no household counts — they are derived from the birthdates", async () => {
@@ -787,16 +783,35 @@ describe("registerCustomer", () => {
     expect(audit.entries).toHaveLength(0);
   });
 
-  it("moves to the next free number when another registration won the race for it", async () => {
+  it("retries within the same group after losing a number", async () => {
+    // The balance recommends BLUE and the registration settles on 4; another one takes it first.
+    // The second attempt stays in BLUE and moves to 6 — re-deciding the group would find RED and
+    // BLUE level at two apiece, allocate 1, and put the household in a week nobody chose for them.
+    useRegister(new FakeCustomerRepository([2, 5, 7]));
     customers.stealNext(1);
 
     const customer = await registerCustomer(deps(), registerInput());
 
-    expect(customer.customerNumber).toBe(2);
+    expect(customer.customerNumber).toBe(6);
     expect(customers.created).toHaveLength(1);
   });
 
-  it("saves the number staff chose instead of the lowest free one", async () => {
+  it("crosses to the other group only when the one it started in has run out", async () => {
+    // A quota of 4 leaves RED slots 1 and 3 and BLUE slots 2 and 4. RED and BLUE are level, so the
+    // registration starts in RED on 3 — the only RED slot free — and loses it. There is nothing
+    // left of the group it started in, and refusing a household while a slot stands empty is what
+    // the waiting list is for; it is not this state (R-26).
+    settings = new FakeSettingsRepository(version({ quotaN: 4 }));
+    useRegister(new FakeCustomerRepository([1, 2]));
+    customers.stealNext(1);
+
+    const customer = await registerCustomer(deps(), registerInput());
+
+    expect(customer.customerNumber).toBe(4);
+    expect(groupOf(customer.customerNumber)).toBe("BLUE");
+  });
+
+  it("registers the household on the number staff chose", async () => {
     const customer = await registerCustomer(deps(), registerInput({ customerNumber: 17 }));
 
     expect(customer.customerNumber).toBe(17);
@@ -932,14 +947,15 @@ describe("registerCustomer", () => {
 
   it("re-reads the card run for the slot a lost race moved the registration to", async () => {
     await archivedHolder(1, 1, 2, 3);
-    await archivedHolder(2, 1, 2, 3, 4, 5);
-    // The first attempt settles on slot 1 and loses it; the second lands on slot 2, whose run is a
-    // different one. An index read before the number was settled would print 1k4 as 2k4.
+    await archivedHolder(3, 1, 2, 3, 4, 5);
+    // The first attempt settles on slot 1 and loses it; the second lands on slot 3 — the next one
+    // of the same group — whose run is a different one. An index read before the number was
+    // settled would print 1k4 as 3k4.
     customers.stealNext(1);
 
     const customer = await registerCustomer(deps(), registerInput());
 
-    expect(customer.customerNumber).toBe(2);
+    expect(customer.customerNumber).toBe(3);
     expect(customer.card.index).toBe(6);
   });
 });
@@ -1211,7 +1227,7 @@ describe("reissueCard", () => {
     await expect(cards.currentCard(customerId)).resolves.toMatchObject({ index: 11 });
   });
 
-  it("leaves status, customer number, group and reminder count as they were", async () => {
+  it("leaves status, customer number and reminder count as they were", async () => {
     const customerId = await holderOfCardOne();
     const before = await customers.findById(customerId);
 
@@ -1221,7 +1237,6 @@ describe("reissueCard", () => {
     expect(after).toMatchObject({
       status: before?.status,
       customerNumber: before?.customerNumber,
-      group: before?.group,
       reminderCount: before?.reminderCount,
     });
   });
@@ -1291,23 +1306,73 @@ describe("proposeRegistration", () => {
     expect(proposal.customerNumber).toBe(3);
   });
 
-  it("proposes no number when the register is full, so the screen can still render", async () => {
+  it("reports a full register as no number and no recommendation", async () => {
     settings = new FakeSettingsRepository(version({ quotaN: 2 }));
     customers = new FakeCustomerRepository([1, 2]);
 
     const proposal = await proposeRegistration(deps());
 
     expect(proposal.customerNumber).toBeNull();
+    // The two are absent together or not at all: a group with no number to offer is not a
+    // recommendation, and the screen renders the full register as a state of its own.
+    expect(proposal.suggestedGroup).toBeNull();
     expect(proposal.quotaN).toBe(2);
   });
 
-  it("suggests the smaller group and shows both sizes it was decided from", async () => {
-    customers = new FakeCustomerRepository([1, 2, 3], { red: 2, blue: 1 });
+  it("recommends the smaller group and shows both sizes it was decided from", async () => {
+    customers = new FakeCustomerRepository([1, 2, 3]);
 
     const proposal = await proposeRegistration(deps());
 
+    // Counted off the numbers the register holds — 1 and 3 are RED, 2 is BLUE — rather than asked
+    // of the database a second time.
     expect(proposal.suggestedGroup).toBe("BLUE");
     expect(proposal.groupCounts).toEqual({ red: 2, blue: 1 });
+  });
+
+  it("recommends the other group when the smaller one is full", async () => {
+    // A quota lowered to 4 (US-14) leaves three households parked above it, all of them RED. BLUE
+    // is the smaller group and has nothing left to offer inside the quota, so the recommendation
+    // goes to RED rather than to an empty dropdown.
+    settings = new FakeSettingsRepository(version({ quotaN: 4 }));
+    customers = new FakeCustomerRepository([2, 4, 11, 13, 15]);
+
+    const proposal = await proposeRegistration(deps());
+
+    expect(proposal.groupCounts).toEqual({ red: 3, blue: 2 });
+    expect(proposal.suggestedGroup).toBe("RED");
+    expect(proposal.customerNumber).toBe(1);
+  });
+
+  it("opens on the lowest free number of the recommended group", async () => {
+    settings = new FakeSettingsRepository(version({ quotaN: 8 }));
+    customers = new FakeCustomerRepository([2, 5, 7]);
+
+    const proposal = await proposeRegistration(deps());
+
+    // RED is the bigger group, so the recommendation is BLUE and the form opens on 4 — not on 1,
+    // which is the lowest free number of the register as a whole.
+    expect(proposal.suggestedGroup).toBe("BLUE");
+    expect(proposal.customerNumber).toBe(4);
+  });
+
+  it("offers the whole free pool, not only the recommendation's", async () => {
+    settings = new FakeSettingsRepository(version({ quotaN: 8 }));
+    customers = new FakeCustomerRepository([2, 5, 7]);
+
+    const proposal = await proposeRegistration(deps());
+
+    // Both groups' numbers, so the form can re-filter in the browser when staff pick the other one
+    // rather than going back to the server to look at a list it already holds.
+    expect(proposal.freeNumbers).toEqual([1, 3, 4, 6, 8]);
+  });
+
+  it("reads the register once", async () => {
+    await proposeRegistration(deps());
+
+    // The pool, the balance and the number the form opens on all come from one reading; a second
+    // query is a second instant, and the three could then disagree.
+    expect(customers.reads).toBe(1);
   });
 
   it("reports the day the form must judge the household against", async () => {
@@ -1361,13 +1426,13 @@ describe("proposeRegistration", () => {
     expect(proposal.customerNumber).toBeNull();
   });
 
-  it("proposes the first of the numbers it offers, so the two cannot disagree", async () => {
+  it("proposes one of the numbers it offers, so the two cannot disagree", async () => {
     settings = new FakeSettingsRepository(version({ quotaN: 5 }));
     customers = new FakeCustomerRepository([1, 2, 4]);
 
     const proposal = await proposeRegistration(deps());
 
-    expect(proposal.customerNumber).toBe(proposal.freeNumbers[0]);
+    expect(proposal.freeNumbers).toContain(proposal.customerNumber);
   });
 });
 
@@ -1394,11 +1459,15 @@ describe("readCustomer", () => {
     return { customers, cards, settings, records, clock: fakeClock(today), audit };
   }
 
-  /** A RED household registered on 2026-05-01, i.e. with five own distributions behind them. */
+  /**
+   * A RED household registered on 2026-05-01, i.e. with five own distributions behind them. RED
+   * because 49 is odd, which is the whole of what makes a household RED (US-31) — the distributions
+   * above are the Thursdays of *their* week.
+   */
   async function seedLongStanding(): Promise<RegisteredCustomer> {
     return customers.create({
       ...storedCustomer("ACTIVE"),
-      group: "RED",
+      customerNumber: 49,
       card: {
         ...storedCustomer("ACTIVE").card,
         issuedAt: new Date("2026-05-01T09:00:00.000Z"),
@@ -1640,13 +1709,28 @@ describe("readCustomer", () => {
     expect(view.today).toEqual(new Date(TODAY));
   });
 
-  it("reports both group sizes, so a move between them is judged against the balance", async () => {
-    customers = new FakeCustomerRepository([], { red: 7, blue: 4 });
+  it("reads a household's group off their number", async () => {
+    // 37 is odd, so the household is RED — and there is no second place the record could read it
+    // from, because the record no longer carries one (US-31).
+    customers = new FakeCustomerRepository();
+    const registered = await registerCustomer(deps(), registerInput({ customerNumber: 37 }));
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.group).toBe("RED");
+  });
+
+  it("counts the register's groups off its numbers", async () => {
+    // Three odd slots and one even one are held before this household registers, and it takes the
+    // lowest free number of the recommended group — BLUE, the smaller of the two — which is 2. The
+    // balance is then read off the five numbers held, not off a column anybody wrote.
+    customers = new FakeCustomerRepository([3, 4, 7, 9]);
     const registered = await registerCustomer(deps(), registerInput());
 
     const view = await readCustomer(deps(), registered.id);
 
-    expect(view.groupCounts).toEqual({ red: 7, blue: 4 });
+    expect(registered.customerNumber).toBe(2);
+    expect(view.groupCounts).toEqual({ red: 3, blue: 2 });
   });
 
   it("offers every number the household may be moved to, with the card each would print", async () => {
@@ -1660,8 +1744,8 @@ describe("readCustomer", () => {
     // Their own number is always among them — it is what the control opens on (US-30.4) — and each
     // choice carries the card that move would print: they hold `1k1`, so nothing below `k2` is left.
     expect(view.numberChoices).toEqual([
-      { number: 1, nextCardNumber: "1k2" },
-      { number: 3, nextCardNumber: "3k2" },
+      { number: 1, group: "RED", nextCardNumber: "1k2" },
+      { number: 3, group: "RED", nextCardNumber: "3k2" },
     ]);
   });
 
@@ -1791,7 +1875,8 @@ describe("readCard", () => {
   });
 
   it("carries the name and the group the card is printed with", async () => {
-    const customer = await registered({ firstName: "Mira", lastName: "Aalto", group: "BLUE" });
+    // Slot 2 is even, so the card prints BLUE — the number is the whole of the choice (US-31).
+    const customer = await registered({ firstName: "Mira", lastName: "Aalto", customerNumber: 2 });
 
     const view = await readCard(deps(), customer.id);
 
@@ -2136,7 +2221,6 @@ describe("archiveCustomer", () => {
       cards: await cards.listCards(customerId),
       records: await distribution.listForCustomer(customerId),
       customerNumber: customer?.customerNumber,
-      group: customer?.group,
       reminderCount: customer?.reminderCount,
       details: customer?.details,
     });

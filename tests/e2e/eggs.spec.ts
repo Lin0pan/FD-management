@@ -44,12 +44,17 @@ import { releaseNumbers } from "./seeding";
  * courtesy `price-cap.spec.ts` pays with the Maximalpreis, and for the same reason: `settings.spec.ts`
  * runs after it against the shared register and states the rule in force in full.
  *
- * The four households take numbers **331–334**, a band no other spec uses: the counter (201–207,
- * 239), allowance (211), serve (221–222), reminders (231), registration (232–234), card numbers
- * (236), block (241), reissue (251), age-13 (271), customer-list (281–285), customer-record
- * (291–293), group-progress (301–303), group-walk (311–315) and price-cap (321) specs share the
- * same `data/e2e.db`, and everything here sits above the quota of 240 and clear of the low sequence
- * the allocating specs consume.
+ * The four households take the **even numbers 332–338**, a band no other spec uses: the counter
+ * (201–207, 239), allowance (211), serve (213–217), number change (221–229), reminders (231),
+ * registration (232–236), card numbers (237), block (241), reissue (251), age-13 (271),
+ * customer-list (281–285), customer-record (291–293), group-progress (301–305), group-walk
+ * (311–317) and price-cap (321) specs share the same `data/e2e.db`, and everything here sits above
+ * the quota of 240 and clear of the low sequence the allocating specs consume.
+ *
+ * They are **even, and therefore BLUE** (US-31), which is the same courtesy `balance.spec.ts` pays
+ * for the same reason: `group-walk.spec.ts` runs after this file and asserts that 317 is the highest
+ * RED number in the whole shared register, so an odd number seeded here would fail a spec this one
+ * is not allowed to touch. Nothing here turns on the week — the tiles are read, not served.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every
@@ -115,7 +120,7 @@ interface Household extends Figures {
 const HOUSEHOLDS = {
   /** Below every threshold: the case that must read `0` rather than nothing at all. */
   two: {
-    customerNumber: 331,
+    customerNumber: 332,
     members: [GROWN_UP_BIRTH_DATE, CHILD_BIRTH_DATES[0]],
     grownUps: 1,
     children: 1,
@@ -124,7 +129,7 @@ const HOUSEHOLDS = {
   },
   /** Two grown-ups and one infant: three *people*, and the lowest threshold reached. */
   three: {
-    customerNumber: 332,
+    customerNumber: 334,
     members: [GROWN_UP_BIRTH_DATE, SECOND_GROWN_UP_BIRTH_DATE, INFANT_BIRTH_DATE],
     grownUps: 2,
     children: 1,
@@ -133,7 +138,7 @@ const HOUSEHOLDS = {
   },
   /** The middle step. */
   five: {
-    customerNumber: 333,
+    customerNumber: 336,
     members: [GROWN_UP_BIRTH_DATE, SECOND_GROWN_UP_BIRTH_DATE, ...CHILD_BIRTH_DATES.slice(0, 3)],
     grownUps: 2,
     children: 3,
@@ -142,7 +147,7 @@ const HOUSEHOLDS = {
   },
   /** The top step, which no larger household ever passes. */
   eight: {
-    customerNumber: 334,
+    customerNumber: 338,
     members: [GROWN_UP_BIRTH_DATE, SECOND_GROWN_UP_BIRTH_DATE, ...CHILD_BIRTH_DATES],
     grownUps: 2,
     children: 6,
@@ -215,7 +220,6 @@ async function seedHousehold(household: Household): Promise<number> {
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "BLUE",
       status: "ACTIVE",
       reminderCount: 0,
       notes: "",
@@ -243,7 +247,6 @@ async function seedHousehold(household: Household): Promise<number> {
           reason: "FIRST_ISSUE",
           grownUpsAtIssue: household.grownUps,
           childrenAtIssue: household.children,
-          groupAtIssue: "BLUE",
         },
       },
     },

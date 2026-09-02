@@ -39,6 +39,14 @@ number changes hands not only **between households** but **between numbers for o
 household already on the register may be moved to any free slot. That strengthens this decision
 rather than weakening it: a thing a household can be moved off is plainly not its identity.
 
+Since [ADR-017](017-the-customer-number-decides-the-group.md) the slot also **carries which week it
+collects in**: an even number is BLUE, an odd one RED, and a household's group is nothing but the
+parity of the number it holds. That makes the slot _more_ of a slot, not less. It is a place in DF's
+fortnight as well as a place in the quota, so a household moving between slots moves between weeks —
+which is why a move prints a new card, and why the free slots DF are offered are counted per group as
+well as in total. What the number is still not, is a name: it says which place in the register a
+household occupies and when they collect, and nothing about who they are.
+
 ## Consequences
 
 - Allocation fills gaps rather than counting upwards, so the range stays dense and the quota keeps
@@ -48,6 +56,9 @@ rather than weakening it: a thing a household can be moved off is plainly not it
 - Because staff now choose the number, a lost race can no longer be silently retried onto the next
   free slot — the refusal goes back to the screen, because a number a person chose has no substitute.
 - Historical records stay unambiguous across a reuse: they point at an `id`, never at a number.
+- Either half of the range can run out on its own, because the slot now decides the week: a group can
+  be full while the register is not, and raising the quota by one adds a slot to only one parity
+  ([ADR-017](017-the-customer-number-decides-the-group.md)).
 - A card number must be unique for good even though its slot is not, which is a separate constraint —
   `Card.index` counts the cards issued on a _customer number_ across every household that has ever
   held it, so a card number names one physical card forever.
@@ -60,6 +71,8 @@ rather than weakening it: a thing a household can be moved off is plainly not it
 - [Chapter 6 — registering a customer](../06-runtime-view.md#scenario-2--registering-a-customer)
 - [Chapter 12 — glossary](../12-glossary.md)
 - [ADR-016 — a customer number may be changed, and a card keeps the number it was printed with](016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md)
+- [ADR-017 — the customer number decides the group](017-the-customer-number-decides-the-group.md)
+  (the slot carries the week it collects in)
 - `src/domain/customer/customerNumber.ts`, `src/domain/card/cardNumber.ts`,
   `prisma/migrations/*_init/migration.sql`
 - Commits `5beb708`, `57ee3d9`, `3f9da6d`

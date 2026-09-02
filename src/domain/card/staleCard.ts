@@ -1,18 +1,16 @@
 /**
- * Whether what is printed on the card a household holds still matches the household — and, when it
- * does not, what changed.
+ * Whether the counts printed on the card a household holds still match the household — and, when
+ * they do not, what changed.
  *
  * The comparison exists because a card is a physical object: everything on it was true when it was
- * printed and stops being true the moment a child turns 13 or staff move the household to the other
- * group. Nothing here decides what a household *is* — that is always `composition(members, today)`
- * and the `group` column; this only reads the difference between what the card claims and what the
- * record says today.
+ * printed and stops being true the moment a child turns 13. Nothing here decides what a household
+ * *is* — that is always `composition(members, today)`; this only reads the difference between what
+ * the card claims and what the record says today.
  *
  * The module is pure and takes no clock: both sides are already-derived facts, so the caller owns
  * the question of *when* "today" is.
  */
 
-import type { Group } from "../customer/group";
 import type { HouseholdComposition } from "../customer/householdComposition";
 
 /**
@@ -20,24 +18,19 @@ import type { HouseholdComposition } from "../customer/householdComposition";
  *
  * `AGE_13` is the case this comparison exists for: nobody joined or left, a child simply came of
  * age, and the software moved the numbers without anyone asking it to. `HOUSEHOLD_CHANGE` covers
- * every other difference in the counts — a member added or removed — and `GROUP_CHANGE` the week
- * the household collects in (US-16.4). The last two staff already know about, because they typed
- * them. The distinction is shown to staff so the list reads as "the software did this" rather than
- * as an accusation that a record was filled in wrongly (PRD §6).
- */
-export type StaleCardReason = "AGE_13" | "HOUSEHOLD_CHANGE" | "GROUP_CHANGE";
-
-/**
- * The parts of a card that can fall behind: the two counts and the group, which the card prints
- * because it is what tells the household which week to come in.
+ * every other difference in the counts — a member added or removed — which staff already know
+ * about, because they typed it. The distinction is shown to staff so the list reads as "the
+ * software did this" rather than as an accusation that a record was filled in wrongly (PRD §6).
  *
- * The same shape describes both sides of the comparison — what the card was printed with, and what
- * the record says today — so neither side can quietly grow a field the other does not have.
+ * There is deliberately no third reason for the group. The group is not a value of its own any
+ * more: it follows from the customer number (`groupOf`), and a household's **current** card is
+ * always the highest index on the slot they currently hold — a registration prints on the slot it
+ * takes, a reissue on the slot the household holds, and a move prints inside the transaction that
+ * moves them (US-30, US-31). So the card's number is their number and its group is their group,
+ * and a card naming another week is not a case this function declines to report but one that
+ * cannot arise.
  */
-export interface CardFacts {
-  readonly counts: HouseholdComposition;
-  readonly group: Group;
-}
+export type StaleCardReason = "AGE_13" | "HOUSEHOLD_CHANGE";
 
 /** How many people the counts account for. Equal sizes mean nobody joined and nobody left. */
 function householdSize(counts: HouseholdComposition): number {
@@ -52,21 +45,14 @@ function householdSize(counts: HouseholdComposition): number {
  * crossed 13. Anything else — a different size, or grown-ups going down, which no birthday can do —
  * is a change somebody made to the record, and saying `AGE_13` there would tell staff a story that
  * did not happen.
- *
- * The counts answer first and the group only when they agree. A reissue replaces the whole card at
- * once, so the reason is not a work list — it is the sentence that explains the row, and when both
- * moved the counts are the difference worth naming: they decide the price, while the group decides
- * only which week the household is expected in.
  */
 export function staleCardReason(
-  printedOnCard: CardFacts,
-  today: CardFacts,
+  printedOnCard: HouseholdComposition,
+  today: HouseholdComposition,
 ): StaleCardReason | null {
-  const onCard = printedOnCard.counts;
-  const now = today.counts;
-  if (onCard.grownUps === now.grownUps && onCard.children === now.children) {
-    return printedOnCard.group === today.group ? null : "GROUP_CHANGE";
+  if (printedOnCard.grownUps === today.grownUps && printedOnCard.children === today.children) {
+    return null;
   }
-  const sameHousehold = householdSize(onCard) === householdSize(now);
-  return sameHousehold && now.grownUps > onCard.grownUps ? "AGE_13" : "HOUSEHOLD_CHANGE";
+  const sameHousehold = householdSize(printedOnCard) === householdSize(today);
+  return sameHousehold && today.grownUps > printedOnCard.grownUps ? "AGE_13" : "HOUSEHOLD_CHANGE";
 }

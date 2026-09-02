@@ -1,5 +1,18 @@
 # PRD: Fold the group choice away on `/kunden/neu` (US-20)
 
+> **Note (2026-09-02).** **Superseded by US-31**, and left as it was written — a PRD is the record of
+> what was asked for at the time. The disclosure this PRD built is gone: since
+> [ADR-017](../docs/architecture/adr/017-the-customer-number-decides-the-group.md) a group is the
+> parity of a customer number, so the two radios are no longer an override of a proposal that could
+> be ignored — they are the first half of choosing the number, they filter the numbers offered, and
+> folding them away would hide the thing the field below them depends on. `#group-RED` and
+> `#group-BLUE` are therefore visible again and the specs `.check()` them without opening anything.
+>
+> **What survives** is the reading that produced this PRD: DF accept the recommendation nearly every
+> time, so the recommended week is preselected and the screen never asks staff to decide twice. The
+> non-goal below — „removing the ability to choose a group at intake would be a product change, not a
+> layout one" — was correct, and US-31 is exactly that product change, argued as one.
+
 ## Introduction
 
 The registration form proposes a group — RED or BLUE — from the two current group sizes, and offers

@@ -11,15 +11,15 @@
  * It is not a `"use server"` module on purpose: such a module may export nothing but async
  * functions, so a schema or a helper there would be a build error rather than a style question.
  *
- * Nothing here decides anything. Which number, which group and whether the household holds together
- * are the domain's and the use case's; this module only gives the submitted strings a shape.
+ * Nothing here decides anything. Which number a household gets and whether it holds together are
+ * the domain's and the use case's; this module only gives the submitted strings a shape. There is
+ * no group among the fields, and there is nothing missing: the number carries it (US-31).
  */
 
 import { z } from "zod";
 import type { RegistrationDraft } from "@/application/customers/draft-from-archived";
 import { formatCalendarDay, isBlankDay, parseCalendarDay } from "@/domain/calendarDay";
 import { formatCardNumber } from "@/domain/card/cardNumber";
-import { parseGroup } from "@/domain/customer/group";
 import {
   BirthDateInFuture,
   CardIndexTaken,
@@ -63,15 +63,6 @@ export const calendarDay = z.string().transform((value, ctx): Date => {
   }
 });
 
-const group = z.string().transform((value, ctx) => {
-  try {
-    return parseGroup(value);
-  } catch {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: de.customers.errors.fieldRequired });
-    return z.NEVER;
-  }
-});
-
 /**
  * The archived record this registration was pre-filled from, or `undefined` when nobody was picked
  * (US-11.3). The field is written by the screen itself, never typed, so a value that is not a
@@ -91,12 +82,15 @@ const previousCustomerId = z.string().transform((value, ctx): number | undefined
 });
 
 /**
- * The slot staff picked in the dropdown (US-24).
+ * The slot staff picked in the dropdown (US-24), and with it the group they picked it from (US-31).
  *
  * Every value the form can produce is a positive integer, because the options *are* the free
  * numbers; anything else is a tampered or stale submission and is refused as a missing field. It
  * must never fall through to `undefined`, which the use case reads as „the software picks one“ —
  * the number on screen when `Aufnehmen` was pressed is the number that gets saved, or nothing is.
+ *
+ * It is the **only** field the assignment posts. The group radios above it filter this list in the
+ * browser and submit nothing, so a number and a group cannot arrive here disagreeing.
  *
  * Whether the number is still free is not decided here. That is `assertFreeNumber`'s and the
  * partial unique index's, in that order.
@@ -120,7 +114,6 @@ export const registrationForm = z.object({
   certificateType: z.string(),
   certificateValidUntil: calendarDay,
   notes: z.string(),
-  group,
   customerNumber,
   previousCustomerId,
   householdMembers: z.array(
@@ -173,7 +166,6 @@ export function registrationValues(formData: FormData): Record<string, unknown> 
     certificateType: text("certificateType"),
     certificateValidUntil: text("certificateValidUntil"),
     notes: text("notes"),
-    group: text("group"),
     customerNumber: text("customerNumber"),
     previousCustomerId: text("previousCustomerId"),
     householdMembers: householdRows(formData),

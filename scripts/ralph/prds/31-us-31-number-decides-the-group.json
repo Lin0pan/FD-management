@@ -23,8 +23,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Domain rewritten: groupOf, inGroup, countByGroup, suggestGroup(freeNumbers, counts) and parseGroup deleted. Call sites adapted mechanically to stay green — the stored group word is narrowed in the adapter (parseStoredGroup in card-repository.ts, dies with the columns in US-31.2/US-31.5), the two form parses use GROUPS.find, and proposeRegistration/registerCustomer pass the free pool with a `?? \"RED\"` the nullable proposal of US-31.3 removes."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-002",
@@ -43,7 +43,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -67,7 +67,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 3,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -91,8 +91,8 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "changeGroup and its tests were already deleted in US-31.2 (GroupUnchanged is its only refusal, so the use case could not compile without it). Landed here: the group filter moved out of SQL into listCustomers and readGroupRoster, CustomerListQuery.group off the port and the adapter, groupCounts derived with countByGroup(takenActiveNumbers()) in readCustomer and listCustomers, NumberChoice.group, and the move's audit `why` naming both groups only when the parity changed. CustomerRepository.groupCounts is now callerless and is US-31.5's to remove from the port and the adapter — both fakes that still implement it reject rather than answer, so a use case reaching for it fails."
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
@@ -112,7 +112,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -137,7 +137,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 6,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -164,7 +164,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 7,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -189,7 +189,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 8,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
@@ -211,7 +211,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 9,
-      "passes": true,
+      "passes": false,
       "notes": ""
     }
   ]

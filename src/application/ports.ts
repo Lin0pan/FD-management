@@ -17,7 +17,6 @@ import type {
   PersonalDetails,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
-import type { Group, GroupCounts } from "@/domain/customer/group";
 import type { WaitingListDetails } from "@/domain/customer/waitingList";
 import type {
   DistributionRecord,
@@ -95,9 +94,14 @@ export type CustomerListSearch =
   | { readonly kind: "CUSTOMER_NUMBER"; readonly customerNumber: number };
 
 /**
- * How the customer list narrows the register (US-15.2). Every criterion is a `WHERE` clause: nothing
- * here is filtered after loading, because the whole point of the screen is to *not* be a spreadsheet
- * that reads every row.
+ * How the customer list narrows the register (US-15.2). Every criterion here is a `WHERE` clause,
+ * because the whole point of the screen is to *not* be a spreadsheet that reads every row.
+ *
+ * **The group is not among them, and that is deliberate.** A group is the parity of a customer
+ * number (`groupOf`, US-31) rather than a column, SQLite cannot express `% 2` in a `WHERE` clause,
+ * and a stored parity key would be the second recording of the one fact US-31 exists to record
+ * once. `listCustomers` and `readGroupRoster` therefore narrow the rows this query returned — the
+ * register is bounded by the quota, so the widest either ever scans is `quotaN` rows.
  *
  * `statuses` is the one criterion that is never absent. "Which statuses does this list show" is a
  * decision with a default rather than an option — archived households are excluded unless they were
@@ -107,7 +111,6 @@ export interface CustomerListQuery {
   /** The statuses to include; never empty, and never implicitly all of them. */
   readonly statuses: ReadonlyArray<CustomerStatus>;
   readonly search?: CustomerListSearch;
-  readonly group?: Group;
   /**
    * The range the household's **current** certificate's `validUntil` must fall in, as
    * `validUntilRangeFor` computed it from today. The window is the domain's, so the filter and the
@@ -128,8 +131,6 @@ export interface CustomerListQuery {
 export interface CustomerRepository {
   /** The numbers held by customers who still occupy a slot; archived rows release theirs. */
   takenActiveNumbers(): Promise<ReadonlyArray<number>>;
-  /** How many active customers each balancing group holds. */
-  groupCounts(): Promise<GroupCounts>;
   /**
    * The customer with this surrogate id, or `null` if the id belongs to nobody. Archived customers
    * are returned like any other — their data stays queryable (US-10, US-11).
@@ -241,19 +242,6 @@ export interface CustomerRepository {
    * note staff leave for the counter is not a correction of the record.
    */
   updateNotes(id: number, notes: string): Promise<void>;
-  /**
-   * Move a customer to the other balancing group (US-16.4).
-   *
-   * A single column write, and deliberately nothing more. The counter's verdict reads the column
-   * every time it is asked, so the change is in force for today's distribution the instant this
-   * returns; the card the household holds still prints the old group, which is a difference the
-   * cards-due list derives on its next read rather than something enqueued here.
-   *
-   * The group is not part of {@link updateDetails} because it is not a correction of who the
-   * customer is: it is a decision about the register's balance, taken for DF's sake rather than the
-   * household's, and it gets its own audit entry saying so.
-   */
-  setGroup(id: number, group: Group): Promise<void>;
   /**
    * Move a customer to another slot **and issue the card that goes with it, in one transaction**
    * (US-30): the number moves and the card is inserted together, or neither happens.

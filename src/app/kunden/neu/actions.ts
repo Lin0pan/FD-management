@@ -25,8 +25,8 @@ import {
 } from "./registration-input";
 
 /**
- * Validate the form, register the customer with their number, group and first card, and go to the
- * card that was just issued.
+ * Validate the form, register the customer with their number — the group follows from it (US-31) —
+ * and their first card, and go to the card that was just issued.
  *
  * On any failure nothing is written — the use case allocates and persists in one transaction — and
  * the form comes back with a German explanation.
@@ -56,7 +56,6 @@ export async function submitRegistration(
       certificate: { type: form.certificateType, validUntil: form.certificateValidUntil },
       householdMembers: form.householdMembers,
       notes: form.notes,
-      group: form.group,
       customerNumber: form.customerNumber,
       previousCustomerId: form.previousCustomerId,
     });
