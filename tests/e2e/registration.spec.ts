@@ -3,9 +3,10 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { foldName } from "@/domain/customer/nameSearch";
+import { groupOf, type Group } from "@/domain/customer/group";
 import { customerFieldLabel, de } from "@/i18n/de";
 import { SHARED } from "./registers";
-import { fillDay, fillSticky } from "./day";
+import { fillDay, fillSticky, hydrated } from "./day";
 import { fillPersonalData as fillPersonalDataOn, type Person } from "./registration-form";
 import { releaseNumbers } from "./seeding";
 
@@ -49,17 +50,22 @@ const CERTIFICATE_VALID_UNTIL = "2027-03-31";
  * consume — but **inside the quota of 240**, which is what makes this band different from the ones
  * the other specs took (241 upwards). The pool the control offers is `1..quotaN`, so a household
  * seeded above the quota is invisible to it: a number nobody may pick could not prove that a taken
- * number is kept out of the list, because it was never in it. 232–234 are free of every band listed
- * in `scripts/ralph/progress.txt` — counter (201–206, 239), allowance (211), serve (221–222) and
- * reminders (231) are the only ones below 240.
+ * number is kept out of the list, because it was never in it. 232–236 are free of every band listed
+ * in `scripts/ralph/progress.txt` — counter (201–207, 239), allowance (211), serve (213–217),
+ * number change (221–229) and reminders (231) are the only ones below 240.
+ *
+ * All three are **even, and therefore BLUE** (US-31), because the control offers one week at a time:
+ * two numbers of different parity are never on the same list, so a spec comparing what is offered
+ * with what is not has to compare them inside one week. That is why the specs below check the BLUE
+ * radio before reading the list — the week is now the first half of choosing a number.
  */
 const NUMBERS = {
   /** Held by an active household: never an option, and the number the stale form posts. */
   taken: 232,
   /** Held by an archived household: the slot came back, so it *is* an option. */
-  released: 233,
+  released: 234,
   /** Free, and the one the choice spec picks instead of the number the form opened on. */
-  chosen: 234,
+  chosen: 236,
 } as const;
 
 /** Certificates for the seeded households: valid long past any day this suite could run. */
@@ -183,7 +189,7 @@ async function seedHousehold(customerNumber: number, status: "ACTIVE" | "ARCHIVE
 }
 
 /**
- * The lowest free number, as the *database* has it at this moment.
+ * The lowest free number of one week, as the *database* has it at this moment.
  *
  * Worked out here rather than imported from `src/domain/customer/customerNumber.ts`: the claim is
  * that the control opens on the number the register implies, and computing the expectation with the
@@ -191,8 +197,12 @@ async function seedHousehold(customerNumber: number, status: "ACTIVE" | "ARCHIVE
  * facts the repository reads — every number a non-archived household holds (a blocked one still
  * occupies its slot; only archiving releases it) and the quota in force — and it has to be read at
  * assertion time, because the specs before this file in the alphabet have all moved it.
+ *
+ * Narrowed to one week because the control offers one week (US-31), and the parity is written out
+ * here — `candidate % 2` — rather than taken from `groupOf`, for the same reason the loop is: an
+ * expectation computed with the rule under test agrees with itself whatever the rule says.
  */
-async function lowestFreeNumber(): Promise<number> {
+async function lowestFreeNumberIn(group: Group): Promise<number> {
   const [settings, holders] = await Promise.all([
     prisma.settingsVersion.findFirstOrThrow({ orderBy: [{ recordedAt: "desc" }, { id: "desc" }] }),
     prisma.customer.findMany({
@@ -201,13 +211,26 @@ async function lowestFreeNumber(): Promise<number> {
     }),
   ]);
   const taken = new Set(holders.map((holder) => holder.customerNumber));
+  const wanted = group === "RED" ? 1 : 0;
 
   for (let candidate = 1; candidate <= settings.quotaN; candidate += 1) {
-    if (!taken.has(candidate)) {
+    if (candidate % 2 === wanted && !taken.has(candidate)) {
       return candidate;
     }
   }
-  throw new Error(`The shared e2e register is full at a quota of ${settings.quotaN}.`);
+  throw new Error(
+    `The shared e2e register has no free ${group} number at a quota of ${settings.quotaN}.`,
+  );
+}
+
+/**
+ * The week the intake is standing in, read off the radio that is checked.
+ *
+ * Read rather than assumed: which week the form recommends depends on how the register happens to
+ * be balanced when this file runs, and the specs before it in the alphabet decide that.
+ */
+async function checkedGroup(page: Page): Promise<Group> {
+  return (await page.locator("#group-RED").isChecked()) ? "RED" : "BLUE";
 }
 
 /**
@@ -362,10 +385,13 @@ test.describe("Kundenaufnahme", () => {
   }) => {
     await page.goto("/kunden/neu");
 
-    // The number the previous registration left free — its successor, because that one is now
-    // taken. Nothing here registers anybody, so it has to still be free at the end.
+    // The number the previous registration consumed has left the pool. *Which* number replaced it is
+    // the balance's business since US-31 — the form opens on the lowest free slot of the week it
+    // recommends, and taking a slot moves that recommendation — so what is asserted here is the
+    // slot's absence rather than its successor's name. Nothing below registers anybody, so the
+    // number the form does open on has to still be free at the end.
+    await expect(option(page, Number(registeredNumber))).toHaveCount(0);
     const proposedNumber = await page.getByTestId("customer-number-select").inputValue();
-    expect(proposedNumber).toBe(String(Number(registeredNumber) + 1));
 
     const applicant = person(faker.person.lastName());
     await fillPersonalData(page, applicant);
@@ -418,13 +444,17 @@ test.describe("Kundenaufnahme", () => {
   // The number as a choice (US-24). Everything above this line registers on the number the form
   // opened on, which is what makes it the proof that the default did not move.
 
-  test("the control opens on the lowest free number the register has", async ({ page }) => {
+  test("the control opens on the lowest free number of the week it stands in", async ({ page }) => {
     // Read from the database, not written down: three specs before this one in the alphabet
     // register households, and the two above it in this file do too, so the lowest free number is a
     // fact about the whole run rather than a constant anybody could state here.
-    const lowest = await lowestFreeNumber();
-
+    //
+    // Of *the week*, not of the register: the list is one week's slots since US-31, so the lowest
+    // free number the control could open on is the lowest with the parity of the checked radio. The
+    // week is read off the screen and the number out of the database — neither is worked out twice.
     await page.goto("/kunden/neu");
+    const group = await checkedGroup(page);
+    const lowest = await lowestFreeNumberIn(group);
 
     await expect(page.getByTestId("customer-number-select")).toHaveValue(String(lowest));
     // The preselection is the *first* option and not merely a selected one somewhere in the list:
@@ -433,12 +463,21 @@ test.describe("Kundenaufnahme", () => {
       "value",
       String(lowest),
     );
+    // And every option on it belongs to that week: one list, one parity, so a number and a week can
+    // never be picked into disagreeing.
+    const offered = await page
+      .locator("#customerNumber option")
+      .evaluateAll((options) => options.map((option) => Number(option.getAttribute("value"))));
+    expect(offered.every((number) => groupOf(number) === group)).toBe(true);
   });
 
   test("a number an active household holds is not offered, and one archiving freed is", async ({
     page,
   }) => {
     await page.goto("/kunden/neu");
+    // Both numbers are even, so BLUE's list is the one list that could hold either of them.
+    await hydrated(page.locator("#group-BLUE"));
+    await page.locator("#group-BLUE").check();
 
     // The two seeded households differ in nothing but their status, so the status is the only thing
     // that can be keeping one number out of the list and letting the other in. This is the rule the
@@ -451,6 +490,10 @@ test.describe("Kundenaufnahme", () => {
     const applicant = person(faker.person.lastName());
 
     await page.goto("/kunden/neu");
+    // BLUE, because that is the week the chosen number belongs to — picking a slot begins by picking
+    // the week it is in (US-31).
+    await hydrated(page.locator("#group-BLUE"));
+    await page.locator("#group-BLUE").check();
 
     // Higher than the one the form opened on — otherwise a save that ignored the choice entirely
     // would pass, which is the failure this whole story exists to prevent.
@@ -594,10 +637,11 @@ test.describe("Kundenaufnahme", () => {
     await page.getByTestId("add-member").click();
     await fillSticky(page.locator("#memberBirthDate-1"), "99.99.9999");
 
-    // The group is overridden on the way, because a refusal used to rewind that too: the radios
-    // carried `defaultChecked`, and React's post-action reset put the proposal back.
-    await page.getByTestId("group-choice-open").click();
-    const override = page.locator("#group-BLUE");
+    // The week is overridden on the way, because a refusal used to rewind that too: React resets the
+    // form once the action answers, and a reset restores a radio from the `checked` **attribute**
+    // the server rendered while the unchanged prop makes React repaint nothing (US-31.6).
+    const other = (await checkedGroup(page)) === "RED" ? "BLUE" : "RED";
+    const override = page.locator(`#group-${other}`);
     await override.check();
 
     await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
@@ -628,9 +672,17 @@ test.describe("Kundenaufnahme", () => {
     await expect(page.locator("#memberBirthDate-0")).not.toHaveAttribute("aria-invalid", "true");
     await expect(page).toHaveURL(/\/kunden\/neu$/);
 
-    // The override stands. Correcting a date must not quietly move the household back to the group
-    // the software proposed.
+    // The override stands. Correcting a date must not quietly move the household back to the week
+    // the software proposed — and the *attribute* is asserted beside the property, because the
+    // attribute is what a reset restores from and therefore the half that could rewind alone.
     await expect(override).toBeChecked();
+    await expect(override).toHaveAttribute("checked", "");
+    // And the list beneath it followed: an override that moved the dot and not the numbers would be
+    // a screen offering slots of the week it is no longer standing in.
+    const offered = await page
+      .locator("#customerNumber option")
+      .evaluateAll((options) => options.map((option) => Number(option.getAttribute("value"))));
+    expect(offered.every((number) => groupOf(number) === other)).toBe(true);
   });
 
   /**

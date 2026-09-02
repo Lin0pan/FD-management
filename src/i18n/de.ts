@@ -411,17 +411,16 @@ export const de = {
       notesTooLong: (maxLength: number, length: number): string =>
         `Die Notiz ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
         `möglich — bitte kürzen.`,
-      groupUnchanged: (group: string): string =>
-        `Der Haushalt gehört bereits zur Gruppe ${group}. Es wurde nichts geändert.`,
       /**
        * The number a household is moved to is the one they already hold (US-30) — refused rather
        * than accepted, because it would print them a fresh card for a move that never happened.
        *
-       * Written in {@link groupUnchanged}'s register, because it is the same refusal one field
-       * over. The control does not offer the step that produces it — the confirmation appears only
-       * once another number is picked — so this is read when the record was moved in a second tab
-       * while this one stood open, which is why it ends by asking for another number rather than
-       * for the same one again.
+       * It had a twin until US-31, „Der Haushalt gehört bereits zur Gruppe Rot", and the twin is
+       * gone with the act: a week is the number's parity now, so asking for the week a household is
+       * already in *is* asking for the number they already hold. The control does not offer the step
+       * that produces this either — the confirmation appears only once another number is picked — so
+       * it is read when the record was moved in a second tab while this one stood open, which is why
+       * it ends by asking for another number rather than for the same one again.
        */
       customerNumberUnchanged: (customerNumber: number): string =>
         `Der Haushalt hat bereits die Kundennummer ${customerNumber}. Es wurde nichts geändert; ` +
@@ -1177,11 +1176,16 @@ export const de = {
     empty: "Zurzeit ist keine Karte neu auszustellen.",
     countsOnCard: "Auf der Karte gedruckt",
     countsToday: "Haushalt heute",
-    /** Why the card and the record differ — the three cases `StaleCardReason` names. */
+    /**
+     * Why the card and the record differ — the two cases `StaleCardReason` names.
+     *
+     * There were three until US-31. „Gruppe gewechselt" is gone because a household's week is now
+     * the parity of its number: the move that changes one prints the card in the same transaction,
+     * so a current card can never name another week and there is nothing for this list to report.
+     */
     reasons: {
       AGE_13: "13. Geburtstag",
       HOUSEHOLD_CHANGE: "Haushalt geändert",
-      GROUP_CHANGE: "Gruppe gewechselt",
     },
     /**
      * The row's action. Only the label is its own: the confirmation, the button and the rejections
@@ -1428,14 +1432,6 @@ export const de = {
        */
       staleCard: (cardNumber: string, onCard: string): string =>
         `Karte ${cardNumber} ist veraltet — gedruckt: ${onCard}. Es gelten die heutigen Zahlen.`,
-      /**
-       * The same note for a card that names the wrong group (US-16.4). Its own sentence rather than
-       * the one above with other words in it: nothing about the household's numbers has changed, and
-       * quoting two identical counts at the counter would read as a mistake.
-       */
-      staleCardGroup: (cardNumber: string, onCard: string): string =>
-        `Karte ${cardNumber} ist veraltet — gedruckt für Gruppe ${onCard}. Es gilt die heutige ` +
-        `Gruppe.`,
       /**
        * The way from the counter to the whole record (US-16.5). Named after what it leads to rather
        * than "Mehr": the counter shows a slice of the record, and the next question — who else lives

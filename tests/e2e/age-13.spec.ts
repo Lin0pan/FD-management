@@ -37,7 +37,8 @@ import { releaseNumbers } from "./seeding";
  * step of the rule at all — a household of two would read `0` on both days whatever the rule said.
  *
  * It takes number 271, clear of the low sequence the registration and card specs allocate against
- * and of the counter (201–206/239), allowance (211), serve (221–222), reminders (231), block (241)
+ * and of the counter (201–207/239), allowance (211), serve (213–217), number change (221–229),
+ * reminders (231), block (241)
  * and reissue (251) specs in the shared `data/e2e.db`.
  */
 

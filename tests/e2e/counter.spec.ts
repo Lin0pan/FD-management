@@ -28,7 +28,9 @@ import { releaseNumbers } from "./seeding";
  * Six households are seeded straight through Prisma rather than through the UI, because half of
  * these states have no screen that can reach them yet: archiving is US-10, blocking US-08, a second
  * card US-09. They take numbers in the 200s so the registration and card specs, which allocate the
- * *lowest* free number, keep the low sequence they assert against in the shared `data/e2e.db`.
+ * *lowest* free number, keep the low sequence they assert against in the shared `data/e2e.db` — and
+ * each takes the *parity* its verdict needs, which is the whole of what puts a household in a week
+ * (US-31).
  *
  * `ALREADY_SERVED_TODAY` is the one verdict absent here: nothing can serve a household yet, so
  * nothing can serve one twice. It arrives with US-05, and the exhaustive switch in the UI already
@@ -52,13 +54,21 @@ const NOW_FILE = SHARED.now;
  */
 const TODAY = "2026-01-08T09:00:00.000Z";
 
-/** The numbers this spec owns. Well clear of the low sequence the other specs consume. */
+/**
+ * The numbers this spec owns. Well clear of the low sequence the other specs consume.
+ *
+ * **The parity is the fixture** (US-31): an odd number is RED and an even one BLUE, so the household
+ * that is turned away for the wrong week is the one on 202 and every household that has to reach a
+ * verdict *past* the week check is odd. Nothing seeds a group here, because there is nothing to
+ * seed — the number is the whole of it. The blocked and archived households are even and it makes no
+ * difference: both reasons are read before the week is (`evaluateAtCounter`'s precedence).
+ */
 const NUMBERS = {
   clear: 201,
-  certificateExpired: 202,
-  wrongGroup: 203,
-  outdatedCard: 204,
-  blocked: 205,
+  certificateExpired: 203,
+  wrongGroup: 202,
+  outdatedCard: 205,
+  blocked: 204,
   archived: 206,
   /**
    * The household the note is written on. Its own number rather than one of the six above, because
@@ -350,6 +360,8 @@ test.describe("Verdikt am Tresen", () => {
   test("sends a blue household away in a red week, naming both colours", async ({ page }) => {
     await lookUp(page, String(NUMBERS.wrongGroup));
 
+    // Blue because the number is even, and for no other reason — the household was seeded with a
+    // number and never with a week (US-31).
     await expectVerdict(page, "WRONG_GROUP", verdicts.wrongGroup.headline);
     // US-03.4 wants the colour in words, not only painted, and the badge is where it is said now
     // that the banner is a headline alone. The week's own colour is named in the banner above.

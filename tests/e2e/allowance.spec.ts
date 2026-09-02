@@ -33,7 +33,7 @@ import { releaseNumbers } from "./seeding";
 // birthdates stay literals, because the counts under test are derived from them.
 faker.seed(20260724);
 
-/** The customer number this spec owns — clear of the low sequence and the counter spec's 201–206. */
+/** The customer number this spec owns — clear of the low sequence and the counter spec's 201–207. */
 const CUSTOMER_NUMBER = 211;
 
 /** Born well before 13 years ago: a grown-up on any day this spec could run. */

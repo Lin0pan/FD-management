@@ -57,9 +57,12 @@ is an ordinary day.
 | **CI — e2e, shared, WebKit**     | WebKit   | A built server on **port 3002**                   | `data/e2e-webkit.db`, deleted and re-migrated per run                      | Pinned via `data/e2e-webkit-now.txt`          |
 | **CI — e2e, isolated, WebKit**   | WebKit   | A built server on **port 3003**                   | `data/e2e-webkit-isolated.db`, empty                                       | Pinned via `data/e2e-webkit-isolated-now.txt` |
 
-The isolated server exists for one reason: the waiting-list spec has to make the register _full_, and
-the quota may not fall below the active customer count — so on a shared database holding customers on
-numbers in the hundreds, no quota could ever leave it full.
+The isolated server exists for one reason: a spec that has to decide the **quota**. The quota may not
+fall below the active customer count, so on a shared database holding customers on numbers in the
+hundreds no quota could ever leave the register full — nor leave one _group_ full, which since US-31
+is a second way a register can run out (an even number is BLUE and an odd one RED, so either half can
+be exhausted on its own). Two specs share it for that reason, `number-group` and `waiting-list`, each
+emptying it and setting its own quota before it starts.
 
 The engine is chosen **per invocation**, not per Playwright project: `npm run test:e2e` drives
 Chromium and `npm run test:e2e:webkit` drives WebKit, each over registers of its own, so neither can

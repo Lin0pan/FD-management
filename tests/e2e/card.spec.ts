@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { faker } from "@faker-js/faker";
 import { de } from "@/i18n/de";
-import { fillDay } from "./day";
+import { fillDay, hydrated } from "./day";
 
 /**
  * The card a registration issues, driven through the built app
@@ -38,9 +38,18 @@ test("a registration on an untouched number issues card k1 and the card view sho
 
   await page.goto("/kunden/neu");
 
+  // The week is chosen first, because it decides the list beneath it: the numbers on offer are the
+  // even ones, so the household this spec registers is BLUE by arithmetic rather than by a second
+  // field (US-31). Waited for rather than clicked straight away — the radio is controlled, and a
+  // click before React owns it moves the dot without moving the list.
+  await hydrated(page.locator("#group-BLUE"));
+  await page.locator("#group-BLUE").check();
+
   // The proposal is what the save will actually assign on this serial run, so the card number can
   // be predicted from it — that prediction is half of what this spec is for.
   const proposedNumber = await page.getByTestId("customer-number-select").inputValue();
+  // Even, and that is the whole of what makes the card below BLUE.
+  expect(Number(proposedNumber) % 2).toBe(0);
 
   await page.locator("#firstName").fill(applicant.firstName);
   await page.locator("#lastName").fill(applicant.lastName);
@@ -51,14 +60,6 @@ test("a registration on an untouched number issues card k1 and the card view sho
   await page.locator("#city").fill(faker.location.city());
   await page.locator("#certificateType").fill("Jobcenter-Bescheid");
   await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
-
-  // Chosen by hand rather than accepted from the suggestion, so the card is asserted against the
-  // registration input and not against whichever group happened to be smaller. The choice sits
-  // behind a `<details>` that starts closed (US-20.2): a radio inside a closed disclosure has no
-  // bounding box, so the summary is really clicked — `evaluate(d => (d.open = true))` would step
-  // around the very control this proves staff can reach.
-  await page.getByTestId("group-choice-open").click();
-  await page.locator("#group-BLUE").check();
 
   // The applicant mirrors into the first household row; the other two are added by hand.
   await page.getByTestId("add-member").click();
@@ -88,6 +89,8 @@ test("a registration on an untouched number issues card k1 and the card view sho
   await expect(page.getByTestId("card-name")).toHaveText(
     `${applicant.firstName} ${applicant.lastName}`,
   );
+  // The group the card is printed for is the parity of the number above it, never a field that was
+  // filled in: the two cannot disagree, because only one of them was ever recorded (US-31).
   await expect(page.getByTestId("card-group")).toHaveText(de.customers.groups.BLUE);
 
   // Derived again, on this request, from the three stored birthdates — no count was ever typed in.

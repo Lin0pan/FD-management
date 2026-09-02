@@ -29,14 +29,21 @@ import { fillPersonalData } from "./registration-form";
  * jump in the card index real rather than a fixture: the vacated slot has printed five cards, so the
  * move prints the sixth, and the household has still only ever been issued five cards of their own.
  * The slot they left keeps its four, under the numbers they were printed with, and that is precisely
- * what lets the next household on it be printed `224k5` instead of a `224k1` that is already out in
+ * what lets the next household on it be printed `221k5` instead of a `221k1` that is already out in
  * the world.
  *
- * The numbers this spec owns are **224–228**, a band no other spec uses, and — unlike the seeding
- * bands above 240 — every one of them has to be **inside the quota of 240**: the control offers
- * `1..quotaN`, so a slot outside it could be neither moved onto nor handed to the household who
- * takes the vacated one afterwards. They are also well clear of the low sequence the allocating
- * specs consume, and below 315, so `group-walk.spec.ts`'s highest walkable RED number is untouched.
+ * The numbers this spec owns are the **odd ones from 221 to 229**, a band no other spec uses, and —
+ * unlike the seeding bands above 240 — every one of them has to be **inside the quota of 240**: the
+ * control offers `1..quotaN`, so a slot outside it could be neither moved onto nor handed to the
+ * household who takes the vacated one afterwards. They are also well clear of the low sequence the
+ * allocating specs consume, and below 311, so `group-walk.spec.ts`'s highest walkable RED number is
+ * untouched.
+ *
+ * **All five are odd, and that is deliberate**: since US-31 a number carries the week it collects
+ * in, so a move across the parity is a move between weeks — and this spec is about neither. Every
+ * move here stays inside RED, which is what lets the counter clear the moved household on the RED
+ * day pinned below and keeps the story about the *card index*. The move that changes the week is
+ * `number-group.spec.ts`'s.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -57,20 +64,20 @@ const NOW_FILE = SHARED.now;
 const TODAY = "2026-01-08T09:00:00.000Z";
 
 /** The slot the household starts on and leaves. Four cards have been printed on it. */
-const START = 224;
+const START = 221;
 /** The slot they move onto: held by a household since archived, and five cards deep. */
-const TARGET = 225;
+const TARGET = 223;
 /** A household whose card has fallen behind their counts, and is therefore on the reissue list. */
-const STALE = 226;
+const STALE = 225;
 /** Where that household moves to — a slot nobody has ever held. */
 const STALE_TARGET = 227;
 /** The slot a second registration takes while the record's control stands open on it. */
-const RACE = 228;
+const RACE = 229;
 
 /** Every number this spec writes to, so a retry can start from an empty band. */
 const OWNED = [START, TARGET, STALE, STALE_TARGET, RACE] as const;
 
-/** A card number as both the screens and the register spell it, e.g. `224k4`. */
+/** A card number as both the screens and the register spell it, e.g. `221k4`. */
 function card(customerNumber: number, index: number): string {
   return `${customerNumber}k${index}`;
 }
@@ -201,15 +208,15 @@ interface Household {
  *
  * The number is chosen in the dropdown rather than accepted from the proposal (US-24), because both
  * registrations here are about a *particular* slot: the one a move has just freed, and the one a
- * record's open control is standing on. The group is checked by hand rather than accepted from the
- * balancing suggestion, because a counter assertion rests on it — only a RED household is clear to
- * serve in a RED week.
+ * record's open control is standing on. The week is checked first, because the list a slot is
+ * picked from is that week's numbers — and every slot here is odd, so it is RED's list (US-31).
  */
 async function register(page: Page, slot: number): Promise<Household> {
   await page.goto("/kunden/neu");
 
   const select = page.getByTestId("customer-number-select");
   await hydrated(select);
+  await page.locator("#group-RED").check();
   await expect(page.locator(`#customerNumber option[value="${slot}"]`)).toHaveCount(1);
   await select.selectOption(String(slot));
 
@@ -222,11 +229,6 @@ async function register(page: Page, slot: number): Promise<Household> {
       certificateValidUntil: CERTIFICATE_VALID_UNTIL,
     },
   );
-
-  // The group choice is a `<details>` that starts closed (US-20.2), so the summary is really
-  // clicked: a radio inside a closed disclosure has no bounding box and `check()` would time out.
-  await page.getByTestId("group-choice-open").click();
-  await page.locator("#group-RED").check();
 
   await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
   await page.waitForURL(/\/kunden\/\d+(\?|$)/);
@@ -289,13 +291,23 @@ async function badgeCount(page: Page): Promise<number> {
   return count;
 }
 
-/** How many customer numbers the intake says are still free. */
-async function freeNumberCount(page: Page): Promise<number> {
+/**
+ * How many customer numbers the intake says are still free, per week.
+ *
+ * Two figures rather than one, because that is what the screen states since US-31: a week can be
+ * full while the register is not. Read as a pair and only ever compared with itself — a move swaps
+ * one taken slot for another, so neither figure may move while both slots are of the same parity.
+ */
+async function freeNumbersByGroup(page: Page): Promise<{ red: number; blue: number }> {
   await page.goto("/kunden/neu");
-  const hint = await page.getByTestId("free-number-count").innerText();
-  const count = Number(hint.replace(/\D/g, ""));
-  expect(Number.isInteger(count)).toBe(true);
-  return count;
+  const hint = await page.getByTestId("free-numbers-by-group").innerText();
+  const match = /Rot: (\d+), Blau: (\d+)/.exec(hint);
+  expect(match).not.toBeNull();
+  // Narrowed for the compiler; a failure here is the same failure as the expectation above.
+  if (match === null) {
+    throw new Error(`unreadable free-number hint: ${hint}`);
+  }
+  return { red: Number(match[1]), blue: Number(match[2]) };
 }
 
 /** Type a number at the counter and press Enter, exactly as staff do it. */
@@ -338,7 +350,7 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
   let moverId: number;
   let staleId: number;
   /** Read before the move, and only ever compared with themselves. */
-  let freeBefore: number;
+  let freeBefore: { red: number; blue: number };
   let dueBefore: number;
 
   test.beforeAll(async () => {
@@ -410,7 +422,7 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
     // Nothing to confirm while the number on screen is the number they hold.
     await expect(page.getByTestId("number-change-open")).toHaveCount(0);
 
-    freeBefore = await freeNumberCount(page);
+    freeBefore = await freeNumbersByGroup(page);
     dueBefore = await badgeCount(page);
   });
 
@@ -427,7 +439,7 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
     await expect(page.getByTestId("customer-number")).toHaveText(String(TARGET));
     await expect(page.getByTestId("card-number")).toHaveText(card(TARGET, 6));
     // The receipt names the slot that was freed as well, which is the one fact the revalidated
-    // record above it cannot state: the row it was read from now says 225 everywhere.
+    // record above it cannot state: the row it was read from now says 223 everywhere.
     await expect(page.getByTestId("number-change-saved")).toHaveText(
       plain(words.saved(START, TARGET, de.customers.groups[groupOf(TARGET)], card(TARGET, 6))),
     );
@@ -446,8 +458,8 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
     await expect(page.getByTestId("card-number")).toHaveText(card(TARGET, 6));
 
     // The line this whole story turns on. The four cards the household carried on the slot they left
-    // are listed as `224k4 … 224k1`, never as `225k4 … 225k1`: those four numbers are what keeps
-    // slot 224 safe to hand out again, and re-labelling them would put `224k1` back into the world
+    // are listed as `221k4 … 221k1`, never as `223k4 … 223k1`: those four numbers are what keeps
+    // slot 221 safe to hand out again, and re-labelling them would put `221k1` back into the world
     // while the piece of card bearing it is still in somebody's pocket.
     await expect(page.getByTestId("superseded-card")).toHaveText([
       de.customers.cardView.supersededEntry(
@@ -481,6 +493,10 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
 
   test("the intake offers the vacated number the moment the move is saved", async ({ page }) => {
     await page.goto("/kunden/neu");
+    // Both slots are odd, so RED's list is the one list that could hold either of them — the intake
+    // offers one week at a time since US-31, and which one it opens on depends on the balance.
+    await hydrated(page.locator("#group-RED"));
+    await page.locator("#group-RED").check();
 
     // What a move actually does to the pool: it swaps one slot for another. The number the household
     // left is offered, the number they took is not, and the *count* is unchanged — a move can never
@@ -489,7 +505,7 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
     // reader expects here, and it would be wrong.
     await expect(page.locator(`#customerNumber option[value="${START}"]`)).toHaveCount(1);
     await expect(page.locator(`#customerNumber option[value="${TARGET}"]`)).toHaveCount(0);
-    expect(await freeNumberCount(page)).toBe(freeBefore);
+    expect(await freeNumbersByGroup(page)).toEqual(freeBefore);
   });
 
   test("the counter knows nobody on the vacated number and serves the household on the new one", async ({
@@ -552,7 +568,7 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
   }) => {
     const successor = await register(page, START);
 
-    // `224k5`, not `224k1`. The four cards the mover left on this slot are still on it, and this is
+    // `221k5`, not `221k1`. The four cards the mover left on this slot are still on it, and this is
     // the sentence they were left there for.
     expect(successor.cardNumber).toBe(card(START, 5));
 
@@ -590,9 +606,13 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
 
     // One sentence, the same one the intake uses for a number that has gone: it names the number and
     // asks for another, because re-submitting the same one would fail identically.
-    await expect(page.getByTestId("number-change-error")).toHaveText(
-      de.customers.errors.customerNumberUnavailable(RACE),
-    );
+    const refusal = page.getByTestId("number-change-error");
+    await expect(refusal).toHaveText(de.customers.errors.customerNumberUnavailable(RACE));
+    // Amber, not red: a rule refused a well-formed request and the staff member can settle it where
+    // they stand, which is the distinction `notice-tier.ts` exists to make. It is asserted here
+    // because this is the record's one *rule* refusal — the record used to prove it on a group move,
+    // and there is no such act any more (US-31).
+    await expect(refusal).toHaveAttribute("data-tier", "refusal");
     // The staff member is still on the record, which still says what it said before.
     expect(page.url()).toContain(`/kunden/${moverId}`);
     await expect(page.getByTestId("customer-number")).toHaveText(String(TARGET));

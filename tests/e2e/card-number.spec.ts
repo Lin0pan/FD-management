@@ -5,7 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { SHARED } from "./registers";
-import { fillDay } from "./day";
+import { fillDay, hydrated } from "./day";
 
 /**
  * A card number is handed out once and never again, driven through the built app
@@ -53,14 +53,17 @@ const TODAY = "2026-01-08T09:00:00.000Z";
  * The one customer number this spec owns — the slot both households sit on, one after the other.
  *
  * It has to be **inside the quota of 240**, unlike the bands the seeding specs took (241 upwards):
- * the control offers `1..quotaN`, and a number nobody may pick could not be chosen twice. 235–238
- * are free of every band named in `scripts/ralph/progress.txt` — counter (201–206, 239),
- * allowance (211), serve (221–222), reminders (231) and registration (232–234) are the only ones below 240 —
- * and the low sequence the allocating specs consume is nowhere near it.
+ * the control offers `1..quotaN`, and a number nobody may pick could not be chosen twice. It is
+ * **odd, and therefore RED** (US-31), which is what lets the successor's card be cleared on the RED
+ * distribution day pinned above — the group is not a second thing to choose any more, it is what
+ * this number is. 237 is free of every band named in `scripts/ralph/progress.txt`: counter
+ * (201–207, 239), allowance (211), serve (213–217), number change (221–229), reminders (231) and
+ * registration (232–236) are the only ones below 240, and the low sequence the allocating specs
+ * consume is nowhere near it.
  */
-const SLOT = 236;
+const SLOT = 237;
 
-/** The card number this spec expects at a given index on {@link SLOT}, e.g. `236k2`. */
+/** The card number this spec expects at a given index on {@link SLOT}, e.g. `237k2`. */
 function card(index: number): string {
   return `${SLOT}k${index}`;
 }
@@ -100,8 +103,9 @@ interface Household {
  * two households can be put on one slot: the allocator offers the lowest free number, and that is
  * never the number the household before them is still holding.
  *
- * The group is checked by hand rather than accepted from the balancing suggestion, because the
- * counter assertions depend on it — only a RED household is clear to serve in a RED week.
+ * The week is checked by hand rather than accepted from the recommendation, because the counter
+ * assertions depend on it — only a RED household is clear to serve in a RED week. Since US-31 that
+ * is the same act as choosing the slot: the radios filter the list the number is picked from.
  *
  * @returns the record's id and the card number the screen shows for it.
  */
@@ -110,6 +114,12 @@ async function register(page: Page): Promise<Household> {
   const lastName = faker.person.lastName();
 
   await page.goto("/kunden/neu");
+
+  // The week first, because the list beneath it is that week's numbers: the slot is odd, so it is
+  // RED's list it is on (US-31). Waited for, since a click before React owns the radio moves the dot
+  // without moving the list.
+  await hydrated(page.locator("#group-RED"));
+  await page.locator("#group-RED").check();
 
   // The slot is free — the register has never held anybody on it, or the household who did has been
   // archived — so it is on offer. That it is offered *after* an archive is US-10's rule, and it is
@@ -126,11 +136,6 @@ async function register(page: Page): Promise<Household> {
   await page.locator("#city").fill(faker.location.city());
   await page.locator("#certificateType").fill("Jobcenter-Bescheid");
   await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
-
-  // The group choice is a `<details>` that starts closed (US-20.2), so the summary is really
-  // clicked: a radio inside a closed disclosure has no bounding box and `check()` would time out.
-  await page.getByTestId("group-choice-open").click();
-  await page.locator("#group-RED").check();
 
   await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
   await page.waitForURL(/\/kunden\/\d+(\?|$)/);
@@ -217,7 +222,7 @@ test.describe("Kartennummern werden nie doppelt vergeben", () => {
     expect(successor.id).not.toBe(left.id);
     expect(successor.cardNumber).not.toBe(left.cardNumber);
     // Not merely different: the next number on the slot. The run counts the slot's cards, so the
-    // first card of the second household is `236k2`, and `236k1` can never be issued again.
+    // first card of the second household is `237k2`, and `237k1` can never be issued again.
     expect(successor.cardNumber).toBe(card(2));
   });
 
@@ -289,8 +294,8 @@ test.describe("Kartennummern werden nie doppelt vergeben", () => {
     await page.goto(`/kunden/${successor.id}`);
     await page.getByTestId("reissue-open").click();
 
-    // The replacement is `236k3`, and the confirmation names it before the write because it is what
-    // staff copy onto the physical card. `236k1` is not offered back even though its household has
+    // The replacement is `237k3`, and the confirmation names it before the write because it is what
+    // staff copy onto the physical card. `237k1` is not offered back even though its household has
     // left the register: the slot's run only ever goes upwards.
     await expect(page.getByTestId("reissue-confirm")).toHaveText(
       de.customers.reissue.confirm(card(2), card(3)),

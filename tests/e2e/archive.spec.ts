@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { SHARED } from "./registers";
-import { fillDay, fillSticky } from "./day";
+import { fillDay, fillSticky, hydrated } from "./day";
 
 /**
  * Archiving a household and watching their customer number come back into circulation, driven through
@@ -86,8 +86,9 @@ interface Household {
 /**
  * Register one RED household with a grown-up and a child through the real form.
  *
- * The group is checked by hand rather than accepted from the balancing suggestion, because the
- * hand-out below depends on it: only a RED household is clear to serve in a RED week.
+ * The week is checked by hand rather than accepted from the recommendation, because the hand-out
+ * below depends on it: only a RED household is clear to serve in a RED week — and since US-31 that
+ * choice *is* the choice of number, because the list beneath the radios is the odd slots.
  *
  * @returns the number the proposal offered — which, on a serial run, is the number the save assigns.
  */
@@ -97,6 +98,11 @@ async function register(page: Page): Promise<Household> {
   const childFirstName = faker.person.firstName();
 
   await page.goto("/kunden/neu");
+  // The week first: it decides the numbers on offer, so a RED household is one registered on an odd
+  // slot and nothing else (US-31). Waited for, because a click before React owns the radio moves the
+  // dot without moving the list beneath it.
+  await hydrated(page.locator("#group-RED"));
+  await page.locator("#group-RED").check();
   const customerNumber = await page.getByTestId("customer-number-select").inputValue();
 
   await fillSticky(page.locator("#firstName"), firstName);
@@ -108,13 +114,6 @@ async function register(page: Page): Promise<Household> {
   await fillSticky(page.locator("#city"), faker.location.city());
   await fillSticky(page.locator("#certificateType"), "Jobcenter-Bescheid");
   await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
-
-  // The group choice is a `<details>` that starts closed (US-20.2), so the summary is clicked the
-  // way staff would click it: a radio inside a closed disclosure has no bounding box and `check()`
-  // would time out. A real click rather than `evaluate(d => (d.open = true))`, so that a summary
-  // which stopped opening turns this spec red instead of being stepped around.
-  await page.getByTestId("group-choice-open").click();
-  await page.locator("#group-RED").check();
 
   // The applicant mirrors into the first household row; only the child is added by hand.
   await page.getByTestId("add-member").click();
@@ -342,7 +341,11 @@ test.describe("Kunde archivieren", () => {
 
     // The point of the whole story: the number the archived household gave up is the lowest free one
     // again, so the very next registration is offered it — no gap in the sequence, no renumbering.
+    // Read on RED's list, because the pool is offered a week at a time now (US-31) and the number
+    // they gave up is an odd one — it is that list's lowest, which is where „no gap" is visible.
     await page.goto("/kunden/neu");
+    await hydrated(page.locator("#group-RED"));
+    await page.locator("#group-RED").check();
     await expect(page.getByTestId("customer-number-select")).toHaveValue(household.customerNumber);
 
     const successor = await register(page);

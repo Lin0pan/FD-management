@@ -26,15 +26,16 @@ import { releaseNumbers } from "./seeding";
  *
  * | Number | Household         | Case                                                        |
  * | ------ | ----------------- | ----------------------------------------------------------- |
- * | 341    | 1 grown-up, 1 kid | the spine: part payment, carry, the removal and the correction that undo it |
- * | 342    | 1 grown-up, 1 kid | a credit smaller than the price — the next hand-out costs less |
- * | 343    | 1 grown-up, 1 kid | a credit larger than the price — the next hand-out costs nothing |
- * | 344    | 4 grown-ups, 3 kids | the cap: an amount to pay *above* the Maximalpreis           |
+ * | 342    | 1 grown-up, 1 kid | the spine: part payment, carry, the removal and the correction that undo it |
+ * | 344    | 1 grown-up, 1 kid | a credit smaller than the price — the next hand-out costs less |
+ * | 346    | 1 grown-up, 1 kid | a credit larger than the price — the next hand-out costs nothing |
+ * | 348    | 4 grown-ups, 3 kids | the cap: an amount to pay *above* the Maximalpreis           |
  *
- * They are **BLUE**, and that is not decoration: `group-walk.spec.ts` runs after this file and
- * asserts that 315 is the highest RED number in the whole shared register, so a RED household seeded
- * on 341 here would fail a spec this one is not allowed to touch. `eggs.spec.ts` sits above 315 for
- * the same reason. Being BLUE decides which Thursdays they may be served on, and nothing else.
+ * They are **even, and therefore BLUE** (US-31), and that is not decoration: `group-walk.spec.ts`
+ * runs after this file and asserts that 317 is the highest RED number in the whole shared register,
+ * so an odd number seeded here would fail a spec this one is not allowed to touch. `eggs.spec.ts`
+ * sits above 317 on even numbers for the same reason. Which week they are in decides which Thursdays
+ * they may be served on, and nothing else — and it is not seeded, it *is* the number.
  *
  * The days are two BLUE distribution days a fortnight apart, pinned through the clock seam exactly
  * as `age-13.spec.ts` and `reminders.spec.ts` pin theirs. Two days is what the carry needs: one to
@@ -65,13 +66,13 @@ const SERVED_AT = germanTime(new Date(FIRST_DAY));
 /** The numbers this spec owns: a band no other spec uses, above the quota of 240. */
 const NUMBERS = {
   /** Pays part of what is asked, is asked for the rest a fortnight later, then has it all undone. */
-  carry: 341,
+  carry: 342,
   /** Pays 1,00 € above the price, so the next hand-out costs 1,00 € less. */
-  smallCredit: 342,
+  smallCredit: 344,
   /** Pays 7,00 € above the price, which is more than the next hand-out costs at all. */
-  largeCredit: 343,
+  largeCredit: 346,
   /** Above the Maximalpreis, so what is asked and what the week costs part company. */
-  capped: 344,
+  capped: 348,
 } as const;
 
 /**

@@ -75,22 +75,39 @@ bullets that sat under „Where batch 30 starts" are not carried over — they a
   clicking built up (the e2e suite makes its own registers).
 - **Changing a seeded policy value moves e2e expectations.** `grep -rn ',00 €' tests/e2e/` before
   editing a number in `seed.ts`.
-- **The e2e customer-number bands, as they now stand.** Below the quota of 240: counter 201–206 and
-  239, allowance 211, serve 221–222, reminders 231, registration 232–234, card numbers 236. Above it:
-  block 241, reissue 251, age-13 271, customer-list 281–285, customer-record 291–293, group-progress
-  301–303, group-walk 311–315, price cap 321, eggs 331–334, balance 341–344. A spec whose number must
-  be **pickable in the /kunden/neu dropdown** has to sit below 240 — the pool is `1..quotaN` — and
-  everything else should stay above it, clear of the low sequence the allocating specs (registration,
-  card, archive, reregistration) consume. **A new spec takes a new band**; do not borrow another
-  spec's numbers. **And a band above 315 must be seeded BLUE**: `group-walk.spec.ts` reads the whole
-  shared register and asserts that the highest walkable RED number *is* its own 315, so one RED
-  household seeded higher fails a spec the new one has no business in — `eggs` and `balance` are both
-  BLUE for that reason and not by taste. **Below 240 the band may be RED**, which is what lets a spec
-  reuse the RED distribution Thursday `2026-01-08` the reissue and card-number specs already pin —
-  `number-change` (224–228) took that route because every number it drives has to be **pickable in a
-  dropdown**: a slot moved onto, or a vacated slot handed to the next household, is offered from
-  `1..quotaN`, so „a new band" and „inside the quota" are two rules and the second one wins. Sweep the
-  numbers in use with `grep -rhno "\b2[0-9][0-9]\b" tests/e2e/*.spec.ts | cut -d: -f2 | sort -un`.
+- **The e2e customer-number bands, as they now stand — and the parity IS the fixture (US-31).** A
+  household's week is the parity of its number, so no spec seeds a group any more: it seeds an odd
+  number for RED and an even one for BLUE, and a band whose parity contradicts its assertions is a
+  spec that fails for a reason it never mentions. Below the quota of 240: counter 201–207 (201 clear,
+  202 the wrong-week one, 203 expired, 204 blocked, 205 outdated card, 206 archived, 207 notes) and
+  239 unassigned, allowance 211, serve 213/215/217, number change 221–229 odd, reminders 231,
+  registration 232/234/236, card numbers 237. Above it: block 241, reissue 251, age-13 271,
+  customer-list 281–285, customer-record 291–293, group-progress 301/303/305, group-walk
+  311/313/314/315/317, price cap 321, eggs 332–338 even, balance 342–348 even. A spec whose number
+  must be **pickable in the /kunden/neu dropdown** has to sit below 240 — the pool is `1..quotaN` —
+  and everything else should stay above it, clear of the low sequence the allocating specs
+  (registration, card, archive, reregistration) consume. **A new spec takes a new band**; do not
+  borrow another spec's numbers. **And a band above 317 that sorts BEFORE `group-walk.spec.ts` must
+  be even**: that spec reads the whole shared register and asserts that the highest walkable RED
+  number *is* its own 317, so an odd household seeded higher by a file running earlier fails a spec
+  the new one has no business in — `eggs` and `balance` are even for that reason and not by taste,
+  while `price-cap`'s 321 is odd and harmless because `p` sorts after `g`. **A band that has to reach
+  „Ausgabe frei" on the RED Thursday `2026-01-08`** — the day the reissue, card-number, serve and
+  number-change specs all pin — **must be odd**, which is why `number-change` (221–229) and `serve`
+  (213–217) are. Sweep the numbers in use with
+  `grep -rhno "\b[23][0-9][0-9]\b" tests/e2e/*.spec.ts | cut -d: -f2 | sort -un`.
+- **Choosing a number at the intake now starts with choosing the week.** `/kunden/neu` offers one
+  parity at a time, so `selectOption("236")` finds no such option unless `#group-BLUE` is checked
+  first — and the radio is controlled, so the check has to come after `hydrated()` or it moves the
+  dot without moving the list. Same on the record's `number-change-select`. Six specs that used to
+  open a `<details>` (`group-choice-open`, deleted in US-31.6) now just check the radio, and every
+  spec that reads the *proposed* number must read it **after** the check.
+- **Two specs share the isolated register now** (`ISOLATED_SPECS`), `number-group` before
+  `waiting-list`. Sharing is safe only because each empties it with `clearRegister` in its own
+  `beforeAll` and sets the quota it needs in its first test — which they both have to do anyway, since
+  a CI retry replays a `serial` block against the register the previous attempt filled. A spec needs
+  that register when it has to **decide the quota**: since US-31 that includes making one *week* full
+  while the register is not, which no quota on the shared register could ever reach.
 - **e2e spec files run in alphabetical path order, one worker, one shared database.** So a spec that
   *writes* shared state is only ever seen by the files sorting after it — `npx playwright test --list`
   prints the order, and a **rename moves a spec in that order** (batch 27's `portions.spec.ts` →
@@ -847,4 +864,77 @@ PRDs — which are **annotated, never rewritten**, per the patterns block above.
     section name and „beide Zahlen". Corrected here; the wider check US-31.9's criteria ask for
     („any page that tells DF to change a group on its own") is still open, and the manual still says
     nothing about the even/odd rule itself.
+---
+
+## 2026-09-02 — US-008 (US-31.8): E2E — the number and the group cannot disagree
+
+- **New `tests/e2e/number-group.spec.ts`, eleven tests, green on both engines.** It walks one
+  register from empty to a household that has changed weeks and reads the consequence off every
+  screen that states one: the intake opens on the recommended week and offers only that week's
+  numbers, switching re-filters the list and moves the preselection, a household on an even number is
+  BLUE on the record badge and on the card, a week with nothing free is unselectable with its reason
+  beside it while the other still registers and the waiting list is **not** offered, the record's
+  confirmation names number/week/card before the write and the receipt names them after, the card
+  view shows the new card and keeps the superseded one under the slot — and therefore the week — it
+  was printed on, „Karten neu ausstellen" only ever reports counts, the counter serves the household
+  under the new number in the new week and answers a superseded card with the week printed on it, and
+  the list's week filter returns exactly the numbers of that parity with a balance that agrees.
+- **It owns the isolated register**, added to `ISOLATED_SPECS` beside `waiting-list.spec.ts`: „one
+  week full while the register is not" needs a quota of 6, and the shared register's numbers in the
+  hundreds put any such quota below the active count. Both specs empty the register in `beforeAll`,
+  so sharing costs nothing and both were already required to.
+- **Every seeded household was re-banded to the parity its assertions claim.** counter 202↔203 and
+  204↔205 so the wrong-week household is the even one; serve 221–223 → 213/215/217; number change
+  224–228 → 221–229 odd, so its moves stay inside RED and the story stays about the card index;
+  registration 232–234 → 232/234/236 even, so „taken" and „released" are on one list; card numbers
+  236 → 237; group-progress 301–303 → 301/303/305; group-walk 311–315 → 311/313/314/315/317; eggs
+  331–334 → 332–338; balance 341–344 → 342–348. `group-walk`'s shared invariant moved with it: the
+  highest walkable RED is 317.
+- **Six specs stopped opening the deleted group disclosure** and check the radio instead, after
+  `hydrated` and *before* reading the proposed number: archive, card, card-number, number-change,
+  registration, reregistration.
+- **Three tests were deleted with the act they drove**: `customer-record.spec.ts`'s group move, its
+  `GROUP_CHANGE` row on the cards-due list, and the `GroupUnchanged` amber refusal. The first two are
+  `number-group.spec.ts`'s subject now; the amber tier is asserted on the refused renewal in the same
+  file and, for a *rule* refusing a well-formed request on the record, on `CustomerNumberTaken` in
+  `number-change.spec.ts` — one line added there.
+- **The three German strings those tests were holding up are gone**: `customers.errors.groupUnchanged`,
+  `cardsDue.reasons.GROUP_CHANGE` and `distribution.counter.staleCardGroup`.
+- `docs/architecture/07-deployment-view.md`: the isolated server's reason now covers a full *group*
+  and names both specs.
+- Files: `tests/e2e/number-group.spec.ts` (new), `registers.ts`, and sixteen specs; `src/i18n/de.ts`;
+  `docs/architecture/07-deployment-view.md`.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (56 files, 1309 tests, domain
+  and application both 100%), `npm run build`, `npx prettier --check .`, `npm run test:e2e` and
+  `npm run test:e2e:webkit` — 204 passed on each.
+
+- **Learnings for future iterations:**
+  - **A re-banding is decided by three rules at once, and they pull against each other.** A number
+    has to be (1) of the parity its spec's verdicts need, (2) inside the quota if any screen must
+    *offer* it, and (3) in nobody else's band. `serve` had to leave the 220s entirely because
+    `number-change` needed five odd numbers there, and `card-number`'s single slot moved 236 → 237
+    for parity alone. Lay the whole of 200–240 out on paper before editing a single constant.
+  - **Alphabetical order decides which parities matter.** `group-walk` asserts the highest walkable
+    RED in the *shared* register, so only the specs sorting **before** it can break that claim —
+    `eggs` and `balance` had to go even, and `price-cap`'s odd 321 is fine because `p` sorts after
+    `g`. Checking `npx playwright test --list` beats reasoning about the band's height.
+  - **`nextCardIndexOnMove` catches a new spec out.** Moving onto a slot nobody has ever held still
+    prints `k2` when the household holds their first card — the index is the later of the slot's next
+    and their own (US-30.3). The confirmation, the receipt, the record, the card view and the counter
+    all name it, so one wrong expectation is five failures.
+  - **A refusal deleted is a claim that needs re-homing, not deleting.** `GroupUnchanged` was the
+    record's only *rule* refusal, and it was the amber half of a deliberate amber/red pair. The pair
+    survives because the claim moved to `CustomerNumberTaken` in `number-change.spec.ts` — one
+    `toHaveAttribute("data-tier", "refusal")`. Grep for what a deleted test was the *only* proof of
+    before removing it.
+  - **„The control opens on the lowest free number" became a two-part claim** and had to be rewritten
+    rather than repointed: the lowest free number *of the week the radio is standing in*. The week is
+    read off the screen and the number out of the database, and the parity is written as
+    `candidate % 2` rather than taken from `groupOf` — an expectation computed with the rule under
+    test agrees with itself whatever the rule says.
+  - **WebKit failed twice in four full-suite runs, both times at browser level** — a
+    `counter-input.press("Enter")` that never navigated (`price-cap`, a file this story never
+    touched) and WebKit's own „This page couldn't load" page (`eggs`). Neither recurred; the suite was
+    green twice. The patterns bullet above already predicts roughly this rate, and the tell is the
+    error-context snapshot: a browser error page in it means the engine, not the assertion.
 ---

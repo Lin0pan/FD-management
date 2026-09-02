@@ -88,5 +88,10 @@ export const ISOLATED: Register = register(1, "-isolated");
  *
  * Add one here only when it must decide the quota or fill every slot — the isolated project costs a
  * second Next server for the whole run, and a spec that merely writes is fine on the shared one.
+ *
+ * The two here **share** that register, in alphabetical order like everything else, and each empties
+ * it in its own `beforeAll` (`clearRegister`) before setting the quota it needs. That is what makes
+ * sharing safe and is required of them anyway: both are `mode: "serial"`, and a CI retry replays the
+ * block against the register the previous attempt filled.
  */
-export const ISOLATED_SPECS = ["**/waiting-list.spec.ts"];
+export const ISOLATED_SPECS = ["**/number-group.spec.ts", "**/waiting-list.spec.ts"];
