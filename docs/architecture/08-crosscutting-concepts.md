@@ -1,6 +1,6 @@
 # 8. Cross-cutting concepts
 
-_Last reviewed: 2026-08-29_
+_Last reviewed: 2026-09-02_
 
 The rules that apply everywhere, so that five modules do not solve one problem five ways. Each says
 what it is, why it exists, the rules that follow, and where it shows up. The "why did we choose this
@@ -36,20 +36,18 @@ erDiagram
     }
     Customer {
         int id PK "the only identity"
-        int customerNumber "a slot; released by archiving or a move"
+        int customerNumber "a slot, and the week: even BLUE, odd RED"
         string firstNameFolded "search key"
         string lastNameFolded "search key"
-        string group "RED or BLUE"
         string status "ACTIVE BLOCKED ARCHIVED"
         int reminderCount
         int previousCustomerId FK "display metadata only"
     }
     Card {
-        int customerNumber "the slot this card was printed under"
+        int customerNumber "the slot, and week, this card was printed under"
         int index "unique per customerNumber"
         int grownUpsAtIssue "snapshot of the printed card"
         int childrenAtIssue "snapshot of the printed card"
-        string groupAtIssue "snapshot of the printed card"
         string reason "FIRST_ISSUE LOST STALE_COUNTS CUSTOMER_NUMBER_CHANGED OTHER"
     }
     DistributionRecord {
@@ -81,6 +79,13 @@ is not a customer, and an audit entry outlives whatever it describes.
   A slot is released by archiving **or by a move to another number**, and a card keeps the slot it was
   printed under either way —
   [ADR-016](adr/016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md).
+- **A household's group is not a column.** It is the parity of the number: even is BLUE, odd is RED,
+  read through `groupOf(customerNumber)` at every use —
+  [ADR-017](adr/017-the-customer-number-decides-the-group.md). The same applies to a card, whose group
+  is the parity of the slot it was printed under. `Customer.group` and `Card.groupAtIssue` were both
+  dropped, so a household and its week cannot disagree, and no query may filter or index on a group:
+  SQLite has no `% 2` in a `WHERE` clause, so the parity is applied in the use case after the rows
+  come back.
 - Nothing computable is stored, with four argued exceptions, each carrying its argument in the schema
   comments — [ADR-007](adr/007-derive-anything-computable-rather-than-storing-it.md). Do not "fix"
   them.
@@ -198,7 +203,7 @@ Policy is `SettingsVersion` rows, not constants — [ADR-005](adr/005-keep-busin
 Append-only entries recording _what_, _when_ and _why_ — **never who**, because there is no login to
 tell its volunteers apart — [ADR-006](adr/006-record-what-when-and-why-in-the-audit-log-never-who.md).
 
-- Required on every state change: archive, block, unblock, group move, card reissue, note edit,
+- Required on every state change: archive, block, unblock, number change, card reissue, note edit,
   policy edit. Skipping one is a defect, not an omission.
 - The _why_ is **mandatory** where the judgement is the record (block, archive) and optional where
   the changed fields already say it (a settings edit).

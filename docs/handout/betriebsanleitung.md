@@ -147,6 +147,12 @@ Sie wählen dort zuerst die Gruppe und darunter eine Nummer — angeboten werden
 dieser Gruppe. Ist in einer Gruppe keine Nummer mehr frei, steht das dort und die Gruppe lässt sich
 nicht wählen.
 
+> **Die Nummer bestimmt die Gruppe**, so wie im Papierregister: **gerade Nummern sind BLAU, ungerade
+> ROT.** Deshalb gibt es keine eigene Einstellung für die Gruppe — wer den Haushalt in die andere
+> Woche holen will, gibt ihm eine Nummer der anderen Sorte. Und weil beide Hälften getrennt voll
+> laufen können, kann in einer Woche keine Nummer mehr frei sein, während in der anderen noch
+> welche sind.
+
 Bevor gespeichert wird, nennt Ihnen die Software alle drei Angaben: die neue Kundennummer, die
 **Gruppe** und die neue **Kartennummer**. Alle drei brauchen Sie:
 

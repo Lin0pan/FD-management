@@ -30,8 +30,8 @@ whether to log — it is what an honest log can claim.
 
 `AuditEntry` records `what` (a stable event name such as `settings.updated`), `changedFields`,
 `when` (from the injected clock) and `why`. There is no actor column. Entries are appended and never
-amended or deleted. Every state change writes one: archive, block and unblock, group move, card
-reissue, note edit, policy edit. The _why_ is **required** where the judgement is the record —
+amended or deleted. Every state change writes one: archive, block and unblock, a move to another
+customer number, card reissue, note edit, policy edit. The _why_ is **required** where the judgement is the record —
 blocking and archiving a household — and optional where the changed fields already say it, as on a
 settings edit.
 

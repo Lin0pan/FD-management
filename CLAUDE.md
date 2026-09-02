@@ -58,19 +58,21 @@ deliberately and say why in the commit; do not add an inline disable.
   `src/infrastructure/clock.ts`. (A zero-argument `new Date()` is a lint error in domain and
   application; `new Date(someValue)` is fine — it transforms a value that was passed in.)
 - **Derive, don't store** anything computable — grown-up/children counts, the price, card
-  validity. Two sources of truth is the Excel failure we are replacing. There are exactly three
-  exceptions, each with an argument of its own kind:
-  - `Card.grownUpsAtIssue` / `childrenAtIssue` / `groupAtIssue` — a snapshot of what was _printed_ on
-    a physical card, so a birthday that overtook the counts (US-13) or a move between RED and BLUE
-    (US-16.4) can be spotted. Never read as the household's counts or group — those are
-    `composition(members, today)` and `Customer.group` — and never updated: a reissue is how a change
-    is recorded.
+  validity, a household's **group** (US-31: even is BLUE, odd is RED, `groupOf(customerNumber)`).
+  Two sources of truth is the Excel failure we are replacing. There are exactly three exceptions,
+  each with an argument of its own kind:
+  - `Card.grownUpsAtIssue` / `childrenAtIssue` — a snapshot of what was _printed_ on a physical card,
+    so a birthday that overtook the counts (US-13) or a household that changed size can be spotted.
+    Never read as the household's counts — those are `composition(members, today)` — and never
+    updated: a reissue is how a change is recorded. A `groupAtIssue` stood here until US-31 and does
+    not any more: a card's group is the parity of the slot it was printed under, which the row
+    already carries.
   - `Customer.firstNameFolded` / `lastNameFolded` — a **search key**, not a fact (US-11). SQLite can
     fold neither umlauts nor Unicode case in a `WHERE` clause, so `foldName`'s output is stored and
     indexed. Never displayed and never read as the name; written from the names in the same
     statement, so a write that changes a name must rewrite them with it.
   - `Card.customerNumber` — a **key** in the same sense `firstNameFolded` is one (US-25), **and** a
-    snapshot in the same sense the three `AtIssue` fields are (US-30, ADR-016). The
+    snapshot in the same sense the two `AtIssue` fields are (US-30, ADR-016). The
     `@@unique([customerNumber, index])` that makes a card number unique for good needs the slot on
     the card row itself, and `MAX(index) WHERE customerNumber = ?` is the question the counting rule
     asks. Since a household may be moved to another number, this column is also the slot the card was
@@ -85,7 +87,11 @@ deliberately and say why in the commit; do not add an inline disable.
   be a fourth and refused** — it is `Σ (paidCents − priceCents)` over a household's hand-outs,
   derived at every read (US-29, ADR-015). A stored balance beside the records that produce it is
   two answers to one question, and a corrected or removed hand-out would leave them disagreeing
-  silently.
+  silently. The **group** is the third time this has been refused (US-31, ADR-017), after the balance
+  and beside the counts, and the only one that took stored columns away again: `Customer.group` and
+  `Card.groupAtIssue` are gone, so „a household on 37 in group BLUE" is a pair the system cannot
+  express rather than one a rule has to catch. The cost is that a group can be full while the
+  register is not — free slots are counted **per group** wherever capacity is shown.
 
 - **Money is integer cents**, never a float. Format via `src/domain/money.ts`.
 - **Policy values are data, not constants** — the prices per head, the cap and the quota `N` live
@@ -180,8 +186,8 @@ settings screen reporting that nothing is configured.
   `updateDetails` with it — the customer is one of those rows, so their own name lives there too),
   because no history of past compositions is kept (US-16, FR-2) and what a household was survives on
   the card that printed its counts. Nothing else in the schema may be deleted.
-- ❌ Don't skip the audit entry on a state change (archive, block, group move, card reissue, policy
-  edit). With no login, the log is the only accountability the system has — and it records _what,
+- ❌ Don't skip the audit entry on a state change (archive, block, number change, card reissue,
+  policy edit). With no login, the log is the only accountability the system has — and it records _what,
   when and why_, never _who_. The _why_ is required where it is the record (archive, block) and
   optional where the changed fields already say it (a policy edit).
 - ❌ Don't add a dependency to avoid ~50 lines of code, and don't reach for a heavier pattern

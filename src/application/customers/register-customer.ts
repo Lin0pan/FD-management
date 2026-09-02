@@ -43,6 +43,11 @@ const CUSTOMER_REGISTERED = "customer.registered";
  * itself. What is worth recording is what the *system* decided on its own: which slot the household
  * took, which half of the cycle they were put in, that they came in active, and that a card was
  * issued with them.
+ *
+ * `group` here names a *decision*, not a column: since US-31 there is none, and the week is the
+ * parity of the `customerNumber` named beside it. It stays on the list because a reader of the log a
+ * year later should not have to know the rule to see which week the household joined — the same
+ * argument `changeCustomerNumber` makes when it names both groups on a move that changed the parity.
  */
 const REGISTERED_FIELDS = ["customerNumber", "group", "status", "card"] as const;
 

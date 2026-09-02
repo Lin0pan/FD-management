@@ -52,7 +52,12 @@ for households that have since been archived, and it records `CUSTOMER_NUMBER_CH
 it was issued.
 
 Every card the household was ever issued **keeps the number it was actually printed with**. Nothing
-is re-labelled, and no history of past numbers is built.
+is re-labelled, and no history of past numbers is built. Since
+[ADR-017](017-the-customer-number-decides-the-group.md) that also means every card keeps the **week**
+it was printed with, at no extra cost and with no extra column, because the week is the parity of the
+number already on it. That same decision emptied the phrase „beside the group control" above: there
+is no separate group control any longer, and the section this ADR describes is what took its place —
+the week and the number chosen together, because choosing one is choosing the other.
 
 ## Consequences
 
@@ -96,6 +101,8 @@ is re-labelled, and no history of past numbers is built.
 - [ADR-007 — derive anything computable rather than storing it](007-derive-anything-computable-rather-than-storing-it.md)
   (`Card.customerNumber` is the exception this decision rewrote)
 - [ADR-008 — treat a customer number as a reusable slot, not an identity](008-treat-a-customer-number-as-a-reusable-slot-not-an-identity.md)
+- [ADR-017 — the customer number decides the group](017-the-customer-number-decides-the-group.md)
+  (a card keeping its number now means it keeps its week)
 - [Chapter 8 — domain model and persistence](../08-crosscutting-concepts.md#domain-model-and-persistence)
 - `tasks/prd-us-30-change-customer-number.md`
 - `src/domain/customer/customerNumber.ts` (`choosableNumbers`, `assertChoosableNumber`),

@@ -32,18 +32,26 @@ from something already on file plus, in some cases, today's date.
 Anything computable is derived at the point of use and is not stored. A stored duplicate of a
 derivable fact needs an argument of its own kind, and there are exactly four:
 
-| Stored value                                              | Why it is not a violation                                                                                                                                                                                                                                                                                                                                                                                                              |
-| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Card.grownUpsAtIssue`, `childrenAtIssue`, `groupAtIssue` | A snapshot of what was _printed on a physical card_, so a birthday or a group move that overtook it can be spotted. Never read as the household's counts or group; never updated — a reissue is how a change is recorded.                                                                                                                                                                                                              |
-| `Customer.firstNameFolded`, `lastNameFolded`              | A **search key**, not a fact. SQLite can fold neither umlauts nor Unicode case in a `WHERE` clause, so the fold cannot live in the query. Never displayed; written from the names in the same statement, so a name edit rewrites them with it.                                                                                                                                                                                         |
-| `Card.customerNumber`                                     | A **key the constraint needs** _and_ a snapshot: `@@unique([customerNumber, index])` cannot reach through the relation, and since [ADR-016](016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md) a household may move to another number, so this is the slot the card was **printed under** and is read as the card's number. Never updated — the household's number is `Customer.customerNumber`. |
-| `DistributionRecord.priceCents`                           | Deliberate redundancy so a past hand-out is self-describing in a single-table read, alongside the settings history that could re-derive it. Not to be "cleaned up".                                                                                                                                                                                                                                                                    |
+| Stored value                                 | Why it is not a violation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Card.grownUpsAtIssue`, `childrenAtIssue`    | A snapshot of what was _printed on a physical card_, so a birthday or a household change that overtook it can be spotted. Never read as the household's counts; never updated — a reissue is how a change is recorded.                                                                                                                                                                                                                                                                                                               |
+| `Customer.firstNameFolded`, `lastNameFolded` | A **search key**, not a fact. SQLite can fold neither umlauts nor Unicode case in a `WHERE` clause, so the fold cannot live in the query. Never displayed; written from the names in the same statement, so a name edit rewrites them with it.                                                                                                                                                                                                                                                                                       |
+| `Card.customerNumber`                        | A **key the constraint needs** _and_ a snapshot: `@@unique([customerNumber, index])` cannot reach through the relation, and since [ADR-016](016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md) a household may move to another number, so this is the slot the card was **printed under** and is read as the card's number — and, since [ADR-017](017-the-customer-number-decides-the-group.md), as the card's **group**. Never updated — the household's number is `Customer.customerNumber`. |
+| `DistributionRecord.priceCents`              | Deliberate redundancy so a past hand-out is self-describing in a single-table read, alongside the settings history that could re-derive it. Not to be "cleaned up".                                                                                                                                                                                                                                                                                                                                                                  |
 
 The third row was **rewritten, not withdrawn**, by
 [ADR-016](016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md):
 once a household can be moved to another number, the slot a card was printed under is a fact
 about that card and nothing else derives it. This ADR is amended by that one, not superseded —
 the principle holds and one entry in the table changed.
+
+The **first row narrowed** the same way under
+[ADR-017](017-the-customer-number-decides-the-group.md): `Card.groupAtIssue` left it, because a
+group is now the parity of a customer number and the card already carries the slot it was printed
+under. The two counts beside it stay exactly as they are — nothing derives what a card said about a
+household's size. So the table still has four exceptions, one of them a column narrower, and the
+group joins the balance as a value this argument has removed rather than admitted — see
+[ADR-015](015-derive-the-customer-balance-from-the-hand-out-history-never-store-it.md).
 
 ## Consequences
 
@@ -59,11 +67,16 @@ the principle holds and one entry in the table changed.
 - The exceptions carry their argument in the schema comments, so a later reader does not remove the
   duplication as a violation.
 - Revisit an individual exception only by adding a fifth with an argument of the same kind.
+- A group that contradicts the number the household holds is, since
+  [ADR-017](017-the-customer-number-decides-the-group.md), not something the system can express
+  either — the same sentence as the first consequence, one fact later.
 
 ## More information
 
 - [Chapter 8 — domain model and persistence](../08-crosscutting-concepts.md#domain-model-and-persistence)
 - [ADR-016 — a customer number may be changed, and a card keeps the number it was printed with](016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md)
+- [ADR-017 — the customer number decides the group](017-the-customer-number-decides-the-group.md)
+  (`Card.groupAtIssue` is the exception this decision removed)
 - `src/domain/customer/householdComposition.ts`, `src/domain/card/staleCard.ts`,
-  `src/domain/customer/nameSearch.ts`, `prisma/schema.prisma`
+  `src/domain/customer/nameSearch.ts`, `src/domain/customer/group.ts`, `prisma/schema.prisma`
 - Commits `5beb708`, `2a20e60`, `df666a5`, `e52505c`, `f1853c5`, `3f9da6d`

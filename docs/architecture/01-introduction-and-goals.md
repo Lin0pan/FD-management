@@ -1,6 +1,6 @@
 # 1. Introduction and goals
 
-_Last reviewed: 2026-08-25_
+_Last reviewed: 2026-09-02_
 
 ## Introduction
 
@@ -22,12 +22,16 @@ five years or more with little maintenance, possibly in the hands of a different
 
 ## Requirements overview
 
-The story-by-story record is [`tasks/`](../../tasks/), one PRD per user story, US-01 to US-30.
+The story-by-story record is [`tasks/`](../../tasks/), one PRD per user story, US-01 to US-31.
 (`docs/archiv/user_stories_mvp.md` describes an early MVP scope the system has since moved past; it is not
 current — see [chapter 11](11-risks-and-technical-debt.md).) What matters architecturally:
 
 - **Register a household** onto a free customer number within the quota, with its members, address
   and proof of need, and issue its first card.
+- **Derive which week a household collects in** from the number it holds — even is BLUE, odd is RED,
+  DF's own rule and never a second stored field
+  ([ADR-017](adr/017-the-customer-number-decides-the-group.md)). Moving a household between weeks is
+  moving it onto another number, and prints a card.
 - **Derive the household composition** — grown-ups and children — from birthdates against today,
   never from stored counts. The boundary is the 13th birthday.
 - **Derive the price** from that composition and the policy in force, capped by DF's
@@ -47,8 +51,9 @@ current — see [chapter 11](11-risks-and-technical-debt.md).) What matters arch
   archived record for a re-registration, run a waiting list in strict arrival order.
 - **Let DF change their own rules** — quota, prices, price cap, distribution weekday, week anchor,
   the egg allowance — in the UI, with the change in force immediately and the history kept.
-- **Notice when a printed card has been overtaken** by a birthday, a household change or a group
-  move, and offer a reissue.
+- **Notice when a printed card has been overtaken** by a birthday or a household change, and offer a
+  reissue. A card cannot be overtaken by its week: it prints the slot it was issued under, and the
+  week is that slot's parity ([ADR-017](adr/017-the-customer-number-decides-the-group.md)).
 
 ### Non-goals
 

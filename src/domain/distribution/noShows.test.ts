@@ -124,8 +124,9 @@ describe("consecutiveNoShows", () => {
     expect(count({ registeredOn: "2026-02-05", today: "2026-02-19" })).toBe(0);
   });
 
-  it("counts on the current group's schedule after a group change", () => {
-    // Moved to BLUE; the attendance behind the move sits on RED Thursdays, which are no longer theirs.
+  it("counts on the current group's schedule after a household changes week", () => {
+    // Moved to BLUE by a move onto an even number (US-31); the attendance behind the move sits on RED
+    // Thursdays, which are no longer theirs.
     // Missed the BLUE Thursdays 15 and 29 January, 12 and 26 February.
     expect(
       count({

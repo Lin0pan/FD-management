@@ -1,6 +1,6 @@
 # 6. Runtime view
 
-_Last reviewed: 2026-08-29_
+_Last reviewed: 2026-09-02_
 
 Four scenarios, chosen for what they reveal rather than for how easily they draw. Participants are
 named as in [chapter 5](05-building-block-view.md). The failure paths are the point — they are where
@@ -189,9 +189,12 @@ the same size the day after the birthday as the day before — the counts and th
 stay ([ADR-014](adr/014-store-the-egg-allowance-as-versioned-threshold-rows.md)).
 
 The printed card is the one thing that _cannot_ update itself, which is exactly why
-`grownUpsAtIssue`, `childrenAtIssue` and `groupAtIssue` are stored: without a snapshot of what the
-physical card says, there is nothing to compare today's household against, and the reissue list could
-not exist. Those columns are never updated in place — **the reissue is how the change is recorded.**
+`grownUpsAtIssue` and `childrenAtIssue` are stored: without a snapshot of what the physical card
+says, there is nothing to compare today's household against, and the reissue list could not exist.
+Those columns are never updated in place — **the reissue is how the change is recorded.** The card's
+**week** needs no third column: it is the parity of the slot the card was printed under
+([ADR-017](adr/017-the-customer-number-decides-the-group.md)), and a card therefore never falls stale
+for its week.
 
 **Key exception — the household never comes back.** The card stays on the reissue list indefinitely,
 and that is correct: the list is a prompt for staff, not a queue the system drains. There is no
