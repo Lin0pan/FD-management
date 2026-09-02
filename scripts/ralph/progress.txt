@@ -219,7 +219,14 @@ bullets that sat under „Where batch 30 starts" are not carried over — they a
   and the state it is supposed to show does not. One line fixes it, on the input itself:
   `ref={(node) => { if (node !== null) node.defaultChecked = <the state>; }}`. Passing `checked` and
   `defaultChecked` together instead is a React warning, not a fix. No gate sees any of this: it is a
-  browser check or nothing (batch 31, `/kunden/neu`).
+  browser check or nothing (batch 31, `/kunden/neu` and the record's number control). Assert
+  `hasAttribute("checked")` and not only `.checked` — the attribute is what the reset restores from,
+  so it is the half that tells a fixed control from one that happens to look right.
+- **`list[0]` lies in this repo; `list.at(0) ?? fallback` does not.** `tsconfig` has no
+  `noUncheckedIndexedAccess`, so an index access on a possibly-empty array types as present and the
+  `?? fallback` beside it reads as dead code to the next reader. `.at(0)` returns `T | undefined`,
+  which lets a chain of `??` state the fallbacks a value actually has without a `!` — see
+  `number-control.tsx`'s pick → own slot → group's lowest.
 - **Radios that must not be submitted simply have no `name`.** An unnamed control is left out of
   `FormData`, mutual exclusion comes from React's `checked`, and what is lost is only the arrow-key
   roving of a native group — Tab reaches each radio and Space picks it. That is how a control can be
@@ -771,4 +778,73 @@ PRDs — which are **annotated, never rewritten**, per the patterns block above.
     `free-numbers-by-group`. The radios and the „group is full" sentences are reached by **CSS id**
     (`#group-RED`, `#group-RED-full`) — the ids exist for `aria-describedby` anyway and the specs
     already use them, so a second name for the same element would be clutter.
+---
+
+## 2026-09-02 — US-007 (US-31.7): one choice on the record (presentation)
+
+- **„Gruppe" and „Kundennummer" are one section**, „Gruppe und Kundennummer", in the position
+  „Gruppe" held. `NumberControl` grew the group radios above its select, in the intake's shape: the
+  week first, the numbers that week offers beneath it, the two sizes and the per-group free figures
+  under those. `GroupControl` and `changeGroupAction` were already gone (US-31.2); what landed here
+  is the merge and the wording.
+- **The radios open on `groupOf(customerNumber)`** and filter `choices` by their own `group` — the
+  field `NumberChoice` grew in US-31.4, so the browser never works parity out. Picking the other week
+  moves the selection to that week's lowest choice, because the household's own number is never in
+  it. A week with no choice at all is `disabled` and described by
+  `assignment.groupFull` (`aria-describedby` → `#group-RED-full`); the household's **own** week can
+  never be in that state, since their own slot is always one of its choices.
+- **The confirmation and the receipt name all three values** — number, group, card — whether or not
+  the parity changed: the group is printed on the physical card, so it is copied out by hand rather
+  than reported. „Kundennummer geändert 6 → **5**; Gruppe **Rot**; neue Karte **5k2** ausgestellt."
+- **The record's header badge pairs the two**: „Nr. 5 · Rot", tinted with `GROUP_STYLES`, which is
+  where a staff member learns to read one off the other (R-27). The tile below still states the
+  number alone and labelled — that is the figure they copy.
+- Dictionary: `record.groupHeading`, `groupHint`, `groupSubmit` and `groupSizes` are **deleted**;
+  `numberChange.heading` is „Gruppe und Kundennummer"; `confirm` and `saved` gained the group;
+  `record.numberAndGroup` is new; `assignment.groupSizes` now serves both screens and
+  `assignment.freeNumberCount` is gone with the single total it stated.
+- An archived household reads the group and the number as two read-only `Field`s and gets no control.
+- Files: `kunden/[id]/number-control.tsx`, `kunden/[id]/page.tsx`, `src/i18n/de.ts`,
+  `kunden/neu/archive-search-state.ts` (a `{@link}`-shaped reference to the deleted control),
+  `docs/handout/betriebsanleitung.md`, and the three e2e call sites the dictionary signatures broke.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (56 files, 1309 tests, domain
+  and application both 100%), `npm run build` and `npx prettier --check .` all pass. Driven against
+  `npm run start` in **Chromium and WebKit**, accessibility snapshot read at 390 and 1280.
+
+- **Learnings for future iterations:**
+  - **The controlled-radio reset bug is real on this screen too, and the same one line fixes it.**
+    Proved rather than assumed: with the quota lowered in a second tab the move is refused
+    (`CustomerNumberOutOfRange`), React resets the form, and without
+    `ref={(node) => { if (node !== null) node.defaultChecked = option === group; }}` the dot would
+    rewind to the group the *server* rendered while the list stayed filtered by the one staff picked.
+    Checked in both engines by reading `hasAttribute("checked")`, not only `.checked` — the
+    attribute is the thing the reset restores from, so it is the thing worth asserting.
+  - **A refusal that does not re-read leaves the free figures stale, and that is correct.** Only
+    `CustomerNumberTaken` sends a fresh list back (`freshChoicesAfterRace`); after an out-of-range
+    refusal the figures still describe the register as the page was rendered with it. Do not "fix"
+    this by re-reading on every refusal — the tier is the message there, and the screen says to
+    reload.
+  - **Driving a group full needs the quota, not fifteen registrations.** In the demo register the
+    active households hold 1–3, 5, 7–15, 17, 18, so a quota of **18** leaves only 4, 6 and 16 free —
+    RED is full inside the quota while the register is not. `/kunden/20` (BLUE) then shows RED
+    unselectable with its reason, and `/kunden/6` (RED) shows RED selectable with one option, their
+    own. Restore with `npm run db:reset && npx tsx prisma/demo-seed.ts`, then restart the server.
+  - **`.at(0) ?? null` is how a "lowest of this list" fallback is written here.** `tsconfig` has no
+    `noUncheckedIndexedAccess`, so `list[0]` types as present and would hide an empty list; `.at(0)`
+    returns `T | undefined` and the `??` chain then states the three fallbacks the control actually
+    has (the pick, the household's own slot, the group's lowest) without a `!`.
+  - **A dictionary signature change breaks e2e specs that no gate would otherwise run.** Adding the
+    group to `numberChange.confirm`/`saved` broke three call sites in `number-change.spec.ts`; they
+    were fixed with `de.customers.groups[groupOf(to)]` rather than a literal, so the spec cannot
+    disagree with the rule. `customer-record.spec.ts` still drives the deleted group control in three
+    tests (US-31.8's) — only its `record.groupSizes` reference was re-pointed to keep `tsc` green.
+  - **What US-31.8 inherits from this story:** the record's free-number line is
+    `free-numbers-by-group` (was `number-change-count`, one total) and the radios are reached by CSS
+    id `#group-RED` / `#group-BLUE` as at registration — `getByTestId("group-RED")` no longer
+    resolves. `group-sizes` and every `number-change-*` testid are unchanged, and
+    `record-number-group` is new on the header badge.
+  - **The handout is user documentation and this story made two of its sentences wrong** — the
+    section name and „beide Zahlen". Corrected here; the wider check US-31.9's criteria ask for
+    („any page that tells DF to change a group on its own") is still open, and the manual still says
+    nothing about the even/odd rule itself.
 ---

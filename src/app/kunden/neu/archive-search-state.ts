@@ -35,8 +35,9 @@ export interface ArchiveSearchState {
    * React resets a form once its action resolves, and a reset restores each input from its
    * `defaultValue` *attribute* — so three `defaultValue=""` inputs came back empty and the screen
    * showed an answer with the question deleted. Feeding the submitted criteria back through this
-   * makes that same reset restore the question instead, which is the mechanism `group-control.tsx`
-   * relies on from the other side.
+   * makes that same reset restore the question instead — the same mechanism the record's group
+   * radios keep on the right side of by writing `defaultChecked` from their own state
+   * (`kunden/[id]/number-control.tsx`).
    */
   readonly criteria: ArchiveSearchCriteria;
 }

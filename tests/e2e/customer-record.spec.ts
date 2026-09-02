@@ -652,7 +652,7 @@ test.describe("Kundenakte pflegen", () => {
     // Both sizes move, because a move is a transfer: the decision this control exists to inform is
     // made by comparing them, so the screen has to be right about both at once (FR-4).
     await expect(page.getByTestId("group-sizes")).toHaveText(
-      de.customers.record.groupSizes(before.red + 1, before.blue - 1),
+      de.customers.assignment.groupSizes(before.red + 1, before.blue - 1),
     );
 
     // The same card, the same morning, the opposite answer — with one edit in between and no wait

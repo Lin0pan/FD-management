@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de, plain } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
+import { groupOf } from "@/domain/customer/group";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
 import { hydrated } from "./day";
@@ -260,7 +261,7 @@ async function move(page: Page, to: number, nextCard: string): Promise<void> {
   // Asserted rather than clicked past: the card number in this sentence is what staff copy onto the
   // physical card, and it is the one number on the screen that no other screen has said yet.
   await expect(page.getByTestId("number-change-confirm")).toHaveText(
-    plain(de.customers.numberChange.confirm(to, nextCard)),
+    plain(de.customers.numberChange.confirm(to, de.customers.groups[groupOf(to)], nextCard)),
   );
 
   await page.getByTestId("number-change-submit").click();
@@ -428,7 +429,7 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
     // The receipt names the slot that was freed as well, which is the one fact the revalidated
     // record above it cannot state: the row it was read from now says 225 everywhere.
     await expect(page.getByTestId("number-change-saved")).toHaveText(
-      plain(words.saved(START, TARGET, card(TARGET, 6))),
+      plain(words.saved(START, TARGET, de.customers.groups[groupOf(TARGET)], card(TARGET, 6))),
     );
 
     // And the control comes back on the number just saved, with the vacated slot now among the
@@ -576,7 +577,7 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
     await pickNumber(page, RACE);
     await page.getByTestId("number-change-open").click();
     await expect(page.getByTestId("number-change-confirm")).toHaveText(
-      plain(words.confirm(RACE, card(RACE, 7))),
+      plain(words.confirm(RACE, de.customers.groups[groupOf(RACE)], card(RACE, 7))),
     );
 
     // Somebody else registers a household on it while this screen stands open, in a second tab —
