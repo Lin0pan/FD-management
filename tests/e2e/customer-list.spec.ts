@@ -117,7 +117,6 @@ function pinToday(): void {
 /** One seeded household, as this spec's table below states it. */
 interface Seed {
   readonly customerNumber: number;
-  readonly group: "RED" | "BLUE";
   readonly status: "ACTIVE" | "BLOCKED" | "ARCHIVED";
   readonly lastName: string;
   readonly certificateValidUntil: string;
@@ -135,7 +134,6 @@ interface Seed {
 const SEEDS: ReadonlyArray<Seed> = [
   {
     customerNumber: NUMBERS.searched,
-    group: "RED",
     status: "ACTIVE",
     lastName: SURNAME,
     certificateValidUntil: CERTIFICATES.valid,
@@ -146,7 +144,6 @@ const SEEDS: ReadonlyArray<Seed> = [
   },
   {
     customerNumber: NUMBERS.blue,
-    group: "BLUE",
     status: "ACTIVE",
     lastName: faker.person.lastName(),
     certificateValidUntil: CERTIFICATES.expiringSoon,
@@ -155,7 +152,6 @@ const SEEDS: ReadonlyArray<Seed> = [
   },
   {
     customerNumber: NUMBERS.blocked,
-    group: "RED",
     status: "BLOCKED",
     lastName: faker.person.lastName(),
     certificateValidUntil: CERTIFICATES.valid,
@@ -164,7 +160,6 @@ const SEEDS: ReadonlyArray<Seed> = [
   },
   {
     customerNumber: NUMBERS.archived,
-    group: "BLUE",
     status: "ARCHIVED",
     lastName: SURNAME,
     certificateValidUntil: CERTIFICATES.valid,
@@ -173,7 +168,6 @@ const SEEDS: ReadonlyArray<Seed> = [
   },
   {
     customerNumber: NUMBERS.expired,
-    group: "RED",
     status: "ACTIVE",
     lastName: faker.person.lastName(),
     certificateValidUntil: CERTIFICATES.expired,
@@ -219,7 +213,6 @@ async function seedHousehold(seed: Seed): Promise<void> {
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: seed.group,
       status: seed.status,
       blockReason: seed.status === "BLOCKED" ? "Hausverbot nach Vorfall am Ausgabetag." : null,
       archiveReason: archived ? "Umgezogen, telefonisch abgemeldet." : null,
@@ -253,7 +246,6 @@ async function seedHousehold(seed: Seed): Promise<void> {
           reason: index === 0 ? "FIRST_ISSUE" : "LOST",
           grownUpsAtIssue: 1,
           childrenAtIssue: 1,
-          groupAtIssue: seed.group,
         })),
       },
     },

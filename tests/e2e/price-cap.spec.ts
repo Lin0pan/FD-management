@@ -134,7 +134,6 @@ async function seedHousehold(): Promise<number> {
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "RED",
       status: "ACTIVE",
       reminderCount: 0,
       notes: "",
@@ -163,7 +162,6 @@ async function seedHousehold(): Promise<number> {
           // cards-due list the reissue spec reads after it.
           grownUpsAtIssue: GROWN_UP_BIRTH_DATES.length,
           childrenAtIssue: CHILD_BIRTH_DATES.length,
-          groupAtIssue: "RED",
         },
       },
     },

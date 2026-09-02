@@ -100,7 +100,6 @@ test("the counts and the price are derived from the household, not stored", asyn
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "BLUE",
       status: "ACTIVE",
       reminderCount: 0,
       notes: "",
@@ -131,7 +130,6 @@ test("the counts and the price are derived from the household, not stored", asyn
           // first reading below is the derivation's doing and nothing else's.
           grownUpsAtIssue: 1,
           childrenAtIssue: 1,
-          groupAtIssue: "BLUE",
         },
       },
     },

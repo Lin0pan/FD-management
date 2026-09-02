@@ -106,7 +106,6 @@ async function seedHousehold(): Promise<{ id: number; name: string }> {
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "RED",
       status: "ACTIVE",
       reminderCount: 0,
       notes: "",
@@ -138,7 +137,6 @@ async function seedHousehold(): Promise<{ id: number; name: string }> {
             // spec here trips the cards-due-for-reissue list (US-13).
             grownUpsAtIssue: 1,
             childrenAtIssue: 1,
-            groupAtIssue: "RED",
           },
         ],
       },

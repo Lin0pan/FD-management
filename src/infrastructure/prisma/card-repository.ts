@@ -1,7 +1,6 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { CardIssueCounts, CardRepository } from "@/application/ports";
 import { parseCardIssueReason, type IssuedCard, type NewCard } from "@/domain/card/card";
-import { groupOf } from "@/domain/customer/group";
 import { CardIndexTaken, CardNumberTaken } from "@/domain/errors";
 
 /**
@@ -50,9 +49,9 @@ export function isCardCollision(error: unknown): boolean {
 /**
  * One stored card row as an {@link IssuedCard}. The two count columns are flat in SQLite and a
  * value object in the domain, so the shape is put back together here — in one place, so
- * `currentCard` and `listCards` cannot come to read the snapshot differently. The `groupAtIssue`
- * column is deliberately **not** selected: a card's week follows from the slot it was printed
- * under (`groupOf`, US-31), and the column itself is dropped by US-31.5.
+ * `currentCard` and `listCards` cannot come to read the snapshot differently. There is no group on
+ * the row to put back: a card's week follows from the slot it was printed under (`groupOf`,
+ * US-31), so it is derived from `customerNumber` wherever the card is shown.
  *
  * It sits outside the class because a card is also written by the customer register: a number
  * change inserts the card in the same transaction that moves the slot (US-30), and reading the row
@@ -239,10 +238,6 @@ export class PrismaCardRepository implements CardRepository {
             reason: card.reason,
             grownUpsAtIssue: card.countsAtIssue.grownUps,
             childrenAtIssue: card.countsAtIssue.children,
-            // Written off the slot the card is being printed under, not off a value a caller could
-            // pass: the column is a leftover that US-31.5 drops, and until it does the only word it
-            // may hold is the one the number implies.
-            groupAtIssue: groupOf(slot),
           },
         });
       });

@@ -17,7 +17,6 @@ import type {
   PersonalDetails,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
-import type { GroupCounts } from "@/domain/customer/group";
 import type { WaitingListDetails } from "@/domain/customer/waitingList";
 import type {
   DistributionRecord,
@@ -132,8 +131,6 @@ export interface CustomerListQuery {
 export interface CustomerRepository {
   /** The numbers held by customers who still occupy a slot; archived rows release theirs. */
   takenActiveNumbers(): Promise<ReadonlyArray<number>>;
-  /** How many active customers each balancing group holds. */
-  groupCounts(): Promise<GroupCounts>;
   /**
    * The customer with this surrogate id, or `null` if the id belongs to nobody. Archived customers
    * are returned like any other — their data stays queryable (US-10, US-11).

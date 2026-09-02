@@ -150,7 +150,6 @@ async function seedHousehold({
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "RED",
       status,
       archiveReason: archived ? ARCHIVE_REASON : null,
       archivedAt: archived ? new Date("2025-11-04T00:00:00.000Z") : null,
@@ -181,7 +180,6 @@ async function seedHousehold({
           reason: seeded.reason,
           grownUpsAtIssue: 1,
           childrenAtIssue: 1,
-          groupAtIssue: "RED",
         })),
       },
     },
@@ -318,7 +316,7 @@ async function snapshotHousehold(id: number): Promise<string> {
   const [customer, cards] = await Promise.all([
     prisma.customer.findUniqueOrThrow({
       where: { id },
-      select: { customerNumber: true, status: true, group: true },
+      select: { customerNumber: true, status: true },
     }),
     prisma.card.findMany({
       where: { customerId: id },

@@ -28,7 +28,7 @@ import {
   type NewCustomer,
 } from "@/domain/customer/customer";
 import { foldName } from "@/domain/customer/nameSearch";
-import { groupOf } from "@/domain/customer/group";
+import { countByGroup, groupOf } from "@/domain/customer/group";
 import {
   CardIndexTaken,
   CardNumberTaken,
@@ -167,8 +167,6 @@ async function insertCustomer(customerNumber: number, status: string): Promise<v
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      // The leftover column, which the adapter writes off the number and US-31.5 drops.
-      group: groupOf(customerNumber),
       status,
       reminderCount: 0,
       notes: "",
@@ -189,9 +187,6 @@ describe("PrismaCustomerRepository.create", () => {
     expect(row.customerNumber).toBe(50);
     expect(row.firstName).toBe(customer.details.firstName);
     expect(row.city).toBe(customer.details.address.city);
-    // 50 is even, so the row's leftover group column says BLUE — written off the number, never
-    // off a value the caller passed (US-31).
-    expect(row.group).toBe("BLUE");
     expect(row.status).toBe("ACTIVE");
     expect(row.reminderCount).toBe(0);
     expect(row.householdMembers).toHaveLength(2);
@@ -219,6 +214,19 @@ describe("PrismaCustomerRepository.create", () => {
     );
     expect(Object.keys(row)).not.toContain("grownUps");
     expect(Object.keys(row)).not.toContain("children");
+  });
+
+  it("stores a household without a group — the number they hold is the whole of it", async () => {
+    const registered = await repository.create(newCustomer());
+
+    const [row] = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      `SELECT * FROM "Customer" WHERE "id" = ${registered.id}`,
+    );
+    // Asserted against the *columns*, not against a value: while a `group` column exists there is
+    // a row that can be hand-edited into disagreeing with the number beside it, whatever the
+    // adapter writes into it (US-31). 50 is even, so this household is Blue — derived, never read.
+    expect(Object.keys(row)).not.toContain("group");
+    expect(groupOf(registered.customerNumber)).toBe("BLUE");
   });
 
   it("rejects a number another registration already holds, as CustomerNumberTaken", async () => {
@@ -598,7 +606,6 @@ describe("PrismaCustomerRepository.changeCustomerNumber", () => {
         reason: "LOST",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
-        groupAtIssue: groupOf(50),
       },
     });
 
@@ -803,21 +810,20 @@ describe("PrismaCustomerRepository.takenActiveNumbers", () => {
   });
 });
 
-describe("PrismaCustomerRepository.groupCounts", () => {
-  it("counts the two groups separately", async () => {
-    // No fixture chooses a group any more: 1 is odd and therefore Red, 2 and 4 are even and
-    // therefore Blue, and a blocked household still holds their slot (US-31).
+describe("the group balance", () => {
+  /**
+   * There is no `groupCounts` query any more, and no column one could count: the balance is
+   * `countByGroup(takenActiveNumbers())` in the use case (US-31.4). What the store owes it is the
+   * *numbers*, and the only thing that can go wrong down here is which rows they come from — a
+   * blocked household still holds its slot, an archived one has released it.
+   */
+  it("counts the register's active numbers for the group balance", async () => {
     await insertCustomer(1, "ACTIVE");
     await insertCustomer(2, "ACTIVE");
     await insertCustomer(4, "BLOCKED");
+    await insertCustomer(3, "ARCHIVED");
 
-    expect(await repository.groupCounts()).toEqual({ red: 1, blue: 2 });
-  });
-
-  it("does not count archived customers — they turn up to no distribution", async () => {
-    await insertCustomer(1, "ARCHIVED");
-
-    expect(await repository.groupCounts()).toEqual({ red: 0, blue: 0 });
+    expect(countByGroup(await repository.takenActiveNumbers())).toEqual({ red: 1, blue: 2 });
   });
 });
 
@@ -864,7 +870,6 @@ describe("PrismaCustomerRepository.listWithStatus", () => {
         reason: "LOST",
         grownUpsAtIssue: 2,
         childrenAtIssue: 0,
-        groupAtIssue: groupOf(50),
       },
     });
 
@@ -951,7 +956,6 @@ describe("PrismaCustomerRepository.findById", () => {
         reason: "LOST",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
-        groupAtIssue: groupOf(50),
       },
     });
 
@@ -970,7 +974,6 @@ describe("PrismaCustomerRepository.findById", () => {
         reason: "LOST",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
-        groupAtIssue: groupOf(50),
       },
     });
 
@@ -1025,7 +1028,6 @@ describe("PrismaCustomerRepository.findByCustomerNumber", () => {
         reason: "LOST",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
-        groupAtIssue: groupOf(50),
       },
     });
 
@@ -1414,8 +1416,9 @@ describe("PrismaCustomerRepository.list over a register of fifty households", ()
 
   it("counts both groups over the whole register, blocked included and archived not", async () => {
     // 1–45 are still registered — 46–50 left — and of those the 23 odd numbers are Red and the 22
-    // even ones Blue.
-    expect(await repository.groupCounts()).toEqual({ red: 23, blue: 22 });
+    // even ones Blue. Counted off the numbers rather than asked of the database: the group is their
+    // parity (US-31), so the register's active slots are the whole of the balance.
+    expect(countByGroup(await repository.takenActiveNumbers())).toEqual({ red: 23, blue: 22 });
   });
 
   it("filters in the database, not by loading the register and sieving it in JavaScript", async () => {
@@ -1447,13 +1450,16 @@ describe("PrismaCustomerRepository.list over a register of fifty households", ()
     }
   });
 
-  it("indexes the group and the folded first name, the two columns the list added", async () => {
+  it("indexes the folded first name the list searches, and nothing for a group", async () => {
     const indexes = await prisma.$queryRawUnsafe<Array<{ name: string }>>(
       `PRAGMA index_list("Customer")`,
     );
 
     const names = indexes.map((index) => index.name);
-    expect(names).toContain("Customer_group_idx");
     expect(names).toContain("Customer_firstNameFolded_idx");
+    // The list's group filter is not a `WHERE` clause and there is no column behind it: the index
+    // that served it went with the column (US-31), and an index on a group would be an index on a
+    // second recording of the customer number.
+    expect(names).not.toContain("Customer_group_idx");
   });
 });

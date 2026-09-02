@@ -98,7 +98,6 @@ function pinToday(): void {
 
 interface Household {
   readonly customerNumber: number;
-  readonly group: "RED" | "BLUE";
   readonly status: "ACTIVE" | "BLOCKED" | "ARCHIVED";
   readonly certificateValidUntil: string;
   readonly reminderCount?: number;
@@ -138,7 +137,6 @@ async function seedHousehold(household: Household): Promise<string> {
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: household.group,
       status: household.status,
       reminderCount: household.reminderCount ?? 0,
       notes: household.notes ?? "",
@@ -169,7 +167,6 @@ async function seedHousehold(household: Household): Promise<string> {
           // spec here is about a card that has gone stale (US-13).
           grownUpsAtIssue: 1,
           childrenAtIssue: 1,
-          groupAtIssue: household.group,
         })),
       },
     },
@@ -260,7 +257,6 @@ test.describe("Verdikt am Tresen", () => {
     for (const household of [
       {
         customerNumber: NUMBERS.clear,
-        group: "RED",
         status: "ACTIVE",
         certificateValidUntil: VALID_CERTIFICATE,
         cardIndexes: [1],
@@ -268,7 +264,6 @@ test.describe("Verdikt am Tresen", () => {
       },
       {
         customerNumber: NUMBERS.certificateExpired,
-        group: "RED",
         status: "ACTIVE",
         certificateValidUntil: EXPIRED_CERTIFICATE,
         reminderCount: REMINDERS_SENT,
@@ -276,28 +271,24 @@ test.describe("Verdikt am Tresen", () => {
       },
       {
         customerNumber: NUMBERS.wrongGroup,
-        group: "BLUE",
         status: "ACTIVE",
         certificateValidUntil: VALID_CERTIFICATE,
         cardIndexes: [1],
       },
       {
         customerNumber: NUMBERS.outdatedCard,
-        group: "RED",
         status: "ACTIVE",
         certificateValidUntil: VALID_CERTIFICATE,
         cardIndexes: [1, 2],
       },
       {
         customerNumber: NUMBERS.blocked,
-        group: "RED",
         status: "BLOCKED",
         certificateValidUntil: VALID_CERTIFICATE,
         cardIndexes: [1],
       },
       {
         customerNumber: NUMBERS.archived,
-        group: "RED",
         status: "ARCHIVED",
         certificateValidUntil: VALID_CERTIFICATE,
         cardIndexes: [1],
@@ -306,7 +297,6 @@ test.describe("Verdikt am Tresen", () => {
         // Seeded with no note, so the disclosure starts out offering to *add* one and the first
         // save is the act a staff member actually performs at the table.
         customerNumber: NUMBERS.notes,
-        group: "RED",
         status: "ACTIVE",
         certificateValidUntil: VALID_CERTIFICATE,
         cardIndexes: [1],

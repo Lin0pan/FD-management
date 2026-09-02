@@ -4,6 +4,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { groupOf } from "@/domain/customer/group";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
@@ -109,7 +110,6 @@ async function seedHousehold(customerNumber: number, blocked: boolean): Promise<
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "RED",
       status: blocked ? "BLOCKED" : "ACTIVE",
       // Non-null exactly when the status calls for it, as the schema documents.
       blockReason: blocked ? "Hausverbot bis auf Weiteres." : null,
@@ -129,7 +129,6 @@ async function seedHousehold(customerNumber: number, blocked: boolean): Promise<
           reason: "FIRST_ISSUE",
           grownUpsAtIssue: 1,
           childrenAtIssue: 0,
-          groupAtIssue: "RED",
         },
       },
     },
@@ -153,7 +152,7 @@ interface Member {
 async function todaysGroup(): Promise<ReadonlyArray<Member>> {
   const [customers, records] = await Promise.all([
     prisma.customer.findMany({
-      where: { group: "RED", status: { in: ["ACTIVE", "BLOCKED"] } },
+      where: { status: { in: ["ACTIVE", "BLOCKED"] } },
       select: { id: true, customerNumber: true, status: true },
       orderBy: { customerNumber: "asc" },
     }),
@@ -165,11 +164,15 @@ async function todaysGroup(): Promise<ReadonlyArray<Member>> {
     }),
   ]);
   const servedIds = new Set(records.map((record) => record.customerId));
-  return customers.map((customer) => ({
-    customerNumber: customer.customerNumber,
-    blocked: customer.status === "BLOCKED",
-    servedToday: servedIds.has(customer.id),
-  }));
+  // RED is a parity, not a column (US-31): the register comes back whole and the week's own half is
+  // taken from it here, because SQLite has no `% 2` to put in a `WHERE` clause.
+  return customers
+    .filter((customer) => groupOf(customer.customerNumber) === "RED")
+    .map((customer) => ({
+      customerNumber: customer.customerNumber,
+      blocked: customer.status === "BLOCKED",
+      servedToday: servedIds.has(customer.id),
+    }));
 }
 
 /**

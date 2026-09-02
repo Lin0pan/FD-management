@@ -4,6 +4,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { inGroup } from "@/domain/customer/group";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
@@ -98,7 +99,6 @@ function pinToday(): void {
 
 interface Household {
   readonly customerNumber: number;
-  readonly group: "RED" | "BLUE";
   readonly status: "ACTIVE" | "BLOCKED" | "ARCHIVED";
 }
 
@@ -126,7 +126,6 @@ async function seedHousehold(household: Household): Promise<void> {
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: household.group,
       status: household.status,
       // Both columns are non-null exactly when the status calls for them, as the schema documents.
       blockReason: household.status === "BLOCKED" ? "Hausverbot bis auf Weiteres." : null,
@@ -148,7 +147,6 @@ async function seedHousehold(household: Household): Promise<void> {
           reason: "FIRST_ISSUE",
           grownUpsAtIssue: 1,
           childrenAtIssue: 0,
-          groupAtIssue: household.group,
         },
       },
     },
@@ -165,11 +163,17 @@ async function seedHousehold(household: Household): Promise<void> {
  */
 async function walkableRedNumbers(): Promise<ReadonlyArray<number>> {
   const rows = await prisma.customer.findMany({
-    where: { group: "RED", status: { in: ["ACTIVE", "BLOCKED"] } },
+    where: { status: { in: ["ACTIVE", "BLOCKED"] } },
     select: { customerNumber: true },
     orderBy: { customerNumber: "asc" },
   });
-  return rows.map((row) => row.customerNumber);
+  // The group is not a column to filter on: it is the parity of the number (US-31), and SQLite has
+  // no `% 2` in a `WHERE` clause — so the register comes back whole and the walk's own half is
+  // taken from it here, exactly as `readGroupRoster` does it on the other side of the screen.
+  return inGroup(
+    rows.map((row) => row.customerNumber),
+    "RED",
+  );
 }
 
 /**
@@ -223,11 +227,11 @@ test.describe("Gruppe durchgehen", () => {
   test.beforeAll(async () => {
     pinToday();
     for (const household of [
-      { customerNumber: NUMBERS.first, group: "RED", status: "ACTIVE" },
-      { customerNumber: NUMBERS.blocked, group: "RED", status: "BLOCKED" },
-      { customerNumber: NUMBERS.archived, group: "RED", status: "ARCHIVED" },
-      { customerNumber: NUMBERS.otherGroup, group: "BLUE", status: "ACTIVE" },
-      { customerNumber: NUMBERS.last, group: "RED", status: "ACTIVE" },
+      { customerNumber: NUMBERS.first, status: "ACTIVE" },
+      { customerNumber: NUMBERS.blocked, status: "BLOCKED" },
+      { customerNumber: NUMBERS.archived, status: "ARCHIVED" },
+      { customerNumber: NUMBERS.otherGroup, status: "ACTIVE" },
+      { customerNumber: NUMBERS.last, status: "ACTIVE" },
     ] as const satisfies ReadonlyArray<Household>) {
       await seedHousehold(household);
     }

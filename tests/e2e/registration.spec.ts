@@ -152,7 +152,6 @@ async function seedHousehold(customerNumber: number, status: "ACTIVE" | "ARCHIVE
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "RED",
       status,
       blockReason: null,
       archiveReason: archived ? "Umgezogen, telefonisch abgemeldet." : null,
@@ -177,7 +176,6 @@ async function seedHousehold(customerNumber: number, status: "ACTIVE" | "ARCHIVE
           reason: "FIRST_ISSUE",
           grownUpsAtIssue: 1,
           childrenAtIssue: 0,
-          groupAtIssue: "RED",
         },
       },
     },
@@ -216,7 +214,8 @@ async function lowestFreeNumber(): Promise<number> {
  * Everything a refused registration must leave exactly as it found it.
  *
  * The customers are listed rather than counted, because the failure worth catching is not only a
- * household that got written but one whose number, group or status moved on the way through. The
+ * household that got written but one whose number or status moved on the way through — and the
+ * number carries the group with it, since a group is its parity (US-31). The
  * four child tables are counted: a registration writes a member row, a certificate, a card and an
  * audit entry, so a half-finished one shows up here even when no customer row survived it.
  */
@@ -224,7 +223,7 @@ async function registerSnapshot(): Promise<string> {
   const [customers, members, certificates, cards, auditEntries] = await Promise.all([
     prisma.customer.findMany({
       orderBy: { id: "asc" },
-      select: { id: true, customerNumber: true, status: true, group: true },
+      select: { id: true, customerNumber: true, status: true },
     }),
     prisma.householdMember.count(),
     prisma.certificate.count(),

@@ -137,15 +137,22 @@ model EggAllowanceRow {
 /// leave lying about: the day a clean-up script or a mistyped test does call it, the household's
 /// history goes with it silently. Refusing the delete turns that into a loud error.
 ///
-/// SQLite has no enum type, so `group` and `status` are strings the domain validates on the way in.
+/// SQLite has no enum type, so `status` is a string the domain validates on the way in.
 model Customer {
   id Int @id @default(autoincrement())
 
-  /// The slot this household holds *today*, 1..`quotaN`. Not unique on its own — see the partial
-  /// unique index added by hand in the migration, which exempts archived rows. Updatable: a
-  /// household may be moved to another free slot, which writes this column and the card it prints in
-  /// one transaction (US-30). It is never a correction of who the customer is, which is why
-  /// `updateDetails` cannot reach it.
+  /// The slot this household holds *today*, 1..`quotaN`, **and with it the week they collect in**.
+  /// Not unique on its own — see the partial unique index added by hand in the migration, which
+  /// exempts archived rows. Updatable: a household may be moved to another free slot, which writes
+  /// this column and the card it prints in one transaction (US-30). It is never a correction of who
+  /// the customer is, which is why `updateDetails` cannot reach it.
+  ///
+  /// **The balancing group is not a column, because it is this one.** DF's register has always read
+  /// an even number as BLUE and an odd one as RED, so the group is the parity of this value
+  /// (`src/domain/customer/group.ts`, US-31) and is derived wherever it is shown — exactly as the
+  /// grown-up and children counts are derived from birthdates. A `group` column beside this one was
+  /// stored until US-31 and is gone: it was a second answer to a question this value already
+  /// answers, free to disagree with it the moment a household was moved to another slot.
   customerNumber Int
 
   firstName String
@@ -170,9 +177,6 @@ model Customer {
   houseNumber String
   zip         String
   city        String
-
-  /// The balancing group, `RED` or `BLUE` — which week of the two-week cycle they collect in.
-  group String
 
   /// `ACTIVE`, `BLOCKED` or `ARCHIVED`. A blocked household is turned away at the counter but still
   /// holds its slot; only archiving releases it. Customer data is never hard-deleted (US-10, US-11).
@@ -220,10 +224,6 @@ model Customer {
 
   @@index([customerNumber])
   @@index([status])
-  /// The customer list's group filter and its group-balance counts (US-15.2). `status` above serves
-  /// the status filter, and the counts read both columns — the two are separate indexes rather than
-  /// one pair because each is also asked on its own.
-  @@index([group])
   /// The archive search (US-11.1): a folded last-name prefix, optionally narrowed by the birthdate.
   /// Both columns are in one index because they are typed together — the name identifies the family
   /// and the birthdate tells two namesakes apart.
@@ -312,6 +312,12 @@ model Card {
   /// This *is* the card's number, together with `index`: `formatCardNumber(card.customerNumber,
   /// card.index)`, derived at every read from the card's own slot and never from whichever number
   /// the household holds today.
+  ///
+  /// **It is also the week this card says to come in**, for the same reason the customer's own slot
+  /// is: the group is the parity of the number (`groupOf`, US-31). A `groupAtIssue` column stood
+  /// here until US-31 to notice a card whose printed week had been overtaken; there is nothing left
+  /// to notice, because a move to another slot reprints the card in the same transaction and the
+  /// week printed on any card is whatever this column says it is.
   customerNumber Int
 
   index    Int
@@ -333,18 +339,6 @@ model Card {
   /// reissue *is* how the change is recorded.
   grownUpsAtIssue Int
   childrenAtIssue Int
-
-  /// The group **as it was printed on this piece of card** — the same kind of snapshot as the two
-  /// counts above, and stored for the same single purpose. The card is what tells the household
-  /// which week to come in, so moving them between groups makes the printed card wrong even though
-  /// nothing about the household changed; without this column there is nothing to notice that
-  /// against, and a group change could not reach the cards-due list (US-16.4).
-  ///
-  /// Nothing reads it as the household's group — that is `Customer.group`, the only editable one.
-  /// Like the counts it is never updated in place: a reissue is how the change is recorded.
-  ///
-  /// SQLite has no enum type, so the word is a string the domain validates on the way in and out.
-  groupAtIssue String
 
   /// Why this card was handed over: `FIRST_ISSUE`, `LOST`, `STALE_COUNTS`, `CUSTOMER_NUMBER_CHANGED`
   /// or `OTHER`. SQLite has no enum type, so the word is a string the domain validates on the way in

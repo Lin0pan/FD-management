@@ -78,7 +78,6 @@ async function insertCustomer(customerNumber: number, status = "ACTIVE"): Promis
       city: faker.location.city(),
       // The leftover column, written off the number the way the adapter writes it — US-31.5 drops
       // it, and until then nothing may store a word the number does not imply.
-      group: groupOf(customerNumber),
       status,
       reminderCount: 0,
       notes: "",
@@ -232,6 +231,25 @@ describe("PrismaCardRepository.issue", () => {
       `SELECT * FROM "Card" WHERE "customerId" = ${customerId}`,
     );
     expect(Object.keys(row)).not.toContain("valid");
+  });
+
+  it("stores a card without a group — the slot it was printed under is the whole of it", async () => {
+    const customerId = await insertCustomer(50);
+    await repository.issue(customerId, {
+      index: 1,
+      issuedAt: TODAY,
+      reason: "FIRST_ISSUE",
+      countsAtIssue: PRINTED,
+    });
+
+    const [row] = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+      `SELECT * FROM "Card" WHERE "customerId" = ${customerId}`,
+    );
+    // A `groupAtIssue` column stood here to notice a card whose printed week had been overtaken;
+    // a move reprints the card in the same transaction, so there is nothing left to notice and no
+    // column to hand-edit into disagreeing with the slot beside it (US-31).
+    expect(Object.keys(row)).not.toContain("groupAtIssue");
+    expect(row.customerNumber).toBe(50);
   });
 
   it("refuses a second card on an index another issue took, as CardIndexTaken", async () => {
@@ -569,7 +587,6 @@ describe("PrismaCardRepository.currentCard", () => {
         reason: "VERLOREN",
         grownUpsAtIssue: 1,
         childrenAtIssue: 1,
-        groupAtIssue: groupOf(50),
       },
     });
 
@@ -646,7 +663,6 @@ describe("PrismaCardRepository.issueCounts", () => {
           reason,
           grownUpsAtIssue: 1,
           childrenAtIssue: 1,
-          groupAtIssue: groupOf(customerNumber),
         },
       });
     }

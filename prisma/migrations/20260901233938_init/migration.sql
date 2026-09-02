@@ -33,7 +33,6 @@ CREATE TABLE "Customer" (
     "houseNumber" TEXT NOT NULL,
     "zip" TEXT NOT NULL,
     "city" TEXT NOT NULL,
-    "group" TEXT NOT NULL,
     "status" TEXT NOT NULL,
     "blockReason" TEXT,
     "archiveReason" TEXT,
@@ -73,7 +72,6 @@ CREATE TABLE "Card" (
     "issuedAt" DATETIME NOT NULL,
     "grownUpsAtIssue" INTEGER NOT NULL,
     "childrenAtIssue" INTEGER NOT NULL,
-    "groupAtIssue" TEXT NOT NULL,
     "reason" TEXT NOT NULL,
     CONSTRAINT "Card_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
@@ -140,9 +138,6 @@ CREATE INDEX "Customer_customerNumber_idx" ON "Customer"("customerNumber");
 
 -- CreateIndex
 CREATE INDEX "Customer_status_idx" ON "Customer"("status");
-
--- CreateIndex
-CREATE INDEX "Customer_group_idx" ON "Customer"("group");
 
 -- CreateIndex
 CREATE INDEX "Customer_lastNameFolded_birthDate_idx" ON "Customer"("lastNameFolded", "birthDate");

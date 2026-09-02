@@ -181,7 +181,6 @@ async function belongings(id: number): Promise<string> {
         firstName: true,
         lastName: true,
         status: true,
-        group: true,
         reminderCount: true,
         archiveReason: true,
         archivedAt: true,

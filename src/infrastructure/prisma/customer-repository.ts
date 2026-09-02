@@ -17,7 +17,6 @@ import {
   type PersonalDetails,
   type RegisteredCustomer,
 } from "@/domain/customer/customer";
-import { groupOf, type GroupCounts } from "@/domain/customer/group";
 import { foldName } from "@/domain/customer/nameSearch";
 import {
   CardIndexTaken,
@@ -148,21 +147,12 @@ export class PrismaCustomerRepository implements CustomerRepository {
     return rows.map((row) => row.customerNumber);
   }
 
-  /** How many customers each balancing group holds. Archived households turn up to nothing. */
-  async groupCounts(): Promise<GroupCounts> {
-    const [red, blue] = await Promise.all([
-      this.prisma.customer.count({ where: { ...ON_REGISTER, group: "RED" } }),
-      this.prisma.customer.count({ where: { ...ON_REGISTER, group: "BLUE" } }),
-    ]);
-    return { red, blue };
-  }
-
   /**
    * The customer behind a surrogate id, with their household, certificate and current card.
    *
    * Archived customers come back like any other — their data stays queryable (US-10, US-11). The
-   * stored `group` and `status` strings re-enter the domain through its own parsers, so a
-   * hand-edited row fails loudly instead of quietly becoming an active RED household.
+   * stored `status` string re-enters the domain through its own parser, so a hand-edited row fails
+   * loudly instead of quietly becoming an active household.
    */
   async findById(id: number): Promise<RegisteredCustomer | null> {
     const row = await this.prisma.customer.findUnique({
@@ -343,9 +333,10 @@ export class PrismaCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * Map a loaded row into the domain record, validating the stored `group` and `status` strings on
-   * the way back in — a hand-edited row fails loudly rather than quietly becoming an active RED
-   * household.
+   * Map a loaded row into the domain record, validating the stored `status` string on the way back
+   * in — a hand-edited row fails loudly rather than quietly becoming an active household. There is
+   * no group to validate: it is the parity of the customer number (`groupOf`, US-31), so a row
+   * cannot carry one that disagrees with the slot it holds.
    *
    * @throws {InvalidCustomerRecord} if the certificate or the current card is missing. Registration
    *   writes both in the same transaction as the customer, so a row without them can only come from
@@ -432,10 +423,6 @@ export class PrismaCustomerRepository implements CustomerRepository {
           houseNumber: details.address.houseNumber,
           zip: details.address.zip,
           city: details.address.city,
-          // The leftover column, written off the number the household is taking rather than off a
-          // value a caller could pass — the week follows from the slot (`groupOf`, US-31), and
-          // US-31.5 drops the column.
-          group: groupOf(customer.customerNumber),
           status: customer.status,
           reminderCount: customer.reminderCount,
           notes: details.notes,
@@ -470,7 +457,6 @@ export class PrismaCustomerRepository implements CustomerRepository {
               reason: customer.card.reason,
               grownUpsAtIssue: customer.card.countsAtIssue.grownUps,
               childrenAtIssue: customer.card.countsAtIssue.children,
-              groupAtIssue: groupOf(customer.customerNumber),
             },
           },
         },
@@ -638,7 +624,6 @@ export class PrismaCustomerRepository implements CustomerRepository {
             reason: card.reason,
             grownUpsAtIssue: card.countsAtIssue.grownUps,
             childrenAtIssue: card.countsAtIssue.children,
-            groupAtIssue: groupOf(moved.customerNumber),
           },
         });
       });

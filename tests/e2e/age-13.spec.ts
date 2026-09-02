@@ -144,7 +144,6 @@ async function seedHousehold(): Promise<number> {
       houseNumber: faker.location.buildingNumber(),
       zip: faker.location.zipCode("#####"),
       city: faker.location.city(),
-      group: "RED",
       status: "ACTIVE",
       reminderCount: 0,
       notes: "",
@@ -180,7 +179,6 @@ async function seedHousehold(): Promise<number> {
           // about the cards-due list follows from this pair going out of date on its own.
           grownUpsAtIssue: 1,
           childrenAtIssue: 2,
-          groupAtIssue: "RED",
         },
       },
     },
@@ -203,7 +201,7 @@ async function snapshotHousehold(id: number): Promise<string> {
   const [customer, members, cards, records, auditEntries] = await Promise.all([
     prisma.customer.findUniqueOrThrow({
       where: { id },
-      select: { customerNumber: true, status: true, group: true, reminderCount: true },
+      select: { customerNumber: true, status: true, reminderCount: true },
     }),
     prisma.householdMember.findMany({
       where: { customerId: id },

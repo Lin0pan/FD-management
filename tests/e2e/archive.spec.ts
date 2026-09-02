@@ -161,7 +161,6 @@ async function belongings(id: number): Promise<string> {
         customerNumber: true,
         firstName: true,
         lastName: true,
-        group: true,
         reminderCount: true,
         householdMembers: { select: { firstName: true, birthDate: true } },
         certificates: { select: { type: true, validUntil: true } },
