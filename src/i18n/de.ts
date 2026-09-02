@@ -312,24 +312,31 @@ export const de = {
     },
     assignment: {
       /**
-       * The hint under the number dropdown (US-24): how much of the register is left. Inflected at
-       * one, because „1 freie Nummern“ is the kind of German that makes staff distrust the rest of
-       * the screen.
+       * How much of the register is left, on the record's number control (US-30). Inflected at one,
+       * because „1 freie Nummern“ is the kind of German that makes staff distrust the rest of the
+       * screen.
        *
-       * It said „die niedrigste ist vorausgewählt“ as well until the field was narrowed to the two
-       * columns a three-digit box asks for, where that ran to three ragged lines. The preselection
-       * is said once, in the page's intro, and the control shows the number it opened on — so what
-       * is left here is the one fact only this line carries: how many are still free.
+       * The registration form counts the two groups separately instead — see
+       * {@link freeNumbersByGroup}, and US-31 for why one total is not an answer there.
        */
       freeNumberCount: (count: number): string =>
         count === 1 ? "Noch 1 freie Nummer" : `Noch ${count} freie Nummern`,
       /**
-       * The folded group choice (US-20): what the summary offers, after the badge naming the
-       * proposed group in its own colour — and a colour never travels without the word it names
-       * (US-03.4). It used to be prefixed with „Gruppe:“, which the column's own field label now
-       * says once, above the control rather than inside it.
+       * The hint under the number dropdown at registration (US-31.6): how many slots each group has
+       * left.
+       *
+       * Two figures rather than one total, because a group can be full while the register is not —
+       * there are only 120 even slots below a quota of 240 — and this line is the only place staff
+       * would find that out before the radio above it turns out to be unselectable.
        */
-      groupChoiceOverride: "andere Gruppe wählen",
+      freeNumbersByGroup: (red: number, blue: number): string =>
+        `Noch frei — Rot: ${red}, Blau: ${blue}`,
+      /**
+       * Why a group cannot be picked (US-31.6). It stands beside the disabled radio and is what it
+       * is described by, so a staff member reading the screen with a screen reader hears the reason
+       * rather than meeting a control that refuses without one.
+       */
+      groupFull: (group: string): string => `In ${group} ist keine Nummer mehr frei.`,
       suggestedGroup: (group: string): string => `Vorschlag: ${group}`,
       groupSizes: (red: number, blue: number): string =>
         `Aktuell: Rot ${red}, Blau ${blue} Haushalte`,

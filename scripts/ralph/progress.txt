@@ -212,6 +212,18 @@ bullets that sat under „Where batch 30 starts" are not carried over — they a
   clean `HEAD`.** It is the only thing that separates a regression from this suite's WebKit
   flakiness. Note that a failure **aborts the files behind it** (`6 did not run`), so one flake hides
   whatever else would have failed — and a green run after a fix is worth repeating twice.
+- **A controlled *radio* does not survive React's post-action `form.reset()`; a controlled text input
+  does.** React keeps a controlled input's `defaultValue` attribute in step with its value and does
+  **not** do the same for `defaultChecked`, so a reset restores the radio from the attribute the
+  *server* rendered while the unchanged `checked` prop makes React repaint nothing — the dot rewinds
+  and the state it is supposed to show does not. One line fixes it, on the input itself:
+  `ref={(node) => { if (node !== null) node.defaultChecked = <the state>; }}`. Passing `checked` and
+  `defaultChecked` together instead is a React warning, not a fix. No gate sees any of this: it is a
+  browser check or nothing (batch 31, `/kunden/neu`).
+- **Radios that must not be submitted simply have no `name`.** An unnamed control is left out of
+  `FormData`, mutual exclusion comes from React's `checked`, and what is lost is only the arrow-key
+  roving of a native group — Tab reaches each radio and Space picks it. That is how a control can be
+  browser state inside a `<form>` without a field nobody reads (US-31.6).
 - **A `<select>` or a text input inside a form on a *record* screen needs `onKeyDown={guardEnter}`.**
   `submitsOnEnter` (`src/app/enter-guard.ts`) returns `true` for `SELECT`, so Enter in a dropdown
   submits the form around it — and where the save sits inside a `<details>` confirmation, that
@@ -693,4 +705,70 @@ PRDs — which are **annotated, never rewritten**, per the patterns block above.
     `08-crosscutting-concepts.md:52` and `ADR-007`'s exceptions table still describe `groupAtIssue`
     as a stored column. All four are named in US-31.9's criteria; left alone rather than
     half-corrected.
+---
+
+## 2026-09-02 — US-006 (US-31.6): one choice at registration (presentation)
+
+- **`Zuordnung` is one block now**: the group radios first, the number select beneath them, the
+  per-group free figures under that. `GRID`/`FIELD_ROWS` are gone from that section — the two-column
+  subgrid existed to keep two side-by-side controls on one baseline, and there is one column now.
+  The select took `sm:w-32`, the width the record's control already uses for the same list.
+- **US-20's `<details>` is removed**, deliberately and with the comment saying so: the group now
+  drives the list beneath it and a folded control cannot say „In Rot ist keine Nummer mehr frei."
+- **The radios carry no `name`** and post nothing; `registration-input.ts` lost its `group` schema,
+  its `GROUPS` import and the `group: text("group")` line. The registration form's `FormData` was
+  read in the browser to prove it: `…, memberBirthDate, customerNumber` and no group, on both
+  screens that save this form.
+- **The number list is `inGroup(freeNumbers, group)`**, filtered in the browser. Changing the radio
+  resets `picked` to `null`, so the preselection falls to that group's lowest free number. A group
+  with nothing to offer is `disabled` and described by a sentence beside it
+  (`aria-describedby` → `#group-RED-full`); on a *full register* those reasons are suppressed,
+  because the alert at the top and the disabled submit already say it.
+- German: `assignment.freeNumbersByGroup` („Noch frei — Rot: 12, Blau: 3") and `assignment.groupFull`
+  are new, `assignment.groupChoiceOverride` is deleted. `freeNumberCount` **stays** — the record's
+  number control still uses it — and its doc comment now says which screen it belongs to.
+- Files: `registration-form.tsx`, `registration-input.ts`, `src/i18n/de.ts`, and a doc-comment line
+  in both registration actions.
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (56 files, 1309 tests, domain
+  and application both 100%), `npm run build` and `npx prettier --check .` all pass. Driven in the
+  browser against `npm run start` (Chromium and WebKit), accessibility snapshot read at both widths.
+
+- **Learnings for future iterations:**
+  - **A controlled radio does NOT survive React's post-action `form.reset()`, and a controlled text
+    input does.** This is the bug the browser check found and no gate would have: after a refused
+    save the dot rewound to the server's proposal while the *list* beneath it stayed filtered by the
+    group staff had picked — React state was right, the DOM was not. The reason is that React keeps
+    a controlled input's `defaultValue` attribute in step with its value, and does **not** do the
+    same for `defaultChecked`; a reset then restores the radio from the attribute the server
+    rendered, and the unchanged `checked` prop makes React repaint nothing. The fix is one line —
+    `ref={(node) => { if (node !== null) node.defaultChecked = option === group; }}` — which makes
+    the reset a no-op. Do not pass `checked` and `defaultChecked` together: React warns. Confirmed
+    broken and then fixed in **both** engines; US-31.7's radios on the record will need it too.
+  - **A radio group without a `name` is the way to have radios that are not a field.** An unnamed
+    control is not submitted, which is exactly „the radios are browser state" — and mutual exclusion
+    is React's `checked`, so nothing is lost but the arrow-key roving of a native group. Tab reaches
+    each radio and Space picks it; both were driven in the browser. The form-level `guardEnter`
+    already covers Enter on a radio (checked: it submits nothing).
+  - **The quota cannot be lowered below the active register**, so „drive a group full" in the browser
+    is: lower the quota to the active count (15 in the demo register), then register the one or two
+    remaining slots through the form. `data/fd.db` then holds a quota of 15 that
+    `npx tsx prisma/demo-seed.ts --reset` does **not** undo — it re-seeds customers, not settings.
+    `npm run db:reset && npx tsx prisma/demo-seed.ts` is the pair that puts both back, and the server
+    has to be restarted after it (the running process keeps serving the deleted inode).
+  - **`playwright-cli open --browser=chrome` fails in this sandbox** (no Google Chrome at
+    /opt/google/chrome); plain `playwright-cli open` uses the bundled Chromium. WebKit needs
+    `playwright-cli install-browser webkit` once — worth it, since the reset bug above had to be
+    proved on both engines.
+  - **What US-31.8 inherits from this story:** six specs still open the deleted disclosure
+    (`archive.spec.ts:116`, `number-change.spec.ts:227`, `card-number.spec.ts:132`, `card.spec.ts:60`,
+    `registration.spec.ts:599`, `reregistration.spec.ts:137` — all `getByTestId("group-choice-open")`
+    followed by a `#group-*` click, which now needs the click alone), and
+    `number-change.spec.ts`'s `freeNumberCount(page)` helper reads `free-number-count` on
+    `/kunden/neu`, which is `free-numbers-by-group` now and carries **two** figures — stripping the
+    non-digits out of it would silently produce „123". The testid was renamed on purpose so the
+    helper fails loudly rather than asserting a number that means nothing.
+  - **New testids on this screen:** `group-proposal` (the „Vorschlag … · Aktuell …" line) and
+    `free-numbers-by-group`. The radios and the „group is full" sentences are reached by **CSS id**
+    (`#group-RED`, `#group-RED-full`) — the ids exist for `aria-describedby` anyway and the specs
+    already use them, so a second name for the same element would be clutter.
 ---

@@ -34,8 +34,9 @@ const entryId = z
   .transform((value): number => Number(value));
 
 /**
- * Validate the form, register the applicant with their number, group and first card, take them off
- * the waiting list, and go to the record that was just created.
+ * Validate the form, register the applicant with their number — the group follows from it (US-31)
+ * — and their first card, take them off the waiting list, and go to the record that was just
+ * created.
  *
  * A rejection leaves both the register and the list exactly as they were, so staff can correct the
  * form and try again with the applicant's place intact.
