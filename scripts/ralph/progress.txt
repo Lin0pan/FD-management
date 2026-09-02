@@ -632,3 +632,65 @@ PRDs — which are **annotated, never rewritten**, per the patterns block above.
     `CustomerRepository` and `12-glossary.md` still calls a group „a property of the household,
     editable". Both are **US-31.9's** by name; left alone deliberately rather than half-corrected.
 ---
+
+## 2026-09-02 — US-005 (US-31.5): the store forgets the group (infrastructure + migration)
+
+- **`Customer.group`, `@@index([group])` and `Card.groupAtIssue` are gone from `schema.prisma`.**
+  Both `customerNumber` doc comments took over what the dropped columns used to say: the customer's
+  slot is „the slot this household holds *today* **and with it the week they collect in**", and the
+  card's is „**also the week this card says to come in**". Each names what was stored there until
+  US-31 and why it was a second answer to a question the number already answers.
+- **The migration history was regenerated per ADR-009**, not corrected: `20260828131514_init` →
+  `20260901233938_init`, with the hand-written partial unique index
+  (`Customer_customerNumber_onRegister_key … WHERE "status" <> 'ARCHIVED'`) carried over verbatim,
+  comment and all. `npm run db:reset` re-applied it and re-seeded. Pre-release was re-confirmed
+  first: no `v*` release holds DF data, `data/fd.db` is seeded demo data, and ADR-009 draws the line
+  at real data rather than at a tag.
+- **`CustomerRepository.groupCounts` and `NewCustomer.group` are off the port and out of the
+  adapter**; `toRegisteredCustomer` and `toCard` no longer select or parse either column; `create`,
+  `issue` and `changeCustomerNumber` no longer write one. `CustomerListQuery.group` and the
+  „every criterion is a WHERE clause" correction landed in US-31.4 already.
+- **`prisma/demo-seed.ts` needed nothing** — US-31.3 had already turned its group move into
+  `changeCustomerNumber` into the other parity, so a seeded register says what its numbers say.
+  `prisma/seed.ts` seeds only the settings version; it has never written a customer.
+- Two new thin integration tests, both asserting the *columns* rather than a value: „stores a
+  household without a group — the number they hold is the whole of it" and „stores a card without a
+  group — the slot it was printed under is the whole of it". „counts the register's active numbers
+  for the group balance" replaced the two `groupCounts` cases, and „indexes the folded first name
+  the list searches, and nothing for a group" now asserts `Customer_group_idx` is *absent*.
+- Files: `prisma/schema.prisma`, `prisma/migrations/*_init/migration.sql`, `src/application/ports.ts`,
+  `card-repository.ts`, `customer-repository.ts`, their two test files, four other infra test files
+  (fixtures only) and eighteen e2e specs (fixtures and two Prisma `where` clauses).
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (56 files, 1309 tests, domain
+  and application both 100%), `npm run build`, `npx prettier --check .` and `npm run db:reset` all
+  pass.
+
+- **Learnings for future iterations:**
+  - **Assert a dropped column against `Object.keys(row)` from a raw `SELECT *`, never against a
+    value.** The precedent was already in the file („stores no grown-up or children count"). While a
+    column exists there is a row that can be hand-edited into disagreeing with the number beside it,
+    whatever the adapter writes into it — so „the adapter writes BLUE" and „there is nowhere to write
+    BLUE" are different claims, and only the second is what US-31.5 delivers. `PRAGMA index_list` is
+    the same trick for the index.
+  - **Removing a required column breaks every Prisma `create` in the test suites at once**, because
+    the fixtures pass it as an object literal — 6 infra test files and 18 e2e specs here. Typecheck
+    finds all of them, so the sweep is mechanical; what it does *not* find is a `where: { group: … }`,
+    which is a valid query against a column that no longer exists only until typecheck runs. Two
+    e2e helpers (`walkableRedNumbers`, `todaysGroup`) had to stop filtering in SQL and start filtering
+    with `inGroup`/`groupOf` in JavaScript, the same move `readGroupRoster` made in US-31.4.
+  - **`npx prisma generate` before the gates after a schema edit.** The client is generated code and
+    a stale one typechecks against the *old* columns, so a green typecheck proves nothing until it
+    has been regenerated. `npm run db:reset` then proves the regenerated migration actually applies.
+  - **The e2e suite is deliberately left red for US-31.8, and one case names why:**
+    `group-walk.spec.ts` seeds 311–315 and asserts the walk visits `first: 311`, `blocked: 312` and
+    `last: 315` in a RED week — but 312 is even and therefore BLUE under the rule, and `otherGroup:
+    314` is BLUE for the same reason it always was. Every seeded household needs re-banding to the
+    parity its assertions claim; that is US-31.8's widest change and its criteria say so.
+  - **What US-31.6 through .9 inherit:** the registration form still posts a `group` field nobody
+    reads (`registration-input.ts:182`, `registration-form.tsx:819`) and `RegisterCustomerInput.group`
+    still takes it; the customer list still has a `gruppe` filter param feeding a criterion that is
+    now narrowed in JavaScript; and `docs/architecture/06-runtime-view.md:192`,
+    `08-crosscutting-concepts.md:52` and `ADR-007`'s exceptions table still describe `groupAtIssue`
+    as a stored column. All four are named in US-31.9's criteria; left alone rather than
+    half-corrected.
+---
