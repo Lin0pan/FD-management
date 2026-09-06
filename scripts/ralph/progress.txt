@@ -482,3 +482,35 @@ worked example.
   - No UI change, so no browser check. The documents that still describe the walk
     (`tasks/prd-us-21-*`, chapter 5, chapter 9) are US-009's job and are deliberately untouched here.
 ---
+
+## 2026-09-06 — US-004 (batch 32): the verdict learns whether the household collected today
+- `CounterInput` gains `readonly servedToday: boolean`; `evaluateAtCounter` returns
+  `ALREADY_SERVED_TODAY` after `OUTDATED_CARD` and **before** the certificate check, so a served
+  household is told that rather than reminded about a lapsed certificate. `certificateExpired` is now
+  **exported** — the seam US-32.5 needs for `CounterCustomerView.certificateExpired`.
+- Comments rewritten: the module's precedence paragraph lists the new position, and the union's
+  doc no longer claims the rule takes no record — it says the rule takes the **boolean** and why
+  (the record's time, amount and payment are read by no branch here).
+- Six new named tests (collected today → ALREADY_SERVED_TODAY; not collected → unchanged; BLOCKED,
+  WRONG_GROUP and OUTDATED_CARD each still win; a lapsed certificate loses to it). Two were red
+  before the change; the certificate-boundary cases stay as they are and now cover the exported
+  helper through the rule.
+- Both call sites pass `servedToday: false` with a comment naming US-32.5 as the story that replaces
+  it — shape only, behaviour unchanged, tree green at this iteration.
+- Files changed: `src/domain/distribution/counterVerdict.ts`,
+  `src/domain/distribution/counterVerdict.test.ts`, `src/application/customers/lookup-customer.ts`,
+  `src/application/distribution/record-attendance.ts`.
+- **Learnings for future iterations:**
+  - **A required field on a domain input type breaks its own test file hardest, not the callers.**
+    Only two production sites build a `CounterInput`; the test file built nineteen inline. One
+    `sed -E 's/^(      weekColour: "(RED|BLUE)",)$/\1\n      servedToday: false,/'` did it — the
+    anchored indent is what keeps the `expect(...).toEqual({ …, weekColour: "RED" })` one-liners out
+    of the match.
+  - `docs/architecture/05-building-block-view.md` **already listed `ALREADY_SERVED_TODAY` in the
+    precedence chain**, in exactly the position this story put it. The chapter described the union,
+    not the reachable verdicts, so no doc change was owed here — check before writing one.
+  - Prettier accepts an over-wide `/** */` line, so the width sweep is still by hand
+    (`git diff -U0 | python3 …`, never `awk`). Three of the new `it(...)` titles are over 100 and
+    stay: Prettier cannot break a string literal, and the rule names are the point.
+  - 1296 tests, 55 files, domain and application both 100%. Build green.
+---

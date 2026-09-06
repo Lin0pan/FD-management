@@ -85,7 +85,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Requirement B starts here and runs INSIDE-OUT: domain, application, then the two screens."
     },
     {
