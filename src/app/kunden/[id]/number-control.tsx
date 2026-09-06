@@ -43,12 +43,12 @@
 
 import { useActionState, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import type { NumberChoice } from "@/application/customers/list-number-choices";
 import { GROUPS, groupOf, type Group, type GroupCounts } from "@/domain/customer/group";
 import { de } from "@/i18n/de";
-import { cn } from "@/lib/utils";
 import { GROUP_STYLES } from "../../accents";
+import { ControlSummary } from "../../disclosure";
 import { guardEnter } from "../../enter-guard";
 import { changeCustomerNumberAction } from "./actions";
 import { initialNumberChangeState } from "./number-change-state";
@@ -261,15 +261,7 @@ export function NumberControl({
           is still refused by the use case, which is what a second tab reaches. */}
       {choice === null || chosen === customerNumber ? null : (
         <details>
-          <summary
-            data-testid="number-change-open"
-            className={cn(
-              buttonVariants({ variant: "outline" }),
-              "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden",
-            )}
-          >
-            {words.action}
-          </summary>
+          <ControlSummary testId="number-change-open">{words.action}</ControlSummary>
           {/* Neutral, not destructive: a move hands out a new card and frees a slot, it does not
               take a household out of the register. Destructive is the block and the archive. */}
           <div className="mt-3 flex flex-col items-start gap-3">

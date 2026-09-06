@@ -19,11 +19,11 @@
 
 import { useActionState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { de } from "@/i18n/de";
-import { cn } from "@/lib/utils";
 import { reissueCardAction } from "./actions";
 import { initialReissueState } from "./reissue-state";
+import { ControlSummary } from "../../disclosure";
 import { Confirmation, Notice } from "../../notice";
 import { useNoticeSlot } from "../../notice-board";
 
@@ -45,15 +45,7 @@ export function ReissueControls({
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="customerId" value={customerId} />
       <details>
-        <summary
-          data-testid="reissue-open"
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden",
-          )}
-        >
-          {de.customers.reissue.action}
-        </summary>
+        <ControlSummary testId="reissue-open">{de.customers.reissue.action}</ControlSummary>
         {/* Neutral, not destructive: a reissue hands out a new card, it does not take a household
             out of the register. Destructive is reserved for the block and the archive. */}
         <div className="mt-3 flex flex-col items-start gap-3">

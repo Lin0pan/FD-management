@@ -16,11 +16,11 @@
  */
 
 import { useActionState } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { de } from "@/i18n/de";
-import { cn } from "@/lib/utils";
 import { reissueStaleCardAction } from "./actions";
 import { initialStaleReissueState } from "./reissue-state";
+import { ControlSummary } from "../disclosure";
 import { Notice } from "../notice";
 
 export function StaleCardControls({
@@ -44,15 +44,7 @@ export function StaleCardControls({
           contents out of the row. What changes is only its weight — closed it now reads as the
           control it is rather than as a collapsed section spanning the row. */}
       <details>
-        <summary
-          data-testid="stale-reissue-open"
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden",
-          )}
-        >
-          {de.cardsDue.action}
-        </summary>
+        <ControlSummary testId="stale-reissue-open">{de.cardsDue.action}</ControlSummary>
         <div className="mt-3 flex flex-col items-start gap-3">
           <p data-testid="stale-reissue-confirm" className="max-w-prose">
             {de.customers.reissue.confirm(cardNumber, nextCardNumber)}
