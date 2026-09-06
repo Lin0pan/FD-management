@@ -28,6 +28,7 @@
  */
 
 import { useActionState, useId, useState } from "react";
+import { SquarePen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { de } from "@/i18n/de";
@@ -64,6 +65,7 @@ export function NotesControls({
   return (
     <details className="group">
       <ControlSummary testId="counter-notes-open">
+        <SquarePen aria-hidden="true" data-icon="inline-start" />
         {notes === "" ? de.distribution.counter.notes.add : de.distribution.counter.notes.edit}
       </ControlSummary>
       <form action={formAction} className="mt-3 flex flex-col items-start gap-3">

@@ -12,6 +12,7 @@
  */
 
 import Link from "next/link";
+import { UserPlus } from "lucide-react";
 import type { WaitingListPlace } from "@/application/waiting-list/list-waiting";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -40,7 +41,13 @@ export function FreeSlotBanner({
     // loudest, which is what PRD §6 says it is worth.
     <Card data-testid="waiting-list-free-slot" className={`ring-0 ${FREE_SLOT_ACCENT} border`}>
       <CardHeader>
-        <CardTitle className="text-lg">
+        {/* This was the one tinted box in the application without a glyph — all three `Notice` tones
+            and all four verdict tones lead with one. `UserPlus` is what already means "take a
+            household on", which is exactly what the banner announces. Not `Check`: green-plus-check
+            is `CONFIRMATION_ACCENT`'s meaning ("a write went through"), and reusing it here would
+            give one glyph two meanings. */}
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <UserPlus aria-hidden="true" className="size-5 shrink-0" />
           <h2>{de.waitingList.banner.heading}</h2>
         </CardTitle>
       </CardHeader>
