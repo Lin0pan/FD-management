@@ -5,7 +5,7 @@ number). Each file is a complete, self-contained Ralph run: its own `branchName`
 starting at `US-001`, its own priorities `1..n`.
 
 [`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
-it. It currently holds **batch 31**, the next one to run. `done/` holds the finished copy of each
+it. It currently holds **batch 32**, the next one to run. `done/` holds the finished copy of each
 batch that has run — the same file with every story's `passes` flipped to `true`.
 
 ## Workflow
@@ -110,8 +110,9 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 29  | `29-us-29-customer-balance.json`             | 10      | `ralph/us-29-customer-balance`             |
 | 30  | `30-us-30-change-customer-number.json`       | 8       | `ralph/us-30-change-customer-number`       |
 | 31  | `31-us-31-number-decides-the-group.json`     | 9       | `ralph/us-31-number-decides-the-group`     |
+| 32  | `32-us-32-one-household-at-a-time.json`      | 9       | `ralph/us-32-one-household-at-a-time`      |
 
-171 stories total — the rows sum to it. Every story cites its source PRD section in its
+180 stories total — the rows sum to it. Every story cites its source PRD section in its
 `description`, so an iteration can read the full context when a criterion is ambiguous.
 
 Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 onwards are not
@@ -257,6 +258,44 @@ the port and the fakes break together and there is no reason to pay that three t
 Batches 27, 28 and 29 all **regenerate `prisma/migrations/`** — the third, fourth and fifth batches
 to do so — so the hand-written partial unique index on `Customer.customerNumber` has to be re-added
 each time, and `schema.test.ts` is what catches it if it is not.
+
+**Batch 32 (US-32)** is the sixth change DF asked for after using the counter, and it is **two
+changes in one batch** because they are one screen and largely one set of files —
+`src/app/ausgabe/page.tsx`, `src/i18n/de.ts`, `tests/e2e/serve.spec.ts`. Split into two batches the
+second would cut its branch from a `main` the first had just rearranged, which is the conflict point
+1 below exists to prevent. `local_only/ausgabe_screen/refined-requirements.md` is DF's own feedback
+both halves were written from.
+
+- **A — the walk is withdrawn.** `Zurück`/`Weiter` (batch 22, US-21) step through today's group in
+  customer-number order. DF do not call households that way: they call them in **blocks** ("everyone
+  from 1 to 30 now") and within a block households arrive in whatever order they turn up, so the
+  person at the counter is almost never the next number. The buttons were not wrong; the assumption
+  behind them was. Stories 1–3 remove it **outside-in** — screen, then use case, then domain, the
+  inverse of every other batch except 27 — and story 9 records the withdrawal in the documents that
+  asked for it, exactly as batch 21 did for the week-colour lookup.
+- **B — a recorded hand-out clears the screen.** Everything on screen about a served household is
+  finished business while the next person is already at the counter. After the write `/ausgabe`
+  returns to its initial state and a confirmation at the **top** names the customer number, the name,
+  the amount and the time, with a „Korrigieren" link one click back. Stories 4–7, inside-out.
+
+Four things about 32 to hold on to. **`readGroupRoster` survives the withdrawal** — batch 23's tally
+and list are built on it, and so is `isEmpty`, which reads as walk vocabulary and is in fact the
+group list's own empty state; only `previous`, `next` and the `rawQuery` positioning go. **The
+confirmation carries the customer number and nothing else**: name, amount and time are read back
+through `lookupCustomer` on the page the redirect lands on, because carrying four facts as query
+parameters would put a household's name in the address bar and let the banner disagree with the
+record it describes. **Only a successful write clears the screen** — the overpayment question and
+every refusal keep the household and the question standing, and a saved correction keeps its
+confirmation where it is made. And it carries **two silent traps**, neither of which fails an
+existing test: `recordAttendance` evaluates the verdict _before_ `canRecord`, so a verdict that now
+knows the day's record turns a duplicate hand-out into `NotClearToServe` and rewords the counter's
+refusal; and `CertificateControls` derives its `expired` prop from the verdict _kind_, so a served
+household loses its reminder controls on re-lookup once `ALREADY_SERVED_TODAY` outranks
+`CLEAR_TO_SERVE_CERTIFICATE_EXPIRED`. Stories 5 and 6 fix both deliberately.
+
+It is also the **first post-MVP batch since 30 with no schema change at all**, and it adds no port
+method: every fact it needs is already loaded by `lookupCustomer` and `readGroupRoster`. A story that
+finds itself editing `prisma/`, `src/infrastructure/` or `src/application/ports.ts` has misread it.
 
 Batches 21 to 23 all edit `src/app/ausgabe/page.tsx`, so the "merge before starting the next batch"
 rule is load-bearing here for the same reason it was for 19 and 20. **Run them in this order**: 21 frees the
