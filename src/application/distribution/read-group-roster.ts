@@ -1,44 +1,44 @@
 /**
- * Which group is collecting, and where the number on screen sits in it (US-21).
+ * Which group is collecting today, who belongs to it, and how far through the afternoon is (US-23).
  *
- * The counter is driven by a typed number (US-04), which is the right control when a household hands
- * over a card and the wrong one when nobody has: working through a group by typing means guessing
- * which number comes next in it. This use case is what the two walk controls read — it names the
- * group and answers "the number before this one, and the number after", so pressing a button is one
- * click rather than a lookup staff have to phrase.
+ * This use case was written for US-21's walk controls — the two buttons that stepped through the
+ * group in customer-number order beside the number field. **US-32 withdrew the walk**: DF call
+ * households in blocks ("everyone from 1 to 30 now") and serve them in whatever order they turn up,
+ * so the next number is almost never the next person. The roster **outlived** it. What it is for now
+ * is US-23's tally and the list beneath it: which households belong to today's group, and which of
+ * them have already collected.
  *
  * Three decisions are worth stating, because each could plausibly have gone the other way:
  *
- * - **The group walked is the week's own**, `getWeekColour`'s `colour` — the one the banner badges
+ * - **The group read is the week's own**, `getWeekColour`'s `colour` — the one the banner badges
  *   beside the calendar week, and on a distribution day necessarily the group being served. It is
  *   deliberately *not* `nextDistribution.colour`: those part company on the days between a
- *   distribution and the next one, and a screen that says "blaue Woche" while its walk hands out red
+ *   distribution and the next one, and a screen that says "blaue Woche" while its list names red
  *   households is answering a question nobody asked. It does not follow the group of the household on
  *   screen either, so the screen never names two groups at once.
- * - **A looked-up number need not belong to the group.** `neighbours` compares numerically, so a Rot
- *   household looked up on a Blau day still positions the walk between the Blau numbers around it
- *   (§FR-5) rather than stranding the controls.
+ * - **Membership is ACTIVE + BLOCKED.** A blocked household is listed because a block is something
+ *   the counter has to *state* — the verdict is the whole point of stopping at them — while an
+ *   archived one is not, because it no longer holds the slot. What a freed number looks up to is the
+ *   counter's own question (US-04.2), not the roster's.
  * - **The membership query is the existing `CustomerRepository.list`**, which filters by status and
  *   answers lowest customer number first. No port method was added: at DF's ~240 customers this is
  *   the same read `/kunden` performs on every visit. The **group** is narrowed here rather than in
  *   the query, because a group is the parity of a customer number (`groupOf`, US-31) and SQLite has
  *   no `% 2` in a `WHERE` clause — the same reason `listCustomers` narrows its own group filter.
  *
- * US-23 gave the same read a second job: how far through the group the afternoon is, and who is still
- * missing. It is the same question — *which households belong to today's group* — with one fact added
- * per household, so it is one use case rather than two reads that could disagree about the roster.
- * The tally is **derived on every read** from today's records; nothing about it is stored (§FR-8).
+ * The tally is one question with the list — *which households belong to today's group* — with one
+ * fact added per household, so it is one use case rather than two reads that could disagree about
+ * the roster. It is **derived on every read** from today's records; nothing about it is stored
+ * (§FR-8).
  *
- * Nothing is written — no record, no reminder, no status change and no audit entry. Navigation is a
- * read, like the lookup it drives (US-04, FR-4).
+ * Nothing is written — no record, no reminder, no status change and no audit entry. The roster is a
+ * read, like the lookup beside it (US-04, FR-4).
  */
 
-import { counterQueryOrNull } from "@/domain/card/cardNumber";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import { groupOf } from "@/domain/customer/group";
 import { berlinDayKey } from "@/domain/distribution/attendance";
 import { groupProgress, type Progress } from "@/domain/distribution/groupProgress";
-import { neighbours } from "@/domain/distribution/groupWalk";
 import type { WeekColour } from "@/domain/policy/settings";
 import type {
   Clock,
@@ -56,13 +56,12 @@ export interface ReadGroupRosterDeps {
 }
 
 /**
- * The statuses a walk covers (PRD §FR-2).
+ * The statuses the roster covers (PRD §FR-2).
  *
- * Blocked households are walked because a block is something the counter has to *state* — the verdict
- * is the whole point of stopping at them — while archived ones are not, because they no longer hold
- * the slot. What a freed number looks up to is the counter's own question (US-04.2), not the walk's.
+ * Blocked households belong to the group and are listed; archived ones no longer hold the slot and
+ * are not.
  */
-const WALKED_STATUSES: ReadonlyArray<CustomerStatus> = ["ACTIVE", "BLOCKED"];
+const ROSTERED_STATUSES: ReadonlyArray<CustomerStatus> = ["ACTIVE", "BLOCKED"];
 
 /**
  * One household of the group, as the list behind the tally names it (US-23).
@@ -85,17 +84,14 @@ export interface GroupRosterMember {
   readonly servedToday: boolean;
 }
 
-/** What the walk controls beside the number field know. */
+/** Today's group, the households in it, and how far through them the afternoon is. */
 export interface GroupRosterView {
-  /** The group being walked — the week's own, stated in words on screen. */
+  /** The group collecting this week, stated in words on screen. */
   readonly group: WeekColour;
-  /** The number **Zurück** leads to, or `null` when that end has been walked out. */
-  readonly previous: number | null;
-  /** The number **Weiter** leads to, or `null` when that end has been walked out. */
-  readonly next: number | null;
   /**
-   * Whether the group holds no walkable household at all — a state the screen says in words rather
-   * than showing as two dead controls that look like the end of a walk.
+   * Whether the group holds no active or blocked household at all. It reads as walk vocabulary and
+   * is not: `group-progress-card.tsx` branches on it for the group's own empty state (US-23), which
+   * is a sentence rather than a tally of nothing.
    */
   readonly isEmpty: boolean;
   /**
@@ -108,25 +104,17 @@ export interface GroupRosterView {
 }
 
 /**
- * The group of the week being read in, and the numbers either side of `rawQuery` within it.
- *
- * `rawQuery` is whatever stands in the screen's `nummer` parameter, read with the domain's
- * `counterQueryOrNull`: `50` and `50k3` both mean the number 50 (§FR-6), and anything unreadable — or
- * an absent query — means "nothing looked up yet", which is where a freshly opened screen stands and
- * never an error.
+ * The group of the week being read in, the households that belong to it, and today's tally.
  *
  * @throws {NoSettingsInForce} if no settings version had taken effect today — the same failure the
  *   banner already has, on the same screen.
  * @throws {InvalidSettings} if the week anchor does not name a week of the ISO calendar.
  */
-export async function readGroupRoster(
-  deps: ReadGroupRosterDeps,
-  rawQuery?: string,
-): Promise<GroupRosterView> {
+export async function readGroupRoster(deps: ReadGroupRosterDeps): Promise<GroupRosterView> {
   const week = await getWeekColour(deps);
   const group = week.colour;
-  const walkable = await deps.customers.list({ statuses: WALKED_STATUSES });
-  const households = walkable.filter((customer) => groupOf(customer.customerNumber) === group);
+  const rostered = await deps.customers.list({ statuses: ROSTERED_STATUSES });
+  const households = rostered.filter((customer) => groupOf(customer.customerNumber) === group);
   // The whole afternoon in one query, then joined in memory: a group is ~120 households, and a query
   // apiece would make the counter's own screen the slowest in the app (US-23, §FR-4).
   const servedIds = new Set(
@@ -142,28 +130,13 @@ export async function readGroupRoster(
     blocked: customer.status === "BLOCKED",
     servedToday: servedIds.has(customer.id),
   }));
-  // The register's order is the walk's raw material, not its rule: `neighbours` scans, so nothing
-  // here restates that the list came back lowest number first.
-  const numbers = members.map((member) => member.customerNumber);
 
   return {
     group,
-    ...neighbours(numbers, positionOf(rawQuery)),
-    isEmpty: numbers.length === 0,
+    isEmpty: members.length === 0,
     members,
     // Counted once, from the very rows the screen renders — so the summary and the marks beneath it
     // cannot tell different stories.
     progress: groupProgress(members),
   };
-}
-
-/**
- * The customer number the walk stands at, or `null` for "nothing looked up yet".
- *
- * A card index is dropped: `50k3` positions the walk at household 50, because the walk is about which
- * household the screen is on and not about which piece of card is current (US-04.1).
- */
-function positionOf(rawQuery: string | undefined): number | null {
-  const query = rawQuery === undefined ? null : counterQueryOrNull(rawQuery);
-  return query === null ? null : query.customerNumber;
 }

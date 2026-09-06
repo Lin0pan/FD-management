@@ -81,7 +81,7 @@ class FakeSettingsRepository implements SettingsRepository {
  * A register that answers `list` the way the adapter is documented to: the status and group applied
  * as filters, and the result ordered by ascending customer number.
  *
- * `writes` counts every mutating call, so a test can prove the walk changed nothing.
+ * `writes` counts every mutating call, so a test can prove the roster changed nothing.
  */
 class FakeCustomerRepository implements CustomerRepository {
   readonly holders: RegisteredCustomer[] = [];
@@ -125,7 +125,7 @@ class FakeCustomerRepository implements CustomerRepository {
     );
   }
 
-  /** The walk never searches the archive (US-11.1); the method is here because the port has it. */
+  /** The roster never searches the archive (US-11.1); the method is here because the port has it. */
   searchArchived(): Promise<ReadonlyArray<ArchivedCustomer>> {
     return Promise.resolve([]);
   }
@@ -148,7 +148,7 @@ class FakeCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * The walk edits nothing; the mutating methods are here because the port has them, and each counts
+   * The roster edits nothing; the mutating methods are here because the port has them, and each counts
    * as a write so that a test can state that none of them was reached.
    */
   updateHousehold(): Promise<void> {
@@ -333,64 +333,40 @@ describe("readGroupRoster", () => {
     records = new FakeDistributionRecordRepository();
   });
 
-  it("walks today's group on a distribution day", async () => {
-    customers.holders.push(
-      customerRecord({ customerNumber: 11 }),
-      customerRecord({ customerNumber: 40 }),
-    );
-
-    const roster = await readGroupRoster(deps(), "");
-
-    expect(roster.group).toBe("RED");
-    expect(roster.next).toBe(11);
-  });
-
-  it("walks the current week's group, not the next distribution's, on a non-distribution day", async () => {
+  it("reads the current week's group, not the next distribution's, on a non-distribution day", async () => {
     customers.holders.push(
       customerRecord({ customerNumber: 11 }),
       customerRecord({ customerNumber: 40 }),
     );
 
     // Friday 9 January 2026 stands in the RED week 2026-W02, and its next distribution is the
-    // Thursday of 2026-W03 — a BLUE one. The walk follows the week it is being read in, which is the
-    // colour the banner badges beside the calendar week.
+    // Thursday of 2026-W03 — a BLUE one. The roster follows the week it is being read in, which is
+    // the colour the banner badges beside the calendar week.
     const roster = await readGroupRoster(deps(DAY_AFTER_A_RED_DISTRIBUTION));
 
     expect(roster.group).toBe("RED");
-    expect(roster.next).toBe(11);
+    expect(roster.members.map((member) => member.customerNumber)).toEqual([11]);
   });
 
-  it("does not walk archived households", async () => {
+  it("leaves archived households out of the group", async () => {
     customers.holders.push(
       customerRecord({ customerNumber: 11 }),
       customerRecord({ customerNumber: 21, status: "ARCHIVED" }),
       customerRecord({ customerNumber: 31 }),
     );
 
-    const roster = await readGroupRoster(deps(), "11");
+    const roster = await readGroupRoster(deps());
 
-    expect(roster.next).toBe(31);
-  });
-
-  it("walks blocked households", async () => {
-    customers.holders.push(
-      customerRecord({ customerNumber: 11 }),
-      customerRecord({ customerNumber: 21, status: "BLOCKED" }),
-      customerRecord({ customerNumber: 31 }),
-    );
-
-    const roster = await readGroupRoster(deps(), "11");
-
-    expect(roster.next).toBe(21);
+    expect(roster.members.map((member) => member.customerNumber)).toEqual([11, 31]);
   });
 
   it("asks the register only for the active and blocked households", async () => {
-    await readGroupRoster(deps(), "11");
+    await readGroupRoster(deps());
 
     expect(customers.lastQuery).toEqual({ statuses: ["ACTIVE", "BLOCKED"] });
   });
 
-  it("walks the week's group", async () => {
+  it("names the week's group and only the households in it", async () => {
     // Only the odd numbers are RED, and the week is RED — the register was asked for all four.
     customers.holders.push(
       customerRecord({ customerNumber: 11 }),
@@ -399,73 +375,10 @@ describe("readGroupRoster", () => {
       customerRecord({ customerNumber: 40 }),
     );
 
-    const roster = await readGroupRoster(deps(), "");
+    const roster = await readGroupRoster(deps());
 
     expect(roster.group).toBe("RED");
     expect(roster.members.map((member) => member.customerNumber)).toEqual([11, 31]);
-  });
-
-  it("positions the walk at the customer number a card number names", async () => {
-    customers.holders.push(
-      customerRecord({ customerNumber: 11 }),
-      customerRecord({ customerNumber: 21 }),
-      customerRecord({ customerNumber: 31 }),
-    );
-
-    const roster = await readGroupRoster(deps(), "21k3");
-
-    expect(roster.previous).toBe(11);
-    expect(roster.next).toBe(31);
-  });
-
-  it("positions the walk around a number belonging to the other group", async () => {
-    customers.holders.push(
-      customerRecord({ customerNumber: 11 }),
-      customerRecord({ customerNumber: 31 }),
-      customerRecord({ customerNumber: 20 }),
-    );
-
-    // 20 is even and therefore BLUE — a household of the other week, walked past rather than to.
-    const roster = await readGroupRoster(deps(), "20");
-
-    expect(roster.previous).toBe(11);
-    expect(roster.next).toBe(31);
-  });
-
-  it("walks from the start when the query cannot be read as a number", async () => {
-    customers.holders.push(
-      customerRecord({ customerNumber: 11 }),
-      customerRecord({ customerNumber: 21 }),
-    );
-
-    const roster = await readGroupRoster(deps(), "Meier");
-
-    expect(roster.previous).toBeNull();
-    expect(roster.next).toBe(11);
-  });
-
-  it("walks from the start when nothing has been looked up", async () => {
-    customers.holders.push(
-      customerRecord({ customerNumber: 11 }),
-      customerRecord({ customerNumber: 21 }),
-    );
-
-    const roster = await readGroupRoster(deps());
-
-    expect(roster.previous).toBeNull();
-    expect(roster.next).toBe(11);
-  });
-
-  it("reports both ends as walked out at the last number of the group", async () => {
-    customers.holders.push(
-      customerRecord({ customerNumber: 11 }),
-      customerRecord({ customerNumber: 21 }),
-    );
-
-    const roster = await readGroupRoster(deps(), "21");
-
-    expect(roster.previous).toBe(11);
-    expect(roster.next).toBeNull();
   });
 
   it("reports a group holding no active or blocked household as empty", async () => {
@@ -474,11 +387,9 @@ describe("readGroupRoster", () => {
       customerRecord({ customerNumber: 40 }),
     );
 
-    const roster = await readGroupRoster(deps(), "11");
+    const roster = await readGroupRoster(deps());
 
     expect(roster.isEmpty).toBe(true);
-    expect(roster.previous).toBeNull();
-    expect(roster.next).toBeNull();
   });
 
   it("reports a group holding one household as not empty", async () => {
@@ -489,19 +400,19 @@ describe("readGroupRoster", () => {
     expect(roster.isEmpty).toBe(false);
   });
 
-  it("writes nothing while walking", async () => {
+  it("writes nothing while reading the roster", async () => {
     customers.holders.push(customerRecord({ customerNumber: 11 }));
 
-    await readGroupRoster(deps(), "11");
+    await readGroupRoster(deps());
 
     expect(customers.writes).toBe(0);
     expect(settings.appended).toBe(0);
   });
 
-  it("refuses to walk before DF has settings in force", async () => {
+  it("refuses to answer before DF has settings in force", async () => {
     settings = new FakeSettingsRepository();
 
-    await expect(readGroupRoster(deps(), "11")).rejects.toThrow(NoSettingsInForce);
+    await expect(readGroupRoster(deps())).rejects.toThrow(NoSettingsInForce);
   });
 
   it("names every household of the group, lowest customer number first", async () => {
@@ -629,7 +540,7 @@ describe("readGroupRoster", () => {
     customers.holders.push(customerRecord({ customerNumber: 11 }));
     records.records.push(recordFor(11, EARLIER_ON_THE_RED_DAY));
 
-    await readGroupRoster(deps(), "11");
+    await readGroupRoster(deps());
 
     expect(records.writes).toBe(0);
   });
