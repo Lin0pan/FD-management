@@ -553,3 +553,49 @@ worked example.
   - 1301 unit tests, 55 files, domain and application both 100%. Build, lint, typecheck, format all
     green.
 ---
+
+## 2026-09-06 — US-006 (batch 32): the already-served verdict states a fact rather than refusing
+- `counter-lookup.tsx` gains a fifth tone, `done`: `bg-muted text-foreground ring-foreground/10` and
+  `Check`. `ALREADY_SERVED_TODAY` returns it with the existing headline and **no** detail line — the
+  time, the amount and what was asked for are the already-served card's rows one element below.
+  `permitsServing` untouched, so no serve button; `ServeControls` untouched.
+- **Trap 2 closed**: `page.tsx` passes `expired={counter.lookup.customer.certificateExpired}` to
+  `CertificateControls` instead of `verdict.kind === "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED"`.
+- `ui_styling_guide.md` §12: „four verdicts" → „five verdict tones" with the reason two of them are
+  `bg-muted`; the `Check` row now reads „it happened / clear to serve / collected"; and the
+  `ChevronLeft`, `ChevronRight` → „the walk" row is **gone** (US-001 removed its last use; the row
+  would otherwise have registered a glyph this application no longer draws).
+- Files changed: `src/app/ausgabe/counter-lookup.tsx`, `src/app/ausgabe/page.tsx`,
+  `docs/guideline/ui_styling_guide.md`, `tests/e2e/reminders.spec.ts`.
+- **Learnings for future iterations:**
+  - **Two `reminders.spec.ts` assertions had to be re-pointed, and the PRD predicted only one.**
+    US-005 left `reminders.spec.ts:190` red and said it would go green here — it did — but two
+    *further* cases assert a verdict **after** serving the household (`:260` expected
+    `certificateExpired`, `:338` expected `CLEAR_TO_SERVE`), and both are now `ALREADY_SERVED_TODAY`.
+    Neither was in any criterion. After making a verdict reachable, grep the whole e2e suite for
+    assertions that follow a `serve(page)`, not just the one the PRD names.
+  - The `:260` re-point is now the **e2e proof of trap 2**: it asserts `reminder-button` is visible
+    on the already-served re-lookup, which is exactly the control the verdict-kind derivation lost.
+    The renewal case at `:338` keeps `certificate-controls` at count 0 as its evidence — a better
+    reading than the verdict was anyway.
+  - **Driving the counter by hand needs three things lined up, and the demo seed gives two.**
+    `npm run db:demo`, then pin `FD_FIXED_NOW_FILE` to a **Thursday whose week colour matches the
+    household's parity** (anchor `2026-W02` = RED ⇒ `2026-09-17` is RED, `2026-09-10` BLUE), then
+    insert the day's `DistributionRecord` yourself — the demo register's records sit on the *real*
+    today, which is not the pinned one. Household #1 (id 79) is the useful fixture: odd ⇒ RED, and
+    its certificate lapsed 2026-08-02, so one lookup shows the verdict *and* the trap at once.
+    Compute the colour with `colourOf(date, {isoWeek, colour})` from `weekColour.ts` rather than
+    guessing; read the anchor out of `settingsVersion`.
+  - **`prisma.customer.findMany` cannot select `certificateValidUntil` or a record's `at`** — those
+    are derived/renamed. The columns are `certificates: { validUntil }` and
+    `distributions: { dayKey, date }`. Two wasted round trips; read the error's „Available options"
+    list, it prints the real field names.
+  - Browser check confirmed on a production build: `data-verdict="ALREADY_SERVED_TODAY"`, banner
+    class `bg-muted text-foreground ring-foreground/10`, `lucide-check` glyph, no
+    `counter-verdict-detail`, no `serve-button`, `already-served` and `reminder-button` both present,
+    and the only two red elements on the page are the week banner and the group badge — both
+    `GROUP_STYLES`, neither a refusal.
+  - 1301 unit tests, 55 files; domain and application 100%. Both e2e engines green (197 passed, 1
+    skipped each). WebKit failed `number-change.spec.ts:405` once and passed it alone and on a full
+    re-run — the known nav flake, not this change.
+---
