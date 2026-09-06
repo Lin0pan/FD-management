@@ -23,7 +23,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "First story of the batch and the one that frees the file. Requirement A is a DELETION and its three stories run OUTSIDE-IN — screen, then use case, then domain — the inverse of every other batch here: built inside-out the first story would break every caller at once."
     },
     {

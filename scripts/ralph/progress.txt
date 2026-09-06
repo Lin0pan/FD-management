@@ -87,14 +87,16 @@ bullets that sat under „Where batch 31 starts" are not carried over — they a
   must be **pickable in the /kunden/neu dropdown** has to sit below 240 — the pool is `1..quotaN` —
   and everything else should stay above it, clear of the low sequence the allocating specs
   (registration, card, archive, reregistration) consume. **A new spec takes a new band**; do not
-  borrow another spec's numbers. **And a band above 317 that sorts BEFORE `group-walk.spec.ts` must
-  be even**: that spec reads the whole shared register and asserts that the highest walkable RED
-  number *is* its own 317, so an odd household seeded higher by a file running earlier fails a spec
-  the new one has no business in — `eggs` and `balance` are even for that reason and not by taste,
-  while `price-cap`'s 321 is odd and harmless because `p` sorts after `g`. **A band that has to reach
-  „Ausgabe frei" on the RED Thursday `2026-01-08`** — the day the reissue, card-number, serve and
-  number-change specs all pin — **must be odd**, which is why `number-change` (221–229) and `serve`
-  (213–217) are. Sweep the numbers in use with
+  borrow another spec's numbers. **The „band above 317 must be even" rule is GONE (batch 32,
+  US-32.1):** it existed only because `group-walk.spec.ts` read the whole shared register and
+  asserted that its own 317 was the highest walkable RED number. That spec is deleted with the walk,
+  so `eggs` (332–338) and `balance` (342–348) are even by history and not by constraint, and a new
+  odd band above 317 is now safe. The comments in `eggs`, `balance`, `number-change` and
+  `group-progress` still cite the vanished spec by name — stale prose no gate sees; US-32.9 changes
+  no spec file, so they outlive it.
+  **A band that has to reach „Ausgabe frei" on the RED Thursday `2026-01-08`** — the day the
+  reissue, card-number, serve and number-change specs all pin — **must be odd**, which is why
+  `number-change` (221–229) and `serve` (213–217) are. Sweep the numbers in use with
   `grep -rhno "\b[23][0-9][0-9]\b" tests/e2e/*.spec.ts | cut -d: -f2 | sort -un`.
 - **Choosing a number at the intake now starts with choosing the week.** `/kunden/neu` offers one
   parity at a time, so `selectOption("236")` finds no such option unless `#group-BLUE` is checked
@@ -398,4 +400,35 @@ household and the question on screen; a saved correction keeps its confirmation 
 The `redirect` goes **outside** the `try` — `correctServe`'s removal branch in the same file is the
 worked example.
 
+---
+
+## 2026-09-06 — US-001 (batch 32): remove Zurück/Weiter from the counter
+- Deleted `WALK_CONTROL`, `WalkControl`, `walkHint`, the two `<WalkControl>` elements, the
+  walk-hint paragraph and the `walkFromStart` binding from `src/app/ausgabe/page.tsx`;
+  `readGroupRoster` is now called with no second argument (the parameter itself goes in US-002).
+  `ChevronLeft`/`ChevronRight` dropped from the lucide import; `Search` and `CircleAlert` stay.
+- Removed the whole `de.distribution.walk` block from `src/i18n/de.ts` (`previous`, `next` and all
+  four hints). `de.distribution.progress.*` untouched.
+- Deleted `tests/e2e/group-walk.spec.ts`.
+- Files changed: `src/app/ausgabe/page.tsx`, `src/i18n/de.ts`,
+  `src/app/ausgabe/group-progress-card.tsx` (comment), `src/app/ausgabe/counter-lookup.tsx`
+  (comment), `tests/e2e/group-walk.spec.ts` (deleted).
+- **Learnings for future iterations:**
+  - Deleting the `walkHint` paragraph left `GroupRosterView` unused as a *type* import while
+    `readGroupRoster` stayed, so the multi-line import had to be collapsed by hand. Neither `tsc`
+    nor `eslint` reported it — check the import line after removing a type's only consumer.
+  - `GROUP_STYLES` survives the deletion: the off-day banner's week badge still wears it. Do not
+    remove it along with the hint that also used it.
+  - Two comments elsewhere named the walk as a live thing — `group-progress-card.tsx`'s `groupName`
+    prop doc („as the banner and the walk hint say it") and `counter-lookup.tsx`'s fold-key note
+    („from the group list, the walk and the lookup form"). Both corrected here; no gate sees either.
+  - **I ran `pkill -f "next-server"` despite the standing bullet forbidding it and killed the Bash
+    tool (exit 144).** The cleanup happened anyway, but the bullet is right: kill by pid from
+    `ps aux | grep "[n]ext-server"`.
+  - Browser check on a production build (`npm run start`): the counter form's `elements` collection
+    is exactly `["INPUT:text", "BUTTON:submit"]`, no element named Zurück or Weiter is on the page,
+    and no `[data-testid*=walk]` exists — before and after a lookup. One `--raw eval` returning
+    `JSON.stringify` answered all three claims; the 390px screenshot shows the row reading cleanly
+    with the two buttons gone and `scrollWidth - clientWidth` at 0.
+  - Both e2e engines green with `group-progress.spec.ts` unmodified: 197 passed, 1 skipped each.
 ---

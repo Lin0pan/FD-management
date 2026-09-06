@@ -365,7 +365,7 @@ export function CustomerDetails({
             worse than no control.
 
             Keyed by customer: a `<details>` keeps `open` through a soft navigation, and this screen
-            navigates to itself from the group list, the walk and the lookup form
+            navigates to itself from the group list and the lookup form
             (`docs/guideline/ui_styling_guide.md` §6). Without the key the next household's card arrives with the
             fold open and the previous household's text still in the field — which is the one way
             this control could write a note onto the wrong record. */}
