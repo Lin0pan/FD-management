@@ -22,6 +22,7 @@
  */
 
 import { useActionState, useId, useState } from "react";
+import { Ban } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,7 +50,10 @@ function BlockForm({
 
   return (
     <details className="group">
-      <ControlSummary testId="block-open">{de.customers.block.action}</ControlSummary>
+      <ControlSummary testId="block-open">
+        <Ban aria-hidden="true" data-icon="inline-start" />
+        {de.customers.block.action}
+      </ControlSummary>
       <form action={action} className="mt-3 flex flex-col items-start gap-3">
         <input type="hidden" name="customerId" value={customerId} />
         <div className="flex w-full max-w-prose flex-col gap-1">
@@ -97,7 +101,10 @@ function UnblockForm({
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="customerId" value={customerId} />
       <details className="group">
-        <ControlSummary testId="unblock-open">{de.customers.block.unblock}</ControlSummary>
+        <ControlSummary testId="unblock-open">
+          <Ban aria-hidden="true" data-icon="inline-start" />
+          {de.customers.block.unblock}
+        </ControlSummary>
         {/* Neutral, not destructive: lifting a block is consequential but it takes nothing away. */}
         <div className="mt-3 flex flex-col items-start gap-3">
           <Alert>

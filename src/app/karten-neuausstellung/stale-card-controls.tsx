@@ -16,6 +16,7 @@
  */
 
 import { useActionState } from "react";
+import { CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { de } from "@/i18n/de";
 import { reissueStaleCardAction } from "./actions";
@@ -44,7 +45,10 @@ export function StaleCardControls({
           contents out of the row. What changes is only its weight — closed it now reads as the
           control it is rather than as a collapsed section spanning the row. */}
       <details className="group">
-        <ControlSummary testId="stale-reissue-open">{de.cardsDue.action}</ControlSummary>
+        <ControlSummary testId="stale-reissue-open">
+          <CreditCard aria-hidden="true" data-icon="inline-start" />
+          {de.cardsDue.action}
+        </ControlSummary>
         <div className="mt-3 flex flex-col items-start gap-3">
           <p data-testid="stale-reissue-confirm" className="max-w-prose">
             {de.customers.reissue.confirm(cardNumber, nextCardNumber)}

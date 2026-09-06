@@ -17,6 +17,7 @@
  */
 
 import { useActionState, useId, useState } from "react";
+import { Archive } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,7 +59,10 @@ export function ArchiveControls({
 
   return (
     <details className="group">
-      <ControlSummary testId="archive-open">{de.customers.archive.action}</ControlSummary>
+      <ControlSummary testId="archive-open">
+        <Archive aria-hidden="true" data-icon="inline-start" />
+        {de.customers.archive.action}
+      </ControlSummary>
       <form action={action} className="mt-3 flex flex-col items-start gap-3">
         <input type="hidden" name="customerId" value={customerId} />
         <input type="hidden" name="returnTo" value={returnTo} />
