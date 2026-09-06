@@ -22,7 +22,11 @@ import { groupOf, type Group } from "@/domain/customer/group";
 import type { HouseholdComposition } from "@/domain/customer/householdComposition";
 import { berlinDayKey, recordForDay } from "@/domain/distribution/attendance";
 import { amountToPay, askedForRecord, balanceOf } from "@/domain/distribution/balance";
-import { evaluateAtCounter, type Verdict } from "@/domain/distribution/counterVerdict";
+import {
+  certificateExpired,
+  evaluateAtCounter,
+  type Verdict,
+} from "@/domain/distribution/counterVerdict";
 import type { Cents } from "@/domain/money";
 import { describeAllowance } from "../allowance/describe-allowance";
 import { getWeekColour } from "../distribution/get-week-colour";
@@ -64,6 +68,13 @@ export interface CounterCustomerView {
   readonly eggs: number;
   /** The day the needs certificate lapses — shown so staff can start the renewal conversation. */
   readonly certificateValidUntil: Date;
+  /**
+   * Whether that day has passed, judged by the domain's own rule against the same instant the
+   * verdict is evaluated at (US-32.5). It is stated here rather than read off the verdict kind
+   * because a household that has already collected today is `ALREADY_SERVED_TODAY` (US-32.4) — the
+   * lapsed certificate is still true of them, and the reminder controls still belong on the screen.
+   */
+  readonly certificateExpired: boolean;
   readonly status: CustomerStatus;
   /**
    * Why this household is paused, or `null` while they are not (US-08).
@@ -199,32 +210,18 @@ export async function lookupCustomer(
     getWeekColour(deps, today),
   ]);
 
-  const verdict = evaluateAtCounter({
-    // The current card index is the highest the customer holds, loaded with the row rather than
-    // read separately — the counter never issues a second query (US-04.3). A blocked customer
-    // carries the reason recorded when they were blocked (US-08), shown verbatim in the verdict.
-    customer:
-      customer === null
-        ? null
-        : {
-            customerNumber: customer.customerNumber,
-            status: customer.status,
-            group: groupOf(customer.customerNumber),
-            blockReason: customer.blockReason,
-            currentCardIndex: customer.card.index,
-            certificateValidUntil: customer.details.certificate.validUntil,
-            reminderCount: customer.reminderCount,
-          },
-    presentedCardIndex: query.cardIndex,
-    today,
-    weekColour: week.colour,
-    // §US-32.5 replaces this literal with today's record, which this use case already loads.
-    servedToday: false,
-  });
-
   if (customer === null) {
+    // The rule still decides the verdict for an unassigned slot rather than this use case naming
+    // `NOT_FOUND` itself — the precedence lives in one place. Nothing is loaded on this branch, so
+    // there is no day's record to ask about and the household cannot have been served.
     return {
-      verdict,
+      verdict: evaluateAtCounter({
+        customer: null,
+        presentedCardIndex: query.cardIndex,
+        today,
+        weekColour: week.colour,
+        servedToday: false,
+      }),
       customer: null,
       customerId: null,
       todaysRecord: null,
@@ -240,6 +237,27 @@ export async function lookupCustomer(
     deps.reminders.findOnDay(customer.id, berlinDayKey(today)),
   ]);
   const existing = recordForDay(recordsForCustomer, today);
+
+  const verdict = evaluateAtCounter({
+    // The current card index is the highest the customer holds, loaded with the row rather than
+    // read separately — the counter never issues a second query (US-04.3). A blocked customer
+    // carries the reason recorded when they were blocked (US-08), shown verbatim in the verdict.
+    customer: {
+      customerNumber: customer.customerNumber,
+      status: customer.status,
+      group: groupOf(customer.customerNumber),
+      blockReason: customer.blockReason,
+      currentCardIndex: customer.card.index,
+      certificateValidUntil: customer.details.certificate.validUntil,
+      reminderCount: customer.reminderCount,
+    },
+    presentedCardIndex: query.cardIndex,
+    today,
+    weekColour: week.colour,
+    // The fact, not the record (US-32.4): the day's hand-out is already loaded above, so the
+    // verdict costs no further query and cannot disagree with the record the screen shows.
+    servedToday: existing !== null,
+  });
   // The balance and everything hanging off it come from the records just loaded — the counter still
   // issues no second query (US-04.3, US-29.5). It is the balance as it stands *now*, so a hand-out
   // already recorded today is counted in.
@@ -276,6 +294,7 @@ export async function lookupCustomer(
       priceCents: allowance.priceCents,
       eggs: allowance.eggs,
       certificateValidUntil: customer.details.certificate.validUntil,
+      certificateExpired: certificateExpired(customer.details.certificate.validUntil, today),
       status: customer.status,
       blockReason: customer.blockReason,
       reminderCount: customer.reminderCount,
