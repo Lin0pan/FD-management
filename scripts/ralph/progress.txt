@@ -432,3 +432,29 @@ worked example.
     with the two buttons gone and `scrollWidth - clientWidth` at 0.
   - Both e2e engines green with `group-progress.spec.ts` unmodified: 197 passed, 1 skipped each.
 ---
+
+## 2026-09-06 — US-002 (batch 32): the roster stops answering "which number comes next"
+- `GroupRosterView` lost `previous` and `next`; `readGroupRoster` lost its `rawQuery` parameter, the
+  `positionOf` helper, the `neighbours` import and the now-unused `counterQueryOrNull` import.
+  `group`, `isEmpty`, `members` and `progress` stay.
+- The module's opening comment keeps the three decisions worth stating (the **week's own** colour and
+  not `nextDistribution.colour`; membership is ACTIVE + BLOCKED; the query is `CustomerRepository.list`
+  with the group narrowed in memory via `groupOf`) and replaces the walk paragraph with the roster
+  having **outlived** it. `isEmpty`'s doc now says out loud that it is `group-progress-card.tsx`'s
+  empty state, not walk vocabulary.
+- Six walk cases deleted, two re-pointed rather than deleted: the **non-distribution-day** case now
+  pins the group with `members` instead of `next`, and "does not walk archived households" became
+  "leaves archived households out of the group" on the same evidence. `walks blocked households` and
+  `walks today's group on a distribution day` were dropped as duplicates — the blocked rule is
+  `keeps a blocked household in the list and out of what was expected`, the distribution-day group
+  rule is `names the week's group and only the households in it`.
+- Files changed: `src/application/distribution/read-group-roster.ts`,
+  `src/application/distribution/read-group-roster.test.ts`.
+- **Learnings for future iterations:**
+  - `WALKED_STATUSES` → `ROSTERED_STATUSES`, and three comments in the test's fakes said "the walk"
+    where they meant the use case. No gate sees any of them; grep the *file* for the vocabulary
+    after removing a feature, not just the identifiers the criteria name.
+  - Deleting a fully covered module's *fields* moved nothing: application coverage stayed at 100%
+    because every deleted line took its only test with it. 1302 tests, 56 files, all green.
+  - `groupWalk.ts` still reports 100% — its own test is what covers it, and both go in US-003.
+---
