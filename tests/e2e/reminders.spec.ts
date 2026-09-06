@@ -266,16 +266,27 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     await page.getByTestId("reminder-button").click();
     await expect(page.getByTestId("reminder-confirmation")).toHaveText(words.reminder.confirmed(3));
 
-    // Three reminders state a fact, never a consequence: the screen shows the count beside the same
-    // serve-and-remind verdict, the status stays active, and nothing anywhere prompts an archive —
-    // that judgement is US-10's, made by a person.
+    // Three reminders state a fact, never a consequence: the screen shows the count, the status
+    // stays active, and nothing anywhere prompts an archive — that judgement is US-10's, made by a
+    // person.
+    //
+    // The verdict on this second look-up is ALREADY_SERVED_TODAY and not the serve-and-remind one
+    // asserted before the hand-out (line ~198): since US-32 the day's record outranks the lapsed
+    // certificate. What the re-lookup has to prove is that the reminder controls survive that —
+    // `CertificateControls` reads `certificateExpired` off the household, not off the verdict kind,
+    // so a served household keeps everything it needs to be reminded and renewed.
     await lookUp(page);
     await expect(page.getByTestId("counter-reminder-count")).toHaveText("3");
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.ACTIVE);
+    await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
+      "data-verdict",
+      "ALREADY_SERVED_TODAY",
+    );
     await expect(page.getByTestId("counter-verdict-headline")).toHaveText(
-      verdicts.certificateExpired.headline,
+      verdicts.alreadyServedToday.headline,
     );
     await expect(page.getByTestId("counter-verdict-detail")).toHaveCount(0);
+    await expect(page.getByTestId("reminder-button")).toBeVisible();
 
     const household = await householdRow();
     expect(household.status).toBe("ACTIVE");
@@ -337,11 +348,14 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     // certificate as valid again.
     await expect(page.getByTestId("renewal-confirmation")).toHaveText(words.renewal.saved);
 
-    // A fresh lookup: the prompt is gone with the reminder action, and the count reads 0.
+    // A fresh lookup: the prompt is gone with the reminder action, and the count reads 0. The
+    // verdict is still the day's — this household was served earlier in the spec and US-32 lets
+    // that outrank everything below an outdated card — so the evidence that the certificate no
+    // longer registers is the absence of its controls, which is the reading that matters anyway.
     await lookUp(page);
     await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
       "data-verdict",
-      "CLEAR_TO_SERVE",
+      "ALREADY_SERVED_TODAY",
     );
     await expect(page.getByTestId("counter-reminder-count")).toHaveText("0");
     await expect(page.getByTestId("certificate-controls")).toHaveCount(0);

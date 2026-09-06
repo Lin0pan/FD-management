@@ -374,10 +374,17 @@ export default async function DistributionPage({
                     next customer's screen; within one customer the state rides out revalidation,
                     which is what keeps the renewal confirmation visible once the certificate
                     reads as valid again. */}
+                {/* `customer.certificateExpired`, and deliberately not the verdict kind it used to
+                    be compared against. Since US-32 an already-collected household answers
+                    ALREADY_SERVED_TODAY, which outranks CLEAR_TO_SERVE_CERTIFICATE_EXPIRED — so
+                    reading the reminder controls off the verdict would make them vanish the moment
+                    the household was served, on the very re-lookup a staff member does to correct
+                    the record. Whether the certificate has lapsed is a fact about the household;
+                    `lookupCustomer` derives it at the same instant the verdict is evaluated. */}
                 <CertificateControls
                   key={counter.lookup.customerId}
                   customerId={counter.lookup.customerId}
-                  expired={counter.lookup.verdict.kind === "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED"}
+                  expired={counter.lookup.customer.certificateExpired}
                   reminderLoggedToday={counter.lookup.reminderLoggedToday}
                 />
                 {/* Every figure the payment turns on comes off the lookup, derived there from the
