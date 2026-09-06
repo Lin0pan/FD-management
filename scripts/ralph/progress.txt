@@ -514,3 +514,42 @@ worked example.
     stay: Prettier cannot break a string literal, and the rule names are the point.
   - 1296 tests, 55 files, domain and application both 100%. Build green.
 ---
+
+## 2026-09-06 — US-005 (batch 32): the lookup passes the fact; the write path keeps its own error
+- `lookupCustomer` now evaluates the verdict **after** the records/reminder `Promise.all`, passing
+  `servedToday: recordForDay(...) !== null` off the day's record it already loads — no second query.
+  The `customer === null` early return moved **above** the evaluation and calls `evaluateAtCounter`
+  itself, so `NOT_FOUND` is still the rule's answer rather than one this use case names.
+- `CounterCustomerView` gains `certificateExpired`, derived through the domain's now-exported
+  `certificateExpired(validUntil, today)` at the same instant the verdict is evaluated.
+- `recordAttendance`: the `listForCustomer` + `canRecord` guard moved above `getWeekColour` and
+  `evaluateAtCounter`; the header's numbered guard list swapped 1 and 2 with the reason.
+  `correctAttendance` untouched.
+- Four new lookup tests (served today → ALREADY_SERVED_TODAY; served on an earlier day → unchanged;
+  a lapsed certificate reported on an already-served household; a certificate valid *through* today
+  is not expired) plus one write-path test pinning that a duplicate stays `AlreadyServedToday` and
+  is **not** a `NotClearToServe`.
+- Files changed: `src/application/customers/lookup-customer.ts` (+ test),
+  `src/application/distribution/record-attendance.ts` (+ test),
+  `docs/architecture/06-runtime-view.md`.
+- **Learnings for future iterations:**
+  - **The verdict had to move, not just gain an argument.** `servedToday` is only knowable after the
+    records read, which happens after the `customer === null` early return — so the evaluation moved
+    down and the null branch grew its own call. Three lines, but it is the shape of the function that
+    changed; a `let verdict` reassigned later would have been the tempting wrong answer.
+  - **Chapter 6's sequence diagram already said „today's record"** in the arrow into
+    `evaluateAtCounter` — written ahead of the code and only now true. What was owed was the
+    *ordering* sentence in the already-served paragraph, since the guard order is load-bearing.
+  - **The existing duplicate-hand-out test would NOT have caught trap 1.** `ALREADY_SERVED_TODAY` is
+    not in the `ARCHIVED | BLOCKED | WRONG_GROUP` throw list, so a verdict-first order would still
+    have fallen through to `canRecord`. The reorder is right regardless — the guard that names the
+    day's write belongs first — but do not expect the old test to have been red.
+  - **One e2e is now red, and it is trap 2 exactly as the PRD predicted**: `reminders.spec.ts:190`
+    („serves the household … and logs the first reminder") loses `reminder-button` after the serve,
+    because `page.tsx` still derives `CertificateControls`'s `expired` from the verdict kind and the
+    served household is no longer `CLEAR_TO_SERVE_CERTIFICATE_EXPIRED`. **US-006 owns that prop
+    move** (stories 5 and 6 split it deliberately: 5 adds the field, 6 reads it). Chromium: 191
+    passed, 1 failed. Expect it green again after the next story and do not touch the spec.
+  - 1301 unit tests, 55 files, domain and application both 100%. Build, lint, typecheck, format all
+    green.
+---

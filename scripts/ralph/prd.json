@@ -106,7 +106,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "TRAP 1 OF 2. The canRecord ordering is the single thing an implementer will get wrong here, and no existing test would catch the reworded refusal on its own — the named application test on the message is what pins it."
     },
     {
