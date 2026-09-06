@@ -9,10 +9,13 @@
  * (tasks/prd-us-04-lookup-customer.md §7).
  *
  * The precedence is fixed and total: `NOT_FOUND` → `ARCHIVED` → `BLOCKED` → `WRONG_GROUP` →
- * `OUTDATED_CARD` → certificate check → `CLEAR_TO_SERVE`. An earlier reason always wins, so a blocked
- * customer in the wrong group is turned away as *blocked* — the more specific fact about them — rather
- * than sent to come back next week. An **expired certificate never blocks**: it is a serve-and-remind
- * case (US-06), because chasing a renewal is a conversation at the counter, not grounds to refuse food.
+ * `OUTDATED_CARD` → `ALREADY_SERVED_TODAY` → certificate check → `CLEAR_TO_SERVE`. An earlier
+ * reason always wins, so a blocked customer in the wrong group is turned away as *blocked* — the
+ * more specific fact about them — rather than sent to come back next week. A household that has
+ * already collected is told *that* rather than reminded about a lapsed certificate, because the
+ * collection is finished business and the reminder is a conversation for the next visit (US-32). An
+ * **expired certificate never blocks**: it is a serve-and-remind case (US-06), because chasing a
+ * renewal is a conversation at the counter, not grounds to refuse food.
  *
  * The module is pure: `today` and `weekColour` are parameters, never the wall clock, and it does no
  * I/O — the application layer resolves the typed number to a {@link CounterCustomer} first (US-04.2).
@@ -65,15 +68,26 @@ export interface CounterInput {
   readonly today: Date;
   /** The colour of the week `today` falls in (US-03). */
   readonly weekColour: WeekColour;
+  /**
+   * Whether a hand-out is already recorded for this household on the Berlin day being evaluated.
+   * A **fact**, never the record: the rule stays pure and knows nothing about `DistributionRecord`,
+   * and the application layer — which loads the day's record anyway (US-04.3) — answers the
+   * question for it.
+   */
+  readonly servedToday: boolean;
 }
 
 /**
  * Exactly one outcome of a counter lookup. A discriminated union so the UI switch can be made
  * exhaustive — adding a case becomes a compile error until every screen renders it (US-04.4, §7).
  *
- * `ALREADY_SERVED_TODAY` is declared here for US-05's duplicate-prevention to return; the read-only
- * lookup never produces it, because "already served" is a fact of the day's distribution record
- * rather than of the customer, and this rule takes no such record.
+ * `ALREADY_SERVED_TODAY` is what the counter answers for a household that has already collected on
+ * the day being evaluated (US-32). The rule takes that as the `servedToday` **boolean** rather than
+ * as the day's distribution record: the record carries a time, an amount and a payment that no
+ * branch here turns on, and taking it would tie a pure rule to a persistence shape to read one
+ * `!== null`.
+ * The write path throws its own `AlreadyServedToday` from `canRecord`, which is the more specific
+ * fact about a duplicate write.
  */
 export type Verdict =
   | { readonly kind: "NOT_FOUND" }
@@ -95,7 +109,7 @@ export type Verdict =
  * the same comparison the age rule uses (`householdComposition`) keeps the verdict from turning on the
  * time of day a record happened to be entered.
  */
-function certificateExpired(validUntil: Date, today: Date): boolean {
+export function certificateExpired(validUntil: Date, today: Date): boolean {
   return startOfUtcDay(validUntil).getTime() < startOfUtcDay(today).getTime();
 }
 
@@ -105,7 +119,7 @@ function certificateExpired(validUntil: Date, today: Date): boolean {
  * @returns exactly one {@link Verdict}; never throws — an unassigned slot is `NOT_FOUND`, not an error.
  */
 export function evaluateAtCounter(input: CounterInput): Verdict {
-  const { customer, presentedCardIndex, today, weekColour } = input;
+  const { customer, presentedCardIndex, today, weekColour, servedToday } = input;
 
   if (customer === null) {
     return { kind: "NOT_FOUND" };
@@ -125,6 +139,9 @@ export function evaluateAtCounter(input: CounterInput): Verdict {
       presented: { customerNumber: customer.customerNumber, index: presentedCardIndex },
       current: { customerNumber: customer.customerNumber, index: customer.currentCardIndex },
     };
+  }
+  if (servedToday) {
+    return { kind: "ALREADY_SERVED_TODAY" };
   }
   if (certificateExpired(customer.certificateValidUntil, today)) {
     return {

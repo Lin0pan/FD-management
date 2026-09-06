@@ -119,6 +119,9 @@ export async function recordAttendance(
     presentedCardIndex: null,
     today: now,
     weekColour: week.colour,
+    // The write path's own duplicate guard is `canRecord` below, whose `AlreadyServedToday` names
+    // the day's write; the verdict is asked about eligibility alone (§US-32.5 moves that guard up).
+    servedToday: false,
   });
   if (verdict.kind === "ARCHIVED" || verdict.kind === "BLOCKED" || verdict.kind === "WRONG_GROUP") {
     throw new NotClearToServe(verdict);

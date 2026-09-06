@@ -30,6 +30,7 @@ describe("evaluateAtCounter precedence", () => {
       presentedCardIndex: null,
       today: TODAY,
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict.kind).toBe("NOT_FOUND");
   });
@@ -40,6 +41,7 @@ describe("evaluateAtCounter precedence", () => {
       presentedCardIndex: null,
       today: TODAY,
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict.kind).toBe("ARCHIVED");
   });
@@ -50,6 +52,7 @@ describe("evaluateAtCounter precedence", () => {
       presentedCardIndex: null,
       today: TODAY,
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict).toEqual({ kind: "BLOCKED", reason: "Hausverbot" });
   });
@@ -60,6 +63,7 @@ describe("evaluateAtCounter precedence", () => {
       presentedCardIndex: 2,
       today: TODAY,
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict).toEqual({ kind: "WRONG_GROUP", group: "BLUE", weekColour: "RED" });
   });
@@ -70,6 +74,7 @@ describe("evaluateAtCounter precedence", () => {
       presentedCardIndex: 2,
       today: TODAY,
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict).toEqual({
       kind: "OUTDATED_CARD",
@@ -84,6 +89,7 @@ describe("evaluateAtCounter precedence", () => {
       presentedCardIndex: null,
       today: TODAY,
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict).toEqual({
       kind: "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED",
@@ -98,6 +104,7 @@ describe("evaluateAtCounter precedence", () => {
       presentedCardIndex: 3,
       today: TODAY,
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict.kind).toBe("CLEAR_TO_SERVE");
   });
@@ -110,6 +117,7 @@ describe("evaluateAtCounter card matching", () => {
       presentedCardIndex: null,
       today: TODAY,
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict.kind).toBe("CLEAR_TO_SERVE");
   });
@@ -120,6 +128,7 @@ describe("evaluateAtCounter card matching", () => {
       presentedCardIndex: 3,
       today: TODAY,
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict.kind).toBe("CLEAR_TO_SERVE");
   });
@@ -130,6 +139,7 @@ describe("evaluateAtCounter card matching", () => {
       presentedCardIndex: 1,
       today: TODAY,
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict).toEqual({
       kind: "OUTDATED_CARD",
@@ -146,6 +156,7 @@ describe("evaluateAtCounter wrong group", () => {
       presentedCardIndex: null,
       today: TODAY,
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict).toEqual({ kind: "WRONG_GROUP", group: "BLUE", weekColour: "RED" });
   });
@@ -156,6 +167,7 @@ describe("evaluateAtCounter wrong group", () => {
       presentedCardIndex: null,
       today: TODAY,
       weekColour: "BLUE",
+      servedToday: false,
     });
     expect(verdict.kind).toBe("CLEAR_TO_SERVE");
   });
@@ -168,6 +180,7 @@ describe("evaluateAtCounter certificate boundary", () => {
       presentedCardIndex: null,
       today: on("2026-07-23"),
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict.kind).toBe("CLEAR_TO_SERVE");
   });
@@ -178,6 +191,7 @@ describe("evaluateAtCounter certificate boundary", () => {
       presentedCardIndex: null,
       today: on("2026-07-22"),
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict.kind).toBe("CLEAR_TO_SERVE");
   });
@@ -188,6 +202,7 @@ describe("evaluateAtCounter certificate boundary", () => {
       presentedCardIndex: null,
       today: on("2026-07-24"),
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict.kind).toBe("CLEAR_TO_SERVE_CERTIFICATE_EXPIRED");
   });
@@ -198,6 +213,7 @@ describe("evaluateAtCounter certificate boundary", () => {
       presentedCardIndex: null,
       today: new Date("2026-07-23T22:45:00.000Z"),
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict.kind).toBe("CLEAR_TO_SERVE");
   });
@@ -208,6 +224,7 @@ describe("evaluateAtCounter certificate boundary", () => {
       presentedCardIndex: null,
       today: on("2024-02-29"),
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict.kind).toBe("CLEAR_TO_SERVE");
   });
@@ -218,6 +235,7 @@ describe("evaluateAtCounter certificate boundary", () => {
       presentedCardIndex: null,
       today: on("2024-03-01"),
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict.kind).toBe("CLEAR_TO_SERVE_CERTIFICATE_EXPIRED");
   });
@@ -228,7 +246,76 @@ describe("evaluateAtCounter certificate boundary", () => {
       presentedCardIndex: null,
       today: TODAY,
       weekColour: "RED",
+      servedToday: false,
     });
     expect(verdict.kind).toBe("CLEAR_TO_SERVE_CERTIFICATE_EXPIRED");
+  });
+});
+
+describe("evaluateAtCounter already served today", () => {
+  it("reports ALREADY_SERVED_TODAY for a household that has collected today", () => {
+    const verdict = evaluateAtCounter({
+      customer: customer(),
+      presentedCardIndex: null,
+      today: TODAY,
+      weekColour: "RED",
+      servedToday: true,
+    });
+    expect(verdict).toEqual({ kind: "ALREADY_SERVED_TODAY" });
+  });
+
+  it("reports CLEAR_TO_SERVE for a household that has not collected today", () => {
+    const verdict = evaluateAtCounter({
+      customer: customer(),
+      presentedCardIndex: null,
+      today: TODAY,
+      weekColour: "RED",
+      servedToday: false,
+    });
+    expect(verdict.kind).toBe("CLEAR_TO_SERVE");
+  });
+
+  it("reports BLOCKED before ALREADY_SERVED_TODAY for a blocked household that collected today", () => {
+    const verdict = evaluateAtCounter({
+      customer: customer({ status: "BLOCKED", blockReason: "Hausverbot" }),
+      presentedCardIndex: null,
+      today: TODAY,
+      weekColour: "RED",
+      servedToday: true,
+    });
+    expect(verdict).toEqual({ kind: "BLOCKED", reason: "Hausverbot" });
+  });
+
+  it("reports WRONG_GROUP before ALREADY_SERVED_TODAY for a wrong-group household that collected today", () => {
+    const verdict = evaluateAtCounter({
+      customer: customer({ customerNumber: 50, group: "BLUE" }),
+      presentedCardIndex: null,
+      today: TODAY,
+      weekColour: "RED",
+      servedToday: true,
+    });
+    expect(verdict).toEqual({ kind: "WRONG_GROUP", group: "BLUE", weekColour: "RED" });
+  });
+
+  it("reports OUTDATED_CARD before ALREADY_SERVED_TODAY for an old card presented after collecting", () => {
+    const verdict = evaluateAtCounter({
+      customer: customer({ currentCardIndex: 3 }),
+      presentedCardIndex: 2,
+      today: TODAY,
+      weekColour: "RED",
+      servedToday: true,
+    });
+    expect(verdict.kind).toBe("OUTDATED_CARD");
+  });
+
+  it("reports ALREADY_SERVED_TODAY before the certificate check for a lapsed certificate", () => {
+    const verdict = evaluateAtCounter({
+      customer: customer({ certificateValidUntil: on("2020-01-01") }),
+      presentedCardIndex: null,
+      today: TODAY,
+      weekColour: "RED",
+      servedToday: true,
+    });
+    expect(verdict).toEqual({ kind: "ALREADY_SERVED_TODAY" });
   });
 });

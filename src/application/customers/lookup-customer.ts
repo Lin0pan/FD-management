@@ -218,6 +218,8 @@ export async function lookupCustomer(
     presentedCardIndex: query.cardIndex,
     today,
     weekColour: week.colour,
+    // §US-32.5 replaces this literal with today's record, which this use case already loads.
+    servedToday: false,
   });
 
   if (customer === null) {
