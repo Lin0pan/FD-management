@@ -57,7 +57,7 @@ export function ArchiveControls({
   }
 
   return (
-    <details>
+    <details className="group">
       <ControlSummary testId="archive-open">{de.customers.archive.action}</ControlSummary>
       <form action={action} className="mt-3 flex flex-col items-start gap-3">
         <input type="hidden" name="customerId" value={customerId} />

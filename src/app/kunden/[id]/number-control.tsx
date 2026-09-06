@@ -260,7 +260,7 @@ export function NumberControl({
           would be a step that exists to say it is not a step. Choosing the number they already hold
           is still refused by the use case, which is what a second tab reaches. */}
       {choice === null || chosen === customerNumber ? null : (
-        <details>
+        <details className="group">
           <ControlSummary testId="number-change-open">{words.action}</ControlSummary>
           {/* Neutral, not destructive: a move hands out a new card and frees a slot, it does not
               take a household out of the register. Destructive is the block and the archive. */}

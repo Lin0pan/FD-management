@@ -37,6 +37,7 @@ import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { correctServe, recordServe } from "./actions";
 import { BALANCE_STYLES } from "../accents";
+import { FoldChevron } from "../disclosure";
 import { initialCorrectState, initialServeState } from "./serve-state";
 import type { CorrectState, ServeState } from "./serve-state";
 import { guardEnter } from "../enter-guard";
@@ -360,9 +361,14 @@ export function ServeControls({
 
                 `self-start` because the form is a column and would otherwise stretch this to the
                 card's full width, turning a small disclosure into a bar the width of the screen. */}
-            <details className="self-start rounded-lg border border-destructive/40">
-              <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-destructive">
+            <details className="group self-start rounded-lg border border-destructive/40">
+              {/* The one summary in the application with no test id: `serve.spec.ts` and
+                  `balance.spec.ts` reach it by its exact text, so the chevron has to be an inline
+                  SVG rather than a glyph — an svg contributes no text content. It also replaces the
+                  native marker this fold kept, which the two engines draw differently (ADR-012). */}
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-sm font-medium text-destructive [&::-webkit-details-marker]:hidden">
                 {de.distribution.serve.correct.remove}
+                <FoldChevron />
               </summary>
               <div className="flex flex-col gap-2 px-3 pb-3">
                 <p

@@ -222,12 +222,23 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   `document.body`, so a spec reading inside a row stops resolving.
 
   ```tsx
-  <summary className={cn(buttonVariants({ variant: "outline" }), SUMMARY)}>
-  // SUMMARY = "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden"
+  <details className="group">
+    <ControlSummary testId="block-open">{de.customers.block.action}</ControlSummary>
+  // src/app/disclosure.tsx — the button-shaped recipe, and the chevron, in one place
   ```
 
   **`w-fit` for a control, full width for a header** — a `<summary>` wrapping a `CardHeader` must not
-  shrink to its content.
+  shrink to its content. `ControlSummary` is the first; a header fold spans the card and puts
+  `FoldChevron` in the `CardAction` slot, which is the one column `CardHeader` places on the right.
+
+- **A `<summary>` carries a chevron, and its `<details>` carries `group`.** Every disclosure here
+  suppresses the native marker — a browser triangle is not a control's affordance, and the two engines
+  draw it differently (ADR-012) — so something has to go back in its place. `FoldChevron` is that
+  something: `ChevronDown`, `aria-hidden`, rotated by `group-open:`. Without it a fold reads as a dead
+  card, and „Änderungsverlauf", „Bisherige Ausgaben" and „Im Archiv suchen" each did. Two of them
+  bought the affordance back with a _sentence_ — „Ausklappen, um alle bisherigen Ausgaben zu sehen" —
+  which is §8's rule paying rent for a missing 16px glyph; the chevron says it and both keys went.
+  **A `<details>` that forgets `group` is a silent no-op**, so check a fold open as well as closed.
 
 - A `<details>` keeps `open` through any re-render, including a soft navigation to the same route.
   Put a `key` on the card so it remounts closed.
@@ -255,7 +266,8 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   stopped recognising the customer and unlocked itself.
 
 - A summary can label its own state with no client component: `group` on the `<details>`, then
-  `group-open:hidden` on one word and `hidden group-open:inline` on the other.
+  `group-open:hidden` on one word and `hidden group-open:inline` on the other. The words stay where
+  they are — a glyph alone carries no meaning (US-03.4) — and the chevron joins them.
 - **A folded control still needs its label where every other column keeps it.** What the summary says
   about itself is not the label. A `<summary>` is not labelable — use a `<span>` plus
   `aria-labelledby`.

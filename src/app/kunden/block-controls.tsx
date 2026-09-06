@@ -48,7 +48,7 @@ function BlockForm({
   const empty = reason.trim() === "";
 
   return (
-    <details>
+    <details className="group">
       <ControlSummary testId="block-open">{de.customers.block.action}</ControlSummary>
       <form action={action} className="mt-3 flex flex-col items-start gap-3">
         <input type="hidden" name="customerId" value={customerId} />
@@ -96,7 +96,7 @@ function UnblockForm({
   return (
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="customerId" value={customerId} />
-      <details>
+      <details className="group">
         <ControlSummary testId="unblock-open">{de.customers.block.unblock}</ControlSummary>
         {/* Neutral, not destructive: lifting a block is consequential but it takes nothing away. */}
         <div className="mt-3 flex flex-col items-start gap-3">

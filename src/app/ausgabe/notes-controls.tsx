@@ -62,7 +62,7 @@ export function NotesControls({
   const problem = problemAt(state.status === "error" ? state.fields : undefined, "notes");
 
   return (
-    <details>
+    <details className="group">
       <ControlSummary testId="counter-notes-open">
         {notes === "" ? de.distribution.counter.notes.add : de.distribution.counter.notes.edit}
       </ControlSummary>

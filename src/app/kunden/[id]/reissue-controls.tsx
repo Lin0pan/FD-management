@@ -44,7 +44,7 @@ export function ReissueControls({
   return (
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="customerId" value={customerId} />
-      <details>
+      <details className="group">
         <ControlSummary testId="reissue-open">{de.customers.reissue.action}</ControlSummary>
         {/* Neutral, not destructive: a reissue hands out a new card, it does not take a household
             out of the register. Destructive is reserved for the block and the archive. */}

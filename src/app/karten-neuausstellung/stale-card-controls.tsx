@@ -43,7 +43,7 @@ export function StaleCardControls({
           to be dismissed before the rest of the list can be read) and a dialog would portal its
           contents out of the row. What changes is only its weight — closed it now reads as the
           control it is rather than as a collapsed section spanning the row. */}
-      <details>
+      <details className="group">
         <ControlSummary testId="stale-reissue-open">{de.cardsDue.action}</ControlSummary>
         <div className="mt-3 flex flex-col items-start gap-3">
           <p data-testid="stale-reissue-confirm" className="max-w-prose">

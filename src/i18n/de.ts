@@ -705,15 +705,6 @@ export const de = {
      * the card the household is carrying out of date.
      */
     record: {
-      /**
-       * What the hand-out history says about itself while it is folded away.
-       *
-       * It names what is behind the fold, not an occasion for opening it. A disputed visit is the
-       * reason the history is a disclosure rather than the whole screen, but it is not the only
-       * reason to open one — and a label that gives a single reason reads as the only permitted
-       * one.
-       */
-      historyDisclosure: "Ausklappen, um alle bisherigen Ausgaben zu sehen",
       detailsHeading: "Person und Anschrift",
       /**
        * It ended with „Die Kundennummer lässt sich nicht ändern.“ until US-30, which is exactly what
@@ -1798,7 +1789,6 @@ export const de = {
       empty: "Es gibt noch keine weiteren Fassungen.",
       recordedAt: "Geändert am",
       current: "aktuell gültig",
-      disclosure: "Ausklappen, um alle bisherigen Fassungen zu sehen",
       /** Stated at zero in words, so a count that failed to load cannot pass for an empty history. */
       count: (count: number): string => {
         if (count === 0) {
