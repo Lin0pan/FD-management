@@ -23,6 +23,7 @@
  */
 
 import { useActionState, useRef, useState } from "react";
+import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { parseCalendarDay } from "@/domain/calendarDay";
 import { DateInput } from "@/components/ui/date-input";
@@ -343,15 +344,24 @@ export function HouseholdEditor({
                   </div>
                 </TableCell>
                 <TableCell className="align-top">
+                  {/* The label moves to `aria-label` rather than going: this column's `<TableHead>`
+                      is empty by design, so the label is the control's only name (§9). Three of
+                      these stack in a household of four, and the repetition was the noise rather
+                      than the words. `X` and not `Trash` — nothing is deleted until the save.
+
+                      §6's exception is untouched: on the customer's own row the control stays
+                      rendered and `disabled`, because a cell that empties itself reads as a
+                      rendering fault and shifts the rows below under the hand reaching for them. */}
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
+                    size="icon-sm"
+                    aria-label={de.customers.new.removeMember}
                     data-testid={`remove-member-${index}`}
                     disabled={isCustomer}
                     onClick={() => setRows(rows.filter((_row, position) => position !== index))}
                   >
-                    {de.customers.new.removeMember}
+                    <X aria-hidden="true" />
                   </Button>
                 </TableCell>
               </TableRow>
@@ -361,6 +371,7 @@ export function HouseholdEditor({
       </Table>
 
       <div>
+        {/* Solitary rather than repeated, so it keeps its words. */}
         <Button
           type="button"
           variant="outline"
@@ -368,6 +379,7 @@ export function HouseholdEditor({
           data-testid="add-member"
           onClick={() => setRows([...rows, EMPTY_ROW])}
         >
+          <Plus aria-hidden="true" data-icon="inline-start" />
           {de.customers.new.addMember}
         </Button>
       </div>
