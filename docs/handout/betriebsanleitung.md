@@ -60,12 +60,12 @@ Eier gibt: dann steht dort **0**. Beim Kunden selbst finden Sie dieselbe Zahl. A
 steht sie nicht — die Eier werden an der Ausgabe übergeben.
 
 Ändern können Sie die Regel unter **Einstellungen**, Abschnitt **Eier**: eine Zeile je Stufe — ab wie
-vielen Personen sie gilt und wie viele Eier es dann gibt. **Zeile hinzufügen** und **Zeile entfernen**
-ändern die Stufen; entfernen Sie alle, erhält niemand Eier. In welcher Reihenfolge Sie tippen, ist
-gleichgültig. Zwei Zeilen mit derselben Personenzahl nimmt die Software nicht an, und eine höhere
-Stufe muss mehr Eier geben als die darunter — sonst wird nichts gespeichert und Sie erhalten eine
-Meldung. Nach dem Speichern gilt die neue Regel sofort; die bisherige bleibt im Änderungsverlauf
-darunter stehen.
+vielen Personen sie gilt und wie viele Eier es dann gibt. **Zeile hinzufügen** legt eine Stufe an,
+das **×** rechts neben einer Zeile nimmt sie wieder weg; entfernen Sie alle, erhält niemand Eier.
+In welcher Reihenfolge Sie tippen, ist gleichgültig. Zwei Zeilen mit derselben Personenzahl nimmt
+die Software nicht an, und eine höhere Stufe muss mehr Eier geben als die darunter — sonst wird
+nichts gespeichert und Sie erhalten eine Meldung. Nach dem Speichern gilt die neue Regel sofort;
+die bisherige bleibt im Änderungsverlauf darunter stehen.
 
 ## Saldo — Guthaben und offene Beträge
 

@@ -20,7 +20,7 @@
  * is what `lookupCustomer` and `recordAttendance` pass their instant to.
  */
 
-import { CircleAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleAlert, Search } from "lucide-react";
 import Link from "next/link";
 import { lookupCustomer, type CounterLookup } from "@/application/customers/lookup-customer";
 import { getWeekColour, type WeekColourView } from "@/application/distribution/get-week-colour";
@@ -216,16 +216,37 @@ const WALK_CONTROL = "h-12 px-6";
  * queue exactly as it does after a typed lookup — and a *disabled button* when there is not. Not
  * hidden: the end of a group is something staff must be able to see, and a control that vanished
  * would shuffle the row under the hand reaching for it (FR-8).
+ *
+ * The chevron leads on „Zurück" and trails on „Weiter", because the direction is the whole point:
+ * these are hit once per household through a whole distribution, and an arrow reads from a metre
+ * away where two similar-length German words do not.
  */
 function WalkControl({
   target,
   label,
+  direction,
   testId,
 }: {
   target: number | null;
   label: string;
+  /** Which way this step goes — the side the chevron sits on, and which one it is. */
+  direction: "previous" | "next";
   testId: string;
 }): React.ReactElement {
+  const back = direction === "previous";
+  // One element, used in both branches, so the disabled control and the link cannot drift apart.
+  const content = back ? (
+    <>
+      <ChevronLeft aria-hidden="true" data-icon="inline-start" />
+      {label}
+    </>
+  ) : (
+    <>
+      {label}
+      <ChevronRight aria-hidden="true" data-icon="inline-end" />
+    </>
+  );
+
   if (target === null) {
     return (
       // `type="button"`: it sits inside the lookup form, and a bare <button> there would submit it.
@@ -237,7 +258,7 @@ function WalkControl({
         data-testid={testId}
         className={WALK_CONTROL}
       >
-        {label}
+        {content}
       </Button>
     );
   }
@@ -245,7 +266,7 @@ function WalkControl({
   return (
     <Button variant="outline" size="lg" asChild className={WALK_CONTROL}>
       <Link href={`/ausgabe?nummer=${target}`} data-testid={testId}>
-        {label}
+        {content}
       </Link>
     </Button>
   );
@@ -419,6 +440,7 @@ export default async function DistributionPage({
                 />
               </div>
               <Button type="submit" size="lg" className="h-12 px-6">
+                <Search aria-hidden="true" data-icon="inline-start" />
                 {de.distribution.counter.submit}
               </Button>
               {/* The walk (US-21) belongs on this row because it is the same act as typing a number:
@@ -429,11 +451,13 @@ export default async function DistributionPage({
               <WalkControl
                 target={roster.previous}
                 label={de.distribution.walk.previous}
+                direction="previous"
                 testId="walk-previous"
               />
               <WalkControl
                 target={roster.next}
                 label={de.distribution.walk.next}
+                direction="next"
                 testId="walk-next"
               />
             </form>

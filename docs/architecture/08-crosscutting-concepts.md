@@ -276,6 +276,12 @@ about it:
 - **Colour never carries meaning alone.** DF share one machine under variable hall lighting, so a
   colour-only distinction is one only some staff can make. A meaning gets one colour application-wide,
   registered once in `src/app/accents.ts`, and the word always accompanies the tint.
+- **A glyph carries no meaning alone either.** The same argument one step on: an icon repeats what
+  the words say, or names a control among identical ones, and where it replaces a label it keeps that
+  label as `aria-label` off the same dictionary key. One glyph means one thing application-wide,
+  registered in the guide's §12 as colours are registered in `accents.ts`. The library is
+  `lucide-react` and changing it is an ADR, not a preference: a second icon set puts two drawing grids
+  on one screen, and four shadcn primitives already render lucide glyphs structurally.
 - **UI work is driven with the `playwright-cli` skill**, not only tested with it — the accessibility
   snapshot shows what the markup _means_ and a screenshot does not. This became a rule after a
   shadcn primitive swapped a semantic element for a `div` and passed both a green suite and a

@@ -22,22 +22,17 @@
  */
 
 import { useActionState, useId, useState } from "react";
+import { Ban } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import { de } from "@/i18n/de";
-import { cn } from "@/lib/utils";
 import { blockCustomerAction, unblockCustomerAction } from "./block-actions";
 import { initialBlockState } from "./block-state";
+import { ControlSummary } from "../disclosure";
 import { Confirmation, Notice } from "../notice";
 import { useNoticeSlot } from "../notice-board";
-
-/**
- * The `<summary>` recipe shared by the two disclosures here and by `ArchiveControls`: closed, a
- * control must not read as a collapsed section spanning the row (`/karten-neuausstellung`).
- */
-const SUMMARY = "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden";
 
 /** "Sperren": a disclosure holding the required reason field; the save button waits for a reason. */
 function BlockForm({
@@ -54,13 +49,11 @@ function BlockForm({
   const empty = reason.trim() === "";
 
   return (
-    <details>
-      <summary
-        data-testid="block-open"
-        className={cn(buttonVariants({ variant: "outline" }), SUMMARY)}
-      >
+    <details className="group">
+      <ControlSummary testId="block-open">
+        <Ban aria-hidden="true" data-icon="inline-start" />
         {de.customers.block.action}
-      </summary>
+      </ControlSummary>
       <form action={action} className="mt-3 flex flex-col items-start gap-3">
         <input type="hidden" name="customerId" value={customerId} />
         <div className="flex w-full max-w-prose flex-col gap-1">
@@ -107,13 +100,11 @@ function UnblockForm({
   return (
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="customerId" value={customerId} />
-      <details>
-        <summary
-          data-testid="unblock-open"
-          className={cn(buttonVariants({ variant: "outline" }), SUMMARY)}
-        >
+      <details className="group">
+        <ControlSummary testId="unblock-open">
+          <Ban aria-hidden="true" data-icon="inline-start" />
           {de.customers.block.unblock}
-        </summary>
+        </ControlSummary>
         {/* Neutral, not destructive: lifting a block is consequential but it takes nothing away. */}
         <div className="mt-3 flex flex-col items-start gap-3">
           <Alert>

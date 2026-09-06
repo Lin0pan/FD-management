@@ -28,6 +28,7 @@ import Link from "next/link";
 import type { GroupRosterView } from "@/application/distribution/read-group-roster";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { de } from "@/i18n/de";
+import { FoldChevron } from "../disclosure";
 import { STATUS_CHROME, StateWord } from "../kunden/state-word";
 
 /** The summary reads as the card's header, so — unlike a control — it is never `w-fit`. */
@@ -113,9 +114,13 @@ export function GroupProgressCard({
             <CardTitle data-testid="group-progress">
               {words.summary(groupName, roster.progress.served, roster.progress.expected)}
             </CardTitle>
-            <span className="text-sm text-muted-foreground">
+            {/* The word stays and the chevron joins it: a glyph alone carries no meaning (US-03.4),
+                and this is the one fold in the application that already said which state it was in.
+                What the chevron adds is the shape every other disclosure now wears. */}
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
               <span className="group-open:hidden">{words.open}</span>
               <span className="hidden group-open:inline">{words.close}</span>
+              <FoldChevron />
             </span>
           </CardHeader>
         </summary>

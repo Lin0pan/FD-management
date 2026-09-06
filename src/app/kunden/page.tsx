@@ -28,7 +28,7 @@
  * why the primary action stands beside the `h1` rather than in a band of its own.
  */
 
-import { Search, UserPlus } from "lucide-react";
+import { IdCard, Search, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import { z } from "zod";
 import { countCardsDueForReissue } from "@/application/customers/cards-due-for-reissue";
@@ -423,6 +423,7 @@ function Overview({
         <CardAction data-testid="customer-actions" className="flex flex-wrap items-center gap-1">
           <Button variant="ghost" size="lg" asChild>
             <Link href="/warteliste" data-testid="hub-waiting-list">
+              <Users aria-hidden="true" data-icon="inline-start" />
               {de.customerList.actions.waitingList}
               {/* The state is on the element as data, not only in its colour, so a spec asserts what
                   the badge means rather than what shade it happens to be painted. */}
@@ -438,6 +439,9 @@ function Overview({
           </Button>
           <Button variant="ghost" size="lg" asChild>
             <Link href="/karten-neuausstellung" data-testid="hub-cards-due">
+              {/* The card glyph the reissue controls wear, so the hub link and the action it
+                  leads to read as one thing across three screens. */}
+              <IdCard aria-hidden="true" data-icon="inline-start" />
               {de.customerList.actions.cardsDue}
               <Badge variant="secondary" data-testid="cards-due-badge">
                 {de.customerList.actions.cardsDueBadge(cardsDue)}

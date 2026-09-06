@@ -17,14 +17,15 @@
  */
 
 import { useActionState, useId, useState } from "react";
+import { Archive } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import { de } from "@/i18n/de";
-import { cn } from "@/lib/utils";
 import { archiveCustomerAction } from "./archive-actions";
 import { initialArchiveState } from "./archive-state";
+import { ControlSummary } from "../disclosure";
 import { Notice } from "../notice";
 import { useNoticeSlot } from "../notice-board";
 
@@ -57,19 +58,11 @@ export function ArchiveControls({
   }
 
   return (
-    <details>
-      {/* Closed, this must read as the control it is rather than as a collapsed section spanning
-          the row — the recipe from `/karten-neuausstellung`. `w-fit` because a `<summary>` is a
-          block; `list-none` and the webkit override remove the triangle the variant does not. */}
-      <summary
-        data-testid="archive-open"
-        className={cn(
-          buttonVariants({ variant: "outline" }),
-          "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden",
-        )}
-      >
+    <details className="group">
+      <ControlSummary testId="archive-open">
+        <Archive aria-hidden="true" data-icon="inline-start" />
         {de.customers.archive.action}
-      </summary>
+      </ControlSummary>
       <form action={action} className="mt-3 flex flex-col items-start gap-3">
         <input type="hidden" name="customerId" value={customerId} />
         <input type="hidden" name="returnTo" value={returnTo} />

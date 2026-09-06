@@ -22,14 +22,7 @@ import { readCurrentSettings } from "@/application/settings/read-current-setting
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -46,6 +39,7 @@ import type { AllowanceValues, Settings } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { GROUP_STYLES, PAYMENT_STANDING_STYLES } from "../../accents";
+import { FoldChevron } from "../../disclosure";
 import { Confirmation } from "../../notice";
 import { NoticeBoard } from "../../notice-board";
 import { ARCHIVED } from "../archived-flag";
@@ -659,7 +653,7 @@ function CustomerRecord({
           only when a visit is disputed, and nothing in the suite reaches it (§3.12), so unlike the
           archive search it can genuinely be closed. */}
         <Card>
-          <details>
+          <details className="group">
             {/* `history-open`, the same name the three disclosures in the danger zone carry — the
               record holds four `<summary>`s and this is the only one that had nothing to be
               addressed by. */}
@@ -671,7 +665,6 @@ function CustomerRecord({
                 <CardTitle>
                   <h2>{words.historyHeading}</h2>
                 </CardTitle>
-                <CardDescription>{words.historyDisclosure}</CardDescription>
                 {/* Two facts about the history, in the house pattern for one: the same slot, class
                   and position as `customer-list-count` on /kunden. The count is stated at zero too —
                   "Noch keine Ausgabe erfasst" rather than a bare 0 — so a household with no history
@@ -687,17 +680,20 @@ function CustomerRecord({
                   behind one line of a card header reads as a badge rather than as a fact — the sign
                   carries it on its own. An archived household shows it unchanged: there is no
                   written-off state. */}
-                <CardAction className="text-right text-sm text-muted-foreground">
-                  <p data-testid="history-count">{words.historyCount(view.history.length)}</p>
-                  <p>
-                    {`${de.customers.derived.balance}: `}
-                    <span data-testid="record-balance" className="font-medium text-foreground">
-                      {de.customers.derived.balanceValue(
-                        balanceKind(view.balanceCents),
-                        view.balanceCents,
-                      )}
-                    </span>
-                  </p>
+                <CardAction className="flex items-center gap-3 text-right text-sm text-muted-foreground">
+                  <div>
+                    <p data-testid="history-count">{words.historyCount(view.history.length)}</p>
+                    <p>
+                      {`${de.customers.derived.balance}: `}
+                      <span data-testid="record-balance" className="font-medium text-foreground">
+                        {de.customers.derived.balanceValue(
+                          balanceKind(view.balanceCents),
+                          view.balanceCents,
+                        )}
+                      </span>
+                    </p>
+                  </div>
+                  <FoldChevron />
                 </CardAction>
               </CardHeader>
             </summary>

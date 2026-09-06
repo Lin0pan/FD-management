@@ -133,9 +133,10 @@ search keys are written in the same statement as the names they come from.
 
 Two structural notes that explain why this tree has so many small files. A `"use server"` module may
 export **nothing but async functions**, so every screen's state types and query-flag constants live
-in separate plain modules. And `shell.ts` and `select.ts` are deliberately _not_ `"use client"`,
-because a string exported from a client module arrives in a server component as a client-reference
-proxy rather than a string.
+in separate plain modules. And `shell.ts`, `select.ts`, `notice.tsx`, `stat.tsx` and
+`disclosure.tsx` are deliberately _not_ `"use client"`, so a server page and a client control can
+render the same component — and because a string exported from a client module arrives in a server
+component as a client-reference proxy rather than a string.
 
 **Composition roots.** Exactly four files import `@/infrastructure/*`: `deps.ts` under `ausgabe/`,
 `kunden/`, `warteliste/` and `einstellungen/`. The counter's is split in two — a read-only object for

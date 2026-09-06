@@ -27,6 +27,7 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
+import { Plus, X } from "lucide-react";
 import type { RegistrationProposal } from "@/application/customers/propose-registration";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -670,15 +671,19 @@ export function RegistrationForm({
                   readOnly={index === customerRow}
                 />
                 <TableCell className="align-top">
+                  {/* The household editor's control, verbatim — the same act on the same table, so
+                      it is the same shape: `aria-label` because the column heading is empty (§9),
+                      and `disabled` rather than absent on the customer's own row (§6). */}
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
+                    size="icon-sm"
+                    aria-label={de.customers.new.removeMember}
                     data-testid={`remove-member-${index}`}
                     disabled={index === customerRow}
                     onClick={() => removeRow(index)}
                   >
-                    {de.customers.new.removeMember}
+                    <X aria-hidden="true" />
                   </Button>
                 </TableCell>
               </TableRow>
@@ -687,6 +692,7 @@ export function RegistrationForm({
         </Table>
 
         <div>
+          {/* Solitary rather than repeated, so it keeps its words. */}
           <Button
             type="button"
             variant="outline"
@@ -694,6 +700,7 @@ export function RegistrationForm({
             data-testid="add-member"
             onClick={() => setRows([...members, EMPTY_ROW])}
           >
+            <Plus aria-hidden="true" data-icon="inline-start" />
             {de.customers.new.addMember}
           </Button>
         </div>

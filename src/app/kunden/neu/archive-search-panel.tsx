@@ -19,7 +19,14 @@ import type { ArchivedCustomerMatch } from "@/application/customers/search-archi
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { de } from "@/i18n/de";
@@ -30,6 +37,7 @@ import {
   initialArchiveSearchState,
   type PrefillDraft,
 } from "./archive-search-state";
+import { FoldChevron } from "../../disclosure";
 import { Notice } from "../../notice";
 
 /** One archived household, and the draft read from its record — what a selection consists of. */
@@ -129,9 +137,12 @@ function MatchRow({
           </Button>
         )}
       </div>
-      <details className="text-sm">
-        <summary className="w-fit cursor-pointer text-muted-foreground underline-offset-4 hover:underline">
+      <details className="group text-sm">
+        {/* The native marker went with the chevron rather than beside it: the two engines draw the
+            triangle differently (ADR-012), so a fold marked by the browser is marked two ways. */}
+        <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 text-muted-foreground underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden">
           {words.moreDetail}
+          <FoldChevron />
         </summary>
         <div className="mt-2 flex flex-col gap-1">
           <Detail label={words.archivedOn} value={germanDate(match.archivedAt)} />
@@ -211,7 +222,7 @@ export function ArchiveSearchPanel({
        * `reregistration.spec.ts` clicks `archive-search-open` before it fills — a real click, so a
        * fold that stopped opening turns that spec red instead of passing.
        */}
-      <details>
+      <details className="group">
         {/* No `w-fit` here, unlike the danger-zone summaries: this one wraps a `CardHeader`, and
             shrinking a header to its minimum content width wraps the description into a column —
             measured at 348px tall for two lines of text. A summary that *is* the card's header
@@ -225,6 +236,12 @@ export function ArchiveSearchPanel({
               <h2>{words.heading}</h2>
             </CardTitle>
             <CardDescription>{words.intro}</CardDescription>
+            {/* The action slot holds nothing but the chevron: it is the one column `CardHeader`
+                places on the right, and this card is the reason the finding was raised — closed and
+                unmarked it read as a card that had failed to render its contents. */}
+            <CardAction className="flex items-center text-muted-foreground">
+              <FoldChevron />
+            </CardAction>
           </CardHeader>
         </summary>
 

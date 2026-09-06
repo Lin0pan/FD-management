@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { de } from "@/i18n/de";
 import { removeApplicantAction } from "./actions";
 import { initialRemoveApplicantState } from "./waiting-list-state";
+import { FoldChevron } from "../disclosure";
 import { Notice } from "../notice";
 
 export function RemoveApplicantControls({
@@ -39,15 +40,19 @@ export function RemoveApplicantControls({
   const reasonId = `waiting-list-remove-reason-${entryId}`;
 
   return (
-    <details className="text-sm">
+    <details className="group text-sm">
       {/* A quiet summary, not a 780px slab: this is the rarest act on the screen and it should not
           be the first thing the eye lands on in every row. It stays a `<details>` — nothing may have
-          to be dismissed before the rest of the list can be read. */}
+          to be dismissed before the rest of the list can be read.
+
+          Quiet is not the same as inert, which is what it read as at a row's right edge: the chevron
+          is the one thing saying this opens rather than acts. */}
       <summary
         data-testid="waiting-list-remove-open"
-        className="w-fit cursor-pointer list-none rounded-md px-1 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
+        className="flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
       >
         {de.waitingList.remove.action}
+        <FoldChevron />
       </summary>
       <form action={action} className="mt-3 flex flex-col gap-3">
         <input type="hidden" name="entryId" value={entryId} />

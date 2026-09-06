@@ -28,23 +28,17 @@
  */
 
 import { useActionState, useId, useState } from "react";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { SquarePen } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { de } from "@/i18n/de";
-import { cn } from "@/lib/utils";
 import { updateNotesAction } from "../kunden/[id]/actions";
 import { initialRecordFormState } from "../kunden/[id]/record-state";
+import { ControlSummary } from "../disclosure";
 import { FieldRejection } from "../field-mark";
 import { marking, problemAt } from "../field-refusal";
 import { Confirmation, Notice } from "../notice";
 import { useNoticeSlot } from "../notice-board";
-
-/**
- * The `<summary>`-as-control recipe, shared verbatim with `BlockControls` and `ArchiveControls`:
- * closed, a control must not read as a collapsed section spanning the row
- * (`docs/guideline/ui_styling_guide.md` §6).
- */
-const SUMMARY = "w-fit cursor-pointer list-none [&::-webkit-details-marker]:hidden";
 
 export function NotesControls({
   customerId,
@@ -69,13 +63,11 @@ export function NotesControls({
   const problem = problemAt(state.status === "error" ? state.fields : undefined, "notes");
 
   return (
-    <details>
-      <summary
-        data-testid="counter-notes-open"
-        className={cn(buttonVariants({ variant: "outline" }), SUMMARY)}
-      >
+    <details className="group">
+      <ControlSummary testId="counter-notes-open">
+        <SquarePen aria-hidden="true" data-icon="inline-start" />
         {notes === "" ? de.distribution.counter.notes.add : de.distribution.counter.notes.edit}
-      </summary>
+      </ControlSummary>
       <form action={formAction} className="mt-3 flex flex-col items-start gap-3">
         <input type="hidden" name="customerId" value={customerId} />
         <div className="flex w-full max-w-prose flex-col gap-1.5">

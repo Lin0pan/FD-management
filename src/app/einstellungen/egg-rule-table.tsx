@@ -15,6 +15,7 @@
  */
 
 import { useState } from "react";
+import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -177,14 +178,19 @@ export function EggRuleTable({
                   problem={problem(eggPath(index, "eggs"))}
                 />
                 <TableCell className="align-top">
+                  {/* The label moves to `aria-label` rather than going: this column's `<TableHead>`
+                      is empty by design, so the label is the control's only name (§9). `X` and not
+                      `Trash` — at the moment of the click this drops a row from an unsaved form,
+                      and on this table it is not a deletion in any sense until the settings save. */}
                   <Button
                     type="button"
                     variant="ghost"
-                    size="sm"
+                    size="icon-sm"
+                    aria-label={words.removeRow}
                     data-testid={`remove-egg-row-${index}`}
                     onClick={() => setRows(rows.filter((_row, position) => position !== index))}
                   >
-                    {words.removeRow}
+                    <X aria-hidden="true" />
                   </Button>
                 </TableCell>
               </TableRow>
@@ -194,6 +200,8 @@ export function EggRuleTable({
       )}
 
       <div>
+        {/* Solitary rather than repeated, so it keeps its words — what makes „Zeile entfernen" noise
+            is that it stacks down the column, and there is only ever one of these. */}
         <Button
           type="button"
           variant="outline"
@@ -201,6 +209,7 @@ export function EggRuleTable({
           data-testid="add-egg-row"
           onClick={() => setRows([...rows, EMPTY_ROW])}
         >
+          <Plus aria-hidden="true" data-icon="inline-start" />
           {words.addRow}
         </Button>
       </div>

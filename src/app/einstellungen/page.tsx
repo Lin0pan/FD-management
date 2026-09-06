@@ -13,14 +13,7 @@ import {
 } from "@/application/settings/list-settings-versions";
 import { readCurrentSettings } from "@/application/settings/read-current-settings";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DomainError } from "@/domain/errors";
 import { type Cents, formatEuros } from "@/domain/money";
 import type { EggRule, EggRuleRowChange } from "@/domain/policy/eggs";
@@ -28,6 +21,7 @@ import type { Settings } from "@/domain/policy/settings";
 import type { SettingsChange } from "@/domain/policy/settings-diff";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
+import { FoldChevron } from "../disclosure";
 import { SHELL } from "../shell";
 import { settingsDeps } from "./deps";
 import { SettingsForm } from "./settings-form";
@@ -240,7 +234,7 @@ function VersionHistory({
 
   return (
     <Card>
-      <details>
+      <details className="group">
         <summary
           data-testid="settings-history-open"
           className="cursor-pointer list-none [&::-webkit-details-marker]:hidden"
@@ -249,16 +243,22 @@ function VersionHistory({
             <CardTitle>
               <h2>{words.heading}</h2>
             </CardTitle>
-            <CardDescription>{words.disclosure}</CardDescription>
             {/* The same slot, class and position as `history-count` on the customer record, and
               stated at zero in words for the same reason: a count that failed to load must not be
-              able to pass for an empty history. */}
+              able to pass for an empty history.
+
+              The chevron shares the slot because that is where the eye already is — the count and
+              the stamp are what the fold answers with it shut. It stays *outside* the testid's own
+              text, which two specs read. */}
             <CardAction
               data-testid="settings-history-count"
-              className="text-sm text-muted-foreground"
+              className="flex items-center gap-3 text-sm text-muted-foreground"
             >
-              {words.count(entries.length)}
-              {stamp === undefined ? null : ` · ${stamp}`}
+              <span>
+                {words.count(entries.length)}
+                {stamp === undefined ? null : ` · ${stamp}`}
+              </span>
+              <FoldChevron />
             </CardAction>
           </CardHeader>
         </summary>
