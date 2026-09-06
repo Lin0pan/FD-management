@@ -458,3 +458,27 @@ worked example.
     because every deleted line took its only test with it. 1302 tests, 56 files, all green.
   - `groupWalk.ts` still reports 100% — its own test is what covers it, and both go in US-003.
 ---
+
+## 2026-09-06 — US-003 (batch 32): delete groupWalk.ts (domain)
+- `git rm src/domain/distribution/groupWalk.ts src/domain/distribution/groupWalk.test.ts`. Nothing
+  else in `src/` or `tests/` imported either — US-002 had already taken the last reader
+  (`positionOf` in `read-group-roster.ts`). Requirement A is now complete.
+- Files changed: `src/domain/distribution/groupWalk.ts` (deleted),
+  `src/domain/distribution/groupWalk.test.ts` (deleted).
+- **Learnings for future iterations:**
+  - The criterion "a grep for `neighbours` … returns NOTHING" is about the **walk**, not the word.
+    Eight hits survive in `src/` and all are ordinary English prose in unrelated files —
+    `registration-form.tsx` and `household-editor.tsx` on cell alignment ("a mark makes one cell
+    taller than its neighbours"), `household-row.ts`, `kunden/[id]/actions.ts`,
+    `change-customer-number.ts` ("the number their neighbours know them by") and `policy/eggs.ts`
+    ("between every pair of neighbours"). Read a grep criterion for the identifier it means; none of
+    these are it, and none were touched.
+  - **Deleting a fully covered module with its test moved the ratio, not the gate**, exactly as the
+    criterion predicted: domain stayed 100% across the board. 1290 tests in 55 files (down from 1302
+    in 56 — the whole delta is `groupWalk.test.ts`).
+  - Outside-in deletion paid off: because the screen (US-001) and the use case (US-002) went first,
+    this story was a two-file `git rm` with every gate green on the first run and no other file
+    needing a line changed. Built inside-out it would have broken every caller at once.
+  - No UI change, so no browser check. The documents that still describe the walk
+    (`tasks/prd-us-21-*`, chapter 5, chapter 9) are US-009's job and are deliberately untouched here.
+---

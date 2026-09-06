@@ -63,7 +63,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Last story of requirement A. After it, a grep for walk / neighbours / Weiter under src/ returns nothing but the documents story 9 rewrites."
     },
     {
