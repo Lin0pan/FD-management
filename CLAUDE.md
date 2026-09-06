@@ -106,6 +106,11 @@ deliberately and say why in the commit; do not add an inline disable.
   the screen does not already show — a side effect, a one-way door, a closing window, the meaning of
   an _empty_ field, an example for a free-text box. If the answer is "nothing", don't write it.
   `docs/guideline/ui_styling_guide.md` §8 has the test and the surviving examples.
+- **An icon is a second channel, never the only one.** `lucide-react` is the icon set and a second
+  one is an ADR, not a preference. A glyph repeats what the label says (`aria-hidden`) or replaces it
+  and keeps it as `aria-label` off the same `de.ts` key — never a text character, which would land in
+  the accessible name. One glyph means one thing application-wide, registered in
+  `docs/guideline/ui_styling_guide.md` §12 along with the places an icon is deliberately refused.
 - Prefer pure functions and value objects (`CardNumber`) over primitives passed around.
 - Formatting and import order are Prettier's and ESLint's job — never argue about them in review.
 

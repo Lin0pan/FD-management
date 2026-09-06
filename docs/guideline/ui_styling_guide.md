@@ -7,7 +7,7 @@ standard — there is no second UI document.
 
 Tailwind **v4, no config file** — the theme is the `@theme inline` block in `src/app/globals.css`.
 shadcn style `radix-nova`, base colour **zinc**, primitives **Radix** (`radix-ui`), icons
-**lucide-react**, `cn` (= `twMerge(clsx(…))`) in `src/lib/utils.ts`, font **Inter** self-hosted via
+**lucide-react** (§12 — the library is an ADR to change, not a preference), `cn` (= `twMerge(clsx(…))`) in `src/lib/utils.ts`, font **Inter** self-hosted via
 `next/font`.
 
 - Installed primitives: `alert badge button card checkbox dialog dropdown-menu input label
@@ -181,7 +181,8 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   with no mark beside it reads as one nobody has judged yet — which is exactly the question the
   column exists to answer. Do not take it as licence for a second such column.
 - **The word never goes without the chrome** (US-03.4). Wrap the `Badge` _around_ the span holding
-  exactly the word; do not let the badge replace it.
+  exactly the word; do not let the badge replace it. A glyph is bound by the same rule, and by
+  the same registry discipline — §12.
 - Never nest a translucent tint inside a tinted container — the two composite into a third colour
   that means neither. Let the inner element keep the opaque fill and carry its colour in the border.
 - To give one `Card` a coloured edge: `<Card className="ring-0 border border-…">`. `Card` brings
@@ -532,3 +533,104 @@ it. Playwright is the only thing that will tell you.
 
 **One standing exception.** `/kunden/[id]/karte` is the single screen not converted to the primitives.
 Its outsized type is US-02.4's "legible across a desk", not a style choice — do not normalise it.
+
+## 12. Icons
+
+> **An icon is a second channel, never the only one.** It repeats a meaning the words already carry,
+> or it makes one control findable among identical ones. It never carries a meaning alone.
+
+Numbered last so the eleven sections above keep their numbers — a hundred and fifty `§n` references
+across `src/`, `tests/` and `docs/` point at them — but it is read alongside §5, §6 and §7, which is
+where icons actually land.
+
+### The library
+
+**`lucide-react`, and only `lucide-react`** (§1). Not because it is better, but because a second set
+means two drawing grids on one screen: heroicons outline is 24px at 1.5 stroke, lucide is 24px at 2,
+and four shadcn primitives — `dialog`, `checkbox`, `dropdown-menu`, `select` — already render lucide
+glyphs structurally rather than decoratively. A heroicons chevron beside the lucide chevron `Select`
+draws is a visible weight mismatch: the icon version of the three-treatments-of-red problem
+`notice.tsx` was written to end. **Changing the library is an ADR, not a styling tweak.**
+
+### The three roles, and no fourth
+
+A new icon extends one of these rather than inventing a role of its own.
+
+1. **Tone inside a coloured box** — `notice.tsx`'s three answers, `counter-lookup.tsx`'s four
+   verdicts. The box is tinted, the word states the meaning, and the glyph repeats it.
+2. **Affordance inside a control** — what the control does, or that it opens rather than acts. This
+   is where almost every icon on these screens lives.
+3. **Relation between two values** — the `ArrowRight` between „Auf der Karte gedruckt" and „Haushalt
+   heute". It does real work: nothing else on that screen says the left box is the _before_.
+
+### One glyph, one meaning
+
+The registry, so a second use cannot quietly contradict the first — the same discipline
+`src/app/accents.ts` imposes on colour (§5).
+
+| Glyph                         | Means                                      | Role     |
+| ----------------------------- | ------------------------------------------ | -------- |
+| `Check`                       | it happened / clear to serve               | tone     |
+| `TriangleAlert`               | refused, and nothing is broken             | tone     |
+| `CircleAlert`                 | it did not happen and something is wrong   | tone     |
+| `CircleHelp`                  | no such household                          | tone     |
+| `Search`                      | search — the filter box and „Nachschlagen" | afford.  |
+| `UserPlus`                    | take a household on                        | afford.  |
+| `Users`                       | the waiting list                           | afford.  |
+| `IdCard` / `CreditCard`       | the cards due list / reissue this card     | afford.  |
+| `Ban`                         | block — a refusal, not a locked record     | afford.  |
+| `Archive`                     | archive the household                      | afford.  |
+| `SquarePen`                   | edit what is already written               | afford.  |
+| `Plus` / `X`                  | add a row / take a row off an unsaved form | afford.  |
+| `ChevronDown`                 | this folds (`FoldChevron`, §6)             | afford.  |
+| `ChevronLeft`, `ChevronRight` | the walk, backwards and forwards           | afford.  |
+| `ArrowRight` / `ArrowLeft`    | before → after / back to the list          | relation |
+
+`X` is the one glyph with two meanings — a verdict tone on `/ausgabe` and a row control on three
+other screens. It is tolerable because the two are different roles at different scales and **never
+share a screen**; check that still holds before spending it a third time.
+
+`X` and not `Trash` on the row controls, deliberately. At the moment of the click nothing is deleted
+— the row leaves an unsaved form — and on the settings table nothing is deleted even on save, because
+a superseded version is kept as read-only history. More to the point, a bin would be the only bin in
+an application whose central rule is that nothing is thrown away (no `onDelete: Cascade`, archive
+rather than delete), and consequence here is carried by a confirmation step, not by a glyph.
+
+### The two rules that keep the accessible name still
+
+1. **Decorative beside a label** → `aria-hidden="true"`, label untouched.
+2. **Replacing a label** → `aria-label` from the **same `de.ts` key**, so the accessible name does not
+   move. Required, not optional, wherever the column heading is empty (§9) — „Zeile entfernen" is
+   the control's only name.
+
+Both hold because an **inline SVG contributes no `textContent`**. That is why an icon is never a text
+glyph (`›`, `▾`): a character would land in the accessible name and turn every exact-text assertion
+red. It is what let sixty-odd icons land across nine screens with **no spec edited**.
+
+### Size and spacing
+
+Inside a `<Button>` or `buttonVariants`, an svg with no `size-*` class is sized by the base —
+`size-4`, `size-3.5` at `size="sm"`, `size-3` at `xs` — so **do not set a size**; let the control
+decide. Add `data-icon="inline-start"` or `"inline-end"` and the variant tightens the padding on that
+side. A standalone icon outside a control carries an explicit `size-4` and `shrink-0`.
+
+### Where deliberately no icon
+
+This list matters as much as the others: clutter grows back because each addition is reasonable **on
+its own** (§8 makes the same argument about sentences). The test is the same one — _what does this
+glyph say that the screen does not already show?_
+
+- **Status and certificate badges in the register.** §5 says count how many rows will wear it; at 240
+  rows these are texture already, and a lock beside „gesperrt" says nothing the word does not.
+- **The Rot/Blau group badges.** Colour plus word _is_ the rule (US-03.4, ADR-017). A third channel is
+  noise.
+- **`Stat` tiles.** §4 gives the tile to the figure; a glyph competes for exactly the attention the
+  tile exists to capture.
+- **The nav bar.** Four items, four distinct German words, hit constantly. An icon would put a
+  decoding step in front of the one control that must be instant, and there is no crowding to relieve.
+- **Every „… speichern" button.** A floppy or a tick repeats the German verb. §6 already solved these
+  by naming each save after what it saves.
+- **The name links in the register.** A trailing chevron per row is texture, and the row already
+  lights up on hover.
+- **„Filtern" and „Filter zurücksetzen".** The first sits beside a search box already wearing a
+  glyph; the second would spend `X` a third time for no gain.

@@ -27,6 +27,7 @@ because a decision log full of trivia teaches people to skim it.
 | [015](adr/015-derive-the-customer-balance-from-the-hand-out-history-never-store-it.md)             | Derive the customer balance from the hand-out history, never store it             | Accepted | 2026-08-29 |
 | [016](adr/016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md) | A customer number may be changed, and a card keeps the number it was printed with | Accepted | 2026-09-01 |
 | [017](adr/017-the-customer-number-decides-the-group.md)                                            | The customer number decides the group                                             | Accepted | 2026-09-02 |
+| [018](adr/018-keep-lucide-react-as-the-single-icon-set.md)                                         | Keep lucide-react as the single icon set                                          | Accepted | 2026-09-06 |
 
 ## Smaller decisions, recorded without an ADR
 
