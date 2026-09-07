@@ -16,6 +16,11 @@ is the same act as typing their number.
 It reads and derives, and writes nothing. It builds directly on the roster
 `prd-us-21-step-through-group.md` introduces: **US-21 must be merged before this starts.**
 
+> **That dependency is history, not a gap.** US-21 was withdrawn by
+> [US-32](prd-us-32-one-household-at-a-time.md) (2026-09-07), but `readGroupRoster` outlived the walk
+> that created it: the roster is now this PRD's, and answers only "who is in today's group and who
+> has collected". The `Zurück`/`Weiter` buttons it once fed are gone.
+
 ## Goals
 
 - The share of today's group that has collected is on the distribution screen, always visible, one

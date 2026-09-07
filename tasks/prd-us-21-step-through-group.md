@@ -1,5 +1,21 @@
 # PRD: Step through today's group at the counter (US-21)
 
+> ⚠️ **Withdrawn — superseded by [US-32](prd-us-32-one-household-at-a-time.md) (2026-09-07).** The
+> buttons were not wrong; the assumption behind them was. DF call households in **blocks** —
+> „alle von 1 bis 30 jetzt“ — and within a block they arrive in whatever order they turn up, so the
+> next number is almost never the next person. A control that steps one number forward matches no
+> moment of the afternoon. `Zurück` and `Weiter`, `groupWalk.ts` and `group-walk.spec.ts` are gone;
+> typing a number, and clicking a name in the group list, are the ways into a household.
+>
+> Everything below is kept as the record of what was asked for, and is **not** deleted: the next
+> person to propose a walk should find the argument to beat rather than a gap.
+>
+> Two parts of US-21 **survived** it. `readGroupRoster` is [US-23](prd-us-23-group-progress.md)'s
+> now — it answers "who is in today's group and how far through are we", which is a question the
+> group progress card still asks; it merely stopped answering "which number comes next". And
+> `CustomerRepository.list` needed no port method of its own then and needs none now: the roster
+> reads the register through the list that was already there.
+
 ## Introduction
 
 The counter is driven by one control: a staff member types a number and reads the verdict
