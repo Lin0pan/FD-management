@@ -224,7 +224,8 @@ test.describe("Kunde archivieren", () => {
       "CLEAR_TO_SERVE",
     );
     await page.getByTestId("serve-button").click();
-    await expect(page.getByTestId("already-served")).toBeVisible();
+    // The write clears the counter and states the hand-out at the top of it (US-32.7).
+    await expect(page.getByTestId("serve-recorded-confirmation")).toBeVisible();
 
     expect(await prisma.distributionRecord.count({ where: { customerId: household.id } })).toBe(1);
   });

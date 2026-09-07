@@ -1479,12 +1479,23 @@ export const de = {
        */
       asked: (cents: number): string => `Gefordert: ${formatEuros(cents)}`,
       /**
-       * Shown after a successful hand-out, in place of the serve button and nowhere else. It once
-       * ended "Nächste Nummer eingeben.", which was an instruction about a cursor the screen used to
-       * place; it no longer does (see `serve-controls.tsx`), so the sentence would be telling staff
-       * to do something the screen had not prepared for them.
+       * Shown at the top of the counter after a recorded hand-out, on the empty screen the write
+       * navigates to (US-32.7). The household is gone from the screen by the time it is read, so
+       * the sentence has to name them: the number and the name say *who*, the amount and the time
+       * say
+       * *what was booked* — the four facts a staff member would otherwise have to look up again to
+       * be sure the right record was made.
+       *
+       * The **balance is deliberately not here**. A household that still owes money is not
+       * something to be told about once they have left the counter, and „Korrigieren“ beside this
+       * sentence
+       * leads back to the screen that states it.
        */
-      confirmed: (time: string): string => `Ausgabe um ${time} Uhr erfasst.`,
+      recorded: (customerNumber: number, name: string, paidCents: number, time: string): string =>
+        `Ausgabe für #${customerNumber} ${name} erfasst — ` +
+        `${formatEuros(paidCents)} um ${time} Uhr.`,
+      /** The link back to the household this confirmation names, one click from the correction. */
+      correctRecorded: "Korrigieren",
       /**
        * Shown on a customer who already has a record today, in place of the serve action — the time,
        * and what was handed over against what was asked for (US-29.7). It used to end in „bezahlt“

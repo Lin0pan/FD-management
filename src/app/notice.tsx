@@ -95,12 +95,19 @@ export function Notice({
   tone,
   text,
   testId,
+  children,
 }: {
   tone: NoticeTone;
   /** A whole sentence, or one written as parts so that a figure in it can be emphasised. */
   text: string | ReadonlyArray<Segment>;
   /** Goes on the sentence, so a spec asserts the words rather than the box around them. */
   testId: string;
+  /**
+   * One way onward, inside the box that states the fact — the counter's „Korrigieren“ link is the
+   * only one (US-32.7). It sits *within* the sentence's element so a screen reader reaching the
+   * status reaches the offer with it, rather than finding a bare link somewhere after it.
+   */
+  children?: React.ReactNode;
 }): React.ReactElement {
   const { Icon, box, destructive } = TONES[tone];
   return (
@@ -119,6 +126,7 @@ export function Notice({
         className={destructive ? "max-w-prose" : "max-w-prose text-foreground"}
       >
         <Sentence text={text} />
+        {children}
       </AlertDescription>
     </Alert>
   );
@@ -133,9 +141,15 @@ export function Notice({
 export function Confirmation({
   text,
   testId,
+  children,
 }: {
   text: string | ReadonlyArray<Segment>;
   testId: string;
+  children?: React.ReactNode;
 }): React.ReactElement {
-  return <Notice tone="success" text={text} testId={testId} />;
+  return (
+    <Notice tone="success" text={text} testId={testId}>
+      {children}
+    </Notice>
+  );
 }

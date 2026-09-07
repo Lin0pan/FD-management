@@ -30,12 +30,15 @@ interface ConfirmOverpayment {
 }
 
 /**
- * What the serve form shows after a submission. `recorded` carries the Berlin time the hand-out was
- * stored at, so the confirmation can name it while the number field re-focuses for the next customer.
+ * What the serve form shows after a submission — a question, or a refusal, and nothing else.
+ *
+ * There is no `recorded`, for the reason `CorrectState` has no `removed`: a successful hand-out
+ * navigates (`served-flag.ts`), so the state that would have held the answer is unmounted with the
+ * form that produced it. What is left here is the pair the form survives to show, and both of them
+ * are things a staff member still owes an answer to (US-32.7).
  */
 export type ServeState =
   | { readonly status: "idle" }
-  | { readonly status: "recorded"; readonly at: string }
   | ConfirmOverpayment
   | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
 

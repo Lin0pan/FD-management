@@ -42,6 +42,7 @@ import { CustomerDetails, VerdictBanner } from "./counter-lookup";
 import { distributionDeps } from "./deps";
 import { GroupProgressCard } from "./group-progress-card";
 import { RECORD_REMOVED } from "./removed-flag";
+import { HANDOUT_RECORDED } from "./served-flag";
 import { ARCHIVED } from "../kunden/archived-flag";
 import { ServeControls } from "./serve-controls";
 import { GROUP_STYLES } from "../accents";
@@ -203,6 +204,45 @@ async function lookUpNumber(raw: string | string[] | undefined): Promise<Counter
   }
 }
 
+/** The four facts the confirmation of a recorded hand-out states, or `null` when there is none. */
+interface RecordedHandout {
+  readonly customerNumber: number;
+  readonly name: string;
+  readonly paidCents: number;
+  readonly time: string;
+}
+
+/**
+ * What was just booked for the household `?erfasst=` names, read back rather than carried.
+ *
+ * The redirect hands over the customer number and nothing else, so every figure in the sentence
+ * comes out of the store through the lookup this screen already makes for a typed number: the name
+ * off the customer, the amount and the time off today's record. A confirmation built from values
+ * carried through a URL would go on stating a hand-out that a second tab had since corrected.
+ *
+ * Anything the number does not resolve to is `null` and therefore silent — an unassigned number, a
+ * hand-out removed in another tab, a parameter typed by hand. Like `?datum=` before it, a parameter
+ * this screen cannot read is inert rather than an error (US-32.7).
+ */
+async function recordedHandout(
+  raw: string | string[] | undefined,
+): Promise<RecordedHandout | null> {
+  const result = await lookUpNumber(raw);
+  if (result === null || result.lookup === null) {
+    return null;
+  }
+  const { customer, todaysRecord } = result.lookup;
+  if (customer === null || todaysRecord === null) {
+    return null;
+  }
+  return {
+    customerNumber: customer.customerNumber,
+    name: `${customer.firstName} ${customer.lastName}`,
+    paidCents: todaysRecord.paidCents,
+    time: germanTime(todaysRecord.at),
+  };
+}
+
 /**
  * No back-link beside the heading: the navigation bar in the root layout reaches Start from every
  * screen (US-17.4), so one here would be a second, worse way home.
@@ -220,6 +260,7 @@ export default async function DistributionPage({
 }: {
   searchParams: Promise<{
     nummer?: string | string[];
+    [HANDOUT_RECORDED]?: string | string[];
     [RECORD_REMOVED]?: string | string[];
     [ARCHIVED]?: string | string[];
   }>;
@@ -227,6 +268,10 @@ export default async function DistributionPage({
   const params = await searchParams;
   const { nummer } = params;
   const recordRemoved = params[RECORD_REMOVED] === "1";
+  // `nummer` wins: while a household is being looked up, a confirmation about the previous one has
+  // nothing to do with the screen it would be sitting on. It stands until the next lookup and no
+  // longer — there is no timer and nothing to dismiss.
+  const lookingUp = typeof nummer === "string" && nummer.trim() !== "";
   const justArchived = params[ARCHIVED] === "1";
 
   let today: WeekColourView;
@@ -255,9 +300,10 @@ export default async function DistributionPage({
   // number is — so it must not be sequenced behind it. `readGroupRoster` resolves the week's colour
   // a second time; that is a settings read, and passing this view in would tie the two use cases
   // together for one query (PRD §Technical Considerations).
-  const [counter, roster] = await Promise.all([
+  const [counter, roster, recorded] = await Promise.all([
     lookUpNumber(nummer),
     readGroupRoster(distributionDeps),
+    recordedHandout(lookingUp ? undefined : params[HANDOUT_RECORDED]),
   ]);
 
   return (
@@ -267,6 +313,33 @@ export default async function DistributionPage({
     <NoticeBoard>
       <main className={SHELL}>
         <PageHeader />
+
+        {/* The hand-out that just happened, stated at the top of the empty screen the write
+          navigates to (US-32.7). It has to name the household, because they are no longer on the
+          screen: the number and the name say who, the amount and the time say what was booked. The
+          balance is deliberately left out — a household that still owes money is not something to
+          be told about after they have left the counter; „Korrigieren“ leads back to the screen
+          that states it. The rising group tally below is the standing evidence the write
+          landed. */}
+        {recorded === null ? null : (
+          <Confirmation
+            text={de.distribution.serve.recorded(
+              recorded.customerNumber,
+              recorded.name,
+              recorded.paidCents,
+              recorded.time,
+            )}
+            testId="serve-recorded-confirmation"
+          >
+            {" "}
+            <Link
+              href={`/ausgabe?nummer=${recorded.customerNumber}`}
+              data-testid="serve-recorded-correct"
+            >
+              {de.distribution.serve.correctRecorded}
+            </Link>
+          </Confirmation>
+        )}
 
         {/* At the top of the screen rather than beside the button that was pressed, which is the rule
           everywhere else on this page. The removal navigates — it has to, because it destroys the
@@ -334,6 +407,14 @@ export default async function DistributionPage({
                   {de.distribution.counter.label}
                 </label>
                 <Input
+                  // Keyed on the hand-out just recorded, and that is what re-focuses the field. A
+                  // `redirect` out of a server action is a *soft* navigation: React reconciles an
+                  // input that is already in the tree, so `autoFocus` — which only fires on mount —
+                  // would not fire again and the cursor would be left nowhere. The lookup form's
+                  // own GET submit is a full document navigation and never needed this. The key
+                  // changes
+                  // exactly when a hand-out lands, so nothing else remounts the field.
+                  key={recorded === null ? "" : String(recorded.customerNumber)}
                   // Not `type="number"`: a card number carries a `k`, and a spinner has no meaning here.
                   type="text"
                   name="nummer"
@@ -392,6 +473,7 @@ export default async function DistributionPage({
                     this page: it hands the amounts down and the controls render them. */}
                 <ServeControls
                   customerId={counter.lookup.customerId}
+                  customerNumber={counter.lookup.customer.customerNumber}
                   canServe={permitsServing(counter.lookup.verdict)}
                   amountToPayCents={counter.lookup.customer.amountToPayCents}
                   balanceCents={counter.lookup.customer.balanceCents}

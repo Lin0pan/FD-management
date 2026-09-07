@@ -192,11 +192,19 @@ async function lookUp(page: Page, customerNumber: number): Promise<void> {
   await expect(page).toHaveURL(new RegExp(`nummer=${customerNumber}`));
 }
 
-/** Hand over `paidCents` for a household that is clear to serve, confirming no overpayment. */
+/**
+ * Hand over `paidCents` for a household that is clear to serve, and come back to them.
+ *
+ * The write clears the counter (US-32.7), so the household this spec is about the balance of is no
+ * longer on the screen the click lands on. „Korrigieren“ in the confirmation is the one-click route
+ * back to them, and it is the route staff take — a `goto` here would be a second lookup this spec
+ * invented for itself.
+ */
 async function serve(page: Page, paidCents: number): Promise<void> {
   await fillSticky(page.getByTestId("serve-amount"), formatEuroAmount(paidCents));
   await page.getByTestId("serve-button").click();
-  await expect(page.getByTestId("serve-confirmation")).toBeVisible();
+  await expect(page.getByTestId("serve-recorded-confirmation")).toBeVisible();
+  await page.getByTestId("serve-recorded-correct").click();
 }
 
 const serveWords = de.distribution.serve;
@@ -291,7 +299,10 @@ test.describe("Saldo", () => {
     // Confirming submits the amount still standing in the field, so what the question named and what
     // is booked cannot drift apart.
     await page.getByTestId("serve-confirm-overpayment").click();
-    await expect(page.getByTestId("serve-confirmation")).toBeVisible();
+    // Only the *confirming* submission clears the screen; the question above left the household,
+    // the amount and the confirm button standing (US-32.7).
+    await expect(page.getByTestId("serve-recorded-confirmation")).toBeVisible();
+    await page.getByTestId("serve-recorded-correct").click();
     await expect(page.getByTestId("already-served-message")).toHaveText(
       serveWords.alreadyServed(SERVED_AT, 400, PRICE_CENTS),
     );
@@ -306,7 +317,8 @@ test.describe("Saldo", () => {
     await page.getByTestId("serve-button").click();
     await page.getByTestId("serve-confirm-overpayment").click();
 
-    await expect(page.getByTestId("serve-confirmation")).toBeVisible();
+    await expect(page.getByTestId("serve-recorded-confirmation")).toBeVisible();
+    await page.getByTestId("serve-recorded-correct").click();
     await expect(page.getByTestId("counter-balance")).toHaveText(
       derived.balanceValue("CREDIT", 700),
     );

@@ -217,15 +217,15 @@ test.describe("Ausgabe erfassen", () => {
     await expect(page.getByTestId("serve-amount")).toHaveValue(formatEuroAmount(PRICE_CENTS));
     await page.getByTestId("serve-button").click();
 
-    // On success the page revalidates: the confirmation names the Berlin time, and the serve action
-    // is replaced by today's record — the household is now "already served", for what they handed
-    // over against what they were asked for.
-    await expect(page.getByTestId("serve-confirmation")).toHaveText(serve.confirmed(SERVED_AT));
-    await expect(page.getByTestId("already-served")).toBeVisible();
-    await expect(page.getByTestId("already-served-message")).toHaveText(
-      serve.alreadyServed(SERVED_AT, PRICE_CENTS, PRICE_CENTS),
+    // On success the write navigates: the screen comes back to its initial state for the next
+    // household, and a confirmation at the top names the one that just left (US-32.7).
+    await expect(page).toHaveURL(new RegExp(`erfasst=${NUMBERS.confirmed}$`));
+    await expect(page.getByTestId("serve-recorded-confirmation")).toContainText(
+      formatEuros(PRICE_CENTS),
     );
-    // No second serve is possible from here — the button is gone, not merely disabled.
+    await expect(page.getByTestId("serve-recorded-confirmation")).toContainText(SERVED_AT);
+    // The household is gone from the screen, not merely un-servable.
+    await expect(page.getByTestId("already-served")).toHaveCount(0);
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
 
     const records = await recordsFor(NUMBERS.confirmed);
@@ -252,7 +252,11 @@ test.describe("Ausgabe erfassen", () => {
     await fillSticky(page.getByTestId("serve-amount"), formatEuroAmount(0));
     await page.getByTestId("serve-button").click();
 
-    await expect(page.getByTestId("serve-confirmation")).toHaveText(serve.confirmed(SERVED_AT));
+    await expect(page.getByTestId("serve-recorded-confirmation")).toContainText(formatEuros(0));
+
+    // The balance is deliberately not in the confirmation, so it is read where it is stated: back
+    // on the household, which „Korrigieren" reaches in one click.
+    await page.getByTestId("serve-recorded-correct").click();
     await expect(page.getByTestId("already-served-message")).toHaveText(
       serve.alreadyServed(SERVED_AT, 0, PRICE_CENTS),
     );
@@ -265,24 +269,22 @@ test.describe("Ausgabe erfassen", () => {
     expect(records).toEqual([{ paidCents: 0, dayKey: TODAYS_DAY_KEY, showedUp: true }]);
   });
 
-  test("leaves the confirmation where the button was pressed instead of scrolling away from it", async ({
-    page,
-  }) => {
-    // The one thing `toBeVisible` cannot see. The screen used to re-focus the number field on
-    // success, and `focus()` scrolls its element into view — so the viewport jumped two screens up
-    // to the lookup card and left the confirmation below the fold. It was in the DOM and "visible"
-    // the whole time; a staff member had to scroll down to find out the hand-out had been recorded.
+  test("clears the screen and states the hand-out at the top of it", async ({ page }) => {
+    // The opposite of what this spec asserted until US-32. The confirmation used to be read where
+    // the button was pressed, two screens down, with the served household still on the page. DF
+    // worked real afternoons on that screen: the next person is already at the counter while it
+    // still shows the last one. So the write navigates, and the answer is at the top of the empty
+    // screen the navigation lands on — which is also where the eye already is.
     await lookUp(page, NUMBERS.inView);
-
-    // Playwright scrolls a target into view before clicking it, so the reading has to be taken after
-    // that has already happened — otherwise this measures Playwright's scroll, not the screen's.
     await page.getByTestId("serve-button").scrollIntoViewIfNeeded();
-    const scrolledTo = await page.evaluate(() => window.scrollY);
 
     await page.getByTestId("serve-button").click();
 
-    await expect(page.getByTestId("serve-confirmation")).toBeInViewport();
-    expect(await page.evaluate(() => window.scrollY)).toBe(scrolledTo);
+    await expect(page.getByTestId("serve-recorded-confirmation")).toBeInViewport();
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    // Nothing about the served household is left on the screen.
+    await expect(page.getByTestId("counter-verdict")).toHaveCount(0);
+    await expect(page.getByTestId("already-served")).toHaveCount(0);
   });
 
   test("removing today's hand-out says so, on a screen the record has left", async ({ page }) => {

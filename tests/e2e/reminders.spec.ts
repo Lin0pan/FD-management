@@ -163,11 +163,20 @@ async function lookUp(page: Page): Promise<void> {
   await expect(page).toHaveURL(new RegExp(`nummer=${CUSTOMER_NUMBER}`));
 }
 
-/** Record the day's hand-out — the household is *served* on every visit, reminders or not. */
+/**
+ * Record the day's hand-out — the household is *served* on every visit, reminders or not — and come
+ * back to them.
+ *
+ * The write clears the counter (US-32.7), so the certificate controls this spec is about are no
+ * longer on the screen the click lands on. „Korrigieren“ in the confirmation is the one-click route
+ * back to the household, and it is the route staff take: looking a served household up again is now
+ * the ordinary way to reach them.
+ */
 async function serve(page: Page): Promise<void> {
   await expect(page.getByTestId("serve-button")).toBeVisible();
   await page.getByTestId("serve-button").click();
-  await expect(page.getByTestId("serve-confirmation")).toBeVisible();
+  await expect(page.getByTestId("serve-recorded-confirmation")).toBeVisible();
+  await page.getByTestId("serve-recorded-correct").click();
 }
 
 const words = de.distribution.certificate;

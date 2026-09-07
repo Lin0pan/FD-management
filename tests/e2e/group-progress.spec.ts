@@ -321,7 +321,8 @@ test.describe("Gruppenfortschritt", () => {
       "CLEAR_TO_SERVE",
     );
     await page.getByTestId("serve-button").click();
-    await expect(page.getByTestId("already-served")).toBeVisible();
+    // The write clears the counter and states the hand-out at the top of it (US-32.7).
+    await expect(page.getByTestId("serve-recorded-confirmation")).toBeVisible();
 
     // One more served, and not one household more expected — 301 was always going to collect.
     await page.goto("/ausgabe");

@@ -274,7 +274,8 @@ test.describe("Maximalpreis", () => {
       "CLEAR_TO_SERVE",
     );
     await page.getByTestId("serve-button").click();
-    await expect(page.getByTestId("serve-confirmation")).toBeVisible();
+    // The write navigates, and the confirmation is stated at the top of the empty screen (US-32.7).
+    await expect(page.getByTestId("serve-recorded-confirmation")).toBeVisible();
 
     // The stored figure, read straight out of SQLite: the record keeps the price that was owed, and
     // what was owed was the cap. A per-head sum here would be the counter quoting one number and

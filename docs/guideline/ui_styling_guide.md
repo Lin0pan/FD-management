@@ -323,6 +323,12 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   parent that survives, or redirect with a flag the page reads. A `redirect` to the URL the browser
   is already on moves no scroll, so the flag is what makes the navigation real. Flag constants live
   in a module with no directive — a `"use server"` module may export nothing but async functions.
+- **A `redirect` out of a server action is a _soft_ navigation, so `autoFocus` does not fire
+  again.** React reconciles an input that is already in the tree rather than mounting a fresh one,
+  and `autoFocus` only fires on mount — so the field the redirect was supposed to hand back arrives
+  empty and with the cursor nowhere. `key` it on whatever the redirect changed (the counter keys its
+  Nummer field on the hand-out just recorded). A plain `method="get"` form submit is a full document
+  navigation and never needs this.
 - **A form action clears every uncontrolled field it owns**, on refusal as well as success. Decide by
   **outcome, not by field**: _a save clears everything, a refusal keeps everything._ Three ways,
   cheapest first:
