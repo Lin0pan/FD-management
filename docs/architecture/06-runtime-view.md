@@ -66,13 +66,13 @@ more (paying ahead), and what is stored is what was handed over.
 
 **A recorded hand-out clears the screen.** Only a _successful_ write navigates: the action
 revalidates and redirects to the counter's initial state, handing the household's **customer
-number** — and
-nothing else — to the confirmation the page states at the top. The name, the amount and the time are
-read back through `lookupCustomer` on the way in, so the sentence cannot go on stating a hand-out
-another tab has since corrected, and a number that resolves to no record today is silent rather than
-an error. The rising group tally is the standing evidence the write landed. Everything that is _not_
-a success stays on the screen with the household it is about — the overpayment question above and
-every refusal below — because nothing may be cleared while an answer is owed (US-32.7).
+number** — and nothing else — to the confirmation the page states at the top. The name, the amount
+and the time are read back through `lookupCustomer` on the way in, so the sentence cannot go on
+stating a hand-out another tab has since corrected, and a number that resolves to no record today is
+silent rather than an error. The rising group tally is the standing evidence the write landed.
+Everything that is _not_ a success stays on the screen with the household it is about — the
+overpayment question above and every refusal below — because nothing may be cleared while an answer
+is owed (US-32.7).
 
 **Key exception — more than was asked for.** `recordAttendance` re-derives the amount to pay from the
 history rather than trusting the figure the screen showed, and refuses a larger payment with

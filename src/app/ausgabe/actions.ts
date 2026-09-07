@@ -171,8 +171,8 @@ function correctMessage(error: unknown): string {
  * redirects to the counter's initial state, handing the household's number to the confirmation the
  * page states at the top (`served-flag.ts`, US-32.7). `redirect` signals the navigation by
  * throwing, so it is called **outside** the `try` — inside it, this action's own `catch` would
- * report the
- * navigation as a failed write. `correctServe`'s removal branch below is the same shape.
+ * report the navigation as a failed write. `correctServe`'s removal branch below is the same
+ * shape.
  *
  * An amount above what was asked for comes back as `confirmOverpayment` rather than as a failure —
  * the counter shows the question and submits the same amount again with the flag — and a refusal

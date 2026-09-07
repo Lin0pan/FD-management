@@ -9,9 +9,8 @@
  * one of them — it navigates, and the confirmation is stated at the top of the screen it lands on
  * (`served-flag.ts`, US-32.7). It holds no rules — whether this customer may be served, whether a
  * record may still be changed, and whether an amount above the one asked for needs confirming are
- * all decided
- * behind `recordServe` and `correctServe`; this file only lays out the controls and repeats the
- * server's answer.
+ * all decided behind `recordServe` and `correctServe`; this file only lays out the controls and
+ * repeats the server's answer.
  *
  * Which of the two it shows is a property of the day, not a click: a customer with no record today
  * gets the serve action, and one already served gets that record with the controls to amend or remove
