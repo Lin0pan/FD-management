@@ -17,6 +17,15 @@
  * **expired certificate never blocks**: it is a serve-and-remind case (US-06), because chasing a
  * renewal is a conversation at the counter, not grounds to refuse food.
  *
+ * **The write path ranks the same two facts the other way round, deliberately.** Here a blocked
+ * household that has already collected reads as `BLOCKED`, because the question this function
+ * answers is *may they collect*, and being blocked is the more specific reason they may not.
+ * `recordAttendance` asks a different question — *may this write happen* — and checks `canRecord`
+ * **before** it evaluates the verdict, so the same household is refused there with
+ * `AlreadyServedToday`. Neither order is the other's bug: a duplicate write is the more specific
+ * fact about a second `POST`, and it must keep saying so rather than being reworded as an
+ * eligibility refusal (US-32.5, `docs/architecture/06-runtime-view.md`).
+ *
  * The module is pure: `today` and `weekColour` are parameters, never the wall clock, and it does no
  * I/O — the application layer resolves the typed number to a {@link CounterCustomer} first (US-04.2).
  */

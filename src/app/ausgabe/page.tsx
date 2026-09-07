@@ -412,8 +412,7 @@ export default async function DistributionPage({
                   // input that is already in the tree, so `autoFocus` — which only fires on mount —
                   // would not fire again and the cursor would be left nowhere. The lookup form's
                   // own GET submit is a full document navigation and never needed this. The key
-                  // changes
-                  // exactly when a hand-out lands, so nothing else remounts the field.
+                  // changes exactly when a hand-out lands, so nothing else remounts the field.
                   key={recorded === null ? "" : String(recorded.customerNumber)}
                   // Not `type="number"`: a card number carries a `k`, and a spinner has no meaning here.
                   type="text"

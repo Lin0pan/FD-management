@@ -1482,14 +1482,12 @@ export const de = {
        * Shown at the top of the counter after a recorded hand-out, on the empty screen the write
        * navigates to (US-32.7). The household is gone from the screen by the time it is read, so
        * the sentence has to name them: the number and the name say *who*, the amount and the time
-       * say
-       * *what was booked* — the four facts a staff member would otherwise have to look up again to
-       * be sure the right record was made.
+       * say *what was booked* — the four facts a staff member would otherwise have to look up again
+       * to be sure the right record was made.
        *
        * The **balance is deliberately not here**. A household that still owes money is not
        * something to be told about once they have left the counter, and „Korrigieren“ beside this
-       * sentence
-       * leads back to the screen that states it.
+       * sentence leads back to the screen that states it.
        */
       recorded: (customerNumber: number, name: string, paidCents: number, time: string): string =>
         `Ausgabe für #${customerNumber} ${name} erfasst — ` +

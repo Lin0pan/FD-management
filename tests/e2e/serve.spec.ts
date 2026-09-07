@@ -35,11 +35,11 @@ import { releaseNumbers } from "./seeding";
  * The Betrag field replaced the „Bezahlt" checkbox in US-29.7; the balance's own spine — a part
  * payment carried to the next hand-out — is `balance.spec.ts`'s (US-29.9).
  *
- * Four households are seeded straight through Prisma: all RED, active, current certificate, one card.
- * They take the odd numbers 213–219 so the registration and card specs, which allocate the *lowest*
- * free number in the shared `data/e2e.db`, keep the low sequence they assert against, and so they
- * stay clear of the counter spec's 201–209/239, the allowance spec's 211 and the number-change
- * spec's 221–229.
+ * Five households are seeded straight through Prisma: all RED, active, current certificate, one card.
+ * They take the odd numbers 213–219 and 243 so the registration and card specs, which allocate the
+ * *lowest* free number in the shared `data/e2e.db`, keep the low sequence they assert against, and so
+ * they stay clear of the counter spec's 201–209/239, the allowance spec's 211, the number-change
+ * spec's 221–229, the reminder spec's 231, the registration spec's 232–236 and the block spec's 241.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -66,7 +66,7 @@ const TODAYS_DAY_KEY = "2026-01-08";
 /**
  * The numbers this spec owns. Well clear of the low sequence the other specs consume.
  *
- * All four are **odd, and therefore RED** (US-31): a household is in the week its number puts it
+ * All five are **odd, and therefore RED** (US-31): a household is in the week its number puts it
  * in, so „seeded RED" is now „seeded on an odd slot" and there is nothing else to set. They have to
  * be RED because everything here happens on a RED distribution day — a household of the other week
  * would be turned away before the Betrag field this spec is about ever rendered.
@@ -79,6 +79,8 @@ const NUMBERS = {
   inView: 217,
   /** Served, then reached again through „Korrigieren“ and amended there (US-32.8, R-9 and R-13). */
   corrected: 219,
+  /** Served to prove where the cursor is afterwards — the next household is typed, not clicked. */
+  focused: 243,
 } as const;
 
 /**
@@ -312,6 +314,30 @@ test.describe("Ausgabe erfassen", () => {
     // Nothing about the served household is left on the screen.
     await expect(page.getByTestId("counter-verdict")).toHaveCount(0);
     await expect(page.getByTestId("already-served")).toHaveCount(0);
+  });
+
+  test("hands the cursor back to an empty Nummer field for the next household", async ({
+    page,
+  }) => {
+    // The half of „the screen returns to its initial state" that no other assertion here can see.
+    // The screen coming back *empty* is visible in the DOM; the screen coming back **ready to be
+    // typed into** is not, and it is the half the counter is actually driven by — a staff member
+    // types the next number without touching the mouse, ~120 times an afternoon.
+    //
+    // It is gated because it is one prop away from silently vanishing. A `redirect` out of a server
+    // action is a *soft* navigation: React reconciles the input that is already in the tree instead
+    // of mounting a fresh one, and `autoFocus` fires only on mount. `page.tsx` keys the field on the
+    // hand-out just recorded so that it remounts. Delete that key and the field still comes back
+    // empty — so every other assertion in this spec goes on passing — while the cursor is left
+    // nowhere and `toBeFocused` below is the only thing that says so
+    // (`docs/guideline/ui_styling_guide.md` §7).
+    await lookUp(page, NUMBERS.focused);
+
+    await page.getByTestId("serve-button").click();
+
+    await expect(page.getByTestId("serve-recorded-confirmation")).toBeVisible();
+    await expect(page.getByTestId("counter-input")).toHaveValue("");
+    await expect(page.getByTestId("counter-input")).toBeFocused();
   });
 
   test("comes back to the household through „Korrigieren“ and amends the amount there", async ({
