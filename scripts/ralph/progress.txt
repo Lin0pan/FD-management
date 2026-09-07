@@ -78,9 +78,11 @@ bullets that sat under „Where batch 31 starts" are not carried over — they a
 - **The e2e customer-number bands, as they now stand — and the parity IS the fixture (US-31).** A
   household's week is the parity of its number, so no spec seeds a group any more: it seeds an odd
   number for RED and an even one for BLUE, and a band whose parity contradicts its assertions is a
-  spec that fails for a reason it never mentions. Below the quota of 240: counter 201–207 (201 clear,
-  202 the wrong-week one, 203 expired, 204 blocked, 205 outdated card, 206 archived, 207 notes) and
-  239 unassigned, allowance 211, serve 213/215/217, number change 221–229 odd, reminders 231,
+  spec that fails for a reason it never mentions. Below the quota of 240: counter 201–209 (201 clear,
+  202 the wrong-week one, 203 expired, 204 blocked, 205 outdated card, 206 archived, 207 notes, 209
+  already served today) and 239 unassigned, allowance 211, serve 213–219 odd (213 confirmed, 215 the
+  hand-out of nothing / removal / overpayment, 217 in view, 219 corrected), number change 221–229
+  odd, reminders 231,
   registration 232/234/236, card numbers 237. Above it: block 241, reissue 251, age-13 271,
   customer-list 281–285, customer-record 291–293, group-progress 301/303/305, group-walk
   311/313/314/315/317, price cap 321, eggs 332–338 even, balance 342–348 even. A spec whose number
@@ -644,4 +646,39 @@ worked example.
     `JSON.stringify` proved seven testids absent, the field empty and focused, the confirmation's
     text and the link's href in a single call.
   - Both engines green (197 passed, 1 skipped each), unit 1301/55, domain and application 100%.
+---
+
+## 2026-09-07 — US-008 (batch 32): the e2e loop, over both engines
+- `serve.spec.ts` is now written about **what the screen does with the household after the write**.
+  The happy path asserts the redirect URL (`/ausgabe?erfasst=<n>$`), the confirmation in the
+  viewport naming all four facts — number, name, amount, time — and `counter-verdict`,
+  `already-served` and `serve-button` all absent. Three new cases: „Korrigieren" back to
+  `/ausgabe?nummer=219` with the `ALREADY_SERVED_TODAY` verdict, the correction controls and an
+  amount changed and saved there (R-9 and R-13 in one pass); a **saved correction** leaving the
+  household on screen; and the **overpayment question** leaving the household, the question and the
+  confirm button standing, with only the confirming submission redirecting.
+- `counter.spec.ts` gains the verdict it never could reach: household 209, its hand-out written
+  straight through Prisma, looked up as `data-verdict="ALREADY_SERVED_TODAY"` with no serve button.
+  The header comment that recorded the gap now records why it closed.
+- `group-progress.spec.ts`: the tally is read on the screen the redirect lands on — the
+  `page.goto("/ausgabe")` between the serve and the assertion is gone, which is what makes the
+  number R-11's evidence rather than a re-read of the register.
+- Files changed: `tests/e2e/{serve,counter,group-progress}.spec.ts` plus the band comments in nine
+  other specs, and the band bullet at the top of this log.
+- **Learnings for future iterations:**
+  - **The overpayment case needed no household of its own.** The removal test hands 215 back
+    unserved and 0-balance, so the case that has to be *unserved* runs last on it. Worth looking for
+    before extending a band: a spec that removes a record has a fresh household at the end of it.
+  - **`seedHousehold` returning the name is now the shape both counter and serve specs use** — the
+    confirmation is read on a screen the household has left, so the name is a Faker value the spec
+    must keep. `counter.spec.ts` already had the `names: Record<number, string>` map; `serve.spec.ts`
+    now seeds through `Object.values(NUMBERS)` into the same shape.
+  - **`toHaveURL` takes a plain string** and resolves it against `baseURL`, which reads better than a
+    regex where the whole query is known (`/ausgabe?nummer=219`). Keep the regex where the point is
+    the *shape* — `/ausgabe\?erfasst=\d+$/` says „some number", which is what the AC asks for.
+  - The e2e bands moved: counter 201–209, serve 213–219. Nine specs recite the bands in a header
+    comment, so `sed -i 's/201–207/201–209/g'` across `tests/e2e/*.spec.ts` is part of taking a new
+    number — a stale recitation is how two specs end up on one household.
+  - Both engines green: 201 passed, 1 skipped each. Unit 1301/55, domain and application 100%.
+    Build, lint, typecheck and format all green.
 ---

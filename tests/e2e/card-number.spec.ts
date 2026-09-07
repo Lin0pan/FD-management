@@ -57,7 +57,7 @@ const TODAY = "2026-01-08T09:00:00.000Z";
  * **odd, and therefore RED** (US-31), which is what lets the successor's card be cleared on the RED
  * distribution day pinned above — the group is not a second thing to choose any more, it is what
  * this number is. 237 is free of every band named in `scripts/ralph/progress.txt`: counter
- * (201–207, 239), allowance (211), serve (213–217), number change (221–229), reminders (231) and
+ * (201–209, 239), allowance (211), serve (213–219), number change (221–229), reminders (231) and
  * registration (232–236) are the only ones below 240, and the low sequence the allocating specs
  * consume is nowhere near it.
  */

@@ -45,7 +45,7 @@ import { releaseNumbers } from "./seeding";
  * runs after it against the shared register and states the rule in force in full.
  *
  * The four households take the **even numbers 332–338**, a band no other spec uses: the counter
- * (201–207, 239), allowance (211), serve (213–217), number change (221–229), reminders (231),
+ * (201–209, 239), allowance (211), serve (213–219), number change (221–229), reminders (231),
  * registration (232–236), card numbers (237), block (241), reissue (251), age-13 (271),
  * customer-list (281–285), customer-record (291–293), group-progress (301–305), group-walk
  * (311–317) and price-cap (321) specs share the same `data/e2e.db`, and everything here sits above

@@ -40,7 +40,7 @@ import { releaseNumbers } from "./seeding";
  * one card printed with the counts it really had. It takes number 291 — odd, and therefore RED,
  * which is what lets it be looked up and served on the RED distribution day pinned below — clear of
  * the low sequence the registration, card, archive and re-registration specs allocate against, and
- * of the counter (201–207/239), allowance (211), serve (213–217), number change (221–229),
+ * of the counter (201–209/239), allowance (211), serve (213–219), number change (221–229),
  * reminders (231), registration (232–236), card numbers (237), block (241), reissue (251), age-13
  * (271) and customer-list (281–285) specs in the shared `data/e2e.db`.
  *
