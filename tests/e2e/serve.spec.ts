@@ -36,10 +36,10 @@ import { releaseNumbers } from "./seeding";
  * payment carried to the next hand-out — is `balance.spec.ts`'s (US-29.9).
  *
  * Five households are seeded straight through Prisma: all RED, active, current certificate, one card.
- * They take the odd numbers 213–219 and 231 so the registration and card specs, which allocate the
+ * They take the odd numbers 213–219 and 243 so the registration and card specs, which allocate the
  * *lowest* free number in the shared `data/e2e.db`, keep the low sequence they assert against, and so
- * they stay clear of the counter spec's 201–209/239, the allowance spec's 211 and the number-change
- * spec's 221–229.
+ * they stay clear of the counter spec's 201–209/239, the allowance spec's 211, the number-change
+ * spec's 221–229, the reminder spec's 231, the registration spec's 232–236 and the block spec's 241.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -80,7 +80,7 @@ const NUMBERS = {
   /** Served, then reached again through „Korrigieren“ and amended there (US-32.8, R-9 and R-13). */
   corrected: 219,
   /** Served to prove where the cursor is afterwards — the next household is typed, not clicked. */
-  focused: 231,
+  focused: 243,
 } as const;
 
 /**
