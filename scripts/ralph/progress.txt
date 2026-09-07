@@ -682,3 +682,44 @@ worked example.
   - Both engines green: 201 passed, 1 skipped each. Unit 1301/55, domain and application 100%.
     Build, lint, typecheck and format all green.
 ---
+
+## 2026-09-07 — US-009 (batch 32): record the withdrawal in the documents that asked for it
+- Documentation only. **No file under `src/`, `tests/` or `prisma/` is touched** — `git diff
+  --name-only` proves it, and the AC asks for exactly that.
+- `tasks/prd-us-21-step-through-group.md` gains a withdrawal block-quote at the top, in the same form
+  `prd-us-05-record-attendance.md` uses for its US-29 supersession: withdrawn by US-32 (2026-09-07),
+  the buttons were not wrong but the assumption behind them was — DF call households in blocks and
+  serve them in the order they turn up, so the next number is never the next person. The document is
+  **kept whole and readable**, and the note names what survived: `readGroupRoster` is US-23's now,
+  and `CustomerRepository.list` needed no port method then and needs none now.
+- `docs/architecture/09-architectural-decisions.md`: the „Finding the next household at the counter"
+  row now reads „A Zurück/Weiter walk of the week's group → withdrawn", with the block-calling reason
+  in the rationale column, in the week-colour row's voice.
+- `docs/architecture/05-building-block-view.md`: the three rows that named the walk stop naming it.
+- `docs/handout/betriebsanleitung.md`: §„Beim Erfassen" gains a paragraph on the cleared screen, the
+  line at the top (Kundennummer, Name, Betrag, Uhrzeit) and **Korrigieren**; §„Einen Fehler
+  berichtigen" now opens with the two ways back — typing the number, or the Korrigieren link while
+  the confirmation still stands.
+- `tasks/prd-us-05-record-attendance.md` §US-05.4: the „short confirmation in place of the button"
+  criterion is marked superseded by US-32 with the one-line reason.
+- `tasks/prd-us-23-group-progress.md`: a block-quote saying its „US-21 must be merged before this
+  starts" is history — the roster outlived the walk that created it.
+- No ADR, per the AC: nothing in this batch is hard to reverse.
+- **Learnings for future iterations:**
+  - **A deleted domain module makes a *count* stale, not just a sentence.** Chapter 5's heading reads
+    „`src/domain/` — N modules in four families"; US-003 took `groupWalk.ts` out and nothing failed.
+    `find src/domain -name '*.ts' ! -name '*.test.ts' | wc -l` said 26 against a documented 27. After
+    any batch that adds or deletes a domain module, run that count against the heading — no gate does.
+  - **The domain row named „the group roster", which was never domain's.** The roster is
+    `application/distribution/read-group-roster.ts`; the domain family has `groupProgress.ts`, the
+    tally. Dropping the walk was the moment to notice, so the row now names only the tally.
+  - **Prettier reflows a markdown table when one cell's width changes**, so editing a row of chapter 9
+    by hand leaves `format:check` failing on column padding for the *whole* table. Run
+    `npx prettier --write` on the file rather than trying to pad the pipes to match.
+  - **The handout is the only document written for DF, and it describes the screen, not the code.** It
+    needed no mention of the walk (it never described the buttons) but did need the new post-write
+    behaviour, because that is a change DF *see*. Grep the handout for a feature name before assuming
+    a removal touches it, and add to it whenever what the screen does after a write changes.
+  - Gates: `format:check`, lint, typecheck, `test:coverage` (55 files, 1301 tests, domain and
+    application 100%) and `build` all green. No e2e run needed — no source or spec file changed.
+---
