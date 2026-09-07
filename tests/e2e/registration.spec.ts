@@ -51,7 +51,7 @@ const CERTIFICATE_VALID_UNTIL = "2027-03-31";
  * the other specs took (241 upwards). The pool the control offers is `1..quotaN`, so a household
  * seeded above the quota is invisible to it: a number nobody may pick could not prove that a taken
  * number is kept out of the list, because it was never in it. 232–236 are free of every band listed
- * in `scripts/ralph/progress.txt` — counter (201–207, 239), allowance (211), serve (213–217),
+ * in `scripts/ralph/progress.txt` — counter (201–209, 239), allowance (211), serve (213–219),
  * number change (221–229) and reminders (231) are the only ones below 240.
  *
  * All three are **even, and therefore BLUE** (US-31), because the control offers one week at a time:

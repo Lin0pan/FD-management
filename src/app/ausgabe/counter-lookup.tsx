@@ -43,22 +43,32 @@ interface Statement {
   readonly detail: string | null;
 }
 
-/** The three answers a staff member acts on: hand out, hand out and say something, or turn away. */
-type Tone = "serve" | "warn" | "refuse" | "unknown";
+/**
+ * The answers a staff member acts on: hand out, hand out and say something, or turn away — plus the
+ * two that ask for nothing. `unknown` is a number nobody holds; `done` is a household who has
+ * already collected today, which is a fact about the afternoon rather than a refusal. Since US-32
+ * made looking a served household up again the ordinary way to a correction, painting that screen
+ * red would be the software saying something is wrong on a screen where nothing is.
+ */
+type Tone = "serve" | "warn" | "refuse" | "unknown" | "done";
 
 /**
  * The paint and the icon per tone. The icon is decorative — it repeats the headline, never replaces
  * it — so it is hidden from screen readers, which get the sentence instead.
  *
- * The paint is literal palette values, not theme tokens: these four are the counter's traffic light
- * and must not move when the theme does. Amber for an expired certificate rather than red is the
- * point of US-06 — the verdict is still "serve".
+ * The paint of the traffic light is literal palette values, not theme tokens: those three must not
+ * move when the theme does. Amber for an expired certificate rather than red is the point of US-06 —
+ * the verdict is still "serve". The two that are not a traffic light wear muted chrome and do take
+ * the theme's tokens, because there is no signal in them to keep still: `done` reads as the
+ * statement of fact it is, and `Check` is what this application already draws for „it happened"
+ * (`docs/guideline/ui_styling_guide.md` §12).
  */
 const TONES = {
   serve: { className: "bg-green-700 text-white ring-black/10", Icon: Check },
   warn: { className: "bg-amber-500 text-black ring-black/10", Icon: TriangleAlert },
   refuse: { className: "bg-red-700 text-white ring-black/10", Icon: X },
   unknown: { className: "bg-muted text-foreground ring-foreground/10", Icon: CircleHelp },
+  done: { className: "bg-muted text-foreground ring-foreground/10", Icon: Check },
 } as const satisfies Record<Tone, { className: string; Icon: LucideIcon }>;
 
 /**
@@ -93,7 +103,11 @@ function statementFor(verdict: Verdict): Statement {
       // The card that counts is the current one, and the record below prints it.
       return { tone: "refuse", headline: words.outdatedCard.headline, detail: null };
     case "ALREADY_SERVED_TODAY":
-      return { tone: "refuse", headline: words.alreadyServedToday.headline, detail: null };
+      // No detail line: the time, the amount handed over and what was asked for are the rows of the
+      // already-served card immediately below, and repeating them here would be the screen saying
+      // one fact twice (`docs/guideline/ui_styling_guide.md` §8). No serve button is offered either,
+      // but that is `permitsServing`'s doing, not the paint's.
+      return { tone: "done", headline: words.alreadyServedToday.headline, detail: null };
     case "CLEAR_TO_SERVE":
       return { tone: "serve", headline: words.clearToServe.headline, detail: null };
     case "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED":
@@ -365,7 +379,7 @@ export function CustomerDetails({
             worse than no control.
 
             Keyed by customer: a `<details>` keeps `open` through a soft navigation, and this screen
-            navigates to itself from the group list, the walk and the lookup form
+            navigates to itself from the group list and the lookup form
             (`docs/guideline/ui_styling_guide.md` §6). Without the key the next household's card arrives with the
             fold open and the previous household's text still in the field — which is the one way
             this control could write a note onto the wrong record. */}

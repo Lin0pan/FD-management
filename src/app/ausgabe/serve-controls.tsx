@@ -4,17 +4,20 @@
  * The counter's write controls — recording a hand-out, and correcting the one made today
  * (tasks/prd-us-05-record-attendance.md §US-05.4, tasks/prd-us-29-customer-balance.md §US-29.7).
  *
- * A client component only because two things need to happen in the browser: `useActionState` reports
- * a rejection back beside the button, and after a successful hand-out the number field is cleared for
- * the next customer. It holds no rules — whether this customer may be served, whether a record may
- * still be changed, and whether an amount above the one asked for needs confirming are all decided
+ * A client component only because of `useActionState`: an unconfirmed overpayment and a refusal are
+ * both answers that come back beside the button that asked for them. A *successful* hand-out is not
+ * one of them — it navigates, and the confirmation is stated at the top of the screen it lands on
+ * (`served-flag.ts`, US-32.7). It holds no rules — whether this customer may be served, whether a
+ * record may still be changed, and whether an amount above the one asked for needs confirming are
+ * all decided
  * behind `recordServe` and `correctServe`; this file only lays out the controls and repeats the
  * server's answer.
  *
  * Which of the two it shows is a property of the day, not a click: a customer with no record today
  * gets the serve action, and one already served gets that record with the controls to amend or remove
- * it. The page decides by passing `todaysRecord`; once a hand-out is recorded the page revalidates and
- * this switches to the correction view on its own.
+ * it. The page decides by passing `todaysRecord` — and since the write navigates away, the second
+ * of the two is reached by *looking the household up again*, which is the ordinary route to a
+ * correction.
  *
  * **The transaction is one number, and the screen states it three times over.** What to collect (`Zu
  * zahlen`), where the household stands (`Saldo`), and what was actually handed over (the Betrag
@@ -26,7 +29,7 @@
  * stacking them put a line break through the middle of it.
  */
 
-import { useActionState, useEffect } from "react";
+import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -229,6 +232,7 @@ function overpaymentIn(
 
 export function ServeControls({
   customerId,
+  customerNumber,
   canServe,
   amountToPayCents,
   balanceCents,
@@ -236,6 +240,12 @@ export function ServeControls({
   lookedUpNumber,
 }: {
   customerId: number;
+  /**
+   * The household's own customer number, submitted with the hand-out so the redirect that carries
+   * its confirmation can name them (US-32.7). Deliberately not `lookedUpNumber`: a lookup by card
+   * number `50k3` must confirm against slot 50.
+   */
+  customerNumber: number;
   canServe: boolean;
   /**
    * What to collect today, derived by `lookupCustomer` from the household's whole hand-out history.
@@ -261,24 +271,6 @@ export function ServeControls({
     "correct",
     correctState.status === "idle" ? null : correctState,
   );
-
-  // Once the hand-out is stored, empty the number field so no stale number is waiting when staff
-  // scroll back up to it (US-05.4). The input lives in the page's lookup form; reaching it by id is
-  // the one seam between the two.
-  //
-  // Deliberately *not* focused as well. `focus()` scrolls its element into view, and the field sits
-  // two screens above the confirmation this component just rendered — so re-focusing it threw the
-  // viewport off the very answer the click had asked for, and left the cursor in a field the staff
-  // member could no longer see. The confirmation is read where the button was pressed; the next
-  // number is typed after scrolling back to the field, in sight of it.
-  useEffect(() => {
-    if (serveState.status === "recorded") {
-      const input = document.getElementById("counter-input");
-      if (input instanceof HTMLInputElement) {
-        input.value = "";
-      }
-    }
-  }, [serveState]);
 
   if (todaysRecord !== null) {
     // What the field opens on comes from the action state itself, never from `showingCorrect`: the
@@ -307,13 +299,6 @@ export function ServeControls({
               would state is what they would be asked for on a *second* hand-out today, which is not
               a thing that can happen. The balance stays, because it has just moved. */}
           <PaymentRow amountToPayCents={null} balanceCents={balanceCents} />
-
-          {showingServe && serveState.status === "recorded" ? (
-            <Confirmation
-              text={de.distribution.serve.confirmed(serveState.at)}
-              testId="serve-confirmation"
-            />
-          ) : null}
 
           {/* `guardEnter`: this form saves money on a screen a queue is standing at, so Enter in the
               Betrag field must not submit it (`enter-guard.ts`). The counter's *lookup* form is a
@@ -392,9 +377,11 @@ export function ServeControls({
                 </Button>
               </div>
             </details>
-            {/* The same test id as the hand-out's confirmation above: only one of the two can be on
-                screen at a time, and a spec that asserts "the counter confirmed" should not have to
-                know which of the two acts it was. */}
+            {/* The correction's confirmation stays where it is made, and it is the only one this
+                component still shows: a staff member correcting a record is working on it and may
+                want to go on looking at it, while a *hand-out* is finished business and clears the
+                screen (US-32.7). The test id predates that split and is kept — the specs asserting
+                it are all about a correction. */}
             {showingCorrect && correctState.status === "saved" ? (
               <Confirmation
                 text={de.distribution.serve.correct.saved}
@@ -432,6 +419,7 @@ export function ServeControls({
           <PaymentRow amountToPayCents={amountToPayCents} balanceCents={balanceCents} />
           <form action={serve} onKeyDown={guardEnter} className="flex flex-col items-start gap-4">
             <input type="hidden" name="customerId" value={customerId} />
+            <input type="hidden" name="kundennummer" value={customerNumber} />
             {/* The amount and the button that books it, on one line: `items-end` sits the `h-14`
                 button on the `h-12` field's own bottom edge, with the field's label riding above
                 both. The row is a `div` inside the column and not the form itself, because what

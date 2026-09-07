@@ -321,10 +321,14 @@ test.describe("Gruppenfortschritt", () => {
       "CLEAR_TO_SERVE",
     );
     await page.getByTestId("serve-button").click();
-    await expect(page.getByTestId("already-served")).toBeVisible();
+    // The write clears the counter and states the hand-out at the top of it (US-32.7).
+    await expect(page.getByTestId("serve-recorded-confirmation")).toBeVisible();
 
-    // One more served, and not one household more expected — 301 was always going to collect.
-    await page.goto("/ausgabe");
+    // One more served, and not one household more expected — 301 was always going to collect. The
+    // tally is read on the screen the write landed on, with no reload in between: since US-32 the
+    // household itself is gone from that screen, so this number *is* the evidence the hand-out was
+    // recorded (R-11). Fetching the page again would prove the register, which the query below
+    // already does, and not the counter.
     const after = await todaysGroup();
     expect(after.filter((member) => member.servedToday).length).toBe(
       before.filter((member) => member.servedToday).length + 1,

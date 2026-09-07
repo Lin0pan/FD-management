@@ -20,14 +20,11 @@
  * is what `lookupCustomer` and `recordAttendance` pass their instant to.
  */
 
-import { ChevronLeft, ChevronRight, CircleAlert, Search } from "lucide-react";
+import { CircleAlert, Search } from "lucide-react";
 import Link from "next/link";
 import { lookupCustomer, type CounterLookup } from "@/application/customers/lookup-customer";
 import { getWeekColour, type WeekColourView } from "@/application/distribution/get-week-colour";
-import {
-  readGroupRoster,
-  type GroupRosterView,
-} from "@/application/distribution/read-group-roster";
+import { readGroupRoster } from "@/application/distribution/read-group-roster";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +42,7 @@ import { CustomerDetails, VerdictBanner } from "./counter-lookup";
 import { distributionDeps } from "./deps";
 import { GroupProgressCard } from "./group-progress-card";
 import { RECORD_REMOVED } from "./removed-flag";
+import { HANDOUT_RECORDED } from "./served-flag";
 import { ARCHIVED } from "../kunden/archived-flag";
 import { ServeControls } from "./serve-controls";
 import { GROUP_STYLES } from "../accents";
@@ -206,90 +204,43 @@ async function lookUpNumber(raw: string | string[] | undefined): Promise<Counter
   }
 }
 
-/** The height the counter row is built to: the field and `Nachschlagen` are deliberately taller. */
-const WALK_CONTROL = "h-12 px-6";
-
-/**
- * One step of the walk through the week's group (US-21).
- *
- * A link when there is somewhere to go — a plain GET, so the browser's Back button retraces the
- * queue exactly as it does after a typed lookup — and a *disabled button* when there is not. Not
- * hidden: the end of a group is something staff must be able to see, and a control that vanished
- * would shuffle the row under the hand reaching for it (FR-8).
- *
- * The chevron leads on „Zurück" and trails on „Weiter", because the direction is the whole point:
- * these are hit once per household through a whole distribution, and an arrow reads from a metre
- * away where two similar-length German words do not.
- */
-function WalkControl({
-  target,
-  label,
-  direction,
-  testId,
-}: {
-  target: number | null;
-  label: string;
-  /** Which way this step goes — the side the chevron sits on, and which one it is. */
-  direction: "previous" | "next";
-  testId: string;
-}): React.ReactElement {
-  const back = direction === "previous";
-  // One element, used in both branches, so the disabled control and the link cannot drift apart.
-  const content = back ? (
-    <>
-      <ChevronLeft aria-hidden="true" data-icon="inline-start" />
-      {label}
-    </>
-  ) : (
-    <>
-      {label}
-      <ChevronRight aria-hidden="true" data-icon="inline-end" />
-    </>
-  );
-
-  if (target === null) {
-    return (
-      // `type="button"`: it sits inside the lookup form, and a bare <button> there would submit it.
-      <Button
-        type="button"
-        variant="outline"
-        size="lg"
-        disabled
-        data-testid={testId}
-        className={WALK_CONTROL}
-      >
-        {content}
-      </Button>
-    );
-  }
-
-  return (
-    <Button variant="outline" size="lg" asChild className={WALK_CONTROL}>
-      <Link href={`/ausgabe?nummer=${target}`} data-testid={testId}>
-        {content}
-      </Link>
-    </Button>
-  );
+/** The four facts the confirmation of a recorded hand-out states, or `null` when there is none. */
+interface RecordedHandout {
+  readonly customerNumber: number;
+  readonly name: string;
+  readonly paidCents: number;
+  readonly time: string;
 }
 
 /**
- * The German sentence for where the walk stands.
+ * What was just booked for the household `?erfasst=` names, read back rather than carried.
  *
- * Four states, four sentences, rather than one sentence that hedges: "nothing looked up yet" and
- * "standing on the first number" both leave `Zurück` unavailable but mean different things about
- * where `Weiter` lands, and an empty group is not the same as having walked to the end of one.
+ * The redirect hands over the customer number and nothing else, so every figure in the sentence
+ * comes out of the store through the lookup this screen already makes for a typed number: the name
+ * off the customer, the amount and the time off today's record. A confirmation built from values
+ * carried through a URL would go on stating a hand-out that a second tab had since corrected.
+ *
+ * Anything the number does not resolve to is `null` and therefore silent — an unassigned number, a
+ * hand-out removed in another tab, a parameter typed by hand. Like `?datum=` before it, a parameter
+ * this screen cannot read is inert rather than an error (US-32.7).
  */
-function walkHint(roster: GroupRosterView, fromStart: boolean): string {
-  const group = colourName(roster.group);
-  const hints = de.distribution.walk.hints;
-
-  if (roster.isEmpty) {
-    return hints.empty(group);
+async function recordedHandout(
+  raw: string | string[] | undefined,
+): Promise<RecordedHandout | null> {
+  const result = await lookUpNumber(raw);
+  if (result === null || result.lookup === null) {
+    return null;
   }
-  if (fromStart) {
-    return hints.fromStart(group);
+  const { customer, todaysRecord } = result.lookup;
+  if (customer === null || todaysRecord === null) {
+    return null;
   }
-  return roster.next === null ? hints.end(group) : hints.walking(group);
+  return {
+    customerNumber: customer.customerNumber,
+    name: `${customer.firstName} ${customer.lastName}`,
+    paidCents: todaysRecord.paidCents,
+    time: germanTime(todaysRecord.at),
+  };
 }
 
 /**
@@ -309,6 +260,7 @@ export default async function DistributionPage({
 }: {
   searchParams: Promise<{
     nummer?: string | string[];
+    [HANDOUT_RECORDED]?: string | string[];
     [RECORD_REMOVED]?: string | string[];
     [ARCHIVED]?: string | string[];
   }>;
@@ -316,6 +268,10 @@ export default async function DistributionPage({
   const params = await searchParams;
   const { nummer } = params;
   const recordRemoved = params[RECORD_REMOVED] === "1";
+  // `nummer` wins: while a household is being looked up, a confirmation about the previous one has
+  // nothing to do with the screen it would be sitting on. It stands until the next lookup and no
+  // longer — there is no timer and nothing to dismiss.
+  const lookingUp = typeof nummer === "string" && nummer.trim() !== "";
   const justArchived = params[ARCHIVED] === "1";
 
   let today: WeekColourView;
@@ -340,19 +296,15 @@ export default async function DistributionPage({
     throw error;
   }
 
-  // The walk is independent of the lookup — it asks who is in the week's group, not who this number is
-  // — so it must not be sequenced behind it. `readGroupRoster` resolves the week's colour a second
-  // time; that is a settings read, and passing this view in would tie the two use cases together for
-  // one query (PRD §Technical Considerations).
-  const [counter, roster] = await Promise.all([
+  // The roster is independent of the lookup — it asks who is in the week's group, not who this
+  // number is — so it must not be sequenced behind it. `readGroupRoster` resolves the week's colour
+  // a second time; that is a settings read, and passing this view in would tie the two use cases
+  // together for one query (PRD §Technical Considerations).
+  const [counter, roster, recorded] = await Promise.all([
     lookUpNumber(nummer),
-    readGroupRoster(distributionDeps, typeof nummer === "string" ? nummer : undefined),
+    readGroupRoster(distributionDeps),
+    recordedHandout(lookingUp ? undefined : params[HANDOUT_RECORDED]),
   ]);
-
-  // Where `readGroupRoster` stands when it has no number to stand at: nothing typed, or something
-  // typed that is not a number. The same two cases `lookUpNumber` answers `null` for, which is why
-  // this is read off the lookup rather than parsed a second time here.
-  const walkFromStart = counter === null || counter.lookup === null;
 
   return (
     // The counter carries the serve, the correction, the two certificate actions, the block and the
@@ -361,6 +313,33 @@ export default async function DistributionPage({
     <NoticeBoard>
       <main className={SHELL}>
         <PageHeader />
+
+        {/* The hand-out that just happened, stated at the top of the empty screen the write
+          navigates to (US-32.7). It has to name the household, because they are no longer on the
+          screen: the number and the name say who, the amount and the time say what was booked. The
+          balance is deliberately left out — a household that still owes money is not something to
+          be told about after they have left the counter; „Korrigieren“ leads back to the screen
+          that states it. The rising group tally below is the standing evidence the write
+          landed. */}
+        {recorded === null ? null : (
+          <Confirmation
+            text={de.distribution.serve.recorded(
+              recorded.customerNumber,
+              recorded.name,
+              recorded.paidCents,
+              recorded.time,
+            )}
+            testId="serve-recorded-confirmation"
+          >
+            {" "}
+            <Link
+              href={`/ausgabe?nummer=${recorded.customerNumber}`}
+              data-testid="serve-recorded-correct"
+            >
+              {de.distribution.serve.correctRecorded}
+            </Link>
+          </Confirmation>
+        )}
 
         {/* At the top of the screen rather than beside the button that was pressed, which is the rule
           everywhere else on this page. The removal navigates — it has to, because it destroys the
@@ -428,6 +407,14 @@ export default async function DistributionPage({
                   {de.distribution.counter.label}
                 </label>
                 <Input
+                  // Keyed on the hand-out just recorded, and that is what re-focuses the field. A
+                  // `redirect` out of a server action is a *soft* navigation: React reconciles an
+                  // input that is already in the tree, so `autoFocus` — which only fires on mount —
+                  // would not fire again and the cursor would be left nowhere. The lookup form's
+                  // own GET submit is a full document navigation and never needed this. The key
+                  // changes
+                  // exactly when a hand-out lands, so nothing else remounts the field.
+                  key={recorded === null ? "" : String(recorded.customerNumber)}
                   // Not `type="number"`: a card number carries a `k`, and a spinner has no meaning here.
                   type="text"
                   name="nummer"
@@ -443,33 +430,7 @@ export default async function DistributionPage({
                 <Search aria-hidden="true" data-icon="inline-start" />
                 {de.distribution.counter.submit}
               </Button>
-              {/* The walk (US-21) belongs on this row because it is the same act as typing a number:
-                it decides who the screen is about. It comes *after* `Nachschlagen` so a staff member
-                on the keyboard never tabs through navigation to reach the field they type in, and
-                both stay `outline` so the row does not read as three equal choices. They are links,
-                not submits — nothing here posts. */}
-              <WalkControl
-                target={roster.previous}
-                label={de.distribution.walk.previous}
-                direction="previous"
-                testId="walk-previous"
-              />
-              <WalkControl
-                target={roster.next}
-                label={de.distribution.walk.next}
-                direction="next"
-                testId="walk-next"
-              />
             </form>
-            {/* Tinted from GROUP_STYLES, and naming the group in words in the same breath: the walk
-              moves through a group the staff member cannot otherwise see, and a colour never
-              travels without the word (US-03.4). */}
-            <p
-              data-testid="walk-hint"
-              className={`self-start rounded-lg border px-3 py-2 text-sm ${GROUP_STYLES[roster.group]}`}
-            >
-              {walkHint(roster, walkFromStart)}
-            </p>
           </CardContent>
         </Card>
 
@@ -494,10 +455,17 @@ export default async function DistributionPage({
                     next customer's screen; within one customer the state rides out revalidation,
                     which is what keeps the renewal confirmation visible once the certificate
                     reads as valid again. */}
+                {/* `customer.certificateExpired`, and deliberately not the verdict kind it used to
+                    be compared against. Since US-32 an already-collected household answers
+                    ALREADY_SERVED_TODAY, which outranks CLEAR_TO_SERVE_CERTIFICATE_EXPIRED — so
+                    reading the reminder controls off the verdict would make them vanish the moment
+                    the household was served, on the very re-lookup a staff member does to correct
+                    the record. Whether the certificate has lapsed is a fact about the household;
+                    `lookupCustomer` derives it at the same instant the verdict is evaluated. */}
                 <CertificateControls
                   key={counter.lookup.customerId}
                   customerId={counter.lookup.customerId}
-                  expired={counter.lookup.verdict.kind === "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED"}
+                  expired={counter.lookup.customer.certificateExpired}
                   reminderLoggedToday={counter.lookup.reminderLoggedToday}
                 />
                 {/* Every figure the payment turns on comes off the lookup, derived there from the
@@ -505,6 +473,7 @@ export default async function DistributionPage({
                     this page: it hands the amounts down and the controls render them. */}
                 <ServeControls
                   customerId={counter.lookup.customerId}
+                  customerNumber={counter.lookup.customer.customerNumber}
                   canServe={permitsServing(counter.lookup.verdict)}
                   amountToPayCents={counter.lookup.customer.amountToPayCents}
                   balanceCents={counter.lookup.customer.balanceCents}

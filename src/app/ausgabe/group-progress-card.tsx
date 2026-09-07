@@ -84,7 +84,7 @@ export function GroupProgressCard({
   groupName,
 }: {
   roster: GroupRosterView;
-  /** The group in words — `Gruppe Rot`, as the banner and the walk hint say it. */
+  /** The group in words — `Gruppe Rot`, as the banner above says it. */
   groupName: string;
 }): React.ReactElement {
   const words = de.distribution.progress;

@@ -544,6 +544,18 @@ describe("recordAttendance", () => {
     expect(audit.entries).toHaveLength(0);
   });
 
+  it("names the day's write, not the verdict, when a served household is offered a second hand-out", async () => {
+    // The guard order is the rule under test: the verdict is asked about eligibility alone, so a
+    // duplicate hand-out must keep saying `AlreadyServedToday` and never become a verdict refusal.
+    records = new FakeDistributionRecordRepository(existingRecord("2026-07-23T08:00:00.000Z"));
+
+    const error = await recordAttendance(deps(), { customerId: 1 }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(AlreadyServedToday);
+    expect(error).not.toBeInstanceOf(NotClearToServe);
+    expect((error as AlreadyServedToday).code).toBe("AlreadyServedToday");
+  });
+
   it("records again on a later day, since the once-per-day rule is calendar-day based", async () => {
     // A fortnight-old record must not block today's — 2026-08-06 is the next RED Thursday (the week
     // between is BLUE, so the same RED customer only collects two weeks on).

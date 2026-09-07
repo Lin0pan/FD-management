@@ -1,6 +1,6 @@
 # 6. Runtime view
 
-_Last reviewed: 2026-09-02_
+_Last reviewed: 2026-09-06_
 
 Four scenarios, chosen for what they reveal rather than for how easily they draw. Participants are
 named as in [chapter 5](05-building-block-view.md). The failure paths are the point — they are where
@@ -46,6 +46,8 @@ sequenceDiagram
     Record->>DB: INSERT (customerId, dayKey, paidCents, priceCents)
     DB-->>Record: OK
     Record->>DB: append audit entry distribution.recorded
+    Record-->>Page: redirect /ausgabe?erfasst=<Kundennummer>
+    Page-->>Staff: the counter, empty again — and one line<br/>naming who was just booked
 ```
 
 **What it shows.** The verdict is produced in one pure function with a fixed precedence chain, not
@@ -62,6 +64,16 @@ so the counter issues no second query for them. The field arrives pre-filled wit
 and is normally just confirmed; a staff member may overwrite it with less (a part payment) or with
 more (paying ahead), and what is stored is what was handed over.
 
+**A recorded hand-out clears the screen.** Only a _successful_ write navigates: the action
+revalidates and redirects to the counter's initial state, handing the household's **customer
+number** — and
+nothing else — to the confirmation the page states at the top. The name, the amount and the time are
+read back through `lookupCustomer` on the way in, so the sentence cannot go on stating a hand-out
+another tab has since corrected, and a number that resolves to no record today is silent rather than
+an error. The rising group tally is the standing evidence the write landed. Everything that is _not_
+a success stays on the screen with the household it is about — the overpayment question above and
+every refusal below — because nothing may be cleared while an answer is owed (US-32.7).
+
 **Key exception — more than was asked for.** `recordAttendance` re-derives the amount to pay from the
 history rather than trusting the figure the screen showed, and refuses a larger payment with
 `OverpaymentNotConfirmed` — **writing nothing**. The staff member is asked once and submits again
@@ -73,7 +85,10 @@ amount at the household's next hand-out, which the balance absorbs by constructi
 **Key exception — already served today.** `canRecord` refuses a second hand-out on the same
 _Europe/Berlin_ calendar day and nothing is written. If two requests race past that guard, the
 `@@unique([customerId, dayKey])` index refuses the second, and the adapter turns Prisma's `P2002`
-into `AlreadyServedToday`. The guard is convenience; **the constraint is the rule**.
+into `AlreadyServedToday`. The guard is convenience; **the constraint is the rule**. It runs
+**before** the eligibility check, because the counter verdict knows the day's hand-out too since
+US-32: asked the other way round, a duplicate write would come back as an eligibility refusal and
+the sentence a staff member reads would quietly change.
 
 **Other exceptions.** An `ARCHIVED`, `BLOCKED` or `WRONG_GROUP` household is refused with
 `NotClearToServe` — re-checked inside the use case, because the counter screen is not its only

@@ -115,11 +115,18 @@ Wer heute nichts zahlt, bekommt trotzdem Lebensmittel: tragen Sie **0** ein. Der
 festgehalten, mehr passiert nicht — was mit einer Schuld geschieht, entscheiden weiterhin Sie und
 nicht das Programm.
 
+**Nach dem Erfassen ist der Bildschirm wieder leer.** Der Haushalt, die Beträge und die Schaltflächen
+verschwinden, das Nummernfeld steht leer und bereit für den nächsten. Ganz oben steht eine Zeile, die
+sagt, was gebucht wurde: Kundennummer, Name, Betrag und Uhrzeit. Daneben führt **Korrigieren** mit
+einem Klick zurück zu genau diesem Haushalt. Die Zeile bleibt stehen, bis Sie die nächste Nummer
+eingeben.
+
 ### Einen Fehler berichtigen
 
-**Am selben Tag** können Sie einen Eintrag ändern: den Haushalt unter **Ausgabe** noch einmal
-aufrufen. Statt der Schaltfläche zum Erfassen steht dort, was heute schon gebucht wurde, und darunter
-**Heutigen Eintrag korrigieren** — den richtigen Betrag eintragen und **Betrag speichern**. Mit
+**Am selben Tag** können Sie einen Eintrag ändern. Zwei Wege führen zum Haushalt zurück: die Nummer
+unter **Ausgabe** noch einmal eingeben — oder, solange die Bestätigungszeile der eben erfassten
+Ausgabe oben steht, dort auf **Korrigieren** klicken. Statt der Schaltfläche zum Erfassen steht dann
+dort, was heute schon gebucht wurde, und darunter **Heutigen Eintrag korrigieren** — den richtigen Betrag eintragen und **Betrag speichern**. Mit
 **Eintrag entfernen** verschwindet die Ausgabe ganz; der Saldo steht danach wieder so wie vor der
 Ausgabe, und die Rückfrage nennt Ihnen diesen Stand, bevor Sie bestätigen.
 

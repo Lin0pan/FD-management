@@ -49,10 +49,10 @@ import {
 import { parseEuros, type Cents } from "@/domain/money";
 import { customerFieldLabel, de } from "@/i18n/de";
 import { customerErrorField, fieldRefusals } from "../kunden/neu/registration-input";
-import { germanTime } from "@/i18n/format";
 import { tierOf } from "../notice-tier";
 import { counterActionDeps } from "./deps";
 import { RECORD_REMOVED } from "./removed-flag";
+import { HANDOUT_RECORDED } from "./served-flag";
 import type { CorrectState, ReminderState, RenewalState, ServeState } from "./serve-state";
 
 /** A surrogate id as a hidden form field carries it — a positive whole number, or the form is stale. */
@@ -155,12 +155,20 @@ function correctMessage(error: unknown): string {
 
 /**
  * Record a hand-out for the customer named by the hidden `customerId`, for the amount typed into the
- * Betrag field. On success the page is revalidated so today's record appears in place of the serve
- * action, and the returned time drives the confirmation the form shows while the number field is
- * cleared for the next customer.
+ * Betrag field.
+ *
+ * **Only a success navigates.** Everything on the screen about a served household is finished
+ * business and the next person is already at the counter, so the write revalidates and then
+ * redirects to the counter's initial state, handing the household's number to the confirmation the
+ * page states at the top (`served-flag.ts`, US-32.7). `redirect` signals the navigation by
+ * throwing, so it is called **outside** the `try` — inside it, this action's own `catch` would
+ * report the
+ * navigation as a failed write. `correctServe`'s removal branch below is the same shape.
  *
  * An amount above what was asked for comes back as `confirmOverpayment` rather than as a failure —
- * the counter shows the question and submits the same amount again with the flag.
+ * the counter shows the question and submits the same amount again with the flag — and a refusal
+ * comes back as `error`. Both leave the household on screen: nothing may be cleared while an answer
+ * is owed.
  */
 export async function recordServe(_previous: ServeState, formData: FormData): Promise<ServeState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
@@ -179,13 +187,12 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
   }
 
   try {
-    const record = await recordAttendance(counterActionDeps, {
+    await recordAttendance(counterActionDeps, {
       customerId: customerId.data,
       paidCents,
       overpaymentConfirmed: confirmed(formData),
     });
     revalidatePath("/ausgabe");
-    return { status: "recorded", at: germanTime(record.date) };
   } catch (error: unknown) {
     if (error instanceof OverpaymentNotConfirmed) {
       return {
@@ -196,6 +203,13 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
     }
     return { status: "error", message: serveMessage(error), tier: tierOf(error) };
   }
+
+  // The **household's** number, off the form the lookup rendered — not the raw query, so a lookup
+  // by card number `50k3` lands the confirmation on 50. It is not called `nummer`, which on the
+  // correction form below means the query that was typed: the two are different questions, and one
+  // name for both is how a card number would end up in a slot's confirmation.
+  const customerNumber = String(formData.get("kundennummer") ?? "");
+  redirect(`/ausgabe?${HANDOUT_RECORDED}=${encodeURIComponent(customerNumber)}`);
 }
 
 /**

@@ -94,6 +94,9 @@ the counter screen.
       lookup input for the next customer without moving the viewport. It originally re-focused that
       input too; `focus()` scrolls its element into view, and the input sits two screens above the
       confirmation, so the jump took the answer off the screen the moment it was given.
+      **Superseded by [US-32](prd-us-32-one-household-at-a-time.md) (2026-09-07):** a recorded
+      hand-out now clears the whole screen and confirms at the **top**, because the household the
+      confirmation names is no longer on it and the next person is already at the counter.
 - [ ] Attempting to record a second time shows "Heute bereits versorgt" with the existing record's time
 - [ ] A "correct today's entry" control appears for a record made today, allowing the paid flag to be
       changed or the record to be removed, with a confirmation step before removal

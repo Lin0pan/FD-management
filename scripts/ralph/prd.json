@@ -23,7 +23,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "First story of the batch and the one that frees the file. Requirement A is a DELETION and its three stories run OUTSIDE-IN — screen, then use case, then domain — the inverse of every other batch here: built inside-out the first story would break every caller at once."
     },
     {
@@ -45,7 +45,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -63,7 +63,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Last story of requirement A. After it, a grep for walk / neighbours / Weiter under src/ returns nothing but the documents story 9 rewrites."
     },
     {
@@ -85,7 +85,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Requirement B starts here and runs INSIDE-OUT: domain, application, then the two screens."
     },
     {
@@ -106,7 +106,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "TRAP 1 OF 2. The canRecord ordering is the single thing an implementer will get wrong here, and no existing test would catch the reworded refusal on its own — the named application test on the message is what pins it."
     },
     {
@@ -127,7 +127,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "TRAP 2 OF 2. The certificate prop is the second thing the new verdict breaks silently."
     },
     {
@@ -155,7 +155,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "The heart of requirement B. It reuses the redirect-with-a-flag pattern removed-flag.ts already established on this screen (ui_styling_guide.md §7: a control that its own write destroys cannot hold its confirmation)."
     },
     {
@@ -177,7 +177,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -201,7 +201,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": ""
     }
   ]

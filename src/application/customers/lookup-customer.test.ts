@@ -479,6 +479,46 @@ describe("lookupCustomer", () => {
     expect(result.verdict.reminderCount).toBe(2);
   });
 
+  it("answers already served today for a household that has collected today", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
+    records = new FakeDistributionRecordRepository(distributionRecord("2026-07-23T07:30:00.000Z"));
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.verdict.kind).toBe("ALREADY_SERVED_TODAY");
+  });
+
+  it("clears a household that collected at an earlier distribution, not today", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
+    records = new FakeDistributionRecordRepository(distributionRecord("2026-07-22T21:59:00.000Z"));
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.verdict.kind).toBe("CLEAR_TO_SERVE");
+  });
+
+  it("states a lapsed certificate on a household the verdict now reports as already served", async () => {
+    customers = new FakeCustomerRepository(
+      customerRecord({ id: 1, certificateValidUntil: "2026-07-22T00:00:00.000Z" }),
+    );
+    records = new FakeDistributionRecordRepository(distributionRecord("2026-07-23T07:30:00.000Z"));
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.verdict.kind).toBe("ALREADY_SERVED_TODAY");
+    expect(result.customer?.certificateExpired).toBe(true);
+  });
+
+  it("states a certificate valid through today as not expired", async () => {
+    customers = new FakeCustomerRepository(
+      customerRecord({ id: 1, certificateValidUntil: "2026-07-23T00:00:00.000Z" }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.certificateExpired).toBe(false);
+  });
+
   it("derives the counts and the price from the household and today's settings", async () => {
     customers = new FakeCustomerRepository(
       customerRecord({ householdMembers: [member(GROWN_UP), member(GROWN_UP), member(CHILD)] }),

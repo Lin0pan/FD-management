@@ -19,18 +19,26 @@ import { releaseNumbers } from "./seeding";
  * throwaway SQLite file. What neither can see is the counter loop a staff member actually performs:
  * type a number, read the verdict, press the button, watch the screen switch to today's record. So
  * this spec records a hand-out on the real screen against a real database and asserts the German
- * confirmation, then proves the three things the UI must never let slip — a second hand-out on the
- * same day (the button is simply gone, and only one row exists), an amount typed over the pre-filled
- * one (the row stores what was handed over, down to `0`), and the confirmation staying under the eye
- * that pressed the button.
+ * confirmation, then proves the things the UI must never let slip — a second hand-out on the same
+ * day (the button is simply gone, and only one row exists), an amount typed over the pre-filled one
+ * (the row stores what was handed over, down to `0`), and, since US-32, *what the screen does with
+ * the household afterwards*.
+ *
+ * That last one is the spine of the spec now. A recorded hand-out **clears the counter**: the write
+ * navigates, the household leaves the screen and the confirmation stands at the top of the empty one
+ * the next person is about to be typed into, with „Korrigieren“ one click back to them. Nothing else
+ * clears it — the overpayment question and a saved correction both leave the household standing,
+ * because an answer is still owed on the first and the staff member is still working on the second.
+ * Each of those is a test here, because each is a way the screen could silently start throwing a
+ * household away while someone is still being served.
  *
  * The Betrag field replaced the „Bezahlt" checkbox in US-29.7; the balance's own spine — a part
  * payment carried to the next hand-out — is `balance.spec.ts`'s (US-29.9).
  *
- * Three households are seeded straight through Prisma: all RED, active, current certificate, one card.
- * They take odd numbers in the 210s so the registration and card specs, which allocate the *lowest*
+ * Four households are seeded straight through Prisma: all RED, active, current certificate, one card.
+ * They take the odd numbers 213–219 so the registration and card specs, which allocate the *lowest*
  * free number in the shared `data/e2e.db`, keep the low sequence they assert against, and so they
- * stay clear of the counter spec's 201–207/239, the allowance spec's 211 and the number-change
+ * stay clear of the counter spec's 201–209/239, the allowance spec's 211 and the number-change
  * spec's 221–229.
  */
 
@@ -58,7 +66,7 @@ const TODAYS_DAY_KEY = "2026-01-08";
 /**
  * The numbers this spec owns. Well clear of the low sequence the other specs consume.
  *
- * All three are **odd, and therefore RED** (US-31): a household is in the week its number puts it
+ * All four are **odd, and therefore RED** (US-31): a household is in the week its number puts it
  * in, so „seeded RED" is now „seeded on an odd slot" and there is nothing else to set. They have to
  * be RED because everything here happens on a RED distribution day — a household of the other week
  * would be turned away before the Betrag field this spec is about ever rendered.
@@ -69,6 +77,8 @@ const NUMBERS = {
   /** Served for a typed-over `0,00` — a hand-out of nothing, and the record that is then removed. */
   nothing: 215,
   inView: 217,
+  /** Served, then reached again through „Korrigieren“ and amended there (US-32.8, R-9 and R-13). */
+  corrected: 219,
 } as const;
 
 /**
@@ -99,8 +109,14 @@ function pinToday(): void {
   writeFileSync(NOW_FILE, TODAY, "utf8");
 }
 
-/** Insert one RED, active household with a grown-up, a child, a current certificate and one card. */
-async function seedHousehold(customerNumber: number): Promise<void> {
+/**
+ * Insert one RED, active household with a grown-up, a child, a current certificate and one card.
+ *
+ * @returns the name the confirmation should print for it — since US-32 the hand-out is confirmed on
+ * a screen the household has already left, so the sentence has to name *who*, and that name is
+ * Faker's rather than a literal.
+ */
+async function seedHousehold(customerNumber: number): Promise<string> {
   const lastName = faker.person.lastName();
   const firstName = faker.person.firstName();
   const childFirstName = faker.person.firstName();
@@ -157,6 +173,8 @@ async function seedHousehold(customerNumber: number): Promise<void> {
       },
     },
   });
+
+  return `${firstName} ${lastName}`;
 }
 
 /** Every distribution record a household holds, found via its surrogate id from the customer number. */
@@ -191,11 +209,14 @@ const serve = de.distribution.serve;
 test.describe.configure({ mode: "serial" });
 
 test.describe("Ausgabe erfassen", () => {
+  /** The name each seeded household carries, by customer number: the confirmation prints it. */
+  const names: Record<number, string> = {};
+
   test.beforeAll(async () => {
     pinToday();
-    await seedHousehold(NUMBERS.confirmed);
-    await seedHousehold(NUMBERS.nothing);
-    await seedHousehold(NUMBERS.inView);
+    for (const customerNumber of Object.values(NUMBERS)) {
+      names[customerNumber] = await seedHousehold(customerNumber);
+    }
   });
 
   test.afterAll(async () => {
@@ -205,7 +226,7 @@ test.describe("Ausgabe erfassen", () => {
     await prisma.$disconnect();
   });
 
-  test("records the pre-filled amount and confirms it while switching to today's record", async ({
+  test("records the pre-filled amount and confirms it on the screen the household has left", async ({
     page,
   }) => {
     await lookUp(page, NUMBERS.confirmed);
@@ -217,15 +238,21 @@ test.describe("Ausgabe erfassen", () => {
     await expect(page.getByTestId("serve-amount")).toHaveValue(formatEuroAmount(PRICE_CENTS));
     await page.getByTestId("serve-button").click();
 
-    // On success the page revalidates: the confirmation names the Berlin time, and the serve action
-    // is replaced by today's record — the household is now "already served", for what they handed
-    // over against what they were asked for.
-    await expect(page.getByTestId("serve-confirmation")).toHaveText(serve.confirmed(SERVED_AT));
-    await expect(page.getByTestId("already-served")).toBeVisible();
-    await expect(page.getByTestId("already-served-message")).toHaveText(
-      serve.alreadyServed(SERVED_AT, PRICE_CENTS, PRICE_CENTS),
-    );
-    // No second serve is possible from here — the button is gone, not merely disabled.
+    // On success the write navigates: the screen comes back to its initial state for the next
+    // household, and a confirmation at the top names the one that just left (US-32.7). Every one of
+    // the four facts is asserted, because the household is no longer on the screen to supply any of
+    // them — a confirmation that dropped the name would leave „3,00 € um 10:00 Uhr" attached to
+    // nobody, in front of a staff member who has already turned to the next person.
+    await expect(page).toHaveURL(/\/ausgabe\?erfasst=\d+$/);
+    const confirmation = page.getByTestId("serve-recorded-confirmation");
+    await expect(confirmation).toBeInViewport();
+    await expect(confirmation).toContainText(String(NUMBERS.confirmed));
+    await expect(confirmation).toContainText(names[NUMBERS.confirmed]);
+    await expect(confirmation).toContainText(formatEuros(PRICE_CENTS));
+    await expect(confirmation).toContainText(SERVED_AT);
+    // The household is gone from the screen, not merely un-servable.
+    await expect(page.getByTestId("counter-verdict")).toHaveCount(0);
+    await expect(page.getByTestId("already-served")).toHaveCount(0);
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
 
     const records = await recordsFor(NUMBERS.confirmed);
@@ -252,7 +279,11 @@ test.describe("Ausgabe erfassen", () => {
     await fillSticky(page.getByTestId("serve-amount"), formatEuroAmount(0));
     await page.getByTestId("serve-button").click();
 
-    await expect(page.getByTestId("serve-confirmation")).toHaveText(serve.confirmed(SERVED_AT));
+    await expect(page.getByTestId("serve-recorded-confirmation")).toContainText(formatEuros(0));
+
+    // The balance is deliberately not in the confirmation, so it is read where it is stated: back
+    // on the household, which „Korrigieren" reaches in one click.
+    await page.getByTestId("serve-recorded-correct").click();
     await expect(page.getByTestId("already-served-message")).toHaveText(
       serve.alreadyServed(SERVED_AT, 0, PRICE_CENTS),
     );
@@ -265,24 +296,76 @@ test.describe("Ausgabe erfassen", () => {
     expect(records).toEqual([{ paidCents: 0, dayKey: TODAYS_DAY_KEY, showedUp: true }]);
   });
 
-  test("leaves the confirmation where the button was pressed instead of scrolling away from it", async ({
-    page,
-  }) => {
-    // The one thing `toBeVisible` cannot see. The screen used to re-focus the number field on
-    // success, and `focus()` scrolls its element into view — so the viewport jumped two screens up
-    // to the lookup card and left the confirmation below the fold. It was in the DOM and "visible"
-    // the whole time; a staff member had to scroll down to find out the hand-out had been recorded.
+  test("clears the screen and states the hand-out at the top of it", async ({ page }) => {
+    // The opposite of what this spec asserted until US-32. The confirmation used to be read where
+    // the button was pressed, two screens down, with the served household still on the page. DF
+    // worked real afternoons on that screen: the next person is already at the counter while it
+    // still shows the last one. So the write navigates, and the answer is at the top of the empty
+    // screen the navigation lands on — which is also where the eye already is.
     await lookUp(page, NUMBERS.inView);
-
-    // Playwright scrolls a target into view before clicking it, so the reading has to be taken after
-    // that has already happened — otherwise this measures Playwright's scroll, not the screen's.
     await page.getByTestId("serve-button").scrollIntoViewIfNeeded();
-    const scrolledTo = await page.evaluate(() => window.scrollY);
 
     await page.getByTestId("serve-button").click();
 
-    await expect(page.getByTestId("serve-confirmation")).toBeInViewport();
-    expect(await page.evaluate(() => window.scrollY)).toBe(scrolledTo);
+    await expect(page.getByTestId("serve-recorded-confirmation")).toBeInViewport();
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
+    // Nothing about the served household is left on the screen.
+    await expect(page.getByTestId("counter-verdict")).toHaveCount(0);
+    await expect(page.getByTestId("already-served")).toHaveCount(0);
+  });
+
+  test("comes back to the household through „Korrigieren“ and amends the amount there", async ({
+    page,
+  }) => {
+    // The route staff now take to a record they have just written: the household is off the screen,
+    // and the confirmation's own link is the way back to it (R-9). Looking the number up again would
+    // work too — that is what the second hand-out test does — but this is the one click.
+    await lookUp(page, NUMBERS.corrected);
+    await page.getByTestId("serve-button").click();
+    await expect(page.getByTestId("serve-recorded-confirmation")).toBeVisible();
+
+    await page.getByTestId("serve-recorded-correct").click();
+
+    // Back on the household, on the ordinary lookup URL — nothing about the correction is special
+    // enough to need a screen or a parameter of its own.
+    await expect(page).toHaveURL(`/ausgabe?nummer=${NUMBERS.corrected}`);
+    await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
+      "data-verdict",
+      "ALREADY_SERVED_TODAY",
+    );
+    await expect(page.getByTestId("already-served-message")).toHaveText(
+      serve.alreadyServed(SERVED_AT, PRICE_CENTS, PRICE_CENTS),
+    );
+
+    // And the correction is made from there, in the same visit: what a staff member does when the
+    // household says the amount was wrong as they walk away (R-13).
+    await expect(page.getByTestId("correct-amount")).toHaveValue(formatEuroAmount(PRICE_CENTS));
+    await fillSticky(page.getByTestId("correct-amount"), formatEuroAmount(100));
+    await page.getByTestId("correct-save").click();
+
+    await expect(page.getByTestId("serve-confirmation")).toHaveText(serve.correct.saved);
+    expect(await recordsFor(NUMBERS.corrected)).toEqual([
+      { paidCents: 100, dayKey: TODAYS_DAY_KEY, showedUp: true },
+    ]);
+  });
+
+  test("leaves the household on the screen when a correction is saved", async ({ page }) => {
+    // The other half of US-32.7's rule: only a *hand-out* clears the counter. A staff member saving
+    // a correction is working on that record — they may correct it twice, or read the balance it
+    // just moved — so the screen they are working on must not be taken away from them.
+    await lookUp(page, NUMBERS.corrected);
+
+    await fillSticky(page.getByTestId("correct-amount"), formatEuroAmount(200));
+    await page.getByTestId("correct-save").click();
+
+    await expect(page.getByTestId("serve-confirmation")).toHaveText(serve.correct.saved);
+    // Still the same screen, still the same household, and no hand-out confirmation at the top of
+    // it — nothing navigated.
+    await expect(page).toHaveURL(`/ausgabe?nummer=${NUMBERS.corrected}`);
+    await expect(page.getByTestId("already-served-message")).toHaveText(
+      serve.alreadyServed(SERVED_AT, 200, PRICE_CENTS),
+    );
+    await expect(page.getByTestId("serve-recorded-confirmation")).toHaveCount(0);
   });
 
   test("removing today's hand-out says so, on a screen the record has left", async ({ page }) => {
@@ -306,5 +389,34 @@ test.describe("Ausgabe erfassen", () => {
     await expect(page.getByTestId("already-served")).toHaveCount(0);
     await expect(page.getByTestId("serve-button")).toBeVisible();
     expect(await recordsFor(NUMBERS.nothing)).toHaveLength(0);
+  });
+
+  test("keeps the household on the screen while the overpayment question is unanswered", async ({
+    page,
+  }) => {
+    // On the household the removal above freed, so this spec seeds no fifth one for it: it is
+    // unserved again and owes the bare price.
+    await lookUp(page, NUMBERS.nothing);
+    await fillSticky(page.getByTestId("serve-amount"), formatEuroAmount(PRICE_CENTS + 200));
+    await page.getByTestId("serve-button").click();
+
+    // An answer is owed, so nothing may be cleared: the question, the household and the button that
+    // answers it all stand, on the URL the lookup was made on. Clearing here would take the question
+    // away from the person who has to answer it — and nothing has been written yet.
+    await expect(page.getByTestId("serve-error")).toHaveText(
+      serve.overpayment.question(PRICE_CENTS + 200, PRICE_CENTS),
+    );
+    await expect(page).toHaveURL(`/ausgabe?nummer=${NUMBERS.nothing}`);
+    await expect(page.getByTestId("counter-verdict")).toBeVisible();
+    await expect(page.getByTestId("serve-confirm-overpayment")).toBeVisible();
+    expect(await recordsFor(NUMBERS.nothing)).toHaveLength(0);
+
+    // Only the confirming submission is a recorded hand-out, and only it clears the screen.
+    await page.getByTestId("serve-confirm-overpayment").click();
+    await expect(page).toHaveURL(new RegExp(`erfasst=${NUMBERS.nothing}$`));
+    await expect(page.getByTestId("serve-recorded-confirmation")).toContainText(
+      formatEuros(PRICE_CENTS + 200),
+    );
+    await expect(page.getByTestId("counter-verdict")).toHaveCount(0);
   });
 });

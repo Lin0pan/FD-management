@@ -78,23 +78,27 @@ bullets that sat under „Where batch 31 starts" are not carried over — they a
 - **The e2e customer-number bands, as they now stand — and the parity IS the fixture (US-31).** A
   household's week is the parity of its number, so no spec seeds a group any more: it seeds an odd
   number for RED and an even one for BLUE, and a band whose parity contradicts its assertions is a
-  spec that fails for a reason it never mentions. Below the quota of 240: counter 201–207 (201 clear,
-  202 the wrong-week one, 203 expired, 204 blocked, 205 outdated card, 206 archived, 207 notes) and
-  239 unassigned, allowance 211, serve 213/215/217, number change 221–229 odd, reminders 231,
+  spec that fails for a reason it never mentions. Below the quota of 240: counter 201–209 (201 clear,
+  202 the wrong-week one, 203 expired, 204 blocked, 205 outdated card, 206 archived, 207 notes, 209
+  already served today) and 239 unassigned, allowance 211, serve 213–219 odd (213 confirmed, 215 the
+  hand-out of nothing / removal / overpayment, 217 in view, 219 corrected), number change 221–229
+  odd, reminders 231,
   registration 232/234/236, card numbers 237. Above it: block 241, reissue 251, age-13 271,
   customer-list 281–285, customer-record 291–293, group-progress 301/303/305, group-walk
   311/313/314/315/317, price cap 321, eggs 332–338 even, balance 342–348 even. A spec whose number
   must be **pickable in the /kunden/neu dropdown** has to sit below 240 — the pool is `1..quotaN` —
   and everything else should stay above it, clear of the low sequence the allocating specs
   (registration, card, archive, reregistration) consume. **A new spec takes a new band**; do not
-  borrow another spec's numbers. **And a band above 317 that sorts BEFORE `group-walk.spec.ts` must
-  be even**: that spec reads the whole shared register and asserts that the highest walkable RED
-  number *is* its own 317, so an odd household seeded higher by a file running earlier fails a spec
-  the new one has no business in — `eggs` and `balance` are even for that reason and not by taste,
-  while `price-cap`'s 321 is odd and harmless because `p` sorts after `g`. **A band that has to reach
-  „Ausgabe frei" on the RED Thursday `2026-01-08`** — the day the reissue, card-number, serve and
-  number-change specs all pin — **must be odd**, which is why `number-change` (221–229) and `serve`
-  (213–217) are. Sweep the numbers in use with
+  borrow another spec's numbers. **The „band above 317 must be even" rule is GONE (batch 32,
+  US-32.1):** it existed only because `group-walk.spec.ts` read the whole shared register and
+  asserted that its own 317 was the highest walkable RED number. That spec is deleted with the walk,
+  so `eggs` (332–338) and `balance` (342–348) are even by history and not by constraint, and a new
+  odd band above 317 is now safe. The comments in `eggs`, `balance`, `number-change` and
+  `group-progress` still cite the vanished spec by name — stale prose no gate sees; US-32.9 changes
+  no spec file, so they outlive it.
+  **A band that has to reach „Ausgabe frei" on the RED Thursday `2026-01-08`** — the day the
+  reissue, card-number, serve and number-change specs all pin — **must be odd**, which is why
+  `number-change` (221–229) and `serve` (213–217) are. Sweep the numbers in use with
   `grep -rhno "\b[23][0-9][0-9]\b" tests/e2e/*.spec.ts | cut -d: -f2 | sort -un`.
 - **Choosing a number at the intake now starts with choosing the week.** `/kunden/neu` offers one
   parity at a time, so `selectOption("236")` finds no such option unless `#group-BLUE` is checked
@@ -398,4 +402,324 @@ household and the question on screen; a saved correction keeps its confirmation 
 The `redirect` goes **outside** the `try` — `correctServe`'s removal branch in the same file is the
 worked example.
 
+---
+
+## 2026-09-06 — US-001 (batch 32): remove Zurück/Weiter from the counter
+- Deleted `WALK_CONTROL`, `WalkControl`, `walkHint`, the two `<WalkControl>` elements, the
+  walk-hint paragraph and the `walkFromStart` binding from `src/app/ausgabe/page.tsx`;
+  `readGroupRoster` is now called with no second argument (the parameter itself goes in US-002).
+  `ChevronLeft`/`ChevronRight` dropped from the lucide import; `Search` and `CircleAlert` stay.
+- Removed the whole `de.distribution.walk` block from `src/i18n/de.ts` (`previous`, `next` and all
+  four hints). `de.distribution.progress.*` untouched.
+- Deleted `tests/e2e/group-walk.spec.ts`.
+- Files changed: `src/app/ausgabe/page.tsx`, `src/i18n/de.ts`,
+  `src/app/ausgabe/group-progress-card.tsx` (comment), `src/app/ausgabe/counter-lookup.tsx`
+  (comment), `tests/e2e/group-walk.spec.ts` (deleted).
+- **Learnings for future iterations:**
+  - Deleting the `walkHint` paragraph left `GroupRosterView` unused as a *type* import while
+    `readGroupRoster` stayed, so the multi-line import had to be collapsed by hand. Neither `tsc`
+    nor `eslint` reported it — check the import line after removing a type's only consumer.
+  - `GROUP_STYLES` survives the deletion: the off-day banner's week badge still wears it. Do not
+    remove it along with the hint that also used it.
+  - Two comments elsewhere named the walk as a live thing — `group-progress-card.tsx`'s `groupName`
+    prop doc („as the banner and the walk hint say it") and `counter-lookup.tsx`'s fold-key note
+    („from the group list, the walk and the lookup form"). Both corrected here; no gate sees either.
+  - **I ran `pkill -f "next-server"` despite the standing bullet forbidding it and killed the Bash
+    tool (exit 144).** The cleanup happened anyway, but the bullet is right: kill by pid from
+    `ps aux | grep "[n]ext-server"`.
+  - Browser check on a production build (`npm run start`): the counter form's `elements` collection
+    is exactly `["INPUT:text", "BUTTON:submit"]`, no element named Zurück or Weiter is on the page,
+    and no `[data-testid*=walk]` exists — before and after a lookup. One `--raw eval` returning
+    `JSON.stringify` answered all three claims; the 390px screenshot shows the row reading cleanly
+    with the two buttons gone and `scrollWidth - clientWidth` at 0.
+  - Both e2e engines green with `group-progress.spec.ts` unmodified: 197 passed, 1 skipped each.
+---
+
+## 2026-09-06 — US-002 (batch 32): the roster stops answering "which number comes next"
+- `GroupRosterView` lost `previous` and `next`; `readGroupRoster` lost its `rawQuery` parameter, the
+  `positionOf` helper, the `neighbours` import and the now-unused `counterQueryOrNull` import.
+  `group`, `isEmpty`, `members` and `progress` stay.
+- The module's opening comment keeps the three decisions worth stating (the **week's own** colour and
+  not `nextDistribution.colour`; membership is ACTIVE + BLOCKED; the query is `CustomerRepository.list`
+  with the group narrowed in memory via `groupOf`) and replaces the walk paragraph with the roster
+  having **outlived** it. `isEmpty`'s doc now says out loud that it is `group-progress-card.tsx`'s
+  empty state, not walk vocabulary.
+- Six walk cases deleted, two re-pointed rather than deleted: the **non-distribution-day** case now
+  pins the group with `members` instead of `next`, and "does not walk archived households" became
+  "leaves archived households out of the group" on the same evidence. `walks blocked households` and
+  `walks today's group on a distribution day` were dropped as duplicates — the blocked rule is
+  `keeps a blocked household in the list and out of what was expected`, the distribution-day group
+  rule is `names the week's group and only the households in it`.
+- Files changed: `src/application/distribution/read-group-roster.ts`,
+  `src/application/distribution/read-group-roster.test.ts`.
+- **Learnings for future iterations:**
+  - `WALKED_STATUSES` → `ROSTERED_STATUSES`, and three comments in the test's fakes said "the walk"
+    where they meant the use case. No gate sees any of them; grep the *file* for the vocabulary
+    after removing a feature, not just the identifiers the criteria name.
+  - Deleting a fully covered module's *fields* moved nothing: application coverage stayed at 100%
+    because every deleted line took its only test with it. 1302 tests, 56 files, all green.
+  - `groupWalk.ts` still reports 100% — its own test is what covers it, and both go in US-003.
+---
+
+## 2026-09-06 — US-003 (batch 32): delete groupWalk.ts (domain)
+- `git rm src/domain/distribution/groupWalk.ts src/domain/distribution/groupWalk.test.ts`. Nothing
+  else in `src/` or `tests/` imported either — US-002 had already taken the last reader
+  (`positionOf` in `read-group-roster.ts`). Requirement A is now complete.
+- Files changed: `src/domain/distribution/groupWalk.ts` (deleted),
+  `src/domain/distribution/groupWalk.test.ts` (deleted).
+- **Learnings for future iterations:**
+  - The criterion "a grep for `neighbours` … returns NOTHING" is about the **walk**, not the word.
+    Eight hits survive in `src/` and all are ordinary English prose in unrelated files —
+    `registration-form.tsx` and `household-editor.tsx` on cell alignment ("a mark makes one cell
+    taller than its neighbours"), `household-row.ts`, `kunden/[id]/actions.ts`,
+    `change-customer-number.ts` ("the number their neighbours know them by") and `policy/eggs.ts`
+    ("between every pair of neighbours"). Read a grep criterion for the identifier it means; none of
+    these are it, and none were touched.
+  - **Deleting a fully covered module with its test moved the ratio, not the gate**, exactly as the
+    criterion predicted: domain stayed 100% across the board. 1290 tests in 55 files (down from 1302
+    in 56 — the whole delta is `groupWalk.test.ts`).
+  - Outside-in deletion paid off: because the screen (US-001) and the use case (US-002) went first,
+    this story was a two-file `git rm` with every gate green on the first run and no other file
+    needing a line changed. Built inside-out it would have broken every caller at once.
+  - No UI change, so no browser check. The documents that still describe the walk
+    (`tasks/prd-us-21-*`, chapter 5, chapter 9) are US-009's job and are deliberately untouched here.
+---
+
+## 2026-09-06 — US-004 (batch 32): the verdict learns whether the household collected today
+- `CounterInput` gains `readonly servedToday: boolean`; `evaluateAtCounter` returns
+  `ALREADY_SERVED_TODAY` after `OUTDATED_CARD` and **before** the certificate check, so a served
+  household is told that rather than reminded about a lapsed certificate. `certificateExpired` is now
+  **exported** — the seam US-32.5 needs for `CounterCustomerView.certificateExpired`.
+- Comments rewritten: the module's precedence paragraph lists the new position, and the union's
+  doc no longer claims the rule takes no record — it says the rule takes the **boolean** and why
+  (the record's time, amount and payment are read by no branch here).
+- Six new named tests (collected today → ALREADY_SERVED_TODAY; not collected → unchanged; BLOCKED,
+  WRONG_GROUP and OUTDATED_CARD each still win; a lapsed certificate loses to it). Two were red
+  before the change; the certificate-boundary cases stay as they are and now cover the exported
+  helper through the rule.
+- Both call sites pass `servedToday: false` with a comment naming US-32.5 as the story that replaces
+  it — shape only, behaviour unchanged, tree green at this iteration.
+- Files changed: `src/domain/distribution/counterVerdict.ts`,
+  `src/domain/distribution/counterVerdict.test.ts`, `src/application/customers/lookup-customer.ts`,
+  `src/application/distribution/record-attendance.ts`.
+- **Learnings for future iterations:**
+  - **A required field on a domain input type breaks its own test file hardest, not the callers.**
+    Only two production sites build a `CounterInput`; the test file built nineteen inline. One
+    `sed -E 's/^(      weekColour: "(RED|BLUE)",)$/\1\n      servedToday: false,/'` did it — the
+    anchored indent is what keeps the `expect(...).toEqual({ …, weekColour: "RED" })` one-liners out
+    of the match.
+  - `docs/architecture/05-building-block-view.md` **already listed `ALREADY_SERVED_TODAY` in the
+    precedence chain**, in exactly the position this story put it. The chapter described the union,
+    not the reachable verdicts, so no doc change was owed here — check before writing one.
+  - Prettier accepts an over-wide `/** */` line, so the width sweep is still by hand
+    (`git diff -U0 | python3 …`, never `awk`). Three of the new `it(...)` titles are over 100 and
+    stay: Prettier cannot break a string literal, and the rule names are the point.
+  - 1296 tests, 55 files, domain and application both 100%. Build green.
+---
+
+## 2026-09-06 — US-005 (batch 32): the lookup passes the fact; the write path keeps its own error
+- `lookupCustomer` now evaluates the verdict **after** the records/reminder `Promise.all`, passing
+  `servedToday: recordForDay(...) !== null` off the day's record it already loads — no second query.
+  The `customer === null` early return moved **above** the evaluation and calls `evaluateAtCounter`
+  itself, so `NOT_FOUND` is still the rule's answer rather than one this use case names.
+- `CounterCustomerView` gains `certificateExpired`, derived through the domain's now-exported
+  `certificateExpired(validUntil, today)` at the same instant the verdict is evaluated.
+- `recordAttendance`: the `listForCustomer` + `canRecord` guard moved above `getWeekColour` and
+  `evaluateAtCounter`; the header's numbered guard list swapped 1 and 2 with the reason.
+  `correctAttendance` untouched.
+- Four new lookup tests (served today → ALREADY_SERVED_TODAY; served on an earlier day → unchanged;
+  a lapsed certificate reported on an already-served household; a certificate valid *through* today
+  is not expired) plus one write-path test pinning that a duplicate stays `AlreadyServedToday` and
+  is **not** a `NotClearToServe`.
+- Files changed: `src/application/customers/lookup-customer.ts` (+ test),
+  `src/application/distribution/record-attendance.ts` (+ test),
+  `docs/architecture/06-runtime-view.md`.
+- **Learnings for future iterations:**
+  - **The verdict had to move, not just gain an argument.** `servedToday` is only knowable after the
+    records read, which happens after the `customer === null` early return — so the evaluation moved
+    down and the null branch grew its own call. Three lines, but it is the shape of the function that
+    changed; a `let verdict` reassigned later would have been the tempting wrong answer.
+  - **Chapter 6's sequence diagram already said „today's record"** in the arrow into
+    `evaluateAtCounter` — written ahead of the code and only now true. What was owed was the
+    *ordering* sentence in the already-served paragraph, since the guard order is load-bearing.
+  - **The existing duplicate-hand-out test would NOT have caught trap 1.** `ALREADY_SERVED_TODAY` is
+    not in the `ARCHIVED | BLOCKED | WRONG_GROUP` throw list, so a verdict-first order would still
+    have fallen through to `canRecord`. The reorder is right regardless — the guard that names the
+    day's write belongs first — but do not expect the old test to have been red.
+  - **One e2e is now red, and it is trap 2 exactly as the PRD predicted**: `reminders.spec.ts:190`
+    („serves the household … and logs the first reminder") loses `reminder-button` after the serve,
+    because `page.tsx` still derives `CertificateControls`'s `expired` from the verdict kind and the
+    served household is no longer `CLEAR_TO_SERVE_CERTIFICATE_EXPIRED`. **US-006 owns that prop
+    move** (stories 5 and 6 split it deliberately: 5 adds the field, 6 reads it). Chromium: 191
+    passed, 1 failed. Expect it green again after the next story and do not touch the spec.
+  - 1301 unit tests, 55 files, domain and application both 100%. Build, lint, typecheck, format all
+    green.
+---
+
+## 2026-09-06 — US-006 (batch 32): the already-served verdict states a fact rather than refusing
+- `counter-lookup.tsx` gains a fifth tone, `done`: `bg-muted text-foreground ring-foreground/10` and
+  `Check`. `ALREADY_SERVED_TODAY` returns it with the existing headline and **no** detail line — the
+  time, the amount and what was asked for are the already-served card's rows one element below.
+  `permitsServing` untouched, so no serve button; `ServeControls` untouched.
+- **Trap 2 closed**: `page.tsx` passes `expired={counter.lookup.customer.certificateExpired}` to
+  `CertificateControls` instead of `verdict.kind === "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED"`.
+- `ui_styling_guide.md` §12: „four verdicts" → „five verdict tones" with the reason two of them are
+  `bg-muted`; the `Check` row now reads „it happened / clear to serve / collected"; and the
+  `ChevronLeft`, `ChevronRight` → „the walk" row is **gone** (US-001 removed its last use; the row
+  would otherwise have registered a glyph this application no longer draws).
+- Files changed: `src/app/ausgabe/counter-lookup.tsx`, `src/app/ausgabe/page.tsx`,
+  `docs/guideline/ui_styling_guide.md`, `tests/e2e/reminders.spec.ts`.
+- **Learnings for future iterations:**
+  - **Two `reminders.spec.ts` assertions had to be re-pointed, and the PRD predicted only one.**
+    US-005 left `reminders.spec.ts:190` red and said it would go green here — it did — but two
+    *further* cases assert a verdict **after** serving the household (`:260` expected
+    `certificateExpired`, `:338` expected `CLEAR_TO_SERVE`), and both are now `ALREADY_SERVED_TODAY`.
+    Neither was in any criterion. After making a verdict reachable, grep the whole e2e suite for
+    assertions that follow a `serve(page)`, not just the one the PRD names.
+  - The `:260` re-point is now the **e2e proof of trap 2**: it asserts `reminder-button` is visible
+    on the already-served re-lookup, which is exactly the control the verdict-kind derivation lost.
+    The renewal case at `:338` keeps `certificate-controls` at count 0 as its evidence — a better
+    reading than the verdict was anyway.
+  - **Driving the counter by hand needs three things lined up, and the demo seed gives two.**
+    `npm run db:demo`, then pin `FD_FIXED_NOW_FILE` to a **Thursday whose week colour matches the
+    household's parity** (anchor `2026-W02` = RED ⇒ `2026-09-17` is RED, `2026-09-10` BLUE), then
+    insert the day's `DistributionRecord` yourself — the demo register's records sit on the *real*
+    today, which is not the pinned one. Household #1 (id 79) is the useful fixture: odd ⇒ RED, and
+    its certificate lapsed 2026-08-02, so one lookup shows the verdict *and* the trap at once.
+    Compute the colour with `colourOf(date, {isoWeek, colour})` from `weekColour.ts` rather than
+    guessing; read the anchor out of `settingsVersion`.
+  - **`prisma.customer.findMany` cannot select `certificateValidUntil` or a record's `at`** — those
+    are derived/renamed. The columns are `certificates: { validUntil }` and
+    `distributions: { dayKey, date }`. Two wasted round trips; read the error's „Available options"
+    list, it prints the real field names.
+  - Browser check confirmed on a production build: `data-verdict="ALREADY_SERVED_TODAY"`, banner
+    class `bg-muted text-foreground ring-foreground/10`, `lucide-check` glyph, no
+    `counter-verdict-detail`, no `serve-button`, `already-served` and `reminder-button` both present,
+    and the only two red elements on the page are the week banner and the group badge — both
+    `GROUP_STYLES`, neither a refusal.
+  - 1301 unit tests, 55 files; domain and application 100%. Both e2e engines green (197 passed, 1
+    skipped each). WebKit failed `number-change.spec.ts:405` once and passed it alone and on a full
+    re-run — the known nav flake, not this change.
+---
+
+## 2026-09-07 — US-007 (batch 32): a recorded hand-out clears the screen
+- New `src/app/ausgabe/served-flag.ts` (`HANDOUT_RECORDED = "erfasst"`), beside `removed-flag.ts`
+  and for the same reason. `recordServe` revalidates and then `redirect`s **outside** the `try` to
+  `/ausgabe?erfasst=<Kundennummer>`; the number comes off a new hidden `kundennummer` field on the
+  serve form, rendered from `counter.lookup.customer.customerNumber` — not the raw query, so `50k3`
+  lands on 50. Only a success navigates: `OverpaymentNotConfirmed` still returns `confirmOverpayment`
+  and every refusal still returns `error`.
+- `page.tsx` renders the confirmation at the top, above the removal's and the archive's, from a new
+  `de.distribution.serve.recorded(customerNumber, name, paidCents, time)` with a „Korrigieren" link
+  to `/ausgabe?nummer=<n>` (`serve-recorded-confirmation`, `serve-recorded-correct`). The four facts
+  are read back through `lookupCustomer` in the same `Promise.all`; `nummer` wins over `erfasst`, and
+  a parameter that resolves to no record today is inert.
+- Deleted with it: `ServeState`'s `recorded` variant, `de.distribution.serve.confirmed`, the
+  `serve-confirmation` rendering on the serve path, and the `useEffect` that emptied `counter-input`
+  by id. The correction's own confirmation stays where it is made (R-14) and keeps that test id.
+- Files changed: `src/app/ausgabe/{served-flag.ts,actions.ts,page.tsx,serve-controls.tsx,serve-state.ts}`,
+  `src/app/notice.tsx`, `src/i18n/de.ts`, `docs/architecture/06-runtime-view.md`,
+  `docs/guideline/ui_styling_guide.md`, and seven e2e specs.
+- **Learnings for future iterations:**
+  - **A `redirect` out of a server action is a *soft* navigation, so `autoFocus` does not fire
+    again.** React reconciles the input that is already in the tree rather than mounting a fresh one,
+    and the browser check found the field empty with the cursor **nowhere** — the AC's „empty focused
+    number field" failed on the half no gate can see. `key={recorded === null ? "" : String(...)}` on
+    the `Input` fixes it: the key changes exactly when a hand-out lands. The lookup form's own
+    `method="get"` submit is a full document navigation and never needed this. Written into
+    `ui_styling_guide.md` §7 beside the flag rule.
+  - **The blast radius was seven spec files, not one, and `tsc` saw two of them.** Deleting
+    `de.distribution.serve.confirmed` broke `serve.spec.ts` at typecheck (specs read their expected
+    text out of `de.ts`) — but five more specs asserted `serve-confirmation` or `already-served`
+    *after* clicking `serve-button`, and those fail only at run time. `grep -rn "serve-button" tests/`
+    and read what each asserts next; the rule from batch 32's US-006 generalises: **after changing
+    what a write leaves on screen, grep the whole suite for assertions that follow the click.**
+  - **A spec that needs the household after a serve goes back through „Korrigieren", not a `goto`.**
+    `balance.spec.ts` and `reminders.spec.ts` both do: it is the route staff take, it costs no second
+    lookup, and it exercises the link. Their `serve` helpers end on that click and say so.
+  - `Notice`/`Confirmation` gained an optional `children`, rendered **inside** `AlertDescription` so a
+    screen reader reaching the status reaches the offer with it. `AlertDescription` already styles a
+    descendant `<a>` (`[&_a]:underline`), so the link needed no class of its own.
+  - Driving it by hand: `npm run db:demo`, `FD_FIXED_NOW_FILE` pinned to `2026-09-17` (RED, so odd
+    numbers), and households **13, 15, 17** are odd, active and unserved on that day — one each for
+    the happy path, the „Korrigieren" round trip and the overpayment. One `--raw eval` returning
+    `JSON.stringify` proved seven testids absent, the field empty and focused, the confirmation's
+    text and the link's href in a single call.
+  - Both engines green (197 passed, 1 skipped each), unit 1301/55, domain and application 100%.
+---
+
+## 2026-09-07 — US-008 (batch 32): the e2e loop, over both engines
+- `serve.spec.ts` is now written about **what the screen does with the household after the write**.
+  The happy path asserts the redirect URL (`/ausgabe?erfasst=<n>$`), the confirmation in the
+  viewport naming all four facts — number, name, amount, time — and `counter-verdict`,
+  `already-served` and `serve-button` all absent. Three new cases: „Korrigieren" back to
+  `/ausgabe?nummer=219` with the `ALREADY_SERVED_TODAY` verdict, the correction controls and an
+  amount changed and saved there (R-9 and R-13 in one pass); a **saved correction** leaving the
+  household on screen; and the **overpayment question** leaving the household, the question and the
+  confirm button standing, with only the confirming submission redirecting.
+- `counter.spec.ts` gains the verdict it never could reach: household 209, its hand-out written
+  straight through Prisma, looked up as `data-verdict="ALREADY_SERVED_TODAY"` with no serve button.
+  The header comment that recorded the gap now records why it closed.
+- `group-progress.spec.ts`: the tally is read on the screen the redirect lands on — the
+  `page.goto("/ausgabe")` between the serve and the assertion is gone, which is what makes the
+  number R-11's evidence rather than a re-read of the register.
+- Files changed: `tests/e2e/{serve,counter,group-progress}.spec.ts` plus the band comments in nine
+  other specs, and the band bullet at the top of this log.
+- **Learnings for future iterations:**
+  - **The overpayment case needed no household of its own.** The removal test hands 215 back
+    unserved and 0-balance, so the case that has to be *unserved* runs last on it. Worth looking for
+    before extending a band: a spec that removes a record has a fresh household at the end of it.
+  - **`seedHousehold` returning the name is now the shape both counter and serve specs use** — the
+    confirmation is read on a screen the household has left, so the name is a Faker value the spec
+    must keep. `counter.spec.ts` already had the `names: Record<number, string>` map; `serve.spec.ts`
+    now seeds through `Object.values(NUMBERS)` into the same shape.
+  - **`toHaveURL` takes a plain string** and resolves it against `baseURL`, which reads better than a
+    regex where the whole query is known (`/ausgabe?nummer=219`). Keep the regex where the point is
+    the *shape* — `/ausgabe\?erfasst=\d+$/` says „some number", which is what the AC asks for.
+  - The e2e bands moved: counter 201–209, serve 213–219. Nine specs recite the bands in a header
+    comment, so `sed -i 's/201–207/201–209/g'` across `tests/e2e/*.spec.ts` is part of taking a new
+    number — a stale recitation is how two specs end up on one household.
+  - Both engines green: 201 passed, 1 skipped each. Unit 1301/55, domain and application 100%.
+    Build, lint, typecheck and format all green.
+---
+
+## 2026-09-07 — US-009 (batch 32): record the withdrawal in the documents that asked for it
+- Documentation only. **No file under `src/`, `tests/` or `prisma/` is touched** — `git diff
+  --name-only` proves it, and the AC asks for exactly that.
+- `tasks/prd-us-21-step-through-group.md` gains a withdrawal block-quote at the top, in the same form
+  `prd-us-05-record-attendance.md` uses for its US-29 supersession: withdrawn by US-32 (2026-09-07),
+  the buttons were not wrong but the assumption behind them was — DF call households in blocks and
+  serve them in the order they turn up, so the next number is never the next person. The document is
+  **kept whole and readable**, and the note names what survived: `readGroupRoster` is US-23's now,
+  and `CustomerRepository.list` needed no port method then and needs none now.
+- `docs/architecture/09-architectural-decisions.md`: the „Finding the next household at the counter"
+  row now reads „A Zurück/Weiter walk of the week's group → withdrawn", with the block-calling reason
+  in the rationale column, in the week-colour row's voice.
+- `docs/architecture/05-building-block-view.md`: the three rows that named the walk stop naming it.
+- `docs/handout/betriebsanleitung.md`: §„Beim Erfassen" gains a paragraph on the cleared screen, the
+  line at the top (Kundennummer, Name, Betrag, Uhrzeit) and **Korrigieren**; §„Einen Fehler
+  berichtigen" now opens with the two ways back — typing the number, or the Korrigieren link while
+  the confirmation still stands.
+- `tasks/prd-us-05-record-attendance.md` §US-05.4: the „short confirmation in place of the button"
+  criterion is marked superseded by US-32 with the one-line reason.
+- `tasks/prd-us-23-group-progress.md`: a block-quote saying its „US-21 must be merged before this
+  starts" is history — the roster outlived the walk that created it.
+- No ADR, per the AC: nothing in this batch is hard to reverse.
+- **Learnings for future iterations:**
+  - **A deleted domain module makes a *count* stale, not just a sentence.** Chapter 5's heading reads
+    „`src/domain/` — N modules in four families"; US-003 took `groupWalk.ts` out and nothing failed.
+    `find src/domain -name '*.ts' ! -name '*.test.ts' | wc -l` said 26 against a documented 27. After
+    any batch that adds or deletes a domain module, run that count against the heading — no gate does.
+  - **The domain row named „the group roster", which was never domain's.** The roster is
+    `application/distribution/read-group-roster.ts`; the domain family has `groupProgress.ts`, the
+    tally. Dropping the walk was the moment to notice, so the row now names only the tally.
+  - **Prettier reflows a markdown table when one cell's width changes**, so editing a row of chapter 9
+    by hand leaves `format:check` failing on column padding for the *whole* table. Run
+    `npx prettier --write` on the file rather than trying to pad the pipes to match.
+  - **The handout is the only document written for DF, and it describes the screen, not the code.** It
+    needed no mention of the walk (it never described the buttons) but did need the new post-write
+    behaviour, because that is a change DF *see*. Grep the handout for a feature name before assuming
+    a removal touches it, and add to it whenever what the screen does after a write changes.
+  - Gates: `format:check`, lint, typecheck, `test:coverage` (55 files, 1301 tests, domain and
+    application 100%) and `build` all green. No e2e run needed — no source or spec file changed.
 ---

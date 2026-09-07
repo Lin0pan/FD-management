@@ -25,16 +25,20 @@ import { releaseNumbers } from "./seeding";
  * criterion has no table yet — US-05 adds serving — so what is pinned here is every row a lookup
  * could conceivably touch today, and the snapshot widens with the schema.)
  *
- * Six households are seeded straight through Prisma rather than through the UI, because half of
+ * Eight households are seeded straight through Prisma rather than through the UI, because half of
  * these states have no screen that can reach them yet: archiving is US-10, blocking US-08, a second
  * card US-09. They take numbers in the 200s so the registration and card specs, which allocate the
  * *lowest* free number, keep the low sequence they assert against in the shared `data/e2e.db` — and
  * each takes the *parity* its verdict needs, which is the whole of what puts a household in a week
  * (US-31).
  *
- * `ALREADY_SERVED_TODAY` is the one verdict absent here: nothing can serve a household yet, so
- * nothing can serve one twice. It arrives with US-05, and the exhaustive switch in the UI already
- * renders it.
+ * `ALREADY_SERVED_TODAY` was for a long time the one verdict absent here — first because nothing
+ * could serve a household at all, and then because the verdict, though rendered by the UI's
+ * exhaustive switch, was unreachable: the rule took no record, so a household that had collected
+ * was answered „Ausgabe frei". US-32.4 gave the rule the fact, and the last household below is the
+ * one that proves the sentence a staff member reads for it. Its record is written straight through
+ * Prisma like everything else here: this spec is about what a *lookup* says, and serving through the
+ * UI is `serve.spec.ts`'s subject.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -76,6 +80,8 @@ const NUMBERS = {
    * make a verdict spec depend on which note test ran last.
    */
   notes: 207,
+  /** Has collected today, so the lookup states that rather than clearing them a second time. */
+  servedToday: 209,
   /** Inside the quota of 240 and held by nobody — a number staff could plausibly mistype. */
   unassigned: 239,
 } as const;
@@ -87,6 +93,12 @@ const CHILD_BIRTH_DATE = "2020-06-15";
 const VALID_CERTIFICATE = "2027-06-30";
 /** Lapsed a week before {@link TODAY} — recently enough that the household is still served. */
 const EXPIRED_CERTIFICATE = "2025-12-31";
+
+/** The Europe/Berlin calendar day of {@link TODAY}, as `berlinDayKey` writes it to a record. */
+const TODAYS_DAY_KEY = "2026-01-08";
+
+/** What one of these households is asked for: one grown-up and one child under the seeded policy. */
+const PRICE_CENTS = 300;
 
 /** How many certificate reminders the expired-certificate household has already had. */
 const REMINDERS_SENT = 2;
@@ -204,6 +216,33 @@ async function snapshotRegister(): Promise<string> {
   return JSON.stringify({ customers, cards, auditEntries });
 }
 
+/**
+ * Book a hand-out for a household on {@link TODAY}, without going near the counter.
+ *
+ * The one fact `evaluateAtCounter` cannot derive from the customer row, written the shortest way
+ * there is: what a *recorded* hand-out looks like on the screen belongs to `serve.spec.ts`, and what
+ * is wanted here is only a household the rule will call already served.
+ */
+async function recordHandOut(customerNumber: number): Promise<void> {
+  const customer = await prisma.customer.findFirst({
+    where: { customerNumber },
+    select: { id: true },
+  });
+  if (customer === null) {
+    throw new Error(`No household on ${customerNumber} to record a hand-out for`);
+  }
+  await prisma.distributionRecord.create({
+    data: {
+      customerId: customer.id,
+      date: new Date(TODAY),
+      dayKey: TODAYS_DAY_KEY,
+      showedUp: true,
+      paidCents: PRICE_CENTS,
+      priceCents: PRICE_CENTS,
+    },
+  });
+}
+
 /** Type a number at the counter and press Enter, exactly as staff do it. */
 async function lookUp(page: Page, query: string): Promise<void> {
   await page.goto("/ausgabe");
@@ -311,9 +350,16 @@ test.describe("Verdikt am Tresen", () => {
         certificateValidUntil: VALID_CERTIFICATE,
         cardIndexes: [1],
       },
+      {
+        customerNumber: NUMBERS.servedToday,
+        status: "ACTIVE",
+        certificateValidUntil: VALID_CERTIFICATE,
+        cardIndexes: [1],
+      },
     ] as const satisfies ReadonlyArray<Household>) {
       names[household.customerNumber] = await seedHousehold(household);
     }
+    await recordHandOut(NUMBERS.servedToday);
   });
 
   test.afterAll(async () => {
@@ -398,6 +444,21 @@ test.describe("Verdikt am Tresen", () => {
     // Archived data stays queryable: the household is still named, it is just not served.
     await expect(page.getByTestId("counter-name")).toHaveText(names[NUMBERS.archived]);
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.ARCHIVED);
+  });
+
+  test("states that a household which collected today has already been served", async ({
+    page,
+  }) => {
+    await lookUp(page, String(NUMBERS.servedToday));
+
+    // A fact, not a refusal: the household did nothing wrong, and since US-32 looking one up again
+    // is the ordinary route to a correction. So the banner is muted chrome with no sentence under
+    // it — the time and the amount are the record's own card below — and it is emphatically not the
+    // green „Ausgabe frei" this lookup answered before the rule was given the day's record.
+    await expectVerdict(page, "ALREADY_SERVED_TODAY", verdicts.alreadyServedToday.headline);
+    await expect(page.getByTestId("counter-name")).toHaveText(names[NUMBERS.servedToday]);
+    // And no second hand-out is offered, however the number was reached.
+    await expect(page.getByTestId("serve-button")).toHaveCount(0);
   });
 
   test("answers an unassigned number with not-found rather than an empty page", async ({

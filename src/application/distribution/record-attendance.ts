@@ -7,13 +7,16 @@
  * and all are the use case's own — the counter screen is not the only one (FR-8). **Their order is
  * load-bearing:**
  *
- *  1. **Eligibility.** The verdict is re-evaluated here (`evaluateAtCounter`), and an `ARCHIVED`,
+ *  1. **Once per day.** `canRecord` rejects a second record on the same Berlin day with
+ *     {@link AlreadyServedToday}, and nothing is written. The database repeats the rule as a unique
+ *     constraint (US-05.3), so a race that slips past this guard still cannot double-record. It
+ *     stands **first** because the counter verdict now knows the day's hand-out too (US-32.4):
+ *     asked second, it would report a duplicate write as an eligibility refusal and quietly reword
+ *     the sentence the counter reads.
+ *  2. **Eligibility.** The verdict is re-evaluated here (`evaluateAtCounter`), and an `ARCHIVED`,
  *     `BLOCKED` or `WRONG_GROUP` customer is refused with {@link NotClearToServe}. A hand-out looked
  *     up by customer number presents no card, so `OUTDATED_CARD` cannot arise; an expired certificate
  *     serves and reminds rather than refusing.
- *  2. **Once per day.** `canRecord` rejects a second record on the same Berlin day with
- *     {@link AlreadyServedToday}, and nothing is written. The database repeats the rule as a unique
- *     constraint (US-05.3), so a race that slips past this guard still cannot double-record.
  *  3. **The payment.** Only now is an amount looked at: `requirePayment` refuses one that is not
  *     whole, non-negative cents, and a payment above what was asked for is refused unless it was
  *     confirmed. Asked earlier, the screen would put a staff member to confirming a credit for a
@@ -104,6 +107,14 @@ export async function recordAttendance(
     throw new CustomerNotFound(input.customerId);
   }
 
+  // The one read of the customer's history: the once-per-day guard needs it, and so does the
+  // balance the amount to pay is derived from. Asking the store twice would be asking twice.
+  const history = await deps.records.listForCustomer(input.customerId);
+  const recordability = canRecord(history, now);
+  if (recordability !== "OK") {
+    throw recordability;
+  }
+
   const week = await getWeekColour(deps, now);
   const verdict = evaluateAtCounter({
     customer: {
@@ -119,17 +130,14 @@ export async function recordAttendance(
     presentedCardIndex: null,
     today: now,
     weekColour: week.colour,
+    // `canRecord` has just proved there is no hand-out on today's Berlin day, so the verdict is
+    // asked about eligibility alone and its own `ALREADY_SERVED_TODAY` cannot arise here (US-32.5).
+    // That is why the duplicate guard stands first: `AlreadyServedToday` names the day's write, and
+    // it is the more specific fact about this call than any verdict would be.
+    servedToday: false,
   });
   if (verdict.kind === "ARCHIVED" || verdict.kind === "BLOCKED" || verdict.kind === "WRONG_GROUP") {
     throw new NotClearToServe(verdict);
-  }
-
-  // The one read of the customer's history: the once-per-day guard needs it, and so does the
-  // balance the amount to pay is derived from. Asking the store twice would be asking twice.
-  const history = await deps.records.listForCustomer(input.customerId);
-  const recordability = canRecord(history, now);
-  if (recordability !== "OK") {
-    throw recordability;
   }
 
   const allowance = await describeAllowance(deps, customer.details.householdMembers, now);
