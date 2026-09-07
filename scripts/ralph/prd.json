@@ -155,7 +155,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "The heart of requirement B. It reuses the redirect-with-a-flag pattern removed-flag.ts already established on this screen (ui_styling_guide.md §7: a control that its own write destroys cannot hold its confirmation)."
     },
     {

@@ -599,3 +599,49 @@ worked example.
     skipped each). WebKit failed `number-change.spec.ts:405` once and passed it alone and on a full
     re-run — the known nav flake, not this change.
 ---
+
+## 2026-09-07 — US-007 (batch 32): a recorded hand-out clears the screen
+- New `src/app/ausgabe/served-flag.ts` (`HANDOUT_RECORDED = "erfasst"`), beside `removed-flag.ts`
+  and for the same reason. `recordServe` revalidates and then `redirect`s **outside** the `try` to
+  `/ausgabe?erfasst=<Kundennummer>`; the number comes off a new hidden `kundennummer` field on the
+  serve form, rendered from `counter.lookup.customer.customerNumber` — not the raw query, so `50k3`
+  lands on 50. Only a success navigates: `OverpaymentNotConfirmed` still returns `confirmOverpayment`
+  and every refusal still returns `error`.
+- `page.tsx` renders the confirmation at the top, above the removal's and the archive's, from a new
+  `de.distribution.serve.recorded(customerNumber, name, paidCents, time)` with a „Korrigieren" link
+  to `/ausgabe?nummer=<n>` (`serve-recorded-confirmation`, `serve-recorded-correct`). The four facts
+  are read back through `lookupCustomer` in the same `Promise.all`; `nummer` wins over `erfasst`, and
+  a parameter that resolves to no record today is inert.
+- Deleted with it: `ServeState`'s `recorded` variant, `de.distribution.serve.confirmed`, the
+  `serve-confirmation` rendering on the serve path, and the `useEffect` that emptied `counter-input`
+  by id. The correction's own confirmation stays where it is made (R-14) and keeps that test id.
+- Files changed: `src/app/ausgabe/{served-flag.ts,actions.ts,page.tsx,serve-controls.tsx,serve-state.ts}`,
+  `src/app/notice.tsx`, `src/i18n/de.ts`, `docs/architecture/06-runtime-view.md`,
+  `docs/guideline/ui_styling_guide.md`, and seven e2e specs.
+- **Learnings for future iterations:**
+  - **A `redirect` out of a server action is a *soft* navigation, so `autoFocus` does not fire
+    again.** React reconciles the input that is already in the tree rather than mounting a fresh one,
+    and the browser check found the field empty with the cursor **nowhere** — the AC's „empty focused
+    number field" failed on the half no gate can see. `key={recorded === null ? "" : String(...)}` on
+    the `Input` fixes it: the key changes exactly when a hand-out lands. The lookup form's own
+    `method="get"` submit is a full document navigation and never needed this. Written into
+    `ui_styling_guide.md` §7 beside the flag rule.
+  - **The blast radius was seven spec files, not one, and `tsc` saw two of them.** Deleting
+    `de.distribution.serve.confirmed` broke `serve.spec.ts` at typecheck (specs read their expected
+    text out of `de.ts`) — but five more specs asserted `serve-confirmation` or `already-served`
+    *after* clicking `serve-button`, and those fail only at run time. `grep -rn "serve-button" tests/`
+    and read what each asserts next; the rule from batch 32's US-006 generalises: **after changing
+    what a write leaves on screen, grep the whole suite for assertions that follow the click.**
+  - **A spec that needs the household after a serve goes back through „Korrigieren", not a `goto`.**
+    `balance.spec.ts` and `reminders.spec.ts` both do: it is the route staff take, it costs no second
+    lookup, and it exercises the link. Their `serve` helpers end on that click and say so.
+  - `Notice`/`Confirmation` gained an optional `children`, rendered **inside** `AlertDescription` so a
+    screen reader reaching the status reaches the offer with it. `AlertDescription` already styles a
+    descendant `<a>` (`[&_a]:underline`), so the link needed no class of its own.
+  - Driving it by hand: `npm run db:demo`, `FD_FIXED_NOW_FILE` pinned to `2026-09-17` (RED, so odd
+    numbers), and households **13, 15, 17** are odd, active and unserved on that day — one each for
+    the happy path, the „Korrigieren" round trip and the overpayment. One `--raw eval` returning
+    `JSON.stringify` proved seven testids absent, the field empty and focused, the confirmation's
+    text and the link's href in a single call.
+  - Both engines green (197 passed, 1 skipped each), unit 1301/55, domain and application 100%.
+---
