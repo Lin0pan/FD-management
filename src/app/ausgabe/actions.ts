@@ -62,6 +62,15 @@ const surrogateId = z
   .transform((value): number => Number(value));
 
 /**
+ * A **customer number** as the serve form's hidden field carries it.
+ *
+ * The same shape as {@link surrogateId} and deliberately not the same name: one says which row was
+ * written, the other which household was served, and the counter needs both in the same action.
+ * Naming the shape after either question alone is how the wrong one ends up in the redirect.
+ */
+const customerNumberField = surrogateId;
+
+/**
  * The amount a household handed over, as DF type it into the Betrag field: `4`, `4,00` or `4.00`,
  * all read as 400 cents. `null` when the field holds something that is not an amount.
  *
@@ -208,8 +217,16 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
   // by card number `50k3` lands the confirmation on 50. It is not called `nummer`, which on the
   // correction form below means the query that was typed: the two are different questions, and one
   // name for both is how a card number would end up in a slot's confirmation.
-  const customerNumber = String(formData.get("kundennummer") ?? "");
-  redirect(`/ausgabe?${HANDOUT_RECORDED}=${encodeURIComponent(customerNumber)}`);
+  //
+  // Parsed rather than passed on as typed, for the reason `customerId` above is: it arrives from the
+  // browser, and everything else this action reads from the form goes through a reader that can say
+  // no. A value that is not a customer number cannot name a household, so the redirect goes to the
+  // bare counter and the hand-out — already written — is simply confirmed by the rising group tally
+  // instead. It is not an `error`: nothing failed, and reporting one would claim the write did.
+  const customerNumber = customerNumberField.safeParse(String(formData.get("kundennummer") ?? ""));
+  redirect(
+    customerNumber.success ? `/ausgabe?${HANDOUT_RECORDED}=${customerNumber.data}` : "/ausgabe",
+  );
 }
 
 /**
