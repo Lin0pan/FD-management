@@ -88,7 +88,10 @@ _Europe/Berlin_ calendar day and nothing is written. If two requests race past t
 into `AlreadyServedToday`. The guard is convenience; **the constraint is the rule**. It runs
 **before** the eligibility check, because the counter verdict knows the day's hand-out too since
 US-32: asked the other way round, a duplicate write would come back as an eligibility refusal and
-the sentence a staff member reads would quietly change.
+the sentence a staff member reads would quietly change. So the two paths rank these facts in
+**opposite orders** — the read puts `BLOCKED` above `ALREADY_SERVED_TODAY`, the write puts
+`AlreadyServedToday` above the eligibility check — and both are right for the question they answer:
+_may they collect_ versus _may this write happen_. `counterVerdict.ts` says the same from its end.
 
 **Other exceptions.** An `ARCHIVED`, `BLOCKED` or `WRONG_GROUP` household is refused with
 `NotClearToServe` — re-checked inside the use case, because the counter screen is not its only
