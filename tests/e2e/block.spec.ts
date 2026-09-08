@@ -9,26 +9,18 @@ import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
 
 /**
- * Blocking a customer and seeing it hold at the counter, driven through the built app
- * (tasks/prd-us-08-block-unblock-customer.md §US-08.5).
+ * Blocking a customer and seeing it hold at the counter
+ * (`tasks/prd-us-08-block-unblock-customer.md` §US-08.5).
  *
- * The state machine, the two use cases and the counter verdict are each proved in isolation — the
- * domain gate on `transition`, `block-customer`/`unblock-customer` against fakes, `counterVerdict`
- * on the verdict, and the setStatus invariant against a throwaway SQLite file. What none of them can
- * see is the loop a staff member actually performs: type a reason on the record, then find the
- * household at the counter and read that same reason back, verbatim, as the thing that turns them
- * away. So this spec blocks a real household on the real screen and asserts the reason surfaces at
- * the counter with no serve action offered, then lifts the block and proves the household is servable
- * again on the same customer number and the same card — a block pauses, it never renumbers.
+ * Each piece is proved in isolation. What none of them can see is the loop a staff member performs:
+ * type a reason on the record, then find the household at the counter and read that same reason back
+ * verbatim as the thing that turns them away. Lifting the block then proves they are servable again
+ * on the same number and the same card — a block pauses, it never renumbers.
  *
- * It also pins FR-1 from outside: the reason is a block's only record, so an empty one must be
- * impossible to submit — the save control stays disabled until a non-whitespace reason is typed.
+ * It also pins FR-1 from outside: the reason is a block's only record, so the save control stays
+ * disabled until a non-whitespace one is typed.
  *
- * One household is seeded straight through Prisma: RED, active, current certificate, one card. It
- * takes a number in the 240s so the registration and card specs, which allocate the *lowest* free
- * number in the shared `data/e2e.db`, keep the low sequence they assert against, and so it stays
- * clear of the counter (201–209/239), allowance (211), serve (213–219), number change (221–229)
- * and reminders (231) specs.
+ * One household on a number in the 240s, clear of the bands the other specs own.
  */
 
 // A fixed seed so a failure is reproducible; only the name and address come from Faker. Every date

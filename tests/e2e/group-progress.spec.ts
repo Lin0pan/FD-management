@@ -10,31 +10,21 @@ import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
 
 /**
- * How far through today's group the counter is, driven through the built app
- * (tasks/prd-us-23-group-progress.md §US-023.5).
+ * How far through today's group the counter is (`tasks/prd-us-23-group-progress.md` §US-23.5).
  *
- * `groupProgress` is proved rule by rule in the domain gate and `readGroupRoster` against fakes.
- * Neither can see the thing the tally *is for*: that the number on the counter's own screen agrees
- * with what just happened at it. So this spec serves a household through the UI and asserts the
- * figure moved by exactly one — the one claim that spans the button, the write and the next render,
- * and the one no unit test can make.
+ * The rules are proved below. Neither gate can see the thing the tally *is for*: that the number on
+ * the counter's own screen agrees with what just happened at it. So this spec serves a household
+ * through the UI and asserts the figure moved by exactly one.
  *
- * The other half is that reading is free. Opening and closing the list writes nothing at all — no
- * record, no reminder, no status, no audit entry (§FR-9) — and an absence is only visible from
- * outside the app, so the register is snapshotted either side of a fold, exactly as
- * `group-walk.spec.ts` does for the walk.
+ * The other half is that **reading is free**: opening and closing the list writes nothing (§FR-9), an
+ * absence only visible from outside the app, so the register is snapshotted either side of a fold.
  *
  * **Both figures are read out of the database at the moment they are asserted**, never written down
- * here. The specs that run before this one share `data/e2e.db` and register households of their own,
- * some of them RED and some of them served on this very day, so `34 von 61` is a fact about the
- * register at this moment rather than a property of this spec's block. What the block *does* own is
- * the three households whose rows are asserted one by one, and the move: exactly one of them is
- * served, so the delta is this spec's whatever the base is.
+ * here — the specs before this one share `data/e2e.db`, so `34 von 61` is a fact about the register
+ * at this moment. What this block owns is three households and the move.
  *
- * The numbers sit at 301–305 rather than above `group-walk.spec.ts`'s 311–317. That spec runs
- * *after* this one (the suite is serial in alphabetical file order) and asserts that 317 is the last
- * RED number in the whole register, so an odd — and therefore RED (US-31) — household seeded above it
- * here would fail a spec this one is not allowed to touch.
+ * The numbers sit at 301–305 rather than above `group-walk.spec.ts`'s 311–317: that spec runs after
+ * this one and asserts 317 is the last RED number in the register (ADR-017).
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date

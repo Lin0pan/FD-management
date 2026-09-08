@@ -11,26 +11,19 @@ import { fillPersonalData as fillPersonalDataOn, type Person } from "./registrat
 import { releaseNumbers } from "./seeding";
 
 /**
- * Registering a customer, driven through the built app
- * (tasks/prd-us-01-register-customer.md §US-01.7, tasks/prd-us-24-choose-customer-number.md
- * §US-024.5).
+ * Registering a customer, driven through the built app (`tasks/prd-us-01-register-customer.md`
+ * §US-01.7, `tasks/prd-us-24-choose-customer-number.md` §US-24.5).
  *
- * This is the only proof that the whole chain holds together — form, server action,
- * `registerCustomer`, the Prisma adapter and the partial unique index on the customer number. The
- * unit gates cover each of those in isolation; what they cannot see is a customer number that never
- * reaches the card, or a rejection that quietly wrote half a household.
+ * The only proof that the whole chain holds together — form, action, use case, adapter and the partial
+ * unique index. What the unit gates cannot see is a customer number that never reaches the card, or a
+ * rejection that quietly wrote half a household.
  *
- * Since US-24 the number is a *choice*, and the whole feature is the difference between the number
- * the form offered and the number the database stored — a difference no layer below the browser can
- * be asked about. So the second half of this file is about the dropdown: what it opens on, what it
- * offers, that a number picked out of it is the number saved, and that a number posted around it is
- * refused without writing anything.
+ * The second half is about the dropdown (US-24): what it opens on, what it offers, that a number
+ * picked out of it is the number saved, and that a number posted *around* it writes nothing.
  *
- * The specs run **serially against one shared database** (`data/e2e.db`, deleted and re-seeded
- * before the server boots): they share the customer-number sequence with every other spec file, so
- * nothing here names a customer number outright. The happy path reads the one the form proposes, the
- * rejection spec asserts that the same number is still free afterwards, and the pool specs seed
- * {@link NUMBERS} — a band of their own — and read the ends of the register out of Prisma.
+ * The specs run **serially against one shared database**, sharing the customer-number sequence with
+ * every other spec file — so nothing here names a number outright. The pool specs seed
+ * {@link NUMBERS}, a band of their own.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -44,20 +37,13 @@ const CHILD_BIRTH_DATE = "2020-06-15";
 const CERTIFICATE_VALID_UNTIL = "2027-03-31";
 
 /**
- * The three numbers the dropdown specs own.
+ * The three numbers the dropdown specs own — high, but **inside the quota of 240**, which is what makes
+ * this band different from the others. The pool is `1..quotaN`, so a household seeded above the quota
+ * is invisible to the control and could not prove that a taken number is kept out of a list it was
+ * never in.
  *
- * High, and clear of the low sequence the registration, archive, card and re-registration specs
- * consume — but **inside the quota of 240**, which is what makes this band different from the ones
- * the other specs took (241 upwards). The pool the control offers is `1..quotaN`, so a household
- * seeded above the quota is invisible to it: a number nobody may pick could not prove that a taken
- * number is kept out of the list, because it was never in it. 232–236 are free of every band listed
- * in `scripts/ralph/progress.txt` — counter (201–209, 239), allowance (211), serve (213–219),
- * number change (221–229) and reminders (231) are the only ones below 240.
- *
- * All three are **even, and therefore BLUE** (US-31), because the control offers one week at a time:
- * two numbers of different parity are never on the same list, so a spec comparing what is offered
- * with what is not has to compare them inside one week. That is why the specs below check the BLUE
- * radio before reading the list — the week is now the first half of choosing a number.
+ * All three are **even, and therefore BLUE** (ADR-017): the control offers one week at a time, so a
+ * spec comparing what is offered with what is not has to compare inside one week.
  */
 const NUMBERS = {
   /** Held by an active household: never an option, and the number the stale form posts. */
@@ -121,16 +107,11 @@ async function typedValues(page: Page): Promise<Record<string, string>> {
 }
 
 /**
- * Put one household on a number of this spec's own, straight through Prisma.
+ * Put one household on a number of this spec's own, straight through Prisma — what is under test is
+ * the *pool*, not the intake, and the form allocates the lowest free number anyway.
  *
- * Through the database rather than through the form because what is under test is the *pool*, not
- * the intake: registering two more households on the screen would prove US-01 again and could not
- * put anybody on a number of my choosing anyway — the form allocates the lowest free one unless
- * somebody picks, which is the very thing being set up here.
- *
- * An archived row is seeded as archived rather than archived through the app: `archive.spec.ts`
- * drives that flow, and what this spec needs is only the state it leaves behind — a household that
- * kept its number as history and gave up the slot.
+ * An archived row is seeded archived rather than archived through the app: `archive.spec.ts` drives
+ * that flow, and what this spec needs is only the state it leaves behind.
  */
 async function seedHousehold(customerNumber: number, status: "ACTIVE" | "ARCHIVED"): Promise<void> {
   const firstName = faker.person.firstName();
@@ -191,16 +172,11 @@ async function seedHousehold(customerNumber: number, status: "ACTIVE" | "ARCHIVE
 /**
  * The lowest free number of one week, as the *database* has it at this moment.
  *
- * Worked out here rather than imported from `src/domain/customer/customerNumber.ts`: the claim is
- * that the control opens on the number the register implies, and computing the expectation with the
- * very function under the screen would make the assertion agree with itself. It is the same two
- * facts the repository reads — every number a non-archived household holds (a blocked one still
- * occupies its slot; only archiving releases it) and the quota in force — and it has to be read at
- * assertion time, because the specs before this file in the alphabet have all moved it.
+ * **Worked out here rather than imported from the domain**: computing the expectation with the very
+ * function under the screen would make the assertion agree with itself whatever the rule says. That
+ * is also why the parity is written out as `candidate % 2` rather than taken from `groupOf`.
  *
- * Narrowed to one week because the control offers one week (US-31), and the parity is written out
- * here — `candidate % 2` — rather than taken from `groupOf`, for the same reason the loop is: an
- * expectation computed with the rule under test agrees with itself whatever the rule says.
+ * Read at assertion time, because every spec before this one in the alphabet has moved it.
  */
 async function lowestFreeNumberIn(group: Group): Promise<number> {
   const [settings, holders] = await Promise.all([
@@ -385,11 +361,9 @@ test.describe("Kundenaufnahme", () => {
   }) => {
     await page.goto("/kunden/neu");
 
-    // The number the previous registration consumed has left the pool. *Which* number replaced it is
-    // the balance's business since US-31 — the form opens on the lowest free slot of the week it
-    // recommends, and taking a slot moves that recommendation — so what is asserted here is the
-    // slot's absence rather than its successor's name. Nothing below registers anybody, so the
-    // number the form does open on has to still be free at the end.
+    // The number the previous registration consumed has left the pool. *Which* replaced it is the
+    // balance's business (ADR-017), so what is asserted is the slot's absence rather than its
+    // successor's name.
     await expect(option(page, Number(registeredNumber))).toHaveCount(0);
     const proposedNumber = await page.getByTestId("customer-number-select").inputValue();
 
@@ -445,13 +419,11 @@ test.describe("Kundenaufnahme", () => {
   // opened on, which is what makes it the proof that the default did not move.
 
   test("the control opens on the lowest free number of the week it stands in", async ({ page }) => {
-    // Read from the database, not written down: three specs before this one in the alphabet
-    // register households, and the two above it in this file do too, so the lowest free number is a
-    // fact about the whole run rather than a constant anybody could state here.
+    // Read from the database, not written down: the lowest free number is a fact about the whole run
+    // rather than a constant anybody could state here.
     //
-    // Of *the week*, not of the register: the list is one week's slots since US-31, so the lowest
-    // free number the control could open on is the lowest with the parity of the checked radio. The
-    // week is read off the screen and the number out of the database — neither is worked out twice.
+    // Of *the week*, not the register: the list is one week's slots (ADR-017), so the week is read off
+    // the screen and the number out of the database — neither is worked out twice.
     await page.goto("/kunden/neu");
     const group = await checkedGroup(page);
     const lowest = await lowestFreeNumberIn(group);
@@ -526,10 +498,8 @@ test.describe("Kundenaufnahme", () => {
     await page.goto("/kunden/neu");
     await fillPersonalData(page, person(faker.person.lastName()));
 
-    // A stale form: the number was on offer when the page was rendered and somebody has taken it
-    // since. The option is put back by hand because the *server* is what has to refuse it — a
-    // control that no longer lists the number cannot prove anything about the rule behind it, and
-    // this is exactly the shape a form left open over a distribution day would post.
+    // A stale form. The option is put back by hand because the *server* is what has to refuse it — a
+    // control that no longer lists the number proves nothing about the rule behind it.
     await page
       .getByTestId("customer-number-select")
       .evaluate((select: HTMLSelectElement, value: string): void => {

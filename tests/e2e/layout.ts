@@ -3,14 +3,10 @@ import { expect, type Locator } from "@playwright/test";
 /**
  * Assertions about what a screen actually *shows*, as opposed to what it renders.
  *
- * Every other assertion in this suite reads the DOM, and the DOM is not the screen. A row can be
- * present, populated, correct and `toBeVisible()` — Playwright's visibility is a non-empty box and a
- * `visibility`/`display` that do not hide it — while an opaque element is painted on top of it. That
- * is not a hypothetical: `/kunden` shipped with a sticky table header offset 48px into a scrollport
- * whose scroll top was 0, which pushes a sticky box *down* rather than leaving it alone. The header
- * covered the first row of the register at every window narrower than 1280px. Fifteen specs asserted
- * that row's contents and all fifteen passed, because the row was there — DF simply could not see it,
- * and reported a customer missing from the list.
+ * Every other assertion in this suite reads the DOM, and the DOM is not the screen: a row can be
+ * present, correct and `toBeVisible()` while an opaque element is painted on top of it. Not
+ * hypothetical — `/kunden` shipped a sticky header covering the register's first row at every window
+ * narrower than 1280px, and fifteen specs asserting that row's contents all passed.
  *
  * So the check here is the browser's own: hit-test the middle of the element and ask what would be
  * clicked. Nothing else in the suite can see a covered element.
@@ -34,15 +30,13 @@ export const GATE_WIDTH = 1280;
 export const BELOW_BREAKPOINT = { width: 1100, height: 800 } as const;
 
 /**
- * What is painted over the centre of `target`, or `null` when the answer is `target` itself.
+ * What is painted over the centre of `target`, or `null` when the answer is `target` itself. The
+ * centre is the point Playwright would click, so a non-null answer is also an element staff cannot
+ * click. It returns a *description* rather than a boolean, the name of the thing on top being the
+ * whole diagnosis.
  *
- * The centre point is the same point Playwright would click, so a non-null answer here is also an
- * element the staff member cannot click. Returns a description rather than a boolean, because the
- * name of the thing on top is the whole diagnosis: `THEAD ▸ TH "Kundennummer"` says "the sticky
- * header is over the first row" and a `false` says nothing at all.
- *
- * @throws if the element's centre lies outside the viewport, where the browser cannot hit-test at
- *   all — scroll it into view first, and be aware that scrolling is what moves a sticky element.
+ * @throws if the element's centre lies outside the viewport, where the browser cannot hit-test —
+ *   scroll it into view first, and be aware that scrolling is what moves a sticky element.
  */
 export async function coveringElement(target: Locator): Promise<string | null> {
   return target.evaluate((element: Element) => {

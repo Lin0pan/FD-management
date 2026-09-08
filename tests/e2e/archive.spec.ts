@@ -9,27 +9,20 @@ import { SHARED } from "./registers";
 import { fillDay, fillSticky, hydrated } from "./day";
 
 /**
- * Archiving a household and watching their customer number come back into circulation, driven through
- * the built app (tasks/prd-us-10-archive-customer.md §US-10.5).
+ * Archiving a household and watching their customer number come back into circulation
+ * (`tasks/prd-us-10-archive-customer.md` §US-10.5).
  *
- * Every piece is already proved in isolation: `transition` refuses a reason-less archive in the domain
- * gate, `archiveCustomer` stamps the row and keeps the children against fakes, `takenActiveNumbers`
- * skips archived rows against a throwaway SQLite file, and `findByCustomerNumber` prefers the active
- * holder. What none of them can see is the sentence DF actually cares about — *the number is free
- * again, and the household is still on file*. Those are two claims about two different customers on
- * three different screens, so this spec drives the whole mechanic end to end: register a household,
- * serve them so the archive has something to keep, archive them with a reason, and then watch the very
- * next registration be handed the number they gave up.
+ * Every piece is proved in isolation. What none of them can see is the sentence DF cares about — *the
+ * number is free again, and the household is still on file* — which is two claims about two customers
+ * on three screens. So the spec registers a household, serves them so the archive has something to
+ * keep, archives them with a reason, and watches the next registration be handed the number.
  *
- * Unlike the other specs here, this one **registers through the form rather than seeding through
- * Prisma**, and therefore names no customer number of its own: the freed number is only interesting
- * because the allocator handed it out, gave it back and handed it out again. It reads the number off
- * the proposal, exactly as the registration and card specs do, so the shared `data/e2e.db` sequence
- * stays undisturbed — this spec consumes one number net and leaves an archived row behind on it.
+ * It **registers through the form rather than seeding**: the freed number is only interesting because
+ * the allocator handed it out, gave it back and handed it out again. It therefore names no customer
+ * number of its own and consumes one net.
  *
- * "Still findable" is asserted through the record URL. Archiving frees the number, so the number is no
- * longer a way back to the household who gave it up (the counter answers whoever holds it now) — until
- * the customer search of US-15 exists, the surrogate id is the only find path there is.
+ * "Still findable" is asserted through the record URL — archiving frees the number, so the number is
+ * no longer a way back to the household who gave it up.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -244,11 +237,9 @@ test.describe("Kunde archivieren", () => {
     await page.getByTestId("archive-reason").fill("x");
     await expect(page.getByTestId("archive-submit")).toBeEnabled();
 
-    // The disabled button is a courtesy, not the guard: the rule lives in the state machine, behind
-    // the use case. So the courtesy is stepped around — the field is blanked in the DOM without
-    // telling React, which leaves the button enabled and submits a whitespace-only reason — and the
-    // server is made to answer for itself. Spaces rather than an empty string, because `required`
-    // would otherwise stop the form before it ever reached the action.
+    // The disabled button is a courtesy, not the guard, so it is stepped around — the field is blanked
+    // in the DOM without telling React — and the server is made to answer for itself. Spaces rather
+    // than an empty string, because `required` would stop the form before it reached the action.
     await page.getByTestId("archive-reason").evaluate((field: HTMLTextAreaElement) => {
       field.value = "   ";
     });

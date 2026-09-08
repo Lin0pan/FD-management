@@ -10,32 +10,22 @@ import { fillDay } from "./day";
 import { releaseNumbers } from "./seeding";
 
 /**
- * The Maximalpreis from the settings screen to the counter
- * (tasks/prd-us-26-price-cap.md §US-26.7 and §US-26.8).
+ * The Maximalpreis from the settings screen to the counter (`tasks/prd-us-26-price-cap.md` §US-26.7,
+ * §US-26.8).
  *
- * This is the scenario the whole PRD exists for, and it is the one thing the unit gates cannot see.
- * `priceFor` is proved to return `min(sum, cap)` in the domain gate, and the settings round trip in
- * `settings.spec.ts`. What neither can answer is whether **every screen that quotes a price reaches
- * that function** — the counter, the customer record, the customer list and the browser-side
- * household editor each derive the figure for themselves, and a fourth caller that multiplied the
- * per-head prices by the counts itself would be invisible to ESLint, to the type system and to both
- * gates. So this spec seeds DF's own example — four grown-ups and three children, owing 11,00 € per
- * head under a Maximalpreis of 5,00 € — and reads the number off all four.
+ * `priceFor` is proved below. What no gate can answer is whether **every screen that quotes a price
+ * reaches that function** — four of them derive the figure for themselves, and a fifth caller
+ * multiplying the per-head prices itself would be invisible to ESLint, the type system and both
+ * gates. So this seeds DF's own example and reads the number off all four.
  *
- * The other half is that the cap is a *setting* and not a constant. The same household is priced
- * again with the cap cleared and states 11,00 € everywhere, which no hard-coded 5,00 € could do.
- * That the cap limits money and nothing else no longer has a witness on the screen — US-27 withdrew
- * the one quantity of food the software used to state — and it is deliberately not faked with a
- * different figure: what is left to assert is that the counts keep rising while the price does not.
+ * The other half is that the cap is a *setting* and not a constant: the same household priced again
+ * with the cap cleared states 11,00 € everywhere, which no hard-coded 5,00 € could do.
  *
- * And the third: a hand-out recorded under one cap keeps its price when the cap later changes. The
- * `priceCents` on the distribution record is asserted **in the database**, because the row is what
- * outlives the policy — the settings history is how the software can still explain it.
+ * And the third: a hand-out recorded under one cap keeps its price when the cap changes, asserted
+ * **in the database**, because the row is what outlives the policy.
  *
- * The household takes customer number 321, a band no other spec uses, and it is well above the
- * quota of 240 so it never appears in the /kunden/neu number pool the registration specs assert
- * against. Its card prints the household it actually has, so it stays off the cards-due list that
- * the reissue spec reads.
+ * The household takes 321, above the quota so it never appears in the /kunden/neu pool, with a card
+ * printing the household it actually has so it stays off the cards-due list.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. The

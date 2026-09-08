@@ -13,14 +13,12 @@ import { releaseNumbers } from "./seeding";
 
 /**
  * The customer balance, from the counter to the next week's amount to pay
- * (tasks/prd-us-29-customer-balance.md §US-29.9).
+ * (`tasks/prd-us-29-customer-balance.md` §US-29.9).
  *
- * The arithmetic is proved in the domain gate and the two use cases against fakes. What no unit test
- * can see is the **carry**: that a household who hands over 1,00 € of 3,00 € on one distribution day
- * is asked for 5,00 € on the next one, because the shortfall travelled through a write, a redirect,
- * a fresh page load and a derivation over the rows that survived. That chain is this spec, and it is
- * the reason the balance is derived rather than stored — a stored one would be proved by a test that
- * merely read back what the same code had written.
+ * The arithmetic is proved below. What no unit test can see is the **carry**: a household who hands
+ * over 1,00 € of 3,00 € is asked for 5,00 € a fortnight later, because the shortfall travelled
+ * through a write, a redirect, a page load and a derivation over the rows that survived — which is
+ * the reason the balance is derived rather than stored.
  *
  * Four households, each carrying one of the four cases the design turns on:
  *
@@ -31,15 +29,11 @@ import { releaseNumbers } from "./seeding";
  * | 346    | 1 grown-up, 1 kid | a credit larger than the price — the next hand-out costs nothing |
  * | 348    | 4 grown-ups, 3 kids | the cap: an amount to pay *above* the Maximalpreis           |
  *
- * They are **even, and therefore BLUE** (US-31), and that is not decoration: `group-walk.spec.ts`
- * runs after this file and asserts that 317 is the highest RED number in the whole shared register,
- * so an odd number seeded here would fail a spec this one is not allowed to touch. `eggs.spec.ts`
- * sits above 317 on even numbers for the same reason. Which week they are in decides which Thursdays
- * they may be served on, and nothing else — and it is not seeded, it *is* the number.
+ * They are **even, and therefore BLUE** (ADR-017), which is not decoration: `group-walk.spec.ts` runs
+ * after this file and asserts that 317 is the highest RED number in the shared register.
  *
- * The days are two BLUE distribution days a fortnight apart, pinned through the clock seam exactly
- * as `age-13.spec.ts` and `reminders.spec.ts` pin theirs. Two days is what the carry needs: one to
- * leave an amount open on, and one to be asked for it again.
+ * The days are two BLUE distribution days a fortnight apart, pinned through the clock seam — two days
+ * being what the carry needs: one to leave an amount open on, and one to be asked for it again.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date

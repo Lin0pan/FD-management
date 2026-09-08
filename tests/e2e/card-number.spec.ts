@@ -8,28 +8,20 @@ import { SHARED } from "./registers";
 import { fillDay, hydrated } from "./day";
 
 /**
- * A card number is handed out once and never again, driven through the built app
- * (tasks/prd-us-25-globally-unique-card-numbers.md §US-025.6).
+ * A card number is handed out once and never again
+ * (`tasks/prd-us-25-globally-unique-card-numbers.md` §US-25.6).
  *
- * Every piece is proved on its own: `nextCardIndex` counts on from the highest in the domain gate,
- * `highestIndexForNumber` reads the slot's whole run against a throwaway SQLite file, and
- * `registerCustomer` and `issueCard` both ask it against fakes. What none of them can see is the bug
- * that motivated the story, because it needs *two households and a customer number in between*: a
- * customer number is a slot an archived household gives back (US-10, US-24), so the household who
- * takes it over used to be handed `<slot>k1` — the very number the household who left is still
- * carrying on a piece of card. The counter then answered „Ausgabe frei" to a card belonging to a
- * household that is no longer on the register, and every unit suite in the project stayed green.
+ * Every piece is proved on its own. What none of them can see is the bug that motivated the story,
+ * because it needs *two households and a customer number in between*: a slot an archived household
+ * gives back used to hand its next holder `<slot>k1` — the very number the one who left is still
+ * carrying — and the counter answered „Ausgabe frei“ to it while every unit suite stayed green.
  *
- * So this spec walks the whole sequence on one slot: register, note the card, archive, register
- * somebody else on the same number, and ask the counter about both cards. It then asks the database
- * the question the screens cannot — that no two card rows share a number, and that nothing was
- * deleted to arrange it — and reissues once, to prove the run goes on counting upwards rather than
- * back over the numbers the slot has already spent.
+ * So this walks the whole sequence on one slot: register, note the card, archive, register somebody
+ * else on the same number, ask the counter about both cards, then ask the database that no two card
+ * rows share a number and nothing was deleted to arrange it.
  *
- * Unlike the specs that read the number off the proposal, this one **picks its number** (US-24): the
- * two households have to land on the *same* slot, which the allocator would never do while the first
- * of them holds it. {@link SLOT} is therefore a number of this spec's own — high, inside the quota
- * of 240 so the control offers it at all, and clear of every other spec's band.
+ * It **picks its number** (US-24) rather than reading the proposal: the two households have to land
+ * on the *same* slot, which the allocator would never do while the first of them holds it.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date

@@ -12,34 +12,21 @@ import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
 
 /**
- * The distribution-day happy path, driven through the built app
- * (tasks/prd-us-05-record-attendance.md §US-05.5).
+ * The distribution-day happy path (`tasks/prd-us-05-record-attendance.md` §US-05.5).
  *
- * `recordAttendance` is proved case by case against fakes, and the once-per-day constraint against a
- * throwaway SQLite file. What neither can see is the counter loop a staff member actually performs:
- * type a number, read the verdict, press the button, watch the screen switch to today's record. So
- * this spec records a hand-out on the real screen against a real database and asserts the German
- * confirmation, then proves the things the UI must never let slip — a second hand-out on the same
- * day (the button is simply gone, and only one row exists), an amount typed over the pre-filled one
- * (the row stores what was handed over, down to `0`), and, since US-32, *what the screen does with
- * the household afterwards*.
+ * The rules are proved below. What no unit gate can see is the counter loop a staff member performs:
+ * type a number, read the verdict, press the button, watch the screen switch. So this records a
+ * hand-out on the real screen and proves what the UI must never let slip — a second hand-out on the
+ * same day, an amount typed over the pre-filled one, and *what the screen does with the household
+ * afterwards*.
  *
- * That last one is the spine of the spec now. A recorded hand-out **clears the counter**: the write
- * navigates, the household leaves the screen and the confirmation stands at the top of the empty one
- * the next person is about to be typed into, with „Korrigieren“ one click back to them. Nothing else
+ * **That last one is the spine.** A recorded hand-out clears the counter: the write navigates and the
+ * confirmation stands at the top of the empty screen the next person is typed into. Nothing else
  * clears it — the overpayment question and a saved correction both leave the household standing,
- * because an answer is still owed on the first and the staff member is still working on the second.
- * Each of those is a test here, because each is a way the screen could silently start throwing a
- * household away while someone is still being served.
+ * because an answer is still owed on the first and the work is unfinished on the second.
  *
- * The Betrag field replaced the „Bezahlt" checkbox in US-29.7; the balance's own spine — a part
- * payment carried to the next hand-out — is `balance.spec.ts`'s (US-29.9).
- *
- * Five households are seeded straight through Prisma: all RED, active, current certificate, one card.
- * They take the odd numbers 213–219 and 243 so the registration and card specs, which allocate the
- * *lowest* free number in the shared `data/e2e.db`, keep the low sequence they assert against, and so
- * they stay clear of the counter spec's 201–209/239, the allowance spec's 211, the number-change
- * spec's 221–229, the reminder spec's 231, the registration spec's 232–236 and the block spec's 241.
+ * Five households seeded through Prisma, all RED, on the odd numbers 213–219 and 243 — clear of the
+ * bands the other specs own in the shared `data/e2e.db`.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -240,11 +227,9 @@ test.describe("Ausgabe erfassen", () => {
     await expect(page.getByTestId("serve-amount")).toHaveValue(formatEuroAmount(PRICE_CENTS));
     await page.getByTestId("serve-button").click();
 
-    // On success the write navigates: the screen comes back to its initial state for the next
-    // household, and a confirmation at the top names the one that just left (US-32.7). Every one of
-    // the four facts is asserted, because the household is no longer on the screen to supply any of
-    // them — a confirmation that dropped the name would leave „3,00 € um 10:00 Uhr" attached to
-    // nobody, in front of a staff member who has already turned to the next person.
+    // The write navigates, so the screen comes back ready for the next household with a confirmation
+    // naming the one that just left (US-32.7). All four facts are asserted, because the household is
+    // no longer on screen to supply any of them.
     await expect(page).toHaveURL(/\/ausgabe\?erfasst=\d+$/);
     const confirmation = page.getByTestId("serve-recorded-confirmation");
     await expect(confirmation).toBeInViewport();
@@ -299,11 +284,9 @@ test.describe("Ausgabe erfassen", () => {
   });
 
   test("clears the screen and states the hand-out at the top of it", async ({ page }) => {
-    // The opposite of what this spec asserted until US-32. The confirmation used to be read where
-    // the button was pressed, two screens down, with the served household still on the page. DF
-    // worked real afternoons on that screen: the next person is already at the counter while it
-    // still shows the last one. So the write navigates, and the answer is at the top of the empty
-    // screen the navigation lands on — which is also where the eye already is.
+    // The next person is already at the counter while the screen still shows the last one, so the
+    // write navigates and the answer is at the top of the empty screen it lands on — which is also
+    // where the eye already is.
     await lookUp(page, NUMBERS.inView);
     await page.getByTestId("serve-button").scrollIntoViewIfNeeded();
 
@@ -319,18 +302,14 @@ test.describe("Ausgabe erfassen", () => {
   test("hands the cursor back to an empty Nummer field for the next household", async ({
     page,
   }) => {
-    // The half of „the screen returns to its initial state" that no other assertion here can see.
-    // The screen coming back *empty* is visible in the DOM; the screen coming back **ready to be
-    // typed into** is not, and it is the half the counter is actually driven by — a staff member
-    // types the next number without touching the mouse, ~120 times an afternoon.
+    // The screen coming back *empty* is visible in the DOM; coming back **ready to be typed into** is
+    // not, and that is the half the counter is driven by — ~120 numbers an afternoon without touching
+    // the mouse.
     //
-    // It is gated because it is one prop away from silently vanishing. A `redirect` out of a server
-    // action is a *soft* navigation: React reconciles the input that is already in the tree instead
-    // of mounting a fresh one, and `autoFocus` fires only on mount. `page.tsx` keys the field on the
-    // hand-out just recorded so that it remounts. Delete that key and the field still comes back
-    // empty — so every other assertion in this spec goes on passing — while the cursor is left
-    // nowhere and `toBeFocused` below is the only thing that says so
-    // (`docs/guideline/ui_styling_guide.md` §7).
+    // Gated because it is one prop away from silently vanishing: a `redirect` is a *soft* navigation,
+    // so React reconciles the existing input and `autoFocus` fires only on mount. Delete `page.tsx`'s
+    // key and the field still comes back empty — every other assertion goes on passing — while the
+    // cursor is left nowhere (`docs/guideline/ui_styling_guide.md` §7).
     await lookUp(page, NUMBERS.focused);
 
     await page.getByTestId("serve-button").click();

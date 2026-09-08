@@ -11,37 +11,22 @@ import { fillDay, fillSticky, hydrated } from "./day";
 import { fillPersonalData, type Person } from "./registration-form";
 
 /**
- * The customer number decides the group, driven through the built app
- * (tasks/prd-us-31-number-decides-the-group.md §US-31.8).
+ * The customer number decides the group (`tasks/prd-us-31-number-decides-the-group.md` §US-31.8,
+ * ADR-017): **even is BLUE, odd is RED**, so a household on 37 in BLUE is not a state anything can
+ * represent.
  *
- * DF have always worked to a rule the software did not know: **even numbers are BLUE, odd numbers
- * are RED**. Until US-31 a group was a second thing to store beside the number, which is two answers
- * to one question and the Excel failure this project exists to replace. Now there is one answer —
- * `groupOf(customerNumber)` — and no rule to enforce, because a household on 37 in BLUE is not a
- * state anything can represent.
+ * Every piece is proved on its own. What none of them can see is that the *screens* say one thing —
+ * the intake, the record, the card, „Karten neu ausstellen“, the counter and the customer list all
+ * state a week, and each derives it. So this spec walks one register from empty to a household that
+ * has changed weeks, reading the consequence off every screen that shows one.
  *
- * Every piece is proved on its own: `groupOf` in the domain gate, the allocation and the derivation
- * against fakes, the two dropped columns against a throwaway SQLite file. What none of them can see
- * is that the *screens* say one thing: the intake, the record, the card, „Karten neu ausstellen",
- * the counter and the customer list all state a week, and each of them derives it. So this spec
- * walks one register from an empty one to a household that has changed weeks, and reads the
- * consequence off every screen that shows one.
+ * **It owns a register**, running in the `isolated` project, because one of its subjects is a *week
+ * that is full while the register is not* — reachable only by deciding the quota, which is a single
+ * global number the shared register's hundreds put out of reach. Owning one is also what lets every
+ * figure be an absolute number rather than a delta.
  *
- * ## Why this spec owns a register
- *
- * It runs in the **`isolated` project** (`playwright.config.ts`), the second server with the second
- * database, because one of its subjects is a **week that is full while the register is not** — with
- * a quota of 240 there are 120 odd slots and 120 even ones, and either half can run out on its own.
- * That state can only be reached by deciding the quota, and the quota is a single global number: on
- * the shared register the specs before this one hold numbers in the hundreds, and no quota this file
- * could set would be both above the active count and low enough to exhaust one parity.
- *
- * Owning a register is also what lets every figure here be an absolute number rather than a delta.
- * Six slots, six households, and „Rot 3, Blau 3" means what it says.
- *
- * `waiting-list.spec.ts` shares that register and runs after this file (the suite is serial in
- * alphabetical file order); it empties the register and sets its own quota in its opening test, so
- * what this one leaves behind is nobody's business but its own.
+ * `waiting-list.spec.ts` shares that register and runs after this file, emptying it in its opening
+ * test — so what this one leaves behind is nobody's business but its own.
  */
 
 // A fixed seed so a failure is reproducible; only names come from Faker. Every date stays a literal,

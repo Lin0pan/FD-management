@@ -9,37 +9,23 @@ import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
 
 /**
- * A child turns 13 and every number that depends on it follows, driven through the built app
- * (tasks/prd-us-13-age-13-reclassification.md §US-13.5).
+ * A child turns 13 and every number that depends on it follows
+ * (`tasks/prd-us-13-age-13-reclassification.md` §US-13.5).
  *
- * Each piece is already proved in isolation: `composition` flips at Berlin midnight in the domain
- * gate, `describeAllowance` resolves the price from the counts, `listCardsDueForReissue`
- * compares what a card printed against the record today, and `staleCardReason` names the
- * difference. What none of them can see is the claim the story actually makes — *nobody did
- * anything, and the numbers changed anyway*. That claim spans three screens and a clock, so this
- * spec follows one household across a birthday: read the derived figures off the record, move the
- * app's today past the 13th birthday, reload the very same screen, and watch the counts and the
- * price move — and the egg count stay — with no request in between having written a thing.
+ * Each piece is proved in isolation. What none of them can see is the claim the story makes —
+ * *nobody did anything, and the numbers changed anyway* — so this spec reads the derived figures off
+ * the record, moves the app's today past the birthday, reloads the same screen, and watches the
+ * counts and the price move while the egg count stays.
  *
- * The absence is the substance, so it is asserted the way the reissue spec asserts a refusal: one
- * Prisma snapshot of everything the household owns, taken either side of the clock change. If the
- * new numbers came from a write rather than a derivation, the two snapshots differ.
+ * **The absence is the substance**, so it is asserted with one Prisma snapshot either side of the
+ * clock change: if the new numbers came from a write rather than a derivation, the two differ.
  *
- * The second half is FR-5: the card in the customer's hand is now printed with counts nobody holds
- * any more, and that is *not* a problem to be solved before they are served. So the stale card is
- * presented at the counter and must still be clear to serve, with the note beside the verdict rather
- * than instead of it — and only then does the reissue take the household off the list.
+ * The second half is FR-5: a card printed with counts nobody holds any more is *not* a problem to be
+ * solved before the household is served, so the stale card is presented at the counter and must
+ * still be clear to serve.
  *
- * One household is seeded straight through Prisma: RED, active, current certificate, one card printed
- * with the counts it really had. Three people — a grown-up, the child about to turn 13, and a baby.
- * The baby is there for the fourth figure on those screens: the egg allowance counts heads and not
- * ages (US-28), so *the eggs do not move* is only worth asserting about a household that reaches a
- * step of the rule at all — a household of two would read `0` on both days whatever the rule said.
- *
- * It takes number 271, clear of the low sequence the registration and card specs allocate against
- * and of the counter (201–209/239), allowance (211), serve (213–219), number change (221–229),
- * reminders (231), block (241)
- * and reissue (251) specs in the shared `data/e2e.db`.
+ * One household on number 271, three people — the baby is there because the egg allowance counts
+ * heads and not ages (US-28), and a household of two would read `0` whatever the rule said.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -84,16 +70,12 @@ const BABY_BIRTH_DATE = "2024-03-05";
 const CERTIFICATE_VALID_UNTIL = "2027-06-30";
 
 /**
- * What the seeded settings make of each household composition.
+ * What the seeded settings make of each household composition. The **price** moves on the birthday
+ * and not only the counts, which is the point: a spec where only the counts changed would pass
+ * against an app that derived the counts and stored the money.
  *
- * 200c per grown-up and 100c per child. One grown-up and two children is therefore 4,00 €; two
- * grown-ups and one child is 5,00 €. The price moves on the birthday and not only the counts, which
- * is the point — a spec where only the counts changed would pass against an app that derived the
- * counts and stored the money.
- *
- * The eggs are the figure that must **not** move (US-28). The household is three people on both
- * days, because nobody joined it and nobody left, and the seeded rule hands three people six eggs
- * whatever their ages: a 13th birthday is not an event the egg allowance has any opinion about.
+ * The **eggs** are the figure that must not move (US-28) — the household is three people on both
+ * days, and the rule counts heads.
  */
 const BEFORE = { grownUps: "1", children: "2", eggs: "6", price: "4,00 €" };
 const AFTER = { grownUps: "2", children: "1", eggs: "6", price: "5,00 €" };

@@ -9,52 +9,28 @@ import { fillDay, fillSticky, hydrated } from "./day";
 import { releaseNumbers } from "./seeding";
 
 /**
- * The egg allowance from the settings screen to the counter, driven through the built app
- * (tasks/prd-us-28-egg-allowance.md §US-28.9).
+ * The egg allowance from the settings screen to the counter (`tasks/prd-us-28-egg-allowance.md`
+ * §US-28.9).
  *
- * Every piece is proved in isolation already: `eggsFor` walks the staircase in the domain gate,
- * `createEggRule` refuses an ambiguous or descending one, `describeAllowance` hands the count out
- * with the counts and the price, and the Prisma adapter round-trips the rows. What none of them can
- * see is the claim the story actually makes — *the number a staff member reads off the counter is
- * the one DF typed into the settings screen*. That claim spans a form, a settings version, a use
- * case and three screens, so it is only provable here.
+ * Every piece is proved in isolation. What none of them can see is the claim the story makes — *the
+ * number a staff member reads off the counter is the one DF typed into the settings screen* — which
+ * spans a form, a settings version, a use case and three screens.
  *
- * The two halves of the story are held apart deliberately:
+ * Two halves, held apart deliberately:
  *
- * - **The rule counts heads, not ages.** Four households of 2, 3, 5 and 8 people are seeded — the
- *   three thresholds DF stated and the case below all of them — and the household of three is two
- *   grown-ups and one infant, which is the case the rule's wording exists for. A household entitled
- *   to none reads `0`; the assertion is on the *text of the tile*, because a tile that failed to
- *   render would also pass a check for the absence of a figure.
- * - **The rule is read, never built in.** A row is changed on `/einstellungen` and the same counter
- *   for the same household states the new figure; the rule is then emptied — a legitimate setting —
- *   and every household receives none. Both refusals are driven through the real form, where the
- *   thing worth proving is not the sentence but what surrounds it: nothing written, and the typed
- *   rows still on screen to be corrected.
+ * - **The rule counts heads, not ages.** Four households of 2, 3, 5 and 8 — the three thresholds DF
+ *   stated and the case below all of them — with the household of three being two grown-ups and an
+ *   infant. A household entitled to none reads `0`, asserted on the tile's *text*, because a tile
+ *   that failed to render would also pass a check for an absent figure.
+ * - **The rule is read, never built in.** A row is changed and the same counter states the new
+ *   figure; the rule is then emptied — a legitimate setting — and every household receives none.
  *
- * The price rides along with every reading, because the eggs are free and the one way that could
- * quietly stop being true is a count leaking into the sum. The household of two — and of three,
- * once the baby is added to it — is priced **under** the seeded Maximalpreis, so its price is free
- * to move and does not; the households of five and eight stand at the cap, which is where a price
- * assertion cannot fail on its own and is asserted for completeness rather than as the proof.
+ * The price rides along with every reading, because the eggs are free and a count leaking into the
+ * sum is the one way that could quietly stop being true.
  *
- * ## What this spec leaves behind
- *
- * It saves settings versions, so it **hands the seeded rule back** in its last test — the same
- * courtesy `price-cap.spec.ts` pays with the Maximalpreis, and for the same reason: `settings.spec.ts`
- * runs after it against the shared register and states the rule in force in full.
- *
- * The four households take the **even numbers 332–338**, a band no other spec uses: the counter
- * (201–209, 239), allowance (211), serve (213–219), number change (221–229), reminders (231),
- * registration (232–236), card numbers (237), block (241), reissue (251), age-13 (271),
- * customer-list (281–285), customer-record (291–293), group-progress (301–305), group-walk
- * (311–317) and price-cap (321) specs share the same `data/e2e.db`, and everything here sits above
- * the quota of 240 and clear of the low sequence the allocating specs consume.
- *
- * They are **even, and therefore BLUE** (US-31), which is the same courtesy `balance.spec.ts` pays
- * for the same reason: `group-walk.spec.ts` runs after this file and asserts that 317 is the highest
- * RED number in the whole shared register, so an odd number seeded here would fail a spec this one
- * is not allowed to touch. Nothing here turns on the week — the tiles are read, not served.
+ * It **hands the seeded rule back** in its last test, `settings.spec.ts` running after it against the
+ * shared register. Its households take the **even numbers 332–338**: even, and therefore BLUE
+ * (ADR-017), because `group-walk.spec.ts` asserts that 317 is the highest RED number in the register.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every
@@ -535,13 +511,9 @@ test.describe("Eier", () => {
   });
 
   test("the rule DF stated is typed back in, in any order, and sorts itself", async ({ page }) => {
-    // The register is handed on with DF's own rule, which `settings.spec.ts` states in full after
-    // this file — the courtesy `price-cap.spec.ts` pays with the Maximalpreis.
-    //
-    // Typed top step first, because staff type rows in whatever order they think of them and the
-    // software is what puts them in order: the table keeps the typed order while somebody is in it
-    // (re-sorting would move the row under the cursor) and the reloaded screen shows the sorted
-    // result.
+    // The register is handed on with DF's own rule, which `settings.spec.ts` states in full after this
+    // file. Typed **top step first**, because staff type rows in whatever order they think of them:
+    // the table keeps the typed order while somebody is in it, and the reload shows the sorted result.
     await openSettings(page);
     const typed = [...SEEDED_RULE].reverse();
     for (const [index, row] of typed.entries()) {
