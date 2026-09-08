@@ -1,6 +1,6 @@
 {
   "name": "fd-management",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "private": true,
   "description": "Software supporting the daily operations of the Delbrücker Füllhorn food bank.",
   "engines": {
