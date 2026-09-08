@@ -112,9 +112,8 @@ function matchesArchiveQuery(customer: ArchivedCustomer, query: ArchiveSearchQue
 }
 
 /**
- * A register that behaves like the database will: `stealNext` lets another registration claim the
- * chosen number in the moment between the read and the write, which is what makes the concurrency
- * test meaningful rather than a mocked assertion.
+ * A register that behaves like the database will: `stealNext` claims the chosen number in the moment
+ * between the read and the write, which is what makes the concurrency test real rather than mocked.
  */
 class FakeCustomerRepository implements CustomerRepository {
   readonly created: RegisteredCustomer[] = [];
@@ -134,9 +133,8 @@ class FakeCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * Have the card number this registration was about to print turn out to be spent, `times` over —
-   * what the database says when the slot's run was read stale (US-25). It is a different fault from
-   * `stealNext`: the number is this registration's, and only the card on it was lost.
+   * Have the card number turn out to be spent, `times` over — the database's answer when the slot's
+   * run was read stale (US-25). Not `stealNext`: the number is won, only the card on it was lost.
    */
   stealCardNext(times: number): void {
     this.cardStealsLeft = times;
@@ -144,8 +142,7 @@ class FakeCustomerRepository implements CustomerRepository {
 
   takenActiveNumbers(): Promise<ReadonlyArray<number>> {
     this.reads += 1;
-    // Derived from live status, like the real partial index: a customer holds their slot while they
-    // are ACTIVE or BLOCKED and releases it only when ARCHIVED, so a block never frees a number.
+    // Derived from live status, like the real partial index, so a block never frees a number.
     // `taken` carries the seeded numbers and any a concurrent registration stole.
     const held = this.created
       .filter((customer) => customer.status !== "ARCHIVED")
@@ -154,9 +151,8 @@ class FakeCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * Refused rather than answered. Both group sizes are arithmetic over the numbers the register
-   * already hands out (`countByGroup`, US-31), so a use case that asked for a stored count would be
-   * asking a second source for one fact. The method goes with the port in US-31.5.
+   * Refused rather than answered: both group sizes are arithmetic over `takenActiveNumbers`
+   * (ADR-017), so a use case asking for a stored count would be asking a second source for one fact.
    */
   groupCounts(): Promise<GroupCounts> {
     return Promise.reject(new Error("the group balance is counted from the numbers (US-31)"));
@@ -166,10 +162,7 @@ class FakeCustomerRepository implements CustomerRepository {
     return Promise.resolve(this.created.find((customer) => customer.id === id) ?? null);
   }
 
-  /**
-   * No use case in this file browses the register (US-15.1); the method is here because the port
-   * has it. Answering with nothing is honest — nothing here asks the list a question.
-   */
+  /** Here because the port has it; no use case in this file browses the register (US-15.1). */
   list(): Promise<ReadonlyArray<RegisteredCustomer>> {
     return Promise.resolve([]);
   }
@@ -183,9 +176,8 @@ class FakeCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * Matches the way the adapter's query does: archived rows only, names compared as folded prefixes,
-   * the birthdate exactly, most recently archived first, and never more than `limit` rows. The fold
-   * is the domain's, so the fake and the database cannot drift into two notions of a matching name.
+   * Matches the adapter's query: archived rows only, folded prefixes, the birthdate exactly, most
+   * recent first, at most `limit`. The fold is the domain's, so the two cannot drift.
    */
   searchArchived(
     query: ArchiveSearchQuery,
@@ -319,14 +311,12 @@ class FakeCustomerRepository implements CustomerRepository {
 }
 
 /**
- * A card store that behaves like the table will: cards are kept per customer and `currentCard`
- * answers with the highest index rather than the last one written, so a test can leave a gap in the
- * run — the shape a hand-fixed database or a future deletion would leave — and the use case still
- * has to count on from the top.
+ * A card store that behaves like the table will: `currentCard` answers with the highest index rather
+ * than the last one written, so a test can leave a gap in the run and the use case still counts on
+ * from the top.
  *
- * It is handed the register because a card's slot is *read off the customer row* rather than passed
- * in (US-25) — that is what makes `Card.customerNumber` unable to disagree with the household's, and
- * a fake that let a caller state the slot could be told one the household does not hold.
+ * Handed the register because a card's slot is *read off the customer row* rather than passed in
+ * (US-25) — a fake that let a caller state the slot could be told one the household does not hold.
  */
 class FakeCardRepository implements CardRepository {
   readonly cards = new Map<number, IssuedCard[]>();
@@ -345,9 +335,8 @@ class FakeCardRepository implements CardRepository {
         index,
         issuedAt: new Date(TODAY),
         reason: "FIRST_ISSUE",
-        // What was printed on a card placed straight onto the run is beside the point of these
-        // tests — they are about which index falls due — so every placed card prints the shape
-        // `storedCustomer` builds: one grown-up, one child.
+        // What a placed card printed is beside the point here — these tests are about which index
+        // falls due — so every one prints `storedCustomer`'s shape.
         countsAtIssue: { grownUps: 1, children: 1 },
       });
     }
@@ -369,10 +358,8 @@ class FakeCardRepository implements CardRepository {
 
   /**
    * The same question of every slot at once (US-30.4), grouped by the number the card was **printed
-   * under** rather than by the household holding it today — which is the adapter's `groupBy`, and
-   * the only reading that survives a household moving off a slot and leaving its run behind.
-   *
-   * A slot nobody has ever had a card on is absent, exactly as it is from the aggregate.
+   * under** — the adapter's `groupBy`, and the only reading that survives a household moving off a
+   * slot. A slot with no card is absent, exactly as from the aggregate.
    */
   highestIndexByNumber(): Promise<ReadonlyMap<number, number>> {
     const highest = new Map<number, number>();
@@ -404,9 +391,8 @@ class FakeCardRepository implements CardRepository {
     return Promise.resolve(highest);
   }
 
-  // The adapter counts in SQL; the fake counts in memory. Both count the customer's own rows rather
-  // than the index they have reached, so neither reports a household as having been through cards
-  // that a predecessor on the slot held.
+  // Both count the customer's own rows rather than the index they have reached, so neither reports a
+  // household as having been through a predecessor's cards.
   issueCounts(customerId: number): Promise<CardIssueCounts> {
     const cards = this.cardsOf(customerId);
     return Promise.resolve({
@@ -430,10 +416,7 @@ class FakeCardRepository implements CardRepository {
     return cards;
   }
 
-  /**
-   * The slot a card written for this customer is printed under. An id the register does not know
-   * stands in as -1, which no household holds — the adapter's `UNKNOWN_SLOT` by another name.
-   */
+  /** The slot a card is printed under; an unknown id stands in as the adapter's `UNKNOWN_SLOT`. */
   private printedSlotOf(customerId: number): number {
     return this.slotOf(customerId) ?? -1;
   }
@@ -446,10 +429,9 @@ class FakeCardRepository implements CardRepository {
 }
 
 /**
- * A hand-out history that counts what was done to it. `reissueCard` has no distribution repository
- * in its dependencies at all, so it is handed one here purely so the test can state the rule as
- * behaviour: a replacement card leaves the record of what the household has already collected
- * exactly as it found it (US-09.1). A use case that ever grew a write would fail these counters.
+ * A hand-out history that counts what was done to it. `reissueCard` has no distribution repository at
+ * all, so it is handed one purely to state the rule as behaviour: a replacement card leaves the
+ * hand-out record exactly as it found it (US-09.1).
  */
 class FakeDistributionRecordRepository implements DistributionRecordRepository {
   readonly records: DistributionRecord[] = [];
@@ -562,8 +544,8 @@ function registerInput(overrides: Partial<RegisterCustomerInput> = {}): Register
     ...overrides,
   };
 
-  // The applicant is themselves a household member, so the default household is them and one child.
-  // A test that overrides the rows is saying who lives there, and puts the applicant among them.
+  // The applicant is themselves a household member, so a test overriding the rows has to put them
+  // among the people it names.
   return {
     ...input,
     householdMembers: overrides.householdMembers ?? [
@@ -584,11 +566,10 @@ function registerInputWith(
 
 /**
  * A customer as the register already holds them, built without going through registration — the
- * status is the point of these, and registration only ever produces `ACTIVE`.
+ * status is the point, and registration only ever produces `ACTIVE`.
  *
- * `members` are the people who live *with* the customer, where a test turns on who they are — the
- * customer's own row is always the first and is added here, because a household without it is one
- * the domain refuses. The default is `registerInput`'s: the customer and one child.
+ * `members` are the people who live *with* them; the customer's own row is added here, a household
+ * without it being one the domain refuses.
  */
 function storedCustomer(
   status: CustomerStatus,
@@ -625,9 +606,8 @@ describe("registerCustomer", () => {
   }
 
   /**
-   * Point the fakes at a register. The card store is built with it rather than beside it because it
-   * reads a card's slot off the customer row (US-25), so a store left over from a register a test
-   * replaced would answer for households that are no longer there.
+   * Point the fakes at a register. The card store is built *with* it, because it reads a card's slot
+   * off the customer row (US-25) and a leftover store would answer for households no longer there.
    */
   function useRegister(register: FakeCustomerRepository): void {
     customers = register;
@@ -784,9 +764,9 @@ describe("registerCustomer", () => {
   });
 
   it("retries within the same group after losing a number", async () => {
-    // The balance recommends BLUE and the registration settles on 4; another one takes it first.
-    // The second attempt stays in BLUE and moves to 6 — re-deciding the group would find RED and
-    // BLUE level at two apiece, allocate 1, and put the household in a week nobody chose for them.
+    // The balance recommends BLUE and the registration settles on 4; another takes it first. The
+    // retry stays in BLUE and moves to 6 — re-deciding would find the groups level, allocate 1, and
+    // put the household in a week nobody chose.
     useRegister(new FakeCustomerRepository([2, 5, 7]));
     customers.stealNext(1);
 
@@ -797,10 +777,9 @@ describe("registerCustomer", () => {
   });
 
   it("crosses to the other group only when the one it started in has run out", async () => {
-    // A quota of 4 leaves RED slots 1 and 3 and BLUE slots 2 and 4. RED and BLUE are level, so the
-    // registration starts in RED on 3 — the only RED slot free — and loses it. There is nothing
-    // left of the group it started in, and refusing a household while a slot stands empty is what
-    // the waiting list is for; it is not this state (R-26).
+    // A quota of 4 leaves RED 1 and 3, BLUE 2 and 4. Level, so the registration starts in RED on 3 —
+    // the only free RED slot — and loses it. Nothing is left of that group, and refusing a household
+    // while a slot stands empty is what the waiting list is for, not this state (R-26).
     settings = new FakeSettingsRepository(version({ quotaN: 4 }));
     useRegister(new FakeCustomerRepository([1, 2]));
     customers.stealNext(1);
@@ -948,9 +927,8 @@ describe("registerCustomer", () => {
   it("re-reads the card run for the slot a lost race moved the registration to", async () => {
     await archivedHolder(1, 1, 2, 3);
     await archivedHolder(3, 1, 2, 3, 4, 5);
-    // The first attempt settles on slot 1 and loses it; the second lands on slot 3 — the next one
-    // of the same group — whose run is a different one. An index read before the number was
-    // settled would print 1k4 as 3k4.
+    // The first attempt settles on slot 1 and loses it; the second lands on slot 3, whose run is a
+    // different one. An index read before the number was settled would print 1k4 as 3k4.
     customers.stealNext(1);
 
     const customer = await registerCustomer(deps(), registerInput());
@@ -1142,8 +1120,8 @@ describe("reissueCard", () => {
   }
 
   /**
-   * A customer who already holds card 1 and has a reminder on file — the state a household is in
-   * when they come back having lost the card, so "nothing else changed" has something to be about.
+   * A customer holding card 1 with a reminder on file — the state a household is in when they come
+   * back having lost the card, so "nothing else changed" has something to be about.
    */
   async function holderOfCardOne(status: CustomerStatus = "ACTIVE"): Promise<number> {
     const customer = await customers.create({ ...storedCustomer(status), reminderCount: 2 });
@@ -1183,8 +1161,8 @@ describe("reissueCard", () => {
 
     const card = await reissueCard(deps(), { customerId, reason: "LOST" });
 
-    // The one card-issuing path is recognisable by what it leaves behind: the card stamped with the
-    // injected clock and exactly one entry under the card-issued event.
+    // The one card-issuing path is recognisable by what it leaves behind: a card stamped with the
+    // injected clock and one entry under the card-issued event.
     expect(card.issuedAt).toEqual(new Date(TODAY));
     expect(audit.entries).toHaveLength(1);
     expect(audit.entries[0].what).toBe("customer.card.issued");
@@ -1331,9 +1309,8 @@ describe("proposeRegistration", () => {
   });
 
   it("recommends the other group when the smaller one is full", async () => {
-    // A quota lowered to 4 (US-14) leaves three households parked above it, all of them RED. BLUE
-    // is the smaller group and has nothing left to offer inside the quota, so the recommendation
-    // goes to RED rather than to an empty dropdown.
+    // A quota lowered to 4 (US-14) parks three RED households above it. BLUE is smaller but has
+    // nothing inside the quota, so the recommendation goes to RED rather than an empty dropdown.
     settings = new FakeSettingsRepository(version({ quotaN: 4 }));
     customers = new FakeCustomerRepository([2, 4, 11, 13, 15]);
 
@@ -1362,8 +1339,8 @@ describe("proposeRegistration", () => {
 
     const proposal = await proposeRegistration(deps());
 
-    // Both groups' numbers, so the form can re-filter in the browser when staff pick the other one
-    // rather than going back to the server to look at a list it already holds.
+    // Both groups' numbers, so the form re-filters in the browser rather than going back for a list
+    // it already holds.
     expect(proposal.freeNumbers).toEqual([1, 3, 4, 6, 8]);
   });
 
@@ -1460,8 +1437,8 @@ describe("readCustomer", () => {
   }
 
   /**
-   * A RED household registered on 2026-05-01, i.e. with five own distributions behind them. RED
-   * because 49 is odd, which is the whole of what makes a household RED (US-31) — the distributions
+   * A RED household registered on 2026-05-01, with five own distributions behind them. RED because 49
+   * is odd, which is the whole of what makes a household RED (ADR-017) — the distributions
    * above are the Thursdays of *their* week.
    */
   async function seedLongStanding(): Promise<RegisteredCustomer> {
@@ -2786,11 +2763,9 @@ describe("draftFromArchived", () => {
 });
 
 /**
- * US-11.3 — the returning household. These tests are about a *path* rather than a new use case:
- * re-registration goes through `registerCustomer` exactly as a walk-in does, and what makes it a
- * re-registration is only that the form was filled in from `draftFromArchived`. If a second
- * registration path ever appeared, the number allocation, the group balancing and the audit entry
- * would each have two homes — and only one of them would be fixed the day a rule changed.
+ * US-11.3 — the returning household. About a *path* rather than a new use case: re-registration goes
+ * through `registerCustomer` exactly as a walk-in does. A second registration path would give the
+ * allocation, the balancing and the audit entry two homes, only one of which a rule change would fix.
  */
 describe("re-registering a household from an archived record", () => {
   let customers: FakeCustomerRepository;

@@ -1,30 +1,19 @@
 "use client";
 
 /**
- * Writing the Bemerkung without leaving the counter (US-16.3, US-16.5).
+ * Writing the Bemerkung without leaving the counter (US-16.3, US-16.5) — the moment a note is learned
+ * is the moment the household is standing at the table, and FR-2 asks that nothing the counter
+ * decision rests on cost a further click.
  *
- * The note is what one staff member leaves for the next — "bringt ab jetzt die Tochter mit", "der
- * Nachweis liegt bei der Behörde" — and the moment it is learned is the moment the household is
- * standing at the table. Until now the counter only *showed* it: writing one meant opening the
- * customer record, which loses the lookup and the queue's place. FR-2 asks that nothing the counter
- * decision rests on cost a further click; this was the one field on the card that did.
+ * A disclosure rather than a permanent field, the note being read on every lookup and written on
+ * perhaps one in twenty. Deliberately *not* a dialog: at the counter nothing may have to be dismissed
+ * before the next customer is served.
  *
- * A disclosure rather than a field that is always there, because the note is read on every lookup
- * and written on perhaps one in twenty. Closed, it is a button; open, it is the record's editor
- * with the same words on it. It is deliberately *not* a dialog: at the counter nothing may have to
- * be dismissed before the next customer can be served (`serve-controls.tsx` says the same about the
- * removal confirmation).
+ * `updateNotesAction` is the record's own action, unchanged and unwrapped — two screens writing a note
+ * through two actions is how they come to disagree about what saving one means.
  *
- * `updateNotesAction` is the customer record's own action, unchanged and unwrapped. It already
- * revalidates `/ausgabe` alongside the record, so the paragraph above this fold shows the new note
- * as soon as the save returns. Two screens writing a note through two actions is how two screens
- * come to disagree about what saving one means — the same argument `BlockControls` and
- * `ArchiveControls` make by being the same component on both.
- *
- * A client component for the two things that need the browser: `useActionState` reports the answer
- * back beside the button, and the field is controlled so a rejected save comes back with the text
- * still in it. It holds no rules — the length bound, the refusal for an archived household and the
- * audit entry are all `updateNotes`'s.
+ * A client component for `useActionState` and for the controlled field, so a rejected save comes back
+ * with the text still in it. No rules here.
  */
 
 import { useActionState, useId, useState } from "react";
@@ -50,16 +39,15 @@ export function NotesControls({
 }): React.ReactElement {
   const [state, formAction, pending] = useActionState(updateNotesAction, initialRecordFormState);
   const [text, setText] = useState(notes);
-  // Generated, not the record editor's fixed `notes-editor-field`: the id has to be this instance's,
-  // and nothing on this screen should depend on there being exactly one note field in the document.
+  // Generated, not the record editor's fixed id: nothing here should depend on there being exactly
+  // one note field in the document.
   const fieldId = useId();
-  // The counter carries the serve, the correction, two certificate actions, the block and the
-  // archive. The board is what stops a hand-out's „Ausgabe erfasst." from still sitting on screen
-  // under the note the staff member has just saved instead (`notice-board.tsx`).
+  // The board is what stops a hand-out's „Ausgabe erfasst.“ from still sitting on screen under the
+  // note that was just saved instead (`notice-board.tsx`).
   const showing = useNoticeSlot("counter-notes", state.status === "idle" ? null : state);
 
-  // The one refusal this field can get is a note past the domain's length, and it marks the box the
-  // same way the record's own note editor does — it is the same action behind both.
+  // The one refusal this field can get is a note past the domain's length, marked as the record's own
+  // editor marks it — the same action behind both.
   const problem = problemAt(state.status === "error" ? state.fields : undefined, "notes");
 
   return (

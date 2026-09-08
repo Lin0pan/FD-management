@@ -1,15 +1,12 @@
 /**
  * How many of their own distributions a household has missed in a row — the seam both screens that
- * show the number read (tasks/prd-us-10-archive-customer.md §US-10.4).
+ * show the number read (`tasks/prd-us-10-archive-customer.md` §US-10.4).
  *
- * The rule itself is `consecutiveNoShows` in the domain; all this adds is the one decision the pure
- * module cannot make: *which* settings the count is read against. It is the version in force at the
- * instant asked about, because the schedule the misses are counted on — the distribution weekday and
- * the week-colour anchor — is policy DF can change (US-14).
+ * The rule is `consecutiveNoShows`; all this adds is the decision the pure module cannot make —
+ * *which* settings to read against, namely the version in force at the instant asked about, since the
+ * schedule the misses are counted on is policy DF can change (US-14).
  *
- * The records are passed in rather than loaded here: the counter already holds the customer's
- * hand-outs from its single pass over the register (US-04.3), and fetching them a second time would
- * put a query on the busiest screen in the product for a number it already has the raw material for.
+ * The records are passed in rather than loaded, because the counter already holds them (US-04.3).
  */
 
 import type { RegisteredCustomer } from "@/domain/customer/customer";
@@ -24,10 +21,8 @@ export interface CountNoShowsDeps {
 }
 
 /**
- * The customer's consecutive own-day no-shows as of `today`.
- *
- * `0` means "came last time" as well as "has not seen a distribution yet" — the two are the same as
- * far as archiving goes, and neither is anything a screen needs to show.
+ * The customer's consecutive own-day no-shows as of `today`. `0` means "came last time" as well as
+ * "has not seen a distribution yet" — the same thing as far as archiving goes.
  *
  * @throws {NoSettingsInForce} if no settings version had taken effect by `today`.
  * @throws {InvalidSettings} if the week anchor does not name a week of the ISO calendar.

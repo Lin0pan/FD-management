@@ -1,16 +1,10 @@
 /**
- * The policy values DF can change without a deploy, and the rule that decides which of them apply
- * at a point in time.
+ * The policy values DF can change without a deploy, and the rule deciding which apply at a point in
+ * time (`tasks/prd-us-14-configure-business-rules.md`).
  *
- * Every number in DF's process — the quota, the price per head, the week-cycle anchor — is
- * configuration, not a constant (tasks/prd-us-14-configure-business-rules.md). A saved change is in
- * force immediately; superseded versions are kept rather than overwritten, because a distribution
- * record stores what that hand-out cost and what was handed over for it, and nothing about the rule
- * that produced either. The only way to answer "how many eggs did that household draw last March",
- * or which colour that week carried, is to resolve the version in force then.
- *
- * This module is pure: it does no I/O, never reads the wall clock, and works over an array of
- * versions that the application layer has already loaded.
+ * A saved change is in force immediately and superseded versions are kept, never overwritten
+ * (ADR-005): a distribution record stores what the hand-out cost, not the rule that produced it, so
+ * "which colour did that week carry" can only be answered by resolving the version in force then.
  */
 
 import { InvalidSettings, NoSettingsInForce } from "../errors";
@@ -25,8 +19,8 @@ export type WeekColour = "RED" | "BLUE";
 const WEEK_COLOURS: ReadonlyArray<WeekColour> = ["RED", "BLUE"];
 
 /**
- * Narrow a persisted string to a {@link WeekColour}. SQLite has no enum type, so the colour comes
- * back from the database as a plain string and has to re-enter the domain through a check.
+ * Narrow a persisted string to a {@link WeekColour} — SQLite has no enum type, so the value re-enters
+ * the domain through a check.
  *
  * @throws {InvalidSettings} if the value is not one of the two colours of the cycle.
  */
@@ -62,37 +56,28 @@ export interface Settings {
   readonly pricePerGrownUp: Cents;
   readonly pricePerChild: Cents;
   /**
-   * The most a household pays for one distribution whatever its size, or `null` for no upper limit
-   * at all.
+   * The most a household pays for one distribution, or `null` for no limit.
    *
-   * `null` rather than a `0` flag, because `0` already means something else here: a cap of nothing
-   * is the legal configuration *everybody collects for free*, exactly as a child price of `0` means
-   * children are free. The two claims — *no cap* and *a cap of 0,00 €* — have to stay tellable
-   * apart from the settings form down to the nullable column, so there is one spelling end to end.
+   * `null` rather than a `0` flag, because `0` is the legal configuration *everybody collects for
+   * free*. *No cap* and *a cap of 0,00 €* stay tellable apart from the form down to the column.
    */
   readonly priceCap: Cents | null;
   /**
    * How many eggs a household receives, as a staircase of thresholds (US-28). The only list-valued
-   * policy value, and the only one that may legitimately be empty: no rows means no eggs for anyone.
+   * policy value; an empty one is legitimate and means no eggs for anyone.
    */
   readonly eggRule: EggRule;
 }
 
-/**
- * The unvalidated shape `createSettings` accepts — the weekday is narrowed and the egg rule is
- * sorted and checked during validation, exactly as the weekday arrives here as a plain number.
- */
+/** The unvalidated shape `createSettings` accepts; the weekday and the egg rule are narrowed there. */
 export interface SettingsInput extends Omit<Settings, "distributionWeekday" | "eggRule"> {
   readonly distributionWeekday: number;
   readonly eggRule: ReadonlyArray<EggRuleRow>;
 }
 
 /**
- * A set of policy values together with the instant they took over.
- *
- * `recordedAt` is stamped from the clock when the change is saved, never chosen by staff: DF adjusts
- * the numbers when reality changes, so a change applies at once and cannot be dated forwards or
- * backwards.
+ * A set of policy values with the instant they took over. `recordedAt` is stamped from the clock and
+ * never chosen by staff, so a change cannot be dated forwards or backwards.
  */
 export interface SettingsVersion {
   readonly recordedAt: Date;
@@ -131,8 +116,8 @@ export function createSettings(input: SettingsInput): Settings {
     );
   }
 
-  // Through `createEggRule`, so an invalid rule can never reach a `Settings` value: sorting and the
-  // staircase check are that constructor's, and repeating either here would be a second answer.
+  // Through `createEggRule`, so an invalid rule can never reach a `Settings`. Sorting and the
+  // staircase check are that constructor's; repeating either here would be a second answer.
   const eggRule = createEggRule(input.eggRule);
 
   return {
@@ -147,12 +132,10 @@ export function createSettings(input: SettingsInput): Settings {
 }
 
 /**
- * The settings in force at `date`: the version with the greatest `recordedAt` that is not after it.
- * A version recorded at exactly `date` is already in force — saving takes effect immediately.
+ * The settings in force at `date`: the greatest `recordedAt` not after it, `date` itself included.
  *
- * Two versions can share an instant (nothing stops two saves in the same millisecond), so the tie is
- * broken by position: the one recorded later — later in the array — wins. Otherwise the array order
- * is irrelevant, and callers need not sort.
+ * Two versions can share an instant, so the tie is broken by position — later in the array wins.
+ * Otherwise the order is irrelevant and callers need not sort.
  *
  * @throws {NoSettingsInForce} if nothing had been recorded yet — never a partial object.
  */
@@ -192,8 +175,8 @@ function isUnchanged(field: SettingsField, previous: Settings, next: Settings): 
   if (field === "weekAnchor") {
     return sameWeekAnchor(previous.weekAnchor, next.weekAnchor);
   }
-  // The rule is an array, so the comparison below is a comparison of two references and would report
-  // every single save as a change to it. Two rules are the same rule when no row differs.
+  // The rule is an array, so the reference comparison below would report every save as a change to
+  // it. Two rules are the same rule when no row differs.
   if (field === "eggRule") {
     return diffEggRule(previous.eggRule, next.eggRule).length === 0;
   }
@@ -213,42 +196,27 @@ export function changedSettingsFields(
 }
 
 /**
- * The three configured price values this derivation reads.
- *
- * It is a `Pick` rather than the whole of {@link Settings} so that a caller holding only the price
- * values can still price a household: the customer record's household editor derives the price in
- * the browser as staff type (US-16.5), and handing it the quota and the week anchor to do so would
- * say those had something to do with the answer.
+ * The three configured price values this derivation reads — a `Pick` rather than the whole of
+ * {@link Settings}, so handing the browser preview (US-16.5) the quota and week anchor does not
+ * suggest those have something to do with the answer.
  */
 export type PriceValues = Pick<Settings, "pricePerGrownUp" | "pricePerChild" | "priceCap">;
 
 /**
- * The policy values a *derived allowance* rests on: the three price values above, plus the egg rule.
+ * What the browser's allowance preview is handed (US-16.5, US-28): the price values plus the egg rule,
+ * narrowed for {@link PriceValues}' reason.
  *
- * The counts, the egg count and the price are the four figures the counter and the customer record
- * state together, and the household editor derives every one of them in the browser as staff type
- * (US-16.5, US-28). This is what that preview has to be handed — deliberately not the whole of
- * {@link Settings}, for {@link PriceValues}' reason: the quota and the week anchor have nothing to
- * do with what a household receives.
- *
- * {@link priceFor} keeps taking the narrower {@link PriceValues}, because the price is still derived
- * from the prices alone; an egg rule in its signature would say the eggs were part of the sum, and
- * they are free.
+ * {@link priceFor} keeps taking the narrower {@link PriceValues} — an egg rule in its signature would
+ * say the eggs were part of the sum, and they are free.
  */
 export type AllowanceValues = PriceValues & Pick<Settings, "eggRule">;
 
 /**
- * What a household pays for one distribution: one grown-up price per grown-up plus one child price
- * per child, and never more than the {@link Settings.priceCap} when one is configured.
+ * What a household pays for one distribution: per head, capped at {@link Settings.priceCap} when one
+ * is configured (US-26). Derived rather than tabulated, so every household size is priceable.
  *
- * DF charges per head, so the total is derived rather than stored or looked up — every household
- * size is priceable and there is no table to keep in step with reality. The cap is what DF actually
- * collects at the counter: with 2,00 € per grown-up and 1,00 € per child, a household of four
- * grown-ups and three children owes 11,00 € per head but pays the 5,00 € cap (US-26).
- *
- * A ceiling, never a floor: a small household pays its per-head sum, and an empty one pays nothing.
- * Both factors are whole cents and so is the cap, so the answer is whole cents either way — no
- * rounding happens here.
+ * A ceiling, never a floor: a small household pays its per-head sum and an empty one pays nothing.
+ * Every factor is whole cents, so no rounding happens here.
  */
 export function priceFor(settings: PriceValues, grownUps: number, children: number): Cents {
   const perHead = grownUps * settings.pricePerGrownUp + children * settings.pricePerChild;

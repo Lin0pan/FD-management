@@ -1,19 +1,16 @@
 /**
- * Replace a customer's household — the members who live with them, as they are today (US-16.1).
+ * Replace a customer's household as it stands today (US-16.1).
  *
- * Households change: a baby is born, somebody moves out. The edit is a **replacement of the set**,
- * because that is what staff do on the screen — they correct the list in front of them and save it —
- * and because no history of past compositions is kept (PRD §FR-2). What the household *was* survives
- * in exactly one place, and only as a physical fact: the counts printed on the card they hold.
+ * A **replacement of the set**, because that is what staff do on the screen and because no history of
+ * past compositions is kept (PRD §FR-2) — what the household *was* survives only as the counts
+ * printed on the card they hold.
  *
- * Nothing derived is written here, and there is nothing to write: the counts and the price are read
- * off the birthdates wherever they are needed, so they are already right the instant this returns. The cards-due-for-reissue list (US-13.2) follows the same way — a change
- * that alters the counts puts the household on it with reason `HOUSEHOLD_CHANGE`, derived on the
- * next read, with nothing to enqueue and nothing that can be forgotten.
+ * Nothing derived is written, and there is nothing to write: the counts follow the birthdates, so the
+ * cards-due-for-reissue list (US-13.2) picks the household up on the next read with nothing to
+ * enqueue and nothing that can be forgotten.
  *
- * The rows are judged by `createHouseholdMembers`, the same domain rule a registration is judged by,
- * so an edit can never let through a household a registration would refuse — including the one an
- * edit is uniquely able to attempt: a household the customer themselves has been taken out of.
+ * Judged by `createHouseholdMembers`, so an edit cannot let through what a registration would refuse
+ * — including the one thing only an edit can attempt: taking the customer out of their own household.
  */
 
 import { createHouseholdMembers, type HouseholdMemberDetails } from "@/domain/customer/customer";
@@ -24,11 +21,9 @@ import type { AuditLog, Clock, CustomerRepository } from "../ports";
 const HOUSEHOLD_UPDATED = "customer.householdUpdated";
 
 /**
- * What the audit entry names as changed.
- *
  * One field, because one thing changed: the set of members. Naming who joined or left would be a
- * second record of the household beside the record itself — and the log deliberately keeps *what,
- * when and why*, not a diff (docs/architecture/adr/006-record-what-when-and-why-in-the-audit-log-never-who.md).
+ * second record of the household beside the record itself — the log keeps *what, when and why*, not a
+ * diff (ADR-006).
  */
 const HOUSEHOLD_FIELDS = ["householdMembers"] as const;
 
@@ -47,9 +42,8 @@ export interface UpdateHouseholdInput {
 /**
  * Store the household and write the audit trail.
  *
- * A **blocked** household may be edited: a block turns them away at the counter, it does not freeze
- * their record, and a birth during a block is still a fact about them. An **archived** one may not —
- * their record is read-only (PRD §FR-8), and their slot may already belong to somebody else.
+ * A **blocked** household may be edited — a birth during a block is still a fact about them. An
+ * **archived** one may not (PRD §FR-8), and their slot may already belong to somebody else.
  *
  * @throws {CustomerNotFound} if no customer holds `customerId`.
  * @throws {CustomerArchived} if the customer has left the register.
@@ -62,7 +56,7 @@ export async function updateHousehold(
   deps: UpdateHouseholdDeps,
   { customerId, members }: UpdateHouseholdInput,
 ): Promise<void> {
-  // One read of the clock: the household is judged as of the same moment the audit entry is stamped.
+  // One read of the clock, so the household is judged as of the audit entry's own instant.
   const now = deps.clock.now();
 
   const customer = await deps.customers.findById(customerId);
@@ -73,9 +67,8 @@ export async function updateHousehold(
     throw new CustomerArchived(customerId);
   }
 
-  // Judged as *this customer's* household: the registered person is one of the rows, and a set that
-  // no longer lists them is refused rather than saved. Everything the counter charges and hands out
-  // is derived from these rows, so a household without them would price somebody else's family.
+  // Judged as *this customer's* household: everything the counter charges is derived from these
+  // rows, so a set that no longer lists them would price somebody else's family.
   const householdMembers = createHouseholdMembers(
     members,
     {

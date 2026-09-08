@@ -1,30 +1,17 @@
 /**
  * Which registers an e2e run drives, and in which browser engine.
  *
- * `playwright.config.ts` and the specs both need these paths, and they must never disagree: the
- * config points a *server* at a database, and a dozen specs open the **same file** a second time
- * through Prisma to seed the household they are about to drive. Spelled out in both places, a
- * changed path seeds one database and asserts against another — a failure that reads like a broken
- * rule rather than a broken path. So they are spelled out once, here, and imported by both.
+ * Spelled out once and imported by both `playwright.config.ts` and the specs: the config points a
+ * *server* at a database while a dozen specs open the same file through Prisma, and a path spelled
+ * out twice seeds one database and asserts against another.
  *
- * ## One engine per invocation, not per project
+ * **One engine per invocation, not per project** (ADR-012), for two independent reasons:
  *
- * DF are supported on Safari and on Chromium-based browsers (ADR-012), so both are gated. The
- * obvious shape — a second Playwright *project* — does not work here, for two independent reasons:
- *
- * 1. **The specs read these paths at module scope**, where `testInfo` does not exist yet and a
- *    project's `use` block cannot reach. `process.env` does exist there, so the engine is chosen by
- *    the environment and every consumer derives the same answer from it.
- * 2. **The register is shared and ordered.** `registration.spec.ts` asserts the lowest free customer
- *    number against what earlier specs in the run already consumed, and each database is deleted and
- *    re-seeded inside `webServer.command` — which runs once per *run*, not per project. A second
- *    project replaying those specs over the already-mutated register would fail on state rather than
- *    on rendering, which teaches nothing about the engine.
- *
- * A separate invocation per engine gives each one a register of its own, freshly seeded, with no
- * ordering between engines to reason about: `npm run test:e2e` drives Chromium,
- * `npm run test:e2e:webkit` drives WebKit. Chromium keeps the ports and filenames it has always
- * used, so the default run is byte-for-byte the run it was before WebKit existed.
+ * 1. **The specs read these paths at module scope**, where `testInfo` does not exist and a project's
+ *    `use` block cannot reach. `process.env` does, so the engine is chosen by the environment.
+ * 2. **The register is shared and ordered.** Each database is deleted and re-seeded inside
+ *    `webServer.command`, which runs once per *run*, not per project — so a second project replaying
+ *    the specs over the already-mutated register would fail on state rather than on rendering.
  */
 
 /** The engines DF is supported on. Firefox is deliberately not among them — see ADR-012. */
@@ -84,14 +71,11 @@ export const SHARED: Register = register(0, "");
 export const ISOLATED: Register = register(1, "-isolated");
 
 /**
- * The specs that own their register.
+ * The specs that own their register. Add one only when it must decide the quota or fill every slot —
+ * the isolated project costs a second Next server for the whole run.
  *
- * Add one here only when it must decide the quota or fill every slot — the isolated project costs a
- * second Next server for the whole run, and a spec that merely writes is fine on the shared one.
- *
- * The two here **share** that register, in alphabetical order like everything else, and each empties
- * it in its own `beforeAll` (`clearRegister`) before setting the quota it needs. That is what makes
- * sharing safe and is required of them anyway: both are `mode: "serial"`, and a CI retry replays the
- * block against the register the previous attempt filled.
+ * The two here **share** that register and each empties it in its own `beforeAll` before setting its
+ * quota, which is what makes sharing safe and is required anyway: both are `mode: "serial"`, and a CI
+ * retry replays the block against the register the previous attempt filled.
  */
 export const ISOLATED_SPECS = ["**/number-group.spec.ts", "**/waiting-list.spec.ts"];

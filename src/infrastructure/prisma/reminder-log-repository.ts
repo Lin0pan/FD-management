@@ -3,11 +3,9 @@ import type { ReminderLogEntry, ReminderLogRepository } from "@/application/port
 import { ReminderAlreadyLoggedToday } from "@/domain/errors";
 
 /**
- * Whether a failed write was the `(customerId, loggedOn)` constraint rejecting a second reminder on
- * a day one was already logged.
- *
- * The target is checked rather than assumed — the table may grow a second unique constraint, and it
- * should then surface as itself rather than as a repeat that never happened.
+ * Whether a failed write was the `(customerId, loggedOn)` constraint rejecting a second reminder. The
+ * target is checked rather than assumed, so a future second constraint surfaces as itself rather
+ * than as a repeat that never happened.
  */
 function isDayCollision(error: unknown): boolean {
   return (
@@ -18,12 +16,11 @@ function isDayCollision(error: unknown): boolean {
 }
 
 /**
- * The SQLite-backed {@link ReminderLogRepository}.
+ * The SQLite-backed {@link ReminderLogRepository}. The once-per-day rule is `recordReminder`'s; what
+ * this owns is the unique `(customerId, loggedOn)` constraint that settles two simultaneous reminders
+ * (US-06.3).
  *
- * The adapter stores the trail; the once-per-day rule is the use case's (`recordReminder`). What it
- * owns is the one thing the pure layers cannot: the unique `(customerId, loggedOn)` constraint that
- * settles which of two simultaneous reminders on the same day got written (US-06.3). `record` writes
- * the entry and the customer's new `reminderCount` in **one transaction**, so the count can never
+ * `record` writes the entry and the new `reminderCount` in **one transaction**, so the count cannot
  * disagree with the trail — not even when the entry's write is the one the constraint rejects.
  */
 export class PrismaReminderLogRepository implements ReminderLogRepository {

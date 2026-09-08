@@ -3,15 +3,12 @@ import { CardIndexTaken, CardNumberTaken, CustomerNotFound } from "@/domain/erro
 import { customerErrorMessage } from "./registration-input";
 
 /**
- * The sentences the two lost card races come back as.
+ * The sentences the two lost card races come back as. Proved here rather than in the e2e suite
+ * because they cannot be provoked from a browser at all — both are two transactions colliding on a
+ * unique index. What a test *can* hold is the mapping.
  *
- * They are proved here rather than in the e2e suite because they cannot be provoked from a browser
- * at all: both are two transactions colliding on a unique index, and no sequence of clicks arranges
- * that. What a test *can* hold is the mapping — the same argument `src/app/notice-tier.test.ts`
- * makes for the other pure table in this layer.
- *
- * Only the two card arms are covered. The rest of `customerErrorMessage` translates rules a staff
- * member can break by typing, and those are read on the screens that raise them.
+ * Only the two card arms: the rest of `customerErrorMessage` translates rules a staff member can
+ * break by typing, and those are read on the screens that raise them.
  */
 describe("customerErrorMessage", () => {
   it("names the card a lost slot race spent, as staff read it off the card", () => {

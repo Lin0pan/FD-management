@@ -1,19 +1,10 @@
 /**
- * Save the free-text note on a customer's record (US-16.3).
+ * Save the free-text note on a customer's record (US-16.3) — what staff want the next person at the
+ * counter to know. Nothing is derived from it and nothing follows from changing one, so an empty note
+ * is a legitimate answer; the only refusal is a text too long to be a note (`createNotes`).
  *
- * The note is what staff want the next person at the counter to know — "klingelt nicht, bitte
- * anrufen", "holt für die Nachbarin mit ab". It is read back by the counter lookup (US-04.2) from
- * the same column this writes, so there is nothing to propagate and nowhere for the two to disagree.
- *
- * Nothing is derived from a note and nothing follows from changing one, which is why an empty note
- * is a legitimate answer: unlike a block reason, whose whole purpose is to record a judgement, a
- * note is a convenience and most households need none. The one thing refused is a text so long it is
- * no longer a note — `createNotes` holds that bound, so the form and the save mean the same number.
- *
- * It is its own use case rather than a field of `updateCustomerDetails` because it is its own
- * decision with its own audit entry: leaving a note for the counter is not a correction of the
- * record, and an entry that said `firstName, lastName, birthDate, address, notes` every time would
- * make the log unreadable for both.
+ * Its own use case rather than a field of `updateCustomerDetails`, because it is its own decision with
+ * its own audit entry — an entry naming every personal field on every note edit would be unreadable.
  */
 
 import { createNotes } from "@/domain/customer/customer";
@@ -24,11 +15,8 @@ import type { AuditLog, Clock, CustomerRepository } from "../ports";
 const NOTES_UPDATED = "customer.notesUpdated";
 
 /**
- * What the audit entry names as changed.
- *
- * The note's *text* is deliberately not in the entry, neither before nor after: the log records
- * what, when and why (docs/architecture/adr/006-record-what-when-and-why-in-the-audit-log-never-who.md), and a copy of every note ever
- * written would turn the audit trail into a second, undeletable customer record.
+ * The note's *text* is deliberately absent, before and after: the log records what, when and why
+ * (ADR-006), and a copy of every note would turn it into a second, undeletable customer record.
  */
 const NOTES_FIELDS = ["notes"] as const;
 
@@ -47,9 +35,8 @@ export interface UpdateNotesInput {
 /**
  * Store the note and write the audit trail.
  *
- * A **blocked** customer's note may be edited — a note about a household at the counter is most
- * useful precisely while they are paused. An **archived** one's may not: their record is read-only
- * (PRD §FR-8), and there is no counter left to read it at.
+ * A **blocked** customer's note may be edited — it is most useful precisely while they are paused. An
+ * **archived** one's may not (PRD §FR-8).
  *
  * @throws {CustomerNotFound} if no customer holds `customerId`.
  * @throws {CustomerArchived} if the customer has left the register.

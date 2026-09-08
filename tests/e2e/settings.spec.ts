@@ -3,17 +3,13 @@ import { de } from "@/i18n/de";
 import { hydrated } from "./day";
 
 /**
- * The settings round-trip against the built app
- * (tasks/prd-us-14-configure-business-rules.md §US-14.5).
+ * The settings round-trip against the built app (`tasks/prd-us-14-configure-business-rules.md`
+ * §US-14.5) — the only proof that the whole chain holds together, four green unit gates having missed
+ * a `"use server"` export bug that a single page load caught.
  *
- * These specs are the only proof that the whole chain — form, server action, use case, Prisma
- * adapter, SQLite — actually holds together; four green unit gates missed a `"use server"` export
- * bug that a single page load caught. They therefore drive the real screen rather than the ports.
- *
- * They run **serially against one shared database**: each spec builds on the price the previous one
- * saved. The last two are a pair — one proves a rejected save writes nothing and yet leaves every
- * typed value on screen, the other that correcting only the refused field then saves the edits that
- * rode along with it.
+ * They run **serially against one shared database**, each building on the price the previous one
+ * saved. The last two are a pair: a rejected save writes nothing yet keeps every typed value, and
+ * correcting only the refused field then saves the edits that rode along with it.
  */
 
 /** The price every spec here edits: the per-grown-up price, seeded at 2,00 €. */
@@ -37,10 +33,9 @@ const SEEDED_QUOTA = "240";
 /**
  * The egg rule as the version in force states it — DF's own three steps (US-28).
  *
- * Spelled out for the same reason the three amounts above are, and *not* shortened to one row: the
- * rule is the only value on this screen that is a list, and it is stated whole on a line of its own.
- * An assertion that only looked for „ab 3 Personen“ would pass against a rule that had lost its top
- * two steps, which is precisely the failure a list-valued setting can have and a number cannot.
+ * Spelled out whole rather than shortened to one row: an assertion looking only for „ab 3 Personen“
+ * would pass against a rule that had lost its top two steps, which is precisely the failure a
+ * list-valued setting can have and a number cannot.
  *
  * This file does not edit the rule — `eggs.spec.ts` does, and hands the seeded one back before this
  * one runs. What is asserted here is that the summary of the version in force still carries it after
@@ -226,11 +221,9 @@ test.describe("Einstellungen", () => {
     );
     await expect(page.locator("#pricePerGrownUp")).not.toHaveAttribute("aria-invalid", "true");
 
-    // And the form still holds what was typed — all three fields, not only the one that was refused.
-    // It used to hold none of them: React resets an uncontrolled form once its action resolves, so
-    // the reset rewound every field to the stored settings and three edits were thrown away because
-    // one of them was wrong. The marked field showing `240` and being called invalid was the same
-    // bug seen from the other side.
+    // And the form still holds what was typed — all three fields, not only the refused one. React
+    // resets an uncontrolled form once its action resolves, so without the echo the reset rewinds
+    // every field to the stored settings.
     await expect(page.locator("#quotaN")).toHaveValue("0");
     await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue("9,99");
     await expect(page.locator("#reason")).toHaveValue("Höchstzahl senken");
@@ -287,23 +280,18 @@ test.describe("Einstellungen", () => {
 
   test("a changed Ausgabetag is named in the history", async ({ page }) => {
     // The defect this history was rebuilt for: the Ausgabetag was one of three settings the old list
-    // never printed, so moving it — the setting with the most visible downstream effect, since the
-    // Start dashboard and /ausgabe both read it — produced a row identical to its predecessor in
-    // every character.
+    // never printed, so moving it produced a row identical to its predecessor in every character.
     await openSettings(page);
     await page.locator("#distributionWeekday").selectOption("5");
     await page.getByRole("button", { name: de.settings.save, exact: true }).click();
     await expect(page.getByTestId("settings-saved")).toHaveText(de.settings.saved);
 
-    // Put it back in the same spec: the whole suite shares one database and two other screens read
-    // the Ausgabetag. That leaves the moved version superseded, which is where a diff is shown.
+    // Put it back in the same spec: the suite shares one database and two other screens read the
+    // Ausgabetag. That also leaves the moved version superseded, which is where a diff is shown.
     //
-    // Reloaded between the two saves, because a save *clears* the form and the revalidated render
-    // that does it can land after the next `selectOption` — rewinding the field to the value just
-    // stored, so the second save appends a version that changed nothing and this spec asserts
-    // against a history one row out. WebKit loses that race often enough to fail the gate. The
-    // reload settles the render first, and the assertion below it states what the first save
-    // actually stored, so a rewind shows up here rather than four assertions later.
+    // **Reloaded between the two saves**, because a save clears the form and the revalidated render
+    // can land after the next `selectOption` — rewinding the field, so the second save would append a
+    // version that changed nothing. WebKit loses that race often enough to fail the gate.
     await page.reload();
     await expect(page.locator("#distributionWeekday")).toHaveValue("5");
 
@@ -437,11 +425,8 @@ test.describe("Einstellungen", () => {
 
     const refusal = page.getByTestId("settings-error");
     // An optional amount that is not empty goes through the same parser as a required one, so the
-    // refusal is Zod's and the words are the ones the PRD prescribes (§US-26.5) — but they are said
-    // at the field now, with the summary naming the field around them. It was the other way round:
-    // the summary carried „Kein gültiger Betrag.“ and the mark a generic „Ungültiger Wert.“, so on
-    // a screen with three money boxes the sentence by the button named none of them and the mark
-    // that knew which box it sat under said nothing worth reading.
+    // refusal is Zod's and the words are the PRD's (§US-26.5) — said at the field, with the summary
+    // naming the field around them.
     await expect(refusal).toHaveText(
       de.forms.fieldProblem(CAP_LABEL, de.settings.errors.notAnAmount),
     );
@@ -561,14 +546,10 @@ test.describe("Einstellungen", () => {
     await expect(page.getByLabel(PRICE_LABEL, { exact: true })).toHaveValue(stored);
   });
 
-  // The quota-below-*active-customers* rule (FR-4) is reachable from the browser as of US-01.6 —
-  // the registration form can now put customers into the register — but it needs **two** of them:
-  // a quota is only valid at 1 or above, so the count has to reach 2 before any valid quota can
-  // fall below it. Registering two households belongs in the registration spec (US-01.7), which
-  // owns that flow and its synthetic data; driving the form from the settings spec would couple two
-  // files to one customer-number sequence in the shared `data/e2e.db`. The rule itself is covered by
-  // `src/application/settings/settings.test.ts`; the specs above prove the surrounding path — a
-  // rejected quota is explained in German and nothing is written.
+  // The quota-below-active-customers rule (FR-4) needs **two** households — a quota is only valid at
+  // 1 or above — and registering two belongs to the registration spec, which owns that flow. Driving
+  // it from here would couple two files to one customer-number sequence. The rule itself is covered
+  // in `src/application`; the specs above prove the surrounding path.
   test.skip("a quota below the active customer count is refused", async ({ page }) => {
     await openSettings(page);
   });

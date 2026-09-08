@@ -13,10 +13,9 @@ import {
 import { tierOf } from "./notice-tier";
 
 /**
- * Which colour a failure comes back in. The table itself is proved by the compiler — a
- * `Record<DomainErrorCode, NoticeTier>` cannot miss a code — so what is worth a test is the
- * *reading* of it: that a rule saying no is not the same answer as a record that is gone, and that
- * an unnamed throw falls to the safe side of the two.
+ * Which colour a failure comes back in. The table is proved by the compiler — a total `Record` cannot
+ * miss a code — so what is worth a test is the *reading* of it: a rule saying no is not the same
+ * answer as a record that is gone, and an unnamed throw falls to the safe side.
  */
 describe("tierOf", () => {
   it("calls a rule saying no a refusal, not an error", () => {

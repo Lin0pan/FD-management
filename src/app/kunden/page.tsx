@@ -1,31 +1,17 @@
 /**
- * The Kunden-verwalten hub at /kunden (US-15.3, extended by tasks/prd-us-17-navigation-shell.md
- * §US-17.2).
+ * The Kunden-verwalten hub at /kunden (US-15.3, US-17.2) — the customer list and, above it, the three
+ * things staff do with customers.
  *
- * It is the customer list and, above it, the three things staff do with customers: take somebody on,
- * work the waiting list, print the cards that have fallen behind. The section has one name — the nav
- * item and this heading are the same words — so following "Kunden verwalten" lands on a page that
- * says it back.
+ * Built the way the spreadsheet was read: one dense table sorted by customer number, filters above,
+ * nothing between the rows. Every value is already worked out by `listCustomers`; this page lays them
+ * out and computes nothing.
  *
- * This is the screen that replaces the spreadsheet, so it is built the way the sheet was read: one
- * dense table, sorted by customer number, with the filters above it and nothing between the rows.
- * Every value in it is already worked out — `listCustomers` derives the counts from the birthdates,
- * the price from the settings in force today, the card number from the slot and the certificate's
- * state from today's date. This page lays them out and computes nothing.
+ * **A read, entirely**: a plain GET form carries the filters, which is what puts them in the URL
+ * (FR-5) — DF share one machine, and "the list I was looking at" has to survive a reload and be
+ * passable to a colleague as a link.
  *
- * It is a **read**, entirely: a plain GET form carries the filters, which is what puts them in the
- * URL (FR-5). That is not a technicality — DF share one machine, and "the list I was looking at" has
- * to survive a reload and be passable to a colleague as a link.
- *
- * The group balance stands above the table and deliberately does not move with the filters: it is
- * the number staff assign a new household's group by (US-01), and it counts every active household
- * whatever is currently on screen.
- *
- * The screen is two cards — the overview and the list. One job runs through it: **find a
- * household.** Everything else earns its place by being a single glance (the balance, the three
- * actions) or an aid to
- * finding (the filters), which is why the filters live inside the list card rather than above it and
- * why the primary action stands beside the `h1` rather than in a band of its own.
+ * The group balance deliberately does not move with the filters: it answers a question about the
+ * whole register (US-01).
  */
 
 import { IdCard, Search, UserPlus, Users } from "lucide-react";
@@ -65,9 +51,8 @@ import { SHELL } from "../shell";
 import { STATUS_CHROME, StateWord, type Chrome } from "./state-word";
 
 /**
- * Half of what the list shows changes at midnight with nothing being written — a 13th birthday moves
- * a head from one column to the other, and a certificate lapses the same way. A cached render would
- * be a screen that quietly stopped being true.
+ * Half of what the list shows changes at midnight with nothing being written — a 13th birthday, a
+ * lapsing certificate. A cached render would quietly stop being true.
  */
 export const dynamic = "force-dynamic";
 
@@ -76,12 +61,9 @@ const GROUP_OPTIONS = ["RED", "BLUE"] as const;
 const CERTIFICATE_OPTIONS = ["VALID", "EXPIRING_SOON", "EXPIRED"] as const;
 
 /**
- * The filters as the URL carries them, in German like every other query parameter in the product.
- *
- * Every field falls back to "not filtered" rather than refusing the page: a query string is typed by
- * hand and copied between colleagues as readily as it is produced by the form, and an unreadable
- * `status=foo` is a filter nobody set, not a broken register. The unset option of each select submits
- * an empty string, which lands here as exactly the same answer.
+ * The filters as the URL carries them, in German like every other query parameter. Every field falls
+ * back to "not filtered" rather than refusing the page: a query string is typed and copied by hand,
+ * and an unreadable `status=foo` is a filter nobody set, not a broken register.
  */
 const filterParams = z.object({
   suche: z.string().optional().catch(undefined),
@@ -115,12 +97,10 @@ function certificateFilterLabel(state: CertificateState): string {
 }
 
 /**
- * The filters in force, in German — for the line above the table, and for the message that stands
- * where the table would be empty. One list, so the two can never name different filters.
- *
- * Whether archived households are included is named every time, even though it is a default: "keine
- * Treffer" under a hidden-by-default filter is precisely how a staff member concludes that a
- * household was deleted (US-11, PRD §6).
+ * The filters in force, for the line above the table and the message where it would be empty — one
+ * list, so the two cannot name different filters. Archived households are named every time, default
+ * or not: „keine Treffer“ under a hidden-by-default filter is how staff conclude a household was
+ * deleted (US-11, PRD §6).
  */
 function activeFilters(filters: Filters, search: string): ReadonlyArray<string> {
   const clauses = de.customerList.filterClauses;
@@ -142,9 +122,8 @@ function activeFilters(filters: Filters, search: string): ReadonlyArray<string> 
 }
 
 function CustomerRow({ row }: { row: CustomerListRow }): React.ReactElement {
-  // An archived household is dimmed *and* carries the word "archiviert" in its status cell. The
-  // shading alone would be a distinction only some readers can make, and this is the one row on the
-  // screen whose customer number may already belong to somebody else (US-10).
+  // Dimmed *and* carrying the word „archiviert“: shading alone is a distinction only some readers
+  // can make, and this is the one row whose number may already belong to somebody else (US-10).
   const archived = row.status === "ARCHIVED";
 
   return (
@@ -223,12 +202,9 @@ function CustomerRow({ row }: { row: CustomerListRow }): React.ReactElement {
 }
 
 /**
- * One filter control and the label that names it.
- *
- * A real `<label htmlFor>` and not a nested `<span>`: the old idiom worked only because the control
- * sat *inside* the label, which stops being true the moment a control is moved. A plain `<label>`
- * rather than the `Label` primitive, which is `"use client"` and would drag the whole form across a
- * client boundary for a font weight.
+ * One filter control and the label that names it. A real `<label htmlFor>`, so it survives the
+ * control being moved; a plain `<label>` rather than the `Label` primitive, which is `"use client"`
+ * and would drag the whole form across a client boundary for a font weight.
  */
 function FilterField({
   id,
@@ -250,26 +226,17 @@ function FilterField({
 }
 
 /**
- * The filters, as a plain GET form, inside the list card they belong to.
+ * The filters, as a plain GET form. No JavaScript: submitting navigates, which is what writes the
+ * filters into the URL and makes the view bookmarkable.
  *
- * No JavaScript is involved: submitting navigates, which is what writes the filters into the URL and
- * makes the view bookmarkable. Every control is labelled, and the unset option of each select says
- * "Alle" rather than being blank.
+ * The three selects stay **native** `<select>` elements — Radix's `Select` renders a button plus a
+ * portalled listbox, which neither `selectOption` nor `toHaveValue` can drive.
  *
- * The three selects stay **native** `<select>` elements, styled with the theme tokens. Radix's
- * `Select` renders a button plus a portalled listbox, which neither `selectOption` nor `toHaveValue`
- * can drive — the same trade the conversion guide records for `Label`. The search box is given the
- * widest track of the four because it is the control the screen exists for.
- *
- * **„Zurücksetzen" is a plain `<a>`, not a `Link`**, and that is the whole of the fix it was: every
- * control here is uncontrolled, and React writes `defaultValue` and `defaultChecked` on mount only.
- * A router navigation to `/kunden` re-renders this same segment, so React reconciles the existing
- * DOM — and a field the staff member has typed in or picked from is dirty, which means the browser
- * keeps its value against the new default. The table came back unfiltered while these four controls
- * went on showing filters that were no longer applied: a screen contradicting itself, and precisely
- * the state nobody could read off a screenshot. A document navigation builds the form from scratch.
- * Submitting is a native GET submission and therefore already one, which is why only the reset ever
- * showed this.
+ * **„Zurücksetzen“ is a plain `<a>`, not a `Link`.** Every control here is uncontrolled and React
+ * writes `defaultValue` only on mount, so a router navigation reconciles the existing DOM and a dirty
+ * field keeps its value against the new default — leaving an unfiltered table under four controls
+ * still showing the old filters. A document navigation rebuilds the form. Submitting is already one,
+ * which is why only the reset ever showed this.
  */
 function FilterForm({ filters, search }: { filters: Filters; search: string }): React.ReactElement {
   return (
@@ -384,24 +351,15 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
 /**
  * The overview card: the group balance, and the two customer actions that are not the primary one.
  *
- * The reissue link carries its count so that "nothing to do" can be read without opening the list —
- * which is why it is shown at zero as well (US-13.4). It is deliberately the same neutral grey as
- * everything around it: a stale card is never a reason to turn a household away, and a badge that
- * looks like an alarm is how staff learn to ignore the list it counts (PRD §6).
+ * Both links carry a count, shown at zero too, so "nothing to do" is readable without opening the
+ * list (US-13.4, US-18.1). Neutral grey deliberately: a badge that looks like an alarm is how staff
+ * learn to ignore the list it counts (PRD §6). Each badge sits *inside* its link, so the number is
+ * part of what is clicked.
  *
- * The waiting list carries the same badge, in the same shape, for the same reason (US-18.1): the two
- * are one row of counts, read the same way, rather than two widgets competing for attention. Each
- * badge sits *inside* its link, so the number is part of what is clicked rather than a figure
- * standing beside it.
+ * `freeSlot` is the one thing separating them — a queue that can be served *now* reads differently
+ * from one that merely exists (US-18.2) — and it still names nobody.
  *
- * `freeSlot` is the one thing that separates them: a queue that can be served *now* reads
- * differently from a queue that merely exists (US-18.2). It still names nobody — who gets the number
- * is decided on `/kunden/neu`, not here.
- *
- * The balance sits beneath them and deliberately does not move with the filters: it answers "which
- * group is smaller", which is a question about the whole register (FR-3). Its wording is one string
- * and stays one string — two tiles would read better and cannot carry it, so that is a change for
- * its own commit rather than a thing to smuggle into a restyle.
+ * The balance does not move with the filters: it answers a question about the whole register (FR-3).
  */
 function Overview({
   cardsDue,
@@ -473,31 +431,16 @@ function Overview({
 /**
  * The register itself.
  *
- * The header sticks, which took three separate overflow overrides and had never once worked before
- * (see `docs/guideline/ui_styling_guide.md` §3): `Card` ships `overflow-hidden`, the `Table` primitive wraps
- * itself in `overflow-x-auto`, and either one on its own makes *itself* the scrollport the header
- * sticks to — so the header parks at the top of a box as tall as the table and leaves the window
- * with the rows. Below `xl` the container keeps its horizontal scroll and the header gives up
- * sticking, which is the right way round: DF work at desktop width, and a table that cannot be
- * scrolled sideways on a narrow screen is worse than one whose header scrolls away.
- *
- * `xl` and not `lg`, measured rather than guessed: nine columns and the wider name column still
- * need about 1000px, which a `lg` viewport's content box does not have, so turning the scroll
- * container off there pushed the whole *page* sideways by 26px. The width the concept names as the
- * target is 1280 anyway.
- *
- * `top-12` is the height of the sticky nav above it, and the background is `bg-card` and opaque —
- * the nav is translucent, and a header that copied that would have rows reading through it.
+ * **The sticky header takes three overflow overrides** (`docs/guideline/ui_styling_guide.md` §3):
+ * `Card` ships `overflow-hidden` and `Table` wraps itself in `overflow-x-auto`, and either alone makes
+ * *itself* the scrollport, so the header parks at the top of a box as tall as the table. Below `xl`
+ * the container keeps its horizontal scroll and the header gives up sticking — measured, not guessed:
+ * nine columns need about 1000px, which a `lg` content box does not have.
  *
  * **The stickiness carries the same `xl:` as the overflow, and has to.** A sticky offset is measured
- * from the scrollport, and which element that is changes at this very breakpoint: above it the
- * window, below it the container, whose scroll top is 0. `top: 48px` against a scrollport at 0 is not
- * satisfied by staying put — sticky shifts a box in *either* direction — so the header was pushed 48px
- * *down*, opaque, exactly over the first row. DF read it as a customer missing from the register: the
- * row was in the DOM, the count above the table still counted it, the group balance still counted it,
- * and filtering only moved which row was underneath. It came and went because it is decided by the
- * window's width alone — 1279px hides a row, 1280px does not — so a resize, a zoom step or a
- * scrollbar appearing as the register grew was enough to flip it either way.
+ * from the scrollport, and which element that is changes at this breakpoint. `top-12` against a
+ * container whose scroll top is 0 pushes the header 48px *down*, opaque, exactly over the first row —
+ * which reads as a customer missing from the register, and flips on a resize or a zoom step.
  */
 function CustomerTable({ rows }: { rows: ReadonlyArray<CustomerListRow> }): React.ReactElement {
   return (
@@ -525,9 +468,9 @@ function CustomerTable({ rows }: { rows: ReadonlyArray<CustomerListRow> }): Reac
 }
 
 /**
- * What the screen says when DF has not configured anything yet: the list cannot price a household
- * before a head has a price (US-14). The register is not broken, the installation is unfinished, so
- * the page says so and points at the settings rather than being an error screen.
+ * What the screen says before DF has configured anything: the list cannot price a household before a
+ * head has a price (US-14). The installation is unfinished rather than broken, so the page points at
+ * the settings rather than being an error screen.
  */
 function NoSettings(): React.ReactElement {
   return (
@@ -555,9 +498,8 @@ export default async function CustomerListPage({
   try {
     view = await listCustomers(customerDeps, {
       search,
-      // One status or none. A subset is what the use case takes, but a staff member filtering a list
-      // asks for one thing at a time, and a multi-select would be a control to learn rather than a
-      // question to answer (PRD §6).
+      // One status or none, though the use case takes a subset: a multi-select would be a control to
+      // learn rather than a question to answer (PRD §6).
       status: filters.status === undefined ? undefined : [filters.status],
       group: filters.gruppe,
       certificate: filters.nachweis,
@@ -570,14 +512,13 @@ export default async function CustomerListPage({
     throw error;
   }
 
-  // The hub's two signals, both of which the list itself cannot show: how many cards have fallen
-  // behind, and how many applicants are waiting — the latter marked when a customer number is free.
+  // The hub's two signals, neither of which the list can show: cards fallen behind, and applicants
+  // waiting — the latter marked when a customer number is free.
   const [cardsDue, places, proposal] = await Promise.all([
     countCardsDueForReissue(customerDeps),
     listWaiting(waitingListDeps),
-    // Settings were in force a moment ago — `listCustomers` needs them too — but a saved change is in
-    // force immediately, so the answer is caught here as well: no quota means no answer about a free
-    // slot, and the badge states its count in the neutral state rather than the page being an error.
+    // Caught here as well as in `listCustomers`, because a saved change is in force immediately: no
+    // quota means no answer about a free slot, and the badge falls back to its neutral state.
     proposeRegistration(customerDeps).catch((error: unknown) => {
       if (error instanceof DomainError && error.code === "NoSettingsInForce") {
         return null;
@@ -586,14 +527,13 @@ export default async function CustomerListPage({
     }),
   ]);
 
-  // Whether anybody is waiting at all. Who that is belongs to /kunden/neu, where the number is
-  // handed out — the hub deliberately names nobody (US-18.3).
+  // Whether anybody is waiting at all. Who that is belongs to /kunden/neu (US-18.3).
   const anybodyWaiting = places.length > 0;
   const freeNumber = proposal?.customerNumber ?? null;
 
   const filtered = activeFilters(filters, search);
   // "Nothing is filtered" is the plain /kunden URL: the archived clause is always in `filtered`, so
-  // it alone does not make the register look filtered.
+  // it alone must not make the register look filtered.
   const unfiltered = filtered.length === 1 && filters.archiv === undefined;
 
   return (
@@ -617,8 +557,8 @@ export default async function CustomerListPage({
       <Overview
         cardsDue={cardsDue}
         waiting={places.length}
-        // Both halves are required: a free number with nobody waiting is not news, and a queue with
-        // no number to give out is the state the badge already states plainly (US-18.2).
+        // Both halves required: a free number with nobody waiting is not news, and a queue with no
+        // number to give out is what the badge already states plainly (US-18.2).
         freeSlot={anybodyWaiting && freeNumber !== null}
         groupCounts={view.groupCounts}
       />
@@ -659,9 +599,8 @@ export default async function CustomerListPage({
               {unfiltered ? null : (
                 <p
                   data-testid="customer-list-filters"
-                  // `font-medium` and not colour: the checkbox's hint sits directly above this line,
-                  // muted and one size smaller, and the two read as a stack of grey sentences at a
-                  // glance. Weight separates them without making a filter look like a fault.
+                  // Weight and not colour: the checkbox's hint sits directly above, muted and
+                  // smaller, and colour would make a filter look like a fault.
                   className="text-sm font-medium text-muted-foreground"
                 >
                   {de.customerList.filterSummary(filtered.join(", "))}

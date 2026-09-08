@@ -4,37 +4,22 @@ import { de } from "@/i18n/de";
 import { SHARED } from "./registers";
 
 /**
- * The week-colour banner against a fixed clock
- * (tasks/prd-us-03-week-colour.md §US-03.5).
+ * The week-colour banner against a fixed clock (`tasks/prd-us-03-week-colour.md` §US-03.5).
  *
- * The banner is a pure function of the calendar, so asserting it at all means deciding what day the
- * app thinks it is. The seam is `FD_FIXED_NOW_FILE` (see `src/infrastructure/clock.ts`): while that
- * file — `data/e2e-now.txt`, set in `playwright.config.ts` — holds an ISO instant, `systemClock`
- * returns it instead of the wall clock. It is re-read per call, so writing the file moves the app's
- * today without restarting the server, and deleting it hands the wall clock back.
+ * The banner is a pure function of the calendar, so asserting it means deciding what day the app
+ * thinks it is. The seam is `FD_FIXED_NOW_FILE` (`src/infrastructure/clock.ts`), re-read per call, so
+ * writing the file moves today without restarting the server.
  *
- * The expected colours follow from the seeded settings alone (`src/infrastructure/prisma/seed.ts`):
- * anchor `2026-W02` = RED, distributions on ISO weekday 4, Thursday. Hence Thursday 08.01.2026 is a
- * RED distribution day, the Thursday after it is BLUE, and the Tuesday between them is no
- * distribution day at all.
+ * The expected colours follow from the seeded settings alone. The banner **names the group only on a
+ * distribution day** — that absence is the assertion worth having, a group named on a day nobody can
+ * collect being what US-22 removed. The last spec pins down that the withdrawn `?datum=` is ignored
+ * rather than refused.
  *
- * The banner is now the whole of what this screen says about the calendar. A second card used to
- * look up any day's colour, and two specs here drove it; US-22 withdrew the requirement and both
- * were deleted with it (tasks/prd-us-22-drop-week-colour-lookup.md). What is left of them is the
- * last spec below, which pins down that the parameter they used is ignored rather than refused.
+ * `week-colour-week` is the one thing on the screen reading `view.colour` rather than
+ * `nextDistribution.colour`, and the Saturday spec is where the two disagree.
  *
- * The banner **names the group only on a distribution day**: `week-colour-group` is present and
- * painted on the Thursdays below and absent on the Tuesday, where the group appears solely inside
- * the "nächste Ausgabe" sentence that also carries its date. That absence is the assertion worth
- * having — a group named on a day nobody can collect is what this change removed.
- *
- * `week-colour-week` is the badge beside the calendar week, and it is the one thing on the screen
- * reading `view.colour` rather than `nextDistribution.colour`. The Saturday spec is where those two
- * disagree, which is the whole reason the badge is there.
- *
- * These specs only read, so they leave the shared database exactly as they found it. They do
- * restore the clock in `afterAll` — a pinned today would otherwise make the settings specs, which
- * save a version stamped *now*, assert against January.
+ * They only read, but they restore the clock in `afterAll`: a pinned today would make the settings
+ * specs, which save a version stamped *now*, assert against January.
  */
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */

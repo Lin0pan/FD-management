@@ -1,22 +1,13 @@
 /**
  * How many households of a group have collected today, and how many were expected to (US-23).
  *
- * The counter answers one household at a time and remembers nothing between them, so "how far through
- * the group are we" is a question the screen cannot answer from what it is showing. The facts exist —
- * one distribution record per household per day (US-05) — and this is the one rule that turns them into
- * a tally, so the number in the summary and the marks in the list beneath it can never tell different
- * stories.
+ * The counter answers one household at a time, so the screen cannot tally from what it is showing.
+ * One rule turns the distribution records into the fraction, so the summary and the marks in the
+ * list beneath it can never tell different stories.
  *
- * The one decision worth stating is what `expected` counts:
- *
- * - **A blocked household is not expected.** It may not collect (US-08), so counting it in the
- *   denominator would put the tally permanently out of reach — `59 von 61` at the end of an afternoon
- *   in which nobody was missed.
- * - **Unless it already collected.** A household blocked at three o'clock did collect at two, and
- *   dropping it from the denominator alone would let `served` exceed `expected` — a tally reading
- *   `34 von 33`, which is the one thing a fraction may never say.
- *
- * The module is pure: no I/O, no clock, and nothing here knows what a customer is.
+ * What `expected` counts is the one decision here: a blocked household may not collect (US-08) and
+ * is left out of the denominator — unless it already collected, because a household blocked at three
+ * o'clock did collect at two, and dropping it alone would let the fraction read `34 von 33`.
  */
 
 /** A household of the group, described by the only two facts the tally reads. */
@@ -29,7 +20,6 @@ export interface ProgressEntry {
 
 /** A group's afternoon as one fraction: how many collected, out of how many could. */
 export interface Progress {
-  /** The households that have collected today. */
   readonly served: number;
   /** The households that were able to — never fewer than `served`. */
   readonly expected: number;

@@ -4,28 +4,19 @@ import { de } from "@/i18n/de";
 import { SHARED } from "./registers";
 
 /**
- * The Start dashboard against a fixed clock (tasks/prd-us-17-navigation-shell.md §US-17.5).
+ * The Start dashboard against a fixed clock (`tasks/prd-us-17-navigation-shell.md` §US-17.5).
  *
- * The screen states two things — what day it is and when the next Ausgabe is — and both are pure
- * functions of the calendar, so asserting either means deciding what day the app thinks it is. The
- * seam is the one `distribution.spec.ts` already drives: while `FD_FIXED_NOW_FILE` — `data/e2e-now.txt`,
- * set in `playwright.config.ts` — holds an ISO instant, `systemClock` returns it instead of the wall
- * clock. It is re-read per call, so writing the file moves the app's today without a restart, and
- * deleting it hands the wall clock back.
+ * Both facts the screen states are pure functions of the calendar, so asserting either means deciding
+ * what day the app thinks it is. The seam is `FD_FIXED_NOW_FILE`, re-read per call, so writing the
+ * file moves the app's today without a restart and deleting it hands the wall clock back.
  *
- * The expected days follow from the seeded settings alone (`src/infrastructure/prisma/seed.ts`):
- * anchor `2026-W02` = RED, distributions on ISO weekday 4. Hence Thursday 08.01.2026 is a RED
- * distribution day, Thursday 15.01.2026 a BLUE one, and the days between them fall on either side
- * of the first.
+ * The expected days follow from the seeded settings alone. **Three pinned days, and the third is the
+ * one that matters**: on a Saturday *after* that week's distribution the current week is still RED
+ * while the next Ausgabe is BLUE, so a panel reading `view.colour` instead of
+ * `nextDistribution.colour` would announce the wrong group — invisible on the other two days.
  *
- * Three pinned days, and the third is the one that matters: on a Saturday *after* that week's
- * distribution the current week is still RED while the next Ausgabe is BLUE, so a panel that read
- * `view.colour` instead of `nextDistribution.colour` would announce the wrong group — the likely bug
- * in this screen, and invisible on the other two days because there the two fields agree.
- *
- * The spec only reads, so it leaves the shared register exactly as it found it. It does restore the
- * clock in `afterAll`: a pinned today would otherwise make the settings specs, which save a version
- * stamped *now*, assert against January.
+ * It only reads, but it does restore the clock in `afterAll`: a pinned today would make the settings
+ * specs, which save a version stamped *now*, assert against January.
  */
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */

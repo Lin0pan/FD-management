@@ -41,11 +41,8 @@ import { updateHousehold } from "./update-household";
 import { updateNotes } from "./update-notes";
 
 /**
- * Hand-written fakes and synthetic data only, per the testing standard.
- *
- * The birthdates are fixed rather than faked, because every count in this suite is derived from
- * them: the grown-up was born in 1985 and the child on `2015-06-02`, which leaves them a child on
- * {@link TODAY}.
+ * Hand-written fakes and synthetic data only. The birthdates are fixed rather than faked, because
+ * every count in this suite is derived from them.
  */
 
 faker.seed(20260729);
@@ -78,12 +75,9 @@ class FakeAuditLog implements AuditLog {
 }
 
 /**
- * The three stores the **counter lookup** needs, and nothing else in this file does.
- *
- * They are here because one rule of US-16.3 is about a consequence rather than a write: a note saved
- * on the record has to turn up at the counter. That is provable only by driving the real
- * `lookupCustomer` over the same register, the way `updateHousehold`'s tests drive the real
- * cards-due list — an assertion on the stored column would prove the write and not the reading of it.
+ * The three stores the **counter lookup** needs, here because one rule of US-16.3 is about a
+ * consequence rather than a write: a note saved on the record has to turn up at the counter, which is
+ * provable only by driving the real `lookupCustomer` over the same register.
  */
 class FakeSettingsRepository implements SettingsRepository {
   readonly versions: SettingsVersion[] = [];

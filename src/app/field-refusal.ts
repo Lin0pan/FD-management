@@ -2,19 +2,12 @@
  * What a refused field is, and the two answers every form needs about one: *is this field marked*,
  * and *what does the marked control carry* (`docs/guideline/ui_styling_guide.md` §7).
  *
- * A plain module with no directive, so both halves of the round trip can import it: a `"use server"`
- * action needs {@link FieldRefusal} to say what it refused, and a client component needs
- * {@link problemAt} and {@link marking} to show it. Types are erased, and the two functions are pure
- * — nothing here reaches the DOM, which is what keeps the file out of `field-mark.tsx`'s `"use
- * client"` island.
+ * **No directive**, so both halves of the round trip can import it: a `"use server"` action names
+ * {@link FieldRefusal}, a client component reads {@link problemAt} and {@link marking}. Nothing here
+ * reaches the DOM, which is what keeps it out of `field-mark.tsx`'s `"use client"` island.
  *
- * It exists because the mechanism was written twice before it was written once. `/kunden/neu` and
- * `/einstellungen` each grew their own — one carrying a list of fields with their own sentences, the
- * other a single field with a generic one — and the second copy is what let three further screens
- * ship with no marks at all, because there was nothing to reuse and no obvious place to look.
- *
- * Nothing here decides anything. *Which* fields a refusal names is the action's, translated from a
- * Zod path or a typed domain error; this only carries the answer across and puts it on an element.
+ * Nothing here decides anything: *which* fields a refusal names is the action's, translated from a
+ * Zod path or a typed domain error.
  */
 
 import { de } from "@/i18n/de";
@@ -23,28 +16,22 @@ import type { NoticeTier } from "./notice-tier";
 /**
  * One field a refusal names, and what is wrong with it.
  *
- * The **form's** path, not the domain's: the domain says `address.street` and
- * `certificate.validUntil`, an HTML form calls those `street` and `certificateValidUntil`, and what
- * the browser can mark is an input. Translating one into the other is the action's job
- * (`kunden/neu/registration-input.ts`, `einstellungen/actions.ts`), exactly as it already is for the
- * sentence. Household rows keep the spelling both sides share — `householdMembers.1.birthDate`.
+ * The **form's** path, not the domain's — `street`, not `address.street` — because what the browser
+ * can mark is an input; translating between them is the action's job. Household rows keep the
+ * spelling both sides share.
  */
 export interface FieldRefusal {
   readonly path: string;
   /**
-   * The few words shown under the control. Short on purpose: the field it belongs to is directly
-   * above it, so it says what is wrong and not which field — that is the summary's job, which is
-   * read by the button, far from the field it names.
+   * The few words under the control. Short on purpose: the field is directly above, so this says what
+   * is wrong and not which field — that is the summary's job, read by the button.
    */
   readonly problem: string;
 }
 
 /**
- * A refusal as a screen reports it: the sentence by the button, the tier it is said in, and the
- * fields to mark.
- *
- * The three travel together because they are one answer to one refusal. Assembling them separately
- * is how the sentence and the mark come to disagree about which field failed.
+ * A refusal as a screen reports it. The three travel together because they are one answer:
+ * assembling them separately is how the sentence and the mark come to disagree.
  */
 export interface FormRefusal {
   readonly message: string;
@@ -53,22 +40,15 @@ export interface FormRefusal {
 }
 
 /**
- * The refused fields as one answer — or `lastWord` at the `error` tier where the refusal turned out
- * to name nothing anybody can see.
+ * The refused fields as one answer — or `lastWord` at the `error` tier where the refusal named
+ * nothing anybody can see (§7).
  *
- * `label` is the screen's own dictionary, and returning `null` from it is the test for *is this
- * field on screen?*. A path with no label is a field nobody can see, so it is a tampered hidden
- * input rather than a mistyped value — an error, not a refusal (§7). Callers filter on that before
- * they get here; this one only needs the words.
+ * The summary **names the fields** and the marks carry the problems, never the other way round: with
+ * three money boxes or a day per household member, a summary saying only what was wrong would name
+ * none of them, and the staff member by the button would not know how far up to look.
  *
- * `lastWord` is the caller's because the screens disagree about it: the registration says the intake
- * could not be saved, the record says the change could not be, the waiting list says the applicant
- * could not be added.
- *
- * The summary **names the fields** and the marks carry the problems, never the other way round. With
- * three money boxes on the settings screen or a day per household member on the registration, a
- * summary that said only what was wrong would name none of them, and the staff member reading it by
- * the button would not know how far up to look or how many times.
+ * `lastWord` is the caller's because the screens disagree about it — an intake that could not be
+ * saved, a change, an applicant.
  */
 export function summarise(
   fields: ReadonlyArray<FieldRefusal>,
@@ -91,11 +71,8 @@ export function summarise(
 /**
  * The words to show under one field, or `null` while the last submission said nothing about it.
  *
- * Matched on the path the action named, never on the sentence: a tier read back out of German is a
- * tier that changes when somebody fixes a comma (`notice-tier.ts`), and a *field* read back out of
- * one is worse — it would unmark a field the first time a label was reworded, with nothing failing
- * anywhere. Both screens that had a mechanism of their own started that way, and both had already
- * stopped by the time this was extracted.
+ * Matched on the path the action named, never on the sentence: a field read back out of German
+ * would unmark itself the first time a label was reworded, with nothing failing anywhere.
  */
 export function problemAt(
   fields: ReadonlyArray<FieldRefusal> | undefined,
@@ -105,17 +82,12 @@ export function problemAt(
 }
 
 /**
- * What a refused control carries: the mark's id to be described by, the invalid state, and the path
- * the action named it with.
+ * What a refused control carries: the mark's id, the invalid state, and the path the action named.
  *
- * `data-field` is that path — `street`, `householdMembers.1.birthDate` — and it is on the control so
- * that a form can find the first refused field again without rebuilding an id from a path. A
- * household's three inputs share a `name` and are told apart by `id`, and the record's editors
- * generate their ids with `useId` because two forms on one screen both hold a `firstName`; a path is
- * the only name both sides of the round trip agree on.
- *
- * It is always present, refused or not, so {@link useFocusFirstRefusal}'s query is the same on every
- * render.
+ * `data-field` is on the control so a form can find the first refused field without rebuilding an id
+ * from a path — a household's inputs share a `name` and the record's editors generate ids with
+ * `useId`, so the path is the only name both sides of the round trip agree on. Always present,
+ * refused or not, so {@link useFocusFirstRefusal}'s query is the same on every render.
  */
 export function marking(
   path: string,
@@ -142,13 +114,9 @@ export const MEMBER_INPUT = {
 export type MemberPart = keyof typeof MEMBER_INPUT;
 
 /**
- * How a household field is named on the wire — the spelling the domain, the schema and both
- * household tables share.
- *
- * Here rather than beside either table because there are two of them — the registration's and the
- * record's — reading the same three repeated inputs through the same `householdRows`. A second
- * spelling of this path is how a refusal starts marking the right row on one screen and no row on
- * the other, and nothing would fail.
+ * How a household field is named on the wire — the spelling the domain, the schema and both household
+ * tables share. Stated here rather than beside either table: a second spelling is how a refusal comes
+ * to mark the right row on one screen and no row on the other, with nothing failing.
  */
 export function memberPath(index: number, part: MemberPart): string {
   return `householdMembers.${index}.${part}`;

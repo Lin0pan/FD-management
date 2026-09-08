@@ -1,27 +1,16 @@
 /**
- * What the application says back when a staff member presses a button.
+ * What the application says back when a staff member presses a button. One component for all three
+ * answers, so a meaning gets one shape here for the reason it gets one colour in `accents.ts`.
  *
- * One component for all three answers, because the alternative is what this replaced: a
- * confirmation written twice in `/ausgabe`, a save's feedback written a third way on the customer
- * record, and a refusal written roughly ten times — which is how red came to have three treatments
- * on one application, only one of which carried an icon. A meaning gets one shape here for the same
- * reason it gets one colour in `accents.ts`.
+ * - `success` — it happened.
+ * - `refusal` — it did not, and nothing is broken: a rule said no, and staff can act on that.
+ * - `error` — it did not, and something is wrong. A reload or a colleague, not another attempt.
  *
- * The three tones are the whole vocabulary:
+ * The word always carries the meaning and the tint only repeats it (US-03.4). `role="status"`
+ * overrides the `role="alert"` shadcn's `Alert` hardcodes: an answer to a button is not an alarm,
+ * and a screen reader should reach it rather than be interrupted by it.
  *
- * - `success` — it happened. A hand-out recorded, a household taken on, a note saved.
- * - `refusal` — it did not happen, and nothing is broken: a rule said no, and the staff member can
- *   act on that at the counter.
- * - `error` — it did not happen and something is wrong. Reloading or a colleague is needed, not
- *   another attempt.
- *
- * The word always carries the meaning and the tint only repeats it, because a colour is a
- * distinction only some of the staff can make (US-03.4). `role="status"` overrides the
- * `role="alert"` the shadcn `Alert` hardcodes: an answer to a button somebody pressed is not an
- * alarm, and a screen reader should reach it rather than be interrupted by it.
- *
- * No `"use client"` and no hooks, so the record's server component and the counter's client
- * components can both render it — the same deliberate choice `stat.tsx` and `shell.ts` make.
+ * No `"use client"` and no hooks, so server and client components can both render it.
  */
 
 import { Fragment } from "react";
@@ -32,25 +21,19 @@ import { CONFIRMATION_ACCENT, REFUSAL_ACCENT } from "./accents";
 import type { NoticeTier } from "./notice-tier";
 
 /**
- * The three answers, built from the two a failure can be plus the one a success is.
- *
- * `NoticeTier` is stated in `notice-tier.ts` rather than here because a `"use server"` action has to
- * name it and must not import a component to do so. Composing rather than re-listing is what keeps
- * the two vocabularies from drifting: a tier the actions can produce is a tone this can render.
+ * The three answers: a success plus the two a failure can be. `NoticeTier` lives in `notice-tier.ts`
+ * because a `"use server"` action names it and must not import a component to do so; composing rather
+ * than re-listing is what keeps a tier the actions produce a tone this can render.
  */
 export type NoticeTone = "success" | NoticeTier;
 
 /**
- * The chrome of each tone.
+ * The chrome of each tone. `error` is the one reaching for a theme token — `destructive` is the only
+ * chromatic token `globals.css` defines, and its `variant` paints the sentence too, which is why it
+ * is the only tone leaving `AlertDescription` its own colour.
  *
- * `error` is the one that reaches for a theme token rather than a literal: `destructive` is the
- * only chromatic token `globals.css` defines, and its `variant` also paints the sentence and the
- * icon, which is why it is the only tone that leaves `AlertDescription` to its own colour.
- *
- * None of them colours its icon. `Alert` sets `*:[svg]:text-current` on every child svg, which
- * outranks a class on the icon itself — `Confirmation` carried a `text-green-700` that had never
- * rendered a single green tick, measured foreground-black on the live page. The icon takes the
- * colour of the box it sits in, and the box is the thing the tint is on.
+ * **None of them colours its icon**: `Alert` sets `*:[svg]:text-current` on every child svg, which
+ * outranks a class on the icon itself. The icon takes the colour of the box it sits in.
  */
 const TONES: Record<
   NoticeTone,
@@ -62,20 +45,16 @@ const TONES: Record<
 };
 
 /**
- * A dictionary sentence on screen, with the fragments it marks as carrying weight set in bold.
- *
- * Rendered here rather than at the call sites so that emphasis has one appearance in the
- * application, for the reason this whole module exists. A plain string is the ordinary case and
- * stays a string: only the two sentences a number change produces are segmented, and widening the
- * prop is what let them be without touching the twenty call sites that are not.
+ * A dictionary sentence with its emphasised fragments in bold — rendered here so emphasis has one
+ * appearance application-wide. A plain string stays a string, which is what let the two segmented
+ * sentences exist without touching the twenty call sites that are not.
  */
 export function Sentence({ text }: { text: string | ReadonlyArray<Segment> }): React.ReactElement {
   if (typeof text === "string") {
     return <>{text}</>;
   }
-  // Keyed by position, which is the one case that is not a smell: the sentence is fixed in the
-  // dictionary, a fragment has no identity apart from where it sits, and the list is never
-  // reordered or filtered.
+  // Keyed by position, which is safe here: the sentence is fixed in the dictionary, a fragment has
+  // no identity apart from where it sits, and the list is never reordered or filtered.
   return (
     <>
       {text.map((segment, index) => (
@@ -103,9 +82,8 @@ export function Notice({
   /** Goes on the sentence, so a spec asserts the words rather than the box around them. */
   testId: string;
   /**
-   * One way onward, inside the box that states the fact — the counter's „Korrigieren“ link is the
-   * only one (US-32.7). It sits *within* the sentence's element so a screen reader reaching the
-   * status reaches the offer with it, rather than finding a bare link somewhere after it.
+   * One way onward, inside the box that states the fact (US-32.7). It sits *within* the sentence's
+   * element, so a screen reader reaching the status reaches the offer with it.
    */
   children?: React.ReactNode;
 }): React.ReactElement {
@@ -115,14 +93,12 @@ export function Notice({
       <Icon />
       <AlertDescription
         data-testid={testId}
-        // The tier rides on an attribute rather than on a second test id, because four specs assert
-        // `getByTestId("…-error").toHaveCount(0)` to mean *nothing was refused*: move amber to an id
-        // of its own and all four go on asserting the absence of something that no longer renders.
-        // So `-error` in a test id means the answer was no, and this says which no it was — read off
-        // the same locator, exactly as `data-verdict` is on the counter's banner.
+        // The tier rides on an attribute rather than a second test id: four specs assert
+        // `getByTestId("…-error").toHaveCount(0)` to mean *nothing was refused*, and moving amber to
+        // its own id would leave all four asserting the absence of something that no longer renders.
         data-tier={tone}
-        // `text-foreground` overrides `AlertDescription`'s muted default — the sentence is the
-        // message here, not a note under one. The destructive variant has already coloured it.
+        // Overrides `AlertDescription`'s muted default — the sentence is the message here, not a
+        // note under one. The destructive variant has already coloured it.
         className={destructive ? "max-w-prose" : "max-w-prose text-foreground"}
       >
         <Sentence text={text} />
@@ -132,12 +108,8 @@ export function Notice({
   );
 }
 
-/**
- * A `Notice` that reports something having happened.
- *
- * Kept as its own name because that is what the five call sites are saying, and reading
- * `tone="success"` at each of them says less than the word does.
- */
+/** A `Notice` that reports something having happened — its own name, because that is what the five
+ * call sites are saying. */
 export function Confirmation({
   text,
   testId,

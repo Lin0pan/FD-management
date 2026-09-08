@@ -1,14 +1,9 @@
 /**
- * The egg allowance: how many eggs a household receives, and the rule that decides it.
+ * The egg allowance: how many eggs a household of a given size receives (US-28). A policy value like
+ * any other, but list-valued rather than a single number, which is why it has a module of its own.
  *
- * Alongside the food, DF hand every household a quantity of eggs (US-28). Eggs are countable, so a
- * stated number is a number a staff member can actually hand over, and how many depends on how
- * large the household is. The rule is DF's own and lives in the settings like every other policy
- * value — a list of rows rather than a single number, which is why it gets a module of its own.
- *
- * This module is pure: it does no I/O, never reads the wall clock, and judges nothing beyond the
- * two rules below. An egg count need not be a multiple of six, a threshold of one person is
- * allowed, and a row awarding no eggs at all is allowed.
+ * Nothing beyond the two rules below is judged: an egg count need not be a multiple of six, a
+ * threshold of one person is allowed, and a row awarding no eggs at all is allowed.
  */
 
 import { DuplicateEggThreshold, EggsNotIncreasing } from "../errors";
@@ -21,19 +16,14 @@ export interface EggRuleRow {
 }
 
 /**
- * A validated egg rule, always sorted by `minPersons` ascending.
- *
- * Only {@link createEggRule} makes one, so every reader may rely on the order and on the staircase
- * holding. An empty rule is a legitimate one and means no eggs for anyone.
+ * A validated egg rule, always sorted by `minPersons` ascending. Only {@link createEggRule} makes
+ * one, so readers may rely on the order and the staircase. An empty rule means no eggs for anyone.
  */
 export type EggRule = ReadonlyArray<EggRuleRow>;
 
 /**
- * Validate a set of typed rows and return them as an {@link EggRule}.
- *
- * Sorting is part of constructing the value rather than something a caller does first: staff type
- * the rows in whatever order they think of them, and the software checks and displays them in one
- * order of its own.
+ * Validate a set of typed rows and return them as an {@link EggRule}. Sorting is part of constructing
+ * the value, not something a caller does first — staff type rows in whatever order they think of.
  *
  * @throws {InvalidSettings} naming `eggRule.<index>.minPersons` or `eggRule.<index>.eggs` — the
  *   index of the row as it was *typed*, so the form points at the row on screen rather than at the
@@ -49,9 +39,8 @@ export function createEggRule(rows: ReadonlyArray<EggRuleRow>): EggRule {
 
   const sorted = [...rows].sort((a, b) => a.minPersons - b.minPersons);
 
-  // Each row is checked against its immediate predecessor only. The list is sorted, so a strict
-  // increase between every pair of neighbours is a strict increase throughout — there is nothing a
-  // comparison against the rows further down would catch.
+  // Neighbours only: the list is sorted, so a strict increase between every pair is a strict
+  // increase throughout.
   for (let index = 1; index < sorted.length; index += 1) {
     const lower = sorted[index - 1];
     const row = sorted[index];
@@ -67,17 +56,12 @@ export function createEggRule(rows: ReadonlyArray<EggRuleRow>): EggRule {
 }
 
 /**
- * How many eggs a household of `persons` receives: the `eggs` of the highest threshold it reaches,
- * and 0 when it reaches none.
+ * How many eggs a household of `persons` receives: the highest threshold it reaches, 0 if none.
  *
- * `persons` is every member of the household on file, whatever their age — an infant counts, so two
- * grown-ups and one baby is three persons. Because the rule counts heads and not ages, a member's
- * 13th birthday leaves the egg count where it was, even though it moves the grown-up and children
- * counts and the price (US-13). The count moves only when somebody joins or leaves.
+ * `persons` counts **heads, not ages** — an infant counts — so a 13th birthday leaves the egg count
+ * where it was even though it moves the counts and the price (US-13).
  *
- * Takes an already-validated {@link EggRule}, so it neither sorts nor checks anything: the type is
- * the invariant. A defensive re-sort here would be a second answer to a question `createEggRule`
- * has already settled.
+ * Takes an already-validated {@link EggRule} and neither sorts nor checks: the type is the invariant.
  */
 export function eggsFor(rule: EggRule, persons: number): number {
   let eggs = 0;
@@ -88,12 +72,9 @@ export function eggsFor(rule: EggRule, persons: number): number {
 }
 
 /**
- * One row's fate between two versions of the rule: it appeared, it went away, or its egg count
- * moved.
- *
- * A `changed` row keeps `from` and `to` because that is the whole of what moved — a threshold
- * cannot change, since the threshold is what identifies the row. Retyping „ab 5“ as „ab 6“ is a row
- * removed and a row added, which is what it is: the household of five stopped receiving anything.
+ * One row's fate between two versions of the rule. A `changed` row keeps only `from` and `to`,
+ * because the threshold is what identifies the row — retyping „ab 5“ as „ab 6“ is a removal and an
+ * addition, which is what it is: the household of five stopped receiving anything.
  */
 export type EggRuleRowChange =
   | { readonly kind: "added"; readonly minPersons: number; readonly eggs: number }
@@ -106,12 +87,10 @@ export type EggRuleRowChange =
     };
 
 /**
- * What changed between two egg rules, row by row and in threshold order.
- *
- * Rows are matched **by threshold**, never by position: a rule is a set of steps identified by the
- * household size they start at, and removing the lowest row would otherwise read as a change to
- * every row below it. An unchanged row is not reported, so an empty list means the two rules are the
- * same rule — the order they were typed in is not part of the value (FR-6).
+ * What changed between two egg rules, in threshold order. Rows are matched **by threshold**, never by
+ * position — otherwise removing the lowest row would read as a change to every row below it. An
+ * empty list means the two are the same rule; the order they were typed in is not part of the value
+ * (FR-6).
  */
 export function diffEggRule(previous: EggRule, next: EggRule): ReadonlyArray<EggRuleRowChange> {
   const before = new Map(previous.map((row) => [row.minPersons, row.eggs]));

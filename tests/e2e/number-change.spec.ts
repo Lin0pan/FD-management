@@ -12,38 +12,22 @@ import { hydrated } from "./day";
 import { fillPersonalData } from "./registration-form";
 
 /**
- * Moving a household to another customer number, driven through the built app
- * (tasks/prd-us-30-change-customer-number.md §US-30.8).
+ * Moving a household to another customer number (`tasks/prd-us-30-change-customer-number.md`
+ * §US-30.8).
  *
- * Every piece is proved on its own: `choosableNumbers` decides which slots are on offer in the
- * domain gate, `nextCardIndexOnMove` decides the index, `changeCustomerNumber` writes the move and
- * the card against fakes, and the adapter writes both in one transaction against a throwaway SQLite
- * file. What none of them can see is the **coupling**, which is the whole reason this act was hard
- * to get right: one save changes the number on the record, the card in the household's pocket, the
- * answer the counter gives to two different numbers, the pool the intake offers, and a to-do list.
- * Those are four screens, and a suite of per-screen tests cannot notice that one of them stopped
- * following the register.
+ * Every piece is proved on its own. What none of them can see is the **coupling**: one save changes
+ * the number on the record, the card in the household's pocket, the answer the counter gives to two
+ * numbers, the pool the intake offers, and a to-do list. Four screens, and a suite of per-screen
+ * tests cannot notice that one of them stopped following the register.
  *
- * So this spec walks the worked example of the PRD end to end. A household holding four cards on one
- * slot moves onto a slot **an earlier household has been archived off** — which is what makes the
- * jump in the card index real rather than a fixture: the vacated slot has printed five cards, so the
- * move prints the sixth, and the household has still only ever been issued five cards of their own.
- * The slot they left keeps its four, under the numbers they were printed with, and that is precisely
- * what lets the next household on it be printed `221k5` instead of a `221k1` that is already out in
- * the world.
+ * So this spec walks the PRD's worked example end to end. A household holding four cards moves onto a
+ * slot **an earlier household was archived off**, which is what makes the jump in the card index real
+ * rather than a fixture — and the slot they leave keeps its four under the numbers they were printed
+ * with, which is what lets the next household on it be printed `221k5`.
  *
- * The numbers this spec owns are the **odd ones from 221 to 229**, a band no other spec uses, and —
- * unlike the seeding bands above 240 — every one of them has to be **inside the quota of 240**: the
- * control offers `1..quotaN`, so a slot outside it could be neither moved onto nor handed to the
- * household who takes the vacated one afterwards. They are also well clear of the low sequence the
- * allocating specs consume, and below 311, so `group-walk.spec.ts`'s highest walkable RED number is
- * untouched.
- *
- * **All five are odd, and that is deliberate**: since US-31 a number carries the week it collects
- * in, so a move across the parity is a move between weeks — and this spec is about neither. Every
- * move here stays inside RED, which is what lets the counter clear the moved household on the RED
- * day pinned below and keeps the story about the *card index*. The move that changes the week is
- * `number-group.spec.ts`'s.
+ * It owns the **odd numbers 221–229**, and unlike the bands above 240 every one has to be **inside
+ * the quota**: the control offers `1..quotaN`. **All five are odd deliberately** — a move across the
+ * parity is a move between weeks (ADR-017), and that is `number-group.spec.ts`'s story, not this one's.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -498,11 +482,9 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
     await hydrated(page.locator("#group-RED"));
     await page.locator("#group-RED").check();
 
-    // What a move actually does to the pool: it swaps one slot for another. The number the household
-    // left is offered, the number they took is not, and the *count* is unchanged — a move can never
-    // change it, because the set of taken numbers is exactly as large after it as before. That is
-    // worth stating as an assertion rather than left out: „the count went up" is the first thing a
-    // reader expects here, and it would be wrong.
+    // A move swaps one slot for another: the number left is offered, the number taken is not, and the
+    // *count* is unchanged. Worth asserting because „the count went up“ is the first thing a reader
+    // expects here, and it would be wrong.
     await expect(page.locator(`#customerNumber option[value="${START}"]`)).toHaveCount(1);
     await expect(page.locator(`#customerNumber option[value="${TARGET}"]`)).toHaveCount(0);
     expect(await freeNumbersByGroup(page)).toEqual(freeBefore);

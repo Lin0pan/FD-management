@@ -22,10 +22,8 @@ import type {
 import { listCustomers } from "./list-customers";
 
 /**
- * Hand-written fakes and synthetic data only, per the testing standard.
- *
- * The certificate dates are the reason the clock is fixed: on {@link TODAY} a certificate ending
- * `2026-08-20` is inside the 30-day window, `2026-10-01` is outside it, and `2026-07-01` has lapsed.
+ * Hand-written fakes and synthetic data only. The certificate dates are why the clock is fixed: on
+ * {@link TODAY}, `2026-08-20` is inside the 30-day window, `2026-10-01` outside it, `2026-07-01` lapsed.
  */
 
 faker.seed(20260729);
@@ -62,10 +60,8 @@ class FakeSettingsRepository implements SettingsRepository {
 }
 
 /**
- * A register that answers `list` the way the adapter is documented to: every criterion applied as a
- * filter, names compared folded, and the result ordered by ascending customer number.
- *
- * `writes` counts every mutating call, so a test can prove the list changed nothing.
+ * A register answering `list` as the adapter is documented to. `writes` counts every mutating call,
+ * so a test can prove the list changed nothing.
  */
 class FakeCustomerRepository implements CustomerRepository {
   readonly holders: RegisteredCustomer[] = [];

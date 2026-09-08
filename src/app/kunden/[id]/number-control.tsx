@@ -3,42 +3,23 @@
 /**
  * Moving a household to another customer number, and with it to the other week (US-30, US-31.7).
  *
- * The number is the **slot** a household occupies in DF's register and the number printed on the
- * card they carry — never their identity (ADR-008) — and since US-31 it is also what says which week
- * they collect in: even is BLUE, odd is RED (`groupOf`). So this control asks one question in two
- * halves, group first and then the numbers that group offers, exactly as the intake asks it
- * (`kunden/neu/registration-form.tsx`). Staff meet one shape for one decision in both places they
- * make it, and the group is the half they actually decide — the number is administrative.
+ * One question in two halves — the group, then the numbers it offers — exactly as the intake asks it
+ * (`kunden/neu/registration-form.tsx`), because the number *is* the group (ADR-017). One act, one
+ * confirmation and one card printed by it; nothing is validated, because nothing can disagree.
  *
- * There were two sections here until US-31: a group choice above a number choice, each with its own
- * save. Moving a household between the weeks now *is* moving them to a number of the other parity,
- * so there is one act, one confirmation and one card printed by it. Nothing is validated, because
- * nothing can disagree: the form posts the number alone and the group follows from it.
+ * The radios carry **no `name`**, so they are left out of the `FormData`: the group is browser state
+ * rather than a second field somebody could contradict, and the form posts the number alone.
  *
- * The radios carry **no `name`** for that reason. An unnamed control is left out of the `FormData`,
- * which is what makes the group browser state rather than a second field somebody could contradict;
- * mutual exclusion is React's, off `checked`.
+ * **The card number is never worked out here.** Every slot prints a different one (US-25), and each
+ * choice arrives from `listNumberChoices` with its own already on it — a component that counted, or
+ * read parity for itself, would be a second answer to a settled question.
  *
- * It sits where „Gruppe“ sat rather than in „Aktionen mit Folgen“ because it is the same kind of
- * act: an administrative decision about the register, taken for DF's sake. What it *borrows* from
- * the danger zone is the confirmation — the move prints a card, and the card in the household's hand
- * stops being valid the moment it is saved.
+ * The `<select>` is **controlled**, for the registration form's two reasons (US-24): the confirmation
+ * names the picked number's card while the decision is still being made, and React resets a form once
+ * its action resolves, restoring a `defaultValue` from the *attribute* rather than the revalidated
+ * record.
  *
- * **The card number is never worked out here.** Every slot prints a different one, because the index
- * counts that slot's whole run including households since archived (US-25), and each choice arrives
- * from `listNumberChoices` with the number it would print and the group it belongs to already on it.
- * A component that counted, or that read parity for itself, would be a second answer to a question
- * the register has already answered.
- *
- * The `<select>` is **controlled**, for the two reasons the registration form's is (US-24): the
- * confirmation has to name the picked number's card while the staff member is still deciding, and
- * React resets a form once its action resolves — which restores a `defaultValue` from the *attribute*
- * the page was rendered with rather than from the revalidated record. Held in state, the control
- * comes back on the number that was just saved, with the slot it vacated now among the choices.
- *
- * Nothing here is a guard. `changeCustomerNumber` decides whether the move may happen, re-reading
- * the quota as it does — a screen left open while staff lowered it (US-14) is offering slots that
- * are no longer slots, and only the use case can know that.
+ * Nothing here is a guard — `changeCustomerNumber` decides, re-reading the quota as it does.
  */
 
 import { useActionState, useState } from "react";
@@ -67,15 +48,12 @@ export function NumberControl({
   customerId: number;
   /** The slot the household holds today — where the dropdown opens, and what a move frees. */
   customerNumber: number;
-  /**
-   * How many active households each week holds, counted off the numbers they hold. Beside the
-   * choice because that is what the decision is made of (FR-4).
-   */
+  /** How many active households each week holds — beside the choice, because that is what the
+   * decision is made of (FR-4). */
   groupCounts: GroupCounts;
   /**
-   * Every slot they may be moved to, ascending, each with the card it would print and the week it
-   * collects in. The household's own number is always among them, which is what lets the control
-   * open on it — and what keeps their own group selectable however full the register is.
+   * Every slot they may be moved to, each with the card it would print. Their own number is always
+   * among them, which is what lets the control open on it and keeps their group selectable.
    */
   choices: ReadonlyArray<NumberChoice>;
 }): React.ReactElement {
@@ -90,33 +68,29 @@ export function NumberControl({
   const [pickedGroup, setPickedGroup] = useState<Group>(ownGroup);
   const [picked, setPicked] = useState<number | null>(null);
 
-  // The list the dropdown offers: the register as the action re-read it after a lost race if it sent
-  // one back, otherwise the reading the page was rendered with — the shape `/kunden/neu` uses for
-  // the same control. Preferring the fresh list is what stops this going on offering a number that
-  // provably cannot be saved.
+  // The register as the action re-read it after a lost race, otherwise the reading the page was
+  // rendered with — `/kunden/neu`'s shape. Preferring the fresh list is what stops this offering a
+  // number that provably cannot be saved.
   const offered = (state.status === "error" ? state.numberChoices : undefined) ?? choices;
 
-  // What the offer leaves each week — the one derivation the whole block reads from: the radios take
-  // whether a group has anything to offer, the select takes its options, and the figures beneath take
-  // their two counts. Split here rather than at each of them, so the three cannot disagree.
+  // The one derivation the whole block reads from — the radios, the select and the figures beneath —
+  // so the three cannot disagree.
   const choicesInGroup: Record<Group, ReadonlyArray<NumberChoice>> = {
     RED: offered.filter((candidate) => candidate.group === "RED"),
     BLUE: offered.filter((candidate) => candidate.group === "BLUE"),
   };
 
-  // The group the controls stand on: the staff member's own choice, unless a lost race has emptied
-  // it since — a group that can no longer be chosen must not stay chosen either, or the select below
-  // would be an empty list under a checked radio. Their own group always has something in it, so
-  // this fallback always lands somewhere: they are standing in it.
+  // The staff member's own choice, unless a lost race has emptied it since: a group that can no
+  // longer be chosen must not stay chosen, or the select would be an empty list under a checked
+  // radio. Their own group always has something in it, so the fallback always lands.
   const group = choicesInGroup[pickedGroup].length > 0 ? pickedGroup : ownGroup;
 
-  // The choice the confirmation reads its number, group and card off: the staff member's own pick,
-  // unless the group moved under it or a lost race has just taken it out of the register. Then the
-  // household's own slot where that is one of this group's — it is where the dropdown opened — and
-  // the group's lowest where it is not, because their own number is never in the other week.
+  // What the confirmation reads its number, group and card off: the staff member's pick, unless the
+  // group moved under it or a lost race took it out of the register — then their own slot where that
+  // is one of this group's, and the group's lowest where it is not.
   //
-  // `null` only if the group on screen has nothing at all, which the fallback above rules out —
-  // found rather than asserted, because a `!` here would be the file's way of being wrong silently.
+  // `null` only if the group on screen has nothing at all, which the fallback above rules out. Found
+  // rather than asserted: a `!` here would be this file's way of being wrong silently.
   const choice =
     choicesInGroup[group].find((candidate) => candidate.number === picked) ??
     choicesInGroup[group].find((candidate) => candidate.number === customerNumber) ??

@@ -1,15 +1,10 @@
 /**
- * Integration tests for the SQLite certificate adapter.
+ * Integration tests for the SQLite certificate adapter — thin and test-after (CLAUDE.md). What the
+ * pure layers cannot state: that a renewal **appends** rather than overwriting (US-06.3, FR-8), that
+ * the customer repository resolves the latest by `recordedAt`, and that the append and the
+ * `reminderCount` reset land in one transaction.
  *
- * Thin and test-after, per the testing approach (CLAUDE.md): what is worth proving here is what the
- * pure layers cannot state — that a renewal **appends** a row rather than overwriting the one on
- * file, so the history of renewals stays readable (US-06.3, FR-8), that the customer repository
- * resolves the certificate on file as the latest by `recordedAt`, and that the append and the reset
- * of `reminderCount` to zero land in one transaction. The renewal rules themselves are unit-tested
- * in src/application.
- *
- * Each run migrates a throwaway database file which is deleted afterwards, so nothing touches
- * data/fd.db. Synthetic data only (Faker), seeded so a failing run is reproducible.
+ * Each run migrates a throwaway database file, so nothing touches `data/fd.db`.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";

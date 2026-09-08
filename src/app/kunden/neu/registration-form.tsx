@@ -1,28 +1,20 @@
 "use client";
 
 /**
- * The registration form.
+ * The registration form. A client component so `useActionState` can report a rejection back into the
+ * page and the household counts can update *as staff type* — counts the form does not compute: it
+ * calls `composition` against the day the server handed it, so the number on screen is the one the
+ * save derives.
  *
- * A client component for two reasons: `useActionState` reports a rejection back into the page, and
- * the household counts have to update *as staff type*. Those counts are not computed here — the form
- * calls the domain rule (`composition`) against the day the server handed it, so the number on
- * screen is the same number the save will derive. There is no input for them by design.
+ * The form holds **no rules**. The group radios in `Zuordnung` submit nothing at all: they filter
+ * the number list in the browser, and the form posts the number alone, which carries the group
+ * (ADR-017).
  *
- * The form holds no other rules. Which number a household gets and whether it holds together are
- * decided behind `registerCustomer`, and so is the group — it is the number's parity (US-31), which
- * is why the group radios in `Zuordnung` submit nothing at all: they filter the number list in the
- * browser, out of the pool the server sent, and the form posts the number alone.
+ * A pre-fill (US-11.4, US-12.4) is read once, as each field's initial value — the screen remounts the
+ * form when the selection changes, so there is no second source of truth to keep in step.
  *
- * It may arrive pre-filled — from an archived record (US-11.4) or from a waiting-list entry
- * (US-12.4). The draft is read once, as the initial value of every field: the screen remounts the
- * form when the selection changes, so there is no second source of truth to keep in step, and every
- * pre-filled field is as editable as one that was typed. Neither draft carries a number, because a
- * slot is taken afresh and the group comes with it; whether it carries a certificate is the one
- * honest difference between them, and `PrefillDraft` says why.
- *
- * The action it submits to is a prop for the same reason the parsing is shared: a promotion off the
- * waiting list must register *and* clear the entry, in that order, and that pairing belongs in a use
- * case rather than in whichever screen remembers to do both.
+ * The action is a prop for the reason the parsing is shared: a promotion off the waiting list must
+ * register *and* clear the entry, in that order.
  */
 
 import Link from "next/link";
@@ -69,22 +61,15 @@ import {
 } from "./register-customer-state";
 
 /**
- * The address, the certificate and the note, as the form holds them — raw strings, keyed by the
- * `name` each input carries.
+ * The address, the certificate and the note as the form holds them, keyed by each input's `name`.
  *
- * They are React state rather than `defaultValue`s, and that is the whole fix for a refusal that
- * used to delete them. React calls `form.reset()` once a `<form action>` resolves — on a refusal as
- * well as a save — and a reset restores each input from its `defaultValue` *attribute*, so seven
- * fields rewound to the pre-fill or to blank while the four that happened to be controlled kept
- * what was typed. A mistyped date cost a retyped address.
+ * **React state rather than `defaultValue`s, and that is load-bearing.** React calls `form.reset()`
+ * once a `<form action>` resolves — on a refusal as well as a save — and a reset restores each input
+ * from its `defaultValue` *attribute*, so a mistyped date used to cost a retyped address.
+ * `docs/guideline/ui_styling_guide.md` §7 gives three ways out; this form never returns on a save, so
+ * controlled fields simply survive.
  *
- * `docs/guideline/ui_styling_guide.md` §7 gives three ways out, cheapest first, and the cheapest one
- * fits here: this form never returns on a save — it redirects to the new record — so there is
- * nothing for a reset to restore *to*, and controlled fields simply survive. The archive pre-fill
- * still clears them, because `registration-screen.tsx` applies a selection by remounting the form.
- *
- * One object rather than seven `useState` calls, the shape `kunden/[id]/details-editor.tsx` holds
- * the same fields in.
+ * One object rather than seven `useState` calls, the shape `kunden/[id]/details-editor.tsx` uses.
  */
 interface DetailsDraft {
   readonly street: string;
@@ -129,9 +114,8 @@ function datedMembers(rows: ReadonlyArray<MemberRow>): Array<{ birthDate: Date }
 }
 
 /**
- * The derived split of the household as it stands, or `null` while it cannot be derived — nobody
- * dated yet, or a date in the future. The save is what reports that as an error; the panel just
- * has nothing to show.
+ * The derived split of the household, or `null` while it cannot be derived. The save reports that as
+ * an error; the panel just has nothing to show.
  */
 function derivedCounts(
   rows: ReadonlyArray<MemberRow>,
@@ -149,25 +133,20 @@ function derivedCounts(
 }
 
 /**
- * The words under a refused control on this screen, at this screen's test id.
- *
- * The id stays off the summary, which keeps `registration-error` — several specs assert that
- * element's exact text, and one of them per screen is what keeps the assertion unambiguous.
+ * The words under a refused control, at this screen's test id. The id stays off the summary, which
+ * keeps `registration-error` — several specs assert that element's exact text.
  */
 function Rejection({ id, problem }: { id: string; problem: string }): React.ReactElement {
   return <FieldRejection id={id} problem={problem} testId="registration-field-error" />;
 }
 
 /**
- * One field of the form, in a slot of the twelve-column grid.
+ * One field of the form, in a slot of the twelve-column grid. **The span is the point**: a field's
+ * width is the most reliable hint a form has about what it wants, so `PLZ` must not promise as much
+ * room as `Straße`.
  *
- * The span is the point. Every field on this screen used to be 408px because all four sections
- * shared one `sm:grid-cols-2`, so `PLZ` promised as much room as `Straße` — and a field's width is
- * the most reliable hint a form has about what it wants. `<label htmlFor>` + `<Input id>` rather
- * than the old nested `<label><span>`, which worked only by nesting and left the accessibility
- * snapshot with unnamed textboxes.
- *
- * Every field is controlled — see {@link DetailsDraft} for why none of them may be a `defaultValue`.
+ * `<label htmlFor>` + `<Input id>`, so the accessibility snapshot has named textboxes. Every field is
+ * controlled — {@link DetailsDraft} says why none may be a `defaultValue`.
  */
 function Field({
   name,
@@ -222,14 +201,13 @@ function Field({
 }
 
 /**
- * One cell of the household table: the control, and the mark under it when that field was refused.
+ * One cell of the household table: the control, and the mark under it when the field was refused.
  *
- * Three fields repeating per member is tabular data, so the field names are said once in the column
- * headings — but a column heading names a column and not a cell, so each input keeps the string its
- * visible label used to carry as `aria-label` and nothing a screen reader hears is lost.
+ * The names are said once in the column headings, but a heading names a column and not a cell — so
+ * each input carries the same string as `aria-label` and a screen reader loses nothing.
  *
- * The cells are top-aligned: a mark makes one cell taller than its neighbours, and without it the
- * controls in a refused row would sit at three different heights.
+ * Top-aligned, because a mark makes one cell taller and the controls of a refused row would
+ * otherwise sit at three different heights.
  */
 function MemberCell({
   index,
@@ -245,9 +223,8 @@ function MemberCell({
   onChange: (value: string) => void;
   problem: string | null;
   /**
-   * `readOnly`, never `disabled`: a disabled input submits nothing, and the three columns are read
-   * back as parallel lists paired by position (`householdRows`) — a dropped value would shift every
-   * row below it onto somebody else's name.
+   * `readOnly`, never `disabled`: a disabled input submits nothing, and the columns are read back as
+   * parallel lists paired by position — a dropped value would shift every row below it.
    */
   readOnly?: boolean;
 }): React.ReactElement {
@@ -323,12 +300,9 @@ function Section({
 const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
 
 /**
- * A native `<select>` at the height of this form's `Input`s.
- *
- * `/einstellungen` puts every control on `h-9`, this screen leaves `Input` at its `h-8` default, and
- * a select carrying the other screen's height is exactly the ragged baseline
- * `docs/guideline/ui_styling_guide.md` §3 warns about. The full register renders this control greyed rather
- * than removed, which is what the shared recipe's `disabled:` tokens are for.
+ * A native `<select>` at the height of this form's `Input`s: `/einstellungen` puts controls on `h-9`
+ * and this screen leaves `Input` at `h-8`, and a select carrying the other screen's height is the
+ * ragged baseline `docs/guideline/ui_styling_guide.md` §3 warns about.
  */
 const SELECT = selectClass("h-8");
 
@@ -338,13 +312,9 @@ function initialRows(draft: PrefillDraft | null): ReadonlyArray<MemberRow> {
 }
 
 /**
- * Which row is the applicant themselves, when the form opens.
- *
- * A walk-in starts on the blank first row: it is the applicant's, and it fills itself in as their
- * name is typed. A **draft** is the household as an archived record or a waiting-list entry listed
- * it, and there is no promise the applicant is first — or there at all — so the row is looked for by
- * what it says. `null` means none of them is theirs yet, and the form locks nothing: the household
- * is then one the save refuses until a row for them is typed.
+ * Which row is the applicant themselves, when the form opens. A walk-in starts on the blank first
+ * row; a **draft** carries a household in no promised order, so the row is looked for by what it
+ * says. `null` locks nothing — the save then refuses until a row for them is typed.
  */
 function initialCustomerRow(
   draft: PrefillDraft | null,
@@ -368,15 +338,13 @@ export function RegistrationForm({
   /** The household this form was filled from, or `null` for a walk-in registration. */
   draft?: PrefillDraft | null;
   /**
-   * The archived record the draft came from, carried through to `registerCustomer` as display
-   * metadata. No rule reads it — it is how a later screen can say why two records name the same
-   * people (tasks/prd-us-11-reuse-archived-record.md §FR-5).
+   * The archived record the draft came from, carried through as display metadata. No rule reads it
+   * (`tasks/prd-us-11-reuse-archived-record.md` §FR-5).
    */
   previousCustomerId?: number | null;
   /**
-   * The waiting-list entry this registration would fill (US-12.4). Unlike `previousCustomerId` it is
-   * acted on: the use case behind `submit` takes the applicant off the list once — and only once —
-   * the registration has landed.
+   * The waiting-list entry this registration would fill (US-12.4). Unlike `previousCustomerId` it *is*
+   * acted on: the use case takes the applicant off the list once the registration has landed.
    */
   entryId?: number | null;
   /** Where the form is saved. The default is the ordinary walk-in registration. */
@@ -389,11 +357,9 @@ export function RegistrationForm({
   const [birthDate, setBirthDate] = useState(draft?.birthDate ?? "");
   const [details, setDetails] = useState<DetailsDraft>(initialDetails(draft));
   const [rows, setRows] = useState<ReadonlyArray<MemberRow>>(initialRows(draft));
-  // Which row is the applicant's own. It mirrors the personal data above and is not editable here:
-  // the registered person *is* a household member, typing their name twice is how a household ends
-  // up with a phantom extra head, and a household they are not in is one the save refuses
-  // (`createHouseholdMembers`). A correction to their name therefore moves the row with it, which
-  // is what `replaceHouseholdMember` does on the record once they are registered.
+  // The applicant's own row, mirroring the personal data above and not editable here: typing their
+  // name twice is how a household ends up with a phantom extra head, and one they are not in is
+  // refused by `createHouseholdMembers`.
   const [customerRow, setCustomerRow] = useState(() =>
     initialCustomerRow(draft, initialRows(draft)),
   );
@@ -403,59 +369,50 @@ export function RegistrationForm({
   );
 
   const [picked, setPicked] = useState<number | null>(proposal.customerNumber);
-  // Controlled, and for a reason of its own beyond the number's: the group is not a field any more
-  // (US-31.6), so this state *is* the choice — nothing about it comes back from the server, and a
-  // staff member who picked BLUE and lost the race for a number has to come back to BLUE's
-  // remaining slots rather than to the proposal's. On a full register the value is never read: both
-  // radios are then disabled and the alert at the top of the form is the answer.
+  // Controlled, because the group is not a field any more (US-31.6) and this state *is* the choice:
+  // nothing about it comes back from the server, so somebody who picked BLUE and lost the race for a
+  // number has to come back to BLUE's remaining slots rather than to the proposal's.
   const [chosenGroup, setChosenGroup] = useState<Group>(proposal.suggestedGroup ?? "RED");
 
   const counts = derivedCounts(members, proposal.today);
   const full = proposal.customerNumber === null;
 
-  // The numbers the dropdown offers: the register as the action re-read it after a lost race if it
-  // sent one back, otherwise the reading the page was rendered with. Preferring the fresh list is
-  // what stops the form going on offering a number that provably cannot be saved (US-24) — the
-  // staff member's obvious next move, picking it again, would fail identically.
+  // The register as the action re-read it after a lost race, otherwise the reading the page was
+  // rendered with. Preferring the fresh list is what stops the form offering a number that provably
+  // cannot be saved (US-24).
   const freeNumbers = state.freeNumbers ?? proposal.freeNumbers;
 
-  // What the pool leaves each group — the one derivation the whole assignment block reads from: the
-  // radios take whether a group has anything to offer, the select takes its options, and the hint
-  // beneath takes the two figures. Split here rather than at each of them, so the three cannot
-  // disagree about what „frei" means.
+  // The one derivation the whole assignment block reads from — the radios, the select and the hint
+  // beneath — so the three cannot disagree about what „frei“ means.
   const freeInGroup: Record<Group, ReadonlyArray<number>> = {
     RED: inGroup(freeNumbers, "RED"),
     BLUE: inGroup(freeNumbers, "BLUE"),
   };
   const otherGroup: Group = chosenGroup === "RED" ? "BLUE" : "RED";
-  // The group the controls stand on: the staff member's own choice, unless a lost race has emptied
-  // it since — a group that can no longer be chosen must not stay chosen either, or the select
-  // below would be an empty list under a checked radio. On a full register neither group has
-  // anything, and the choice is left where it was because nothing below it can be used anyway.
+  // The staff member's own choice, unless a lost race has emptied it since: a group that can no
+  // longer be chosen must not stay chosen, or the select below would be an empty list under a
+  // checked radio.
   const group =
     freeInGroup[chosenGroup].length > 0 || freeInGroup[otherGroup].length === 0
       ? chosenGroup
       : otherGroup;
 
-  // The numbers that group offers, filtered in the browser from the pool the server sent: changing
-  // the radio is a decision the screen already holds the answer to, and a round trip to re-ask
-  // would be a round trip to look at a list it has.
+  // Filtered in the browser from the pool the server sent: changing the radio is a decision the
+  // screen already holds the answer to.
   const offered = freeInGroup[group];
 
-  // The number the control shows: the staff member's own pick, unless the group moved under it or a
-  // lost race has just taken it out of the register — then the lowest this group still has, which
-  // is where the dropdown opened in the first place. Derived rather than stored, so the correction
-  // happens in the same render the fresh pool arrives in and there is no effect that could show a
-  // dead number for a frame.
+  // The staff member's own pick, unless the group moved under it or a lost race took it out of the
+  // register — then the lowest this group still has. Derived rather than stored, so the correction
+  // happens in the same render the fresh pool arrives in rather than a frame later.
   const chosen = picked !== null && offered.includes(picked) ? picked : (offered[0] ?? "");
 
-  // One form on this screen, so the whole document is the right place to look for the control the
-  // refusal named — see `useFocusFirstRefusal` for the screens where it is not.
+  // One form on this screen, so the whole document is the right place to look for the refused
+  // control — `useFocusFirstRefusal` covers the screens where it is not.
   useFocusFirstRefusal(state.fields);
 
   const problem = (path: string): string | null => problemAt(state.fields, path);
-  // Read once rather than three times: the number's control, its label and its mark are written out
-  // by hand here — it is a `<select>` in a two-row subgrid rather than one of `Field`'s boxes.
+  // Read once rather than three times: the number's control, label and mark are written out by hand,
+  // being a `<select>` in a two-row subgrid rather than one of `Field`'s boxes.
   const numberProblem = problem("customerNumber");
 
   function updateRow(index: number, patch: Partial<MemberRow>): void {
@@ -476,9 +433,8 @@ export function RegistrationForm({
   }
 
   return (
-    // Enter in a field does nothing; the registration is saved by its button. This is the screen
-    // DF reported it from — see `enter-guard.ts` for why, and for the five other forms that
-    // followed. The archive-search panel is a sibling form and keeps its Enter.
+    // Enter in a field does nothing; the registration is saved by its button (`enter-guard.ts`). The
+    // archive-search panel is a sibling form and keeps its Enter.
     <form action={formAction} onKeyDown={guardEnter} className="flex flex-col gap-6">
       {/* Absent rather than empty for a walk-in: the field is metadata about where these people
           came from, and a blank string is not an answer to that. */}
@@ -488,12 +444,9 @@ export function RegistrationForm({
       {entryId === null ? null : <input type="hidden" name="entryId" value={entryId} />}
 
       {/*
-       * The refusal, at the top of the form rather than 1 600px down at the bottom of `Zuordnung`.
-       *
-       * A full register is not a dead end — turning an applicant away is precisely what the waiting
-       * list exists to prevent (US-12, FR-3) — so the way onto it is offered with the refusal, as a
-       * button rather than an underlined link. The form stays on screen below, disabled and not
-       * removed: staff need to see that the fields exist and why they cannot be used.
+       * The refusal, at the top of the form rather than 1 600px down. A full register is not a dead
+       * end — turning an applicant away is what the waiting list prevents (US-12, FR-3) — so the way
+       * onto it is offered here. The form stays on screen, disabled rather than removed.
        */}
       {full ? (
         <Alert variant="destructive" role="status">
@@ -512,16 +465,10 @@ export function RegistrationForm({
       ) : null}
 
       {/*
-       * One card, not three.
-       *
-       * `Person` and `Anschrift` are one act — who this is and where they live — and the record
-       * already calls that pair by one name (`record.detailsHeading`); using the same words on both
-       * screens is most of what makes them read as one product. The certificate joins them because
-       * it is what decides whether this household may be registered at all, and as a card of its
-       * own it was two fields and 102px between two much larger sections. `Anschrift` survives as a
-       * muted sub-label rather than a second `h2`.
-       *
-       * The saving is two card headers and two card paddings, ~180px, off the top of the form.
+       * One card, not three. `Person` and `Anschrift` are one act, and the record already calls that
+       * pair by one name (`record.detailsHeading`). The certificate joins them because it decides
+       * whether this household may be registered at all, and as a card of its own it was two fields
+       * and 102px between two much larger sections.
        */}
       <Section heading={de.customers.record.detailsHeading}>
         <div className={GRID}>
@@ -640,8 +587,8 @@ export function RegistrationForm({
           </TableHeader>
           <TableBody>
             {members.map((row, index) => (
-              // Rows are addressed by position: two members can share a name and a birthdate, and a
-              // row has no identity of its own until it is saved.
+              // Addressed by position: two members can share a name and a birthdate, and a row has
+              // no identity of its own until it is saved.
               <TableRow key={index} data-testid="household-row" className="hover:bg-transparent">
                 <TableCell className="align-top text-muted-foreground tabular-nums">
                   <div className={ROW_TEXT}>{index + 1}</div>
@@ -742,29 +689,22 @@ export function RegistrationForm({
         }
       >
         {/*
-         * One block for one decision: the group first, the numbers that group offers beneath it,
-         * and what each group has left under that. The group is the meaningful choice and the
-         * number is administrative, so that is the reading order — and the two are the *same*
-         * decision now, because the number is what says which week the household collects (US-31).
+         * One block for one decision: the group, the numbers it offers, and what each group has
+         * left. The group is the meaningful choice and the number administrative, and the two are the
+         * *same* decision — the number is what says which week the household collects (ADR-017).
          */}
         <div className="flex flex-col gap-4">
           {/*
-           * The group choice, unfolded — the `<details>` US-20 put around it is gone, deliberately.
+           * The group choice, deliberately **unfolded**: the group drives the list beneath it, and a
+           * folded control cannot show that BLUE has nothing left to offer — the one thing on this
+           * screen a staff member cannot work out for themselves.
            *
-           * It was folded because DF accept the proposal, so two permanently visible radios were a
-           * control for a decision almost nobody makes. That argument does not survive US-31: the
-           * group now *drives the list beneath it*, and a folded control cannot show that BLUE has
-           * nothing left to offer. Re-folding it would hide the one thing on this screen a staff
-           * member cannot work out for themselves.
+           * The radios carry **no `name`**, so nothing is submitted and this pair is browser state.
+           * The form posts the number alone, which is ADR-017 on one screen: a group that cannot be
+           * submitted cannot be submitted disagreeing with the number. Mutual exclusion is React's.
            *
-           * The radios carry **no `name`**: a named control is submitted, and this pair is browser
-           * state. The form posts the number alone, which is the whole of US-31 on one screen — a
-           * group that cannot be submitted cannot be submitted disagreeing with the number beside
-           * it. Mutual exclusion is React's, off `checked`.
-           *
-           * Each option wears the colour it names and always carries the word: a colour is a
-           * distinction only some of the staff can make (US-03.4). `#group-RED` is reached by CSS
-           * id in the e2e suite, so the ids are load-bearing too.
+           * Each option wears the colour it names and always carries the word (US-03.4). `#group-RED`
+           * is reached by CSS id in the e2e suite, so the ids are load-bearing.
            */}
           <fieldset className="flex flex-col gap-1.5">
             <legend className="mb-1.5 text-sm font-medium">{de.customers.fields.group}</legend>

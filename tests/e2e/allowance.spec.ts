@@ -10,23 +10,17 @@ import { releaseNumbers } from "./seeding";
 /**
  * The counts and the price follow the household, driven through the built app.
  *
- * The unit gates prove `priceFor` is a pure function of the counts and the settings, and
- * `describeAllowance` that the counts and the price are resolved together. What none of them can
- * see is whether the numbers on the customer record are *derived on the request* or read from a
- * stored column — the Excel failure this project replaces. So this spec seeds a one-grown-up,
- * one-child household, reads its counts and its price off the real screen, then adds a member
- * straight in the database and reloads: if the figures move, the screen worked them out from the
- * household it found and stored nothing.
+ * The unit gates prove the arithmetic. What none of them can see is whether the numbers on the record
+ * are *derived on the request* or read from a stored column — the Excel failure this project
+ * replaces. So this seeds a household, reads its figures off the real screen, adds a member straight
+ * in the database and reloads.
  *
- * The household is deliberately small enough to stay under the seeded Maximalpreis, so the added
- * child moves the price as well as the counts. A household priced at the cap would leave the price
- * assertion unable to fail — the cap itself is `price-cap.spec.ts`'s subject, not this file's.
+ * The household is deliberately small enough to stay **under** the seeded Maximalpreis, so the added
+ * child moves the price as well as the counts; at the cap the price assertion could not fail.
  *
- * Adding the member goes through Prisma rather than the UI because the household editor derives its
- * own figures in the browser; a write behind the app's back is what makes the *server's* derivation
- * the only thing that could produce the second reading. The household takes a number in the 200s so
- * the registration and card specs, which allocate the *lowest* free number, keep the low sequence
- * they assert against in the shared `data/e2e.db`.
+ * Adding the member goes through Prisma rather than the UI, because the household editor derives its
+ * own figures in the browser — a write behind the app's back is what leaves the *server's* derivation
+ * as the only thing that could produce the second reading.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. The

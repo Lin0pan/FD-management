@@ -1,16 +1,12 @@
 "use server";
 
 /**
- * The waiting-list screen's server actions — the thin adapters between its two forms and the use
- * cases behind them (US-12.4).
+ * The waiting-list screen's server actions — adapters between its two forms and the use cases behind
+ * them (US-12.4). Neither decides anything: the certificate bar (FR-1), the required reason (FR-6)
+ * and the retention (FR-7) are all settled below.
  *
- * Neither decides anything. That an applicant needs a valid certificate to join (FR-1), that a
- * removal needs a reason (FR-6) and that the row is kept rather than deleted (FR-7) are all settled
- * behind `addToWaitingList` and `removeFromWaitingList`; these functions give the submitted strings
- * a shape and turn a typed domain error into a German sentence.
- *
- * Registering an applicant is deliberately not here — it belongs to the promotion route, because it
- * is a registration and has a whole form of its own.
+ * Registering an applicant is deliberately not here — it belongs to the promotion route, being a
+ * registration with a whole form of its own.
  */
 
 import { revalidatePath } from "next/cache";
@@ -40,9 +36,8 @@ const surrogateId = z
   .transform((value): number => Number(value));
 
 /**
- * The application form. It asks for exactly what an entry records (FR-2) and nothing more — no
- * household, no group and no customer number, because none of those is decided until the applicant
- * is actually registered.
+ * The application form: exactly what an entry records (FR-2) and nothing more — no household, no
+ * group, no customer number, none of which is decided until the applicant is registered.
  */
 const applicationForm = z.object({
   firstName: z.string(),
@@ -74,28 +69,23 @@ function applicationValues(formData: FormData): Record<string, unknown> {
 }
 
 /**
- * Put the applicant on the list.
- *
- * An already-lapsed certificate is reported as its own sentence, naming the day it ran out: it is the
- * one rejection staff will meet at the counter with the applicant standing in front of them, and
- * "bitte prüfen" would not tell them what to ask for.
+ * Put the applicant on the list. A lapsed certificate gets its own sentence naming the day it ran out:
+ * it is the one rejection met with the applicant standing there, and „bitte prüfen“ would not say
+ * what to ask for.
  */
 export async function addApplicantAction(
   previous: AddApplicantState,
   formData: FormData,
 ): Promise<AddApplicantState> {
-  // The one thing a refusal carries over from the last submission, and it is carried by name rather
-  // than by spreading `previous`. A spread looks equivalent and is not: a refusal that names no
-  // field sets no `fields`, so the marks from the *previous* refusal would ride through it and go on
-  // reddening boxes the current answer says nothing about.
+  // Carried by name rather than by spreading `previous`, which looks equivalent and is not: a
+  // refusal naming no field sets no `fields`, so the previous refusal's marks would ride through and
+  // go on reddening boxes the current answer says nothing about.
   const saved = { savedCount: previous.savedCount };
 
   const parsed = applicationForm.safeParse(applicationValues(formData));
   if (!parsed.success) {
-    // Every refused field, not the first. This form asks for two days — the applicant's birthdate
-    // and the day their certificate runs to — and `calendarDay` names neither, because the same
-    // three lines read both. „Datum fehlt.“ by the button was the answer to whichever came first in
-    // the schema, and staff had no way to tell which box it meant.
+    // Every refused field, not the first: this form asks for two days and `calendarDay` names
+    // neither, so a single answer by the button would not say which box it meant.
     return {
       ...saved,
       ...fieldRefusals(parsed.error, de.waitingList.errors.unknown),
@@ -128,8 +118,8 @@ export async function addApplicantAction(
       };
     }
     if (error instanceof MissingRequiredField) {
-      // The sentence is this screen's, the mark is the shared one: nine of the ten inputs here are
-      // spelled exactly as the registration spells them, so a blank ZIP names the same box on both.
+      // The sentence is this screen's, the mark the shared one: nine of the ten inputs are spelled as
+      // the registration spells them, so a blank ZIP names the same box on both.
       const field = customerErrorField(error);
       return {
         ...saved,
@@ -170,15 +160,9 @@ export async function addApplicantAction(
 /**
  * Take the applicant named by the hidden `entryId` off the list, keeping the reason on the row.
  *
- * The hub and the home screen are revalidated with the list: their banner names whoever is at the
- * head, and a removal is one of the two ways that can change.
- *
- * Then it **redirects**, rather than returning a `saved` state, because the row this was submitted
- * from is what the revalidate takes away — the control and any state it held go with it, which is
- * why this was the worst of the six writes that said nothing: the only evidence was a row missing
- * from a list nobody was looking at. `redirect`
- * throws its own control-flow error, so it is called outside the `try`, where the catch cannot file
- * the navigation as a failed removal.
+ * It **redirects** rather than returning a `saved` state, because the revalidate takes away the row
+ * this was submitted from — the control and any state it held go with it. `redirect` throws its own
+ * control-flow error, so it is called outside the `try`.
  */
 export async function removeApplicantAction(
   _previous: RemoveApplicantState,

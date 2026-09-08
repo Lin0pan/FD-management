@@ -1,31 +1,19 @@
 "use client";
 
 /**
- * The "auf die Warteliste setzen" form (US-12.4).
+ * The "auf die Warteliste setzen" form (US-12.4). A client component so `useActionState` can report a
+ * rejection beside the fields, and so the form clears itself once an applicant is saved — staff
+ * usually write down one person and then the next.
  *
- * A client component for two reasons: `useActionState` reports a rejection — most often an expired
- * certificate — back beside the fields, and the form clears itself once an applicant has been saved,
- * because staff usually write down one person and then the next.
+ * Clearing is a `key` remount, the only trick that resets controlled and uncontrolled inputs alike.
+ * The key is the count saved so far, derived from the state rather than bumped in an effect.
  *
- * Clearing is a `key` remount rather than a field-by-field reset: the same trick the registration
- * screen uses, and the only one that resets controlled and uncontrolled inputs alike. The key is the
- * count of applicants saved so far, which the action keeps — derived from the state rather than
- * bumped in an effect, so there is no render that shows the saved applicant's details a second time.
+ * **The fields are controlled, and they live in `Fields`, under that key** — row one of
+ * `docs/guideline/ui_styling_guide.md` §7's table: state under the key is both the clearing and the
+ * keeping. Uncontrolled they were only ever cleared, because React calls `form.reset()` once a
+ * `<form action>` resolves, refusal as well as save, so a mistyped day cost a retyped address.
  *
- * The fields are **controlled**, and they live in `Fields`, under that key. That placement is the
- * whole mechanism, and it is row one of `docs/guideline/ui_styling_guide.md` §7's table: a form that
- * already remounts on a save needs nothing else to clear it, so state under the key is both the
- * clearing and the keeping. Uncontrolled, they were only ever cleared — React calls `form.reset()`
- * once a `<form action>` resolves, on a refusal as well as a save, and a reset restores each input
- * from its `defaultValue` attribute. Eight of the ten fields were emptied by every rejection, so a
- * mistyped day cost a retyped address, and the two that survived did so by accident: `DateInput`
- * holds its own state and is controlled from React's point of view whatever it is passed.
- *
- * (The record's renewal form cites this file as its model for exactly that placement. It was the
- * model for where the state goes; it was not yet an example of the state existing.)
- *
- * It holds no rules. Whether the certificate is valid and whether a field may be blank are decided
- * behind `addToWaitingList`; the form only collects what an entry records.
+ * No rules here — `addToWaitingList` decides.
  */
 
 import { useActionState, useEffect, useRef, useState } from "react";
@@ -49,11 +37,9 @@ type Application = Record<ApplicationField, string>;
 type ApplicationField = (typeof APPLICATION_FIELDS)[number];
 
 /**
- * Every field the form submits, in the order it reads down the screen.
- *
- * Listed once and used three times — the blank state, the nine boxes of the grid, and the lookup
- * that marks them — because a field missing from any one of those three fails silently: an
- * un-listed field is simply not submitted, or not cleared, or not markable.
+ * Every field the form submits, in reading order. Listed once and used three times — the blank state,
+ * the grid, and the lookup that marks them — because a field missing from any one of the three fails
+ * silently: not submitted, not cleared, or not markable.
  */
 const APPLICATION_FIELDS = [
   "firstName",
@@ -86,11 +72,9 @@ const GRID_FIELDS: ReadonlyArray<{ name: ApplicationField; label: string; day?: 
 ];
 
 /**
- * `<Label htmlFor>` + `<Input id>` rather than the control nested inside its label. The `id`s are
- * load-bearing anyway — `waiting-list.spec.ts` fills every field by CSS id, never by label — so the
- * binding costs nothing and makes the accessibility snapshot name each `textbox`, which is also
- * what `getByLabel` needs. The `id` is the `name`, which is also the path a refusal marks by, so all
- * three agree without a translation.
+ * `<Label htmlFor>` + `<Input id>` rather than a nested control. The `id`s are load-bearing anyway
+ * (`waiting-list.spec.ts` fills by CSS id), and the `id` is the `name` is the path a refusal marks
+ * by, so all three agree without a translation.
  */
 function Field({
   name,
@@ -188,18 +172,12 @@ export function AddApplicantForm(): React.ReactElement {
   const fields = state.status === "error" ? state.fields : undefined;
   useFocusFirstRefusal(fields, form);
 
-  // The one place on this screen where the viewport rule needs help. Nothing scrolls — measured,
-  // `window.scrollY` is identical either side of the click — but the applicant who was just added
-  // arrives as a *new row in the list above this form*, which pushes the form, its button and its
-  // confirmation down by the height of that row. With the button near the bottom of the screen when
-  // it was pressed, the answer lands just past it: 905px of a 900px viewport, measured on the demo
-  // data.
+  // The one place the viewport rule needs help. Nothing scrolls, but the applicant just added
+  // arrives as a *new row in the list above this form*, pushing the button and its confirmation down
+  // by that row's height — 905px of a 900px viewport, measured.
   //
-  // Asked rather than assumed, and only then: on any screen tall enough to hold the form the
-  // confirmation is already in view, and scrolling a page that did not need it is its own way of
-  // losing the reader. `block: "center"` rather than `"nearest"` because the row is inserted in the
-  // same commit — `"nearest"` scrolls by the minimum the layout claims at that moment and left the
-  // banner eight pixels clipped.
+  // Asked rather than assumed, and `block: "center"` rather than `"nearest"`: the row is inserted in
+  // the same commit, and `"nearest"` scrolls by the minimum the layout claims at that moment.
   useEffect((): void => {
     if (state.status !== "saved") {
       return;
@@ -211,10 +189,9 @@ export function AddApplicantForm(): React.ReactElement {
   }, [state]);
 
   return (
-    // Named, so the button beside the heading can jump here. Staff arrive on this screen from
-    // /kunden/neu's "stattdessen auf die Warteliste setzen" with a person standing in front of
-    // them, and the form they were sent for is below the whole queue. `scroll-mt-16` clears the
-    // sticky bar, which would otherwise cover this card's own heading on arrival.
+    // Named, so the button beside the heading can jump here: staff arrive from /kunden/neu with a
+    // person in front of them and the form below the whole queue. `scroll-mt-16` clears the sticky
+    // bar, which would otherwise cover this card's heading on arrival.
     <Card id={ADD_FORM_ANCHOR} className="scroll-mt-16">
       <CardHeader>
         <CardTitle className="text-lg">

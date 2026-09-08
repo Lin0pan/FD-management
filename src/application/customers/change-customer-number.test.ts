@@ -45,10 +45,9 @@ import { readCard } from "./read-card";
 import { readCustomer } from "./read-customer";
 
 /**
- * Hand-written fakes, per the testing standard, and synthetic data only. The birthdates are fixed
- * rather than faked because every count these tests assert is derived from them: the grown-up was
- * born in 1985, the child on `2015-06-02` — still a child on {@link TODAY} — and the member of
- * {@link OVERTAKEN_BIRTH_DATE} turned 13 after the card in the household's pocket was printed.
+ * Hand-written fakes and synthetic data only. The birthdates are fixed rather than faked because
+ * every count asserted here is derived from them — the member of {@link OVERTAKEN_BIRTH_DATE} turned
+ * 13 after the card in the household's pocket was printed.
  */
 
 faker.seed(20260831);
@@ -144,12 +143,11 @@ class FakeReminderLogRepository implements ReminderLogRepository {
 
 /**
  * A register that writes a number change the way the adapter does: the number moves and the card is
- * inserted **together**, and the card's slot is read off the row *after* it moved — so no test can
- * file a card under a number its household does not hold. It owns the cards for that reason; the
- * card store below is a reader over the same rows.
+ * inserted **together**, with the card's slot read off the row *after* it moved — so no test can file
+ * a card under a number its household does not hold. It owns the cards for that reason.
  *
- * `writes` counts every mutation that reached it, which is how „a refusal writes nothing" is stated
- * as a fact about the store rather than as an assertion about one column.
+ * `writes` counts every mutation, which is how „a refusal writes nothing“ becomes a fact about the
+ * store rather than an assertion about one column.
  */
 class FakeCustomerRepository implements CustomerRepository {
   readonly holders: RegisteredCustomer[] = [];
@@ -317,9 +315,8 @@ class FakeCustomerRepository implements CustomerRepository {
 
 /**
  * The card store as a reader over the register's rows. A card carries the slot it was **printed
- * under**, so `highestIndexForNumber` asks the cards themselves rather than resolving each one
- * through its household — which is the whole point once a household can move off a slot and leave
- * its run behind (US-30).
+ * under**, so `highestIndexForNumber` asks the cards rather than resolving each through its
+ * household — the whole point once a household can move off a slot (ADR-016).
  */
 class FakeCardRepository implements CardRepository {
   constructor(private readonly register: FakeCustomerRepository) {}
@@ -737,17 +734,13 @@ describe("changeCustomerNumber", () => {
 });
 
 /**
- * What the rest of the application reads once a household has moved (US-30.5).
+ * What the rest of the application reads once a household has moved (US-30.5) — four reads, every one
+ * about the same thing: **no card is ever re-labelled**. The worked example throughout is id 1 on
+ * slot 5 carrying `5k4`, moved onto slot 23 whose last card was `23k5`, ending up on `23k6` over a
+ * run of `5k4`…`5k1`.
  *
- * The move itself is the suite above; these are the four reads that a moved household passes
- * through afterwards, and every one of them is about the same thing: **no card is ever
- * re-labelled**. The household in every test is the batch's worked example — id 1 on slot 5
- * carrying `5k4`, moved onto slot 23 whose last card was `23k5`, so they end up holding `23k6` over
- * a run of `5k4`, `5k3`, `5k2`, `5k1`.
- *
- * They live here rather than in each use case's own suite because this file holds the only fakes
- * that can move a household — the register writes the number and the card together, as the adapter
- * does, so a card can only ever be filed under the slot its household held when it was printed.
+ * Here rather than in each use case's own suite, because this file holds the only fakes that can move
+ * a household.
  */
 describe("the record after a number change", () => {
   let customers: FakeCustomerRepository;

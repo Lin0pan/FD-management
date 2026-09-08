@@ -2,19 +2,13 @@
 
 /**
  * The cards-due screen's one write: replacing a card whose printed counts the household has outgrown
- * (tasks/prd-us-13-age-13-reclassification.md §US-13.4).
+ * (`tasks/prd-us-13-age-13-reclassification.md` §US-13.4). The same act as the record's reissue,
+ * through the same `reissueCard`.
  *
- * It is the same act as the reissue on the customer record, and it goes through the same use case —
- * `reissueCard`, and therefore `issueCard`, the one path by which a card comes into existence. What
- * differs is the reason, and like the loss control this one *fixes* it rather than reading it off the
- * form: `STALE_COUNTS` is what this screen is, and a reason arriving from the browser would let a
- * reissue file itself under the wrong one. That distinction is not cosmetic — the loss count on the
- * card view is only readable because each reissue says why it happened.
+ * The reason is **fixed here** rather than read off the form: `STALE_COUNTS` is what this screen is,
+ * and the loss count on the card view is only readable because each reissue says why it happened.
  *
- * Nothing is decided here. Whether the customer may be issued a card is `reissueCard`'s judgement,
- * and every refusal it can give this screen is a row that went stale under it: an archived
- * household, one of the two lost card races, or a record that has left the register altogether.
- * Each reaches it only via a list rendered before somebody else changed what it was describing.
+ * Nothing is decided here. Every refusal this screen can get is a row that went stale under it.
  */
 
 import { revalidatePath } from "next/cache";
@@ -39,16 +33,10 @@ const surrogateId = z
 /**
  * Issue a new card for the household named by the hidden `customerId`, recording `STALE_COUNTS`.
  *
- * On success four screens are revalidated: this list (the row is gone, because the new card prints
- * today's counts), the household's record and card view (they name the new number), and the home
- * screen (its badge counts this list).
- *
- * Then it **redirects**, rather than returning a `saved` state, because the row this was submitted
- * from is exactly what the revalidate removes — the control and any state it held go with it, which
- * is why this write had no confirmation at all. The
- * new number rides in the URL and the page states it above the list, the same way the registration
- * hands its confirmation to the record it lands on. `redirect` throws its own control-flow error, so
- * it is called outside the `try` — inside, the catch would file the navigation as a failed reissue.
+ * It **redirects** rather than returning a `saved` state, because the revalidate removes the very row
+ * this was submitted from — the control and any state it held go with it. The new number rides in the
+ * URL and the page states it above the list. `redirect` throws its own control-flow error, so it is
+ * called outside the `try`.
  */
 export async function reissueStaleCardAction(
   _previous: StaleReissueState,
@@ -65,9 +53,8 @@ export async function reissueStaleCardAction(
       customerId: customerId.data,
       reason: "STALE_COUNTS",
     });
-    // Both halves off the card the store handed back, as on the record's own control: the slot it
-    // was printed under is on the row itself (US-30), so nothing has to read the household again to
-    // ask it a number the card already carries.
+    // Both halves off the card the store handed back: the slot it was printed under is on the row
+    // itself (ADR-016), so nothing has to read the household again.
     cardNumber = formatCardNumber(card.customerNumber, card.index);
   } catch (error: unknown) {
     if (error instanceof CustomerArchived) {
@@ -77,8 +64,7 @@ export async function reissueStaleCardAction(
         tier: tierOf(error),
       };
     }
-    // The two lost card races say what happened, in the sentences the registration and the record
-    // read them with — `customerErrorMessage` is where they live, so one race cannot come to be
+    // The two lost card races speak `customerErrorMessage`'s sentences, so one race cannot be
     // reported three ways on the three screens that can lose it. The last word stays this screen's.
     return {
       status: "error",
@@ -90,9 +76,7 @@ export async function reissueStaleCardAction(
   revalidatePath("/karten-neuausstellung");
   revalidatePath(`/kunden/${customerId.data}`);
   revalidatePath(`/kunden/${customerId.data}/karte`);
-  // The hub, which counts this list in a badge of its own (US-17.2). Not the home screen any more:
-  // it counted nothing once US-18.3 moved the signals onto the hub, and `src/app/page.tsx` now
-  // renders the week colour and nothing else.
+  // The hub, which counts this list in a badge of its own (US-17.2).
   revalidatePath("/kunden");
   redirect(`/karten-neuausstellung?${ISSUED_CARD}=${encodeURIComponent(cardNumber)}`);
 }

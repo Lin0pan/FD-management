@@ -1,19 +1,14 @@
 /**
- * The shape a registration form has on the wire: the Zod schema its fields are read with, the way
- * its household rows are paired back together, and the German sentence each typed domain error is
- * reported as.
+ * The shape a registration form has on the wire: the Zod schema, the pairing of its household rows,
+ * and the German sentence each typed domain error is reported as.
  *
- * It sits beside the action rather than inside it because there is more than one screen that saves a
- * registration — the registration page itself, and the waiting-list promotion at
- * `/warteliste/[entryId]/registrieren` (US-12.4) — and the two must read the same form the same way.
- * A second schema is how a field starts being accepted on one screen and refused on the other.
+ * Beside the action rather than inside it, because two screens save a registration — the page itself
+ * and the waiting-list promotion (US-12.4) — and a second schema is how a field starts being accepted
+ * on one and refused on the other. Not a `"use server"` module on purpose: those may export nothing
+ * but async functions.
  *
- * It is not a `"use server"` module on purpose: such a module may export nothing but async
- * functions, so a schema or a helper there would be a build error rather than a style question.
- *
- * Nothing here decides anything. Which number a household gets and whether it holds together are
- * the domain's and the use case's; this module only gives the submitted strings a shape. There is
- * no group among the fields, and there is nothing missing: the number carries it (US-31).
+ * Nothing here decides anything, and there is no group among the fields — the number carries it
+ * (ADR-017).
  */
 
 import { z } from "zod";
@@ -39,16 +34,12 @@ import { tierOf } from "../../notice-tier";
 import type { PrefillDraft, PrefillMember } from "./archive-search-state";
 
 /**
- * A calendar day as DF type it — `TT.MM.JJJJ` — read as the UTC day it names.
+ * A calendar day as DF type it, read as the UTC day it names — the reading is
+ * `src/domain/calendarDay.ts`'s, this only turns its refusal into words. Two answers, not one:
+ * blank and unreadable are different mistakes (ADR-013).
  *
- * The reading itself is `src/domain/calendarDay.ts`'s; this only turns its refusal into the words
- * shown under the field. Two answers, not one: a field left blank and a field nobody can read are
- * different mistakes, and calling the first a *format* problem is what sent DF looking for a typo
- * that was never there (ADR-013).
- *
- * Like every message in this schema it names no field — it cannot, because the same three lines
- * validate the customer's birthdate, the certificate's date and every household row's. The field is
- * named once, from the issue's own path, in {@link fieldRefusals}.
+ * Like every message here it names no field — the same three lines validate the customer's birthdate,
+ * the certificate's date and every household row's. {@link fieldRefusals} names it from the path.
  */
 export const calendarDay = z.string().transform((value, ctx): Date => {
   if (isBlankDay(value)) {
@@ -82,18 +73,14 @@ const previousCustomerId = z.string().transform((value, ctx): number | undefined
 });
 
 /**
- * The slot staff picked in the dropdown (US-24), and with it the group they picked it from (US-31).
+ * The slot staff picked (US-24), and with it the group it belongs to (ADR-017).
  *
- * Every value the form can produce is a positive integer, because the options *are* the free
- * numbers; anything else is a tampered or stale submission and is refused as a missing field. It
- * must never fall through to `undefined`, which the use case reads as „the software picks one“ —
- * the number on screen when `Aufnehmen` was pressed is the number that gets saved, or nothing is.
+ * It **must never fall through to `undefined`**, which the use case reads as "the software picks one":
+ * the number on screen when `Aufnehmen` was pressed is the number that gets saved, or nothing is. So
+ * anything but a positive integer is refused as a missing field.
  *
- * It is the **only** field the assignment posts. The group radios above it filter this list in the
- * browser and submit nothing, so a number and a group cannot arrive here disagreeing.
- *
- * Whether the number is still free is not decided here. That is `assertFreeNumber`'s and the
- * partial unique index's, in that order.
+ * The **only** field the assignment posts — the group radios submit nothing, so a number and a group
+ * cannot arrive here disagreeing. Whether the number is still free is `assertFreeNumber`'s question.
  */
 const customerNumber = z.string().transform((value, ctx): number => {
   if (!/^[1-9]\d*$/.test(value)) {
@@ -129,15 +116,12 @@ export const registrationForm = z.object({
 export type RegistrationFormValues = z.infer<typeof registrationForm>;
 
 /**
- * Pair the repeated household inputs back into rows.
+ * Pair the repeated household inputs back into rows. The row count is the **longest** of the three
+ * parallel lists: a row whose birthdate was left blank has to reach the domain and be rejected there
+ * rather than vanish on the way.
  *
- * The three fields of a row arrive as three parallel lists, so the row count is the longest of them
- * — a row whose birthdate was left blank has to reach the domain and be rejected there, not vanish
- * on the way.
- *
- * Exported because the customer record edits the very same household with the very same three
- * repeated fields (US-16.1). A second reader of those fields is how one screen starts dropping a
- * half-typed row that the other passes on.
+ * Exported because the record edits the same household with the same fields (US-16.1), and a second
+ * reader is how one screen starts dropping a half-typed row the other passes on.
  */
 export function householdRows(formData: FormData): Array<Record<string, string>> {
   const firstNames = formData.getAll("memberFirstName").map(String);
@@ -173,13 +157,9 @@ export function registrationValues(formData: FormData): Record<string, unknown> 
 }
 
 /**
- * The two fields the domain and the form spell differently, plus the four the domain nests.
- *
- * `CustomerDetails` groups the address and the certificate; an HTML form is flat and `<input name>`
- * cannot be a path, so the form calls them `street` and `certificateType`. Household rows and the
- * three personal fields are spelled the same on both sides and are not listed — the same shape
- * `einstellungen/actions.ts` uses for the settings screen's two nested names, and for the same
- * reason: what the browser can mark is an input.
+ * The fields the domain nests and the form flattens: `CustomerDetails` groups the address and the
+ * certificate, an HTML form cannot. Fields spelled the same on both sides are not listed —
+ * `einstellungen/actions.ts` takes the same shape, for the same reason.
  */
 const DOMAIN_FIELD_PATH: Record<string, string | undefined> = {
   "address.street": "street",
@@ -199,24 +179,17 @@ function fieldRefusal(path: string, problem: string): FieldRefusal | null {
 }
 
 /**
- * Everything the schema refused, in one answer.
- *
- * **Every** issue, not the first: the schema reads a day per household member alongside the
- * customer's own and the certificate's, so a form filled in a hurry fails in three places at once
- * and correcting it one round trip per field is how a registration takes five submissions. The
- * domain still refuses one rule at a time — it stops at the first broken — and that asymmetry is
- * honest: the schema checks every field independently, a use case checks a household.
+ * Everything the schema refused, in one answer — **every** issue, not the first: a form with a day per
+ * household member fails in three places at once, and one round trip per field is how a registration
+ * takes five submissions. The domain still stops at the first broken rule, and the asymmetry is
+ * honest: the schema checks fields independently, a use case checks a household.
  *
  * An issue on a field nobody can see is dropped, and if that is *all* of them the answer becomes
- * `lastWord` at the `error` tier. The only such field on the registration is `previousCustomerId`,
- * which the screen writes and nobody types: a value that is not a surrogate id there is a tampered
- * request, not a mistyped one, and „Bitte das Feld „previousCustomerId“ prüfen“ would send staff
- * looking for a box that does not exist (`docs/guideline/ui_styling_guide.md` §7).
+ * `lastWord` at the `error` tier — naming `previousCustomerId` would send staff looking for a box
+ * that does not exist (`docs/guideline/ui_styling_guide.md` §7).
  *
- * `lastWord` is the caller's for the same reason {@link customerErrorMessage} has no fallback: the
- * rules are shared between the screens that read this form, but what to say when *nothing* matched
- * is not. The registration says the intake could not be saved, the record says the change could not
- * be, the waiting list says the applicant could not be added.
+ * `lastWord` is the caller's for {@link customerErrorMessage}'s reason: the rules are shared between
+ * the screens reading this form, but what to say when *nothing* matched is not.
  */
 export function fieldRefusals(
   error: z.ZodError,
@@ -230,21 +203,14 @@ export function fieldRefusals(
 }
 
 /**
- * The field a typed domain error names, or `null` where it names none.
+ * The field a typed domain error names, or `null` where it names none — which six of them do not:
+ * two are statements about the whole table, one about the register, two about a card run read stale,
+ * and `BirthDateInFuture` carries only the date, raised alike for the customer's own birthdate and
+ * for every household row. Naming that one needs the error to carry its row; until it does, it stays
+ * a summary that marks nothing rather than a mark that guesses.
  *
- * Four of the errors this layer knows are about one value staff typed, and six are not:
- * `EmptyHousehold` and `CustomerNotInHousehold` are statements about the whole table — the second
- * names a person, and the row it wants is the one that is *not* there — `NoFreeCustomerNumber` is
- * about the register, the two card races are about a run that was read stale rather than about
- * anything on the form at all, and `BirthDateInFuture` carries only the date — it is raised for the
- * customer's own birthdate and for every household row alike, and nothing on it says which. Naming that one needs the error to
- * carry its row; until it does, it stays a summary that marks nothing rather than a mark that
- * guesses.
- *
- * Exported because four screens raise these errors, not one: the registration, the waiting-list
- * promotion that shares its form, the record's editors (US-16) and the counter's renewal. The
- * sentence has been shared since {@link customerErrorMessage}; the mark had not been, which is how
- * a blank ZIP came to name its field on one screen and no field on the next.
+ * Exported because four screens raise these errors — the registration, the promotion sharing its
+ * form, the record's editors (US-16) and the counter's renewal.
  */
 export function customerErrorField(error: unknown): FieldRefusal | null {
   if (error instanceof MissingRequiredField) {
@@ -268,17 +234,12 @@ export function customerErrorField(error: unknown): FieldRefusal | null {
 }
 
 /**
- * The German sentence for a typed domain error about a *household* — its data, its slot, or the card
- * that goes with it — or `null` for anything this layer has no words for.
+ * The German sentence for a typed domain error about a *household*, or `null` for anything this layer
+ * has no words for. Every error carries the values that made it fail, so the message names a concrete
+ * field or card without re-deriving anything.
  *
- * Every error carries the values that made it fail, so the message can name the concrete field,
- * quota or card without re-deriving anything here.
- *
- * It stops short of a fallback on purpose. The rules it translates — a blank field, a future
- * birthdate, an empty household, an over-long note — are the same whether they were broken while
- * registering a household or while correcting one later (US-16.2), but what to say when *nothing*
- * matched is not: the registration says the intake could not be saved, the record says the change
- * could not be. So each screen supplies its own last word.
+ * **No fallback, on purpose**: the rules are the same whether broken while registering or while
+ * correcting (US-16.2), but what to say when *nothing* matched is the screen's own.
  */
 export function customerErrorMessage(error: unknown): string | null {
   if (error instanceof MissingRequiredField) {

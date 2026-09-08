@@ -20,12 +20,9 @@ import type {
 import { listNumberChoices } from "./list-number-choices";
 
 /**
- * Hand-written fakes, per the testing standard, and synthetic data only.
- *
- * The two stores here answer one question each — which numbers active households hold, and how far
- * every slot's run has got — because that is all the use case asks of them. Everything else on both
- * ports rejects, so a second query fails loudly rather than passing unnoticed: „reads the register
- * once" is the rule this file states, and a fake that answered politely could not state it.
+ * Hand-written fakes and synthetic data only. The two stores answer one question each, and everything
+ * else on both ports **rejects** — „reads the register once“ is the rule this file states, and a fake
+ * that answered politely could not state it.
  */
 
 faker.seed(20260831);

@@ -1,24 +1,11 @@
 /**
- * The Start dashboard (tasks/prd-us-17-navigation-shell.md §US-17.3).
+ * The Start dashboard (`tasks/prd-us-17-navigation-shell.md` §US-17.3) — three lines and nothing
+ * else: the greeting, the date, the Ausgabe. The nav bar carries the links, and the signals live on
+ * the hub (US-17.2), so nothing here needs clicking except in the unconfigured state.
  *
- * It used to be a list of seven links, which is what a program looks like before it has navigation.
- * The bar carries those now, so this screen answers the question staff actually open it for: what
- * day is it, when is the next Ausgabe, and which group collects. Nothing on it needs clicking —
- * except in the one state where DF has configured no rhythm yet, and there the way to the settings
- * is the only thing on the screen worth doing.
- *
- * Three lines and nothing else: the greeting, the date, the Ausgabe. The explanatory paragraph under
- * the heading and the panel's `AUSGABE` eyebrow both went, because each one described the line below
- * it rather than saying anything the line did not.
- *
- * The date only — no clock time. That is what keeps this a plain server component: no client
- * boundary, no ticking state, no timer, and a page that renders the same under the fixed clock the
- * end-to-end suite pins. `now` comes from the injected `Clock` through `getWeekColour`, never from a
- * wall-clock read here (CLAUDE.md: time is injected).
- *
- * The free-slot banner and the cards-due badge used to stand here; they moved to the hub in
- * US-17.2, where the rest of the customer administration is. Nothing was dropped, and this screen
- * stopped being a to-do list.
+ * **The date only, no clock time**, which is what keeps this a plain server component: no client
+ * boundary, no ticking state, and a page that renders the same under the fixed clock the e2e suite
+ * pins. `now` comes from the injected `Clock` through `getWeekColour`.
  */
 
 import Link from "next/link";
@@ -35,24 +22,16 @@ import { SHELL } from "./shell";
 export const dynamic = "force-dynamic";
 
 /**
- * The distribution line: one sentence, set like the date above it, in no container at all.
+ * The distribution line: one sentence, set like the date above it, in no container at all. DF asked
+ * for no banner and no tint, so the group is carried by the word `(Rot)` / `(Blau)` alone — which
+ * loses nothing, the word always having been the part that had to be there (US-03.4).
  *
- * It was a tinted card at 40px and then at 30px, which is what §3 of the concept asked for — and
- * seeing it built, DF asked for the opposite: no banner, no tint, and the group as a small note
- * rather than a clause. So the colour is now carried by the word `(Rot)` / `(Blau)` alone. That
- * loses nothing a reader depends on, because the word was always the part that had to be there
- * (US-03.4: never colour alone); it is the paint that has gone, not the fact. `GROUP_STYLES` is
- * therefore no longer imported here — every other screen that names a group still wears it.
+ * **`nextDistribution.colour`, never `view.colour`**: on a Saturday after a Thursday distribution,
+ * "diese Woche ist Rot" and "die nächste Ausgabe ist Blau" are both true, and only the second answers
+ * what this screen exists for (PRD §6).
  *
- * `nextDistribution.colour`, never `view.colour`: the two are the same field only until the week's
- * distribution has been and gone. With a Thursday distribution, on a Saturday "diese Woche ist Rot"
- * and "die nächste Ausgabe ist Blau" are both true, and only the second answers the question this
- * screen exists for (PRD §6). The date beside it comes from the same pair, so the colour cannot be
- * read against a day it does not belong to.
- *
- * The testid stays on a wrapper with exactly one `<p>` inside it: `home.spec.ts` asserts
- * `getByTestId("next-distribution").locator("p")` with an exact `toHaveText`, so the sentence may
- * neither be split across elements nor joined by a second paragraph (concept §7.1).
+ * The testid stays on a wrapper with exactly one `<p>` inside: `home.spec.ts` asserts its text
+ * exactly, so the sentence may neither be split across elements nor joined by a second paragraph.
  */
 function DistributionLine({ view }: { view: WeekColourView }): React.ReactElement {
   const { date, colour } = view.nextDistribution;
@@ -70,12 +49,9 @@ function DistributionLine({ view }: { view: WeekColourView }): React.ReactElemen
 }
 
 /**
- * What stands in the line's place before DF has configured anything at all (FR-10).
- *
- * The one state in which this screen has something to do, so it keeps a `Card`: the sentence
- * explains a setup step rather than answering the daily question, and the button under it is the
- * only control on the screen. Neutral, and deliberately — there is no group to name here, so
- * painting it red or blue would be the only false statement the screen could make.
+ * What stands in the line's place before DF has configured anything (FR-10) — the one state in which
+ * this screen has something to do, so it keeps a `Card`. Neutral deliberately: there is no group to
+ * name, so painting it would be the only false statement the screen could make.
  */
 function NotConfigured(): React.ReactElement {
   return (
@@ -96,11 +72,9 @@ function NotConfigured(): React.ReactElement {
 }
 
 /**
- * Today's colours, or `null` when no settings version is in force.
- *
- * An unseeded database has no distribution rhythm, and that must cost the panel rather than the
- * screen: a staff member who has just installed the application meets the dashboard first, and an
- * error page there says the software is broken when in fact it is empty.
+ * Today's colours, or `null` when no settings version is in force — a cost to the panel rather than
+ * the screen: an error page on the first screen after an install says the software is broken when in
+ * fact it is empty.
  */
 async function today(): Promise<WeekColourView | null> {
   try {
@@ -115,8 +89,8 @@ async function today(): Promise<WeekColourView | null> {
 
 export default async function Home(): Promise<React.ReactElement> {
   const view = await today();
-  // The looked-up day when there is one, and the injected clock's day when there is not — the date
-  // line is the half of this screen that does not depend on DF having configured anything.
+  // The looked-up day, or the injected clock's: the date line is the half of this screen that does
+  // not depend on DF having configured anything.
   const date = view?.date ?? distributionDeps.clock.now();
 
   return (

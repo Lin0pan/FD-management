@@ -3,14 +3,8 @@ import { InvalidCalendarDay } from "./errors";
 import { formatCalendarDay, isBlankDay, isoCalendarDay, parseCalendarDay } from "./calendarDay";
 
 /**
- * A calendar day as DF type it: `TT.MM.JJJJ`.
- *
- * The native `<input type="date">` was withdrawn because its typing order is the operating system's
- * to choose, not ours (ADR-013): on a Mac whose region is not German, Safari reads the first segment
- * as a month, and Chromium silently *clamps* an out-of-range month — `15.03.1985` became
- * `1985-12-03`, a valid date nobody typed. A birthdate decides whether a household member is a child,
- * so a silently wrong one moves the price. This module is the one place that text becomes a day,
- * and it fails loudly rather than guessing.
+ * A calendar day as DF type it: `TT.MM.JJJJ`. The native `<input type="date">` was withdrawn in
+ * ADR-013; this module is the one place text becomes a day, and it fails loudly rather than guessing.
  */
 describe("parseCalendarDay", () => {
   it("reads a German day as the UTC day it names", () => {

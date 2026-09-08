@@ -1,16 +1,11 @@
 "use client";
 
 /**
- * The pieces every editing form on the customer record is built from (US-16.5).
+ * The pieces every editing form on the customer record is built from (US-16.5): a field that can mark
+ * itself, a save button that says it is saving, and a line reporting what the server answered.
+ * Repeating those five times is how five forms end up confirming a save in four different words.
  *
- * The record carries five independent forms — household, personal data, notes, group and a renewed
- * certificate — and each needs the same three things: a labelled field that can mark itself when the
- * server refuses it, a save button that says it is saving, and one line beneath it reporting what
- * the server answered. Repeating those five times is how five forms end up confirming a save in four
- * different words.
- *
- * Nothing here decides anything, and nothing here holds state: each form owns its own
- * `useActionState` and hands the result down.
+ * Nothing here decides anything and nothing holds state — each form owns its own `useActionState`.
  */
 
 import { useId } from "react";
@@ -24,17 +19,12 @@ import { marking } from "../../field-refusal";
 import { useNoticeSlot } from "../../notice-board";
 import { Notice } from "../../notice";
 
-/**
- * The field grid the record's forms are laid out on: twelve columns at `lg`, two at `sm`, one
- * below. The same scheme `/kunden/neu` uses, so a house number is not as wide as a street on either
- * screen.
- */
+/** The field grid, the same scheme `/kunden/neu` uses: a house number is not as wide as a street. */
 export const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
 
 /**
- * The action row at the foot of one form: the save, and what the server said about the last one.
- * Ruled off, so a reader can see where the form it belongs to ends — which is most of what a card
- * buys a screen carrying five of them.
+ * The action row at the foot of one form. Ruled off, so a reader can see where the form ends — most
+ * of what a card buys a screen carrying five of them.
  */
 export function FormFooter({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
@@ -63,10 +53,9 @@ export function TextField({
   /** The words to show under the control, or `null` while nothing is wrong with it. */
   problem?: string | null;
 }): React.ReactElement {
-  // Generated rather than taken from `name`: two forms on this record both hold a `firstName`, and
-  // duplicate ids would point every label at whichever came first. Which is exactly why the mark is
-  // addressed by `data-field` and not by this id — the path is the one name the action and the
-  // control agree on, and the action cannot know what `useId` produced.
+  // Generated rather than taken from `name`: two forms on this record both hold a `firstName`. Which
+  // is why the mark is addressed by `data-field` instead — the path is the one name the action and
+  // the control agree on, and the action cannot know what `useId` produced.
   const id = useId();
   const marks = marking(name, id, problem);
   return (
@@ -104,17 +93,12 @@ export function TextField({
 }
 
 /**
- * The words under a refused control on this record, at this screen's test id.
+ * The words under a refused control, shared by all five of the record's forms — a spec that counts
+ * the marks on this page is asking about the page.
  *
- * Shared by all five of its forms — there is one `record-field-error` vocabulary, not one per form,
- * because a spec that counts the marks on this page is asking about the page.
- *
- * The marks are **not** governed by the `NoticeBoard` above them, and that asymmetry is deliberate.
- * The board exists so that eight write controls do not leave eight stale confirmations on screen at
- * once; a mark is not a confirmation. If the household is refused and the note is then saved, the
- * board hands the slot to the note and the household's rows stay red — which is right, because the
- * birthdate in row three is still unreadable. The mark clears when the field that carries it is
- * submitted again.
+ * **The marks are deliberately not governed by the `NoticeBoard`**: a mark is not a confirmation. If
+ * the household is refused and the note is then saved, the board hands the slot to the note and the
+ * household's rows stay red — because the birthdate in row three is still unreadable.
  */
 export function RecordRejection({
   id,
@@ -127,12 +111,9 @@ export function RecordRejection({
 }
 
 /**
- * The save button of one form, disabled while its own submission is in flight.
- *
- * Each form has its own, and they are labelled after what they save rather than all saying
- * "Speichern": five identical buttons on one screen are indistinguishable to anyone reading the page
- * by keyboard or screen reader, and it is the record's whole point that the five saves are five
- * different decisions.
+ * The save button of one form, disabled while its own submission is in flight and labelled after what
+ * it saves: five identical „Speichern“ are indistinguishable by keyboard or screen reader, and the
+ * record's whole point is that the five saves are five decisions.
  */
 export function SaveButton({
   label,
@@ -153,11 +134,9 @@ export function SaveButton({
 }
 
 /**
- * What the server said about the last submission of one form: nothing, saved, or a refusal.
- *
- * The confirmation is stated rather than left to the values changing on screen, because most of
- * these edits look identical afterwards — a corrected spelling, a note reworded — and "did that
- * save?" is otherwise a question the screen cannot answer.
+ * What the server said about the last submission of one form. Stated rather than left to the values
+ * changing, because most of these edits look identical afterwards and "did that save?" is otherwise a
+ * question the screen cannot answer.
  */
 export function SaveFeedback({
   state,
@@ -170,18 +149,15 @@ export function SaveFeedback({
   /** The confirmation's words, where a form has something more to say than "gespeichert". */
   savedText?: string;
 }): React.ReactElement | null {
-  // The record carries five of these plus the reissue, the block and the archive; the board is what
-  // stops the fourth one's „Gespeichert." from still being on screen under the eighth one's button.
+  // Eight write controls on this record; the board is what stops the fourth one's „Gespeichert.“
+  // from still being on screen under the eighth one's button.
   const showing = useNoticeSlot(testId, state.status === "idle" ? null : state);
   if (!showing) {
     return null;
   }
   if (state.status === "saved") {
-    // Green, like every other write that went through. This was neutral on the argument that a save
-    // is not the completion of an *act* the way a hand-out is — a distinction that is real and that
-    // nobody at a counter needs to make. What it cost was measurable: five forms on this screen
-    // answering in a white box on the same surface as the card behind it, which is a poor answer to
-    // the question they exist for.
+    // Green, like every other write that went through: a white box on the same surface as the card
+    // behind it is a poor answer to the question a confirmation exists for.
     return <Notice tone="success" text={savedText} testId={`${testId}-saved`} />;
   }
   if (state.status === "error") {

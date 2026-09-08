@@ -2,16 +2,12 @@ import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 
 /**
- * The navigation shell, driven through the built app (tasks/prd-us-17-navigation-shell.md §US-17.5).
+ * The navigation shell (`tasks/prd-us-17-navigation-shell.md` §US-17.5). `activeSection` is already
+ * proved as a pure function, so nothing here re-tests the routing table.
  *
- * `activeSection` is already proved as a pure function over a string, so nothing here re-tests the
- * routing table. What a unit test cannot see is the bar as staff meet it: that the four links are
- * really in the layout of every screen, that following one lands on the section it names, and that
- * the marking follows along — including on the two screens the customer hub owns but does not name,
- * `/warteliste` and `/karten-neuausstellung`, where a bar marking nothing reads as broken.
- *
- * The spec only reads. It seeds no household and claims no customer number, so it can share the
- * register with everything else in the `chromium` project.
+ * What a unit test cannot see is the bar as staff meet it: that the links are really in every
+ * screen's layout, that following one lands on the section it names, and that the marking follows —
+ * including on the two screens the customer hub owns but does not name.
  */
 
 /** One section of the bar: the link that leads there, and the screen that proves you arrived. */

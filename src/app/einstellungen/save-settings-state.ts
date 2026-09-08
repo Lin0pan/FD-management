@@ -1,9 +1,6 @@
 /**
- * The state the settings form and its server action pass between them.
- *
- * It lives outside `actions.ts` because a `"use server"` module may export nothing but async
- * functions — everything it exports becomes a callable server endpoint, so a plain object there is
- * a build-time error rather than a style question.
+ * The state the settings form and its server action pass between them. Outside `actions.ts` because a
+ * `"use server"` module may export nothing but async functions.
  */
 
 import type { FieldRefusal } from "../field-refusal";
@@ -14,47 +11,33 @@ export interface SaveSettingsState {
   readonly status: "idle" | "saved" | "error";
   readonly message?: string;
   /**
-   * Which of the two refusals this is, decided from the typed error (`notice-tier.ts`).
-   *
-   * Optional for the same reason `message` is: this is a flat interface rather than a discriminated
-   * union, so neither field can be required while `idle` and `saved` share the shape.
+   * Which of the two refusals this is, from the typed error (`notice-tier.ts`). Optional because this
+   * is a flat interface rather than a union, so `idle` and `saved` share the shape.
    */
   readonly tier?: NoticeTier;
   /**
-   * The fields a refusal names, where it names any, so the form can mark each and put the words
-   * beside it.
+   * The fields a refusal names, so the form can mark each and put the words beside it — the
+   * **inputs'** names, not the domain's, translating being the action's job.
    *
-   * The **inputs'** names, not the domain's: `Settings` nests the anchor week and an HTML form is
-   * flat, and translating a domain fact into what the browser can use is the action's job. Absent on
-   * purpose for the refusals that name no single field — a quota below the active customer count is
-   * a collision between two numbers, and marking `quotaN` would say the value is malformed when it
-   * is only too small.
+   * Absent on purpose where a refusal names no single field: a quota below the active customer count
+   * is a collision between two numbers, and marking `quotaN` would call it malformed.
    *
-   * A **list**, and it was a single `field` until this screen and the rest of the app were made to
-   * answer a refusal the same way. Singular meant the action stopped at the first Zod issue, so
-   * mistyping two of the three money boxes reported one of them and the staff member corrected it,
-   * saved, and was refused again for the other. The domain still names at most one — the use case
-   * stops at the first rule broken — and that asymmetry is honest: the schema checks every field
-   * independently, a use case checks a settings version.
+   * A **list**, because the schema checks every field independently — singular meant mistyping two
+   * money boxes reported one, and the corrected save was refused again for the other. The domain
+   * still names at most one, and that asymmetry is honest.
    */
   readonly fields?: ReadonlyArray<FieldRefusal>;
   /**
-   * What was submitted, handed straight back so a refusal leaves the form as the staff member left
-   * it.
+   * What was submitted, handed straight back so a refusal leaves the form as the staff member left it.
    *
-   * **Present on a refusal, absent on a save**, and that asymmetry is the whole mechanism. React
-   * resets an uncontrolled form once its action resolves — success or refusal alike — and a reset
-   * restores each input from its `defaultValue` *attribute*. With the stored settings as the only
-   * `defaultValue`, that reset rewound every field to what the database said: a rejected save
-   * discarded four edits because one of them was wrong, and the screen then marked a field holding a
-   * value nobody had typed and called it invalid. Feeding the submission back through makes the same
-   * reset restore the question instead of deleting it — the mechanism `archive-search-state.ts`
-   * already relies on from the other side. On a save there is nothing here, so the reset lands on
-   * the freshly stored figures, which is what it should do.
+   * **Present on a refusal, absent on a save**, and that asymmetry is the whole mechanism: React
+   * resets an uncontrolled form once its action resolves and restores each input from its
+   * `defaultValue` *attribute*, so with only the stored settings there a rejected save discarded four
+   * edits because one was wrong. Feeding the submission back makes the same reset restore the
+   * question instead of deleting it.
    *
-   * Raw strings, exactly as the form sent them, never parsed. The point is to give back what was
-   * typed — `0`, `2,5o`, `2026-W2` and all — because a value the domain could not read is precisely
-   * the one the staff member has to see in order to fix it.
+   * Raw strings, never parsed — `0`, `2,5o`, `2026-W2` and all — because a value the domain could not
+   * read is precisely the one the staff member has to see in order to fix it.
    */
   readonly values?: SubmittedSettings;
 }
@@ -69,9 +52,8 @@ export interface SubmittedSettings {
   readonly pricePerGrownUp: string;
   readonly pricePerChild: string;
   /**
-   * The Maximalpreis, and `""` is a value here rather than a gap: it is how the form says there is
-   * no cap. A refusal has to hand an emptied field back as empty, or correcting the field beside it
-   * would silently restore the cap that was just removed.
+   * The Maximalpreis, where `""` is a value rather than a gap: a refusal has to hand an emptied field
+   * back as empty, or correcting the field beside it would restore the cap that was just removed.
    */
   readonly priceCap: string;
 }

@@ -9,23 +9,17 @@ import { fillSticky } from "./day";
 import { fillPersonalData as fillPersonalDataOn, type Person } from "./registration-form";
 
 /**
- * The waiting list from a full register to a promoted applicant, driven through the built app
- * (tasks/prd-us-12-waiting-list.md §US-12.5).
+ * The waiting list from a full register to a promoted applicant (`tasks/prd-us-12-waiting-list.md`
+ * §US-12.5).
  *
- * Every part of the chain is already proved on its own: `inArrivalOrder` orders the queue in the
- * domain gate, `registerFromWaitingList` registers before it removes against fakes, and the adapter
- * stamps a removal rather than deleting it against a throwaway SQLite file. What none of them can
- * see is the sentence DF actually cares about — *the register filled up, an applicant was put on a
- * list instead of being turned away, and when a slot came back it went to whoever had waited
- * longest.* That is four screens and three features (US-01, US-10, US-14) agreeing with one another,
- * so it is driven end to end.
+ * Every part of the chain is proved on its own. What none of them can see is the sentence DF cares
+ * about — *the register filled up, an applicant was written down instead of turned away, and when a
+ * slot came back it went to whoever had waited longest* — which is four screens and three features
+ * agreeing with one another.
  *
- * This is the one spec that runs in the **`isolated` project** (`playwright.config.ts`): its own
- * server, its own empty database. It has to, because it makes the register *full*, and the quota is
- * a single global number — on the shared database the other specs hold customer numbers in the
- * hundreds, so no quota this spec could set would leave the register with nothing free. Owning an
- * empty register is also what lets the quota be a plain 2 instead of an arithmetic expression: with
- * two slots and two households in them, "voll" means what it says.
+ * It runs in the **`isolated` project** with its own empty database, because it makes the register
+ * *full* and the quota is a single global number. Owning an empty register is also what lets the
+ * quota be a plain 2 rather than an arithmetic expression.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. The dates
@@ -151,12 +145,10 @@ async function addToWaitingList(page: Page, person: Applicant): Promise<void> {
     de.waitingList.add.saved(fullName(person)),
   );
 
-  // The other half of the retention rule, asserted on the way past rather than in a test of its own,
-  // because a test would need an applicant of its own and this spec counts the queue. *A save
-  // clears everything, a refusal keeps everything* (§7): the fields are React state under the
-  // `savedCount` key, so the remount is what empties them. Making them controlled is what stopped a
-  // refusal emptying them too — and if that had been done by moving the state *above* the key, this
-  // is the assertion that would have caught it, with the saved applicant still in the boxes.
+  // Asserted on the way past rather than in a test of its own, a test needing an applicant this spec
+  // would then have to count. *A save clears everything, a refusal keeps everything* (§7): the fields
+  // are React state under the `savedCount` key, so the remount empties them — and state moved *above*
+  // the key would leave the saved applicant in the boxes, which is what this catches.
   await expect(page.locator("#firstName")).toHaveValue("");
   await expect(page.locator("#certificateType")).toHaveValue("");
   await expect(page.locator("#certificateValidUntil")).toHaveValue("");

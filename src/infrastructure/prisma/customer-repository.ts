@@ -28,34 +28,28 @@ import {
 import { isCardCollision, toIssuedCard } from "./card-repository";
 
 /**
- * Everyone who still holds a customer number.
- *
- * `ACTIVE` and `BLOCKED` both occupy a slot — a blocked household is turned away at the counter but
- * stays registered — while `ARCHIVED` releases it. Stating the condition once keeps the three
- * queries below from drifting apart, which is how a number would silently be handed out twice.
+ * Everyone who still holds a customer number: `ACTIVE` and `BLOCKED`, never `ARCHIVED`. Stated once
+ * so the queries below cannot drift apart, which is how a number would be handed out twice.
  */
 const ON_REGISTER = { status: { not: "ARCHIVED" } } as const;
 
 /**
- * The related rows the counter and the card view both read off a customer — the household, the
- * certificate and the current card — loaded *with* the customer so neither screen fans out into an
- * N+1 (tasks/prd-us-04-lookup-customer.md §US-04.3).
+ * The related rows the counter and the card view read off a customer, loaded *with* it so neither
+ * screen fans out into an N+1 (`tasks/prd-us-04-lookup-customer.md` §US-04.3).
  *
- * Prisma's SQLite provider has no join strategy (`relationLoadStrategy: "join"` is Postgres/MySQL
- * only), so this is four statements per lookup rather than literally one: the customer and one per
- * relation. What matters at the counter is that the number is *fixed* — a ten-person household costs
- * the same four reads as a two-person one — which is the invariant the integration test pins.
+ * Prisma's SQLite provider has no join strategy, so this is four statements per lookup, not one. What
+ * matters is that the number is *fixed* — a ten-person household costs the same four reads as a
+ * two-person one — which is the invariant the integration test pins.
  */
 const CUSTOMER_INCLUDE = {
   householdMembers: { orderBy: { id: "asc" } },
-  // The latest-recorded certificate is the one on file; renewals stack behind it as history
-  // (US-06.3). The id breaks a same-instant tie the same way "the later row wins" does elsewhere.
+  // The latest-recorded certificate is the one on file; renewals stack behind it (US-06.3). The id
+  // breaks a same-instant tie, as "the later row wins" does elsewhere.
   certificates: { orderBy: [{ recordedAt: "desc" }, { id: "desc" }], take: 1 },
-  // The highest index is the card the customer actually holds; a reissue supersedes the earlier
-  // one, which stays on file so an old card can be recognised at the counter (US-09). The whole run
-  // is loaded rather than only the top one, because the *first* card is the household's start date
-  // (`registeredOn`) — there is no registration column, and a second query for one date on the
-  // counter's hot path would cost more than the two or three rows a household's run ever holds.
+  // The highest index is the card the customer holds; superseded ones stay on file so an old card is
+  // recognisable at the counter (US-09). The whole run rather than the top row, because the *first*
+  // card is `registeredOn` and a second query for one date on the counter's hot path would cost more
+  // than the two or three rows a run ever holds.
   cards: { orderBy: { index: "desc" } },
 } as const satisfies Prisma.CustomerInclude;
 
@@ -63,14 +57,14 @@ const CUSTOMER_INCLUDE = {
 type CustomerRow = Prisma.CustomerGetPayload<{ include: typeof CUSTOMER_INCLUDE }>;
 
 /**
- * Whether a failed write was one named unique index rejecting the row: the columns of the index, in
- * order, and not a substring of the error's `meta` blob.
+ * Whether a failed write was one named unique index rejecting the row — matched on the index's
+ * columns **in order**, never a substring of the error's `meta`.
  *
  * A registration writes the customer *and* their first card in one nested statement, and both rows
- * carry a `customerNumber` (US-25) — so matching the word alone would report a card number already
- * printed on this slot as a lost race for the slot itself, which the caller answers by retrying on
- * another number and leaves the real fault in place. Prisma names the *rooted* model for a nested
- * write, `Customer` for both, so the columns are the only thing that tells them apart.
+ * carry a `customerNumber` (US-25). Matching the word alone would report a card number already
+ * printed as a lost race for the slot, which the caller answers by retrying on another number and
+ * leaves the real fault in place. Prisma names the *rooted* model — `Customer` for both — so the
+ * columns are the only thing that tells them apart.
  */
 function isCollisionOn(error: unknown, columns: readonly string[]): boolean {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
@@ -86,29 +80,21 @@ function isCollisionOn(error: unknown, columns: readonly string[]): boolean {
 
 /**
  * Whether a failed write was the self-referencing foreign key refusing a `previousCustomerId` that
- * belongs to nobody (US-11.3).
+ * belongs to nobody (US-11.3). The database checks the link for free; all that is left is reporting
+ * it as the domain's `CustomerNotFound`.
  *
- * The link is display metadata the application deliberately does not verify — no rule reads it, and
- * a lookup purely to check it would make it one. The database checks it for free; all that is left
- * is to report the refusal as the domain's own `CustomerNotFound` rather than as a Prisma code.
- *
- * Unlike the unique-index collision above, the offending column cannot be read off the error:
- * SQLite reports a foreign-key violation with no `meta` at all. It does not need to be — the
- * customer, its members, its certificate and its card go out as one nested write, so every other
- * foreign key in it points at the row being inserted. `previousCustomerId` is the only one that can
- * name something that might not exist, and the caller checks that they supplied one.
+ * Unlike the collision above, the column cannot be read off the error — SQLite reports a foreign-key
+ * violation with no `meta`. It need not be: every other foreign key in that nested write points at
+ * the row being inserted, so `previousCustomerId` is the only one that can name something missing.
  */
 function isMissingPredecessor(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003";
 }
 
 /**
- * What the customer list's single search box narrows the query by (US-15.2).
- *
- * A name is folded here, because only this layer knows the columns hold folded values, and matched
- * as a prefix of *either* name: staff type whichever of the two they were given, and a household is
- * as often looked up by the first name as by the surname. The customer number is matched exactly —
- * a slot is a number, not a prefix, and `5` must not drag in 50 and 51.
+ * What the customer list's search box narrows the query by (US-15.2). A name is folded here — only
+ * this layer knows the columns hold folded values — and matched as a prefix of *either* name. The
+ * customer number is matched exactly: `5` must not drag in 50 and 51.
  */
 function searchCondition(search: CustomerListSearch | undefined): Prisma.CustomerWhereInput {
   if (search === undefined) {
@@ -124,11 +110,9 @@ function searchCondition(search: CustomerListSearch | undefined): Prisma.Custome
 }
 
 /**
- * The SQLite-backed {@link CustomerRepository}.
- *
- * The adapter maps and nothing else: no rule is decided here. What it *does* own is the one thing
- * the pure layers cannot — the partial unique index that settles which of two simultaneous
- * registrations got the last free number (tasks/prd-us-01-register-customer.md §US-01.5).
+ * The SQLite-backed {@link CustomerRepository}. It maps and nothing else — what it *does* own is the
+ * one thing the pure layers cannot: the partial unique index that settles which of two simultaneous
+ * registrations got the last free number (`tasks/prd-us-01-register-customer.md` §US-01.5).
  */
 export class PrismaCustomerRepository implements CustomerRepository {
   private readonly prisma: PrismaClient;
@@ -137,7 +121,6 @@ export class PrismaCustomerRepository implements CustomerRepository {
     this.prisma = prisma;
   }
 
-  /** The numbers held by customers who still occupy a slot; archived rows release theirs. */
   async takenActiveNumbers(): Promise<ReadonlyArray<number>> {
     const rows = await this.prisma.customer.findMany({
       where: ON_REGISTER,
@@ -147,13 +130,6 @@ export class PrismaCustomerRepository implements CustomerRepository {
     return rows.map((row) => row.customerNumber);
   }
 
-  /**
-   * The customer behind a surrogate id, with their household, certificate and current card.
-   *
-   * Archived customers come back like any other — their data stays queryable (US-10, US-11). The
-   * stored `status` string re-enters the domain through its own parser, so a hand-edited row fails
-   * loudly instead of quietly becoming an active household.
-   */
   async findById(id: number): Promise<RegisteredCustomer | null> {
     const row = await this.prisma.customer.findUnique({
       where: { id },
@@ -163,15 +139,11 @@ export class PrismaCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * The customer a customer *number* resolves to at the counter (US-04.2): the slot's active holder
-   * when there is one, and otherwise the most recently archived holder, so a freed-and-not-yet-
-   * reissued number still names who last had it.
-   *
-   * Two reads rather than one because "active or, failing that, the latest archived" is not a single
-   * `orderBy`: an active holder must always win over an archived one regardless of when each row was
-   * created, and only when there is no active holder does recency decide between the archived ones.
-   * A reassigned slot therefore resolves to its current holder, never to the person it was taken
-   * from. At most one active holder can exist — the partial unique index guarantees it.
+   * **Two reads rather than one**, because "active or, failing that, the latest archived" is not a
+   * single `orderBy`: an active holder must win over an archived one whatever their creation order,
+   * and recency only decides between archived rows. So a reassigned slot resolves to its current
+   * holder, never to the person it was taken from. At most one active holder exists — the partial
+   * unique index guarantees it.
    */
   async findByCustomerNumber(customerNumber: number): Promise<RegisteredCustomer | null> {
     const active = await this.prisma.customer.findFirst({
@@ -191,14 +163,10 @@ export class PrismaCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * Every customer in one status, lowest customer number first, each with their household,
-   * certificate and current card attached.
-   *
-   * This is the one whole-register read in the product, and it exists for the cards-due-for-reissue
-   * list, which compares each household's birthdates against what their card has printed on it
-   * (US-13.2). That comparison cannot be a `WHERE` clause — one side of it is a rule over dates that
-   * changes answer as the clock moves — so the rows come out and the domain decides. At DF's ~240
-   * customers this is a few hundred rows loaded once on a screen nobody stands at.
+   * The one whole-register read in the product, for the cards-due-for-reissue list (US-13.2). That
+   * comparison cannot be a `WHERE` clause — one side is a rule over dates that changes answer as the
+   * clock moves — so the rows come out and the domain decides. At ~240 customers, a few hundred rows
+   * on a screen nobody stands at.
    */
   async listWithStatus(status: CustomerStatus): Promise<ReadonlyArray<RegisteredCustomer>> {
     const rows = await this.prisma.customer.findMany({
@@ -210,21 +178,13 @@ export class PrismaCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * The customers the customer list asked for, lowest customer number first (US-15.2).
+   * The customers the customer list asked for, lowest number first (US-15.2). Every criterion is a
+   * `WHERE` clause: the register is small enough to filter in JavaScript, and that is exactly why it
+   * is not — the screen replacing a spreadsheet must not *be* one.
    *
-   * Every criterion the query carries is a `WHERE` clause. The register is small enough that
-   * loading it and filtering in JavaScript would work, and that is exactly why it is written down
-   * here instead: the screen that replaces a spreadsheet must not *be* one, and the day someone
-   * adds a column to it the filtering should already be where a database can serve it from an
-   * index.
-   *
-   * The **group** is the one narrowing that is not here, and it is not a column either: it is the
-   * parity of a customer number (`groupOf`, US-31), which SQLite cannot ask for. `listCustomers`
-   * narrows the rows this returns, and `CustomerListQuery` says why.
-   *
-   * Names are compared folded, by the same `foldName` that wrote the columns, so this search and the
-   * archive search (US-11.1) agree letter for letter — one normalisation in the codebase, not two. A
-   * folded prefix matches either name, because staff type whichever of the two they were told.
+   * The **group** is the one narrowing that is not here, and not a column either (ADR-017) —
+   * `CustomerListQuery` says why. Names are compared folded by the same `foldName` that wrote the
+   * columns, so this and the archive search (US-11.1) agree letter for letter.
    */
   async list(query: CustomerListQuery): Promise<ReadonlyArray<RegisteredCustomer>> {
     const rows = await this.prisma.customer.findMany({
@@ -244,14 +204,13 @@ export class PrismaCustomerRepository implements CustomerRepository {
   /**
    * The ids of the customers whose **current** certificate expires inside `range`.
    *
-   * It is a separate statement because Prisma cannot express "the latest related row satisfies this"
-   * — `certificates: { some: … }` would match a household on a notice they have long since renewed,
-   * which is precisely the household the list must *not* show as expired. The correlated subquery
-   * picks the same row `CUSTOMER_INCLUDE` calls current (latest `recordedAt`, id breaking the tie),
-   * so the filter and the certificate the screen prints beside it are always the same certificate.
+   * A raw statement because Prisma cannot express "the latest related row satisfies this":
+   * `certificates: { some: … }` would match a household on a notice they long since renewed, which is
+   * precisely the household the list must *not* show as expired. The correlated subquery picks the
+   * row `CUSTOMER_INCLUDE` calls current, so the filter and the printed certificate always agree.
    *
-   * The bounds are half-open — `from` included, `before` excluded — so a `validUntil` that was
-   * stored with a time of day still falls on the side of the boundary its calendar day belongs to.
+   * The bounds are half-open, so a `validUntil` stored with a time of day still falls on its own
+   * calendar day's side of the boundary.
    */
   private async idsByCurrentCertificate(range: ValidUntilRange): Promise<number[]> {
     const bounds: Prisma.Sql[] = [];
@@ -279,15 +238,12 @@ export class PrismaCustomerRepository implements CustomerRepository {
   /**
    * The archived households answering to what staff typed, most recently archived first (US-11.1).
    *
-   * The name criteria are folded here, because only this layer knows the columns hold folded values;
-   * the folding itself is the domain's `foldName`, the same function that wrote them, so the query
-   * and the stored value can never mean two different things. `startsWith` on the folded column is a
-   * prefix match the `(lastNameFolded, birthDate)` index serves, which is why the fold is stored at
-   * all — SQLite could not do it in the `WHERE` clause.
+   * Folded here with the domain's own `foldName`, the function that wrote the columns, so the query
+   * and the stored value cannot mean two different things. `startsWith` on the folded column is a
+   * prefix match the `(lastNameFolded, birthDate)` index serves — which is why the fold is stored at
+   * all, SQLite being unable to do it in the `WHERE` clause.
    *
-   * A criterion nobody filled in is left out of the `where` entirely rather than matched against the
-   * empty string; whether *no* criterion at all is acceptable is the use case's rule, and it refuses
-   * before reaching here.
+   * An unfilled criterion is left out of the `where` rather than matched against the empty string.
    */
   async searchArchived(
     query: ArchiveSearchQuery,
@@ -304,8 +260,7 @@ export class PrismaCustomerRepository implements CustomerRepository {
           : { firstNameFolded: { startsWith: foldName(query.firstName) } }),
         ...(query.birthDate === undefined ? {} : { birthDate: query.birthDate }),
       },
-      // Most recently archived first; the id breaks a same-instant tie the way "the later row wins"
-      // does elsewhere, so the order is total and two runs of the same search agree.
+      // The id breaks a same-instant tie, so the order is total and two runs of one search agree.
       orderBy: [{ archivedAt: "desc" }, { id: "desc" }],
       take: limit,
       include: CUSTOMER_INCLUDE,
@@ -316,9 +271,8 @@ export class PrismaCustomerRepository implements CustomerRepository {
   /**
    * Map an archived row, narrowing the archive reason and instant to non-null.
    *
-   * @throws {InvalidCustomerRecord} if either is missing. `archive` writes the status, the reason and
-   *   the instant in one statement, so an archived row without them can only come from a hand-edited
-   *   database — and a search result inventing a reason would be worse than refusing.
+   * @throws {InvalidCustomerRecord} if either is missing — `archive` writes all three in one
+   *   statement, so such a row can only come from a hand-edited database.
    */
   private toArchivedCustomer(row: CustomerRow): ArchivedCustomer {
     const customer = this.toRegisteredCustomer(row);
@@ -333,20 +287,18 @@ export class PrismaCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * Map a loaded row into the domain record, validating the stored `status` string on the way back
-   * in — a hand-edited row fails loudly rather than quietly becoming an active household. There is
-   * no group to validate: it is the parity of the customer number (`groupOf`, US-31), so a row
-   * cannot carry one that disagrees with the slot it holds.
+   * Map a loaded row into the domain record, validating the stored `status` on the way back in so a
+   * hand-edited row fails loudly. There is no group to validate — it is the parity of the number
+   * (ADR-017), so a row cannot carry one that disagrees with its slot.
    *
    * @throws {InvalidCustomerRecord} if the certificate or the current card is missing. Registration
-   *   writes both in the same transaction as the customer, so a row without them can only come from
-   *   a hand-edited database — and a card view inventing either would be worse than refusing.
+   *   writes both in the customer's own transaction, so such a row is a hand-edited database.
    */
   private toRegisteredCustomer(row: CustomerRow): RegisteredCustomer {
     const certificate = row.certificates[0];
     const card = row.cards[0];
-    // The run is ordered highest index first, so its last element is the card handed over with the
-    // registration — the day the household joined. A reissue therefore cannot move their start.
+    // The run is highest index first, so its last element is the card handed over with the
+    // registration — the day the household joined, which a reissue therefore cannot move.
     const firstCard = row.cards.at(-1);
     if (certificate === undefined || card === undefined || firstCard === undefined) {
       throw new InvalidCustomerRecord(
@@ -364,14 +316,14 @@ export class PrismaCustomerRepository implements CustomerRepository {
       archivedAt: row.archivedAt,
       reminderCount: row.reminderCount,
       card: {
-        // The slot the card was **printed under**, off the card row rather than off the customer's
-        // — the two part company for a household that has been moved to another number (US-30).
+        // The slot the card was **printed under**, off the card row and not the customer's — the two
+        // part company for a household that has been moved (ADR-016).
         customerNumber: card.customerNumber,
         index: card.index,
         issuedAt: card.issuedAt,
         reason: parseCardIssueReason(card.reason),
-        // What is printed on the card the household holds, not what their household is today — the
-        // two part company on a 13th birthday, which is the whole point of storing it (US-13.3).
+        // What is printed on the card, not what the household is today — the two part company on a
+        // 13th birthday, which is the point of storing it (US-13.3).
         countsAtIssue: { grownUps: card.grownUpsAtIssue, children: card.childrenAtIssue },
       },
       registeredOn: firstCard.issuedAt,
@@ -398,10 +350,8 @@ export class PrismaCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * Persist a new customer with their household, certificate and first card.
-   *
-   * The nested writes go out as **one statement group inside a single transaction**, so a failure
-   * anywhere leaves neither a half-built household nor a consumed customer number.
+   * Persist a new customer with their household, certificate and first card — **one nested write in a
+   * single transaction**, so a failure leaves neither a half-built household nor a consumed number.
    *
    * @throws {CustomerNumberTaken} if another registration took the number first.
    * @throws {CardNumberTaken} if the first card's number had already been printed on that slot.
@@ -414,8 +364,8 @@ export class PrismaCustomerRepository implements CustomerRepository {
           customerNumber: customer.customerNumber,
           firstName: details.firstName,
           lastName: details.lastName,
-          // The search keys, derived from the names in the same statement that writes them, so the
-          // two cannot be written apart (US-11.1). A future edit of a name must do the same.
+          // The search keys, derived in the same statement as the names so the two cannot be
+          // written apart (US-11.1). Any edit of a name must do the same.
           firstNameFolded: foldName(details.firstName),
           lastNameFolded: foldName(details.lastName),
           birthDate: details.birthDate,
@@ -426,9 +376,8 @@ export class PrismaCustomerRepository implements CustomerRepository {
           status: customer.status,
           reminderCount: customer.reminderCount,
           notes: details.notes,
-          // Display metadata for a returning household (US-11.3), null for everyone else. Written
-          // like any other column: nothing is copied across the link, and the predecessor's row is
-          // not read, let alone touched.
+          // Display metadata for a returning household (US-11.3). Nothing is copied across the
+          // link, and the predecessor's row is not read, let alone touched.
           previousCustomerId: customer.previousCustomerId,
           householdMembers: {
             create: details.householdMembers.map((member) => ({
@@ -438,8 +387,8 @@ export class PrismaCustomerRepository implements CustomerRepository {
             })),
           },
           certificates: {
-            // The first row of the append-only trail, recorded at the registration instant — the
-            // same one the first card carries, because both were written by the same decision.
+            // The first row of the append-only trail, at the registration instant — the same one the
+            // first card carries, both being written by one decision.
             create: {
               type: details.certificate.type,
               validUntil: details.certificate.validUntil,
@@ -448,9 +397,8 @@ export class PrismaCustomerRepository implements CustomerRepository {
           },
           cards: {
             create: {
-              // The slot the card is printed under, written in the same statement as the customer
-              // row it comes from — the key `@@unique([customerNumber, index])` needs, never the
-              // card's number, which stays derived (US-25).
+              // The slot the card is printed under, written with the customer row it comes from —
+              // the key `@@unique([customerNumber, index])` needs. The card *number* stays derived.
               customerNumber: customer.customerNumber,
               index: customer.card.index,
               issuedAt: customer.card.issuedAt,
@@ -462,15 +410,13 @@ export class PrismaCustomerRepository implements CustomerRepository {
         },
         select: { id: true },
       });
-      // A newly registered customer is always active, so they carry neither a block reason (US-08)
-      // nor an archive one (US-10), and the card just written is both their current and their first —
-      // which is what makes today their `registeredOn`.
+      // A new customer is active, so carries neither reason, and the card just written is both their
+      // current and their first — which is what makes today their `registeredOn`.
       return {
         ...customer,
         id: row.id,
-        // The card as it was stored: printed under the very number this registration just took, and
-        // filled in here rather than by the caller for the reason `issue` gives — a caller that
-        // could pass the slot is a caller that could pass the wrong one.
+        // Printed under the very number this registration took, filled in here rather than by the
+        // caller for `issue`'s reason.
         card: { ...customer.card, customerNumber: customer.customerNumber },
         blockReason: null,
         archiveReason: null,
@@ -478,13 +424,12 @@ export class PrismaCustomerRepository implements CustomerRepository {
         registeredOn: customer.card.issuedAt,
       };
     } catch (error: unknown) {
-      // The partial index on the register — the slot itself was taken while this was in flight.
+      // The register's partial index — the slot was taken while this was in flight.
       if (isCollisionOn(error, ["customerNumber"])) {
         throw new CustomerNumberTaken(customer.customerNumber);
       }
-      // `Card`'s global index — the slot was won, but the card number on it has been printed before
-      // (US-25). A different fault: another slot answers the first, and nothing answers this one but
-      // reading the slot's run again.
+      // `Card`'s global index — the slot was won, but its card number has been printed before
+      // (US-25). A different fault: nothing answers it but reading the slot's run again.
       if (isCollisionOn(error, ["customerNumber", "index"])) {
         throw new CardNumberTaken(customer.customerNumber, customer.card.index);
       }
@@ -498,16 +443,12 @@ export class PrismaCustomerRepository implements CustomerRepository {
   /**
    * Replace a customer's household with exactly `members` (US-16.1).
    *
-   * Delete-then-create inside **one transaction**, because the household is a set rather than a list
-   * of rows staff maintain: matching the given rows against the stored ones would need an identity
-   * the screen does not have — two children of the same name and birthdate are two rows and nothing
-   * distinguishes them — and a partial match would leave a household nobody typed. The delete is the
-   * one place in this file that removes anything, and what it removes is not customer data leaving
-   * the system: no history of past compositions is kept (PRD §FR-2), and the counts the household
-   * *had* survive on the card that printed them.
+   * Delete-then-create in **one transaction**, because the household is a set: matching given rows
+   * against stored ones would need an identity the screen does not have — two children of the same
+   * name and birthdate are two rows — and a partial match would leave a household nobody typed.
    *
-   * Nothing derived is written: there is no count column, and the price follows from the birthdates
-   * the moment they are read.
+   * The one delete in this file, and the deliberate exception to ADR-010: no history of past
+   * compositions is kept (PRD §FR-2), and the counts the household *had* survive on their card.
    */
   async updateHousehold(id: number, members: ReadonlyArray<HouseholdMemberDetails>): Promise<void> {
     await this.prisma.$transaction([
@@ -524,19 +465,15 @@ export class PrismaCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * Correct the customer's personal data and the household they belong to, in **one transaction**
-   * (US-16.2).
+   * Correct the customer's personal data and their household, in **one transaction** (US-16.2).
    *
-   * The folded search keys are rewritten from the names in the same statement, so the register can
-   * never be findable only under a spelling nobody uses any more; they are a *search key* and not a
-   * fact, which is exactly why they may not be written apart from the names they come from (US-11.1).
+   * The folded search keys are rewritten from the names in the same statement, or the register would
+   * be findable only under a spelling nobody uses any more (US-11.1).
    *
-   * The household is replaced the way {@link updateHousehold} replaces it, and for the same reason:
-   * the customer is one of its rows, their name is on the record twice, and a write that moved only
-   * one of the two would leave a household listing a person who no longer exists. Which row was them
-   * has already been decided by the domain (`replaceHouseholdMember`) — the adapter is handed the set
-   * as it should stand and writes it, even when nothing in it moved, so there is one code path here
-   * rather than a comparison this layer has no business making.
+   * The household is replaced as {@link updateHousehold} replaces it: the customer is one of its
+   * rows, so a write moving only one of the two copies of their name would leave a household listing
+   * a person who no longer exists. Which row was them is `replaceHouseholdMember`'s decision, so the
+   * set is written as handed over even when nothing in it moved.
    *
    * The customer number is not written, and no argument reaches it (PRD §FR-7).
    */
@@ -573,35 +510,27 @@ export class PrismaCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * Replace the free-text note on a record (US-16.3).
-   *
-   * One column, one statement: nothing is derived from a note, so there is nothing to keep in step
-   * with it — which is what makes this the shortest write in the file rather than a transaction.
+   * Replace the free-text note (US-16.3). One column, one statement: nothing is derived from a note,
+   * so there is nothing to keep in step with it.
    */
   async updateNotes(id: number, notes: string): Promise<void> {
     await this.prisma.customer.update({ where: { id }, data: { notes } });
   }
 
   /**
-   * Move a customer to another slot and write the card that goes with it — **one `$transaction`**,
-   * so the register and the card in the household's pocket can never be left disagreeing (US-30).
+   * Move a customer to another slot and write the card that goes with it — **one `$transaction`**, so
+   * the register and the card in the household's pocket cannot be left disagreeing (US-30).
    *
-   * The update goes first and the card's slot is then read back off the row it just wrote, exactly
-   * as {@link PrismaCardRepository.issue} reads it off the customer: the card can only ever be
-   * printed under the number the household now holds, whatever a caller passed. Nothing else is
-   * touched — the earlier cards keep the numbers they were printed with, because the run left on
-   * the old slot is what makes that slot safe to hand out again (US-25).
+   * The update goes first and the card's slot is read back off the row it just wrote, so the card can
+   * only ever be printed under the number the household now holds. Earlier cards keep the numbers
+   * they were printed with — the run left on the old slot is what makes it safe to hand out again
+   * (US-25). Any refusal rolls the whole transaction back.
    *
-   * Any of the three constraints refusing the write rolls the whole transaction back, so a lost
-   * race leaves neither a moved number nor a card.
-   *
-   * @throws {CustomerNumberTaken} if an active customer took the number first — the partial unique
-   *   index on the register.
+   * @throws {CustomerNumberTaken} if an active customer took the number first.
    * @throws {CardNumberTaken} if the index had already been printed on the new slot.
-   * @throws {CardIndexTaken} if the household was issued a card at that index while the move was
-   *   being decided — a reissue in another tab, or a second move. Their own run is half of what
-   *   picks the index (`nextCardIndexOnMove`), so it can go stale under this write exactly as the
-   *   slot's run can, and it is answered by re-reading the record rather than the slot.
+   * @throws {CardIndexTaken} if the household was issued a card at that index meanwhile — their own
+   *   run is half of what picks the index (`nextCardIndexOnMove`), so it can go stale under this
+   *   write exactly as the slot's run can, and is answered by re-reading the record.
    */
   async changeCustomerNumber(
     id: number,
@@ -629,20 +558,18 @@ export class PrismaCustomerRepository implements CustomerRepository {
       });
       return toIssuedCard(row);
     } catch (error: unknown) {
-      // The slot itself, refused by the register's partial unique index. Checked first, and it is
-      // unambiguous: `Customer`'s index names one column where both of `Card`'s name two.
+      // The slot itself. Checked first and unambiguous: `Customer`'s index names one column where
+      // both of `Card`'s name two.
       if (isCollisionOn(error, ["customerNumber"])) {
         throw new CustomerNumberTaken(customerNumber);
       }
-      // One of `Card`'s two unique indexes, and *which* is asked of the record rather than of the
-      // error — `PrismaCardRepository.issue`'s own reading, shared with it so the two writers of a
-      // card cannot come to translate one constraint two ways.
+      // One of `Card`'s two unique indexes, and *which* is asked of the record rather than the error
+      // — `PrismaCardRepository.issue`'s reading, shared so the two writers of a card cannot
+      // translate one constraint two ways.
       //
-      // Both faults are reachable here and they are answered differently. A card number already
-      // printed on the slot moved onto is re-read from the slot's run (US-25); an index the
-      // household already holds is re-read from the record, and it is the fault a move raises that
-      // an ordinary issue cannot — the index is the later of two runs (`nextCardIndexOnMove`), so a
-      // reissue landing in another tab can take it while the slot they are moving to is untouched.
+      // Both faults reach here and are answered differently: a spent card number is re-read from the
+      // slot's run (US-25), an index the household already holds from the record. The second is the
+      // fault only a move raises, since its index is the later of two runs.
       if (isCardCollision(error)) {
         const held = await this.prisma.card.count({ where: { customerId: id, index: card.index } });
         throw held > 0
@@ -654,22 +581,19 @@ export class PrismaCustomerRepository implements CustomerRepository {
   }
 
   /**
-   * Move a customer to a new status, writing `blockReason` alongside it in the same statement — the
-   * trimmed reason for a block, `null` for anything else. The number, cards and distribution records
-   * are untouched: only the status column (and its reason) change (US-08).
+   * Move a customer to a new status, writing `blockReason` in the same statement. Number, cards and
+   * records are untouched — only the status column and its reason change (US-08).
    */
   async setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void> {
     await this.prisma.customer.update({ where: { id }, data: { status, blockReason } });
   }
 
   /**
-   * Archive a customer: status, reason and instant in one statement, with any block reason cleared
-   * alongside them, so an archived row can never be left without its why nor with a stale block.
+   * Archive a customer: status, reason and instant in one statement, with any block reason cleared,
+   * so an archived row is never left without its why nor with a stale block.
    *
-   * Nothing else is written — the customer number stays put and no related row is touched. The slot
-   * is freed by the status alone, because the partial unique index in the init migration exempts
-   * archived rows; that is the whole mechanism (US-10, PRD §7), and it is why archiving is a `WHERE
-   * id` update rather than anything larger.
+   * The slot is freed by the status alone, because the partial unique index exempts archived rows —
+   * that is the whole mechanism (US-10, PRD §7), and why this is a `WHERE id` update and no larger.
    */
   async archive(id: number, reason: string, archivedAt: Date): Promise<void> {
     await this.prisma.customer.update({
@@ -680,11 +604,10 @@ export class PrismaCustomerRepository implements CustomerRepository {
 }
 
 /**
- * How many customers currently hold a slot — the reality the quota `N` may not be lowered below
- * (tasks/prd-us-14-configure-business-rules.md, FR-4).
- *
- * It counts the same rows as {@link PrismaCustomerRepository.takenActiveNumbers}, because "holds a
- * number" and "counts against the quota" are the same statement said twice.
+ * How many customers hold a slot — the reality the quota may not be lowered below
+ * (`tasks/prd-us-14-configure-business-rules.md`, FR-4). The same rows
+ * {@link PrismaCustomerRepository.takenActiveNumbers} reads: "holds a number" and "counts against the
+ * quota" are one statement.
  */
 export class PrismaCustomerCounter implements CustomerCounter {
   private readonly prisma: PrismaClient;

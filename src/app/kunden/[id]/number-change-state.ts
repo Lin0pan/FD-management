@@ -1,13 +1,10 @@
 /**
- * The state the number control passes to and from its server action (US-30).
+ * The state the number control passes to and from its server action (US-30). Outside `actions.ts`
+ * because a `"use server"` module may export nothing but async functions.
  *
- * It lives outside `actions.ts` for the reason `reissue-state.ts` documents: a `"use server"` module
- * may export nothing but async functions, so a type or a constant there would be a build-time error.
- *
- * A union of its own rather than `RecordFormState`, which the record's five editors share, because
- * this control answers something they do not. Those five report *that* a save went through and let
- * the revalidated record show what it now says; a move has two numbers and a card number to name,
- * one of which — the slot the household has just left — is nowhere on the revalidated page.
+ * A union of its own rather than the `RecordFormState` the five editors share: those report *that* a
+ * save went through and let the revalidated record show the rest, where a move has to name three
+ * figures — one of which, the slot just vacated, is nowhere on the revalidated page.
  */
 
 import type { NumberChoice } from "@/application/customers/list-number-choices";
@@ -18,11 +15,8 @@ export type NumberChangeState =
   | {
       readonly status: "saved";
       /**
-       * The slot the household held before the move, read from the register on the way in.
-       *
-       * It is carried rather than looked up afterwards because after the write the row it was read
-       * from says the *new* number — the receipt is the last place the vacated slot is named, and a
-       * staff member checking they freed the number they meant has nothing else to read it off.
+       * The slot the household held before the move, carried rather than looked up afterwards: after
+       * the write that row says the *new* number, so the receipt is the last place it is named.
        */
       readonly from: number;
       /** The slot they hold now, as the register stored it — not as the form asked for it. */
@@ -36,13 +30,11 @@ export type NumberChangeState =
       readonly tier: NoticeTier;
       /**
        * The numbers on offer as the register stands *now*, set only when the refusal was a lost race
-       * for the chosen number (US-24's `freshPoolAfterRace`, one screen over). Without it the
-       * control goes on offering a number that provably cannot be saved, and the staff member's
-       * obvious next move — picking it again — fails identically.
+       * (US-24's `freshPoolAfterRace`) — without it the control goes on offering a number that
+       * provably cannot be saved.
        *
        * Absent on every other refusal, which is what lets the control tell "no fresh list" from "an
-       * empty one". Re-reading the register is worth two queries when the list is what went stale
-       * and is noise when the household was archived in another tab.
+       * empty one".
        */
       readonly numberChoices?: ReadonlyArray<NumberChoice>;
     };

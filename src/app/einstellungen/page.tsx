@@ -1,10 +1,7 @@
 /**
- * The settings screen.
- *
- * Reads the values in force and the version history, then renders them. It contains no rules: the
- * "what is in force today" question is answered by `readCurrentSettings`, and saving goes through
- * the `saveSettings` action into `updateSettings` (tasks/prd-us-14-configure-business-rules.md
- * §US-14.4).
+ * The settings screen: reads the values in force and the version history, then renders them. No rules
+ * — `readCurrentSettings` answers what is in force, `saveSettings` writes
+ * (`tasks/prd-us-14-configure-business-rules.md` §US-14.4).
  */
 
 import {
@@ -30,12 +27,9 @@ import { SettingsForm } from "./settings-form";
 export const dynamic = "force-dynamic";
 
 /**
- * One changed field in the words the form uses for it.
- *
- * The switch is exhaustive over `SettingsChange`, which is why the domain hands back field names and
- * typed values instead of strings: cents become euros, a colour and a weekday become German, and a
- * field added to `Settings` without a line here fails to compile rather than printing `[object
- * Object]` into the history.
+ * One changed field in the words the form uses for it. Exhaustive over `SettingsChange`, which is why
+ * the domain hands back typed values rather than strings: a field added to `Settings` without a line
+ * here fails to compile rather than printing `[object Object]` into the history.
  */
 function describeChange(change: SettingsChange): string {
   const { change: sentence } = de.settings.history;
@@ -70,9 +64,8 @@ function describeChange(change: SettingsChange): string {
         describeCap(change.to),
       );
     case "eggRule":
-      // The one change without a `from` and a `to`: a rule is a list, and stating it as one value
-      // arrowing into another would print both rules in full — the restatement this history was
-      // rewritten to stop doing. The rows arrive in threshold order and are joined as they are.
+      // The one change without a `from` and a `to`: a rule is a list, and `from → to` would print
+      // both rules in full. The rows arrive in threshold order and are joined as they are.
       return de.settings.history.rowChanges(
         de.settings.fields.eggRule,
         change.rows.map(describeEggRuleRow),
@@ -94,13 +87,9 @@ function describeEggRuleRow(row: EggRuleRowChange): string {
 }
 
 /**
- * The whole rule in one clause: every row in threshold order, or the words for there being none.
- *
- * The empty branch is {@link describeCap}'s argument over again — „keine Eier“ and „0 Eier ab 1
- * Person“ are two different configurations, so an empty rule is stated in words rather than left as
- * a blank nobody can tell apart from a line that failed to render. It is the one place a rule is
- * printed whole: a superseded version states the rows that *moved* (`describeChange`), which is
- * what makes a removal readable, and the version in force states the rows it *has*.
+ * The whole rule in one clause — the one place a rule is printed whole, a superseded version stating
+ * only the rows that *moved*. The empty branch is {@link describeCap}'s argument again: „keine Eier“
+ * and „0 Eier ab 1 Person“ are two different configurations.
  */
 function describeEggRule(rule: EggRule): string {
   return rule.length === 0
@@ -109,10 +98,8 @@ function describeEggRule(rule: EggRule): string {
 }
 
 /**
- * One side of a cap change: the amount, or the words for there not being one.
- *
- * Branching on `null` before formatting is the whole point — `formatEuros(0)` is `0,00 €`, and a
- * missing branch would print a cap of nothing (free for everyone) where DF had removed the cap.
+ * One side of a cap change. **Branching on `null` before formatting is the point**: `formatEuros(0)`
+ * is `0,00 €`, so a missing branch would print free-for-everyone where DF had removed the cap.
  */
 function describeCap(cap: Cents | null): string {
   return cap === null ? de.settings.prices.noCap : formatEuros(cap);
@@ -175,8 +162,7 @@ function VersionEntry({
   }
 
   // Everything else is a log line: the date and what moved, on **one** line. Forty versions of two
-  // lines each would still be three screens, and the length was half of what was wrong with the old
-  // list — a diff that has to be scrolled has only fixed the other half.
+  // lines each would still be three screens.
   return (
     <li
       data-testid="settings-version"
@@ -199,13 +185,9 @@ function VersionEntry({
 /**
  * The history: one line per version stating only what moved, behind a fold that starts closed.
  *
- * It used to restate all 136 characters of every version so that one of them could change — 41
- * versions were 4.9 screens of near-identical grey paragraphs, and two neighbouring rows differed at
- * exactly one character index. A diff answers "what
- * changed" in one line, which is why this supersedes §4.2e's table of eight columns: a column still
- * asks the reader to compare cells down it. The fold is the same `<details>` the hand-out history on
- * the customer record uses, for the same reason — this is consulted after a disagreement about a
- * price, not during the work the rest of the screen is for.
+ * A diff rather than §4.2e's table of eight columns, which would still ask the reader to compare
+ * cells down a column. The fold is the record's own `<details>`, for its reason: this is consulted
+ * after a disagreement about a price, not during the work the rest of the screen is for.
  */
 function VersionHistory({
   entries,
@@ -216,14 +198,13 @@ function VersionHistory({
 }): React.ReactElement {
   const words = de.settings.history;
 
-  // The list is newest first, so the first version already recorded is the one in force — the same
-  // rule `resolveSettingsAt` applies, read off an ordered list. A change applies immediately, so
-  // that is normally the first entry; a row stamped in the future can only come from a clock skew
-  // or a hand-edited database, and the label must not then contradict the form above it.
+  // Newest first, so the first version already recorded is the one in force — `resolveSettingsAt`'s
+  // rule read off an ordered list. A row stamped in the future can only come from a clock skew or a
+  // hand-edited database, and the label must not then contradict the form above it.
   const inForce = entries.find((entry) => entry.version.recordedAt <= now);
 
-  // What the summary can answer with the fold shut: how much is in here, and when it last moved.
-  // A lone version was never changed, so it is dated as what it is.
+  // What the summary answers with the fold shut. A lone version was never changed, so it is dated as
+  // what it is.
   const newest = entries.at(0);
   const stamp =
     newest === undefined
@@ -292,8 +273,8 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
   } catch (error: unknown) {
     if (error instanceof DomainError && error.code === "NoSettingsInForce") {
       return (
-        // Still a dead end — the form is not rendered here, and giving this state the form so it
-        // can bootstrap itself is §4.2f, a change to what the screen does rather than how it looks.
+        // Still a dead end: giving this state the form so it can bootstrap itself is §4.2f, a change
+        // to what the screen does rather than how it looks.
         <main className={SHELL}>
           <h1 className="text-3xl font-semibold tracking-tight">{de.settings.heading}</h1>
           <p className="max-w-prose text-muted-foreground">{de.settings.errors.noSettings}</p>

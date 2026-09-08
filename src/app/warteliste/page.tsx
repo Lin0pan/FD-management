@@ -1,14 +1,9 @@
 /**
- * The waiting-list screen (tasks/prd-us-12-waiting-list.md §US-12.4).
- *
- * Nothing on it is worked out here. `listWaiting` puts the applicants in the order they joined,
- * numbers them and says whose certificate outlived the wait; `proposeRegistration` says whether a
- * customer number is free. This page lays that out and offers the two things staff do with it.
+ * The waiting-list screen (`tasks/prd-us-12-waiting-list.md` §US-12.4). Nothing is worked out here.
  *
  * The **order is the feature**, so the screen states the rule above the list and gives it nothing to
- * argue with: no column headings that could be clicked, no way to move a row, and no "Jetzt
- * registrieren" on any row but the one at the top (PRD §6). An expired certificate is a badge beside
- * the applicant and never a reason to drop them down the list (FR-5).
+ * argue with: no clickable headings, no way to move a row, and no „Jetzt registrieren“ on any row but
+ * the top one (PRD §6). An expired certificate is a badge, never a reason to drop somebody (FR-5).
  */
 
 import { UserPlus } from "lucide-react";
@@ -37,11 +32,7 @@ import { RemoveApplicantControls } from "./remove-applicant-controls";
 import { REMOVED } from "./removed-flag";
 import { SHELL } from "../shell";
 
-/**
- * Both halves of this screen change without anything being written: a wait grows a day at midnight,
- * and a certificate lapses the same way. A cached render would be a screen that quietly stopped
- * being true.
- */
+/** Both halves change at midnight without anything being written, so a cached render would lie. */
 export const dynamic = "force-dynamic";
 
 /**
@@ -70,12 +61,9 @@ function Row({
     <li
       data-testid="waiting-list-row"
       data-position={place.position}
-      // Three lines, not four bands. The row used to spend a 780px bordered bar — the only boxed
-      // thing in it, so the first thing the eye landed on — on the action staff perform least.
-      // A quiet tint on the head of the list when a slot is free, and only then: it says "this is
-      // the row the banner is about", which nothing did. It is not a state, so it is not a badge,
-      // and there is no second "Jetzt registrieren" here — two buttons doing one thing is how they
-      // come to disagree.
+      // A quiet tint on the head of the list when a slot is free, and only then: it says "this is the
+      // row the banner is about". Not a state, so not a badge — and no second „Jetzt registrieren“
+      // here, two buttons doing one thing being how they come to disagree.
       className={`flex flex-col gap-2 border-b border-border px-3 py-4 first:rounded-t-lg last:rounded-b-lg last:border-0 ${
         headOfList ? "bg-muted/50" : ""
       }`}
@@ -141,13 +129,11 @@ export default async function WaitingListPage({
 }): Promise<React.ReactElement> {
   const [places, proposal, params] = await Promise.all([
     listWaiting(waitingListDeps),
-    // A full register is `customerNumber: null`, which is exactly the question the banner asks. The
-    // proposal is a read and reserves nothing — the number is allocated again when the promoted
-    // applicant is actually registered.
+    // A full register is `customerNumber: null`, which is the question the banner asks. The proposal
+    // reserves nothing — the number is allocated again when the applicant is registered.
     proposeRegistration(waitingListDeps).catch((error: unknown) => {
-      // An unseeded database has no quota, so there is no register to say whether a slot is free.
-      // That is a setup failure and not an answer, so the banner is simply absent — the list itself
-      // is still readable, and it is the part staff came for.
+      // An unseeded database has no quota, so there is no register to answer from. A setup failure
+      // rather than an answer, so the banner is simply absent and the list stays readable.
       if (error instanceof DomainError && error.code === "NoSettingsInForce") {
         return null;
       }
@@ -157,8 +143,8 @@ export default async function WaitingListPage({
   ]);
   const removed = params[REMOVED] === "1";
 
-  // Position 1 and nobody else: the head of the list the domain ordered. Reading it off the list is
-  // deliberate — asking who is next a second time is how the banner and the list come to disagree.
+  // Position 1 and nobody else, read off the list the domain ordered: asking who is next a second
+  // time is how the banner and the list come to disagree.
   const [head] = places;
   const freeNumber = proposal?.customerNumber ?? null;
 

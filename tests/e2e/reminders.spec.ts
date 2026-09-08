@@ -10,23 +10,16 @@ import { fillDay, fillSticky } from "./day";
 import { releaseNumbers } from "./seeding";
 
 /**
- * The reminder trail, end to end: an expired certificate through to the third reminder and the
- * renewal that closes it (tasks/prd-us-06-certificate-reminder.md §US-06.5).
+ * The reminder trail, end to end (`tasks/prd-us-06-certificate-reminder.md` §US-06.5).
  *
- * The pieces are proved separately — the expiry rule in the domain, the once-per-day guard against
- * fakes and against the real constraint, the controls in US-06.4's browser check. What none of them
- * can see is the *trail*: the same household coming back week after week, the count climbing by
- * exactly one per visit, and nothing else moving. So this spec walks one household through three
- * consecutive distribution days on a pinned clock, logging one reminder each time while the
- * hand-out itself is recorded as normal, and asserts the two ends of the story: a count of 3 leaves
- * the household exactly as served and as active as a count of 0 — archiving is a staff decision
- * (US-10), never this screen's — and the renewed certificate resets the count while the log keeps
- * all three entries.
+ * The pieces are proved separately. What none of them can see is the *trail*: the same household
+ * coming back week after week, the count climbing by exactly one per visit, and nothing else moving.
+ * So this walks one household through three consecutive distribution days on a pinned clock and
+ * asserts the two ends — a count of 3 leaves them as served and as active as a count of 0, and the
+ * renewal resets the count while the log keeps all three entries.
  *
- * The days follow from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor
- * `2026-W02` = RED, distributions on ISO weekday 4. A RED household's consecutive distribution days
- * are therefore every second Thursday — 08.01., 22.01. and 05.02.2026 — because the Thursday in
- * between belongs to BLUE, where this household would be sent away untouched.
+ * The days follow from the seeded settings alone: a RED household's consecutive distribution days are
+ * every second Thursday, the one between belonging to BLUE.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date

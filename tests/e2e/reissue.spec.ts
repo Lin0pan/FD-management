@@ -9,27 +9,17 @@ import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
 
 /**
- * Replacing a lost card and watching the old one stop working, driven through the built app
- * (tasks/prd-us-09-reissue-card-after-loss.md §US-09.4).
+ * Replacing a lost card and watching the old one stop working
+ * (`tasks/prd-us-09-reissue-card-after-loss.md` §US-09.4).
  *
- * Every piece of this is already proved in isolation: `issueCard` picks the next index against
- * fakes, `counterVerdict` returns `OUTDATED_CARD` for a superseded number in the domain gate, and
- * `issueCounts` aggregates a mixed history against a throwaway SQLite file. What none of them can
- * see is the sentence DF actually cares about — *the card in the customer's hand no longer works,
- * and the one we just wrote on does*. Those are two different screens, a write between them and a
- * derived number on each side, so this spec follows one household through the whole loop: reissue on
- * the record, read the new number off the card view, present the old number at the counter and be
- * refused, present the new one and be served.
+ * Every piece is proved in isolation. What none of them can see is the sentence DF cares about — *the
+ * card in the customer's hand no longer works, and the one we just wrote on does* — which is two
+ * screens, a write between them and a derived number on each side.
  *
- * The other half is FR-3: being refused for an old card is *not* a sanction. It must not serve, not
- * block, not archive and not record — an absence only visible from outside the app, so the spec
- * snapshots the household through Prisma either side of the refused lookup and compares.
+ * The other half is FR-3: being refused for an old card is *not* a sanction, so the spec snapshots
+ * the household through Prisma either side of the refused lookup and compares.
  *
- * One household is seeded straight through Prisma: RED, active, current certificate, one card. It
- * takes number 251 so the registration and card specs, which allocate the *lowest* free number in
- * the shared `data/e2e.db`, keep the low sequence they assert against, and so it stays clear of the
- * counter (201–209/239), allowance (211), serve (213–219), number change (221–229), reminders (231)
- * and block (241) specs.
+ * One household on number 251, clear of the bands the other specs own in the shared `data/e2e.db`.
  */
 
 // A fixed seed so a failure is reproducible; only the name and address come from Faker. Every date

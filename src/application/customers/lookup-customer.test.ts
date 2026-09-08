@@ -30,10 +30,9 @@ import type {
 import { lookupCustomer } from "./lookup-customer";
 
 /**
- * Hand-written fakes, per the testing standard, and synthetic data only. `2026-07-23` falls an even
- * number of weeks from the `2026-W02` anchor, so with a BLUE anchor it is a BLUE week — and the
- * household these tests default to holds 50, which is even and therefore BLUE (US-31). One on an
- * odd number is in the wrong week, and nothing on either record says which week that is.
+ * Hand-written fakes and synthetic data only. `2026-07-23` falls an even number of weeks from the
+ * `2026-W02` anchor, so with a BLUE anchor it is a BLUE week — and the default household holds 50,
+ * which is even and therefore BLUE (ADR-017). One on an odd number is in the wrong week.
  */
 
 faker.seed(20260723);

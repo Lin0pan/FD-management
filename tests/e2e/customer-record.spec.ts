@@ -12,42 +12,22 @@ import { fillDay, fillSticky, typedDay } from "./day";
 import { releaseNumbers } from "./seeding";
 
 /**
- * A household changes and the whole application follows, driven through the built app
- * (tasks/prd-us-16-maintain-customer-record.md §US-16.6).
+ * A household changes and the whole application follows (`tasks/prd-us-16-maintain-customer-record.md`
+ * §US-16.6).
  *
- * Every edit here is already proved in isolation: `updateHousehold` replaces the member set against
- * fakes, `changeGroup` reports the two sizes back, `updateNotes` reaches `lookupCustomer`, and
- * `renewCertificate` resets the reminder count. What none of those can see is the claim the story
- * makes — *a correction typed on the record is in force everywhere, immediately*. "Everywhere" is
- * four other screens and "immediately" is the same afternoon, so this spec follows one household
- * through the four edits and reads the consequence off the screen that would betray it:
+ * Every edit is already proved against fakes. What none of those can see is the claim the story makes
+ * — *a correction typed on the record is in force everywhere, immediately* — so this spec follows one
+ * household through the four edits and reads the consequence off the screen that would betray it: a
+ * child added moves the counts before the save (FR-1) and puts the card on the cards-due list (FR-3),
+ * a renewal resets the reminder count (FR-6), a note is read out at the counter (FR-5).
  *
- * - a child is added, and the counts and the price move **before the save** (FR-1),
- *   then the cards-due list says the card in the customer's hand is behind (FR-3);
- * - a renewed certificate is recorded, and the reminder count is back to 0 (FR-6);
- * - a note is written, and it is read out at the counter (FR-5).
+ * **The order is not arbitrary.** The certificate is seeded expired, so the renewal has to come before
+ * the counter tests or their verdict would be the certificate's rather than the note's; the card is
+ * reissued in the middle so the cards-due list is empty again by the time the note is read back.
  *
- * The order is not arbitrary. The certificate is seeded expired, because that is what a reminder
- * count of 2 means, and the renewal has to come before the counter tests or their verdict would be
- * the certificate's rather than the note's. The card is reissued in the middle so that the
- * cards-due list is empty again by the time the note is written and read back.
- *
- * **The week is not among the edits any more.** It was, until US-31 made a household's week the
- * parity of its number: moving between weeks is moving between slots, so it belongs to the number
- * control and is proved in `number-group.spec.ts`.
- *
- * One household is seeded straight through Prisma: active, expired certificate, two reminders sent,
- * one card printed with the counts it really had. It takes number 291 — odd, and therefore RED,
- * which is what lets it be looked up and served on the RED distribution day pinned below — clear of
- * the low sequence the registration, card, archive and re-registration specs allocate against, and
- * of the counter (201–209/239), allowance (211), serve (213–219), number change (221–229),
- * reminders (231), registration (232–236), card numbers (237), block (241), reissue (251), age-13
- * (271) and customer-list (281–285) specs in the shared `data/e2e.db`.
- *
- * The hand-out history at the foot of the record is a second subject with a second pair of
- * households behind it — 292 with a long history, 293 with none — so this spec owns **291–293**.
- * They are separate because 291 is edited all the way through the run above and is served at the
- * counter, which writes a hand-out: neither a fixed row count nor an empty history survives that.
+ * **This spec owns 291–293** in the shared `data/e2e.db`. 291 is odd and therefore RED, which is what
+ * lets it be served on the pinned distribution day; 292 and 293 are separate because 291 is edited
+ * throughout and served, and neither a fixed row count nor an empty history survives that.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -209,10 +189,8 @@ async function seedHousehold(): Promise<number> {
 }
 
 /**
- * A plain BLUE household with a valid certificate and one printed card, for the history tests.
- *
- * Deliberately not {@link seedHousehold}: nothing here is about reminders or a lapsed certificate,
- * and a second copy of that fixture with the fields inverted would read as if it were.
+ * A plain BLUE household with a valid certificate and one printed card, for the history tests —
+ * deliberately not {@link seedHousehold}, nothing here being about reminders or a lapsed certificate.
  *
  * @param customerNumber the number this household takes — 292 or 293, both owned by this spec.
  * @param handOuts how many hand-outs to write behind it.
@@ -269,10 +247,9 @@ async function seedHouseholdWithHistory(customerNumber: number, handOuts: number
 
   if (handOuts > 0) {
     await prisma.distributionRecord.createMany({
-      // Fortnightly, walking back from the distribution before the pinned day — which is what a
-      // long history is: one household coming every other Thursday for years. The day key is
-      // derived from each instant by `berlinDayKey`, the same rule the write path uses, because the
-      // unique `(customerId, dayKey)` index is what would reject two rows sharing a day.
+      // Fortnightly, walking back from the distribution before the pinned day. The day key comes
+      // from `berlinDayKey`, the rule the write path uses, because the unique `(customerId, dayKey)`
+      // index is what would reject two rows sharing a day.
       data: Array.from({ length: handOuts }, (_unused, index) => {
         const date = new Date(FIRST_HAND_OUT.getTime() - index * FORTNIGHT_MS);
         return {
@@ -563,9 +540,8 @@ test.describe("Kundenakte pflegen", () => {
     await page.goto(`/kunden/${id}`);
 
     // A wrong year is the mistake this refusal exists for: the type is right, four characters of the
-    // date are not. Uncontrolled, React's post-action reset emptied *both* fields on the way back, so
-    // correcting a typo meant retyping the certificate as well — the same finding as on the
-    // settings screen.
+    // date are not. Uncontrolled, React's post-action reset would empty *both* fields on the way
+    // back, so correcting a typo would mean retyping the certificate too.
     await fillSticky(page.getByTestId("renewal-type"), "Rentenbescheid");
     await fillDay(page.getByTestId("renewal-valid-until"), "2025-06-30");
     await page.getByTestId("renewal-save").click();
@@ -674,10 +650,9 @@ test.describe("Kundenakte pflegen", () => {
   });
 
   test("shows the answer to the last thing asked, and no older one", async ({ page }) => {
-    // Eight write controls stand on this record and each keeps its own last result. Observed before
-    // the board: a „Gespeichert." from one save was still on screen through a card reissue and a
-    // block afterwards — a green banner beside a button that had just done something else, which is
-    // exactly how somebody concludes an action succeeded when it never reported.
+    // Eight write controls stand on this record, each keeping its own last result: without the board
+    // a „Gespeichert.“ survives a reissue and a block, which is how somebody concludes an action
+    // succeeded when it never reported.
     await page.goto(`/kunden/${id}`);
     await fillSticky(page.getByTestId("notes-field"), `${NOTE} (zweite Fassung)`);
     await page.getByTestId("notes-submit").click();
@@ -709,15 +684,12 @@ test.describe("Kundenakte pflegen", () => {
   test("a record that is no longer there is red", async ({ page }) => {
     await page.goto(`/kunden/${id}`);
 
-    // The one place a spec has to reach past the UI, and the reason is that the UI cannot produce
-    // this: `CustomerNotFound` means the screen is describing a household that has gone since it
-    // was drawn, which a browser sitting on a live record will not do on request. Rewriting the
-    // hidden id is how that stale screen is staged — the form still submits, and the action answers
-    // the way it would answer the real thing.
+    // The one place a spec reaches past the UI, because the UI cannot produce this: `CustomerNotFound`
+    // means the screen is describing a household that has gone since it was drawn. Rewriting the
+    // hidden id stages that stale screen.
     //
-    // The note is typed *first* and the id rewritten after: the textarea is controlled, so filling
-    // it re-renders the form, and React restores a controlled hidden input to the value its prop
-    // says. Rewriting before typing puts the real id back before the submit ever reads it.
+    // **The note is typed first and the id rewritten after**: the textarea is controlled, so filling it
+    // re-renders the form and React restores the hidden input to the value its prop says.
     await fillSticky(page.getByTestId("notes-field"), "Wird nicht gespeichert.");
     await page
       .locator('form:has([data-testid="notes-submit"]) input[name="customerId"]')
@@ -733,23 +705,18 @@ test.describe("Kundenakte pflegen", () => {
 });
 
 /**
- * The hand-out history at the foot of the record: a bounded box, and a summary that says how much is
+ * The hand-out history at the foot of the record: a bounded box, and a summary saying how much is
  * inside it before anyone opens it.
  *
- * What a spec can prove here and what it cannot are different things, and the split is deliberate.
- * It **can** prove the count — that is the whole point of putting it in the summary, and it is read
- * with the fold shut, which is exactly how staff meet it. It **can** prove the box is a region with
- * a name and that the keyboard reaches it and scrolls it, which is a requirement rather than a
- * polish item: a scrollable box that cannot take focus cannot be scrolled by keyboard at all
- * (WCAG 2.1.1). It **cannot** meaningfully prove the header sticks — that only shows itself above
- * the row count any fixture wants to insert on every run, so it is measured by hand against an
- * inflated copy of the register (`docs/guideline/ui_styling_guide.md` §11).
+ * A spec **can** prove the count, and that the box is a named region the keyboard reaches and scrolls
+ * — a requirement rather than polish, since a scrollable box that cannot take focus cannot be
+ * scrolled by keyboard at all (WCAG 2.1.1). It **cannot** prove the header sticks, which only shows
+ * above the row count any fixture inserts, so that is measured by hand
+ * (`docs/guideline/ui_styling_guide.md` §11).
  *
- * What it **can** prove, and does below, is that the header is not sitting *on top of* the first row.
- * That is the second sticky header in the application, and the first one shipped exactly that fault
- * for weeks (`tests/e2e/layout.ts`). This one is offset `top-0` into a scrollport of its own, which is
- * the reason it is safe — a value copied across from `/kunden` would not be, and nothing else here
- * would notice.
+ * What it does prove is that the header is not sitting *on top of* the first row — the second sticky
+ * header in the application, and the first one shipped exactly that fault for weeks
+ * (`tests/e2e/layout.ts`).
  */
 test.describe("Bisherige Ausgaben", () => {
   let withHistory: number;
@@ -810,13 +777,10 @@ test.describe("Bisherige Ausgaben", () => {
   test("the history is a named region the keyboard can reach and scroll", async ({ page }) => {
     await page.goto(`/kunden/${withHistory}`);
 
-    // Opened from the keyboard rather than with a click, because the tab step below is the point of
-    // the test and the two engines disagree about where a `Tab` starts from. Chromium treats a
-    // programmatic `focus()` as the sequential-navigation origin; WebKit does not, so `focus()` then
-    // `Tab` leaves focus sitting on the summary and the box is never reached. Pressing Enter on the
-    // focused summary is both how a keyboard user opens the fold and what makes the summary a real
-    // origin in either engine — so this asserts the same contract without encoding one engine's
-    // shortcut. (The box itself is tab-reachable in both; only the starting point differed.)
+    // Opened from the keyboard rather than with a click, because the two engines disagree about where
+    // a `Tab` starts from: Chromium treats a programmatic `focus()` as the sequential-navigation
+    // origin and WebKit does not. Pressing Enter on the focused summary is both how a keyboard user
+    // opens the fold and what makes the summary a real origin in either engine.
     await page.getByTestId("history-open").focus();
     await page.keyboard.press("Enter");
 

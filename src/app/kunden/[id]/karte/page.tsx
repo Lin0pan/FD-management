@@ -1,13 +1,10 @@
 /**
- * The digital customer card.
+ * The digital customer card — what staff read across the desk while transcribing a card by hand or
+ * typing it into the printing system DF already owns. Laid out card-shaped and large, and
+ * deliberately producing no PDF and carrying no print stylesheet
+ * (`tasks/prd-us-02-issue-customer-card.md` §US-02.4).
  *
- * This is what staff read across the desk while they transcribe a card by hand or type it into the
- * printing system DF already owns — so it is laid out card-shaped and large, and deliberately
- * produces no PDF and carries no print stylesheet
- * (tasks/prd-us-02-issue-customer-card.md §US-02.4).
- *
- * Nothing on it is computed here: `readCard` derives the number, the counts and the history it
- * replaced, and this file only arranges them.
+ * Nothing is computed here; `readCard` derives it all.
  */
 
 import Link from "next/link";
@@ -140,13 +137,11 @@ function Superseded({ view }: { view: CardView }): React.ReactElement {
 }
 
 /**
- * How many cards this household has been through, and how many of those replaced a lost one.
+ * How many cards this household has been through, and how many replaced a lost one — side by side
+ * because a card replaced when a birthday overtook the printed counts (US-13) is not a loss.
  *
- * The two are shown side by side because they answer different questions — a card replaced because a
- * birthday overtook the printed counts (US-13) is not a loss, and reading them as one number would
- * count the software's own reissue against the household. Both are stated and nothing more: there is
- * no threshold here, no colour that changes and no sentence that appears at a high count, because
- * whether a number means anything is DF's judgement (§FR-4, §FR-5).
+ * Both are stated and nothing more: no threshold, no colour that changes, no sentence at a high
+ * count, because whether a number means anything is DF's judgement (§FR-4, §FR-5).
  */
 function Issued({ view }: { view: CardView }): React.ReactElement {
   return (
@@ -174,15 +169,14 @@ export default async function CardPage({
   params: Promise<{ id: string }>;
 }): Promise<React.ReactElement> {
   const { id } = await params;
-  // A URL is typed by hand as easily as it is clicked, so a non-numeric id is the same answer as an
-  // id nobody holds: there is no such customer.
+  // A URL is typed as easily as clicked, so a non-numeric id gets the same answer as one nobody
+  // holds: there is no such customer.
   const numericId = Number(id);
   if (!Number.isInteger(numericId)) {
     return <NotFound />;
   }
 
-  // Only the read is guarded: a `try` around the JSX would catch nothing anyway, because React
-  // renders the component after this function has already returned.
+  // Only the read is guarded: React renders the component after this function returns.
   let view: CardView;
   try {
     view = await readCard(customerDeps, numericId);

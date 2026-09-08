@@ -9,11 +9,9 @@ import { AlreadyServedToday, DistributionRecordNotFound } from "@/domain/errors"
 import type { Cents } from "@/domain/money";
 
 /**
- * Whether a failed write was the `(customerId, dayKey)` constraint rejecting a second hand-out on a
- * day the customer was already served.
- *
- * The target is checked rather than assumed — the table may grow a second unique constraint, and it
- * should then surface as itself rather than as a lost race that a retry would answer wrongly.
+ * Whether a failed write was the `(customerId, dayKey)` constraint rejecting a second hand-out. The
+ * target is checked rather than assumed, so a future second constraint surfaces as itself rather
+ * than as a lost race a retry would answer wrongly.
  */
 function isDayCollision(error: unknown): boolean {
   return (
@@ -45,18 +43,13 @@ function toRecord(row: RecordRow): DistributionRecord {
 }
 
 /**
- * The SQLite-backed {@link DistributionRecordRepository}.
+ * The SQLite-backed {@link DistributionRecordRepository}. The once-per-day rule is the domain's
+ * (`attendance.canRecord`); what this owns is the `@@unique([customerId, dayKey])` constraint that
+ * settles two simultaneous hand-outs (US-05.3).
  *
- * The adapter stores hand-outs and reads them back; the once-per-day rule is the domain's
- * (`attendance.canRecord`). What it owns is the one thing the pure layers cannot: the
- * `@@unique([customerId, dayKey])` constraint that settles which of two simultaneous hand-outs on the
- * same day got written (US-05.3). `dayKey` is the **Berlin** calendar day, filled here by the very
- * function the domain rule uses (`berlinDayKey`), so the constraint and the guard can never drift to
- * two different notions of "today".
- *
- * The `dayKey` column is an implementation detail of the constraint and never leaves the adapter — the
- * domain record carries only the `date` instant, from which the day is re-derived wherever it is
- * needed.
+ * `dayKey` is the **Berlin** day, filled by the very function the domain rule uses, so the constraint
+ * and the guard cannot drift. It is an implementation detail of the constraint and never leaves the
+ * adapter — the domain record carries only the `date` instant.
  */
 export class PrismaDistributionRecordRepository implements DistributionRecordRepository {
   private readonly prisma: PrismaClient;
@@ -75,12 +68,9 @@ export class PrismaDistributionRecordRepository implements DistributionRecordRep
   }
 
   /**
-   * Every hand-out written on one Berlin day, in one query (US-23).
-   *
-   * The day arrives as the key itself, not as an instant to be re-derived here: the caller already
-   * holds the Berlin day from the clock, and a second derivation is a second place the boundary
-   * between two days could be decided. The `dayKey` column is matched and dropped again by
-   * {@link toRecord}, so it still never leaves the adapter.
+   * Every hand-out written on one Berlin day, in one query (US-23). The day arrives as the key
+   * itself: the caller already holds it, and a second derivation is a second place the boundary
+   * between two days could be decided.
    */
   async listForDay(dayKey: string): Promise<ReadonlyArray<DistributionRecord>> {
     const rows = await this.prisma.distributionRecord.findMany({ where: { dayKey } });
@@ -94,8 +84,8 @@ export class PrismaDistributionRecordRepository implements DistributionRecordRep
   }
 
   /**
-   * Write one hand-out and hand it back as stored, with its assigned id and the price it was taken
-   * at. The Berlin day-key is derived from `date` and stored so the unique constraint can rest on it.
+   * Write one hand-out and hand it back as stored. The Berlin day-key is derived from `date` here, so
+   * the unique constraint has something to rest on.
    *
    * @throws {AlreadyServedToday} if a record for the customer's day already existed when this landed.
    */
@@ -121,9 +111,8 @@ export class PrismaDistributionRecordRepository implements DistributionRecordRep
   }
 
   /**
-   * Amend the amount handed over on a record made today, and return it as stored. The day it was
-   * correctable on is the use case's question (`attendance.canCorrect`); the store only records the
-   * new amount, and `0` is written as `0` rather than as an absent payment.
+   * Amend the amount handed over and return the record as stored. Whether it is still correctable is
+   * the use case's question (`attendance.canCorrect`); `0` is written as `0`, not as absent.
    *
    * @throws {DistributionRecordNotFound} if the id belongs to no record.
    */

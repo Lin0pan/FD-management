@@ -10,22 +10,16 @@ import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
 
 /**
- * Browsing and searching the register at /kunden, driven through the built app
- * (tasks/prd-us-15-customer-list.md §US-15.4).
+ * Browsing and searching the register at /kunden (`tasks/prd-us-15-customer-list.md` §US-15.4).
  *
- * Every filter is already proved twice below this screen: against fakes in `listCustomers` and
- * against a real SQLite file in the repository's fifty-household fixture. What neither can see is the
- * screen — that the one search box reads a name *and* a card number, that the archived toggle is off
- * until somebody switches it on, that the group balance keeps counting the whole register while the
- * table is filtered to one row, and that the whole view survives a reload as a link. Those are the
- * four claims DF would notice if they broke, so this spec makes them against the rendered page.
+ * Every filter is already proved twice below this screen. What neither gate can see is the screen:
+ * that the one search box reads a name *and* a card number, that the archived toggle is off until
+ * somebody switches it on, that the group balance keeps counting the whole register while the table
+ * is filtered to one row, and that the view survives a reload as a link.
  *
- * It seeds five households through Prisma rather than through the form: the point is to have a
- * *spread* — both groups, all three statuses, all three certificate states — and registering five
- * households through the UI would prove US-01 again at five times the cost. Two of them share a
- * surname on purpose, one active and one archived, so the archived filter is the only thing that can
- * tell them apart (a name search that excluded the archived row for any other reason would pass a
- * weaker spec).
+ * Five households are seeded through Prisma for the *spread* — both groups, all three statuses, all
+ * three certificate states. Two share a surname on purpose, one active and one archived, so the
+ * archived filter is the only thing that can tell them apart.
  */
 
 // A fixed seed so a failure is reproducible; only the other names and the addresses come from Faker.
@@ -352,10 +346,9 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
     // The pinned today goes with the spec: leaving it behind would freeze January for every spec
     // that follows, not just this one.
     rmSync(NOW_FILE, { force: true });
-    // The applicants go with it too. The seeded households stay — they are the register, and the
-    // register is what the other specs read a delta against — but a waiting list this spec left
-    // behind would be a count on the hub that nobody wrote. The entries have no relations, so the
-    // spec that owns them clears them itself (`clearRegister` is for the register alone).
+    // The applicants go too: a waiting list left behind would be a count on the hub that nobody
+    // wrote. The seeded households stay — they are the register the other specs read a delta
+    // against.
     await prisma.waitingListEntry.deleteMany({ where: { lastName: WAITING_SURNAME } });
     await prisma.$disconnect();
   });
@@ -461,11 +454,9 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
   test("Erwachsene und Kinder teilen eine Spalte und bleiben doch zwei Angaben", async ({
     page,
   }) => {
-    // The two counts were merged into one cell to give the name column back the 174px that two long
-    // German headings were costing it. They are still two facts — a screen reader announces them
-    // apart, and every other screen states them apart — so the cell holds two spans and not one
-    // string reading "1 + 1". Nothing else in the suite watches that: collapsing them would be
-    // invisible on a green run, and it is exactly the shortcut a later tidy-up would take.
+    // The two counts share one cell to give the name column back 174px, but they are still two facts
+    // — so the cell holds two spans, not one string reading "1 + 1". Nothing else in the suite
+    // watches that, and collapsing them would be invisible on a green run.
     await page.goto("/kunden");
     const household = row(page, NUMBERS.searched);
 

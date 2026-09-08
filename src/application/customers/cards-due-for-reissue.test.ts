@@ -14,10 +14,8 @@ import type { ArchivedCustomer, Clock, CustomerRepository } from "../ports";
 import { countCardsDueForReissue, listCardsDueForReissue } from "./cards-due-for-reissue";
 
 /**
- * Hand-written fakes and synthetic data only, per the testing standard.
- *
- * The dates are the whole point of this suite, so they are fixed rather than faked: the child is
- * born on `2013-08-15`, which makes them twelve on {@link TODAY} and thirteen on {@link BIRTHDAY}.
+ * Hand-written fakes and synthetic data only. The dates are the whole point of this suite, so they
+ * are fixed: the child is twelve on {@link TODAY} and thirteen on {@link BIRTHDAY}.
  */
 
 faker.seed(20260726);

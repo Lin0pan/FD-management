@@ -1,18 +1,14 @@
 /**
- * Look a customer up at the counter: turn a typed number into the one verdict a staff member reads,
- * with everything the screen shows below it (tasks/prd-us-04-lookup-customer.md §US-04.2).
+ * Turn a typed number into the one verdict a staff member reads, with everything the screen shows
+ * below it (`tasks/prd-us-04-lookup-customer.md` §US-04.2).
  *
- * This is the single most-used read in the product, and it is *only* a read — turning someone away
- * for the wrong group or an outdated card records nothing (FR-4). It takes no audit log, and it calls
- * only the reading methods of its stores (`listForCustomer` for the day's record beside the serve
- * action, `findOnDay` for whether today's reminder is already logged): the write paths live in
- * `recordAttendance` and `recordReminder`, not here, so this use case still cannot change state.
+ * **Only a read**: turning someone away records nothing (FR-4), it takes no audit log, and it calls
+ * only the reading methods of its stores — the writes live in `recordAttendance` and
+ * `recordReminder`.
  *
- * Nothing on the screen is stored. The counts come from the birthdates, the price from the settings
- * in force today, and the card number from the slot and the current card index —
- * all derived here through the same seams the card view uses (`describeAllowance`, `getWeekColour`),
- * so the counter can never disagree with the rest of the app. The day's record is read alongside
- * them, in the same pass, so the counter never issues a second query (US-04.3).
+ * Everything on the screen is derived through the same seams the card view uses
+ * (`describeAllowance`, `getWeekColour`), so the counter cannot disagree with the rest of the app,
+ * and it is all read in one pass — the counter never issues a second query (US-04.3).
  */
 
 import { formatCardNumber, parseCounterQuery } from "@/domain/card/cardNumber";
@@ -48,9 +44,8 @@ export interface LookupCustomerDeps {
 }
 
 /**
- * Everything the counter screen shows below the verdict. Every value is derived at read time — the
- * counts and allowance from the birthdates and today's settings, the card number from the slot — so
- * there is no stored column here that could have fallen behind reality.
+ * Everything the counter screen shows below the verdict, derived at read time — no stored column here
+ * could have fallen behind reality.
  */
 export interface CounterCustomerView {
   readonly firstName: string;
@@ -62,89 +57,69 @@ export interface CounterCustomerView {
   readonly priceCents: Cents;
   /**
    * How many eggs this household is handed today (US-28) — copied from the allowance, so the counter
-   * cannot count them differently from the customer record. Free, and never zero-as-blank: a
-   * household entitled to none shows 0.
+   * cannot count them differently from the record. Never zero-as-blank: entitled to none shows 0.
    */
   readonly eggs: number;
   /** The day the needs certificate lapses — shown so staff can start the renewal conversation. */
   readonly certificateValidUntil: Date;
   /**
-   * Whether that day has passed, judged by the domain's own rule against the same instant the
-   * verdict is evaluated at (US-32.5). It is stated here rather than read off the verdict kind
-   * because a household that has already collected today is `ALREADY_SERVED_TODAY` (US-32.4) — the
-   * lapsed certificate is still true of them, and the reminder controls still belong on the screen.
+   * Whether that day has passed, judged against the same instant the verdict is (US-32.5). Stated
+   * here rather than read off the verdict kind, because a household that already collected is
+   * `ALREADY_SERVED_TODAY` (US-32.4) and the lapsed certificate is still true of them.
    */
   readonly certificateExpired: boolean;
   readonly status: CustomerStatus;
   /**
-   * Why this household is paused, or `null` while they are not (US-08).
-   *
-   * The verdict states it too, because it *is* the verdict for a blocked household. It is repeated
-   * here because the counter now offers to lift the block from the same screen (US-16.5), and the
-   * confirmation quotes the reason being lifted — a control reading it off the verdict union would
-   * be a second, quietly diverging account of which field the reason lives in.
+   * Why this household is paused, or `null` (US-08). Repeated from the verdict because the counter
+   * offers to lift the block from the same screen (US-16.5) and the confirmation quotes the reason —
+   * a control reading it off the verdict union would be a second account of where it lives.
    */
   readonly blockReason: string | null;
   readonly reminderCount: number;
   /**
-   * How many of their own distributions this household has missed in a row (US-10.1). Read from the
-   * records the lookup has already loaded, so it costs the counter no further query. It is shown and
-   * nothing more — the archiving decision it feeds is always a human one (US-10, FR-1).
+   * How many of their own distributions this household has missed in a row (US-10.1), off records
+   * already loaded. Shown and nothing more — the archiving decision is always a human one (FR-1).
    */
   readonly consecutiveNoShows: number;
   readonly notes: string;
   /** The number of the card the customer holds today, e.g. `50k3`. */
   readonly cardNumber: string;
   /**
-   * What is printed on the piece of card the household holds — the snapshot taken when it was
-   * issued (US-13.3). Read so the counter's note can name it, and for nothing else: what the
-   * household *is* is `grownUps`/`children` above, derived from the birthdates like everywhere.
+   * What is printed on the piece of card the household holds (US-13.3). Read so the counter's note
+   * can name it, and nothing else — what the household *is* is `grownUps`/`children` above.
    */
   readonly countsOnCard: HouseholdComposition;
   /**
-   * The group printed on that same piece of card — the slot it was printed under, which is what
-   * says its week (`groupOf`, US-31). It is the household's own group unless a **superseded** card
-   * was presented, which is exactly when the counter needs to see it.
+   * The group printed on that same card — the parity of the slot it was printed under (ADR-016,
+   * ADR-017). The household's own group unless a **superseded** card was presented, which is exactly
+   * when the counter needs to see it.
    */
   readonly groupOnCard: Group;
   /**
-   * Why the card in the household's pocket no longer prints what is true of them, or `null` when it
-   * still does (US-13.4). It is compared against the counts just read above, so the note and the
-   * values beside it can never tell different stories.
+   * Why the card in the household's pocket no longer prints what is true of them, or `null` (US-13.4),
+   * compared against the counts just read above.
    *
-   * Nothing follows from it. A stale card is never grounds to turn anyone away (FR-5): the verdict
-   * is decided by `evaluateAtCounter`, which never sees this field, and the screen states it as a
-   * quiet note beside the household's data rather than as a warning.
+   * **Nothing follows from it** — a stale card is never grounds to turn anyone away (FR-5), and
+   * `evaluateAtCounter` never sees this field.
    */
   readonly staleCard: StaleCardReason | null;
   /**
-   * Where the household stands with DF (US-29): negative when they still owe money, positive when
-   * they have paid ahead, zero when they are square. Derived from the hand-out history the lookup
-   * has already loaded — `Σ (paidCents − priceCents)`, never stored — so it costs no further query.
-   *
-   * It is the balance **as it stands now**, today's hand-out included when one has been recorded.
-   * The screen words it through `balanceKind` rather than reading the sign itself.
+   * Where the household stands with DF (US-29), off the history already loaded — never stored
+   * (ADR-015). The balance **as it stands now**, today's hand-out included when one was recorded.
    */
   readonly balanceCents: Cents;
   /**
-   * What to collect from this household today: {@link priceCents} offset by {@link balanceCents} and
-   * floored at zero (US-29, rule 3). Derived here so the counter renders a figure rather than
-   * working one out.
-   *
-   * For a household already served today it is what they *would* be asked for if they were served
-   * again — their payment is already in the balance. The screen does not show it in that state
-   * (US-29.7); the record's own `askedCents` is what that half of the screen states.
+   * What to collect today: {@link priceCents} offset by {@link balanceCents}, floored at zero (US-29,
+   * rule 3). For a household already served it is what they *would* be asked again — their payment is
+   * already in the balance — and the screen shows `askedCents` instead (US-29.7).
    */
   readonly amountToPayCents: Cents;
 }
 
 /**
- * The record the looked-up customer already holds for today, if any — what the counter shows instead
- * of the serve action once a hand-out has been recorded (US-05.4). Carries the id so a same-day
- * correction can address it, and the instant so the screen can name the time they were served.
- *
- * The three money figures are three different questions, and the screen asks all three: what was
- * handed over, what was asked for on the day, and where a removal would leave the household.
+ * The record the customer already holds for today — what the counter shows instead of the serve
+ * action (US-05.4). The three money figures are three different questions: what was handed over,
+ * what was asked for on the day, and where a removal would leave the household.
  */
 export interface TodaysRecordView {
   readonly recordId: number;
@@ -152,29 +127,22 @@ export interface TodaysRecordView {
   /** What the household handed over — the stored amount, which the correction form opens on. */
   readonly paidCents: Cents;
   /**
-   * What the counter asked for when this hand-out was recorded: the price offset by the balance of
-   * the household's *earlier* hand-outs only. Nothing stores it — it is replayed from the history
-   * (`replayPayments`), which is why a household settling an old debt reads as having paid what
-   * they were asked for rather than as having paid ahead.
+   * What the counter asked for that day: the price offset by the balance of the *earlier* hand-outs
+   * only, replayed from the history rather than stored — which is why a household settling an old
+   * debt reads as having paid what it was asked rather than as paying ahead.
    */
   readonly askedCents: Cents;
   /**
-   * The balance the household would return to if this record were removed, so the removal warning
-   * can name it (US-29, rule 9). It is the balance of the other records — derived here rather than
-   * in the component, which would be the arithmetic decided a second time.
+   * The balance the household would return to if this record were removed, so the warning can name it
+   * (US-29, rule 9) — derived here rather than in the component, which would decide it twice.
    */
   readonly balanceWithoutRecordCents: Cents;
 }
 
 /**
- * The result of a counter lookup: the verdict, and — unless the number belongs to nobody — who it is
- * about. `customer` is `null` exactly when the verdict is `NOT_FOUND`, so the screen has the
- * supporting data for every verdict it can act on.
- *
- * `customerId` is the surrogate id the serve action records against — the slot's holder, not the
- * customer number (FR-6) — and is `null` on the same `NOT_FOUND` branch as `customer`. `todaysRecord`
- * is the hand-out already on file for today, or `null` when the customer may still be served; reading
- * it here keeps the counter to a single query (US-04.3).
+ * The result of a counter lookup. `customer` and `customerId` are `null` exactly when the verdict is
+ * `NOT_FOUND`, so the screen has supporting data for every verdict it can act on; `customerId` is the
+ * surrogate id the serve action records against, not the customer number (FR-6).
  */
 export interface CounterLookup {
   readonly verdict: Verdict;
@@ -182,19 +150,15 @@ export interface CounterLookup {
   readonly customerId: number | null;
   readonly todaysRecord: TodaysRecordView | null;
   /**
-   * Whether a certificate reminder is already on file for today's Berlin day (US-06.4). Read here so
-   * the reminder action stays disabled for the rest of the day across reloads and re-lookups — the
-   * screen must not offer an action the once-per-day rule is bound to refuse. `false` on `NOT_FOUND`.
+   * Whether a certificate reminder is already on file for today (US-06.4), so the action stays
+   * disabled across reloads — the screen must not offer what the rule is bound to refuse.
    */
   readonly reminderLoggedToday: boolean;
 }
 
 /**
- * Resolve `rawQuery` to a customer and return the counter verdict with the data the screen shows.
- *
- * The query is a card number (`50k3`) or a bare customer number (`50`); a bare number resolves to
- * the slot's current holder, and a card number whose index is below that holder's current card is
- * outdated. An unassigned number is `NOT_FOUND`, not an error.
+ * Resolve `rawQuery` — a card number (`50k3`) or a bare customer number (`50`) — and return the
+ * verdict with the data the screen shows. An unassigned number is `NOT_FOUND`, not an error.
  *
  * @throws {InvalidCardNumber} if `rawQuery` is not a customer number or a card number.
  * @throws {NoSettingsInForce} if no settings version had taken effect by today.
@@ -211,9 +175,8 @@ export async function lookupCustomer(
   ]);
 
   if (customer === null) {
-    // The rule still decides the verdict for an unassigned slot rather than this use case naming
-    // `NOT_FOUND` itself — the precedence lives in one place. Nothing is loaded on this branch, so
-    // there is no day's record to ask about and the household cannot have been served.
+    // The rule decides the verdict even here rather than this use case naming `NOT_FOUND` itself:
+    // the precedence lives in one place.
     return {
       verdict: evaluateAtCounter({
         customer: null,
@@ -229,9 +192,8 @@ export async function lookupCustomer(
     };
   }
 
-  // The day's record and today's reminder are loaded with the customer, not on a later click, so the
-  // screen can offer the serve action, the correction of an existing record and the reminder action
-  // in one render (US-04.3, US-05.4, US-06.4).
+  // Loaded with the customer rather than on a later click, so the serve action, the correction of an
+  // existing record and the reminder action are all offered in one render (US-04.3, US-05.4, US-06.4).
   const [recordsForCustomer, todaysReminder] = await Promise.all([
     deps.records.listForCustomer(customer.id),
     deps.reminders.findOnDay(customer.id, berlinDayKey(today)),
@@ -239,9 +201,7 @@ export async function lookupCustomer(
   const existing = recordForDay(recordsForCustomer, today);
 
   const verdict = evaluateAtCounter({
-    // The current card index is the highest the customer holds, loaded with the row rather than
-    // read separately — the counter never issues a second query (US-04.3). A blocked customer
-    // carries the reason recorded when they were blocked (US-08), shown verbatim in the verdict.
+    // The current card index comes off the row loaded above rather than a second query (US-04.3).
     customer: {
       customerNumber: customer.customerNumber,
       status: customer.status,
@@ -254,12 +214,11 @@ export async function lookupCustomer(
     presentedCardIndex: query.cardIndex,
     today,
     weekColour: week.colour,
-    // The fact, not the record (US-32.4): the day's hand-out is already loaded above, so the
-    // verdict costs no further query and cannot disagree with the record the screen shows.
+    // The fact, not the record (US-32.4), off the hand-out already loaded — so the verdict cannot
+    // disagree with what the screen shows.
     servedToday: existing !== null,
   });
-  // The balance and everything hanging off it come from the records just loaded — the counter still
-  // issues no second query (US-04.3, US-29.5). It is the balance as it stands *now*, so a hand-out
+  // Off the records just loaded (US-04.3, US-29.5), as the balance stands *now* — so a hand-out
   // already recorded today is counted in.
   const balanceCents = balanceOf(recordsForCustomer);
   const todaysRecord =
@@ -302,8 +261,8 @@ export async function lookupCustomer(
       notes: customer.details.notes,
       cardNumber: formatCardNumber(customer.card.customerNumber, customer.card.index),
       countsOnCard: customer.card.countsAtIssue,
-      // Off the card's **own** slot, so a superseded card presented at the counter names the week
-      // it was printed for rather than the one its household collects in today (US-30, US-31).
+      // Off the card's **own** slot, so a superseded card names the week it was printed for rather
+      // than the one its household collects in today (ADR-016, ADR-017).
       groupOnCard: groupOf(customer.card.customerNumber),
       balanceCents,
       amountToPayCents: amountToPay(allowance.priceCents, balanceCents),

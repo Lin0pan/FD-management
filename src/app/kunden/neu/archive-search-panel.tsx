@@ -2,16 +2,13 @@
 
 /**
  * The "Im Archiv suchen" panel on the registration screen
- * (tasks/prd-us-11-reuse-archived-record.md §US-11.4).
+ * (`tasks/prd-us-11-reuse-archived-record.md` §US-11.4).
  *
- * A client component for two reasons: `useActionState` reports the matches and a refusal back into
- * the panel, and picking a result has to reach *into the form beside it* rather than navigate — the
- * draft is handed upwards through `onSelect`, and the screen decides what to do with it.
+ * A client component because `useActionState` reports the matches back, and because picking a result
+ * reaches *into the form beside it* rather than navigating — the draft goes up through `onSelect`.
  *
- * It is a sibling of the registration form, never nested inside it: HTML forms do not nest, and the
- * search criteria are not part of the registration. Nothing here is a rule — which records are
- * searchable and how many are shown are `searchArchivedCustomers`' business, and what a draft may
- * carry is `draftFromArchived`'s.
+ * A **sibling** of the registration form, never nested inside it: HTML forms do not nest, and the
+ * search criteria are not part of the registration.
  */
 
 import { useActionState, useState } from "react";
@@ -96,12 +93,10 @@ function MatchRow({
   const words = de.customers.archiveSearch.result;
 
   return (
-    // A shortlist entry, not a dossier. The question at this moment is "is this the household in
-    // front of me, yes or no", and that is answered by the name, the birthdate and the address. The
-    // other five facts each have a reason to be here — the archive reason and the former-number
-    // disclaimer both carry arguments of their own — but they are what you read *after* you think
-    // you have found them, so they go behind a `<details>` inside the row. Not a `Dialog`: it would
-    // portal them out of the `<li>`, where `row.getByTestId(…)` could no longer reach them.
+    // A shortlist entry, not a dossier: "is this the household in front of me" is answered by the
+    // name, the birthdate and the address. The other five are read *after* that, so they go behind a
+    // `<details>` inside the row — not a `Dialog`, which would portal them out of the `<li>` where
+    // `row.getByTestId(…)` could no longer reach them.
     <li
       data-testid="archive-match"
       data-customer-id={match.customerId}
@@ -183,13 +178,11 @@ export function ArchiveSearchPanel({
   appliedCustomerId: number | null;
 }): React.ReactElement {
   const [state, formAction, searching] = useActionState(searchArchive, initialArchiveSearchState);
-  // Which row is being read, so only that row's button says "Wird übernommen …" — with twenty rows
-  // on screen, disabling all of them would hide which one was clicked.
+  // Which row is being read, so only that row's button says „Wird übernommen …“: with twenty rows on
+  // screen, disabling all of them would hide which one was clicked.
   const [loadingId, setLoadingId] = useState<number | null>(null);
-  // The whole refusal, not just its sentence: the tier is decided from the typed error on the server
-  // and cannot be re-read from the German, so it has to travel with the message it belongs to
-  // (`notice-tier.ts`). An archived record that has since been reactivated is a refusal; one that is
-  // gone is an error.
+  // The whole refusal, not just its sentence: the tier is decided from the typed error and cannot be
+  // re-read from the German (`notice-tier.ts`).
   const [selectError, setSelectError] = useState<ArchiveDraftRefusal | null>(null);
 
   async function select(match: ArchivedCustomerMatch): Promise<void> {
@@ -209,18 +202,15 @@ export function ArchiveSearchPanel({
   return (
     <Card>
       {/*
-       * Closed on every load (US-19.1) — a household coming back from the archive is twice in
-       * twenty, and the three fields cost the form 160px above the first thing staff came to type.
-       * Nothing remembers the state: it is a `<details>` and no more, so every load starts closed.
+       * Closed on every load (US-19.1): a household coming back is twice in twenty, and the three
+       * fields cost the form 160px above the first thing staff came to type.
        *
-       * What makes the fold safe is that the `<summary>` asks the *question* rather than naming the
-       * feature. The cost of missing this search is a second record for a household DF already has,
-       * which is the whole of US-11, and a control that must be opened is one that can be forgotten
-       * on the day it matters. The prompt therefore has to
-       * survive the fold that hides the fields, and it is the only thing standing in for them.
+       * **What makes the fold safe is that the `<summary>` asks the question rather than naming the
+       * feature.** The cost of missing this search is a second record for a household DF already has,
+       * so the prompt has to survive the fold that hides the fields.
        *
-       * `reregistration.spec.ts` clicks `archive-search-open` before it fills — a real click, so a
-       * fold that stopped opening turns that spec red instead of passing.
+       * `reregistration.spec.ts` clicks `archive-search-open` for real, so a fold that stopped
+       * opening turns that spec red rather than passing.
        */}
       <details className="group">
         {/* No `w-fit` here, unlike the danger-zone summaries: this one wraps a `CardHeader`, and

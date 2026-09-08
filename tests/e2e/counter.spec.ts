@@ -9,36 +9,23 @@ import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
 
 /**
- * Every verdict the counter can hand down, driven through the built app
- * (tasks/prd-us-04-lookup-customer.md §US-04.5).
+ * Every verdict the counter can hand down (`tasks/prd-us-04-lookup-customer.md` §US-04.5).
  *
- * `evaluateAtCounter` is proved case by case in the domain gate and `lookupCustomer` against fakes.
- * What neither can see is whether the verdict a staff member *reads* is the verdict the rule
- * reached: the words, the icon and the colour are chosen in `counter-lookup.tsx`, and a case
- * rendered as the wrong sentence would turn a household away for the wrong reason. So this spec
- * asserts the German text of each banner, on the real screen, against a real database.
+ * The rule is proved case by case below. What neither gate can see is whether the verdict a staff
+ * member *reads* is the verdict the rule reached — the words, the icon and the colour are chosen in
+ * `counter-lookup.tsx`, and a case rendered as the wrong sentence turns a household away for the
+ * wrong reason. So this asserts the German text of each banner on the real screen.
  *
- * The other half is FR-4: a lookup **reads**. Turning someone away for the wrong group or an
- * outdated card must record nothing at all — no reminder, no status change, no audit entry. That is
- * an absence, and an absence is only visible from outside the app, so the spec snapshots the
- * database before the lookups and compares it afterwards. (The distribution record named in the
- * criterion has no table yet — US-05 adds serving — so what is pinned here is every row a lookup
- * could conceivably touch today, and the snapshot widens with the schema.)
+ * The other half is FR-4: **a lookup reads.** Turning someone away must record nothing at all — an
+ * absence, only visible from outside the app, so the spec snapshots the database before the lookups
+ * and compares it afterwards.
  *
- * Eight households are seeded straight through Prisma rather than through the UI, because half of
- * these states have no screen that can reach them yet: archiving is US-10, blocking US-08, a second
- * card US-09. They take numbers in the 200s so the registration and card specs, which allocate the
- * *lowest* free number, keep the low sequence they assert against in the shared `data/e2e.db` — and
- * each takes the *parity* its verdict needs, which is the whole of what puts a household in a week
- * (US-31).
+ * Eight households are seeded through Prisma, half of these states having no screen that can reach
+ * them. They take numbers in the 200s so the allocating specs keep their low sequence, and each takes
+ * the *parity* its verdict needs (ADR-017).
  *
- * `ALREADY_SERVED_TODAY` was for a long time the one verdict absent here — first because nothing
- * could serve a household at all, and then because the verdict, though rendered by the UI's
- * exhaustive switch, was unreachable: the rule took no record, so a household that had collected
- * was answered „Ausgabe frei". US-32.4 gave the rule the fact, and the last household below is the
- * one that proves the sentence a staff member reads for it. Its record is written straight through
- * Prisma like everything else here: this spec is about what a *lookup* says, and serving through the
- * UI is `serve.spec.ts`'s subject.
+ * `ALREADY_SERVED_TODAY` is the last of them, and its record is written through Prisma like the rest:
+ * this spec is about what a *lookup* says, and serving through the UI is `serve.spec.ts`'s subject.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date

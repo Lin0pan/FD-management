@@ -1,22 +1,12 @@
 /**
- * The attendance rules — may this customer be recorded today, and may a record still be corrected?
+ * The attendance rules: a customer may be served **once per distribution day** (US-05, FR-5), and a
+ * record is correctable only on the **day it was made** (FR-7). Both turn on one comparison, stated
+ * once here so the counter screen and the database's unique day-key constraint cannot disagree.
  *
- * Two facts of the day turn on one comparison: a customer may be served **once per distribution day**
- * (US-05, FR-5), and a record is correctable only on the **day it was made** (FR-7). Both are pure
- * calendar-day questions, so they live here as functions taking `today` as a parameter — the
- * duplicate check and the same-day check are then unit-tested against boundary instants in
- * milliseconds, and the counter screen and the database both defer to the same rule rather than each
- * re-deriving "the same day" (US-05.3 repeats it as a unique constraint; the UI must not be the only
- * guard, US-05.2).
- *
- * **The day is a calendar day in Europe/Berlin, not a 24-hour window and not the UTC day.** DF
- * distributes in Germany, so "today" is the wall-clock day the staff live in: a hand-out at 09:00 and
- * a correction at 16:00 are the same day, and a record entered at 23:59 is yesterday's by 00:01. The
- * rest of this module family compares *UTC* days (weekColour, distributionDay) because a week colour
- * is a property of a configured week where the minute is irrelevant; attendance is different — it
- * turns on the actual local moment a person stood at the counter, so it must follow the Berlin
- * offset, including across the March and October DST changes. `Intl` supplies that offset from the
- * timezone database; the function stays pure — its only input is the `Date` passed in.
+ * **The day is a calendar day in Europe/Berlin**, not a 24-hour window and not the UTC day — it
+ * turns on the local moment a person stood at the counter, DST changes included. The sibling modules
+ * (`weekColour`, `distributionDay`) compare UTC days instead, because a week's colour is a property
+ * of a configured week where the minute is irrelevant.
  */
 
 import { AlreadyServedToday } from "../errors";
@@ -37,24 +27,20 @@ const berlinDay = new Intl.DateTimeFormat("en-CA", {
 });
 
 /**
- * The calendar day `instant` falls on in Europe/Berlin, as a `YYYY-MM-DD` key safe to compare.
+ * The calendar day `instant` falls on in Europe/Berlin, as a comparable `YYYY-MM-DD` key.
  *
- * Exported so the database day-key column (US-05.3) is filled by *this* rule rather than a second,
- * silently different notion of "the same day": the unique `(customerId, dayKey)` constraint that
- * backstops {@link canRecord} must agree with it exactly, including across the DST changes.
+ * Exported so the database day-key column (US-05.3) is filled by *this* rule: the unique
+ * `(customerId, dayKey)` constraint backstopping {@link canRecord} must agree with it exactly.
  */
 export function berlinDayKey(instant: Date): string {
   return berlinDay.format(instant);
 }
 
 /**
- * The record the customer already holds for `today`'s Berlin calendar day, or `null` when they hold
- * none yet.
+ * The record the customer already holds for `today`'s Berlin calendar day, or `null`.
  *
- * The counter reads it to decide what to offer: a customer with no record today may be served, and
- * one who already has a record is shown it — with the control to correct or remove it (US-05.4). The
- * duplicate check {@link canRecord} is the same question phrased for the write path; both defer to
- * this one comparison so "already served today" cannot mean two different days.
+ * What the counter reads to decide what to offer (US-05.4). {@link canRecord} is the same question
+ * phrased for the write path, so "already served today" cannot mean two different days.
  */
 export function recordForDay<T extends AttendanceRecord>(
   recordsForCustomer: ReadonlyArray<T>,

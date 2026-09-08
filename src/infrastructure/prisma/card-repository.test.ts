@@ -1,14 +1,10 @@
 /**
- * Integration tests for the SQLite card adapter.
+ * Integration tests for the SQLite card adapter — thin and test-after (CLAUDE.md). What is worth
+ * proving here is the pair of facts the pure layers cannot state: `(customerId, index)` is unique, so
+ * two cards never share the highest index, and `(customerNumber, index)` is too, so a card number is
+ * never handed out twice (US-25).
  *
- * Thin and test-after, per the testing approach (CLAUDE.md): what is worth proving here is the pair
- * of facts the pure layers cannot state — that `(customerId, index)` is unique, so two cards can
- * never share the highest index, and that `(customerNumber, index)` is unique too, so a card number
- * is never handed out twice however many households a slot has been through (US-25). The rules about
- * which index falls due are covered in src/application.
- *
- * Each run migrates a throwaway database file which is deleted afterwards, so nothing touches
- * data/fd.db. Synthetic data only (Faker), seeded so a failing run is reproducible.
+ * Each run migrates a throwaway database file, so nothing touches `data/fd.db`.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";

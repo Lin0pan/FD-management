@@ -1,16 +1,9 @@
 /**
- * The customer balance: what a household still owes DF, or has paid ahead (US-29).
+ * The customer balance: what a household still owes DF, or has paid ahead (US-29). A record carries
+ * the **amount** handed over, and the difference from what the week cost accumulates per customer.
  *
- * A hand-out used to be paid or not paid, and reality has a third case DF wrote in the Excel list by
- * hand: the household owes 5,00 € and hands over 2,00 €, or — rarely — hands over more so as not to
- * have to remember it next week. So a record carries the **amount** that was handed over, and the
- * difference between that and what the week cost accumulates into one number per customer.
- *
- * The balance is **never stored**. It is the arithmetic of the household's own hand-out history,
- * exactly as the price, the counts and the eggs are the arithmetic of the household's own record: a
- * stored balance beside the hand-outs that produced it would be two answers to one question, which
- * is the Excel failure this project replaces. Removing a hand-out then puts the balance back for
- * free, because there is nothing to put back.
+ * **Never stored** (ADR-015) — so removing a hand-out puts the balance back for free, because there
+ * is nothing to put back.
  *
  * ```
  * balance     = Σ (paidCents − priceCents)
@@ -46,10 +39,8 @@
 import type { Cents } from "../money";
 
 /**
- * A hand-out as the arithmetic sees it: what the week cost, and what the household handed over.
- *
- * Deliberately not {@link ./distributionRecord.DistributionRecord}. The module is about money, and
- * taking the whole record would let a later change drag a date or a customer id into a sum.
+ * A hand-out as the arithmetic sees it. Deliberately not `DistributionRecord`: this module is about
+ * money, and taking the whole record would let a later change drag a date or an id into a sum.
  */
 export interface PaidRecord {
   /** The price the policy in force set for the household that week (US-05 FR-2). */
@@ -62,39 +53,29 @@ export interface PaidRecord {
 export type BalanceKind = "CREDIT" | "DEBT" | "SETTLED";
 
 /**
- * The household's balance over `records`: `Σ (paidCents − priceCents)`, negative when they owe DF
- * money and positive when they have paid ahead.
- *
- * It does **not** sort — a sum has no order — and an empty history gives `0`, a household that has
- * never collected being settled like any other.
+ * `Σ (paidCents − priceCents)` — negative when the household owes DF money, positive when they have
+ * paid ahead. Does not sort, a sum having no order; an empty history is `0`, settled like any other.
  */
 export function balanceOf(records: ReadonlyArray<PaidRecord>): Cents {
   return records.reduce((total, record) => total + record.paidCents - record.priceCents, 0);
 }
 
 /**
- * What to collect today: the week's price offset by the balance, floored at zero.
+ * What to collect today: the week's price offset by the balance, floored at zero — credit is never
+ * paid out in cash, an unspent remainder pays for the following week.
  *
- * A debt raises it, a credit lowers it, and it never goes below zero because credit is never paid
- * out in cash — an unspent remainder stays in the balance and pays for the following week.
- *
- * `priceCents` is the price the policy already settled, cap included (US-26). The Maximalpreis caps
- * what a week of food costs a household; it does not cap what they are asked for, so an old debt is
- * added on top of a capped price and is not itself capped. That falls out of this line for free and
- * is not to be "fixed" later.
+ * `priceCents` already includes the cap (US-26). The Maximalpreis caps what a week of food costs, not
+ * what a household is asked for, so an old debt is added on top of a capped price and is not itself
+ * capped. That falls out of this line, and is not to be "fixed" later.
  */
 export function amountToPay(priceCents: Cents, balanceCents: Cents): Cents {
   return Math.max(0, priceCents - balanceCents);
 }
 
 /**
- * Name a balance, so nobody does sign arithmetic.
- *
- * This is the one place the sign is read. Every screen asks here and renders the answer — „−2,00 €",
- * „+2,00 €", „ausgeglichen", and the tint that goes behind them — rather than comparing to zero
- * itself, which is what keeps the rule from being re-decided one screen at a time. That the screens
- * now print a sign changes nothing here: what they print it from is still this answer and not a
- * comparison of their own.
+ * Name a balance, so nobody does sign arithmetic. The one place the sign is read: every screen asks
+ * here and renders the answer rather than comparing to zero, which keeps the rule from being
+ * re-decided one screen at a time.
  */
 export function balanceKind(balanceCents: Cents): BalanceKind {
   if (balanceCents > 0) {
@@ -112,10 +93,9 @@ export type PaymentStanding = "SHORT" | "EXACT" | "OVER";
 /**
  * How a payment stood against `askedCents` — **what was asked for that day**, never the price.
  *
- * The difference is the whole point of the two quantities. A household that owes 3,00 € and is asked
- * for 8,00 € against a 5,00 € price hands over 8,00 € and is `EXACT`: they paid what they were asked
- * for. Compared with the price it would read `OVER`, and the record would mark a household clearing
- * an old debt in the colour of one paying ahead — which is the opposite of what happened.
+ * A household owing 3,00 €, asked 8,00 € against a 5,00 € price, hands over 8,00 € and is `EXACT`.
+ * Against the price it would read `OVER`, marking a household clearing a debt in the colour of one
+ * paying ahead.
  */
 export function standingOf(paidCents: Cents, askedCents: Cents): PaymentStanding {
   if (paidCents > askedCents) {
@@ -129,7 +109,7 @@ export function standingOf(paidCents: Cents, askedCents: Cents): PaymentStanding
 
 /** One hand-out as the history reads it: the record, what it asked for, and where it left things. */
 export interface Settlement<T extends PaidRecord> {
-  /** The hand-out itself, handed back untouched so the caller keeps its date, id and anything else. */
+  /** The hand-out itself, untouched, so the caller keeps its date, id and anything else. */
   readonly record: T;
   /** What the counter asked for that day: the price offset by the balance of the *earlier* records. */
   readonly askedCents: Cents;
@@ -140,20 +120,14 @@ export interface Settlement<T extends PaidRecord> {
 }
 
 /**
- * Walk a household's hand-outs oldest first and say, for each, what was asked for on the day.
+ * Walk a household's hand-outs oldest first and say, for each, what was asked for on the day —
+ * re-derived from the balance of every earlier hand-out, which is the number the counter had in front
+ * of it that morning. That makes a row readable a year later without knowing what was owed then.
  *
- * The amount asked for is not stored — nothing is — so it is re-derived here from the balance of
- * every earlier hand-out, which is exactly the number the counter had in front of it that morning.
- * That makes the history explain itself: a row saying „5,00 € gefordert, 2,00 € gezahlt" is readable
- * a year later without knowing what the household owed at the time.
+ * It **sorts by `date` itself** rather than trusting the caller: order is the whole meaning of a
+ * running balance and the port promises nothing about it. The sort is on a copy.
  *
- * It **sorts its input by `date` itself** rather than trusting the caller. Order is the whole meaning
- * of a running balance, and the port that supplies the rows promises nothing about it — the same
- * bargain {@link ../policy/eggs.createEggRule} strikes by sorting inside the constructor. The sort is
- * on a copy: the caller's array comes back as it was passed.
- *
- * The last `balanceAfter` is {@link balanceOf} of the same rows, necessarily — the two walk the same
- * sum — and a test says so, because two functions computing one number must not be able to disagree.
+ * The last `balanceAfter` is necessarily {@link balanceOf} of the same rows, and a test says so.
  */
 export function replayPayments<T extends PaidRecord & { date: Date }>(
   records: ReadonlyArray<T>,
@@ -176,21 +150,15 @@ export function replayPayments<T extends PaidRecord & { date: Date }>(
 }
 
 /**
- * What was asked for on the day `record` was made, replayed from `records`.
+ * What was asked for on the day `record` was made, replayed from `records` — asked by the counter and
+ * by a same-day correction, so answered here once rather than in each.
  *
- * The question two screens ask of one household — the counter, about the hand-out already on file
- * today, and a same-day correction, about the record it is amending — so it is answered here once
- * rather than in each of them. Both had the same four lines, and a derivation written twice is a
- * derivation that can come to disagree with itself.
+ * The record's *own* payment is deliberately not folded in. Today's amount to pay already counts that
+ * payment, so comparing a stored payment against it would read a household settling an old debt as
+ * paying ahead.
  *
- * The record's *own* payment is not folded in: {@link replayPayments} prices each row against the
- * balance of the rows before it, which is exactly the figure the counter had in front of it that
- * morning. Today's amount to pay is the wrong number to compare a stored payment against — it already
- * counts that payment — and a household settling an old debt would read as paying ahead.
- *
- * `records` is the household's whole history and normally contains `record`. When it does not, the
- * answer is the record's own price: that is what a settled household is asked for, and a record no
- * history knows about has no earlier rows to be offset by.
+ * When `records` does not contain `record`, the answer is its own price: a record no history knows
+ * about has no earlier rows to be offset by.
  */
 export function askedForRecord<T extends PaidRecord & { date: Date; id: number }>(
   records: ReadonlyArray<T>,

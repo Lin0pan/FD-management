@@ -7,10 +7,8 @@ import {
 } from "./errors";
 
 /**
- * `MissingAuditReason` is raised by the state changes that turn on a human judgement — blocking
- * (US-08) and archiving (US-10), neither of which exists yet; `updateSettings` deliberately no
- * longer uses it. It is covered here so the rule it stands for stays stated while its callers are
- * still to be written.
+ * `MissingAuditReason` is raised by the state changes that turn on a human judgement (US-08, US-10).
+ * Covered here so the rule stays stated while its callers are still to be written.
  */
 describe("MissingAuditReason", () => {
   it("names the change that arrived without a reason", () => {
@@ -41,10 +39,8 @@ describe("CardNumberTaken", () => {
 });
 
 /**
- * `OverpaymentNotConfirmed` is raised by `recordAttendance` and `correctAttendance` when the amount
- * handed over is more than the household was asked for (US-29.4). Unlike the two above it, both of
- * its callers exist; it is kept here for the two amounts it carries, which is what lets the question
- * on screen name them rather than ask whether something unspecified was meant.
+ * `OverpaymentNotConfirmed` (US-29.4), kept here for the two amounts it carries — which is what lets
+ * the question on screen name them rather than ask about something unspecified.
  */
 describe("OverpaymentNotConfirmed", () => {
   it("names the amount handed over and the amount that was asked for", () => {

@@ -9,26 +9,20 @@ import { SHARED } from "./registers";
 import { fillDay, fillSticky, hydrated, typedDay } from "./day";
 
 /**
- * A household that was archived coming back and being registered again, driven through the built app
- * (tasks/prd-us-11-reuse-archived-record.md §US-11.5).
+ * A household that was archived coming back and being registered again
+ * (`tasks/prd-us-11-reuse-archived-record.md` §US-11.5).
  *
- * Every part is proved on its own already: `searchArchivedCustomers` lists only archived rows against
- * fakes, `draftFromArchived` copies a household without touching it, `registerCustomer` allocates the
- * lowest free number and issues the next card due on it, and the folded search keys are matched
- * against a throwaway
- * SQLite file. What none of them can see is the sentence DF actually cares about — *these are the same
- * people and a different customer*. That claim spans three screens, two customer records and the
- * allocator in between, so it can only be made here.
+ * Every part is proved on its own. What none of them can see is the sentence DF cares about — *these
+ * are the same people and a different customer* — which spans three screens, two records and the
+ * allocator in between.
  *
- * The spec deliberately arranges the awkward case rather than the comfortable one: before the
- * household comes back, **somebody else is given the number they gave up**. A re-registration that
- * quietly reused the old number would pass a friendlier fixture and collide here — which is exactly
- * the mistake FR-3 exists to prevent.
+ * It arranges the **awkward case** deliberately: before the household comes back, somebody else is
+ * given the number they gave up. A re-registration quietly reusing the old number would pass a
+ * friendlier fixture and collide here, which is what FR-3 exists to prevent.
  *
- * Like `archive.spec.ts` this one **registers through the form** rather than seeding through Prisma:
- * a household inserted by hand never held a number the allocator handed out, so the number moving on
- * would not be observable. It therefore names no customer number of its own — every number is read off
- * the proposal — and consumes two numbers net, leaving one archived record behind on the first.
+ * It **registers through the form** rather than seeding: a household inserted by hand never held a
+ * number the allocator handed out, so the number moving on would not be observable. It therefore
+ * names no customer number of its own.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -97,15 +91,9 @@ interface Household {
 }
 
 /**
- * Register one RED household — a grown-up and a child — through the real form.
- *
- * The surname is passed in rather than drawn here, because the whole spec turns on two records
- * sharing one: the household that comes back, and the active household who was given their number
- * in the meantime and must therefore *not* appear in an archive search for that name (FR-6).
- *
- * The week is checked by hand rather than accepted from the recommendation: the hand-out below
- * depends on it, since only a RED household is clear to serve in a RED week — and since US-31 that
- * choice *is* the choice of number, because the list beneath the radios is the odd slots.
+ * Register one RED household — a grown-up and a child — through the real form. The surname is passed
+ * in because the whole spec turns on two records sharing one (FR-6), and the week is checked by hand
+ * rather than accepted from the recommendation, the hand-out below depending on it.
  *
  * @returns the number the proposal offered — which, on a serial run, is the number the save assigns.
  */
@@ -204,17 +192,13 @@ async function belongings(id: number): Promise<string> {
 }
 
 /**
- * Search the archive as staff do: unfold the panel beside the form, type into it and press Suchen.
+ * Search the archive as staff do: unfold the panel, type into it and press Suchen.
  *
- * The panel is a `<details>` that starts closed (US-19.1), so the click is not a flourish — a
- * control inside a closed disclosure has no bounding box and `fill()` would time out against it.
- * It is a *real* click on the summary rather than `evaluate(d => (d.open = true))` for the same
- * reason the fold is worth testing at all: a summary that silently stopped opening has to turn this
- * spec red, and setting the property by hand would step around exactly the thing that broke.
+ * The panel is a `<details>` that starts closed (US-19.1), so the click is not a flourish — and it is
+ * a *real* click rather than `evaluate(d => (d.open = true))`, because a summary that silently
+ * stopped opening has to turn this spec red.
  *
- * Called once per page load, never twice — a second click would fold the panel away again. Every
- * caller below does `page.goto("/kunden/neu")` first, and the wait on `#archiveLastName` is what
- * says the panel opened rather than the fill merely finding it.
+ * Called once per page load, never twice: a second click would fold the panel away again.
  */
 async function searchArchive(page: Page, lastName: string): Promise<void> {
   await page.getByTestId("archive-search-open").click();

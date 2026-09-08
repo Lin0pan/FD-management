@@ -1,21 +1,15 @@
 /**
- * A figure that drives a decision, set apart from the fields that are only read when something is
- * off. The counter's shape, which is where it was worked out: a small muted label above a large
- * `tabular-nums` value on a `bg-muted/50` tile.
+ * A figure that drives a decision, set apart from the fields read only when something is off.
  *
  * Two properties are the point rather than the box:
  *
- * - **The label and the value stay inside one `<p>`.** Split into two stacked `<div>`s they are
- *   announced as two unrelated facts — "Erwachsene", then "4" — with only the layout joining them
- *   (`docs/guideline/ui_styling_guide.md` §9).
- * - **`tabular-nums`, and a caller-supplied width floor where the tiles are compared.** Where two
- *   tiles exist to be diffed, pass `min-w-56` and `whitespace-nowrap` so both keep their value on
- *   one line at the same offset inside the tile; without the pair, the two figures a reader has to
- *   compare drift apart and the tiles stop doing their job. `/karten-neuausstellung` is the worked
- *   example.
+ * - **The label and the value stay inside one `<p>`**, or they are announced as two unrelated facts
+ *   with only the layout joining them (`docs/guideline/ui_styling_guide.md` §9).
+ * - **`tabular-nums`, plus a caller-supplied width floor where tiles are compared.** Pass `min-w-56`
+ *   and `whitespace-nowrap` so both keep their value on one line at the same offset;
+ *   `/karten-neuausstellung` is the worked example.
  *
- * No `"use client"`: the tile is inert, so it may be rendered by the record's server component and
- * by the registration form's client component alike.
+ * No `"use client"`: the tile is inert, so server and client components may both render it.
  */
 import { cn } from "@/lib/utils";
 
