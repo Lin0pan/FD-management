@@ -1,10 +1,6 @@
 /**
- * Money handling for FD-Management.
- *
- * Prices are money and are stored and computed as integer **cents**, never floats
- * (SQLite has no decimal type — see docs/architecture/08-crosscutting-concepts.md §Money). This module is the
- * pure-domain seam for that rule; it is also the walking-skeleton's proof-of-life for the TDD
- * harness. Richer policy/price-table logic arrives in a later session.
+ * Money as integer cents, never floats — SQLite has no decimal type
+ * (`docs/architecture/08-crosscutting-concepts.md` §Money).
  */
 
 import { InvalidEuroAmount } from "./errors";
@@ -13,11 +9,9 @@ import { InvalidEuroAmount } from "./errors";
 export type Cents = number;
 
 /**
- * Format an integer amount of cents as a German amount without a currency symbol,
- * e.g. `150` → `"1,50"`. This is the form an editable input field wants: what it renders is
- * exactly what {@link parseEuros} reads back.
- *
- * Formatting is done by hand (not via `Intl`) so the output is deterministic across environments.
+ * `150` → `"1,50"` — the form an editable input wants, since {@link parseEuros} reads back exactly
+ * what this renders. Formatted by hand rather than via `Intl`, so the output is deterministic across
+ * environments.
  *
  * @throws {RangeError} if `cents` is not an integer.
  */
@@ -33,7 +27,7 @@ export function formatEuroAmount(cents: Cents): string {
 }
 
 /**
- * Format an integer amount of cents as a German euro string, e.g. `150` → `"1,50 €"`.
+ * `150` → `"1,50 €"`.
  *
  * @throws {RangeError} if `cents` is not an integer.
  */
@@ -45,12 +39,11 @@ export function formatEuros(cents: Cents): string {
 const EURO_AMOUNT = /^(\d+)(?:[.,](\d{1,2}))?$/;
 
 /**
- * Read a euro amount as a human types it — `2,50`, `2.5`, `7` — as whole cents.
+ * Read a euro amount as a human types it — `2,50`, `2.5`, `7` — as whole cents. The one place form
+ * text becomes money.
  *
- * Prices reach the system as text from a form, and this is the one place that text becomes money.
- * Parsing is deliberately strict: a third decimal digit is rejected rather than rounded, because
- * silently dropping a tenth of a cent is exactly the floating-point sloppiness the integer-cents
- * rule exists to prevent.
+ * A third decimal digit is rejected rather than rounded: silently dropping a tenth of a cent is the
+ * sloppiness the integer-cents rule exists to prevent.
  *
  * @throws {InvalidEuroAmount} if the text is not a non-negative amount with at most two decimals.
  */

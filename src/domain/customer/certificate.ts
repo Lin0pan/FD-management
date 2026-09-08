@@ -1,20 +1,16 @@
 /**
  * Certificate expiry — whether a needs certificate still proves the household's need as of today.
  *
- * Expiry is the trigger for the reminder trail (US-06): an expired certificate never blocks a
- * hand-out, it starts a conversation at the counter. Deliberately absent is any escalation rule or
- * reminder threshold — DF reminds "about three times" as a habit, but every case is a staff
- * judgement, so the domain exposes only the expiry and the count and encodes no rule on top.
- *
- * The module is pure: `today` is a parameter, never `new Date()`, and there is no settings lookup.
+ * Expiry never blocks a hand-out; it starts a conversation at the counter (US-06). There is
+ * deliberately no escalation rule or reminder threshold: DF reminds "about three times" as a habit,
+ * but every case is a staff judgement, so the domain exposes the expiry and the count and no more.
  */
 
 import type { NeedsCertificate } from "./customer";
 
 /**
- * The instant of the UTC day a date falls on. A certificate's validity end and "today" are calendar
- * days, not moments: the Jobcenter notice names a day, and a distribution happens on a day.
- * Comparing the days keeps expiry from depending on the time of day either value was recorded.
+ * The instant of the UTC day a date falls on. Validity end and "today" are calendar days, not
+ * moments, so expiry cannot depend on the time of day either value was recorded at.
  */
 function utcDay(date: Date): number {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
@@ -31,20 +27,15 @@ export function isExpired(certificate: NeedsCertificate, today: Date): boolean {
 /**
  * Where a certificate stands relative to today, as the customer list filters by it (US-15.1).
  *
- * `EXPIRING_SOON` is a *narrowing* of a certificate that is still valid, not a state beside it: the
- * household may shop today, and the label exists so staff can start the renewal conversation before
- * the counter has to. Asking for `VALID` therefore also returns the ones expiring soon — the two
- * questions staff actually have are "may they shop" and "which of them should bring a new notice".
+ * `EXPIRING_SOON` narrows `VALID` rather than sitting beside it — the household may still shop — so
+ * asking for `VALID` also returns the ones expiring soon.
  */
 export type CertificateState = "VALID" | "EXPIRING_SOON" | "EXPIRED";
 
 /**
- * How many days ahead a certificate counts as expiring soon.
- *
- * Thirty days is DF's habit rather than a rule anyone wrote down: it is roughly the notice a
- * Jobcenter renewal needs, and it puts the household on the list about two distributions before the
- * date. It is a constant and not a setting because nobody has yet asked to change it — see
- * tasks/prd-us-15-customer-list.md §9, which leaves making it configurable (US-14) open.
+ * How many days ahead a certificate counts as expiring soon — DF's habit, roughly the notice a
+ * Jobcenter renewal needs. A constant rather than a setting only because nobody has asked to change
+ * it (`tasks/prd-us-15-customer-list.md` §9 leaves that open).
  */
 export const EXPIRING_SOON_DAYS = 30;
 
@@ -69,10 +60,9 @@ function certificateWindow(today: Date): CertificateWindow {
 }
 
 /**
- * A half-open range over `validUntil`: `from` is included, `before` is not.
+ * A half-open range over `validUntil`: `from` included, `before` not.
  *
- * It exists so a state can be asked of the *database* — a stored `validUntil` compared against two
- * instants is a query, while {@link certificateState} is a comparison of one row. Both are built from
+ * A state the *database* can be asked, where {@link certificateState} judges one row. Both come from
  * the same window, so the list's filter and the label on its rows cannot disagree.
  */
 export interface ValidUntilRange {
@@ -91,10 +81,7 @@ export function validUntilRangeFor(state: CertificateState, today: Date): ValidU
   return ranges[state];
 }
 
-/**
- * Where `certificate` stands on `today`. Expiry itself is {@link isExpired}'s answer — there is one
- * "valid through its last day" comparison in the system and this is not a second one.
- */
+/** Where `certificate` stands on `today`. Expiry itself stays {@link isExpired}'s single answer. */
 export function certificateState(certificate: NeedsCertificate, today: Date): CertificateState {
   if (isExpired(certificate, today)) {
     return "EXPIRED";

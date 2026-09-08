@@ -1,24 +1,13 @@
 /**
- * What changed between two consecutive policy versions.
+ * What changed between two consecutive policy versions — the settings history renders a version as
+ * the changes that produced it, rather than restating every value on every row.
  *
- * The settings screen used to restate every value on every row of its history, which made finding
- * the one that moved a matter of diffing two 136-character strings by eye — and printed only the
- * amounts and the prices, so a change to the Ausgabetag produced a row identical to its predecessor
- * in every character. A version is therefore rendered as the changes that produced it, and this is
- * where they are derived.
+ * Deliberately not `changedSettingsFields` in `settings.ts`, and neither replaces the other: that
+ * one names fields as an **audit entry** does, with `weekAnchor` as one field, while this names them
+ * as the **form** does, where the anchor's week and its colour are two controls.
  *
- * Two things this deliberately does *not* do:
- *
- * - It does not reuse {@link changedSettingsFields} in `settings.ts`, and neither should replace the
- *   other. That one names fields the way an **audit entry** does, with `weekAnchor` as a single
- *   field, because that is the record `updateSettings` writes. This one names the fields the way the
- *   **form** does — the anchor's week and its colour are two controls, two labels in the dictionary
- *   and two separately readable changes.
- * - It carries no German and does not stringify. `from` and `to` keep the domain's own types, so the
- *   renderer can `switch` over {@link SettingsChange} exhaustively and format cents as euros and a
- *   weekday as a weekday, rather than receiving text it can only pass through.
- *
- * Pure: no I/O, no clock.
+ * `from` and `to` keep the domain's own types and carry no German, so the renderer can `switch`
+ * exhaustively and format cents as euros rather than receive text it can only pass through.
  */
 
 import type { Cents } from "../money";
@@ -35,10 +24,8 @@ export type SettingsChange =
   | { readonly field: "pricePerChild"; readonly from: Cents; readonly to: Cents }
   | { readonly field: "priceCap"; readonly from: Cents | null; readonly to: Cents | null }
   /**
-   * The one variant without `from` and `to`, deliberately: a list-valued setting's change is a set
-   * of row changes, and stating it as `from → to` would print the two whole rules side by side —
-   * exactly the 136-character restatement this history was rewritten to stop doing. The rows are
-   * already in threshold order, so the renderer joins them and adds nothing.
+   * The one variant without `from` and `to`: a list-valued setting's change is a set of row changes,
+   * and `from → to` would print both whole rules side by side. Rows arrive in threshold order.
    */
   | { readonly field: "eggRule"; readonly rows: ReadonlyArray<EggRuleRowChange> };
 

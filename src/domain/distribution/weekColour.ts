@@ -1,19 +1,11 @@
 /**
- * The colour of a distribution week.
+ * The colour of a distribution week: strict alternation out from one configured anchor week, derived
+ * rather than typed in per week (`tasks/prd-us-03-week-colour.md` §FR-2). A per-week table could hold
+ * two RED weeks in a row, which DF considers unfair; here it is impossible by construction.
  *
- * DF splits its customers into a RED and a BLUE group and the two collect in alternating weeks. The
- * colour is **derived from the calendar** by strict alternation from one configured anchor week, not
- * typed in per week (tasks/prd-us-03-week-colour.md §FR-2): a per-week table could hold two RED weeks
- * in a row, and DF considers that unfair. Here it is impossible by construction — two dates seven
- * days apart always land on opposite parities of the same count.
- *
- * All arithmetic uses **ISO-8601 week numbering**: a week runs Monday (ISO weekday 1) to Sunday (7),
- * and week 1 of an ISO year is the week containing 4 January — which is why a date in late December
- * can belong to the next ISO year and a date in early January to the previous one. That off-by-one
- * is the classic source of bugs here, so the module works on UTC day boundaries throughout and never
- * on local time or on raw timestamps.
- *
- * This module is pure: dates are parameters, never `new Date()`.
+ * All arithmetic is **ISO-8601**: Monday = 1, and week 1 is the week containing 4 January — so a date
+ * in late December can belong to the next ISO year. That off-by-one is the classic bug here, so the
+ * module works on UTC day boundaries throughout, never on local time or raw timestamps.
  */
 
 import { InvalidSettings } from "../errors";
@@ -26,18 +18,14 @@ const MS_PER_WEEK = 7 * MS_PER_DAY;
 const ISO_WEEK = /^(\d{4})-W(\d{2})$/;
 
 /**
- * The start of the UTC day a date falls on. A week colour — like a distribution day — is a property
- * of a calendar day, so the time of day must not decide it: otherwise a distribution recorded at
- * 23:59 could report a different colour from one recorded at 00:01 the same morning.
+ * The start of the UTC day a date falls on. A week colour is a property of a calendar day, so the
+ * time must not decide it — 23:59 and 00:01 the same morning have to report the same colour.
  */
 export function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
 
-/**
- * The ISO weekday of the day a date falls on: Monday = 1 … Sunday = 7. `Date` numbers its weekdays
- * from Sunday = 0, which is the other convention and one DF never uses.
- */
+/** The ISO weekday: Monday = 1 … Sunday = 7. `Date`'s own numbering starts at Sunday = 0. */
 export function isoWeekdayOf(date: Date): number {
   return ((date.getUTCDay() + 6) % 7) + 1;
 }
@@ -52,10 +40,8 @@ function mondayOf(date: Date): number {
 }
 
 /**
- * The ISO year and week of the week starting at `monday`.
- *
- * The ISO year of a week is the calendar year of its **Thursday** — the definition that makes "week
- * 1 contains 4 January" and the December/January crossovers work out.
+ * The ISO year and week of the week starting at `monday`. A week's ISO year is the calendar year of
+ * its **Thursday**, which is what makes the December/January crossovers work out.
  */
 function isoYearAndWeek(monday: number): { year: number; week: number } {
   const thursday = monday + 3 * MS_PER_DAY;
@@ -69,10 +55,7 @@ function weeksInIsoYear(year: number): number {
   return isoYearAndWeek(mondayOf(new Date(Date.UTC(year, 11, 28)))).week;
 }
 
-/**
- * The ISO week a date falls in, as `2026-W30` — what the screen shows next to a looked-up colour so
- * staff can check it against a wall calendar.
- */
+/** The ISO week a date falls in, as `2026-W30` — checkable against a wall calendar. */
 export function isoWeekOf(date: Date): string {
   const { year, week } = isoYearAndWeek(mondayOf(date));
   return `${year}-W${String(week).padStart(2, "0")}`;
@@ -81,10 +64,9 @@ export function isoWeekOf(date: Date): string {
 /**
  * The UTC instant of the Monday that starts the named ISO week.
  *
- * `createSettings` already checks the *shape* of an anchor; this checks that the calendar actually
- * has that week, which the shape cannot tell — 2025 has 52 weeks, so `2025-W53` is well-formed and
- * means nothing. Both report `InvalidSettings` against the same field, so the settings screen marks
- * the same input either way.
+ * `createSettings` checks an anchor's *shape*; this checks the calendar actually has that week, which
+ * the shape cannot tell — 2025 has 52 weeks, so `2025-W53` is well-formed and means nothing. Both
+ * report `InvalidSettings` against the same field, so the screen marks the same input either way.
  *
  * @throws {InvalidSettings} if the anchor is malformed or names a week that does not exist.
  */
@@ -117,9 +99,8 @@ function otherColour(colour: WeekColour): WeekColour {
 /**
  * The colour of the week `date` falls in, counting alternately out from `anchor`.
  *
- * Total in both directions: the week difference is negative for a date before the anchor, and the
- * parity is taken with a modulo that stays non-negative — a lookup for a week before DF configured
- * the anchor answers rather than failing.
+ * Total in both directions: the parity uses a modulo that stays non-negative, so a week *before* the
+ * configured anchor answers rather than failing.
  *
  * @throws {InvalidSettings} if the anchor does not name a week of the ISO calendar.
  */

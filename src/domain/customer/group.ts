@@ -1,17 +1,11 @@
 /**
- * The half of the distribution cycle a customer number belongs to.
+ * The half of the distribution cycle a customer number falls in. RED households collect one week,
+ * BLUE the next, so the two halves have to stay roughly equal in size — a lopsided split overwhelms
+ * the volunteers one week and wastes food the other.
  *
- * DF distributes on a two-week cycle: RED households come one week, BLUE the next, so roughly half
- * the register turns up on any given distribution day. The two halves therefore have to stay
- * roughly equal in size — a lopsided split means one week overwhelms the volunteers and the other
- * wastes the food that was collected for it.
- *
- * The values match `WeekColour` in `../policy/settings` by design: a RED household is expected in a
- * RED week. They are deliberately *not* the same type, because the two answer different questions —
- * a week's colour follows from the anchor in settings, while a group follows from the number the
- * household holds. Aliasing them would make one editable through the other.
- *
- * This module is pure: it does no I/O and never reads the wall clock.
+ * `Group` and `WeekColour` (`../policy/settings`) share their values but are deliberately different
+ * types: a week's colour follows from the anchor in settings, a group from the number the household
+ * holds. Aliasing them would make one editable through the other.
  */
 
 /** The two halves of the distribution cycle a customer number can fall in. */
@@ -26,30 +20,15 @@ export interface GroupCounts {
 /**
  * The group a customer number belongs to: **even is BLUE, odd is RED**.
  *
- * A group is **not a property of a household**. It is DF's own rule, older than the software and
- * the way the paper register has always worked — the number alone says which week that household
- * collects. The software used to record the two separately, and the very reason they were separate
- * values is now the reason they must not be: two answers to one question can disagree, and nothing
- * would notice when they did (US-31).
- *
- * So this is the only place parity is ever read as a group. Everything that shows a household's
- * group calls it with the number that household holds, and everything that shows a *card's* group
- * calls it with the slot that card was printed under (US-30, ADR-016).
- *
- * The mapping is deliberately **not configurable**. DF see no reason it would ever flip, and a
- * setting would be a second place for it to be wrong — which is the fault this rule exists to
- * remove, put back one layer down.
+ * The only place parity is read as a group, and deliberately not configurable — a second recording
+ * of it could disagree with the number (ADR-017, US-31). A card's group is the parity of the slot it
+ * was printed under, not of the one its holder has today (US-30, ADR-016).
  */
 export function groupOf(customerNumber: number): Group {
   return customerNumber % 2 === 0 ? "BLUE" : "RED";
 }
 
-/**
- * The members of `numbers` that belong to `group`, in the order they were given.
- *
- * Both screens and both allocation paths ask "which of these numbers are this group's", so it is
- * spelled out here once rather than as a parity test at each of them.
- */
+/** The members of `numbers` that belong to `group`, in the order they were given. */
 export function inGroup(numbers: ReadonlyArray<number>, group: Group): ReadonlyArray<number> {
   return numbers.filter((customerNumber) => groupOf(customerNumber) === group);
 }
@@ -57,10 +36,8 @@ export function inGroup(numbers: ReadonlyArray<number>, group: Group): ReadonlyA
 /**
  * How many of the given customer numbers fall in each group.
  *
- * This is arithmetic, not persistence, which is why it replaced a `groupCounts()` query: the
- * numbers held by active households are already something the register answers
- * (`takenActiveNumbers`), and counting them by parity adds nothing the database could know better.
- * Deriving a figure the database used to count is this whole change in miniature.
+ * Arithmetic over `takenActiveNumbers`, not a query: the database cannot know parity better than
+ * this can, and a `groupCounts()` column would be the second recording US-31 removed.
  */
 export function countByGroup(customerNumbers: ReadonlyArray<number>): GroupCounts {
   return {
@@ -72,22 +49,15 @@ export function countByGroup(customerNumbers: ReadonlyArray<number>): GroupCount
 /**
  * The group a new household should join: the smaller one **that still has a free number**.
  *
- * Balance is the goal — left alone, a register would fill up on one parity and one week would
- * overwhelm the volunteers — but a group with nothing to offer is never recommended. A group can be
- * full while the register is not (there are only 120 even slots below a quota of 240), and a quota
- * that was lowered (US-14) is exactly the case where the *smaller* group is the full one.
+ * A group can be full while the register is not — 120 even slots under a quota of 240 — and a quota
+ * that was lowered (US-14) is exactly where the smaller group is the full one. `null` means neither
+ * has a free number, which is the register being full.
  *
- * On a tie the answer is always `RED`, never a coin flip. The choice is arbitrary but it has to be
- * *fixed*: a random suggestion would make registration irreproducible — the same register would
- * yield a different customer under test than in production — and staff would have no way to tell a
- * deliberate assignment from a shuffled one.
+ * A tie always answers `RED`, never a coin flip: a random suggestion would make registration
+ * irreproducible, and staff could not tell a deliberate assignment from a shuffled one.
  *
- * `null` means neither group has a free number, which is the register being full: a state the
- * registration screen already renders on its own.
- *
- * The recommendation is the **only** pressure the software applies. There is no warning when the
- * groups drift apart, no threshold and nothing that suggests moving a household — DF read the
- * balance off the figures already on screen.
+ * This recommendation is the only pressure the software applies — no warning when the groups drift
+ * apart, and nothing suggesting a household be moved.
  */
 export function suggestGroup(
   freeNumbers: ReadonlyArray<number>,

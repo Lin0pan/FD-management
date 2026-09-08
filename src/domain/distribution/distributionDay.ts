@@ -1,16 +1,8 @@
 /**
- * When DF hands out food, and in which colour week.
+ * When DF hands out food, and in which colour week (`tasks/prd-us-03-week-colour.md` §US-03.2, FR-5).
  *
- * DF distributes on one configured weekday (`distributionWeekday`, ISO-numbered Monday = 1 … Sunday
- * = 7). The screen has to answer two questions from that one setting: is today a distribution day,
- * and — when it is not — when is the next one and which group does it belong to
- * (tasks/prd-us-03-week-colour.md §US-03.2, FR-5).
- *
- * A skipped week does not shift anything: the next distribution is simply the next occurrence of the
- * configured weekday, and its colour is the calendar parity of the week it falls in. Nothing here is
- * stored.
- *
- * This module is pure: dates are parameters, never `new Date()`.
+ * A skipped week shifts nothing: the next distribution is the next occurrence of the configured
+ * weekday, and its colour is the calendar parity of the week it falls in.
  */
 
 import type { IsoWeekday, Settings, WeekColour } from "../policy/settings";
@@ -32,8 +24,8 @@ export function isDistributionDay(date: Date, weekday: IsoWeekday): boolean {
 }
 
 /**
- * The next distribution at or after `date` — today if today is a distribution day, so that the
- * screen never tells staff standing in the hall that the next distribution is in a week's time.
+ * The next distribution at or after `date` — today included, so the screen never tells staff
+ * standing in the hall that the next distribution is in a week's time.
  *
  * @throws {InvalidSettings} if the week anchor does not name a week of the ISO calendar.
  */

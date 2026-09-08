@@ -1,18 +1,10 @@
 /**
- * The waiting-list ordering rule — who gets the next slot that frees up.
+ * The waiting-list ordering rule: **strictly first come, first served** (US-12, FR-3), with no
+ * priority, urgency or hardship override. A function rather than an `ORDER BY`, so the three screens
+ * that show the head of the queue cannot each arrive at a different one.
  *
- * The rule is **strictly first come, first served** (US-12, FR-3): the applicant who joined earliest
- * is next, with no priority, urgency or hardship override. It lives here as a pure function rather
- * than as an `ORDER BY` in a query so that "fair order" is a property the tests pin down, and so that
- * the waiting-list screen, the home-screen banner and the promotion use case cannot each arrive at a
- * slightly different head of the queue.
- *
- * An expired certificate never re-orders the list. It is reported alongside the applicant
- * ({@link NextApplicant.certificateExpired}) so staff can ask for a renewal before registering them
- * (FR-5) — skipping the head silently would hand somebody else's slot away without anyone deciding to.
- *
- * The module is pure: `today` is a parameter, never the wall clock, and nothing here knows how an
- * entry is stored.
+ * An expired certificate never re-orders the list — it is reported alongside the applicant (FR-5),
+ * because skipping the head silently would hand somebody else's slot away with nobody deciding to.
  */
 
 import { CertificateExpired, MissingRequiredField } from "../errors";
@@ -21,15 +13,11 @@ import type { Address, NeedsCertificate } from "./customer";
 import { composition } from "./householdComposition";
 
 /**
- * An applicant reduced to the fields the ordering rule turns on. The application layer passes its own
- * richer entry — name, address, contact note — and gets that same value back, so the rule never has to
- * grow a field it does not read.
+ * An applicant reduced to the fields the ordering rule turns on. The caller passes its own richer
+ * entry and gets it back, so the rule never grows a field it does not read.
  */
 export interface WaitingApplicant {
-  /**
-   * The surrogate key, which is also the insertion order: rows are numbered as they are written, so a
-   * lower id means an earlier row. It is what breaks a tie on {@link addedOn} below.
-   */
+  /** The surrogate key, and so the insertion order — what breaks a tie on {@link addedOn}. */
   readonly id: number;
   /** The instant the applicant was put on the list. */
   readonly addedOn: Date;
@@ -47,8 +35,8 @@ export interface NextApplicant<T extends WaitingApplicant> {
   readonly kind: "NEXT_IN_LINE";
   readonly entry: T;
   /**
-   * Whether the certificate they joined with has lapsed by `today`. It is a flag, never a filter: the
-   * entry is still the next in line, and what happens about the renewal is DF's judgement (PRD §9).
+   * Whether the certificate they joined with has lapsed by `today` — a flag, never a filter: they are
+   * still next in line, and the renewal is DF's judgement (PRD §9).
    */
   readonly certificateExpired: boolean;
 }
@@ -60,15 +48,11 @@ export interface NextApplicant<T extends WaitingApplicant> {
 export type NextInLine<T extends WaitingApplicant> = WaitingListEmpty | NextApplicant<T>;
 
 /**
- * The applicants in the order they joined: earliest {@link WaitingApplicant.addedOn} first, ties
- * broken by ascending id.
+ * The applicants in the order they joined, ties broken by ascending id.
  *
- * The tie-break is the id and never the order the rows happened to come back in, because two
- * applicants added the same morning would otherwise swap places between two page loads, and the
- * fairness this list exists for is exactly that they do not. Ids ascend with time, so the tie-break
- * only ever refines arrival order — it never contradicts it.
- *
- * Returns a sorted copy; the caller's array is left as it was read.
+ * The tie-break is the id and never the order rows came back in: two applicants added the same
+ * morning would otherwise swap places between page loads, which is exactly the unfairness this list
+ * exists to prevent. Returns a sorted copy.
  */
 export function inArrivalOrder<T extends WaitingApplicant>(
   entries: ReadonlyArray<T>,
@@ -102,9 +86,8 @@ export function nextInLine<T extends WaitingApplicant>(
 const MILLIS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
- * The instant of the UTC day a date falls on. A wait is counted in calendar days, not in elapsed
- * hours: an applicant written down at half past four has waited a day by the following morning, and
- * the number on screen must not depend on what time of day either end of it happened to be.
+ * The instant of the UTC day a date falls on. A wait is counted in calendar days, not elapsed hours —
+ * somebody written down at half past four has waited a day by the following morning.
  */
 function utcDay(date: Date): number {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
@@ -113,13 +96,9 @@ function utcDay(date: Date): number {
 /**
  * How many whole days the applicant has been waiting as of `today` — 0 on the day they joined.
  *
- * It is the one number on the waiting-list screen that says what the list costs the people on it, so
- * it is derived here rather than counted by the page: two screens counting days apart is how the same
- * applicant appears to have waited two different lengths of time.
- *
- * An entry dated after `today` counts as no wait rather than a negative one. Nobody has waited a
- * negative number of days, and a screen that said so would be reporting a clock problem as a fact
- * about the applicant.
+ * Derived here rather than counted by the page, so one applicant cannot appear to have waited two
+ * different lengths of time. An entry dated after `today` counts as no wait: a negative number would
+ * report a clock problem as a fact about the applicant.
  */
 export function daysWaiting(entry: WaitingApplicant, today: Date): number {
   // Both ends are midnight UTC, so the difference is an exact number of days — no rounding, and no
@@ -128,12 +107,9 @@ export function daysWaiting(entry: WaitingApplicant, today: Date): number {
 }
 
 /**
- * What an applicant is asked for to join the list: who they are, where they live, how to reach them
- * and the certificate that entitles them (US-12, FR-2).
- *
- * It deliberately mirrors part of a registration without *being* one — an applicant holds no customer
- * number, no group and no card, and their household is not asked for, because the people they live
- * with are typed when they are registered rather than guessed months earlier (PRD §7).
+ * What an applicant is asked for to join the list (US-12, FR-2). Deliberately mirrors part of a
+ * registration without being one: no customer number, no card, and no household — the people they
+ * live with are typed when they are registered rather than guessed months earlier (PRD §7).
  */
 export interface WaitingListDetails {
   readonly firstName: string;
@@ -142,8 +118,7 @@ export interface WaitingListDetails {
   readonly address: Address;
   /**
    * How staff would reach this applicant, in free text, or `""`. DF agreed no phone or e-mail fields
-   * (docs/archiv/domain_analysis.md, open question 2), and this is the note that stands in for them without
-   * committing to a contact-data model.
+   * (`docs/archiv/domain_analysis.md`, open question 2), so this stands in for them.
    */
   readonly contactNote: string;
   /** The proof of need they applied with — valid on the day they joined, by the rule below. */
@@ -153,8 +128,7 @@ export interface WaitingListDetails {
 /**
  * The trimmed value of a field that must carry one.
  *
- * @throws {MissingRequiredField} naming the field, so the form can mark the input rather than
- *   reporting that "something" is missing.
+ * @throws {MissingRequiredField} naming the field, so the form can mark the input.
  */
 function requireText(field: string, value: string): string {
   const text = value.trim();
@@ -167,10 +141,9 @@ function requireText(field: string, value: string): string {
 /**
  * Validate an application and return it as trimmed {@link WaitingListDetails}.
  *
- * The certificate bar is the same one registration answers to (FR-1): an applicant joins with a valid
- * certificate in hand or does not join. A wait that outlives the certificate is a different matter
- * entirely — that one is flagged at the head of the list ({@link nextInLine}) and never bars anybody,
- * because the applicant kept their place by waiting and a renewal is what they are asked for.
+ * The certificate bar is registration's (FR-1): an applicant joins with a valid certificate or does
+ * not join. A wait that *outlives* the certificate is a different matter — flagged at the head of the
+ * list ({@link nextInLine}) and never a bar, since they kept their place by waiting.
  *
  * @throws {MissingRequiredField} for a name, address part or certificate type left blank.
  * @throws {BirthDateInFuture} if the applicant was born after `today`.
@@ -183,9 +156,8 @@ export function createWaitingListDetails(
   if (isExpired(input.certificate, today)) {
     throw new CertificateExpired(input.certificate.validUntil, today);
   }
-  // The same guard registration puts on a birthdate, reached the same way: deriving the composition
-  // of a household of one rejects a date that lies after the day it is read against. The counts are
-  // discarded — an applicant has no household on record to count.
+  // Registration's birthdate guard, reached the same way: a household of one rejects a date after
+  // the day it is read against. The counts are discarded — an applicant has no household on record.
   composition([{ birthDate: input.birthDate }], today);
 
   return {

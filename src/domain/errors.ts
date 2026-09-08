@@ -1,10 +1,7 @@
 /**
- * Typed domain errors for FD-Management.
- *
- * The pure domain layer raises typed errors so the application and UI layers can react to a closed
- * set of failure modes rather than parsing strings — see docs/architecture/08-crosscutting-concepts.md §Errors.
- * Every error carries the values that made it fail, so a caller can render a German message naming
- * concrete numbers without re-deriving them.
+ * Typed domain errors, so callers react to a closed set of failure modes rather than parsing strings
+ * (`docs/architecture/08-crosscutting-concepts.md` §Errors). Every error carries the values that made
+ * it fail, so a German message can name concrete numbers without re-deriving them.
  */
 
 import type { Verdict } from "./distribution/counterVerdict";
@@ -99,14 +96,9 @@ export class QuotaBelowActiveCustomers extends DomainError {
 }
 
 /**
- * A state change arrived without a reason. The audit log is the system's only accountability, and
- * an entry that cannot say *why* is worth little.
- *
- * Raised by the state changes that genuinely turn on a human judgement — blocking a customer
- * (`customer.blocked`, US-08), archiving one (`customer.archived`, US-10) — where the reason *is*
- * the record. A settings edit is not one of them: the changed fields already say what happened, so
- * `updateSettings` accepts an empty reason rather than collecting a sentence typed to get past a
- * validation. One error for the concept, so `what` names the event rather than the class.
+ * A state change arrived without a reason (ADR-006). Raised only where the reason *is* the record —
+ * blocking (US-08) and archiving (US-10). A settings edit is not one: the changed fields already say
+ * what happened. One error for the concept, so `what` names the event rather than the class.
  */
 export class MissingAuditReason extends DomainError {
   readonly code = "MissingAuditReason";
@@ -119,9 +111,8 @@ export class MissingAuditReason extends DomainError {
 }
 
 /**
- * A household was submitted with no members. The registered customer is themselves a member, so the
- * smallest legitimate household has exactly one — an empty one is a data-entry mistake, and a
- * household of nobody would be charged for nobody.
+ * A household was submitted with no members. The customer is themselves a member, so the smallest
+ * legitimate household has one — and a household of nobody would be charged for nobody.
  */
 export class EmptyHousehold extends DomainError {
   readonly code = "EmptyHousehold";
@@ -132,14 +123,9 @@ export class EmptyHousehold extends DomainError {
 }
 
 /**
- * A household was submitted without the customer it belongs to among its rows. The registered person
- * *is* a household member — their name and birthdate are on the record twice, once as the person the
- * customer number belongs to and once as a row among the people they live with — and everything the
- * counter charges and hands out is derived from those rows. A household the customer is not in would
- * price and feed somebody else's family.
- *
- * Carries the person who is missing, so the UI can name them rather than reporting that "somebody"
- * is absent.
+ * A household was submitted without the customer among its rows. Everything the counter charges and
+ * hands out is derived from those rows, so a household the customer is not in would price and feed
+ * somebody else's family. Carries the missing person, so the UI can name them.
  */
 export class CustomerNotInHousehold extends DomainError {
   readonly code = "CustomerNotInHousehold";
@@ -174,9 +160,8 @@ export class BirthDateInFuture extends DomainError {
 }
 
 /**
- * Every customer number up to the quota is held by an active customer. Carries the quota so the UI
- * can say which limit was reached rather than reporting a bare failure — DF's answer is either to
- * archive a household or to raise `quotaN` in settings.
+ * Every customer number up to the quota is held. Carries the quota, so the UI can name the limit —
+ * DF's answer is to archive a household or raise `quotaN`.
  */
 export class NoFreeCustomerNumber extends DomainError {
   readonly code = "NoFreeCustomerNumber";
@@ -190,12 +175,11 @@ export class NoFreeCustomerNumber extends DomainError {
 
 /**
  * Somebody else took the chosen customer number between reading the free slots and writing the row.
- * Carries the number so a retry can be told apart from a genuinely full register — unlike
- * {@link NoFreeCustomerNumber}, this says nothing about the quota being reached, only that this one
- * slot went to a registration that landed first.
+ * Unlike {@link NoFreeCustomerNumber} it says nothing about the quota, only that this slot went to a
+ * registration that landed first.
  *
  * Raised by the repository, which owns the partial unique index that is the final authority on a
- * free slot (tasks/prd-us-01-register-customer.md §7).
+ * free slot (`tasks/prd-us-01-register-customer.md` §7).
  */
 export class CustomerNumberTaken extends DomainError {
   readonly code = "CustomerNumberTaken";
@@ -208,15 +192,12 @@ export class CustomerNumberTaken extends DomainError {
 }
 
 /**
- * A chosen customer number is not a slot at all: it is not a whole number, or it lies outside
- * `1..quotaN` (US-24). Carries both the number and the quota it fell outside, so the limit can be
- * named rather than merely asserted.
+ * A chosen customer number is not a slot at all: not a whole number, or outside `1..quotaN` (US-24).
  *
- * It is a **separate code from {@link CustomerNumberTaken} even though staff read the same
- * sentence** for both — either way they pick another number. The codes differ because the program
- * branches on them: `registerCustomer` retries a `CustomerNumberTaken` when it allocated the number
- * itself, and a quota violation wearing that code would be retried as if it were a lost race. It is
- * not hypothetical either — US-14 lets staff lower the quota while a registration form is open.
+ * A **separate code from {@link CustomerNumberTaken} even though staff read the same sentence**,
+ * because the program branches on it: `registerCustomer` retries a `CustomerNumberTaken` it
+ * allocated itself, and a quota violation wearing that code would be retried as a lost race. Not
+ * hypothetical — US-14 lets staff lower the quota while a registration form is open.
  */
 export class CustomerNumberOutOfRange extends DomainError {
   readonly code = "CustomerNumberOutOfRange";
@@ -231,14 +212,11 @@ export class CustomerNumberOutOfRange extends DomainError {
 }
 
 /**
- * A household was moved to the customer number it already holds (US-30). Carries the number, so the
- * screen can name it rather than reporting that something unspecified went wrong.
+ * A household was moved to the customer number it already holds (US-30).
  *
- * Refused rather than quietly accepted, because a number change is not an idempotent save. It
- * writes an audit entry and **consumes a card number** — the household would be printed a fresh
- * card for a move that never happened — and a staff member who pressed the button would be told
- * nothing at all. Since US-31 it is the *only* such refusal on the record: a group is chosen by
- * choosing a number, so choosing the number they already hold is the whole of "nothing moved".
+ * Refused rather than quietly accepted, because a number change is not an idempotent save: it writes
+ * an audit entry and **consumes a card number**, so the household would be printed a fresh card for
+ * a move that never happened.
  */
 export class CustomerNumberUnchanged extends DomainError {
   readonly code = "CustomerNumberUnchanged";
@@ -251,9 +229,8 @@ export class CustomerNumberUnchanged extends DomainError {
 }
 
 /**
- * No customer holds the requested identity. Carries the id that was asked for, so a mistyped link
- * can be told from an archived household that is genuinely gone — it never is, because customer data
- * is not hard-deleted (US-10), which makes this error a wrong address rather than a lost record.
+ * No customer holds the requested identity. Customer data is never hard-deleted (ADR-010), so this is
+ * always a wrong address rather than a lost record.
  */
 export class CustomerNotFound extends DomainError {
   readonly code = "CustomerNotFound";
@@ -266,13 +243,9 @@ export class CustomerNotFound extends DomainError {
 }
 
 /**
- * Something was asked of a customer who has left the register. Carries the id so the screen can say
- * which household it means.
- *
- * An archived customer keeps their row and their history — data is never hard-deleted (US-10) — but
- * they hold no slot, so nothing may be issued to them. Their card number would name a slot that a
- * different household may already have taken (FR-6). Reactivating them is DF's answer, and it is a
- * deliberate act rather than something a card issue may do quietly on their behalf.
+ * Something was asked of a customer who has left the register. An archived customer keeps their row
+ * but holds no slot, so nothing may be issued to them — their card number would name a slot another
+ * household may already hold (FR-6). Reactivating them is a deliberate act, not a side effect.
  */
 export class CustomerArchived extends DomainError {
   readonly code = "CustomerArchived";
@@ -285,14 +258,11 @@ export class CustomerArchived extends DomainError {
 }
 
 /**
- * A record that is still on the register was asked for as an archived one. Carries the id and the
- * status it actually has, so the screen can say which household it means and why it is not on offer.
+ * A record still on the register was asked for as an archived one — reachable only by an id from
+ * outside the archive search (a stale link, a bookmarked URL).
  *
- * The archive search only ever lists archived households (US-11.1), so this is reached by an id that
- * came from somewhere else — a stale link, a bookmarked URL, a household archived and then found
- * again. The refusal matters: pre-filling a registration from an *active* record would walk staff
- * into registering a household that already holds a slot (US-11, FR-6), and the "are they already
- * registered?" question is the counter lookup's to answer, not the registration form's.
+ * The refusal matters: pre-filling a registration from an *active* record would walk staff into
+ * registering a household that already holds a slot (US-11, FR-6).
  */
 export class CustomerNotArchived extends DomainError {
   readonly code = "CustomerNotArchived";
@@ -307,11 +277,9 @@ export class CustomerNotArchived extends DomainError {
 }
 
 /**
- * A customer status change tried to move between two states the register does not connect — most of
- * all any move *out of* `ARCHIVED` (re-registration creates a new customer, US-11) or a no-op that
- * changes nothing (`ACTIVE → ACTIVE`). Carries both states so the screen can name the move it
- * refused rather than reporting a bare failure. The reason-less block is a different error
- * ({@link MissingAuditReason}) — the move is legal, the record of *why* is what is missing.
+ * A status change tried to move between two states the register does not connect — above all out of
+ * `ARCHIVED` (re-registration creates a new customer, US-11) or a no-op. A reason-less block is
+ * {@link MissingAuditReason} instead: there the move is legal and the record of *why* is missing.
  */
 export class IllegalStatusTransition extends DomainError {
   readonly code = "IllegalStatusTransition";
@@ -326,13 +294,9 @@ export class IllegalStatusTransition extends DomainError {
 }
 
 /**
- * A stored customer row carries a value the domain does not recognise — a group or status that is
- * not one of the known words.
- *
- * SQLite has no enum type, so these arrive as plain strings and are parsed on the way back in. The
- * only way to reach this error is a hand-edited database or a migration that was never run, and
- * failing loudly is the point: silently defaulting to `ACTIVE` or `RED` would put a household in the
- * wrong week without anyone noticing.
+ * A stored customer row carries a word the domain does not recognise. SQLite has no enum type, so
+ * these are parsed on the way back in; only a hand-edited database or an unrun migration reaches
+ * this. Failing loudly is the point — defaulting to `ACTIVE` would hide it.
  */
 export class InvalidCustomerRecord extends DomainError {
   readonly code = "InvalidCustomerRecord";
@@ -361,9 +325,8 @@ export class MissingRequiredField extends DomainError {
 }
 
 /**
- * A card number could not be read as `<customer number>k<index>`. Carries the text as entered so
- * the counter screen can quote back what was typed — a mistyped `50l3` and an unknown `50k9` are
- * different problems for staff, and only the first of them is this one.
+ * A card number could not be read as `<customer number>k<index>`. Carries the text as entered: a
+ * mistyped `50l3` and an unknown `50k9` are different problems, and only the first is this one.
  */
 export class InvalidCardNumber extends DomainError {
   readonly code = "InvalidCardNumber";
@@ -376,13 +339,11 @@ export class InvalidCardNumber extends DomainError {
 }
 
 /**
- * Two card issues raced for the same index and this one lost. Carries the customer and the index it
- * tried to take, so a retry can read the run again and count on from what is now there.
+ * Two card issues raced for the same index and this one lost; a retry reads the run again.
  *
- * Raised by the repository, which owns the `@@unique([customerId, index])` constraint that is the
- * final authority on a free index — the same division of labour as {@link CustomerNumberTaken}. It
- * is what keeps "exactly one valid card" true (FR-3): if both writes landed, two cards would share
- * the highest index and neither would be *the* current one.
+ * Raised by the repository, which owns the `@@unique([customerId, index])` constraint. It is what
+ * keeps "exactly one valid card" true (FR-3) — if both writes landed, two cards would share the
+ * highest index and neither would be *the* current one.
  */
 export class CardIndexTaken extends DomainError {
   readonly code = "CardIndexTaken";
@@ -397,16 +358,12 @@ export class CardIndexTaken extends DomainError {
 }
 
 /**
- * The card number a card was about to be printed with had already been issued on that slot. Carries
- * the customer number and the index, so the screen can name the card — `66k1` — rather than an
- * internal id nobody at the counter has ever seen.
+ * The card number about to be printed had already been issued on that slot. Names the card — `66k1` —
+ * rather than an internal id nobody at the counter has seen.
  *
- * Raised by the repository, which owns the `@@unique([customerNumber, index])` constraint that is
- * the final authority on a card number being spent. It is deliberately **not**
- * {@link CardIndexTaken}: that one is a race between two issues on one *record*, which a retry
- * settles by counting on from what is now there. This one says the run of the *slot* — every
- * household that has ever held the number, archived ones included — was read stale, and a card
- * number that has been printed once is never printed again (US-25).
+ * Deliberately **not** {@link CardIndexTaken}: that is a race between two issues on one *record*,
+ * settled by a retry. This says the run of the *slot* — every household that ever held the number —
+ * was read stale, and a card number printed once is never printed again (US-25).
  */
 export class CardNumberTaken extends DomainError {
   readonly code = "CardNumberTaken";
@@ -421,13 +378,11 @@ export class CardNumberTaken extends DomainError {
 }
 
 /**
- * The customer already has a distribution record for today, so a second hand-out would be a double
- * record (US-05, FR-5). Carries the date of the record already on file, so the counter can quote back
- * the time the customer was served rather than a bare refusal.
+ * The customer already has a distribution record for today (US-05, FR-5). Carries the date on file,
+ * so the counter can quote back when they were served.
  *
- * "Today" is a calendar day in Europe/Berlin, not a 24-hour window: two hand-outs at 09:00 and 16:00
- * on the same distribution day collide, and the comparison is the domain rule's, not the database's —
- * though the database repeats it as a unique constraint so the guard cannot be bypassed (US-05.3).
+ * "Today" is a Berlin calendar day, not a 24-hour window. The comparison is the domain rule's; the
+ * database repeats it as a unique constraint so the guard cannot be bypassed (US-05.3).
  */
 export class AlreadyServedToday extends DomainError {
   readonly code = "AlreadyServedToday";
@@ -440,15 +395,11 @@ export class AlreadyServedToday extends DomainError {
 }
 
 /**
- * A reminder for this customer already exists on this calendar day, so a second one would double-log
- * what was one conversation — and a mis-click must not consume a customer's grace period (US-06,
- * FR-5). Carries the customer and the Berlin day key of the entry already on file, so the counter can
- * say the reminder is today's rather than refuse blankly.
+ * A reminder for this customer already exists on this calendar day — a second would double-log one
+ * conversation, and a mis-click must not consume a grace period (US-06, FR-5).
  *
- * The use case raises it after reading the day's log; the repository repeats it for a race that
- * slips past that read, because the database's unique `(customerId, loggedOn)` constraint is the
- * final authority on the day being taken (US-06.3) — the same division of labour as
- * {@link AlreadyServedToday}.
+ * Raised by the use case after reading the day's log, and repeated by the repository for a race that
+ * slips past it — the unique `(customerId, loggedOn)` constraint is the final authority (US-06.3).
  */
 export class ReminderAlreadyLoggedToday extends DomainError {
   readonly code = "ReminderAlreadyLoggedToday";
@@ -464,10 +415,8 @@ export class ReminderAlreadyLoggedToday extends DomainError {
 }
 
 /**
- * A reminder was requested while the certificate still proves the household's need — there is
- * nothing to remind about, and logging one would start the documented trail (US-06) on a customer
- * who owes no renewal. Carries the certificate's end date and today, so the screen can show the
- * date the certificate is in fact valid until.
+ * A reminder was requested while the certificate is still valid — logging one would start the
+ * documented trail (US-06) on a household that owes no renewal.
  */
 export class CertificateStillValid extends DomainError {
   readonly code = "CertificateStillValid";
@@ -484,9 +433,8 @@ export class CertificateStillValid extends DomainError {
 }
 
 /**
- * A renewed certificate arrived already expired. A renewal exists to restore the proof of need
- * (US-06, FR-4), so an end date in the past is a typo — most likely a wrong year — rather than a
- * record worth appending. Carries both dates so the form can quote the date it read back.
+ * A renewed certificate arrived already expired. A renewal restores the proof of need (US-06, FR-4),
+ * so a past end date is a typo — most likely a wrong year — rather than a record worth appending.
  */
 export class CertificateValidUntilInPast extends DomainError {
   readonly code = "CertificateValidUntilInPast";
@@ -503,15 +451,11 @@ export class CertificateValidUntilInPast extends DomainError {
 }
 
 /**
- * An applicant presented a certificate that had already lapsed, and the eligibility bar refused them
- * (US-12, FR-1). Carries the end date and the day it was judged against, so the form can quote back
- * the date it read rather than blaming the field.
+ * An applicant presented a lapsed certificate and the eligibility bar refused them (US-12, FR-1).
  *
- * It is the *entry* bar, not the counter's: an expired certificate never turns a registered household
- * away — it starts the reminder trail ({@link CertificateStillValid}'s counterpart, US-06). And it is
- * not {@link CertificateValidUntilInPast}, which says a *renewal* carried a date that must be a typo,
- * most likely a wrong year. Here the date is believed and the answer is a renewed certificate before
- * the applicant may join the waiting list at all.
+ * The *entry* bar, not the counter's — an expired certificate never turns a registered household
+ * away (US-06). Nor is it {@link CertificateValidUntilInPast}, which says a *renewal* carried what
+ * must be a typo: here the date is believed, and a renewal is what the applicant is asked for.
  */
 export class CertificateExpired extends DomainError {
   readonly code = "CertificateExpired";
@@ -526,13 +470,9 @@ export class CertificateExpired extends DomainError {
 }
 
 /**
- * No applicant is waiting under this id. Carries the id asked for, so a stale link can be told from a
- * bug — entries are never hard-deleted (US-12, FR-7), so this is a wrong or spent reference rather
- * than a lost record.
- *
- * A *removed* entry reaches it too, and that is the point: an applicant who has already been
- * registered or withdrawn is no longer on the list, and promoting them a second time would hand a
- * freed slot to somebody who has one.
+ * No applicant is waiting under this id. Entries are never hard-deleted (US-12, FR-7), so this is a
+ * spent reference rather than a lost record — a *removed* entry reaches it too, which is the point:
+ * promoting somebody twice would hand a freed slot to a household that already has one.
  */
 export class WaitingListEntryNotFound extends DomainError {
   readonly code = "WaitingListEntryNotFound";
@@ -545,14 +485,11 @@ export class WaitingListEntryNotFound extends DomainError {
 }
 
 /**
- * The counter verdict refused service, so a hand-out must not be recorded (US-05, FR-8). The UI
- * already hides the serve action for a refusing verdict, but the use case re-evaluates it before
- * writing — the screen is not the only guard — and this is how it says no when asked anyway.
+ * The counter verdict refused service, so a hand-out must not be recorded (US-05, FR-8). The UI hides
+ * the action, but the use case re-evaluates before writing — the screen is not the only guard.
  *
- * Carries the refusing {@link Verdict} (an `ARCHIVED`, `BLOCKED` or `WRONG_GROUP`), so the caller can
- * render the same reason the counter shows without re-deriving it. `CLEAR_TO_SERVE` and its
- * certificate-expired sibling never reach here — an expired certificate serves and reminds, it does
- * not refuse.
+ * Carries the refusing {@link Verdict}, so the caller renders the counter's own reason.
+ * `CLEAR_TO_SERVE` and its certificate-expired sibling never reach here.
  */
 export class NotClearToServe extends DomainError {
   readonly code = "NotClearToServe";
@@ -565,9 +502,8 @@ export class NotClearToServe extends DomainError {
 }
 
 /**
- * A correction named a record that does not exist. Carries the id asked for, so a stale link can be
- * told from a genuine bug — the counter only offers to correct a record it has just shown, so this is
- * a lost reference rather than an everyday outcome.
+ * A correction named a record that does not exist. The counter only offers to correct a record it has
+ * just shown, so this is a stale reference rather than an everyday outcome.
  */
 export class DistributionRecordNotFound extends DomainError {
   readonly code = "DistributionRecordNotFound";
@@ -580,10 +516,8 @@ export class DistributionRecordNotFound extends DomainError {
 }
 
 /**
- * A record was corrected or removed after the day it was made, when it has already become immutable
- * (US-05, FR-7). Carries the record's day and today so the UI can explain that only the same day's
- * entries may still be changed. A distribution's history is not rewritten after the fact — only the
- * hand-out being corrected on the spot is.
+ * A record was corrected or removed after the day it was made, when it is already immutable (US-05,
+ * FR-7). A distribution's history is not rewritten after the fact.
  */
 export class RecordNoLongerCorrectable extends DomainError {
   readonly code = "RecordNoLongerCorrectable";
@@ -602,12 +536,11 @@ export class RecordNoLongerCorrectable extends DomainError {
 }
 
 /**
- * A search was submitted with every criterion left blank. Carries the names of the criteria it would
- * have accepted, so the screen can say which fields it means rather than reporting a bare refusal.
+ * A search was submitted with every criterion blank. Carries the criteria it would have accepted, so
+ * the screen can name the fields.
  *
- * An empty archive search is not "everyone archived" (US-11.1): the result would be a list staff
- * would scroll through looking for a household they could have named, and pre-filling a registration
- * from the wrong row is the mistake this whole feature must not make.
+ * An empty archive search is not "everyone archived" (US-11.1): pre-filling a registration from the
+ * wrong row is the mistake this feature must not make.
  */
 export class EmptySearchQuery extends DomainError {
   readonly code = "EmptySearchQuery";
@@ -620,13 +553,9 @@ export class EmptySearchQuery extends DomainError {
 }
 
 /**
- * A note outgrew the length the record keeps for it (US-16.3). Carries both lengths, so the screen
- * can say how far over the limit the text is rather than refusing without a number.
- *
- * The limit is not a business rule about what staff may write — notes are free text and an empty one
- * is perfectly ordinary. It is a bound on a column that would otherwise accept a pasted document,
- * which is why the number lives beside the field it guards (`NOTES_MAX_LENGTH`) rather than in
- * settings with the prices and the quota DF edits.
+ * A note outgrew the length the record keeps for it (US-16.3). Carries both lengths, so the screen can
+ * say how far over it is. Not a business rule but a bound on a column, which is why the number lives
+ * beside the field it guards (`NOTES_MAX_LENGTH`) rather than in settings.
  */
 export class NotesTooLong extends DomainError {
   readonly code = "NotesTooLong";
@@ -655,11 +584,9 @@ export class InvalidEuroAmount extends DomainError {
 }
 
 /**
- * The text in a date field is not a calendar day.
- *
- * Carries the text it refused so the field can say what it read back. A blank field throws this too,
- * but the caller is expected to have asked `isBlankDay` first: "you typed nothing" and "you typed
- * something I cannot read" are different things to tell somebody at a counter.
+ * The text in a date field is not a calendar day. A blank field throws this too, but the caller is
+ * expected to have asked `isBlankDay` first — "you typed nothing" and "I cannot read this" are
+ * different things to tell somebody at a counter.
  */
 export class InvalidCalendarDay extends DomainError {
   readonly code = "InvalidCalendarDay";
@@ -672,11 +599,8 @@ export class InvalidCalendarDay extends DomainError {
 }
 
 /**
- * Two rows of the egg rule name the same household size, so the number of eggs a household of that
- * size receives would depend on which row was read first (US-28.1).
- *
- * Carries the threshold both rows claim, so the settings form can say which row to fix rather than
- * reporting that the rule as a whole is wrong.
+ * Two rows of the egg rule name the same household size, so the answer would depend on which row was
+ * read first (US-28.1). Carries the threshold both claim, so the form can say which row to fix.
  */
 export class DuplicateEggThreshold extends DomainError {
   readonly code = "DuplicateEggThreshold";
@@ -689,11 +613,8 @@ export class DuplicateEggThreshold extends DomainError {
 }
 
 /**
- * A row of the egg rule awards a larger household no more eggs than the row below it (US-28.1).
- *
- * The rule is a staircase: a household that grows never comes away with fewer eggs than it had.
- * Carries both rows' numbers, so the German sentence can name the two thresholds that collide
- * without re-deriving which neighbour was meant.
+ * A row of the egg rule awards a larger household no more eggs than the row below it (US-28.1) — the
+ * rule is a staircase. Carries both rows, so the sentence can name the thresholds that collide.
  */
 export class EggsNotIncreasing extends DomainError {
   readonly code = "EggsNotIncreasing";
@@ -716,17 +637,12 @@ export class EggsNotIncreasing extends DomainError {
 /**
  * More was handed over than the household was asked for, and nobody has confirmed it (US-29.2).
  *
- * A mistyped credit is the one error this design cannot undo. It does not surface anywhere: the
- * balance silently pays for the household's next weeks, and the first sign is a household being
- * asked for nothing for a month. A **shortfall** needs no such guard — it shows up as an open amount
- * at the very next hand-out, in front of the staff member who is serving them.
+ * A mistyped credit is the one error this design cannot undo: it surfaces nowhere, the balance
+ * silently pays for the next weeks, and the first sign is a household asked for nothing for a month.
+ * A shortfall needs no such guard — it shows as an open amount at the very next hand-out.
  *
- * So the staff member is being asked a question, not shown a fault: „50,00 € statt 8,00 € — wirklich
- * so buchen?" The counter re-submits with the confirmation and the payment is written as typed;
- * paying ahead is a thing households do and is never refused outright.
- *
- * Carries both amounts, so the question can name them rather than asking whether something
- * unspecified was meant.
+ * A question, not a fault: the counter re-submits with the confirmation and the payment is written as
+ * typed. Paying ahead is never refused outright.
  */
 export class OverpaymentNotConfirmed extends DomainError {
   readonly code = "OverpaymentNotConfirmed";
@@ -743,15 +659,12 @@ export class OverpaymentNotConfirmed extends DomainError {
 /**
  * An amount handed over that is not a whole, non-negative number of cents (US-29).
  *
- * Distinct from {@link InvalidEuroAmount}, which is about *text a human typed* and carries that text
- * back so the field can say what it read. This one is about a **number a caller passed**: it can only
- * be raised by a path that did not go through `parseEuros`, and there is nothing to quote back.
+ * Distinct from {@link InvalidEuroAmount}, which is about *text a human typed*; this is about a
+ * **number a caller passed**, so there is nothing to quote back.
  *
- * It exists because the balance is derived and therefore unrepairable. `Σ (paidCents − priceCents)`
- * has no stored value to correct, so a negative or fractional amount that reaches the store is
- * carried silently by every later reading of that household's balance, and by the amount the counter
- * asks for. The counter cannot produce one — `parseEuros` refuses it at the form — but the counter is
- * not the only caller (FR-8), and the seed already writes payments through the store directly.
+ * It exists because the balance is derived and therefore unrepairable (ADR-015): a bad amount that
+ * reaches the store is carried silently by every later reading. The counter cannot produce one, but
+ * the counter is not the only caller (FR-8) — the seed writes payments through the store directly.
  */
 export class InvalidPaymentAmount extends DomainError {
   readonly code = "InvalidPaymentAmount";

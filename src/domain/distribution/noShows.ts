@@ -1,34 +1,23 @@
 /**
- * How many of their **own** distributions in a row a customer has missed (US-10.1).
+ * How many of their **own** distributions in a row a customer has missed (US-10.1) — displayed only.
+ * No threshold lives here and no action follows from any value (PRD §5): three is emphasis on a
+ * screen, never an automatic archive.
  *
- * Archiving is always a human decision, but it has two triggers, and this is one of them: a household
- * that has quietly stopped coming. DF cannot see that in the Excel sheet today — it would mean
- * scanning a row of week columns by eye — so the count is derived here and simply *displayed*. There
- * is no threshold in this module and no action follows from any value it returns (PRD §5): three is
- * emphasis on a screen, never an automatic archive.
+ * A no-show is an **absence of a record**, so the history alone cannot answer it: the history says
+ * which days the customer came, the calendar which days were theirs. The one place the week-colour
+ * rule (US-03) and the attendance history (US-05) meet.
  *
- * A no-show is an **absence of a record**, so it cannot be read off the history alone: the history says
- * which days the customer came, and the calendar says which days were theirs to come to. This is the
- * one place where the week-colour rule (US-03) and the attendance history (US-05) meet.
+ * Three boundaries decide what the number means:
  *
- * Three boundaries decide what the number means, and each is a deliberate choice:
+ * - **Only the customer's own colour counts** — the other group's weeks were never theirs, and
+ *   counting them would double every figure.
+ * - **Today never counts** — a distribution they can still walk into is not a miss.
+ * - **The registration day never counts** — whether that day's hand-out had finished when the card
+ *   was handed over is nowhere on record.
  *
- * - **Only the customer's own colour counts.** The other group's weeks were never theirs, so they are
- *   not candidates — otherwise every count would double.
- * - **Today never counts.** A distribution the customer is still able to walk into is not a miss; a
- *   count that included it would read "1 no-show" to the staff member serving them.
- * - **The registration day never counts.** The card is handed over at registration, and whether that
- *   day's hand-out had already finished is nowhere on record. Counting it would produce a miss staff
- *   cannot check against anything.
- *
- * A **block** is *not* excluded (PRD §9, still to be confirmed with DF): weeks in which the customer
- * was blocked are counted like any other. Excluding them would hide the pattern the count exists to
- * show, and it would need a block *history* — which the customer record does not keep, only the
- * current reason. If DF decides otherwise, the periods have to come in as a parameter; nothing here
- * may reach for them.
- *
- * The module is pure: `today`, `settings` and `registeredOn` are parameters, never the wall clock, and
- * it does no I/O — the application layer loads the customer's records and resolves the settings first.
+ * A **block** is deliberately *not* excluded (PRD §9, still to be confirmed with DF): excluding it
+ * would hide the pattern the count exists to show, and would need a block *history* the record does
+ * not keep. If DF decides otherwise the periods come in as a parameter; nothing here may reach.
  */
 
 import type { Group } from "../customer/group";
@@ -59,11 +48,10 @@ export interface NoShowInput {
 }
 
 /**
- * The most recent distribution of the customer's own colour that lies strictly **before** `today`.
+ * The most recent distribution of the customer's own colour lying strictly **before** `today`.
  *
- * Deliberately not a `previousDistribution` in `distributionDay.ts`: `nextDistribution` there includes
- * today, and a sibling that excluded it would be a trap for the next reader. The exclusion belongs to
- * this rule, so it stays here.
+ * Deliberately not a `previousDistribution` in `distributionDay.ts`: `nextDistribution` there
+ * includes today, and a sibling that excluded it would be a trap. The exclusion belongs to this rule.
  */
 function lastOwnDistributionBefore(today: Date, group: Group, settings: Settings): Date {
   const daysSinceWeekday =
@@ -81,16 +69,16 @@ function lastOwnDistributionBefore(today: Date, group: Group, settings: Settings
 /**
  * How many of the customer's own distributions they missed in an unbroken run ending before `today`.
  *
- * Counting walks backwards one cycle at a time and stops at the first own distribution the customer
- * attended, or at their registration day, whichever comes first. `0` therefore means "came last time"
- * as well as "has not seen a distribution yet" — the two are the same as far as archiving goes.
+ * Walks backwards a cycle at a time, stopping at the first own distribution they attended or at
+ * their registration day. `0` means "came last time" as well as "has not seen a distribution yet" —
+ * the same thing as far as archiving goes.
  *
  * @throws {InvalidSettings} if the week anchor does not name a week of the ISO calendar.
  */
 export function consecutiveNoShows(input: NoShowInput): number {
   const { records, customerGroup, registeredOn, settings, today } = input;
-  // Matched by Europe/Berlin calendar day — the same notion of "the day" the once-per-day attendance
-  // rule uses, so a hand-out recorded at 23:45 belongs to the day the staff member lived through.
+  // Matched by Berlin calendar day, as the once-per-day attendance rule counts, so a hand-out
+  // recorded at 23:45 belongs to the day the staff member lived through.
   const attendedDays = new Set(records.map((record) => berlinDayKey(record.date)));
   const registrationDay = startOfUtcDay(registeredOn).getTime();
 
