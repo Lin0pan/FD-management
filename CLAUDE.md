@@ -22,7 +22,13 @@ are stated. `CONTRIBUTING.md` covers human onboarding (setup, commands, why each
 | What does DF themselves get handed?              | `docs/handout/` (German, printable)           |
 
 `docs/architecture/` is the architecture record: a change that makes a chapter wrong updates that
-chapter in the same PR, and a hard-to-reverse choice gets an ADR.
+chapter in the same PR, and a hard-to-reverse choice gets an ADR. **That work is driven with the
+`arc42` skill**, which carries the chapter conventions and the rule that matters most — a gap is
+left as a marked `> **TODO:**` rather than filled with a plausible guess, and a contradiction
+between code and chapter is surfaced, not silently resolved. A single ADR is delegated to
+`record-adr`. CI runs `arc42.py check`, so the mechanical drift is caught for you: an ADR missing
+from the chapter 9 log, a status that disagrees between the ADR and its index row, a dead link. What
+no check can see is a chapter that has quietly stopped being true.
 
 `docs/archiv/` holds the early material the build has overtaken — `domain_analysis.md` is still the
 best statement of DF's process, `user_stories_mvp.md` is an early MVP scope and **not current**.
