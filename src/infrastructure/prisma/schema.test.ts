@@ -1,11 +1,8 @@
 /**
- * A static guard on the one schema decision no runtime test can state in general: **nothing
- * cascades on delete** (US-10.3).
- *
- * The repository specs prove it for the customer's own relations by asking the database to delete a
- * household and being refused. This file makes the same statement about every model at once,
- * including any added tomorrow — `onDelete: Cascade` is a single word to type and the damage only
- * shows up the day something calls `delete`, by which time the household's history is gone.
+ * A static guard on the one schema decision no runtime test can state in general: **nothing cascades
+ * on delete** (ADR-010). The repository specs prove it per relation; this states it about every
+ * model at once, including any added tomorrow — `onDelete: Cascade` is one word to type, and the
+ * damage only shows up the day something calls `delete`.
  *
  * Reads the files rather than a database, so it costs nothing and runs with the pure tests.
  */

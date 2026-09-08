@@ -2,13 +2,9 @@ import { describe, expect, it } from "vitest";
 import { submitsOnEnter } from "./enter-guard";
 
 /**
- * Which controls have their Enter taken away, and which keep it.
- *
- * The rule is one predicate because the alternative — deciding it at each `<form>` — is how the
- * archive-search panel would have lost its Enter along with the registration form beside it. What is
- * worth a test is the shape of the allowlist: that a control the guard has never heard of keeps its
- * key, and that the submit button does too, because a form no one can operate by keyboard is a worse
- * bug than the one being fixed.
+ * Which controls have their Enter taken away, and which keep it. What is worth a test is the shape of
+ * the allowlist: a control the guard has never heard of keeps its key, and so does the submit button
+ * — a form nobody can operate by keyboard is a worse bug than the one being fixed.
  */
 describe("submitsOnEnter", () => {
   it("swallows Enter in a text field, which is where the accidental save came from", () => {

@@ -1,10 +1,7 @@
 /**
- * Integration tests for the SQLite settings adapter.
- *
- * Per the testing approach (CLAUDE.md) infrastructure is tested *after* the fact and thinly: these
- * specs prove the mapping and the constraints, not the business rules — those are covered by the
- * pure tests in src/domain and src/application. Each run migrates a throwaway database file which
- * is deleted afterwards, so nothing touches data/fd.db.
+ * Integration tests for the SQLite settings adapter — thin and test-after (CLAUDE.md): the mapping
+ * and the constraints, not the business rules. Each run migrates a throwaway database file, so
+ * nothing touches `data/fd.db`.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";

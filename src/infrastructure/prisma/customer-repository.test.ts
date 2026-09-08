@@ -1,13 +1,7 @@
 /**
- * Integration tests for the SQLite customer adapter.
- *
- * Per the testing approach (CLAUDE.md) infrastructure is tested *after* the fact and thinly: these
- * specs prove the mapping and the constraints — above all the partial unique index, which is the
- * one rule the pure layers cannot enforce. The business rules themselves are covered by the tests
- * in src/domain and src/application. Each run migrates a throwaway database file which is deleted
- * afterwards, so nothing touches data/fd.db.
- *
- * Synthetic data only (Faker), seeded so a failing run is reproducible.
+ * Integration tests for the SQLite customer adapter — thin and test-after (CLAUDE.md): the mapping
+ * and the constraints, above all the partial unique index, which is the one rule the pure layers
+ * cannot enforce. Each run migrates a throwaway database file, so nothing touches `data/fd.db`.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";
@@ -93,10 +87,8 @@ function renamed(
 }
 
 /**
- * The same registration as {@link newCustomer}, on a slot a household has already been through: its
- * card continues the slot's run rather than starting at 1 again (US-25). Which index the use case
- * works out is src/application's business; what this file needs is a second registration on one
- * number that the `(customerNumber, index)` constraint will accept.
+ * {@link newCustomer} on a slot a household has already been through: the card continues the slot's
+ * run rather than starting at 1 (US-25). Which index falls due is `src/application`'s business.
  */
 function nextOnTheSlot(overrides: Partial<Omit<NewCustomer, "details">> = {}): NewCustomer {
   const customer = newCustomer(overrides);
@@ -271,10 +263,9 @@ describe("PrismaCustomerRepository.create", () => {
 });
 
 /**
- * US-11.3 — a returning household is a *new* row that merely points at the old one. These specs are
- * about the column and its foreign key: that the link is stored and read back, that it is null for
- * everyone else, that the predecessor's row is not touched by the registration that names it, and
- * that the database refuses a link to nobody.
+ * US-11.3 — a returning household is a *new* row pointing at the old one. These specs are about the
+ * column and its foreign key: stored, read back, null for everyone else, the predecessor untouched,
+ * and a link to nobody refused.
  */
 describe("the link to an archived predecessor", () => {
   /** An archived household with a card and a certificate, as the register really holds one. */
@@ -757,10 +748,8 @@ describe("PrismaCustomerRepository.archive", () => {
 });
 
 /**
- * Archiving is the only way out of the register, so no relation in schema.prisma cascades on delete
- * (US-10.3). These specs prove the database itself refuses the hard delete rather than trusting that
- * no code will ever ask for one — a cascade left in place would take the household's members,
- * certificates and cards with it silently the first time something did.
+ * No relation cascades on delete (ADR-010). These specs prove the *database* refuses the hard delete
+ * rather than trusting that no code ever asks for one.
  */
 describe("a household that cannot be hard-deleted", () => {
   it("refuses to delete a customer who owns members, certificates and cards", async () => {

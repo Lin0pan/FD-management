@@ -1,15 +1,10 @@
 /**
- * Integration tests for the SQLite waiting-list adapter (US-12.3).
+ * Integration tests for the SQLite waiting-list adapter (US-12.3) — thin and test-after (CLAUDE.md).
+ * Three things the pure layers cannot state: that arrival order survives a round trip including the
+ * same-day tie, that a removal *stamps* the row rather than deleting it (FR-7), and that an entry
+ * occupies no customer number.
  *
- * Thin and test-after, per the testing approach (CLAUDE.md): what is worth proving here is what the
- * pure layers cannot. Three things — that the arrival order the domain rule computes survives a
- * round trip through the database, including the same-day tie the ascending `id` breaks; that a
- * removal *stamps* the row instead of deleting it, so the queue's history stays readable (FR-7); and
- * that an entry occupies no customer number, because nothing in `src/domain` or `src/application`
- * can state a fact about a table it never touches.
- *
- * Each run migrates a throwaway database file which is deleted afterwards, so nothing touches
- * data/fd.db. Synthetic data only (Faker), seeded so a failing run is reproducible.
+ * Each run migrates a throwaway database file, so nothing touches `data/fd.db`.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";

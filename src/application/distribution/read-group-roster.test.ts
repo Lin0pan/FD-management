@@ -29,11 +29,9 @@ import type {
 import { readGroupRoster } from "./read-group-roster";
 
 /**
- * Hand-written fakes and synthetic data only, per the testing standard.
- *
- * The dates are the reason the clock is pinned: under the seeded anchor `2026-W02` = RED and a
- * Thursday distribution weekday, Thursday 8 January 2026 is a RED distribution day, and Friday
- * 9 January stands in a RED week whose *next* distribution is the BLUE one of the week after.
+ * Hand-written fakes and synthetic data only. The dates are why the clock is pinned: under the seeded
+ * anchor, Thursday 8 January 2026 is a RED distribution day, and Friday 9 January stands in a RED
+ * week whose *next* distribution is the BLUE one after.
  */
 
 faker.seed(20260801);
@@ -78,10 +76,8 @@ class FakeSettingsRepository implements SettingsRepository {
 }
 
 /**
- * A register that answers `list` the way the adapter is documented to: the status and group applied
- * as filters, and the result ordered by ascending customer number.
- *
- * `writes` counts every mutating call, so a test can prove the roster changed nothing.
+ * A register that answers `list` as the adapter is documented to. `writes` counts every mutating
+ * call, so a test can prove the roster changed nothing.
  */
 class FakeCustomerRepository implements CustomerRepository {
   readonly holders: RegisteredCustomer[] = [];
@@ -183,11 +179,9 @@ class FakeCustomerRepository implements CustomerRepository {
 }
 
 /**
- * The day's hand-outs, filtered the way the adapter is documented to: by the **Berlin** day key, so
- * a test can state which instants count as "today" rather than trusting the use case's own answer.
- *
- * `dayKeysAsked` records every key the use case queried — one per read is what keeps the roster from
- * becoming a query per household.
+ * The day's hand-outs, filtered by the **Berlin** day key as the adapter is, so a test can state which
+ * instants count as "today". `dayKeysAsked` records every key queried — one per read is what keeps
+ * the roster from becoming a query per household.
  */
 class FakeDistributionRecordRepository implements DistributionRecordRepository {
   readonly records: DistributionRecord[] = [];

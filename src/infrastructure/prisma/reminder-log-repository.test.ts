@@ -1,15 +1,10 @@
 /**
- * Integration tests for the SQLite reminder-log adapter.
+ * Integration tests for the SQLite reminder-log adapter — thin and test-after (CLAUDE.md). What the
+ * pure layers cannot state: that the unique `(customerId, loggedOn)` constraint caps reminders at one
+ * per day even when the use-case guard is raced past (US-06.3), that it is scoped to the customer,
+ * and that `record` writes the entry and the new count in one transaction.
  *
- * Thin and test-after, per the testing approach (CLAUDE.md): what is worth proving here is what the
- * pure layers cannot state — that the unique `(customerId, loggedOn)` constraint caps reminders at
- * one per customer per day even when the use-case guard is bypassed or raced past (US-06.3), that
- * the constraint is scoped to the customer, and that `record` writes the log entry and the
- * customer's new `reminderCount` in one transaction, so a rejected entry moves no count. The
- * once-per-day rule itself is unit-tested in src/application.
- *
- * Each run migrates a throwaway database file which is deleted afterwards, so nothing touches
- * data/fd.db. Synthetic data only (Faker), seeded so a failing run is reproducible.
+ * Each run migrates a throwaway database file, so nothing touches `data/fd.db`.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";

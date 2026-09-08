@@ -1,16 +1,11 @@
 /**
- * Integration tests for the SQLite distribution-record adapter.
+ * Integration tests for the SQLite distribution-record adapter — thin and test-after (CLAUDE.md).
+ * What the pure layers cannot state: that `(customerId, dayKey)` is unique on the **Berlin** calendar
+ * day even if the use-case guard is bypassed, that the key is Berlin and not UTC (two minutes either
+ * side of Berlin midnight is two days), that it is scoped to the customer, and that a record outlives
+ * its customer's status changes and is never cascade-deleted (US-05.3, FR-6).
  *
- * Thin and test-after, per the testing approach (CLAUDE.md): what is worth proving here is what the
- * pure layers cannot state — that `(customerId, dayKey)` is unique on the **Berlin** calendar day, so
- * a second hand-out on the same day cannot be written even if the use-case guard is bypassed, that the
- * key is Berlin and not UTC (a boundary two minutes either side of Berlin midnight is two days), that
- * the constraint is scoped to the customer so two households may collect on the same day, and that a
- * record outlives its customer's status changes and is never cascade-deleted (US-05.3, FR-6). The
- * once-per-day rule itself is unit-tested in src/domain; the correction rules in src/application.
- *
- * Each run migrates a throwaway database file which is deleted afterwards, so nothing touches
- * data/fd.db. Synthetic data only (Faker), seeded so a failing run is reproducible.
+ * Each run migrates a throwaway database file, so nothing touches `data/fd.db`.
  */
 
 import { mkdtempSync, rmSync } from "node:fs";

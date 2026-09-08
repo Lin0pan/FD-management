@@ -2,13 +2,10 @@ import { ESLint } from "eslint";
 import { describe, expect, it } from "vitest";
 
 /**
- * Proves the architecture boundary is *enforced*, not merely documented.
+ * Proves the architecture boundary is *enforced*, not merely documented (ADR-001): that `npm run lint`
+ * actually fails on a violation, so the boundary survives an unattended agent run.
  *
- * The rule that matters — "the domain layer imports nothing from Next.js, React or Prisma" — used to
- * be a convention guarded by review (docs/architecture/adr/001-layer-the-system-hexagonal-lite-and-enforce-the-boundary-in-the-build.md). These tests assert that
- * `npm run lint` actually fails on a violation, so the boundary survives an unattended agent run.
- *
- * Nothing is written to disk: `lintText` resolves the real flat config for the given `filePath`.
+ * Nothing is written to disk — `lintText` resolves the real flat config for the given `filePath`.
  */
 
 const eslint = new ESLint({ cwd: process.cwd() });
