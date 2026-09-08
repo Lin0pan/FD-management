@@ -22,10 +22,8 @@ interface StoredVersion {
 }
 
 /**
- * Rebuild a domain version from its rows.
- *
- * The stored values go back through `createSettings`, so a database edited by hand cannot smuggle a
- * fractional price or an impossible weekday into the domain.
+ * Rebuild a domain version from its rows, back through `createSettings` so a hand-edited database
+ * cannot smuggle a fractional price or an impossible weekday into the domain.
  */
 function toDomain(row: StoredVersion): SettingsVersion {
   return {
@@ -39,25 +37,20 @@ function toDomain(row: StoredVersion): SettingsVersion {
       distributionWeekday: row.distributionWeekday,
       pricePerGrownUp: row.pricePerGrownUpCents,
       pricePerChild: row.pricePerChildCents,
-      // `?? null` rather than the raw column: Prisma types an absent value as `null`, but the
-      // domain spells "no cap" exactly one way, and `undefined` would slip past `createSettings`
-      // as a missing field instead of a configured one.
+      // `?? null` rather than the raw column: the domain spells "no cap" exactly one way, and
+      // `undefined` would slip past `createSettings` as a missing field rather than a configured one.
       priceCap: row.priceCapCents ?? null,
-      // The rows go through `createEggRule` inside `createSettings` like every other value here, so
-      // a hand-edited database cannot smuggle a descending staircase or a fractional threshold into
-      // the domain. A version with no rows comes back as an empty rule, which is a configuration
-      // and not an absence: no eggs for anyone.
+      // Through `createEggRule` inside `createSettings`, so a hand-edited database cannot smuggle a
+      // descending staircase in. No rows is an empty rule — a configuration, not an absence.
       eggRule: row.eggRule.map((step) => ({ minPersons: step.minPersons, eggs: step.eggs })),
     }),
   };
 }
 
 /**
- * The SQLite-backed {@link SettingsRepository}.
- *
- * Append-only by construction: there is no update and no delete, because a past distribution can
- * only be priced from the version that was in force on its day
- * (tasks/prd-us-14-configure-business-rules.md §US-14.3).
+ * The SQLite-backed {@link SettingsRepository}. Append-only by construction — no update and no
+ * delete, because a past distribution can only be priced from the version in force on its day
+ * (ADR-005, `tasks/prd-us-14-configure-business-rules.md` §US-14.3).
  */
 export class PrismaSettingsRepository implements SettingsRepository {
   private readonly prisma: PrismaClient;

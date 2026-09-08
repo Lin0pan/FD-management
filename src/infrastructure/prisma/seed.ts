@@ -5,14 +5,12 @@ import { createSettings, type SettingsVersion } from "@/domain/policy/settings";
  * The provisional policy values a fresh database starts with, so the app is usable on first boot
  * instead of failing with `NoSettingsInForce`.
  *
- * **Every number here is provisional and must be confirmed with DF** (tasks/README.md, "Provisional
- * seed values") — *except the egg rule*, which DF stated themselves and which is seeded as they
- * hand it out. They are configuration rows either way, so correcting any of them is a settings edit
- * on the `/einstellungen` screen — not a code change and not a migration.
+ * **Every number here is provisional and must be confirmed with DF** (`tasks/README.md`,
+ * "Provisional seed values") — except the egg rule, which DF stated themselves. All configuration
+ * rows either way, so correcting one is a settings edit rather than a code change or a migration.
  *
- * The stamp is a fixed instant rather than the clock, so seeding is deterministic and re-running it
- * can never produce a different history. It predates any change staff can make, so the seeded
- * values are in force until the first edit replaces them.
+ * A fixed instant rather than the clock, so seeding is deterministic; it predates any change staff
+ * can make, so the seeded values stand until the first edit replaces them.
  */
 const SEED_RECORDED_AT = new Date("2026-01-01T00:00:00.000Z");
 
@@ -42,11 +40,9 @@ export function provisionalSettingsVersion(): SettingsVersion {
 }
 
 /**
- * Insert the provisional settings version if — and only if — the database holds none.
- *
- * Running it twice is a no-op, so it is safe to call after every deploy. No audit entry is written:
- * the log records what a person changed and *why*, and the seed is the database's initial state
- * rather than anyone's decision.
+ * Insert the provisional settings version if — and only if — the database holds none, so it is safe
+ * to call after every deploy. No audit entry: the seed is the database's initial state rather than
+ * anyone's decision (ADR-006).
  *
  * @returns whether a version was inserted.
  */

@@ -4,9 +4,8 @@ import { parseCardIssueReason, type IssuedCard, type NewCard } from "@/domain/ca
 import { CardIndexTaken, CardNumberTaken } from "@/domain/errors";
 
 /**
- * The slot stood in for a customer id nobody holds. It is never written: the insert fails on the
- * foreign key first, and it stands in only so an unknown id reaches *that* failure rather than a
- * different one while the customer number is being read.
+ * Stands in for a customer id nobody holds. Never written — the insert fails on the foreign key
+ * first, and this only keeps an unknown id from failing somewhere else on the way there.
  */
 const UNKNOWN_SLOT = -1;
 
@@ -18,18 +17,15 @@ const CARD_UNIQUE_INDEXES = [
 
 /**
  * Whether a failed write was one of `Card`'s unique indexes rejecting the row — matched on the
- * columns of the index, in order, rather than on a substring of the error's `meta` blob, which
- * `Customer`'s own `customerNumber` index would satisfy just as well.
+ * index's columns **in order**, since `Customer`'s own `customerNumber` index would satisfy a
+ * substring match just as well.
  *
- * *Which* of the two is named is deliberately not read off the error. A card's slot is written from
- * the customer's row, so a second card on an index the customer already holds breaks both indexes at
- * once, and which of them the database then names is its own business rather than a fact about the
- * fault. {@link PrismaCardRepository.issue} asks the record itself instead.
+ * *Which* of the two is deliberately not read off the error: a second card on an index the customer
+ * already holds breaks both at once, and which the database names is its own business.
+ * {@link PrismaCardRepository.issue} asks the record instead.
  *
- * Exported for the reason {@link toIssuedCard} is: a card is also written by the customer register,
- * whose number change inserts one in the transaction that moves the slot (US-30). Both writers have
- * to read a refusal the same way, or one of them ends up translating a constraint the other treats
- * as a fault of its own.
+ * Exported because the customer register also writes cards (US-30) and both writers must read a
+ * refusal the same way.
  */
 export function isCardCollision(error: unknown): boolean {
   if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
@@ -47,15 +43,11 @@ export function isCardCollision(error: unknown): boolean {
 }
 
 /**
- * One stored card row as an {@link IssuedCard}. The two count columns are flat in SQLite and a
- * value object in the domain, so the shape is put back together here — in one place, so
- * `currentCard` and `listCards` cannot come to read the snapshot differently. There is no group on
- * the row to put back: a card's week follows from the slot it was printed under (`groupOf`,
- * US-31), so it is derived from `customerNumber` wherever the card is shown.
+ * One stored card row as an {@link IssuedCard} — the counts are flat in SQLite and a value object in
+ * the domain, put back together in one place so no two readers differ. There is no group to put
+ * back: a card's week is the parity of the slot it was printed under (ADR-017).
  *
- * It sits outside the class because a card is also written by the customer register: a number
- * change inserts the card in the same transaction that moves the slot (US-30), and reading the row
- * it wrote back differently is exactly the drift this one function exists to prevent.
+ * Outside the class because the customer register writes cards too (US-30).
  */
 export function toIssuedCard(row: {
   customerNumber: number;
@@ -75,27 +67,17 @@ export function toIssuedCard(row: {
 }
 
 /**
- * The SQLite-backed {@link CardRepository}.
+ * The SQLite-backed {@link CardRepository}. It never marks a card valid or invalid, because validity
+ * is *being* the highest index (FR-4).
  *
- * The adapter stores cards and reads them back; it decides nothing. In particular it never marks a
- * card valid or invalid, because validity is *being* the highest index (FR-4) — `currentCard` reads
- * that fact off the run rather than a column that could disagree with it.
+ * **Two unique constraints, saying different things.** `@@unique([customerNumber, index])` is the
+ * rule a card number states — printed once and never again, on whichever household holds the slot
+ * (US-25); `50k1` and `50k2` may belong to two households, but `50k1` is never handed out twice.
+ * `@@unique([customerId, index])` settles which of two simultaneous reissues on *one record* got the
+ * index (`tasks/prd-us-02-issue-customer-card.md` §US-02.3).
  *
- * What it does own is the one thing the pure layers cannot: the unique constraints that settle a
- * write nobody could have seen coming. There are two of them, and they say different things.
- *
- * `@@unique([customerNumber, index])` is the rule a card number states — a number is printed once
- * and never again, on whichever household happens to hold the slot (US-25). Customer number 50 is a
- * slot an archived household releases (FR-6), so `50k1` and `50k2` may well belong to two different
- * households; what the constraint forbids is `50k1` being handed out a second time, which is how the
- * counter came to answer for a card that left the register with a household years ago.
- *
- * `@@unique([customerId, index])` is kept beside it because it is a different fact: it settles which
- * of two simultaneous reissues on *one record* got the index
- * (tasks/prd-us-02-issue-customer-card.md §US-02.3). A caller answers that by counting on from what
- * is now there and trying again; the global one it cannot answer by retrying at all. Hence the two
- * errors — {@link CardIndexTaken} and {@link CardNumberTaken} — and hence `issue` working out which
- * of the two a refused write was before it reports one.
+ * A caller answers the second by counting on from what is now there; the first it cannot answer by
+ * retrying at all. Hence the two errors, and hence `issue` working out which refused the write.
  */
 export class PrismaCardRepository implements CardRepository {
   private readonly prisma: PrismaClient;
@@ -105,11 +87,8 @@ export class PrismaCardRepository implements CardRepository {
   }
 
   /**
-   * The customer's highest-indexed card — the one they actually hold — or `null` if they hold none.
-   *
-   * An unknown customer id also answers `null`: whether the household exists is the use case's
-   * question, asked of the customer register, and answering it twice in two places would let the two
-   * answers differ.
+   * The customer's highest-indexed card, or `null`. An unknown id also answers `null` — whether the
+   * household exists is the register's question, and answering it twice would let the two differ.
    */
   async currentCard(customerId: number): Promise<IssuedCard | null> {
     const row = await this.prisma.card.findFirst({
@@ -123,11 +102,9 @@ export class PrismaCardRepository implements CardRepository {
   }
 
   /**
-   * The highest index ever issued on a customer number, 0 for a slot that has never held a card.
-   *
-   * One aggregate over the slot, served by the leading column of `@@unique([customerNumber, index])`.
-   * The `where` names the number and nothing else: an archived household's cards count, because the
-   * card they walked away with is still out in the world (US-25).
+   * The highest index ever issued on a customer number, 0 for a slot that has never held a card. The
+   * `where` names the number and nothing else: an archived household's cards count, because the card
+   * they walked away with is still out in the world (US-25).
    */
   async highestIndexForNumber(customerNumber: number): Promise<number> {
     const highest = await this.prisma.card.aggregate({
@@ -138,16 +115,11 @@ export class PrismaCardRepository implements CardRepository {
   }
 
   /**
-   * The highest index ever issued on **every** slot that has had a card, in one grouped aggregate —
-   * served by the leading column of `@@unique([customerNumber, index])`.
+   * The same for **every** slot that has had a card, in one grouped aggregate — rather than the ~240
+   * singular calls the record's number control would make to render one dropdown (US-30.4).
    *
-   * No `where` at all: archived holders count, for the reason `highestIndexForNumber` states, and a
-   * slot that has never had a card is simply **absent** from the map rather than reported as 0. The
-   * caller reads it as `?? 0`, which is the same answer the singular method gives.
-   *
-   * One query rather than the ~240 `highestIndexForNumber` calls the record's number control would
-   * otherwise make to render a single dropdown (US-30.4) — the argument `issueCounts` makes for
-   * being an aggregate, at the width of the whole register.
+   * A slot that has never had a card is **absent** rather than reported as 0; the caller reads
+   * `?? 0`, which is the same answer the singular method gives.
    */
   async highestIndexByNumber(): Promise<ReadonlyMap<number, number>> {
     const groups = await this.prisma.card.groupBy({
@@ -155,16 +127,14 @@ export class PrismaCardRepository implements CardRepository {
       _max: { index: true },
     });
 
-    // `_max` is nullable because an *empty* group would have no maximum, which a `groupBy` cannot
-    // produce; `?? 0` is `highestIndexForNumber`'s own reading of the same aggregate rather than an
-    // assertion about it, and 0 means the same thing here as an absent slot does.
+    // `_max` is nullable for an empty group, which a `groupBy` cannot produce; `?? 0` is
+    // `highestIndexForNumber`'s own reading rather than an assertion about it.
     return new Map(groups.map((group) => [group.customerNumber, group._max.index ?? 0]));
   }
 
   /**
-   * Every card the customer has been issued, highest index first — the one they hold, then the
-   * numbers it replaced. Superseded cards are kept rather than deleted, so an old card handed over
-   * at the counter can still be recognised (US-09).
+   * Every card the customer has been issued, highest index first. Superseded cards are kept rather
+   * than deleted, so an old one handed over at the counter is still recognisable (US-09).
    */
   async listCards(customerId: number): Promise<ReadonlyArray<IssuedCard>> {
     const rows = await this.prisma.card.findMany({
@@ -175,17 +145,13 @@ export class PrismaCardRepository implements CardRepository {
   }
 
   /**
-   * How many cards the customer has been through and how many of those a loss caused — one grouped
-   * aggregate, whatever the length of the run (US-09.2).
-   *
-   * Grouping by reason rather than counting twice keeps it to a single round trip: the total is the
-   * sum of the groups' sizes, and the loss count is the size of the `LOST` group. The reason word is
-   * parsed rather than compared as a string, so a hand-edited row fails here exactly as it does in
-   * `currentCard` instead of quietly dropping out of the loss count.
+   * How many cards the customer has been through and how many a loss caused — one grouped aggregate
+   * (US-09.2). The reason word is parsed rather than string-compared, so a hand-edited row fails
+   * here rather than quietly dropping out of the loss count.
    *
    * The total counts the customer's own **rows**, not the index they have reached: an index counts
    * the slot's whole history (US-25), so a household given `66k4` as their first card would otherwise
-   * be reported as having been through four cards and appear to have lost three they never held.
+   * appear to have lost three cards they never held.
    */
   async issueCounts(customerId: number): Promise<CardIssueCounts> {
     const groups = await this.prisma.card.groupBy({
@@ -207,20 +173,16 @@ export class PrismaCardRepository implements CardRepository {
   }
 
   /**
-   * Write one card for a customer and hand it back as it was stored.
-   *
-   * The slot the card is printed under is read off the customer row rather than taken as an
-   * argument, in one transaction with the insert: `Card.customerNumber` is the key the global
-   * constraint needs, and a caller that could pass it is a caller that could pass the wrong one.
-   * `IssuedCard` stays a pure domain type and gains nothing. An id nobody holds fails as it always
-   * did — on the foreign key, which is the register's question to answer, not this adapter's.
+   * Write one card and hand it back as stored. The slot is read off the customer row inside the
+   * insert's transaction rather than taken as an argument — a caller that could pass it could pass
+   * the wrong one. An id nobody holds fails on the foreign key, the register's question to answer.
    *
    * @throws {CardIndexTaken} if a concurrent issue took the index on this record first.
    * @throws {CardNumberTaken} if the card number had already been printed on this slot.
    */
   async issue(customerId: number, card: NewCard): Promise<IssuedCard> {
-    // Kept out here as well as written inside, so a refused card number can be named as staff know
-    // it — `50k1` — rather than as an id nobody at the counter has ever seen.
+    // Kept out here as well as written inside, so a refusal names the card as staff know it — `50k1`
+    // — rather than an id nobody at the counter has seen.
     let slot = UNKNOWN_SLOT;
     try {
       const row = await this.prisma.$transaction(async (tx) => {
@@ -244,11 +206,10 @@ export class PrismaCardRepository implements CardRepository {
       return toIssuedCard(row);
     } catch (error: unknown) {
       if (isCardCollision(error)) {
-        // Which of the two constraints refused the row is asked of the record rather than of the
-        // error, because both cover it and only the record can say which fault it was: a customer
-        // who already holds the index lost a race between two issues of their own, which a caller
-        // settles by reading their run again; anyone else has been handed a card number that was
-        // printed once already, and no retry on this slot can answer that (US-25).
+        // Asked of the record rather than the error, because both constraints cover the row: a
+        // customer already holding the index lost a race between two issues of their own, settled by
+        // re-reading their run; anyone else has hit a card number printed once already, which no
+        // retry on this slot can answer (US-25).
         const held = await this.prisma.card.count({ where: { customerId, index: card.index } });
         throw held > 0
           ? new CardIndexTaken(customerId, card.index)

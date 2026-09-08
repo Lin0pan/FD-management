@@ -5,12 +5,9 @@ import type { AuditEntry, AuditLog } from "@/application/ports";
 const FIELD_SEPARATOR = ",";
 
 /**
- * The SQLite-backed {@link AuditLog}.
- *
- * Append-only by construction — there is no update and no delete. With no login, the log is the only
+ * The SQLite-backed {@link AuditLog}. Append-only by construction — with no login the log is the only
  * accountability the system has, so an entry that could be rewritten would be worth nothing
- * (docs/architecture/adr/006-record-what-when-and-why-in-the-audit-log-never-who.md). It records *what* changed, *when* and *why*, and
- * deliberately never *who*.
+ * (ADR-006).
  */
 export class PrismaAuditLog implements AuditLog {
   private readonly prisma: PrismaClient;

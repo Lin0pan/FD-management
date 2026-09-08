@@ -3,13 +3,10 @@ import type { CertificateRepository } from "@/application/ports";
 import type { NeedsCertificate } from "@/domain/customer/customer";
 
 /**
- * The SQLite-backed {@link CertificateRepository}.
- *
- * `renew` **appends** — the renewed certificate becomes a new row rather than editing the one on
- * file, so the history of renewals stays readable (US-06.3, FR-8); the counter reads the latest by
- * `recordedAt` through the customer repository. The append and the reset of `reminderCount` to zero
- * go out in **one transaction**: a renewal that landed without its reset would show a customer
- * still owing the renewal they have just brought.
+ * The SQLite-backed {@link CertificateRepository}. `renew` **appends** rather than editing the row on
+ * file, so the history of renewals stays readable (US-06.3, FR-8), and the append goes out in **one
+ * transaction** with the `reminderCount` reset — a renewal landing without its reset would show a
+ * customer still owing what they have just brought.
  */
 export class PrismaCertificateRepository implements CertificateRepository {
   private readonly prisma: PrismaClient;
