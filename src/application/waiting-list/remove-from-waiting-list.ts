@@ -1,15 +1,11 @@
 /**
- * Take an applicant off the waiting list — they withdrew, moved away or can no longer be reached
- * (US-12.2, FR-6).
+ * Take an applicant off the waiting list — they withdrew or can no longer be reached (US-12.2, FR-6).
  *
- * The row is kept, not deleted (FR-7). A waiting list is only worth the claim it makes — that the
- * longest wait was served first — and that claim can only be checked against a history that still
- * has the people who left in it. So a removal stamps the entry rather than erasing it, and the reason
- * is required: without it, a row that vanished from the queue cannot say whether the applicant went
- * of their own accord.
+ * The row is kept, not deleted (FR-7): "the longest wait was served first" can only be checked
+ * against a history that still holds the people who left. The reason is required for the same
+ * reason — a row that vanished cannot say whether the applicant went of their own accord.
  *
- * Registering an applicant is *not* this use case. That removal is `registerFromWaitingList`'s, and
- * it happens only once the registration has actually landed.
+ * Registering an applicant is `registerFromWaitingList`'s removal, not this one.
  */
 
 import { MissingAuditReason, WaitingListEntryNotFound } from "@/domain/errors";
@@ -51,8 +47,7 @@ export async function removeFromWaitingList(
     throw new WaitingListEntryNotFound(entryId);
   }
 
-  // Both questions are settled before anything is written: is this applicant still waiting, and does
-  // the removal carry the reason that accounts for it.
+  // Both questions before anything is written: still waiting, and carrying its reason.
   const trimmed = reason.trim();
   if (trimmed === "") {
     throw new MissingAuditReason(WAITING_LIST_REMOVED);

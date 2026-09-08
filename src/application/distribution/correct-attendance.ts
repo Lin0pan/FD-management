@@ -1,25 +1,16 @@
 /**
- * Correct today's hand-out — the one amendment the history allows (tasks/prd-us-05-record-
- * attendance.md §US-05.2, FR-7).
+ * Correct today's hand-out — the one amendment the history allows
+ * (`tasks/prd-us-05-record-attendance.md` §US-05.2, FR-7).
  *
- * A record is mutable only on the Berlin day it was made (`canCorrect`); by the next day it is part
- * of the permanent history and this refuses with {@link RecordNoLongerCorrectable}. Two corrections
- * are offered, both same-day: set the amount that was handed over — a mistyped payment, or a
- * household that came back with the rest before the day was out — or remove the record outright
- * (served the wrong customer). Removal is the single deletion the store permits: the distribution
- * history is otherwise append-only and never rewritten after the fact.
+ * A record is mutable only on the Berlin day it was made (`canCorrect`). Removal is the single
+ * deletion the store permits; the history is otherwise append-only.
  *
- * **A removal needs no code of its own to put the balance back** (US-29, rule 9). The balance is the
- * arithmetic of the surviving rows, so deleting a record deletes its payment with it and the
- * household returns to exactly where they stood — the property the derive-don't-store choice was
- * made for, and an application test says so.
+ * **A removal needs no code of its own to put the balance back** (US-29, rule 9): the balance is the
+ * arithmetic of the surviving rows, which is the property ADR-015 was chosen for.
  *
- * **A new payment is judged against what was asked for on that record's own day**, replayed from the
- * customer's history. Today's amount to pay is the wrong figure: it already has this record's own
- * payment folded into it, so a household settling an old debt would read as paying ahead.
- *
- * Each correction writes its own audit entry; no reason is required, because the event name and the
- * changed field already say what happened (the same judgement `updateSettings` makes).
+ * **A new payment is judged against what was asked on that record's own day.** Today's amount to pay
+ * already has this record's payment folded in, so a household settling an old debt would read as
+ * paying ahead.
  */
 
 import { canCorrect } from "@/domain/distribution/attendance";
@@ -44,13 +35,9 @@ export interface CorrectAttendanceDeps {
 }
 
 /**
- * What to do to the record: set the amount that was handed over, or remove it. A discriminated union
- * so the caller states exactly one intent and the use case has no third, undefined case to handle.
- *
- * `paidCents` is checked to be a whole, non-negative amount by `requirePayment` before anything is
- * written — as it is in `recordAttendance`, and for the same reason: `parseEuros` refuses one at the
- * form boundary (US-29.7), but a screen may not be the only guard (FR-8) and a derived balance has
- * no stored figure to correct a bad amount against.
+ * Set the amount handed over, or remove the record — a union, so the caller states exactly one intent.
+ * `paidCents` goes through `requirePayment` for `recordAttendance`'s reason: a screen may not be the
+ * only guard (FR-8), and a derived balance has no stored figure to correct against.
  */
 export type CorrectAttendanceInput =
   | {
@@ -95,14 +82,11 @@ export async function correctAttendance(
     return;
   }
 
-  // The shape of the amount before the meaning of it: an unreadable number is refused without a
-  // second read of the store, and the question below is only ever asked about a real amount.
+  // Shape before meaning: an unreadable number is refused without a second read of the store.
   requirePayment(input.paidCents);
 
-  // What the counter asked for on the day this record was made. Nothing stores it, so the household's
-  // history is replayed and this record's row read off the walk — the price offset by the balance of
-  // the *earlier* hand-outs only, which is the figure a staff member had in front of them. The same
-  // question `lookupCustomer` asks about today's record, so it is answered in one place.
+  // What the counter asked on the day this record was made — replayed from the history, since nothing
+  // stores it. The same question `lookupCustomer` asks, answered in one place.
   const askedCents = askedForRecord(await deps.records.listForCustomer(record.customerId), record);
   if (input.paidCents > askedCents && input.overpaymentConfirmed !== true) {
     throw new OverpaymentNotConfirmed(input.paidCents, askedCents);

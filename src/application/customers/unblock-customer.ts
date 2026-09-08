@@ -1,14 +1,9 @@
 /**
- * Lift a customer's block — return a paused household to active (US-08.2).
+ * Lift a customer's block (US-08.2). The status returns to `ACTIVE` and the reason is cleared, because
+ * there is no block history in the product (PRD §5) — only the current reason, and a lifted block has
+ * none. It survives in the audit log alone, which is why the entry carries the reason being lifted.
  *
- * Unblocking is the mirror of {@link blockCustomer}: the status returns to `ACTIVE` and the reason is
- * cleared, because there is no block history in the product (PRD §5) — only the current reason, and a
- * lifted block has none. The reason survives only in the audit log, which is why the entry carries
- * the reason being lifted: the trail records *what* was undone even though the field no longer does.
- *
- * Legality is the {@link transition} state machine's to decide: lifting the block of a customer who
- * is not blocked — an already-active or an archived one — is an illegal move and is refused as one.
- * No new reason is asked for; lifting a block needs no justification of its own.
+ * No new reason is asked for: lifting a block needs no justification of its own.
  */
 
 import { transition } from "@/domain/customer/status";
@@ -18,10 +13,7 @@ import type { AuditLog, Clock, CustomerRepository } from "../ports";
 /** The audit event name every lifted block is recorded under. */
 const CUSTOMER_UNBLOCKED = "customer.unblocked";
 
-/**
- * What the audit entry names as changed — the status returns to active and the reason is cleared.
- * The reason that was lifted becomes the entry's `why`, so the trail still says what was undone.
- */
+/** The status and the cleared reason; the reason that was lifted becomes the entry's `why`. */
 const UNBLOCKED_FIELDS = ["status", "blockReason"] as const;
 
 export interface UnblockCustomerDeps {
@@ -51,8 +43,7 @@ export async function unblockCustomer(
     throw new CustomerNotFound(customerId);
   }
 
-  // Read the reason before it is cleared: the audit trail is the only place it survives, so the
-  // entry records the block that was lifted rather than an empty why.
+  // Read before it is cleared: the audit trail is the only place it survives.
   const lifted = customer.blockReason ?? "";
   const status = transition(customer.status, "ACTIVE");
 

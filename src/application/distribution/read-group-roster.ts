@@ -1,38 +1,22 @@
 /**
  * Which group is collecting today, who belongs to it, and how far through the afternoon is (US-23).
+ * A read throughout — nothing is written.
  *
- * This use case was written for US-21's walk controls — the two buttons that stepped through the
- * group in customer-number order beside the number field. **US-32 withdrew the walk**: DF call
- * households in blocks ("everyone from 1 to 30 now") and serve them in whatever order they turn up,
- * so the next number is almost never the next person. The roster **outlived** it. What it is for now
- * is US-23's tally and the list beneath it: which households belong to today's group, and which of
- * them have already collected.
+ * Three decisions worth stating, each of which could plausibly have gone the other way:
  *
- * Three decisions are worth stating, because each could plausibly have gone the other way:
+ * - **The group is the week's own**, `getWeekColour`'s `colour`, not `nextDistribution.colour`: those
+ *   part company between distributions, and a screen saying "blaue Woche" over a list of red
+ *   households answers a question nobody asked. Nor does it follow the household on screen, so the
+ *   screen never names two groups at once.
+ * - **Membership is ACTIVE + BLOCKED.** A block is something the counter has to *state*; an archived
+ *   household no longer holds the slot, and what a freed number looks up to is the counter's question
+ *   (US-04.2).
+ * - **The query is the existing `CustomerRepository.list`** — at ~240 customers this is the read
+ *   `/kunden` performs on every visit. The **group** is narrowed here rather than in SQL, for
+ *   `listCustomers`' reason (ADR-017).
  *
- * - **The group read is the week's own**, `getWeekColour`'s `colour` — the one the banner badges
- *   beside the calendar week, and on a distribution day necessarily the group being served. It is
- *   deliberately *not* `nextDistribution.colour`: those part company on the days between a
- *   distribution and the next one, and a screen that says "blaue Woche" while its list names red
- *   households is answering a question nobody asked. It does not follow the group of the household on
- *   screen either, so the screen never names two groups at once.
- * - **Membership is ACTIVE + BLOCKED.** A blocked household is listed because a block is something
- *   the counter has to *state* — the verdict is the whole point of stopping at them — while an
- *   archived one is not, because it no longer holds the slot. What a freed number looks up to is the
- *   counter's own question (US-04.2), not the roster's.
- * - **The membership query is the existing `CustomerRepository.list`**, which filters by status and
- *   answers lowest customer number first. No port method was added: at DF's ~240 customers this is
- *   the same read `/kunden` performs on every visit. The **group** is narrowed here rather than in
- *   the query, because a group is the parity of a customer number (`groupOf`, US-31) and SQLite has
- *   no `% 2` in a `WHERE` clause — the same reason `listCustomers` narrows its own group filter.
- *
- * The tally is one question with the list — *which households belong to today's group* — with one
- * fact added per household, so it is one use case rather than two reads that could disagree about
- * the roster. It is **derived on every read** from today's records; nothing about it is stored
- * (§FR-8).
- *
- * Nothing is written — no record, no reminder, no status change and no audit entry. The roster is a
- * read, like the lookup beside it (US-04, FR-4).
+ * The tally rides with the list rather than being a second read, so the two cannot disagree about the
+ * roster, and is derived on every read (§FR-8).
  */
 
 import type { CustomerStatus } from "@/domain/customer/customer";
@@ -55,24 +39,15 @@ export interface ReadGroupRosterDeps {
   readonly clock: Clock;
 }
 
-/**
- * The statuses the roster covers (PRD §FR-2).
- *
- * Blocked households belong to the group and are listed; archived ones no longer hold the slot and
- * are not.
- */
+/** The statuses the roster covers (PRD §FR-2): blocked households belong to the group, archived not. */
 const ROSTERED_STATUSES: ReadonlyArray<CustomerStatus> = ["ACTIVE", "BLOCKED"];
 
 /**
- * One household of the group, as the list behind the tally names it (US-23).
- *
- * `customerId` is the surrogate id, and it is what the day's records are joined by — never the
- * customer number, which is a slot attribute an archived household releases and a new one takes over
- * (US-10). `blocked` and `servedToday` are the two flags {@link groupProgress} counts, which is why
- * this shape is the tally's input as it stands.
+ * One household of the group, as the list behind the tally names it (US-23). Records are joined by
+ * `customerId`, never the customer number, which is a slot another household may take over (ADR-008).
  */
 export interface GroupRosterMember {
-  /** The surrogate id — what a record belongs to, and what the screen links by nothing else. */
+  /** The surrogate id — what a record belongs to, and what the screen links by. */
   readonly customerId: number;
   /** The number staff type at the counter, and the order the list is read in. */
   readonly customerNumber: number;
@@ -89,15 +64,11 @@ export interface GroupRosterView {
   /** The group collecting this week, stated in words on screen. */
   readonly group: WeekColour;
   /**
-   * Whether the group holds no active or blocked household at all. It reads as walk vocabulary and
-   * is not: `group-progress-card.tsx` branches on it for the group's own empty state (US-23), which
-   * is a sentence rather than a tally of nothing.
+   * Whether the group holds no active or blocked household at all — `group-progress-card.tsx` branches
+   * on it to show a sentence rather than a tally of nothing (US-23).
    */
   readonly isEmpty: boolean;
-  /**
-   * Every household of the group in the order the register answered — lowest customer number first.
-   * Nothing here re-sorts it (US-23, §FR-3).
-   */
+  /** The group in the order the register answered — lowest number first, never re-sorted (§FR-3). */
   readonly members: ReadonlyArray<GroupRosterMember>;
   /** How far through the group the afternoon is, counted from {@link members} and nothing else. */
   readonly progress: Progress;
@@ -106,8 +77,7 @@ export interface GroupRosterView {
 /**
  * The group of the week being read in, the households that belong to it, and today's tally.
  *
- * @throws {NoSettingsInForce} if no settings version had taken effect today — the same failure the
- *   banner already has, on the same screen.
+ * @throws {NoSettingsInForce} if no settings version had taken effect today.
  * @throws {InvalidSettings} if the week anchor does not name a week of the ISO calendar.
  */
 export async function readGroupRoster(deps: ReadGroupRosterDeps): Promise<GroupRosterView> {
@@ -115,8 +85,8 @@ export async function readGroupRoster(deps: ReadGroupRosterDeps): Promise<GroupR
   const group = week.colour;
   const rostered = await deps.customers.list({ statuses: ROSTERED_STATUSES });
   const households = rostered.filter((customer) => groupOf(customer.customerNumber) === group);
-  // The whole afternoon in one query, then joined in memory: a group is ~120 households, and a query
-  // apiece would make the counter's own screen the slowest in the app (US-23, §FR-4).
+  // The whole afternoon in one query, joined in memory: a group is ~120 households, and a query
+  // apiece would make the counter's own screen the slowest in the app (§FR-4).
   const servedIds = new Set(
     (await deps.records.listForDay(berlinDayKey(deps.clock.now()))).map(
       (record) => record.customerId,
@@ -135,8 +105,7 @@ export async function readGroupRoster(deps: ReadGroupRosterDeps): Promise<GroupR
     group,
     isEmpty: members.length === 0,
     members,
-    // Counted once, from the very rows the screen renders — so the summary and the marks beneath it
-    // cannot tell different stories.
+    // From the very rows the screen renders, so the summary and the marks beneath cannot disagree.
     progress: groupProgress(members),
   };
 }

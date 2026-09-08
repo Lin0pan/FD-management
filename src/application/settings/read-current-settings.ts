@@ -1,9 +1,7 @@
 /**
- * Read the policy values in force today.
- *
- * This is the single seam every other feature uses to reach configuration: the counter screen, the
- * price calculation and the quota check all resolve settings through here rather than reading rows
- * themselves (tasks/prd-us-14-configure-business-rules.md §US-14.2).
+ * Read the policy values in force today — the single seam every feature reaches configuration
+ * through, rather than reading rows itself
+ * (`tasks/prd-us-14-configure-business-rules.md` §US-14.2).
  */
 
 import { resolveSettingsAt, type Settings } from "@/domain/policy/settings";
@@ -17,8 +15,8 @@ export interface ReadCurrentSettingsDeps {
 /**
  * The settings in force at the clock's "now".
  *
- * @throws {NoSettingsInForce} if no version has taken effect yet — a database that was never
- * seeded is a setup failure, not a reason to invent defaults.
+ * @throws {NoSettingsInForce} if no version has taken effect yet — a setup failure, not a reason to
+ * invent defaults.
  */
 export async function readCurrentSettings(deps: ReadCurrentSettingsDeps): Promise<Settings> {
   const versions = await deps.settings.listVersions();

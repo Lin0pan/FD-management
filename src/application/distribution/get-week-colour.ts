@@ -1,13 +1,9 @@
 /**
- * Which group collects, on any day DF asks about.
+ * Which group collects, on any day DF asks about — everything the banner states
+ * (`tasks/prd-us-03-week-colour.md` §US-03.3, FR-1, FR-4, FR-5).
  *
- * The one seam the distribution screen reads: it answers for today by default and for a looked-up
- * date on request, and it carries everything the banner states — the colour, the ISO week to check
- * against a wall calendar, whether today is a distribution day and, when it is not, when the next
- * one is (tasks/prd-us-03-week-colour.md §US-03.3, FR-1, FR-4, FR-5).
- *
- * Nothing is stored. A week colour is a function of the date and the anchor, so there are no week
- * rows to write and `SettingsRepository` is the only port this needs.
+ * A week colour is a function of the date and the anchor, so there are no week rows to write and
+ * `SettingsRepository` is the only port this needs.
  */
 
 import {
@@ -49,8 +45,8 @@ export interface WeekColourView {
  * @throws {InvalidSettings} if the week anchor does not name a week of the ISO calendar.
  */
 export async function getWeekColour(deps: GetWeekColourDeps, date?: Date): Promise<WeekColourView> {
-  // Settings are resolved at the *instant* asked about, not at the start of its day: a change DF
-  // saves this morning is in force this morning. Only the calendar arithmetic normalises to a day.
+  // Resolved at the *instant* asked about, not the start of its day: a change saved this morning is
+  // in force this morning. Only the calendar arithmetic normalises to a day.
   const at = date ?? deps.clock.now();
   const day = startOfUtcDay(at);
   const settings = resolveSettingsAt(await deps.settings.listVersions(), at);

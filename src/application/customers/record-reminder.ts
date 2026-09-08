@@ -1,22 +1,14 @@
 /**
  * Log one certificate reminder — the write that makes the grace period documented rather than
- * remembered (tasks/prd-us-06-certificate-reminder.md §US-06.2).
+ * remembered (`tasks/prd-us-06-certificate-reminder.md` §US-06.2). Two guards stand before it:
  *
- * An expired certificate never blocks a hand-out; it starts a conversation at the counter, and this
- * use case records that the conversation happened. Two guards stand before the write:
+ *  1. **Something to remind about** (`isExpired`) — a reminder on a valid certificate would start a
+ *     trail on a household that owes no renewal.
+ *  2. **Once per day** on the Berlin calendar day, so a mis-click cannot consume the grace period
+ *     (FR-5). The database repeats it as a unique constraint (US-06.3).
  *
- *  1. **Something to remind about.** The certificate must actually have lapsed (`isExpired`) — a
- *     reminder on a valid certificate would start a trail on a customer who owes no renewal, so it
- *     is refused with {@link CertificateStillValid}.
- *  2. **Once per day.** A reminder already logged on today's Berlin day is a repeat — most likely a
- *     mis-click, which must not consume the customer's grace period (FR-5) — and is refused with
- *     {@link ReminderAlreadyLoggedToday}, writing nothing. The database repeats the rule as a unique
- *     constraint (US-06.3), so a race that slips past this guard still cannot double-log.
- *
- * The day is the **Berlin calendar day** (`berlinDayKey`), the same notion of "the same day" the
- * attendance rule uses, because both happen at the counter at a local moment. What the resulting
- * count *means* is deliberately not decided here: no threshold exists anywhere (PRD §5), and the
- * count is returned for staff to judge, never acted on.
+ * What the resulting count *means* is deliberately not decided here: no threshold exists anywhere
+ * (PRD §5), and the count is returned for staff to judge.
  */
 
 import { isExpired } from "@/domain/customer/certificate";
@@ -44,10 +36,9 @@ export interface RecordReminderInput {
 }
 
 /**
- * Record that the customer was reminded today, and return the resulting reminder count.
- *
- * Nothing is written unless both guards pass. The audit entry records the resulting count in its
- * free-text slot — the trail must be readable from the log alone, and no human reason is asked for.
+ * Record that the customer was reminded today, and return the resulting count. Nothing is written
+ * unless both guards pass; the audit entry carries the count in its `why`, since no human reason is
+ * asked for and the trail must be readable from the log alone (ADR-006).
  *
  * @throws {CustomerNotFound} if no customer holds `customerId`.
  * @throws {CertificateStillValid} if the certificate has not lapsed as of today.

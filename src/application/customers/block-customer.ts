@@ -1,16 +1,11 @@
 /**
- * Block a customer — pause a household without losing their place (US-08.2).
+ * Block a customer — pause a household without losing their place (US-08.2). The number, the card and
+ * the record stay and the slot is *not* freed (FR-3): a blocked household is turned away at the
+ * counter, not unregistered.
  *
- * A block is a manual decision that keeps everything: the customer number, the card and the record
- * stay, and the slot is *not* freed (FR-3) — a blocked household is turned away at the counter, not
- * unregistered. The one thing a block must carry is a written reason: it is the entire institutional
- * memory of why someone was paused (FR-1), so the transition refuses a reason-less block before
- * anything is written.
- *
- * Legality is decided by the {@link transition} state machine, not here: blocking an already-blocked
- * or an archived customer is an illegal move and is refused as one. The reason is trimmed once and
- * both stored and audited from the same value, so what the counter shows and what the log records
- * can never drift apart.
+ * The written reason is the entire institutional memory of why someone was paused (FR-1), so
+ * {@link transition} refuses a reason-less block before anything is written. The reason is trimmed
+ * once and both stored and audited from that value, so the counter and the log cannot drift apart.
  */
 
 import { transition } from "@/domain/customer/status";
@@ -20,10 +15,7 @@ import type { AuditLog, Clock, CustomerRepository } from "../ports";
 /** The audit event name every block is recorded under. */
 const CUSTOMER_BLOCKED = "customer.blocked";
 
-/**
- * What the audit entry names as changed. A block sets the status and writes the reason beside it;
- * the reason itself is the entry's `why`.
- */
+/** The status and the reason beside it; the reason itself is also the entry's `why`. */
 const BLOCKED_FIELDS = ["status", "blockReason"] as const;
 
 export interface BlockCustomerDeps {
@@ -58,8 +50,8 @@ export async function blockCustomer(
   }
 
   const trimmed = reason.trim();
-  // The state machine settles both questions before any write: is the move legal, and does a block
-  // carry its mandatory reason. A whitespace-only reason is a missing record, not an illegal move.
+  // Both questions before any write: is the move legal, and does the block carry its reason. A
+  // whitespace-only reason is a missing record, not an illegal move.
   const status = transition(customer.status, "BLOCKED", trimmed);
 
   await deps.customers.setStatus(customerId, status, trimmed);

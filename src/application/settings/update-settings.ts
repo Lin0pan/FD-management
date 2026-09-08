@@ -1,10 +1,7 @@
 /**
- * Append a new version of the policy values, in force from the moment it is saved.
- *
- * Settings are never edited in place: each save adds a version stamped with the clock, so a
+ * Append a new version of the policy values, in force from the moment it is saved (ADR-005) — so a
  * distribution recorded last March can still be priced with the values that applied then
- * (tasks/prd-us-14-configure-business-rules.md §US-14.2, FR-1). Staff do not date the change —
- * they adjust the numbers when reality changes, and it applies at once.
+ * (`tasks/prd-us-14-configure-business-rules.md` §US-14.2, FR-1). Staff do not date the change.
  */
 
 import { QuotaBelowActiveCustomers } from "@/domain/errors";
@@ -30,19 +27,14 @@ export interface UpdateSettingsDeps {
 export interface UpdateSettingsInput {
   readonly settings: SettingsInput;
   /**
-   * Why the change was made, if staff gave a reason; it becomes the audit entry's *why*.
-   *
-   * Optional on purpose: most settings edits are self-explanatory from the changed fields, and
-   * demanding a sentence for every one of them buys invented text rather than accountability. The
-   * state changes that genuinely need a *why* — a block, an archiving — still require one.
+   * Why the change was made, if staff gave a reason. Optional on purpose: the changed fields already
+   * say what happened, and demanding a sentence buys invented text rather than accountability. The
+   * changes that genuinely need a *why* — a block, an archiving — still require one.
    */
   readonly reason: string;
 }
 
-/**
- * The version currently in force — what the new one is compared against to name the changed fields.
- * Ties go to the later element, matching `resolveSettingsAt`.
- */
+/** The version in force, for naming the changed fields. Ties go later, as `resolveSettingsAt` does. */
 function latestVersion(versions: ReadonlyArray<SettingsVersion>): SettingsVersion | undefined {
   let latest: SettingsVersion | undefined;
   for (const version of versions) {
@@ -54,9 +46,8 @@ function latestVersion(versions: ReadonlyArray<SettingsVersion>): SettingsVersio
 }
 
 /**
- * Validate and append a new settings version, then record the change in the audit log.
- *
- * Nothing is written unless every check passes.
+ * Validate and append a new settings version, then record it. Nothing is written unless every check
+ * passes.
  *
  * @throws {InvalidSettings} if a policy value breaks an invariant.
  * @throws {QuotaBelowActiveCustomers} if the new quota is below the customers already registered.
@@ -75,8 +66,7 @@ export async function updateSettings(
     throw new QuotaBelowActiveCustomers(settings.quotaN, activeCustomers);
   }
 
-  // One read of the clock for both writes: the instant the values took over and the instant the
-  // audit entry records must be the same, or the log would contradict the history.
+  // One read for both writes, or the log would contradict the history.
   const now = deps.clock.now();
   await deps.settings.append({ recordedAt: now, settings });
   await deps.audit.append({

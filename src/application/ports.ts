@@ -1,10 +1,9 @@
 /**
- * Ports — the repository and service interfaces the application layer depends on.
+ * Ports — the repository and service interfaces the application layer depends on (ADR-001).
  *
- * Per the TDD approach (docs/architecture/08-crosscutting-concepts.md §Testing strategy) these interfaces **emerge** from
- * application-layer test needs rather than being designed up front; `infrastructure/` supplies the
- * adapters and the tests supply hand-written fakes. The file stays type-only, so it carries no
- * untested runtime code.
+ * They **emerge** from application-layer test needs rather than being designed up front
+ * (`docs/architecture/08-crosscutting-concepts.md` §Testing strategy): `infrastructure/` supplies the
+ * adapters, the tests supply fakes. Type-only, so the file carries no untested runtime code.
  */
 
 import type { IssuedCard, NewCard } from "@/domain/card/card";
@@ -31,9 +30,9 @@ export interface Clock {
 }
 
 /**
- * The immutable policy versions, each stamped with the instant it took over. There is no `update`
- * and no `delete` by design: history is append-only because a past distribution's price can only be
- * recovered from the version that was in force then (docs/architecture/adr/005-keep-business-rules-as-dated-append-only-settings-data.md).
+ * The immutable policy versions, each stamped with the instant it took over. No `update` and no
+ * `delete` by design — a past distribution's price is only recoverable from the version in force
+ * then (ADR-005).
  */
 export interface SettingsRepository {
   listVersions(): Promise<SettingsVersion[]>;
@@ -46,14 +45,11 @@ export interface CustomerCounter {
 }
 
 /**
- * A customer known to have left the register — a {@link RegisteredCustomer} whose archive reason and
- * date are narrowed to non-null.
+ * A {@link RegisteredCustomer} whose archive reason and date are narrowed to non-null.
  *
- * The pair is non-null *exactly* while the status is `ARCHIVED`, but nothing in the type system says
- * so, and the archive search would otherwise hand its callers two fields they must either re-check or
- * assert away. The adapter loads only archived rows, so it is the one place that can make the
- * narrowing honestly — and a row that arrives without its reason is a hand-edited database, which it
- * refuses rather than displays.
+ * The pair is non-null exactly while the status is `ARCHIVED`, but the type system cannot say so.
+ * The adapter loads only archived rows, so it is the one place that can narrow honestly — and a row
+ * arriving without its reason is a hand-edited database, which it refuses.
  */
 export interface ArchivedCustomer extends RegisteredCustomer {
   readonly archiveReason: string;
@@ -61,11 +57,9 @@ export interface ArchivedCustomer extends RegisteredCustomer {
 }
 
 /**
- * What staff typed into the archive search (US-11.1). Every criterion is optional on its own; that at
- * least one of them is given is the use case's rule, not the repository's.
- *
- * The names arrive **unfolded**, as typed. Folding them for comparison is the adapter's job, because
- * only the adapter knows they are stored folded — see `src/domain/customer/nameSearch.ts`.
+ * What staff typed into the archive search (US-11.1). Every criterion is optional here; that at least
+ * one is given is the use case's rule. Names arrive **unfolded** — folding is the adapter's job,
+ * because only it knows they are stored folded (`src/domain/customer/nameSearch.ts`).
  */
 export interface ArchiveSearchQuery {
   readonly lastName?: string;
@@ -74,16 +68,12 @@ export interface ArchiveSearchQuery {
 }
 
 /**
- * What a staff member typed into the customer list's single search box, once it has been read
- * (US-15.1).
+ * What a staff member typed into the customer list's search box, once read (US-15.1). Which of the
+ * two it is was decided by the caller, since *what a card number looks like* is a domain rule
+ * (`counterQueryOrNull`), not a storage detail.
  *
- * Which of the two it is has already been decided by the caller, because *what a card number looks
- * like* is a domain rule (`counterQueryOrNull`) and not a storage detail. What the repository is left
- * to decide is the part only it knows: that names are compared against their folded form.
- *
- * A card number arrives as the customer number it resolves to — `50k3` names the household holding
- * slot 50, and the index is dropped, because the list is about households and not about which piece
- * of card is current. That question belongs to the counter (US-04).
+ * A card number arrives as the customer number it resolves to; the index is dropped, because the list
+ * is about households rather than which piece of card is current (US-04).
  */
 export type CustomerListSearch =
   | {
@@ -94,18 +84,15 @@ export type CustomerListSearch =
   | { readonly kind: "CUSTOMER_NUMBER"; readonly customerNumber: number };
 
 /**
- * How the customer list narrows the register (US-15.2). Every criterion here is a `WHERE` clause,
- * because the whole point of the screen is to *not* be a spreadsheet that reads every row.
+ * How the customer list narrows the register (US-15.2). Every criterion here is a `WHERE` clause.
  *
- * **The group is not among them, and that is deliberate.** A group is the parity of a customer
- * number (`groupOf`, US-31) rather than a column, SQLite cannot express `% 2` in a `WHERE` clause,
- * and a stored parity key would be the second recording of the one fact US-31 exists to record
- * once. `listCustomers` and `readGroupRoster` therefore narrow the rows this query returned — the
- * register is bounded by the quota, so the widest either ever scans is `quotaN` rows.
+ * **The group is deliberately not among them.** A group is the parity of a number (ADR-017), SQLite
+ * cannot express `% 2` in a `WHERE`, and a stored parity key would be the second recording US-31
+ * removed. `listCustomers` and `readGroupRoster` narrow the returned rows instead — the register is
+ * bounded by the quota, so the widest scan is `quotaN` rows.
  *
- * `statuses` is the one criterion that is never absent. "Which statuses does this list show" is a
- * decision with a default rather than an option — archived households are excluded unless they were
- * asked for — and the use case makes it before the query is built, so no store has to guess it.
+ * `statuses` is never absent: which statuses a list shows is a decision with a default, made by the
+ * use case, so no store has to guess it.
  */
 export interface CustomerListQuery {
   /** The statuses to include; never empty, and never implicitly all of them. */
@@ -122,67 +109,48 @@ export interface CustomerListQuery {
 /**
  * The customer register.
  *
- * `create` is **one transaction**: the customer, their household members, the certificate and the
- * first card are written together or not at all, so a failure can leave neither a half-built
- * household nor a consumed customer number (tasks/prd-us-01-register-customer.md §US-01.4). The
- * adapter — not the caller — is the final authority on whether the chosen number was still free when
- * the write landed, and reports a lost race as `CustomerNumberTaken`.
+ * `create` is **one transaction** — customer, members, certificate and first card together or not at
+ * all, so a failure leaves neither a half-built household nor a consumed number
+ * (`tasks/prd-us-01-register-customer.md` §US-01.4). The adapter, not the caller, is the final
+ * authority on whether the number was still free, and reports a lost race as `CustomerNumberTaken`.
  */
 export interface CustomerRepository {
   /** The numbers held by customers who still occupy a slot; archived rows release theirs. */
   takenActiveNumbers(): Promise<ReadonlyArray<number>>;
-  /**
-   * The customer with this surrogate id, or `null` if the id belongs to nobody. Archived customers
-   * are returned like any other — their data stays queryable (US-10, US-11).
-   */
+  /** The customer with this id, or `null`. Archived customers are returned like any other. */
   findById(id: number): Promise<RegisteredCustomer | null>;
   /**
-   * The customer a customer *number* resolves to — the slot's current holder for the counter lookup
-   * (US-04.2). A number is a slot another household may hold once this one is archived, so the answer
-   * is the **active** holder when there is one, and otherwise the **most recently archived** holder,
-   * so a lookup of a freed-and-not-yet-reissued number still names who last had it rather than
-   * nothing. `null` only when no customer has ever held the number.
+   * The customer a customer *number* resolves to (US-04.2): the **active** holder when there is one,
+   * otherwise the **most recently archived**, so a freed-and-not-yet-reissued number still names who
+   * last had it. `null` only when nobody has ever held it.
    *
-   * The card, household and certificate are loaded with the row — the counter reads them all without
-   * a second query (US-04.3).
+   * The card, household and certificate load with the row — the counter reads them all in one query
+   * (US-04.3).
    */
   findByCustomerNumber(customerNumber: number): Promise<RegisteredCustomer | null>;
   /**
-   * Every customer in one status, **lowest customer number first**, each with the household and the
-   * current card the record carries. Ordering is the adapter's job because the database can do it.
+   * Every customer in one status, **lowest customer number first**, with household and current card.
+   * Ordering is the adapter's job because the database can do it.
    *
-   * The status is asked for rather than assumed: "which households does this concern" is a decision
-   * of the use case, and a method that quietly meant one particular status would hide it (US-13.2
-   * wants active households only). At DF's ~240 customers a whole-register read is one query of a
-   * few hundred rows, which is why no narrower query exists — see `listCardsDueForReissue` for why
-   * the filtering it feeds cannot be pushed into SQL at all.
+   * The status is asked for rather than assumed — which households a use case concerns is its own
+   * decision. At ~240 customers a whole-register read is one query of a few hundred rows, which is
+   * why no narrower one exists; `listCardsDueForReissue` says why its filter cannot reach SQL.
    */
   listWithStatus(status: CustomerStatus): Promise<ReadonlyArray<RegisteredCustomer>>;
   /**
-   * The customers matching every criterion of `query`, **lowest customer number first** — the
-   * call-up order staff think in (US-15.1, FR-6). Ordering is the adapter's job for the reason
-   * {@link listWithStatus}'s is: the database can do it, and a caller sorting it again would be a
-   * second statement of what the list's order is.
-   *
-   * Each row carries the household, the certificate and the current card, because every column of
-   * the list is derived from them — the counts from the birthdates, the price from the settings, the
-   * card number from the slot and the index. Nothing about a row is stored, so nothing
-   * about a row can have fallen behind (PRD §7).
+   * The customers matching `query`, **lowest customer number first** — the call-up order staff think
+   * in (US-15.1, FR-6). Each row carries the household, certificate and current card, because every
+   * column of the list is derived from them, so no column can have fallen behind (PRD §7).
    */
   list(query: CustomerListQuery): Promise<ReadonlyArray<RegisteredCustomer>>;
   /**
-   * The **archived** customers matching every criterion given, most recently archived first, at most
-   * `limit` of them (US-11.1).
+   * The **archived** customers matching every criterion, most recently archived first, at most
+   * `limit` (US-11.1). Only archived rows: an active household turning up here would invite a second
+   * registration of somebody who already holds a slot (FR-6).
    *
-   * Only archived rows are ever returned: this search exists to re-register someone who has left, and
-   * an active household turning up in it would invite a second registration of a customer who already
-   * holds a slot (FR-6). Names match on a prefix of the folded value, so `mueller` finds `Müller` and
-   * `Muell` finds them both — the fold is `foldName`'s and the index is on the folded column, so the
-   * comparison the database makes is the same one the domain defines.
-   *
-   * `limit` is the caller's, because "how many results are too many to read" is a decision of the
-   * screen rather than of the store; a caller that wants to know whether there were more asks for one
-   * beyond what it will show.
+   * Names match on a prefix of the folded value, using `foldName` and the index on the folded column,
+   * so the database's comparison is the domain's. `limit` is the caller's, since how many results are
+   * too many is the screen's decision — one beyond what it shows answers "were there more".
    */
   searchArchived(
     query: ArchiveSearchQuery,
@@ -197,36 +165,27 @@ export interface CustomerRepository {
   /**
    * Replace a customer's household with exactly `members`, in **one transaction** (US-16.1).
    *
-   * It is a replacement rather than an add-and-remove pair because the household is a set: staff
-   * edit the whole list on the screen and press save, and two half-applied statements would leave a
-   * household nobody typed. The previous rows are gone afterwards — deliberately, since no history
-   * of past compositions is kept (tasks/prd-us-16-maintain-customer-record.md §FR-2); what a card
-   * was printed with survives on the card, which is the only snapshot the system keeps.
-   *
-   * Nothing derived is written with them: there is no count column to update, and the price follows
-   * from the birthdates the moment they are read.
+   * A replacement rather than add-and-remove because the household is a set, and two half-applied
+   * statements would leave a household nobody typed. The previous rows are gone: no history of past
+   * compositions is kept (`tasks/prd-us-16-maintain-customer-record.md` §FR-2), and what a card was
+   * printed with survives on the card. Nothing derived is written with them.
    */
   updateHousehold(id: number, members: ReadonlyArray<HouseholdMemberDetails>): Promise<void>;
   /**
-   * Correct who the customer is and where they live, together with the household they belong to, in
-   * **one transaction** (US-16.2).
+   * Correct who the customer is and where they live, together with their household, in **one
+   * transaction** (US-16.2).
    *
-   * The household travels with the personal data because the customer *is* one of its rows: their
-   * name is on the record twice, and a write that moved only one of the two would leave a household
-   * listing a person who no longer exists. The caller has already worked out which row was them
-   * (`replaceHouseholdMember`) — that is a domain rule and not a storage detail — so the set arrives
-   * here as it should stand afterwards, exactly like {@link updateHousehold}'s, and is written the
-   * same way. It goes out even when nothing in it moved, so there is one code path rather than a
-   * branch that decides when the two halves may be written apart.
+   * The household travels with the personal data because the customer *is* one of its rows, and a
+   * write moving only one would leave a household listing a person who no longer exists. The caller
+   * has already found their row (`replaceHouseholdMember`, a domain rule), so the set arrives as it
+   * should stand — and goes out even when nothing in it moved, so there is one code path.
    *
-   * The customer number is not among the fields, and there is deliberately no way to reach it
-   * *here*. There is a way — {@link changeCustomerNumber}, its own act with its own audit entry and
-   * the card it prints — but a slot is not part of who the customer is, so correcting a misspelt
-   * name is not the moment to move one (US-16.2 §FR-7, US-30).
+   * The customer number is deliberately unreachable here: a slot is not part of who the customer is,
+   * so correcting a misspelt name is not the moment to move one ({@link changeCustomerNumber} is,
+   * with its own audit entry and card; US-16.2 §FR-7, US-30).
    *
-   * The folded search keys are the adapter's to rewrite in the same statement as the names they come
-   * from — they are stored, so an edit that moved a name without them would leave the register
-   * findable only under a spelling nobody uses any more (US-11.1).
+   * The folded search keys are the adapter's to rewrite in the same statement as the names, or the
+   * register would be findable only under a spelling nobody uses any more (US-11.1).
    */
   updateDetails(
     id: number,
@@ -234,76 +193,56 @@ export interface CustomerRepository {
     household: ReadonlyArray<HouseholdMemberDetails>,
   ): Promise<void>;
   /**
-   * Replace the free-text note on a customer's record with `notes`, which may be `""` (US-16.3).
-   *
-   * A note is the one field on the record that carries no rule: nothing is derived from it and
-   * nothing follows from changing it, so this is a single column write. It is its own method rather
-   * than part of {@link updateDetails} because it is its own decision with its own audit entry — the
-   * note staff leave for the counter is not a correction of the record.
+   * Replace the free-text note, which may be `""` (US-16.3). Its own method rather than part of
+   * {@link updateDetails} because it is its own decision with its own audit entry — a note left for
+   * the counter is not a correction of the record.
    */
   updateNotes(id: number, notes: string): Promise<void>;
   /**
    * Move a customer to another slot **and issue the card that goes with it, in one transaction**
-   * (US-30): the number moves and the card is inserted together, or neither happens.
+   * (US-30). Two writes would leave a window in which a household holds 23 and carries `5k4`, with
+   * nothing in the system able to notice.
    *
-   * The precedent is {@link create}, which writes the customer, the household, the certificate and
-   * the first card as one. Two writes would have a window in which a household holds 23 and carries
-   * `5k4`, and nothing in the system could notice — the record and the card in their pocket are the
-   * two sources of truth this application exists to keep from disagreeing.
+   * The card arrives as a {@link NewCard}, without the slot — read off the customer row after the
+   * update, for {@link CardRepository.issue}'s reason. Its `index` is the caller's, being a rule
+   * (`nextCardIndex` over the **new** slot's run) rather than a column to copy.
    *
-   * The card arrives as a {@link NewCard}, without the slot: it is read off the customer row
-   * *after* the update, inside the same transaction, for the reason {@link CardRepository.issue}
-   * gives — a caller that could pass the slot is a caller that could pass the wrong one. Its
-   * `index` is the caller's, because that is a rule (`nextCardIndex` over the **new** slot's run)
-   * rather than a column to copy.
-   *
-   * Nothing else on the row is touched, and **no card is re-labelled**: the run the household
-   * leaves on the old slot is what makes that slot safe to hand out again (US-25).
+   * **No card is re-labelled**: the run left on the old slot is what makes it safe to hand out again
+   * (US-25).
    *
    * @returns the card as it was stored, carrying the new slot.
-   * @throws {CustomerNumberTaken} if an active customer took the number first — the partial unique
-   *   index is the final authority, exactly as it is for a registration.
+   * @throws {CustomerNumberTaken} if an active customer took the number first.
    * @throws {CardNumberTaken} if the index was printed on the new slot in the meantime.
    */
   changeCustomerNumber(id: number, customerNumber: number, card: NewCard): Promise<IssuedCard>;
   /**
-   * Move a customer to a new status, storing `blockReason` with it in one transaction so the two
-   * can never disagree: the trimmed reason for a move to `BLOCKED`, and `null` for any other status
-   * (lifting a block clears it). The customer number, the cards and the distribution records are
-   * left untouched — a status change is not a re-registration and frees nothing but the slot an
-   * archive releases (US-08, US-10).
+   * Move a customer to a new status, storing `blockReason` in the same transaction so the two cannot
+   * disagree: the trimmed reason for `BLOCKED`, `null` otherwise. Number, cards and records are
+   * untouched — a status change frees nothing but the slot an archive releases (US-08, US-10).
    */
   setStatus(id: number, status: CustomerStatus, blockReason: string | null): Promise<void>;
   /**
-   * Archive a customer: the status, the trimmed reason and the instant it happened go out in **one
-   * write**, so an archived row can never be left without the why that justified it. Any block
-   * reason is cleared in the same statement — a household that is gone from the register is no
-   * longer a paused one, and `blockReason` is non-null exactly while the status is `BLOCKED`.
+   * Archive a customer: status, trimmed reason and instant in **one write**, so an archived row is
+   * never left without the why that justified it. Any block reason is cleared in the same statement.
    *
-   * Nothing else is touched. The customer number stays on the row for the historical record, and the
-   * slot is freed purely by the status: the partial unique index exempts archived rows, so the next
-   * registration may take the number while the archived household keeps showing which one it held
-   * (tasks/prd-us-10-archive-customer.md §7). Cards, certificates, distribution records, reminder
-   * logs and notes are all left where they are — nothing about a customer is ever hard-deleted.
+   * The customer number stays on the row for the record; the slot is freed purely by the status,
+   * because the partial unique index exempts archived rows
+   * (`tasks/prd-us-10-archive-customer.md` §7). Nothing else is touched (ADR-010).
    */
   archive(id: number, reason: string, archivedAt: Date): Promise<void>;
 }
 
 /**
- * An application about to go on the waiting list: the validated details plus the instant they joined.
- *
- * `addedOn` is the whole of a place in the queue (US-12, FR-3) — there is no position column to keep
- * in step and nothing to renumber when somebody is promoted or withdraws, because the order is
- * derived from when people arrived (`inArrivalOrder`).
+ * An application about to go on the waiting list. `addedOn` is the whole of a place in the queue
+ * (US-12, FR-3): no position column to keep in step, and nothing to renumber on a promotion.
  */
 export interface NewWaitingListEntry extends WaitingListDetails {
   readonly addedOn: Date;
 }
 
 /**
- * A persisted waiting-list entry. `id` is the surrogate key and, because rows are numbered as they
- * are written, also the tie-break between two applicants added the same day — see
- * `src/domain/customer/waitingList.ts`.
+ * A persisted waiting-list entry. `id` is the surrogate key and, since rows are numbered as written,
+ * the tie-break between two applicants added the same day (`src/domain/customer/waitingList.ts`).
  */
 export interface WaitingListEntry extends NewWaitingListEntry {
   readonly id: number;
@@ -312,13 +251,11 @@ export interface WaitingListEntry extends NewWaitingListEntry {
 /**
  * The waiting list (US-12).
  *
- * Entries are **retained, never deleted** (FR-7): a removal stamps the row so the order of past
- * promotions stays reconstructable, which is what makes "first come, first served" a claim DF can
- * still defend a year later. The store therefore has no `delete`, and everything it hands back is the
- * *waiting* list — the removed rows are history, and no screen asks for them yet.
+ * Entries are **retained, never deleted** (FR-7): a removal stamps the row, so past promotions stay
+ * reconstructable and "first come, first served" is a claim DF can still defend a year later. There
+ * is no `delete`, and everything handed back is the *waiting* list.
  *
- * It does not decide who is next. That is `nextInLine`'s, and the repository deliberately promises no
- * ordering: a list of a handful of rows is sorted by the domain rule so that the screen, the banner
+ * It deliberately promises no ordering — `nextInLine` decides who is next, so the screen, the banner
  * and the promotion cannot each arrive at a different head.
  */
 export interface WaitingListRepository {
@@ -329,11 +266,9 @@ export interface WaitingListRepository {
   /** Put an applicant on the list and hand the entry back with the id it was given. */
   add(entry: NewWaitingListEntry): Promise<WaitingListEntry>;
   /**
-   * Take an applicant off the list at `removedOn`, keeping the row and the reason it went.
-   *
-   * The reason is required because there are only two ways off this list — the applicant was
-   * registered, or they withdrew — and a row that cannot say which is a gap in the very ordering
-   * history the retention exists for.
+   * Take an applicant off the list at `removedOn`, keeping the row and the reason. Required, because
+   * there are only two ways off — registered or withdrawn — and a row that cannot say which is a gap
+   * in the ordering history the retention exists for.
    */
   remove(entryId: number, reason: string, removedOn: Date): Promise<void>;
 }
@@ -341,12 +276,9 @@ export interface WaitingListRepository {
 /**
  * How many cards a customer has been through, and how many of those a loss caused (US-09.2).
  *
- * The two are counted apart because they answer different questions. `cardsIssued` says how many
- * numbers the household has held; `reissuesForLoss` is the only one staff weigh when they judge
- * whether someone loses cards unusually often, and a card replaced because a birthday overtook its
- * printed counts (US-13) is the software's doing rather than the household's — counting it as a loss
- * would put a decision in front of staff on the strength of a number that was never about them
- * (tasks/prd-us-09-reissue-card-after-loss.md §FR-5).
+ * Counted apart because a card replaced when a birthday overtook its printed counts (US-13) is the
+ * software's doing, not the household's — counting it as a loss would put a judgement in front of
+ * staff on a number that was never about them (`tasks/prd-us-09-reissue-card-after-loss.md` §FR-5).
  */
 export interface CardIssueCounts {
   /** How many cards this customer has been issued; 0 for a customer holding none. */
@@ -356,64 +288,49 @@ export interface CardIssueCounts {
 }
 
 /**
- * The cards a customer has been issued.
+ * The cards a customer has been issued. The store does not decide which is valid: the highest index
+ * on record *is* the valid card (FR-4), so there is no flag to set or clear.
  *
- * The repository stores cards; it does not decide which one is valid. `currentCard` answers with the
- * highest index on record, and that card *is* the valid one (FR-4) — there is no flag to set and
- * none to clear when a replacement is issued. The adapter — not the caller — is the final authority
- * on whether an index was still free when the write landed, because the database holds the two
- * constraints that decide it: `@@unique([customerId, index])`, a race between two issues on one
- * record, and `@@unique([customerNumber, index])`, a card number that has already been printed
- * (US-25).
+ * The adapter is the final authority on a free index, holding both constraints —
+ * `@@unique([customerId, index])` for a race between two issues on one record, and
+ * `@@unique([customerNumber, index])` for a card number already printed (US-25).
  */
 export interface CardRepository {
   /** The customer's highest-indexed card, or `null` if they hold none yet. */
   currentCard(customerId: number): Promise<IssuedCard | null>;
   /**
-   * The highest index any card has ever carried on that customer number, and **0** when none ever
-   * did. Archived holders count: nothing about status is consulted, because a card that was printed
-   * exists whatever became of the household that walked away with it (US-25).
+   * The highest index any card ever carried on that customer number, **0** when none did. Archived
+   * holders count — a printed card exists whatever became of the household carrying it (US-25).
    *
-   * This is deliberately not `currentCard(customerId).index`. The two agree for every active
-   * household — the active holder always sits at the top of the slot's run, since a registration
-   * starts above every predecessor and only the active holder is ever reissued — but that invariant
-   * is exactly what the counting rule must not have to remember. Both callers, registration and
-   * reissue, ask the slot instead, and only the store can see the archived holders to answer.
+   * Deliberately not `currentCard(customerId).index`. The two agree for every active household, but
+   * that invariant is exactly what the counting rule must not have to remember; only the store can
+   * see the archived holders anyway.
    */
   highestIndexForNumber(customerNumber: number): Promise<number>;
   /**
-   * The highest index ever issued on **each** customer number that has ever had a card, in one
-   * aggregate query — the plural of {@link CardRepository.highestIndexForNumber}, and archived
-   * holders count for the same reason.
+   * The plural of {@link CardRepository.highestIndexForNumber}, in one aggregate query — the number
+   * control names the card number every slot would print (US-30.4), and asking one slot at a time is
+   * ~240 round trips for one dropdown.
    *
-   * A slot **absent** from the map has never had a card on it, which is the honest answer rather
-   * than a `0` written down 240 times; callers read it as `map.get(n) ?? 0`, and `nextCardIndex`
-   * turns that 0 into a `k1` with no special case for a fresh slot.
-   *
-   * It is an aggregate for the reason {@link CardRepository.issueCounts} is one: the record's
-   * number control names the card number every slot would print (US-30.4), and asking the slots one
-   * at a time is ~240 round trips to render one dropdown.
+   * A slot **absent** from the map has never had a card, which is honest where a `0` written down 240
+   * times is not; callers read `map.get(n) ?? 0`.
    */
   highestIndexByNumber(): Promise<ReadonlyMap<number, number>>;
   /**
-   * Every card the customer has ever been issued, **highest index first** — so the first element is
-   * the one they hold and the rest are the numbers it replaced. Ordering is the adapter's job
-   * because the database can do it in the query; a caller sorting it again would be a second, silent
+   * Every card the customer has been issued, **highest index first** — the first is the one they
+   * hold. Ordering is the adapter's job; a caller sorting it again would be a second, silent
    * statement of which card is current.
    */
   listCards(customerId: number): Promise<ReadonlyArray<IssuedCard>>;
   /**
-   * Both of {@link CardIssueCounts} in **one aggregate query**. The run is deliberately not loaded
-   * to be counted by the caller (US-09.2): the database can count, and application code that filtered
+   * Both of {@link CardIssueCounts} in **one aggregate query** (US-09.2). Application code filtering
    * the run by reason would be a second, quietly diverging statement of what counts as a loss.
    */
   issueCounts(customerId: number): Promise<CardIssueCounts>;
   /**
-   * Write one card for a customer, and hand it back as it was stored.
-   *
-   * The caller passes a {@link NewCard} — everything but the slot. The customer number the card is
-   * printed under is read off the customer row inside the write's own transaction, because a caller
-   * that could pass it is a caller that could pass the wrong one.
+   * Write one card and hand it back as stored. The caller passes a {@link NewCard} — everything but
+   * the slot, which is read off the customer row inside the write's own transaction, because a caller
+   * that could pass it could pass the wrong one.
    */
   issue(customerId: number, card: NewCard): Promise<IssuedCard>;
 }
@@ -421,25 +338,21 @@ export interface CardRepository {
 /**
  * The distribution records — the append-many history of hand-outs (US-05).
  *
- * The store keeps records; it does not decide the once-per-day rule. That lives in the domain
- * (`attendance.canRecord`) and, as a backstop the use case cannot bypass, in the database's unique
- * day-key constraint (US-05.3): the adapter — not the caller — is the final authority on whether a
- * record for the day already existed when the write landed, and reports a lost race as
- * {@link AlreadyServedToday}. Records outlive customer status changes and are never cascade-deleted;
- * only a same-day correction removes one.
+ * The store does not decide the once-per-day rule: that is `attendance.canRecord`'s, backstopped by
+ * the database's unique day-key constraint (US-05.3), which makes the adapter the final authority on
+ * a lost race and reports it as {@link AlreadyServedToday}. Records are never cascade-deleted
+ * (ADR-010); only a same-day correction removes one.
  */
 export interface DistributionRecordRepository {
   /** Every record ever written for the customer — the raw material the duplicate check reads. */
   listForCustomer(customerId: number): Promise<ReadonlyArray<DistributionRecord>>;
   /**
-   * Every hand-out written on one day, in **one** query — the whole afternoon at once, so a screen
-   * asking "which of this group have collected?" (US-23) reads the day once instead of once per
-   * household.
+   * Every hand-out written on one day, in **one** query, so "which of this group have collected?"
+   * (US-23) reads the day once instead of once per household.
    *
-   * `dayKey` is the **Berlin** calendar day as `berlinDayKey` writes it (`YYYY-MM-DD`), the same
-   * notion of "the same day" the once-per-day rule and the unique constraint already rest on. The
-   * caller derives it from the {@link Clock}; the adapter matches it and does not re-derive a day
-   * from an instant, so the two can never drift to different answers about when today ended.
+   * `dayKey` is the **Berlin** day as `berlinDayKey` writes it. The caller derives it from the
+   * {@link Clock} and the adapter matches it rather than re-deriving, so the two cannot drift to
+   * different answers about when today ended.
    */
   listForDay(dayKey: string): Promise<ReadonlyArray<DistributionRecord>>;
   /** The record with this surrogate id, or `null` if the id belongs to none. */
@@ -457,30 +370,23 @@ export interface DistributionRecordRepository {
 }
 
 /**
- * One logged certificate reminder — a day of the documented trail an expired certificate starts at
- * the counter (US-06). `resultingCount` repeats the customer's count as it stood after this entry,
- * so the trail is readable on its own without replaying it.
+ * One logged certificate reminder (US-06). `resultingCount` repeats the count as it stood after this
+ * entry, so the trail is readable without replaying it.
  */
 export interface ReminderLogEntry {
-  /**
-   * The Berlin calendar day the reminder was given, as the `YYYY-MM-DD` key `berlinDayKey` writes —
-   * the same notion of "the same day" the attendance rule uses, because both happen at the counter
-   * at a local moment (US-05.3 for the precedent).
-   */
+  /** The Berlin day the reminder was given, as `berlinDayKey` writes it — both happen at a counter. */
   readonly loggedOn: string;
   /** The customer's reminder count after this entry. */
   readonly resultingCount: number;
 }
 
 /**
- * The reminder trail (US-06). Entries are appended, never amended: a reminder that was given stays
- * given, and the one legitimate reset — a renewed certificate — resets the *count*, not the log.
+ * The reminder trail (US-06). Entries are appended, never amended — the one legitimate reset, a
+ * renewed certificate, resets the *count* and not the log.
  *
- * `record` is **one transaction**: the log entry and the customer's new `reminderCount` are written
- * together or not at all, so the count can never disagree with the trail. The adapter — not the
- * caller — is the final authority on at most one reminder per customer per day, because the database
- * holds the unique `(customerId, loggedOn)` constraint that decides it (US-06.3), and reports a lost
- * race as `ReminderAlreadyLoggedToday`.
+ * `record` is **one transaction**, so the count can never disagree with the trail. The unique
+ * `(customerId, loggedOn)` constraint makes the adapter the final authority on one reminder per day
+ * (US-06.3), reported as `ReminderAlreadyLoggedToday`.
  */
 export interface ReminderLogRepository {
   /** The reminder logged for the customer on the given Berlin day, or `null` when there is none. */
@@ -494,13 +400,11 @@ export interface ReminderLogRepository {
 }
 
 /**
- * The certificates a customer has presented over time.
+ * The certificates a customer has presented over time. Appended, never overwritten — the current one
+ * is the latest on record (US-06.3).
  *
- * `renew` is **one transaction**: the renewed certificate and the reset of `reminderCount` to zero
- * are written together or not at all (US-06, FR-4) — a renewal that landed without its reset would
- * show a customer still owing a renewal they have just brought. Certificates are appended, never
- * overwritten; the current one is the latest on record (US-06.3), so the history of renewals stays
- * readable.
+ * `renew` is **one transaction**: a renewal landing without its `reminderCount` reset would show a
+ * customer still owing the renewal they have just brought (US-06, FR-4).
  */
 export interface CertificateRepository {
   /** Append the renewed certificate at `recordedAt` and reset the customer's count to zero. */
@@ -508,9 +412,8 @@ export interface CertificateRepository {
 }
 
 /**
- * One append-only audit record: *what* changed, *when* and *why* — never *who*. DF has ruled out
- * login, so the system cannot tell its staff apart and the log deliberately has no actor field
- * (docs/architecture/adr/006-record-what-when-and-why-in-the-audit-log-never-who.md).
+ * One append-only audit record: *what* changed, *when* and *why* — never *who*, since DF has ruled
+ * out login and the system cannot tell its staff apart (ADR-006).
  */
 export interface AuditEntry {
   /** A stable, machine-readable event name such as `settings.updated`. */
@@ -519,10 +422,9 @@ export interface AuditEntry {
   readonly changedFields: ReadonlyArray<string>;
   readonly when: Date;
   /**
-   * The reason a human gave for the change, or `""` where none was required. It is also the one
-   * machine-written value, for the changes that ask staff for no reason and must still tell their
-   * own story: a logged reminder records its resulting count here (`reminderCount=2`, US-06.2) and
-   * a move between slots records the two numbers (`customerNumber=5→23`, US-30).
+   * The reason a human gave, or `""` where none was required — and the one machine-written value, for
+   * changes that ask for no reason but must still tell their own story: `reminderCount=2` (US-06.2),
+   * `customerNumber=5→23` (US-30).
    */
   readonly why: string;
 }

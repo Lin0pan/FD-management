@@ -1,17 +1,14 @@
 /**
  * Record a renewed needs certificate — the one legitimate way a reminder count returns to zero
- * (tasks/prd-us-06-certificate-reminder.md §US-06.2, FR-4).
+ * (`tasks/prd-us-06-certificate-reminder.md` §US-06.2, FR-4).
  *
- * The customer brought the renewal the reminders asked for, so the record and the reset belong
- * together: the repository writes both in one transaction, and a renewal that landed without its
- * reset would show a customer still owing what they have just brought. The certificate is
- * *appended* — the trail of renewals stays readable (FR-8) — and the reminder *log* is untouched:
- * reminders that were given stay given, only the running count starts over.
+ * The record and the reset are one transaction: a renewal landing without its reset would show a
+ * customer still owing what they have just brought. The certificate is *appended* (FR-8) and the
+ * reminder *log* is untouched — only the running count starts over.
  *
- * A renewal exists to restore the proof of need, so an end date already in the past is refused as a
- * typo ({@link CertificateValidUntilInPast}) rather than appended. The same expiry rule the counter
- * reads (`isExpired`) decides it, so "in the past" cannot mean two different days: an end date of
- * today is accepted, because a certificate is valid through its last day.
+ * An end date already in the past is refused as a typo rather than appended, decided by the same
+ * `isExpired` the counter reads. An end date of *today* is accepted: a certificate is valid through
+ * its last day.
  */
 
 import { isExpired } from "@/domain/customer/certificate";
@@ -43,9 +40,8 @@ export interface RenewCertificateInput {
 }
 
 /**
- * Record the renewed certificate and reset the customer's reminder count to zero, transactionally.
- *
- * The audit entry needs no reason: the changed fields already say what happened.
+ * Record the renewed certificate and reset the reminder count to zero, transactionally. The audit
+ * entry needs no reason — the changed fields already say what happened.
  *
  * @throws {CustomerNotFound} if no customer holds `customerId`.
  * @throws {MissingRequiredField} if the certificate type is blank.

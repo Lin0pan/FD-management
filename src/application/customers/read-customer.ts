@@ -1,9 +1,6 @@
 /**
- * Read one customer as their card view shows them.
- *
- * Everything derivable is derived here and handed to the screen ready to render — the household
- * counts from the birthdates and the card number from the slot and the card index. The page then has
- * nothing left to work out, which is what keeps the rules out of the presentation layer.
+ * Read one customer as their card view shows them. Everything derivable is derived here and handed to
+ * the screen ready to render, which is what keeps the rules out of the presentation layer.
  */
 
 import { formatCardNumber, nextCardNumber } from "@/domain/card/cardNumber";
@@ -47,93 +44,74 @@ export interface HouseholdMemberView {
 export interface CustomerCardView {
   readonly customer: RegisteredCustomer;
   /**
-   * The week the household collects in, derived from the number they hold — even is BLUE, odd is
-   * RED (`groupOf`, US-31). It is on the read model rather than left to the screen for the reason
-   * every other derived figure here is: the record renders from one reading, so nothing on it can
-   * work the group out differently, and a household on 37 can never be shown as BLUE.
+   * The week the household collects in, from the number they hold (ADR-017). On the read model rather
+   * than left to the screen, so nothing on the record can work it out differently.
    */
   readonly group: Group;
-  /** Derived from the birthdates as of today — never read from a stored count, which there is none of. */
+  /** Derived from the birthdates as of today; there is no stored count to read (ADR-007). */
   readonly composition: HouseholdComposition;
   /** The household, each member carrying their current age. Same order as on the record. */
   readonly household: ReadonlyArray<HouseholdMemberView>;
   /**
-   * The number printed on the card, e.g. `12k1` — derived from the slot **that card** was printed
-   * under and its index, never from the household's current number, so a household that has moved
-   * (US-30) is never shown a number naming a different card.
+   * The number printed on the card, e.g. `12k1` — off the slot **that card** was printed under, never
+   * the household's current one, so a household that has moved is never shown a number naming a
+   * different card (ADR-016).
    */
   readonly cardNumber: string;
   /**
-   * The number a replacement would carry, e.g. `12k2` — the same slot, the next index. The record
-   * names it before a reissue is written so staff confirm the number they are about to hand out
-   * (tasks/prd-us-09-reissue-card-after-loss.md §US-09.3); issuing it is what makes it real, so
-   * showing it changes nothing.
+   * The number a replacement would carry, e.g. `12k2`. Named before a reissue is written so staff
+   * confirm the number they are about to hand out
+   * (`tasks/prd-us-09-reissue-card-after-loss.md` §US-09.3); showing it changes nothing.
    */
   readonly nextCardNumber: string;
   /**
-   * The standard price for this household as of today — derived through the same seam
-   * the counter reads (`describeAllowance`), so the two screens can never disagree. The counts here
-   * are a slice of it, not a second derivation.
+   * The standard price for this household today, through the same seam the counter reads
+   * (`describeAllowance`), so the two screens cannot disagree. The counts above are a slice of it.
    */
   readonly allowance: Allowance;
   /**
-   * How many of their own distributions the household has missed in a row (US-10.1) — one of the two
-   * situations in which staff may decide to archive. It is shown and nothing more: no threshold lives
-   * here and no action follows from any value (PRD §5).
+   * How many of their own distributions the household has missed in a row (US-10.1). Shown and
+   * nothing more — no threshold lives here and no action follows from any value (PRD §5).
    */
   readonly consecutiveNoShows: number;
   /**
-   * Where the household stands: `Σ (paidCents − priceCents)` over every hand-out below, negative
-   * when they owe DF money and positive when they have paid ahead (US-29.6).
+   * Where the household stands (US-29.6), derived on every read from the very records `history` lists
+   * (ADR-015).
    *
-   * Derived on every read from the very records `history` lists — never stored, so removing a
-   * hand-out puts the balance back for free. An **archived** household keeps theirs: nothing here
-   * looks at the status, because leaving the register writes no debt off. A household that
-   * **re-registers** starts at zero for the same reason and with as little code — a new Customer row
-   * has no hand-outs hanging off its surrogate id (ADR-008).
+   * An **archived** household keeps theirs — nothing here looks at the status, because leaving the
+   * register writes no debt off — and one that **re-registers** starts at zero with as little code,
+   * a new row having no hand-outs hanging off its surrogate id (ADR-008).
    */
   readonly balanceCents: Cents;
   /**
-   * Every hand-out the household has collected, **most recent first** (US-16.5) — the day, whether
-   * they showed up, what they were asked for, what they handed over and where it left them.
+   * Every hand-out the household has collected, **most recent first** (US-16.5).
    *
-   * The price is the record's own rather than a fresh derivation: a distribution is priced by the
-   * policy in force on the day it happened, and re-deriving it from today's settings would silently
-   * rewrite what a household paid last March (US-05, FR-2). `askedCents` is likewise what was asked
-   * *then*, replayed from those same prices rather than looked up — nothing stores it.
-   *
-   * The order is applied here rather than asked of the store, because the same rows feed the no-show
-   * count, which reads them as a set.
+   * The price is the record's own, never a fresh derivation: re-deriving from today's settings would
+   * silently rewrite what a household paid last March (US-05, FR-2). `askedCents` is likewise what was
+   * asked *then*, replayed from those prices. The order is applied here rather than asked of the
+   * store, because the same rows feed the no-show count, which reads them as a set.
    */
   readonly history: ReadonlyArray<Settlement<DistributionRecord>>;
   /**
-   * How many **active** households each balancing group holds, as of now — counted from the numbers
-   * they hold, because that is all a group is (`countByGroup`, US-31).
+   * How many **active** households each group holds, counted from the numbers they hold (ADR-017).
    *
-   * The record is where a household is moved between the two weeks, and that decision is a
-   * comparison: staff move somebody in order to even the groups out, so the sizes belong beside the
-   * choice rather than on a screen they would have to fetch first (PRD §FR-4). Moving them is now
-   * moving them to a number of the other parity (US-31), so the figures sit beside the number
-   * control that does it.
+   * Moving a household between the weeks is a comparison — staff move somebody to even the groups
+   * out — so the sizes belong beside the number control that does it (PRD §FR-4).
    */
   readonly groupCounts: GroupCounts;
   /**
    * Every number this household may be moved to (US-30), each with the card number that move would
-   * print — the whole free pool **plus the number they already hold**, which is what the control
-   * opens on and therefore why it is always among them.
+   * print — the free pool **plus the number they hold**, which is what the control opens on.
    *
-   * It is here for the reason `nextCardNumber` and `groupCounts` are: the record renders its
-   * controls from one read model, so nothing on the screen has to work out a card number and
-   * nothing can work one out differently. An **archived** household gets none — they hold no slot.
+   * Here rather than on the screen so nothing has to work out a card number, and nothing can work one
+   * out differently. An **archived** household gets none — they hold no slot.
    */
   readonly numberChoices: ReadonlyArray<NumberChoice>;
   /**
-   * The day every derived figure above was worked out as of — and the day the record's household
-   * editor must judge its rows against while they are being typed (US-16.5).
-   *
-   * It is handed out rather than left for the screen to read, for the reason `proposeRegistration`
-   * hands out its own: a browser has a clock of its own, in a zone of its own, and a household
-   * counted against it would flicker onto a different answer than the save derives.
+   * The day every figure above was worked out as of, and the day the household editor judges its rows
+   * against while they are typed (US-16.5). Handed out rather than read in the browser, whose clock is
+   * its own and in a zone of its own — a household counted against it would flicker onto a different
+   * answer than the save derives.
    */
   readonly today: Date;
 }
@@ -156,16 +134,13 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
     deps.customers.takenActiveNumbers(),
     listNumberChoices(deps, customer),
   ]);
-  // Counted off the numbers the register holds rather than asked of it as a second question: the
-  // group is not a column, it is what a number is (`groupOf`, US-31), so the balance is arithmetic.
+  // Counted off the numbers the register holds rather than asked of it: a group is not a column, it
+  // is what a number is (ADR-017).
   const groupCounts = countByGroup(takenNumbers);
 
-  // Two different questions, and only the first is a property of the card. The number printed on
-  // the card they carry is read off **that card's own slot**, the way `readCard` reads every number
-  // in the run (US-30.5); the number a *reissue* would print is derived from the household, because
-  // a replacement is printed on the slot they hold today. After a move the two agree — the move
-  // issues the new card in the same transaction (US-30.3) — but agreement is not something either
-  // of them should have to assume.
+  // Two different questions. The number *printed* on the card comes off that card's own slot; the
+  // number a *reissue* would print comes off the household, since a replacement is printed on the
+  // slot they hold today. After a move the two agree (US-30.3), but neither may assume it.
   const next = nextCardNumber({
     customerNumber: customer.customerNumber,
     index: customer.card.index,
@@ -186,8 +161,8 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
     allowance,
     consecutiveNoShows: await countNoShows(deps, customer, records, today),
     balanceCents: balanceOf(records),
-    // `replayPayments` walks oldest first, because that is the only order a running balance can be
-    // built in; the reversal is the *display* order (US-16.5), not part of the arithmetic.
+    // `replayPayments` walks oldest first, the only order a running balance can be built in; the
+    // reversal is the *display* order (US-16.5), not part of the arithmetic.
     history: [...replayPayments(records)].reverse(),
     groupCounts,
     numberChoices,

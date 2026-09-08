@@ -1,16 +1,9 @@
 /**
- * Browse and search the customer register (US-15.1).
+ * Browse and search the customer register (US-15.1) — the view that replaces the spreadsheet.
  *
- * This is the view that replaces the spreadsheet. Away from the counter, staff answer questions the
- * lookup cannot — who is in the Red group, whose certificate lapses next month, who is blocked, how
- * balanced the two groups are — and in Excel every one of them was a filter. Nothing here is new
- * business logic: the filters are `WHERE` clauses and every column of every row is derived through
- * the same seams the counter reads, so the list can never tell a different story from the record it
- * links to.
- *
- * It is a **read**, exhaustively. No status is touched, no card is issued and there is deliberately
- * no audit entry, because nothing changed (PRD FR-7). The one decision the use case makes on its own
- * is which statuses to show: archived households stay out until somebody asks for them.
+ * No new business logic: the filters are `WHERE` clauses, and every column is derived through the
+ * same seams the counter reads, so the list cannot tell a different story from the record it links
+ * to. A **read** throughout, with no audit entry, because nothing changed (PRD FR-7).
  */
 
 import { counterQueryOrNull, formatCardNumber } from "@/domain/card/cardNumber";
@@ -40,35 +33,29 @@ const ALL_STATUSES: ReadonlyArray<CustomerStatus> = ["ACTIVE", "BLOCKED", "ARCHI
  */
 export interface ListCustomersInput {
   /**
-   * The single search box: a name, a customer number or a card number. Which of the three it is is
-   * read here rather than asked of the staff member — one box is what the spreadsheet had, and
-   * choosing the right one of three would be a decision about the software rather than the customer.
+   * The single search box: a name, a customer number or a card number. Which of the three is read
+   * here rather than asked — choosing between three boxes would be a decision about the software.
    */
   readonly search?: string;
   /** The statuses to show. Absent or empty means "do not filter by status". */
   readonly status?: ReadonlyArray<CustomerStatus>;
   /**
-   * Show one week's households only. It is the one criterion the **use case** applies rather than
-   * the store: a group is the parity of a customer number (`groupOf`, US-31), SQLite cannot express
-   * `% 2` in a `WHERE` clause, and a stored parity key would be exactly the second recording of one
-   * fact this project refuses. The register is bounded by the quota, so the widest this ever
-   * narrows is `quotaN` rows on a four-user application.
+   * Show one week's households only — the one criterion the **use case** applies rather than the
+   * store, because a group is the parity of a number (ADR-017) and SQLite has no `% 2` in a `WHERE`.
+   * The register is bounded by the quota, so this never narrows more than `quotaN` rows.
    */
   readonly group?: Group;
   readonly certificate?: CertificateState;
   /**
-   * Whether households that have left the register are shown. **Defaults to false**: the list is a
-   * working view of who DF serves, and an archived household turning up in it invites a second
-   * registration of someone who is no longer there (US-11, FR-6). Naming `ARCHIVED` in `status` says
-   * the same thing more precisely, and is honoured on its own.
+   * Whether households that have left are shown. **Defaults to false**: an archived household turning
+   * up invites a second registration of someone no longer there (US-11, FR-6). Naming `ARCHIVED` in
+   * `status` says the same more precisely and is honoured on its own.
    */
   readonly includeArchived?: boolean;
 }
 
 /**
- * One household as the list shows it. Every value is derived at read time — the counts from the
- * birthdates, the price from the settings in force today, the card number from the slot and the
- * current index, the certificate state from today's date. There is no stored column here that could
+ * One household as the list shows it, every value derived at read time — no stored column here could
  * have fallen behind reality, which is precisely what the sheet could not promise.
  */
 export interface CustomerListRow {
@@ -93,11 +80,9 @@ export interface CustomerListRow {
 /**
  * The list, and the group balance beside it.
  *
- * `groupCounts` is deliberately **not** a count of the rows above: staff read it while registering
- * somebody (US-01) to decide which group keeps the two weeks even, and a number that moved with the
- * current filter would be a different question wearing the same label. It counts every active
- * household, always (PRD FR-3) — by the parity of the numbers they hold, which is the whole of what
- * a group is (US-31).
+ * `groupCounts` is deliberately **not** a count of the rows above: staff read it while deciding which
+ * group keeps the two weeks even, and a number moving with the filter would be a different question
+ * wearing the same label. It always counts every active household (PRD FR-3, ADR-017).
  */
 export interface CustomerListView {
   readonly rows: ReadonlyArray<CustomerListRow>;
@@ -105,12 +90,9 @@ export interface CustomerListView {
 }
 
 /**
- * How the search box's contents are read: a customer number, a card number resolved to the slot's
- * holder, or — failing both — a name.
- *
- * A card number's index is dropped on purpose. The list is about households, and `50k1` typed for a
- * household now holding `50k3` still means that household; whether the card presented is the current
- * one is the counter's question (US-04.1), not this screen's.
+ * How the search box is read: a customer number, a card number resolved to the slot's holder, or a
+ * name. The card index is dropped — the list is about households, and whether the card presented is
+ * current is the counter's question (US-04.1).
  */
 function readSearch(typed: string | undefined): CustomerListSearch | undefined {
   const text = typed?.trim() ?? "";
@@ -124,12 +106,9 @@ function readSearch(typed: string | undefined): CustomerListSearch | undefined {
 }
 
 /**
- * The statuses the query will ask for.
- *
- * An absent or empty status filter is not a filter — unticking every box means "all of them", not
- * "none of them", which is the only reading that cannot leave staff staring at an empty screen they
- * did not ask for. Archived households are then taken back out unless they were named explicitly or
- * `includeArchived` asked for them.
+ * The statuses the query asks for. An absent or empty filter means "all of them", not "none" — the
+ * only reading that cannot leave staff staring at an empty screen. Archived households are then taken
+ * back out unless they were named or `includeArchived` asked for them.
  */
 function statusesFor(input: ListCustomersInput): ReadonlyArray<CustomerStatus> {
   const asked = input.status === undefined || input.status.length === 0 ? undefined : input.status;
@@ -148,8 +127,7 @@ export async function listCustomers(
   input: ListCustomersInput,
 ): Promise<CustomerListView> {
   const today = deps.clock.now();
-  // One instant for the whole list: the filter, the counts and the certificate labels are all
-  // answered as of the same moment, so no two rows can be described on different days.
+  // One instant for the whole list, so no two rows can be described on different days.
   const [matched, takenNumbers] = await Promise.all([
     deps.customers.list({
       statuses: statusesFor(input),
@@ -164,13 +142,11 @@ export async function listCustomers(
     input.group === undefined
       ? matched
       : matched.filter((customer) => groupOf(customer.customerNumber) === input.group);
-  // Both sizes counted off the numbers the register holds, never off `found`: staff read them while
-  // deciding which week keeps the two even, and a figure that moved with the filter would be a
-  // different question wearing the same label (PRD FR-3).
+  // Off the numbers the register holds, never off `found` — see `CustomerListView.groupCounts`.
   const groupCounts = countByGroup(takenNumbers);
 
-  // One allowance per household, in the order the households were handed over — so the settings
-  // history is read once for the whole screen rather than once per row.
+  // In the order the households were handed over, so the settings history is read once for the whole
+  // screen rather than once per row.
   const allowances = await describeAllowances(
     deps,
     found.map((customer) => customer.details.householdMembers),
