@@ -34,6 +34,20 @@ jobs:
       - name: Validate Prisma schema
         run: npx prisma validate
 
+  # The architecture docs are a record, and a record nothing checks rots quietly. This catches the
+  # mechanical half — an ADR missing from the chapter 9 log, a status that disagrees between the ADR
+  # file and its index row, a dangling supersession, a dead relative link, a chapter that lost its
+  # `_Last reviewed:` line. Whether a chapter is still *true* stays a reviewer's job.
+  #
+  # No Node setup: the script is standard library only, so it runs on the image's python3 and this
+  # job stays a few seconds rather than an `npm ci`.
+  docs-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: arc42 structure and ADR index
+        run: python3 .claude/skills/arc42/scripts/arc42.py check
+
   unit-tests:
     runs-on: ubuntu-latest
     steps:
