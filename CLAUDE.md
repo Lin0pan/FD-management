@@ -106,6 +106,15 @@ deliberately and say why in the commit; do not add an inline disable.
   the screen does not already show — a side effect, a one-way door, a closing window, the meaning of
   an _empty_ field, an example for a free-text box. If the answer is "nothing", don't write it.
   `docs/guideline/ui_styling_guide.md` §8 has the test and the surviving examples.
+- **Don't explain the code in the code.** A comment earns its place by saying something the code
+  cannot: why this and not the obvious alternative, a trap that looks like a bug, an invariant a
+  reader could break from elsewhere, a deliberate refusal. Aim at **one to three lines**; a block
+  that runs longer is usually an ADR trying to be born. **Where the argument is already recorded,
+  cite it and stop** — `(ADR-017, US-31)`, `ui_styling_guide.md` §7 — because an argument told twice
+  is two sources of truth, the fault this project exists to remove. Never narrate the project's
+  history: what a value used to be and why it changed is the commit's job and the ADR's, and a
+  comment arguing with a past design ages into a description of code nobody can find. Keep `@throws`
+  lists — they are the caller's contract. A port and its adapter are documented once, on the port.
 - **An icon is a second channel, never the only one.** `lucide-react` is the icon set and a second
   one is an ADR, not a preference. A glyph repeats what the label says (`aria-hidden`) or replaces it
   and keeps it as `aria-label` off the same `de.ts` key — never a text character, which would land in
