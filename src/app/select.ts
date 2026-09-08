@@ -1,24 +1,16 @@
 /**
- * The one native `<select>` recipe: `Input`'s own tokens, with the control height as the only knob.
+ * The one native `<select>` recipe: `Input`'s tokens, with the control height as the only knob.
  *
- * The selects stay native everywhere. Radix's `Select` is a `<button>` plus a portalled listbox, so
- * neither `selectOption` nor `toHaveValue` reaches it, and a `<select>` inside a `<form>` submits a
- * value of its own where a Radix one submits nothing. Native is also type-ahead searchable over the
- * registration form's 240 options — typing `1` then `5` lands on 15 — with no JavaScript of ours.
+ * **The selects stay native everywhere.** Radix's `Select` is a `<button>` plus a portalled listbox,
+ * which neither `selectOption` nor `toHaveValue` reaches and which submits nothing inside a `<form>`.
+ * Native is also type-ahead searchable over the registration's 240 options with no JavaScript of ours.
  *
- * It was three copies of one string before this module: `/einstellungen`, the `/kunden` filters and
- * `/kunden/neu`, the last of them differing in exactly two ways. The height is a real per-screen
- * decision, because a select must match the height of the `Input`s beside it and the two screens
- * disagree about that (`/einstellungen` puts every control on `h-9`, `/kunden/neu` leaves `Input` at
- * its `h-8` default) — so it is the argument. The `disabled:` tokens are not a decision at all: they
- * are inert on an enabled control, and the alternative is a second knob that the one screen with a
- * disabled select would have to remember to pass.
+ * The height is the argument because a select must match the `Input`s beside it and the screens
+ * disagree (`h-9` on `/einstellungen`, `h-8` on `/kunden/neu`). The `disabled:` tokens are inert on an
+ * enabled control, so they are not a second knob.
  *
- * A plain module with no `"use client"` directive, so a server component may import it: a string
- * exported from a client module arrives across the boundary as a client-reference proxy rather than
- * as a string (`docs/guideline/ui_styling_guide.md` §9). A function rather than a record of two strings for
- * the same reason a `cva` variant is not a lookup table — the caller says what it wants, and there
- * is nothing to keep in sync.
+ * No `"use client"`, so a server component may import it: a string exported from a client module
+ * arrives as a client-reference proxy (`docs/guideline/ui_styling_guide.md` §9).
  */
 export function selectClass(height: "h-8" | "h-9"): string {
   return (
@@ -26,11 +18,9 @@ export function selectClass(height: "h-8" | "h-9"): string {
     "transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 " +
     "focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 " +
     "disabled:opacity-50 dark:bg-input/30 " +
-    // The `aria-invalid:` half of `Input`'s tokens, copied rather than shared because there is no
-    // string to share — `Input` writes its class list inline. Without them a refused `<select>`
-    // reddened its label and grew the words underneath while the control itself stayed unmarked:
-    // the customer-number dropdown on /kunden/neu and both of /einstellungen's, all three already
-    // setting `aria-invalid` and none of them showing it.
+    // The `aria-invalid:` half of `Input`'s tokens, copied because there is no string to share —
+    // `Input` writes its class list inline. Without them a refused `<select>` reddens its label and
+    // grows the words underneath while the control itself stays unmarked.
     "aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 " +
     "dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40"
   );

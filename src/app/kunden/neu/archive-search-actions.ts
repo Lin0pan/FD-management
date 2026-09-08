@@ -1,16 +1,9 @@
 "use server";
 
 /**
- * The archive-search panel's server actions — the thin adapter between the panel on the registration
- * screen and the two use cases behind it (US-11.4).
- *
- * Both actions are **reads**. Nothing here writes, nothing is reserved and no audit entry is due:
- * finding a household DF used to know is not a decision, and the decision — registering them again —
- * is taken by the ordinary `submitRegistration` action once staff press Aufnehmen.
- *
- * As everywhere in `app/`, the rules live behind the use cases: which records may be searched, how
- * many are shown, and what a draft may carry are `searchArchivedCustomers` and `draftFromArchived`'s
- * business. This file gives the typed inputs a shape and turns a typed domain error into German.
+ * The archive-search panel's server actions (US-11.4). Both are **reads**: nothing writes, nothing is
+ * reserved and no audit entry is due — the decision is taken by `submitRegistration` once staff press
+ * Aufnehmen. The rules live behind the two use cases.
  */
 
 import { draftFromArchived } from "@/application/customers/draft-from-archived";
@@ -24,13 +17,11 @@ import type { ArchiveDraftResult, ArchiveSearchState } from "./archive-search-st
 import { toPrefillDraft } from "./registration-input";
 
 /**
- * A calendar day as DF type it, read as the UTC day it names — or `undefined` for a field left
- * blank, which is not a criterion at all.
+ * A calendar day as DF type it, or `undefined` for a blank field — which is not a criterion at all.
  *
- * A malformed value is treated the same way, and this is the one place that is right: the date is
- * one of three *optional* criteria, so there is nothing to reject. What the search sees is a search
- * that was not narrowed by a birthdate. Everywhere a day is required, it is refused out loud
- * instead — see `calendarDay` in `registration-input.ts`.
+ * A malformed value is treated the same way, and **this is the one place that is right**: the date is
+ * one of three *optional* criteria, so there is nothing to reject. Where a day is required it is
+ * refused out loud instead (`calendarDay` in `registration-input.ts`).
  */
 function optionalCalendarDay(value: string): Date | undefined {
   if (isBlankDay(value)) return undefined;
@@ -42,19 +33,17 @@ function optionalCalendarDay(value: string): Date | undefined {
 }
 
 /**
- * Search the archive for the household staff described, and hand the matches back to the panel.
- *
- * An all-blank query comes back as a German sentence rather than the whole archive: which fields
- * would narrow it is the useful half of that refusal, and `EmptySearchQuery` is thrown precisely so
- * this screen never has to guess.
+ * Search the archive and hand the matches back to the panel. An all-blank query comes back as a
+ * sentence rather than the whole archive — which fields would narrow it is the useful half of that
+ * refusal, and `EmptySearchQuery` carries them so this screen never has to guess.
  */
 export async function searchArchive(
   _previous: ArchiveSearchState,
   formData: FormData,
 ): Promise<ArchiveSearchState> {
   const text = (name: string): string => String(formData.get(name) ?? "");
-  // Carried back on both paths so the panel can refill the fields: an answer whose question has
-  // been deleted cannot be narrowed, and a refusal that clears what it is refusing is worse still.
+  // Carried back on both paths so the panel can refill the fields: an answer whose question has been
+  // deleted cannot be narrowed.
   const criteria = {
     lastName: text("archiveLastName"),
     firstName: text("archiveFirstName"),
@@ -85,11 +74,9 @@ export async function searchArchive(
 }
 
 /**
- * Read one archived record and hand back the values the registration form is filled with.
- *
- * Called when staff pick a result rather than when they search, because the draft is the whole
- * household and the result list is only what distinguishes one household from another. It creates
- * nothing: `draftFromArchived` is a read, and the archived record is left exactly as it was found.
+ * Read one archived record and hand back the values the registration form is filled with. Called on a
+ * pick rather than on a search, the draft being the whole household where the result list is only
+ * what tells two apart. It creates nothing.
  */
 export async function loadArchivedDraft(archivedCustomerId: number): Promise<ArchiveDraftResult> {
   const words = de.customers.archiveSearch.errors;

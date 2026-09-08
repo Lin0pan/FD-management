@@ -1,23 +1,16 @@
 /**
  * Which of the two "it did not happen" answers a failure is.
  *
- * The application used to have one. Every refusal, from „Der Haushalt hat bereits die Kundennummer
- * 37." to „Kunde nicht gefunden.", came back as `{ status: "error", message }` and was painted the same
- * red — so the screen had no way to say *"nothing is broken, the rules just say no"*, which is the
- * most common thing it has to say at a counter with a queue at it.
+ * - `refusal` — a rule refused a well-formed request, or the input needs fixing and the form is right
+ *   there. The staff member settles it on the spot. Amber.
+ * - `error` — the screen is describing something no longer there. A reload or a colleague, not
+ *   another attempt. Red.
  *
- * The distinction cannot be made from the sentence, and it must not be: a German string is the
- * thing most likely to be reworded, and a tier read back out of one is a tier that changes when
- * somebody fixes a comma. It is made from the typed `DomainErrorCode`, which is a closed set the
- * domain owns.
+ * Decided from the typed `DomainErrorCode` and **never from the sentence**: a German string is the
+ * thing most likely to be reworded, and a tier read out of one changes when somebody fixes a comma.
  *
- * - `refusal` — a rule refused a well-formed request, or the input needs fixing and the form is
- *   right there. The staff member can settle it on the spot. Amber.
- * - `error` — the screen is describing something that is no longer there. A reload or a colleague is
- *   needed, not another attempt. Red.
- *
- * This module holds no German and renders nothing, so a `"use server"` action can import it without
- * pulling React and `lucide-react` in behind it. `Notice` takes the tier as a tone.
+ * No German and no rendering here, so a `"use server"` action can import it without pulling React in
+ * behind it.
  */
 
 import { DomainError, type DomainErrorCode } from "@/domain/errors";
@@ -27,21 +20,15 @@ export type NoticeTier = "refusal" | "error";
 /**
  * The tier of every code the domain can raise.
  *
- * A `Record<DomainErrorCode, NoticeTier>` rather than a `switch` with a default, and that is the
- * whole point of the shape: a 39th code added to `src/domain/errors.ts` fails the build here until
- * somebody decides what it means. A `default` would have quietly made it red, which is exactly the
- * state this module exists to leave behind.
+ * A total `Record` rather than a `switch` with a default, and that is the point of the shape: a new
+ * code in `src/domain/errors.ts` fails the build here until somebody decides what it means, where a
+ * `default` would quietly have made it red.
  *
- * The eight red ones are the four not-found codes, the unconfigured application, and the two that
- * mean a *stored* value no longer parses — `InvalidCardNumber` reading a card number out of the
- * database, `CardIndexTaken` losing a race — plus `CardNumberTaken`, which is the same reading of a
- * stale card run one slot wider (US-25) — and `InvalidPaymentAmount`, which is red for a reason of
- * its own: the field that could produce it refuses a bad amount before a use case ever sees one, so
- * this code reaching a screen means the amount came from somewhere else and typing again will not
- * fix it. Everything else is the counter's ordinary business.
- * Note `CustomerNumberTaken` and the two card-run codes are all lost races and are tiered apart on
- * purpose: a taken customer number leaves the registration standing and re-submittable, while a
- * taken card index or card number means the run was read stale and the screen has to be re-read.
+ * `CustomerNumberTaken` and the two card-run codes are all lost races and are tiered apart on
+ * purpose: a taken customer number leaves the registration standing and re-submittable, while a taken
+ * card index or card number means the run was read stale and the screen has to be re-read.
+ * `InvalidPaymentAmount` is red because the field that could produce one refuses it first — reaching
+ * a screen means the amount came from somewhere else, and typing again will not fix it.
  */
 const TIERS: Record<DomainErrorCode, NoticeTier> = {
   // A rule refused a well-formed request.
@@ -90,18 +77,12 @@ const TIERS: Record<DomainErrorCode, NoticeTier> = {
 };
 
 /**
- * The tier a caught error answers in.
+ * The tier a caught error answers in. Anything that is not a {@link DomainError} is red — an untyped
+ * throw is a fault nobody has named, so it is not something staff can act on at the counter.
  *
- * Anything that is not a {@link DomainError} is red, and that is the honest answer rather than a
- * conservative one: an untyped throw is a fault nobody has named, so it is not something a staff
- * member can act on at the counter.
- *
- * A handful of returns never reach this function, because they are Zod shape failures with no
- * typed error behind them at all. Those are tiered literally at the call site, by one rule: **did a
- * staff member type the bad value?** A malformed date or amount they can see in a field is a
- * `refusal` — the form is right there and retyping fixes it. A malformed *hidden* field (every
- * `surrogateId` parse, a `recordId` that is not a number) is an `error`: the form is stale, and
- * there is nothing on screen to correct.
+ * Zod shape failures never reach here and are tiered at the call site by one rule: **did a staff
+ * member type the bad value?** A malformed date or amount in a visible field is a `refusal`; a
+ * malformed *hidden* field is an `error`, the form being stale with nothing on screen to correct.
  */
 export function tierOf(error: unknown): NoticeTier {
   return error instanceof DomainError ? TIERS[error.code] : "error";

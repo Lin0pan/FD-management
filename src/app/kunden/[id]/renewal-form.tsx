@@ -1,31 +1,20 @@
 "use client";
 
 /**
- * Recording a renewed needs certificate from the customer record (US-16.5, FR-6) — the same use case
- * the counter calls (US-06.4), and therefore the same reset of the reminder count to zero.
+ * Recording a renewed needs certificate from the customer record (US-16.5, FR-6) — the counter's own
+ * use case (US-06.4) and its words, because the two are the same event and two dictionaries are two
+ * ways for the confirmation to describe something that did not happen.
  *
- * It uses the counter's words on purpose: a renewal recorded here and a renewal recorded at the
- * counter are the same event, and two dictionaries for it are two ways for the confirmation to
- * describe a different thing than happened. The confirmation names the reset explicitly, and the
- * reminder count beside it comes back as 0 from the revalidated record.
+ * Always offered, unlike at the counter: a household bringing the renewal early should not have to be
+ * turned away first for the form to appear.
  *
- * Unlike at the counter it is always offered, not only while the certificate is expired: a household
- * that brings the renewal early should not have to be turned away first for the form to appear.
+ * The fields are **controlled**, and they live in a child of the keyed `<form>` rather than beside the
+ * `useActionState` above it. That placement is the whole mechanism: a save changes the key and the
+ * child re-initialises empty, while a refusal changes nothing and leaves what was typed to correct.
  *
- * The fields are **controlled**, and they live in a child of the keyed `<form>` rather than beside
- * the `useActionState` above it. That placement is the whole mechanism: a save changes the key, the
- * child is remounted, and `useState` re-initialises empty, so the next renewal does not start on the
- * values just filed; a refusal changes nothing, so what was typed is still there to be corrected.
- *
- * Putting the two `useState`s in `RenewalForm` itself looks equivalent and is not — the key is on an
- * element *below* that component, so remounting the form would leave the state above it untouched and
- * a saved renewal would sit in the fields afterwards. Measured exactly that way before the state moved
- * down. The rule: **state that a key is meant to clear must live under the key**, which is what
- * `warteliste/add-applicant-form.tsx` does with its `<Fields key={savedCount} />`.
- *
- * Uncontrolled, React's own post-action reset emptied them either way — a past `gültig bis` was
- * refused *and* deleted, along with the certificate type beside it, and the staff member retyped both
- * to change one digit. The same finding as on `/einstellungen`, on a different screen.
+ * **State that a key is meant to clear must live under the key** — putting the two `useState`s in
+ * `RenewalForm` itself looks equivalent and is not, the key being on an element below it, and a saved
+ * renewal then sits in the fields afterwards.
  */
 
 import { useActionState, useRef, useState } from "react";
@@ -39,12 +28,9 @@ import { FormFooter, GRID, RecordRejection, SaveButton, SaveFeedback } from "./r
 import { initialRecordFormState } from "./record-state";
 
 /**
- * The two fields, holding the attempt in progress. Under the key, so a save empties them.
- *
- * The marks arrive as props rather than being read from the action state here, and that follows from
- * where this component sits: it is under the `key`, so it is remounted on every save, and reading
- * state it does not own would put the lookup on the wrong side of the remount. The values *must*
- * live here; the answer about them must not.
+ * The two fields, under the key so a save empties them. The marks arrive as props rather than being
+ * read here: this is remounted on every save, so the lookup would land on the wrong side of it. The
+ * values *must* live here; the answer about them must not.
  */
 function RenewalFields({
   typeProblem,

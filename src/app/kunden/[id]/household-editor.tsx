@@ -51,11 +51,9 @@ import { FormFooter, RecordRejection, SaveButton, SaveFeedback } from "./record-
 import { initialRecordFormState } from "./record-state";
 
 /**
- * A row's birthdate as a `Date`, or `null` while it is still being typed.
- *
- * The parser's refusal is the ordinary case here rather than an error: this runs on every keystroke,
- * and `11.0` is not a day yet. Reading it the same way the server will is the point — the panel and
- * the save must not disagree about the same text (ADR-013).
+ * A row's birthdate as a `Date`, or `null` while it is still being typed — a refusal is the ordinary
+ * case here, this running on every keystroke. Read the way the server will read it, so the panel and
+ * the save cannot disagree about the same text (ADR-013).
  */
 function typedDay(value: string): Date | null {
   try {
@@ -66,9 +64,8 @@ function typedDay(value: string): Date | null {
 }
 
 /**
- * What the household comes to under today's policy, or `null` while it cannot be derived — nobody
- * dated yet, or a date in the future. The save is what reports that as an error; the panel simply
- * has nothing to show, rather than flickering between wrong answers as a date is typed.
+ * What the household comes to under today's policy, or `null` while it cannot be derived. The save
+ * reports that as an error; the panel shows nothing rather than flickering between wrong answers.
  */
 function derived(
   rows: ReadonlyArray<MemberRow>,
@@ -87,10 +84,9 @@ function derived(
     return {
       ...counts,
       priceCents: priceFor(policy, counts.grownUps, counts.children),
-      // Through `eggsFor` against the rule the server handed down, never a lookup written out
-      // again here: a second reading of the staircase is how the preview and the save come to
-      // disagree. The rule counts heads and not ages, so it is the two counts added — the same
-      // total `describeAllowance` asks about (US-28).
+      // Through `eggsFor` against the rule the server handed down, never a lookup written out again:
+      // a second reading of the staircase is how the preview and the save come to disagree. The rule
+      // counts heads, so it takes the two counts added (US-28).
       eggs: eggsFor(policy.eggRule, counts.grownUps + counts.children),
     };
   } catch {
@@ -99,21 +95,18 @@ function derived(
 }
 
 /**
- * One cell of the household table: the control, and the mark under it when that field was refused.
+ * One cell of the household table: the control, and the mark under it when the field was refused.
  *
- * Three fields repeating per member is tabular data, so the field names are said once in the column
- * headings — but a column heading names a column and not a cell, so each input keeps the string its
- * visible label used to carry as `aria-label` and nothing a screen reader hears is lost.
+ * The names are said once in the column headings, but a heading names a column and not a cell — so
+ * each input carries the same string as `aria-label`.
  *
- * The cells are top-aligned: a mark makes one cell taller than its neighbours, and without it the
- * controls in a refused row would sit at three different heights. That is why the row number and the
- * age beside them wear `ROW_TEXT` — top-aligning takes away the centring a `TableCell` does for
- * itself, and static text has to be given the control's box back to stay on its line.
+ * Top-aligned, because a mark makes one cell taller and the controls of a refused row would otherwise
+ * sit at three heights. That is why the row number and the age wear `ROW_TEXT`: top-aligning takes
+ * away the centring a `TableCell` does for itself.
  *
- * `name` and the path both come from `field-refusal.ts` rather than being spelled here, because the
- * registration's household table submits the same three repeated inputs through the same
- * `householdRows`. A second spelling is how a refusal starts marking the right row on one screen and
- * no row on the other, with nothing failing.
+ * `name` and the path come from `field-refusal.ts`, because the registration's table submits the same
+ * three inputs — a second spelling is how a refusal marks the right row on one screen and no row on
+ * the other, with nothing failing.
  */
 function MemberCell({
   index,
@@ -131,15 +124,14 @@ function MemberCell({
   onChange: (value: string) => void;
   problem: string | null;
   /**
-   * `readOnly`, never `disabled`: a disabled input submits nothing, and the three columns are read
-   * back as parallel lists paired by position (`householdRows`) — a dropped value would shift every
-   * row below it onto somebody else's name.
+   * `readOnly`, never `disabled`: a disabled input submits nothing, and the columns are read back as
+   * parallel lists paired by position — a dropped value would shift every row below it.
    */
   readOnly?: boolean;
 }): React.ReactElement {
   const name = MEMBER_INPUT[part];
   // Not `useId`: the mark's `aria-describedby` has to name an element, and a stable id per row and
-  // part is both readable in a snapshot and unique on a page that carries only one of these tables.
+  // part is readable in a snapshot and unique on a page carrying one of these tables.
   const id = `record-${name}-${index}`;
   const label = `${de.customers.new.memberRow(index + 1)} — ${de.customers.fields[part]}`;
   const marks = marking(memberPath(index, part), id, problem);
@@ -182,10 +174,8 @@ function MemberCell({
 }
 
 /**
- * The household as a value, so a new one can be told from a re-render of the same one.
- *
- * `members` arrives freshly mapped on every server render, so its identity says nothing; only what
- * the rows *say* can answer "did the record change underneath us?".
+ * The household as a value, so a new one can be told from a re-render of the same one: `members`
+ * arrives freshly mapped every time, so only what the rows *say* answers "did the record change?".
  */
 function householdKey(members: ReadonlyArray<MemberRow>): string {
   return JSON.stringify(members.map((row) => [row.firstName, row.lastName, row.birthDate]));
@@ -199,10 +189,7 @@ export function HouseholdEditor({
   policy,
 }: {
   customerId: number;
-  /**
-   * Who the record is about, written the way a row is, so the row that is them can be picked out of
-   * the household by what it says (`isCustomerRow`).
-   */
+  /** Who the record is about, written as a row, so `isCustomerRow` can pick theirs out by what it says. */
   customer: MemberRow;
   /** The household as it stands, each birthdate already written as ISO by the server. */
   members: ReadonlyArray<MemberRow>;
@@ -218,13 +205,10 @@ export function HouseholdEditor({
   const [shown, setShown] = useState(() => householdKey(members));
   const form = useRef<HTMLFormElement>(null);
 
-  // The record can be rewritten *under* this table while it stands there: correcting the customer's
-  // name on the form above carries into their household row in the same write
-  // (`replaceHouseholdMember`), and the page is revalidated. The rows are editable state seeded from
-  // the props, so without this they would go on showing the name from before the correction — the
-  // customer's row would stop looking like theirs, unlock itself, and a save would post a household
-  // the record no longer describes. Any in-flight typing goes with it, and that is the right way
-  // round: what the record says now beats what somebody had started to type against what it said.
+  // The record can be rewritten *under* this table: correcting the customer's name on the form above
+  // carries into their household row in the same write (`replaceHouseholdMember`). The rows are
+  // editable state seeded from the props, so without this the customer's row would stop looking like
+  // theirs, unlock itself, and a save would post a household the record no longer describes.
   const stored = householdKey(members);
   if (stored !== shown) {
     setShown(stored);
@@ -236,8 +220,8 @@ export function HouseholdEditor({
 
   const fields = state.status === "error" ? state.fields : undefined;
   const problem = (path: string): string | null => problemAt(fields, path);
-  // Scoped to this form: the record renders eight of them on one page, and a refusal here must not
-  // be able to put the cursor in another form's control.
+  // Scoped to this form: the record renders eight on one page, and a refusal here must not put the
+  // cursor in another form's control.
   useFocusFirstRefusal(fields, form);
 
   function updateRow(index: number, patch: Partial<MemberRow>): void {
@@ -299,12 +283,11 @@ export function HouseholdEditor({
         <TableBody>
           {rows.map((row, index) => {
             const day = typedDay(row.birthDate);
-            // The customer's own row. It is theirs by what it says, which is how the save finds it
-            // too, so what is locked here is exactly what the domain would refuse to lose.
+            // Theirs by what it says, which is how the save finds it too — so what is locked here is
+            // exactly what the domain would refuse to lose.
             const isCustomer = isCustomerRow(row, customer);
             return (
-              // Rows are addressed by position: two members can share a name and a birthdate, and a
-              // row has no identity of its own.
+              // Addressed by position: two members can share a name and a birthdate.
               <TableRow key={index} data-testid="household-member" className="hover:bg-transparent">
                 <TableCell className="align-top text-muted-foreground tabular-nums">
                   <div className={ROW_TEXT}>{index + 1}</div>

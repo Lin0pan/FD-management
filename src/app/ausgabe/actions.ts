@@ -1,27 +1,20 @@
 "use server";
 
 /**
- * The counter's write actions — the thin adapters between the counter's forms and the
- * `recordAttendance` / `correctAttendance` use cases (tasks/prd-us-05-record-attendance.md §US-05.4)
- * and the `recordReminder` / `renewCertificate` ones (tasks/prd-us-06-certificate-reminder.md
- * §US-06.4).
+ * The counter's write actions — thin adapters between its forms and the `recordAttendance` /
+ * `correctAttendance` (US-05.4) and `recordReminder` / `renewCertificate` (US-06.4) use cases.
  *
- * Their only jobs are to read the handful of fields off the form, call one use case, and translate a
- * typed domain error into a German sentence. Every rule about *whether* a hand-out may be recorded or
- * a record corrected lives in the domain and the use cases — the eligibility re-check, the
- * once-per-day guard and the same-day-only correction are all theirs, not this layer's (FR-8).
+ * They read fields, call one use case and translate a typed domain error. Every rule about *whether*
+ * a hand-out may be recorded lives below (FR-8).
  *
- * The one value read off these forms that is not an id is the **amount** a household handed over
- * (US-29.7). It arrives as German text — `4`, `4,00`, `4.00` — and `parseEuros` is the single place
- * that turns text into money, here at the boundary, so an unreadable amount is answered with a
- * sentence about the field rather than an exception from three layers down. It is not the *guard*,
- * though: both use cases check the number again with `requirePayment`, because a screen may not be
- * the only thing standing between a typo and a household's balance (FR-8).
+ * The one non-id value here is the **amount** (US-29.7). `parseEuros` turns text into money at this
+ * boundary, so an unreadable amount is answered with a sentence about the field rather than an
+ * exception three layers down — but it is not the guard: both use cases check again with
+ * `requirePayment`.
  *
- * An amount **above** what was asked for is a different matter, and deliberately not this layer's
- * to judge. The submission goes without a confirmation, the use case answers with
- * `OverpaymentNotConfirmed`, and that comes back as the `confirmOverpayment` state the form turns
- * into a question with a second button. The screen never works out for itself whether to ask (FR-8).
+ * An amount **above** what was asked is deliberately not this layer's to judge: the submission goes
+ * without a confirmation, and `OverpaymentNotConfirmed` comes back as the `confirmOverpayment` state
+ * the form turns into a question.
  */
 
 import { revalidatePath } from "next/cache";
@@ -62,27 +55,19 @@ const surrogateId = z
   .transform((value): number => Number(value));
 
 /**
- * A **customer number** as the serve form's hidden field carries it.
- *
- * The same shape as {@link surrogateId} and deliberately not the same name: one says which row was
- * written, the other which household was served, and the counter needs both in the same action.
- * Naming the shape after either question alone is how the wrong one ends up in the redirect.
+ * A **customer number** as the serve form's hidden field carries it. The same shape as
+ * {@link surrogateId} and deliberately not the same name: one says which row was written, the other
+ * which household was served, and the counter needs both in one action.
  */
 const customerNumberField = surrogateId;
 
 /**
- * The amount a household handed over, as DF type it into the Betrag field: `4`, `4,00` or `4.00`,
- * all read as 400 cents. `null` when the field holds something that is not an amount.
+ * The amount a household handed over, as DF type it: `4`, `4,00` or `4.00`, all 400 cents. `null`
+ * for anything that is not an amount — the caller has one sentence to say about any of it, so
+ * `InvalidEuroAmount` becomes a `null` rather than a typed refusal flattened two frames later.
  *
- * `parseEuros` is the domain's own reader — the same one the settings screen's prices go through —
- * and it is strict on purpose: a third decimal digit and a minus sign are both refused rather than
- * rounded or absorbed. `InvalidEuroAmount` is the only thing it throws, and the caller has just one
- * sentence to say about any of it, so the error becomes a `null` here rather than a typed refusal
- * carried two frames to be flattened anyway.
- *
- * Not a Zod schema, unlike `surrogateId` above: there is no shape to describe and no second issue to
- * report, only a reader that already exists. The use cases check the number again with
- * `requirePayment`, so this is the form's convenience rather than the system's guard (US-29.4).
+ * Not a Zod schema: there is no shape to describe, only a reader that exists. The use cases check
+ * again with `requirePayment`, so this is the form's convenience, not the system's guard (US-29.4).
  */
 function amountFrom(formData: FormData): Cents | null {
   try {
@@ -93,23 +78,18 @@ function amountFrom(formData: FormData): Cents | null {
 }
 
 /**
- * That the staff member answered the overpayment question by pressing the confirm button.
- *
- * Read as the mere *presence* of the field, the standard HTML-form idiom: the confirm button is a
- * second submit inside the same form, so clicking it re-sends the typed amount and this flag while
- * the ordinary button sends only the amount.
+ * That the overpayment question was answered by pressing confirm. Read as the field's mere
+ * *presence*: the confirm button is a second submit inside the same form, so it re-sends the typed
+ * amount and this flag where the ordinary button sends only the amount.
  */
 function confirmed(formData: FormData): boolean {
   return formData.get("overpaymentConfirmed") !== null;
 }
 
 /**
- * A calendar day as DF type it — `TT.MM.JJJJ` — read as the UTC day it names.
- *
- * The reading is `src/domain/calendarDay.ts`'s, which is the point: this used to be a second,
- * separate date schema, and its own note admitted the shape check let `2026-13-45` through to an
- * Invalid Date whose NaN then flowed into the certificate arithmetic. One parser, one answer, and a
- * day that is not a day is refused here rather than downstream (ADR-013).
+ * A calendar day as DF type it, read by `src/domain/calendarDay.ts` — one parser, one answer, so a
+ * day that is not a day is refused here rather than reaching the certificate arithmetic as an
+ * Invalid Date (ADR-013).
  */
 const dayInput = z.string().transform((value, ctx): Date => {
   if (isBlankDay(value)) {
@@ -131,12 +111,9 @@ const dayInput = z.string().transform((value, ctx): Date => {
 });
 
 /**
- * The renewal's one typed field, in an object so its refusal carries a path.
- *
- * A bare `dayInput.safeParse(text)` raises an issue whose `path` is empty, and a path is how a mark
- * finds its box — so the field would have gone unmarked while the message read as if it named one.
- * The name is the registration's, which the record's renewal form now spells too: one box, one
- * spelling, on all four screens that carry it.
+ * The renewal's one typed field, in an object so its refusal carries a path — a bare
+ * `safeParse(text)` raises an issue whose `path` is empty, and a path is how a mark finds its box.
+ * The name is the registration's: one box, one spelling, on all four screens that carry it.
  */
 const renewalForm = z.object({ certificateValidUntil: dayInput });
 
@@ -163,21 +140,15 @@ function correctMessage(error: unknown): string {
 }
 
 /**
- * Record a hand-out for the customer named by the hidden `customerId`, for the amount typed into the
- * Betrag field.
+ * Record a hand-out for the customer named by the hidden `customerId`.
  *
- * **Only a success navigates.** Everything on the screen about a served household is finished
- * business and the next person is already at the counter, so the write revalidates and then
- * redirects to the counter's initial state, handing the household's number to the confirmation the
- * page states at the top (`served-flag.ts`, US-32.7). `redirect` signals the navigation by
- * throwing, so it is called **outside** the `try` — inside it, this action's own `catch` would
- * report the navigation as a failed write. `correctServe`'s removal branch below is the same
- * shape.
+ * **Only a success navigates**: a served household is finished business and the next person is
+ * already at the counter, so the write revalidates and redirects to the counter's initial state
+ * (`served-flag.ts`, US-32.7). `redirect` signals by throwing, so it is called **outside** the `try`
+ * — inside it, this action's own `catch` would report the navigation as a failed write.
  *
- * An amount above what was asked for comes back as `confirmOverpayment` rather than as a failure —
- * the counter shows the question and submits the same amount again with the flag — and a refusal
- * comes back as `error`. Both leave the household on screen: nothing may be cleared while an answer
- * is owed.
+ * An overpayment comes back as `confirmOverpayment` and a refusal as `error`; both leave the
+ * household on screen, nothing being cleared while an answer is owed.
  */
 export async function recordServe(_previous: ServeState, formData: FormData): Promise<ServeState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
@@ -186,8 +157,8 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
   }
   const paidCents = amountFrom(formData);
   if (paidCents === null) {
-    // A refusal and not an error: nothing is wrong with the installation, the staff member typed
-    // something the field cannot read, and the sentence says what it can.
+    // A refusal and not an error: nothing is wrong with the installation, somebody typed something
+    // the field cannot read.
     return {
       status: "error",
       message: de.distribution.serve.errors.notAnAmount,
@@ -213,16 +184,12 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
     return { status: "error", message: serveMessage(error), tier: tierOf(error) };
   }
 
-  // The **household's** number, off the form the lookup rendered — not the raw query, so a lookup
-  // by card number `50k3` lands the confirmation on 50. It is not called `nummer`, which on the
-  // correction form below means the query that was typed: the two are different questions, and one
-  // name for both is how a card number would end up in a slot's confirmation.
+  // The **household's** number, not the raw query, so a lookup by `50k3` lands the confirmation on
+  // 50. Deliberately not called `nummer`, which on the correction form means the typed query.
   //
-  // Parsed rather than passed on as typed, for the reason `customerId` above is: it arrives from the
-  // browser, and everything else this action reads from the form goes through a reader that can say
-  // no. A value that is not a customer number cannot name a household, so the redirect goes to the
-  // bare counter and the hand-out — already written — is simply confirmed by the rising group tally
-  // instead. It is not an `error`: nothing failed, and reporting one would claim the write did.
+  // Parsed rather than passed on: a value that is not a customer number cannot name a household, so
+  // the redirect goes to the bare counter and the hand-out — already written — is confirmed by the
+  // rising group tally instead. Not an `error`: reporting one would claim the write failed.
   const customerNumber = customerNumberField.safeParse(String(formData.get("kundennummer") ?? ""));
   redirect(
     customerNumber.success ? `/ausgabe?${HANDOUT_RECORDED}=${customerNumber.data}` : "/ausgabe",
@@ -230,17 +197,13 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
 }
 
 /**
- * Amend or remove today's record. The clicked button names the intent through `action`:
- * `SET_PAYMENT` writes the amount now in the Betrag field, `REMOVE` deletes the record after the
- * form's confirmation step.
+ * Amend or remove today's record; the clicked button names the intent through `action`.
  *
- * The two answers leave by different routes, because a removal destroys the card that would show it.
- * `SET_PAYMENT` comes back as `saved` and is read beside the button. `REMOVE` makes `todaysRecord` null,
- * so the whole correction card unmounts and takes the state holding the answer with it — which is
- * why this action's `removed` result was, for its whole life, a branch no component could render.
- * It redirects instead, keeping the number that was looked up so the household stays on screen,
- * and the counter states it above the verdict.
- * `redirect` throws its own control-flow error and so is called outside the `try`.
+ * **The two answers leave by different routes, because a removal destroys the card that would show
+ * it.** `SET_PAYMENT` comes back as `saved`, read beside the button. `REMOVE` makes `todaysRecord`
+ * null, so the correction card unmounts and takes the state holding the answer with it — so it
+ * redirects instead, keeping the looked-up number, and the counter states it above the verdict.
+ * `redirect` throws, so it is called outside the `try`.
  */
 export async function correctServe(
   _previous: CorrectState,
@@ -250,9 +213,8 @@ export async function correctServe(
   if (!recordId.success) {
     return { status: "error", message: de.distribution.serve.errors.notFound, tier: "error" };
   }
-  // The two intents are read apart before anything is called, because only one of them has an amount
-  // to read: the removal button sits inside the same form and submits the Betrag field with it,
-  // and parsing what a removal is never going to use would refuse a removal over a typo.
+  // Read apart before anything is called, because only one has an amount: the removal button sits
+  // inside the same form, and parsing what it never uses would refuse a removal over a typo.
   let intent: CorrectAttendanceInput;
   if (formData.get("action") === "REMOVE") {
     intent = { recordId: recordId.data, action: "REMOVE" };
@@ -317,12 +279,9 @@ function renewalMessage(error: unknown): string {
 }
 
 /**
- * A thrown renewal failure as the counter shows it — {@link renewalMessage}, the tier, and the field
- * to mark where the error names one.
- *
- * The sentence is the counter's dictionary and the mark is the shared `customerErrorField`, which is
- * the same division the record's renewal makes: the two forms are the same two boxes refused by the
- * same rules, so a past `gültig bis` reddens `certificateValidUntil` on both.
+ * A thrown renewal failure as the counter shows it. The sentence is the counter's dictionary and the
+ * mark is the shared `customerErrorField` — the record's renewal makes the same division, the two
+ * forms being the same two boxes refused by the same rules.
  */
 function renewalRefusal(error: unknown): RenewalState & { status: "error" } {
   const field = customerErrorField(error);
@@ -335,11 +294,9 @@ function renewalRefusal(error: unknown): RenewalState & { status: "error" } {
 }
 
 /**
- * Log today's certificate reminder for the customer named by the hidden `customerId`. The rules —
- * something to remind about, at most one per day — live in `recordReminder` and, as the backstop a
- * race cannot pass, in the database's unique day constraint; this action only relays the resulting
- * count or the refusal. On success the page revalidates, so the count beside the expiry status and
- * the disabled state of the button both come back from the store, not from client memory.
+ * Log today's certificate reminder. The rules live in `recordReminder` and in the database's unique
+ * day constraint; this only relays the resulting count or the refusal. The page revalidates, so the
+ * count and the button's disabled state come back from the store, not from client memory.
  */
 export async function logReminder(
   _previous: ReminderState,
@@ -364,9 +321,8 @@ export async function logReminder(
 }
 
 /**
- * Record the renewed certificate the reminders asked for. The renewal and the reset of the count to
- * zero are one transaction behind `renewCertificate`; on success the page revalidates, so the screen
- * shows the count of 0 and the certificate's new end date from the store.
+ * Record the renewed certificate. The renewal and the reset of the count are one transaction behind
+ * `renewCertificate`; the page revalidates, so both come back from the store.
  */
 export async function recordRenewal(
   _previous: RenewalState,
@@ -384,10 +340,8 @@ export async function recordRenewal(
     certificateValidUntil: String(formData.get("certificateValidUntil") ?? ""),
   });
   if (!validUntil.success) {
-    // The schema already decided whether the field was blank or unreadable; repeating a blanket
-    // "not a date" here would throw that away and tell half of DF the wrong thing. It says so *at
-    // the field* now as well as by the button — this is the only box the parse can be about, and
-    // saying which one is what every other form on the app does.
+    // The schema already decided whether the field was blank or unreadable; a blanket "not a date"
+    // here would throw that away (ADR-013).
     return {
       status: "error",
       ...fieldRefusals(validUntil.error, de.distribution.certificate.renewal.errors.unknown),

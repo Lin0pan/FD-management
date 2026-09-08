@@ -1,20 +1,13 @@
 /**
- * The registration screen.
+ * The registration screen. It decides nothing: `proposeRegistration` works out what to show and
+ * `registerCustomer` what to save (`tasks/prd-us-01-register-customer.md` §US-01.6).
  *
- * Reads the proposal — the next free number, the suggested group and the day to judge birthdates
- * against — and hands it to the screen. It decides nothing: `proposeRegistration` works out what to
- * show and `registerCustomer` works out what to save
- * (tasks/prd-us-01-register-customer.md §US-01.6).
+ * The archive search lives inside `RegistrationScreen`, because the search and the form share one
+ * piece of state (US-11.4).
  *
- * The archive search that may fill the form lives inside `RegistrationScreen`, because the search
- * and the form share one piece of state — which archived household, if any, was picked
- * (tasks/prd-us-11-reuse-archived-record.md §US-11.4).
- *
- * It also reads the waiting list, for one purpose: this is the screen on which the next customer
- * number is actually handed out, so it is the screen on which somebody who has been waiting for that
- * number has to be named (tasks/prd-us-18-waiting-list-signals.md §US-18.3). The banner states a
- * fact and gates nothing — a walk-in may still be registered, because who is served is DF's decision
- * and not the software's.
+ * It also reads the waiting list, because this is the screen on which the next customer number is
+ * actually handed out, so it is where somebody waiting for it has to be named (US-18.3). The banner
+ * states a fact and gates nothing — who is served is DF's decision.
  */
 
 import { proposeRegistration } from "@/application/customers/propose-registration";
@@ -27,10 +20,7 @@ import { FreeSlotBanner } from "../../warteliste/free-slot-banner";
 import { RegistrationScreen } from "./registration-screen";
 import { SHELL } from "../../shell";
 
-/**
- * Every registration changes the next free number and both group sizes, so a proposal cached at
- * build time would offer a number that is already gone.
- */
+/** Every registration moves the next free number and both group sizes, so a cached proposal lies. */
 export const dynamic = "force-dynamic";
 
 export default async function NewCustomerPage(): Promise<React.ReactElement> {
@@ -44,9 +34,8 @@ export default async function NewCustomerPage(): Promise<React.ReactElement> {
       listWaiting(waitingListDeps),
     ]);
   } catch (error: unknown) {
-    // An unseeded database has no quota, so there is no register to propose a slot in. That is a
-    // setup failure, not a rejected registration — say so rather than showing an empty form that
-    // could never be saved.
+    // An unseeded database has no quota, so there is no register to propose a slot in: a setup
+    // failure rather than a rejected registration.
     if (error instanceof DomainError && error.code === "NoSettingsInForce") {
       return (
         <main className={SHELL}>

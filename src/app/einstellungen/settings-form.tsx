@@ -29,29 +29,19 @@ const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 const COLOURS = ["RED", "BLUE"] as const;
 
 /**
- * The field grid: twelve columns at `lg`, two at `sm`, one below — the same one `/kunden/neu` uses.
- *
- * Every field on this screen was 408px wide because all of them shared one `sm:grid-cols-2`, so a
- * box holding `1` promised as much room as one holding a sentence (§3.3). Below `lg` the spans stop
- * applying and each field takes one of two columns, which still puts a quota beside a price at
- * 800px.
+ * The field grid, the same one `/kunden/neu` uses: a field's width is a promise about what it wants,
+ * so a box holding `1` must not take as much room as one holding a sentence (§3.3).
  */
 const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
 
 /**
- * A field's two rows — the label and the control — laid on the grid's own tracks.
+ * A field's two rows laid on the grid's own tracks. Without it the row is ragged: a German label that
+ * wraps in a narrow column starts its input ten pixels below its neighbour's
+ * (`docs/guideline/ui_styling_guide.md` §3).
  *
- * Without this the row is ragged, because a German label is as long as it is and a narrow column
- * wraps it: measured at 1440, `Höchstzahl der Kunden (N)` took two lines in its slot while the
- * shorter label beside it took one, so the inputs of the first card started ten pixels apart. That
- * is the rag `docs/guideline/ui_styling_guide.md` §3 exists to prevent, and it turns up on every form
- * where the twelve columns are actually spent.
- *
- * `grid-rows-subgrid` is the fix rather than a `min-h-` guess: each field spans two of the parent's
- * rows and inherits them, so the label row is as tall as the tallest label in that row and every
- * control lands on one baseline — at any label length, in any language, without a magic number.
- * The alternative, bottom-aligning the controls with `mt-auto`, leaves a one-line label floating
- * 46px above its own box.
+ * `grid-rows-subgrid` rather than a `min-h-` guess: each field inherits two of the parent's rows, so
+ * the label row is as tall as the tallest label in it at any length, without a magic number.
+ * Bottom-aligning with `mt-auto` instead leaves a one-line label floating above its own box.
  */
 const FIELD_ROWS = "grid grid-rows-subgrid row-span-2 gap-1.5";
 
@@ -67,16 +57,12 @@ function refusedFields(state: SaveSettingsState): ReadonlyArray<FieldRefusal> | 
 }
 
 /**
- * One field of the form, in a slot of the twelve-column grid.
+ * One field of the form, in a slot of the twelve-column grid. `<label htmlFor>` + `id`, so the
+ * accessibility snapshot has named textboxes; the ids are the field names, four of them load-bearing
+ * (§7), and one form on the page leaves nothing for `useId` to disambiguate.
  *
- * `<label htmlFor>` + `id` rather than the old nested `<label><span>`, which worked only by nesting
- * and left the accessibility snapshot with unnamed textboxes. The ids are the field names: four of
- * them are load-bearing (§7) and there is one form on this page, so there is nothing for `useId`
- * to disambiguate.
- *
- * Exactly two children, always — the label and one control — because the two rows of `FIELD_ROWS`
- * are what keeps the row's baselines straight. A field that wants a hint under its control wraps
- * both in one element, which is what a rejected field does with its mark.
+ * **Exactly two children, always** — the label and one control — because `FIELD_ROWS`' two rows are
+ * what keeps the baselines straight. A field wanting a hint wraps both in one element.
  */
 function Field({
   name,
@@ -104,14 +90,12 @@ function Field({
       {problem === null ? (
         children
       ) : (
-        // One grid row, two elements: the mark rides under the control rather than beside it, so
-        // the subgrid still sees a single row and the labels above stay on one baseline.
+        // One grid row, two elements: the mark rides under the control, so the subgrid still sees a
+        // single row and the labels above stay on one baseline.
         //
-        // The mark carries the refusal's **own** words — „Keine ganze Zahl.“, „Kein gültiger
-        // Betrag.“ — where it used to carry one generic „Ungültiger Wert.“ while the summary
-        // carried the specific sentence. That was the two facts the wrong way round: with three
-        // money boxes on this screen, „Kein gültiger Betrag.“ by the button named none of them,
-        // and the mark that did know which box it sat under said nothing worth reading.
+        // The mark carries the refusal's **own** words: with three money boxes on this screen, a
+        // generic „Ungültiger Wert.“ under the field and the specific sentence by the button would be
+        // the two facts the wrong way round.
         <div className="flex flex-col gap-1">
           {children}
           <FieldRejection id={name} problem={problem} testId="settings-field-error" />
@@ -189,9 +173,8 @@ function EuroField({
   /** The id of a hint this field is explained by, where one explains this field in particular. */
   describedBy?: string;
 }): React.ReactElement {
-  // A rejected field's mark and its hint are both read out, in that order, and neither replaces the
-  // other: the mark says the value is wrong, the hint says what the field means. `marking` writes
-  // the mark's id, so the hint is prepended to whatever it produced rather than replacing it.
+  // Mark and hint are both read out, in that order: the mark says the value is wrong, the hint what
+  // the field means. `marking` writes the mark's id, so the hint is prepended to it.
   const marks = marking(name, name, problem);
   const described = [describedBy, marks["aria-describedby"]]
     .filter((id): id is string => id !== undefined)
@@ -201,8 +184,8 @@ function EuroField({
     <Field name={name} label={label} span={span} problem={problem}>
       <Input
         className={`${CONTROL_HEIGHT} tabular-nums`}
-        // Stays text, not `type=number`: a German decimal comma is what staff type, and a number
-        // input either refuses `2,50` or silently normalises it to a dot.
+        // Text, not `type=number`: a number input either refuses the German `2,50` or silently
+        // normalises the comma to a dot.
         type="text"
         inputMode="decimal"
         name={name}
@@ -216,12 +199,9 @@ function EuroField({
 }
 
 /**
- * What the Maximalpreis field shows for a stored cap: the amount, or nothing at all.
- *
- * The `null` branch comes **before** the formatting, because `formatEuroAmount(0)` is `0,00` — a
- * cap of nothing, meaning every household collects for free. Losing this branch would print that
- * for *no cap* and the next save would store it, turning a removed limit into a free distribution
- * with nothing on screen to say so.
+ * What the Maximalpreis field shows for a stored cap. The `null` branch comes **before** the
+ * formatting, because `formatEuroAmount(0)` is `0,00` — a cap meaning every household collects for
+ * free. Losing it would print that for *no cap*, and the next save would store it.
  */
 function capValue(cap: Cents | null): string {
   return cap === null ? "" : formatEuroAmount(cap);
@@ -230,24 +210,15 @@ function capValue(cap: Cents | null): string {
 /**
  * What a field shows: what was typed if the last save was refused, otherwise what is stored.
  *
- * React resets an uncontrolled form once its action resolves — refusal as well as success — and the
- * reset restores each input from its `defaultValue`. With the stored settings as the only
- * `defaultValue`, a refusal rewound every field
- * to what the database said: four edits typed, one of them invalid, **four lost**, and the screen
- * then marking a field that held `240` and calling it an invalid value. Neither half of that is
- * survivable on its own; together they are why a rejected save meant retyping the whole change from
- * memory.
+ * **React resets an uncontrolled form once its action resolves**, refusal as well as success, and the
+ * reset restores each input from its `defaultValue`. With only the stored settings there, a refusal
+ * rewound every field — four edits typed, one invalid, four lost, and a field holding `240` then
+ * marked as an invalid value.
  *
- * `state.values` is present only on a refusal, so the fallback does the right thing without a
- * condition: after a save there is nothing to override with, and the reset lands on the freshly
- * revalidated figures — which is what it should do, and what it already did.
- *
- * `reason` reaches this too, with `""` as its stored value, so it clears after a save and survives a
- * refusal. §4.2d has it clearing in both cases; that is the one place this departs from the document,
- * and the argument is that a refusal is not the end of a change but the middle of one — the sentence
- * still describes the edit being made, and the next thing the staff member does is fix a field and
- * press the same button. Clearing after a *save* is not in question: a reason describes one change
- * and must never be carried into the next.
+ * `state.values` is present only on a refusal, so the fallback needs no condition. `reason` reaches
+ * this too, with `""` stored, so it clears after a save and survives a refusal: a refusal is the
+ * middle of a change rather than the end of one. (§4.2d has it clearing in both cases; this is the
+ * one departure.)
  */
 function shownValue(
   state: SaveSettingsState,
@@ -263,8 +234,8 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
 
   const fields = refusedFields(state);
   const problem = (name: string): string | null => problemAt(fields, name);
-  // New here: a refusal used to be stated by the button and left to be found. The first field it
-  // names is 442px above that sentence, measured — further once several are named at once.
+  // The first field a refusal names is 442px above the sentence by the button, measured — further
+  // once several are named at once.
   useFocusFirstRefusal(fields, form);
   const shown = (name: keyof SubmittedSettings, stored: string): string =>
     shownValue(state, name, stored);
@@ -301,10 +272,9 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
             // Empty is a configuration here, not an unfilled field — see {@link capValue}.
             value={shown("priceCap", capValue(settings.priceCap))}
             problem={problem("priceCap")}
-            // The one field on the screen whose *empty* state means something, so the sentence
-            // saying what that is has to reach it. A sibling paragraph with `aria-describedby`
-            // rather than a `<span>` inside the label: nested, it is concatenated into the
-            // accessible name and announced as part of it (§3.7).
+            // The one field whose *empty* state means something, so the sentence saying what has to
+            // reach it. A sibling with `aria-describedby` rather than a `<span>` inside the label,
+            // which would be concatenated into the accessible name (§3.7).
             describedBy="prices-hint"
           />
         </div>
@@ -399,11 +369,10 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
                 name="reason"
                 id="reason"
                 // `""` as the stored value, so this clears after a save and survives a refusal —
-                // see {@link shownValue} for why the two differ.
+                // {@link shownValue} says why.
                 defaultValue={shown("reason", "")}
-                // The hint is a sibling, not a `<span>` inside the label: nested, it was
-                // concatenated into the field's accessible name and a screen reader announced a
-                // 91-character sentence where four words belong (§3.7).
+                // A sibling, not a nested `<span>`, which would put a 91-character sentence into the
+                // field's accessible name (§3.7).
                 aria-describedby="reason-hint"
               />
               <p id="reason-hint" className="text-xs text-muted-foreground">
@@ -415,9 +384,8 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
 
         {state.status !== "idle" && state.message !== undefined ? (
           <Notice
-            // A refused save is amber, not red: nothing is broken, a value needs fixing and the
-            // field it names is marked. `state.tier` is decided from the typed error on the server
-            // and cannot be re-read from this sentence (`notice-tier.ts`).
+            // A refused save is amber, not red: nothing is broken. `state.tier` is decided from the
+            // typed error on the server, never re-read from this sentence (`notice-tier.ts`).
             tone={state.status === "error" ? (state.tier ?? "error") : "success"}
             text={state.message}
             testId={state.status === "error" ? "settings-error" : "settings-saved"}

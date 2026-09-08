@@ -1,19 +1,15 @@
 "use client";
 
 /**
- * The archive control (tasks/prd-us-10-archive-customer.md §US-10.4), shared by the customer record
- * and the counter — the same component on both screens, so archiving cannot mean two different things
- * depending on where it was started.
+ * The archive control (`tasks/prd-us-10-archive-customer.md` §US-10.4), the same component on the
+ * record and the counter — so archiving cannot mean two different things depending on where it was
+ * started.
  *
- * A client component because two things need the browser: `useActionState` reports a rejection back
- * beside the button, and the save control stays disabled until a reason has been typed (the reason is
- * the whole record of an irreversible decision — FR-1). It holds no rules; whether the household may
- * be archived is decided behind `archiveCustomer`.
+ * A client component for `useActionState` and because the save stays disabled until a reason has been
+ * typed: the reason is the whole record of an irreversible decision (FR-1). No rules here.
  *
- * It is a **closed disclosure with a confirmation inside it**, never a dialog and never a prompt: at
- * the counter the queue is waiting, and an archive suggestion that had to be dismissed before the
- * next customer could be served would be worse than none (PRD §6). Nothing here opens by itself, and
- * the household's own record stays reachable while it is open.
+ * A **closed disclosure with a confirmation inside it**, never a dialog: at the counter, something
+ * that had to be dismissed before the next customer could be served would be worse than none (PRD §6).
  */
 
 import { useActionState, useId, useState } from "react";
@@ -40,9 +36,8 @@ export function ArchiveControls({
   customerNumber: number;
   status: CustomerStatus;
   /**
-   * The screen this control is standing on. A successful archive navigates back to it, which is how
-   * the outcome gets read: this control is at the foot of a long page and the sentence stating what
-   * happened is at the head of it.
+   * The screen this control is standing on, which a successful archive navigates back to — the control
+   * is at the foot of a long page and the sentence stating what happened is at the head.
    */
   returnTo: string;
 }): React.ReactElement | null {
@@ -51,8 +46,8 @@ export function ArchiveControls({
   const [reason, setReason] = useState("");
   const reasonId = useId();
 
-  // An archived household has nowhere left to go: there is no transition out of ARCHIVED, so the
-  // control is absent rather than disabled. A blocked one may still leave the register.
+  // No transition out of ARCHIVED, so the control is absent rather than disabled. A blocked
+  // household may still leave the register.
   if (status === "ARCHIVED") {
     return null;
   }

@@ -1,24 +1,14 @@
 "use client";
 
 /**
- * The block and unblock controls (tasks/prd-us-08-block-unblock-customer.md §US-08.4), shared by the
- * customer record and the counter — the same component on both screens, like `ArchiveControls`, so
- * blocking cannot mean two different things depending on where it was started.
+ * The block and unblock controls (`tasks/prd-us-08-block-unblock-customer.md` §US-08.4), the same
+ * component on the record and the counter — so blocking cannot mean two different things depending on
+ * where it was started. The counter offers them because that is where the reason turns up (US-16.5).
  *
- * The counter offers them because that is where the reason to pause a household turns up: the block
- * is decided in front of the person it concerns, and US-08.4 shipped both controls on the record
- * only, leaving whoever decided at the counter with no route off that screen
- * (tasks/prd-us-16-maintain-customer-record.md §US-16.5).
+ * A client component for `useActionState` and because the save control stays disabled until a reason
+ * has been typed — a block's reason is its only record (FR-1). No rules here.
  *
- * A client component because two things need the browser: `useActionState` reports a rejection back
- * beside the button, and the block's save control stays disabled until a reason has been typed (the
- * reason is a block's only record, so an empty one must be impossible to submit — FR-1). It holds no
- * rules: whether a customer may be blocked or a block lifted is decided behind the two use cases; this
- * file only lays out the forms and repeats the server's answer.
- *
- * Which control it shows is a property of the status, not a click: an active customer gets "Sperren",
- * a blocked one gets the current reason and "Sperre aufheben", and an archived one gets neither —
- * there is no transition out of archived.
+ * Which control it shows is a property of the status, not a click.
  */
 
 import { useActionState, useId, useState } from "react";
@@ -130,11 +120,9 @@ export function BlockControls({
   status: CustomerStatus;
   blockReason: string | null;
 }): React.ReactElement | null {
-  // Both `useActionState`s are held here rather than inside the form that submits them, because a
-  // block is exactly the write that takes its own form off the screen: the record revalidates with
-  // the new status and "Sperren" is replaced by "Sperre aufheben", so a confirmation living in the
-  // block form would unmount in the same render that produced it. This component survives the swap,
-  // which is what lets either answer be read where the button was.
+  // Held here rather than inside the form that submits them, because a block is exactly the write
+  // that takes its own form off the screen: „Sperren“ is replaced by „Sperre aufheben“, so a
+  // confirmation living in the block form would unmount in the render that produced it.
   const [blockState, block, blocking] = useActionState(blockCustomerAction, initialBlockState);
   const [unblockState, unblock, unblocking] = useActionState(
     unblockCustomerAction,
@@ -142,10 +130,9 @@ export function BlockControls({
   );
 
   const active = status === "ACTIVE";
-  // Which of the two states says what. The form on screen is the only one that can be refused, and
-  // the *other* action is the one whose success put the customer in this status — an active customer
-  // in front of "Sperren" is one an unblock just released. So a `saved` is always the other one's,
-  // and the visible form's own answer, when it has one, is newer than that and wins.
+  // The form on screen is the only one that can be refused, and the *other* action is the one whose
+  // success put the customer in this status — so a `saved` is always the other one's, and the visible
+  // form's own answer, when it has one, is newer and wins.
   const onScreen = active ? blockState : unblockState;
   const whatHappened = active ? unblockState : blockState;
   const answer = onScreen.status === "idle" ? whatHappened : onScreen;

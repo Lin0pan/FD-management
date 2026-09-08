@@ -1,23 +1,14 @@
 /**
- * The distribution screen — the counter.
+ * The distribution screen — the counter. Two questions: which group collects today (US-03.4), stated
+ * in words *and* painted and only on a distribution day; and may *this* person collect, for the
+ * number just typed (US-04.4).
  *
- * Two questions are answered here. Which group collects today — stated in words *and* painted, never
- * painted alone, because staff read it across a shared screen in variable lighting
- * (tasks/prd-us-03-week-colour.md §US-03.4), and only on a distribution day, because on the four
- * days out of five that are not one there is no group to collect. And: may *this* person collect,
- * for the number a staff member just typed (tasks/prd-us-04-lookup-customer.md §US-04.4) — the one
- * question that is unmissable every day.
+ * Nothing is computed here — `getWeekColour` and `lookupCustomer` answer, this page lays them out.
+ * Both are reads (FR-4), so a plain GET form carries the query in the URL, which also means Enter
+ * reloads the page with the input empty and focused for the next customer in the queue.
  *
- * Nothing is computed here. `getWeekColour` and `lookupCustomer` answer; this page lays the answers
- * out. Both are reads — turning someone away records nothing (FR-4) — so a plain GET form carries
- * the query in the URL, which also means Enter reloads the page with the input empty and focused
- * again, ready for the next customer in the queue.
- *
- * The screen answers about *now* and about nothing else. It once carried a second card that looked
- * up the colour of any day; DF said they do not need it, so US-22 withdrew the requirement
- * (tasks/prd-us-22-drop-week-colour-lookup.md). A `?datum=` still in someone's history is read by
- * nobody now — deliberately inert rather than an error. `getWeekColour`'s date parameter stays: it
- * is what `lookupCustomer` and `recordAttendance` pass their instant to.
+ * The screen answers about *now* and nothing else (US-22): a `?datum=` still in someone's history is
+ * deliberately inert rather than an error.
  */
 
 import { CircleAlert, Search } from "lucide-react";
@@ -51,9 +42,9 @@ import { NoticeBoard } from "../notice-board";
 import { SHELL } from "../shell";
 
 /**
- * Whether a verdict permits recording a hand-out. Only the two clear-to-serve outcomes do — an
- * expired certificate serves and reminds, it does not refuse (US-06) — and the use case re-checks
- * this before writing, so hiding the button here is a courtesy, not the guard (FR-8).
+ * Whether a verdict permits recording a hand-out — only the two clear-to-serve outcomes, an expired
+ * certificate serving and reminding (US-06). The use case re-checks before writing, so hiding the
+ * button here is a courtesy, not the guard (FR-8).
  */
 function permitsServing(verdict: Verdict): boolean {
   return verdict.kind === "CLEAR_TO_SERVE" || verdict.kind === "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED";
@@ -63,11 +54,8 @@ function permitsServing(verdict: Verdict): boolean {
 export const dynamic = "force-dynamic";
 
 /**
- * The group's colour, matching the customer card so the two are recognisably the same thing.
- *
- * Deliberately literal palette values rather than theme tokens: RED and BLUE are the printed cards
- * DF hands out, not a semantic role the theme could re-map. Everything else on this screen is styled
- * from the design tokens.
+ * The group's colour, matching the customer card. Literal palette values rather than theme tokens:
+ * RED and BLUE are the printed cards DF hands out, not a role the theme could re-map.
  */
 const COLOUR_STYLES = {
   RED: "bg-red-600 text-white",
@@ -86,25 +74,17 @@ function colourName(colour: WeekColour): string {
 }
 
 /**
- * What today means for the counter — compact, and loud only on the day it can be acted on.
+ * What today means for the counter — compact, and loud only on the day it can be acted on. The group
+ * is named and painted on a distribution day and on no other; off-day it appears only inside the
+ * sentence naming the *date* it belongs to, so nothing reads as "the group collecting now".
  *
- * The group is named and painted on a distribution day and on no other. It used to be the loudest
- * thing on the screen every day of the week, which said "Gruppe Rot" to staff who cannot serve
- * anybody today and pushed the number field — the reason this screen exists — down the page. Off-day
- * the group still appears, but only inside the sentence that also names the *date* it belongs to, so
- * neither a word nor a paint can be read as "the group collecting now".
+ * **Everything in prose takes its colour and date from `view.nextDistribution`, never
+ * `view.colour`**: after a Thursday distribution the current week is still Rot while the next is
+ * already Blau, and only the second answers what this screen is read for. FR-7 holds throughout.
  *
- * Everything named in prose takes its colour and date from `view.nextDistribution`, never
- * `view.colour`: after a Thursday distribution the current week is still Rot while the next
- * distribution is already Blau, and only the second answers the question this screen is read for.
- * FR-7 holds throughout — the group is written out in words wherever it is painted, and the paint
- * only repeats what the words already say.
- *
- * The one place `view.colour` does appear is the badge beside the calendar week, and it is the badge
- * *because* the two can disagree: the week is a property of the calendar, like the week number it
- * sits next to, while the sentence above it is about a hand-out on a named date. On a distribution
- * day they are necessarily the same colour, so the badge is left off rather than repeat the headline
- * in miniature on the paint it is already wearing.
+ * `view.colour` appears only on the badge beside the calendar week, and is the badge *because* the
+ * two can disagree — the week is a property of the calendar, the sentence above it is about a
+ * hand-out on a named date.
  */
 function Banner({ view }: { view: WeekColourView }): React.ReactElement {
   const { date, colour } = view.nextDistribution;
@@ -128,8 +108,7 @@ function Banner({ view }: { view: WeekColourView }): React.ReactElement {
   }
 
   // No paint at all on a day without a distribution: there is no group to act on, so a red or blue
-  // card would be the one misleading thing this screen could show. `Card`'s own neutral ring is the
-  // border, as it is for the unconfigured panel on the Start screen.
+  // card would be the one misleading thing this screen could show.
   return (
     <Card data-testid="week-colour-banner">
       {/* `text-base` against the `Card`'s own 14px: this is read at a glance from standing, not from
@@ -161,11 +140,8 @@ function Banner({ view }: { view: WeekColourView }): React.ReactElement {
 }
 
 /**
- * A German sentence explaining why the screen has no answer.
- *
- * Never a verdict: the verdict has its own painted banner. This is either something the installation
- * is missing (no settings in force) or something about what was typed (a number that is not a
- * number).
+ * A German sentence explaining why the screen has no answer — never a verdict, which has its own
+ * painted banner. Either the installation is missing something or what was typed is not a number.
  */
 function ErrorNote({ message, testId }: { message: string; testId: string }): React.ReactElement {
   return (
@@ -184,11 +160,9 @@ type CounterResult =
   | { readonly lookup: null; readonly error: string };
 
 /**
- * The verdict for a typed number, or `null` when nothing was typed.
- *
- * Only a number that is not a number is caught: an unassigned one is `NOT_FOUND`, which is an answer
- * rather than a failure. Anything else — no settings in force, an unreadable stored record — is a
- * fault of the installation, not of what was typed, and belongs on the error screen.
+ * The verdict for a typed number, or `null` when nothing was typed. Only a number that is not a
+ * number is caught — an unassigned one is `NOT_FOUND`, an answer rather than a failure — and anything
+ * else is a fault of the installation and belongs on the error screen.
  */
 async function lookUpNumber(raw: string | string[] | undefined): Promise<CounterResult | null> {
   if (typeof raw !== "string" || raw.trim() === "") {
@@ -213,16 +187,13 @@ interface RecordedHandout {
 }
 
 /**
- * What was just booked for the household `?erfasst=` names, read back rather than carried.
+ * What was just booked for the household `?erfasst=` names, **read back rather than carried**: the
+ * redirect hands over the customer number and nothing else, so every figure comes out of the store
+ * through the lookup this screen already makes. A confirmation built from values carried through a
+ * URL would go on stating a hand-out a second tab had since corrected.
  *
- * The redirect hands over the customer number and nothing else, so every figure in the sentence
- * comes out of the store through the lookup this screen already makes for a typed number: the name
- * off the customer, the amount and the time off today's record. A confirmation built from values
- * carried through a URL would go on stating a hand-out that a second tab had since corrected.
- *
- * Anything the number does not resolve to is `null` and therefore silent — an unassigned number, a
- * hand-out removed in another tab, a parameter typed by hand. Like `?datum=` before it, a parameter
- * this screen cannot read is inert rather than an error (US-32.7).
+ * Anything the number does not resolve to is `null` and silent — a parameter this screen cannot read
+ * is inert rather than an error (US-32.7).
  */
 async function recordedHandout(
   raw: string | string[] | undefined,
@@ -243,10 +214,7 @@ async function recordedHandout(
   };
 }
 
-/**
- * No back-link beside the heading: the navigation bar in the root layout reaches Start from every
- * screen (US-17.4), so one here would be a second, worse way home.
- */
+/** No back-link: the nav bar reaches Start from every screen (US-17.4). */
 function PageHeader(): React.ReactElement {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -269,8 +237,7 @@ export default async function DistributionPage({
   const { nummer } = params;
   const recordRemoved = params[RECORD_REMOVED] === "1";
   // `nummer` wins: while a household is being looked up, a confirmation about the previous one has
-  // nothing to do with the screen it would be sitting on. It stands until the next lookup and no
-  // longer — there is no timer and nothing to dismiss.
+  // nothing to do with the screen. It stands until the next lookup and no longer.
   const lookingUp = typeof nummer === "string" && nummer.trim() !== "";
   const justArchived = params[ARCHIVED] === "1";
 
@@ -296,10 +263,9 @@ export default async function DistributionPage({
     throw error;
   }
 
-  // The roster is independent of the lookup — it asks who is in the week's group, not who this
-  // number is — so it must not be sequenced behind it. `readGroupRoster` resolves the week's colour
-  // a second time; that is a settings read, and passing this view in would tie the two use cases
-  // together for one query (PRD §Technical Considerations).
+  // Independent of the lookup — it asks who is in the week's group, not who this number is — so it
+  // must not be sequenced behind it. `readGroupRoster` resolves the week's colour a second time
+  // rather than being handed this view, which would tie the two use cases together for one query.
   const [counter, roster, recorded] = await Promise.all([
     lookUpNumber(nummer),
     readGroupRoster(distributionDeps),
@@ -307,9 +273,8 @@ export default async function DistributionPage({
   ]);
 
   return (
-    // The counter carries the serve, the correction, the two certificate actions, the block and the
-    // archive. One answer at a time, so a confirmation from the household before this one cannot be
-    // read as this one's (`notice-board.tsx`).
+    // Six write controls stand here. One answer at a time, so a confirmation from the household
+    // before this one cannot be read as this one's (`notice-board.tsx`).
     <NoticeBoard>
       <main className={SHELL}>
         <PageHeader />

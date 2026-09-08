@@ -1,11 +1,8 @@
 /**
- * The state the counter's serve and correct forms pass to and from their server actions.
+ * The state the counter's serve and correct forms pass to and from their server actions. Outside
+ * `actions.ts` because a `"use server"` module may export nothing but async functions.
  *
- * It lives outside `actions.ts` because a `"use server"` module may export nothing but async
- * functions — a plain type or object there would be a build-time error, not a style question.
- *
- * Each refusal carries its `tier` beside the sentence: whether the counter is being told a rule said
- * no or that something is wrong is decided from the typed error in the action and cannot be
+ * Each refusal carries its `tier` beside the sentence, decided from the typed error and never
  * re-derived from the German (`notice-tier.ts`).
  */
 
@@ -13,13 +10,10 @@ import type { FieldRefusal } from "../field-refusal";
 import type { NoticeTier } from "../notice-tier";
 
 /**
- * The question an amount above the amount to pay raises, carried back to the form so the notice can
- * name both figures (US-29.7).
- *
- * A status of its own rather than an `error`, because nothing failed: `OverpaymentNotConfirmed` is
- * the use case asking whether the credit was meant. The form re-submits the very same amount with
- * the confirmation flag, so **the rule stays in the use case** and the screen is not the only guard
- * (FR-8) — the browser does no arithmetic of its own to decide whether to ask.
+ * The question an amount above the amount to pay raises, carried back so the notice can name both
+ * figures (US-29.7). A status of its own rather than an `error`, because nothing failed: the form
+ * re-submits the same amount with the confirmation flag, so **the rule stays in the use case** and
+ * the browser does no arithmetic of its own (FR-8).
  */
 interface ConfirmOverpayment {
   readonly status: "confirmOverpayment";
@@ -30,12 +24,9 @@ interface ConfirmOverpayment {
 }
 
 /**
- * What the serve form shows after a submission — a question, or a refusal, and nothing else.
- *
- * There is no `recorded`, for the reason `CorrectState` has no `removed`: a successful hand-out
- * navigates (`served-flag.ts`), so the state that would have held the answer is unmounted with the
- * form that produced it. What is left here is the pair the form survives to show, and both of them
- * are things a staff member still owes an answer to (US-32.7).
+ * What the serve form shows after a submission — a question or a refusal, and nothing else. There is
+ * no `recorded`, for `CorrectState`'s reason: a successful hand-out navigates (`served-flag.ts`), so
+ * the state that would hold the answer is unmounted with the form (US-32.7).
  */
 export type ServeState =
   | { readonly status: "idle" }
@@ -45,12 +36,9 @@ export type ServeState =
 export const initialServeState: ServeState = { status: "idle" };
 
 /**
- * What the correction control shows after amending today's record.
- *
- * There is no `removed`. There used to be, and no component could render it: a removal makes
- * `todaysRecord` null, so the card holding this state unmounts in the same render that would have
- * shown the answer. The removal's confirmation is handed to the page through a redirect instead
- * (`removed-flag.ts`), and what is left here is the pair the card survives to show.
+ * What the correction control shows after amending today's record. There is no `removed`: a removal
+ * makes `todaysRecord` null, so the card holding this state unmounts in the same render that would
+ * have shown the answer, and the confirmation goes through a redirect instead (`removed-flag.ts`).
  */
 export type CorrectState =
   | { readonly status: "idle" }
@@ -80,12 +68,9 @@ export type RenewalState =
       readonly message: string;
       readonly tier: NoticeTier;
       /**
-       * The fields the refusal names, so the form can mark them (§7). The counter's renewal is the
-       * same two boxes as the record's, refused by the same rules, and it marks them the same way.
-       *
-       * Only one can fail at a time here — the day is read before the type reaches the domain — but
-       * it is a list because the shape is shared, and a shape that differed per screen is what let
-       * this one go unmarked while the intake next door named every field it refused.
+       * The fields the refusal names, so the form can mark them (§7) — the same two boxes as the
+       * record's renewal, refused by the same rules. A list because the shape is shared, though only
+       * one can fail at a time here.
        */
       readonly fields?: ReadonlyArray<FieldRefusal>;
     };

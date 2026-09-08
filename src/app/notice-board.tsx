@@ -3,24 +3,16 @@
 /**
  * One answer at a time, on a screen that has several things to answer for.
  *
- * The customer record carries eight write controls — five editors, the reissue, the block, the
- * archive — and each holds its own `useActionState`, which keeps its last result until the component
- * unmounts. Nothing ever cleared one. Observed on `/kunden/266`: the „Gespeichert." from the group
- * control — a control US-31 has since removed, because a group is the parity of a number — was still
- * on screen through a card reissue and a block afterwards, because neither of those had anything to
- * say.
+ * The customer record carries eight write controls, each holding its own `useActionState`, which keeps
+ * its last result until the component unmounts. A green banner sitting beside a button that has just
+ * done something else looks exactly like that button's answer.
  *
- * That was untidy while most writes said nothing. Now that every write confirms, it is the way a
- * staff member concludes an action succeeded when it never reported: a green banner sitting beside a
- * button that has just done something else looks exactly like that button's answer.
+ * The rule: **the screen shows the answer to the last thing asked, and nothing older.** A control
+ * still renders its own notice beside its own button — the viewport rule
+ * (`docs/guideline/ui_styling_guide.md` §7) is not up for negotiation — it just stops once another
+ * control has been answered.
  *
- * The rule: **the screen shows the answer to the last thing that was asked, and nothing older.** A
- * control still renders its own notice, in its own place beside its own button — the viewport rule
- * (`docs/guideline/ui_styling_guide.md` §7) is not up for negotiation — it just stops rendering it once
- * another control has been answered.
- *
- * Screens without a board behave as they always did: `useNoticeSlot` returns what it was given, so a
- * card view with one control on it needs nothing. This is for screens carrying several.
+ * Screens without a board are unaffected: `useNoticeSlot` returns what it was given.
  */
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
@@ -40,14 +32,12 @@ export function NoticeBoard({ children }: { children: React.ReactNode }): React.
 }
 
 /**
- * Whether this control is the one whose answer the screen is currently showing.
+ * Whether this control is the one whose answer the screen is currently showing. Pass `null` while it
+ * has nothing to say.
  *
- * `answer` is the action state itself, not a boolean, and that is load-bearing: `useActionState`
- * hands back a **new object** for every submission, so a control answering twice in a row claims the
- * board twice. A boolean would stay `true` between the two, the effect would not fire again, and a
- * control that had been superseded once could never speak again.
- *
- * Pass `null` while the control has nothing to say.
+ * **`answer` is the action state itself, not a boolean, and that is load-bearing**: `useActionState`
+ * hands back a new object per submission, so a control answering twice claims the board twice. A
+ * boolean would stay `true` between them, and a control superseded once could never speak again.
  */
 export function useNoticeSlot(id: string, answer: object | null): boolean {
   const board = useContext(BoardContext);

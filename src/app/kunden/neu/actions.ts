@@ -1,14 +1,9 @@
 "use server";
 
 /**
- * The registration screen's server action — the thin adapter between an HTML form and the
- * `registerCustomer` use case.
- *
- * Its only jobs are to give the submitted strings a shape (Zod), pair the repeated household inputs
- * back into rows, and turn a refusal into what the screen shows — the German sentence, the tier, and
- * the fields to mark. All of it lives in `registration-input.ts` so that the waiting-list promotion
- * reads the same form the same way; every rule about *what is allowed* lives in the domain and the
- * use case, and adding one here would be a bug.
+ * The registration screen's server action — the adapter between an HTML form and `registerCustomer`.
+ * The shaping lives in `registration-input.ts`, so the waiting-list promotion reads the same form the
+ * same way. Every rule about *what is allowed* lives below; adding one here would be a bug.
  */
 
 import { revalidatePath } from "next/cache";
@@ -25,11 +20,8 @@ import {
 } from "./registration-input";
 
 /**
- * Validate the form, register the customer with their number — the group follows from it (US-31) —
- * and their first card, and go to the card that was just issued.
- *
- * On any failure nothing is written — the use case allocates and persists in one transaction — and
- * the form comes back with a German explanation.
+ * Validate the form, register the customer with their number and first card, and go to the record.
+ * On any failure nothing is written, the use case allocating and persisting in one transaction.
  */
 export async function submitRegistration(
   _previous: RegisterCustomerState,
@@ -68,17 +60,12 @@ export async function submitRegistration(
     };
   }
 
-  // The hub, which a registration moves three ways at once: the household is a new row in the
-  // register, the group balance has shifted, and the lowest free customer number the free-slot badge
-  // reads is no longer free. Like every other write in the codebase, this one names the screens that
-  // count what it changed — a `redirect` is a navigation, not a revalidation.
+  // The hub, which a registration moves three ways at once: a new row, a shifted group balance, and
+  // one fewer free number for the badge to read. A `redirect` is a navigation, not a revalidation.
   revalidatePath("/kunden");
 
-  // Outside the try: `redirect` works by throwing, and catching it here would turn a successful
-  // registration into "could not be saved".
-  //
-  // `?aufgenommen=1` is how the good news survives the redirect: this action never returns on
-  // success, so the confirmation cannot be state the form holds — the record page reads the flag and
-  // says it instead.
+  // Outside the try: `redirect` throws, and catching it would turn a successful registration into
+  // "could not be saved". `?aufgenommen=1` is how the good news survives it — this action never
+  // returns on success, so the confirmation cannot be state the form holds.
   redirect(`/kunden/${id}?aufgenommen=1`);
 }

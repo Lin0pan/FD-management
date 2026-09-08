@@ -1,20 +1,15 @@
 /**
- * The state the archive-search panel and its server action pass between them (US-11.4).
- *
- * It lives outside `archive-search-actions.ts` because a `"use server"` module may export nothing
- * but async functions — everything it exports becomes a callable server endpoint, so a plain object
- * or an interface alias there is a build-time error rather than a style question.
+ * The state the archive-search panel and its server action pass between them (US-11.4). Outside
+ * `archive-search-actions.ts` because a `"use server"` module may export nothing but async
+ * functions — everything it exports becomes a callable endpoint.
  */
 
 import type { ArchivedCustomerMatch } from "@/application/customers/search-archived-customers";
 import type { NoticeTier } from "../../notice-tier";
 
 /**
- * What the panel shows after a search.
- *
- * `idle` is the state before anything was searched, and it is deliberately distinct from a search
- * that found nothing: "kein Treffer" is an answer, and showing it before anybody has typed would
- * tell staff the household is unknown when nobody has looked yet.
+ * What the panel shows after a search. `idle` is deliberately distinct from a search that found
+ * nothing: „kein Treffer“ before anybody has typed would say the household is unknown.
  */
 export interface ArchiveSearchState {
   readonly status: "idle" | "results" | "error";
@@ -23,10 +18,8 @@ export interface ArchiveSearchState {
   readonly truncated: boolean;
   readonly message?: string;
   /**
-   * Which of the two refusals this is, decided from the typed error (`notice-tier.ts`).
-   *
-   * Optional for the same reason `message` is: this is a flat interface rather than a discriminated
-   * union, so neither field can be required while `idle` and `results` share the shape.
+   * Which of the two refusals this is, from the typed error (`notice-tier.ts`). Optional because this
+   * is a flat interface rather than a union, so `idle` and `results` share the shape.
    */
   readonly tier?: NoticeTier;
   /**

@@ -1,14 +1,11 @@
 /**
- * The cards-due-for-reissue screen (tasks/prd-us-13-age-13-reclassification.md §US-13.4).
+ * The cards-due-for-reissue screen (`tasks/prd-us-13-age-13-reclassification.md` §US-13.4).
+ * `listCardsDueForReissue` says why each card and household differ; this page lays the pairs out
+ * side by side.
  *
- * Nothing on it is worked out here. `listCardsDueForReissue` compares what each card was printed with
- * against what the household is today and says why they differ; this page lays the pairs out side by
- * side so staff can see at a glance what changed.
- *
- * The tone is the point of the screen. Everything here can wait, and a card that has fallen behind is
- * never grounds to turn anyone away (FR-5) — so the sentence saying so stands above the list rather
- * than below it, there is no count of "overdue" anything, nothing is coloured as a warning, and no
- * row asks to be dealt with before the next one.
+ * **The tone is the point**: everything here can wait, and a card that has fallen behind is never
+ * grounds to turn anyone away (FR-5) — so nothing is coloured as a warning and no row asks to be
+ * dealt with before the next.
  */
 
 import { ArrowRight } from "lucide-react";
@@ -37,19 +34,13 @@ import { Stat } from "../stat";
 export const dynamic = "force-dynamic";
 
 /**
- * One of the two count sets, shaped so that the pair can actually be compared.
+ * One of the two count sets, shaped so the pair can actually be compared. **The point is the
+ * alignment**: both tiles are laid out identically with a floor wide enough for the longest German
+ * counts string, so the two values sit on the same baseline at the same offset. Without it,
+ * „Erwachsene: 2“ and „Erwachsene: 3“ landed 24px apart vertically and 372px horizontally.
  *
- * The point is the alignment, not the box. Both tiles are laid out identically and given a floor
- * wide enough for the longest German counts string, so the two values sit on the same baseline at
- * the same offset inside their tile; `whitespace-nowrap` keeps each on one line whatever the label
- * above it is called. Before this, "Erwachsene: 2" and "Erwachsene: 3" — the pair a reader has to
- * diff — landed on different lines of different boxes, 24px apart vertically and 372px apart
- * horizontally, and the screen stopped doing the one thing it exists for.
- *
- * The label and the value stay inside one `<p>`: split into two stacked nodes they are announced as
- * two unrelated facts, with only the layout joining them. That much is `Stat`'s, shared with the
- * counter and the customer screens; what this screen adds is the width floor and the one-line value
- * — the two things the comparison needs and a single figure does not.
+ * The label and value stay inside one `<p>`, or they are announced as two unrelated facts. What this
+ * screen adds to `Stat` is the width floor and the one-line value.
  */
 function Counts({
   label,
@@ -144,12 +135,9 @@ function Row({ due }: { due: CardDueForReissue }): React.ReactElement {
 }
 
 /**
- * The number a just-finished reissue handed over, or `null`.
- *
- * Parsed rather than printed as it arrived: what comes back is a string somebody could have typed
- * into the address bar, and a banner announcing a card that was never issued would be worse than no
- * banner at all. `parseCardNumber` is the same reader the counter uses, so what this screen accepts
- * as a card number and what that one does cannot drift apart.
+ * The number a just-finished reissue handed over, or `null`. **Parsed rather than printed as it
+ * arrived**: it is a string somebody could have typed into the address bar, and a banner announcing a
+ * card that was never issued would be worse than none. `parseCardNumber` is the counter's reader.
  */
 function issuedCard(value: string | string[] | undefined): string | null {
   if (typeof value !== "string") {

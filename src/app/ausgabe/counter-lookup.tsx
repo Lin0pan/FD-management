@@ -1,14 +1,10 @@
 /**
- * The counter lookup: one input, one unmissable verdict, and everything needed to decide beneath it
- * (tasks/prd-us-04-lookup-customer.md §US-04.4).
+ * The counter lookup: one input, one unmissable verdict, everything needed to decide beneath it
+ * (`tasks/prd-us-04-lookup-customer.md` §US-04.4).
  *
- * Nothing is decided here. `lookupCustomer` returns the verdict and the derived counts and price;
- * this file only chooses the words, the colour and the icon for each case. Assembling the judgement
- * in JSX is the mistake `evaluateAtCounter` exists to prevent.
- *
- * The switch over the verdict union is exhaustive by construction: the `never`-typed default branch
- * makes a new verdict case a *compile error* until it is rendered, so no counter answer can ever be
- * a blank banner.
+ * Nothing is decided here — this file chooses the words, the colour and the icon for a verdict
+ * `evaluateAtCounter` has already reached. The switch is exhaustive by construction: the
+ * `never`-typed default branch makes a new verdict case a *compile error* until it is rendered.
  */
 
 import { Check, CircleHelp, TriangleAlert, X, type LucideIcon } from "lucide-react";
@@ -28,14 +24,11 @@ import { Stat } from "../stat";
 import { NotesControls } from "./notes-controls";
 
 /**
- * What the banner has to say, over and above its colour: an icon, a headline readable from a metre
- * away, and — only where somebody typed one — a sentence.
+ * What the banner says over and above its colour: an icon, a headline readable from a metre away,
+ * and — only where somebody typed one — a sentence.
  *
- * `detail` is `null` for every verdict the screen already answers by itself. "Ausgabe frei" needed
- * no "Der Preis steht unten" when the counts, the eggs and the price are four tiles below it, and
- * the expired certificate's date and reminder count are rows in the same record. A sentence that
- * restates what is already on screen is not reassurance; it is one more thing to read with a queue
- * waiting. What survives is the block reason, because that is the one line no other element holds.
+ * `detail` is `null` for every verdict the screen already answers by itself. What survives is the
+ * block reason, the one line no other element holds.
  */
 interface Statement {
   readonly tone: Tone;
@@ -44,24 +37,20 @@ interface Statement {
 }
 
 /**
- * The answers a staff member acts on: hand out, hand out and say something, or turn away — plus the
- * two that ask for nothing. `unknown` is a number nobody holds; `done` is a household who has
- * already collected today, which is a fact about the afternoon rather than a refusal. Since US-32
- * made looking a served household up again the ordinary way to a correction, painting that screen
- * red would be the software saying something is wrong on a screen where nothing is.
+ * The answers a staff member acts on, plus the two that ask for nothing. `done` is a household who has
+ * already collected — a fact about the afternoon rather than a refusal, and since looking one up again
+ * is the ordinary way to a correction (US-32), painting it red would report a fault where none is.
  */
 type Tone = "serve" | "warn" | "refuse" | "unknown" | "done";
 
 /**
- * The paint and the icon per tone. The icon is decorative — it repeats the headline, never replaces
- * it — so it is hidden from screen readers, which get the sentence instead.
+ * The paint and the icon per tone. The icon is decorative and hidden from screen readers, which get
+ * the sentence instead.
  *
- * The paint of the traffic light is literal palette values, not theme tokens: those three must not
- * move when the theme does. Amber for an expired certificate rather than red is the point of US-06 —
- * the verdict is still "serve". The two that are not a traffic light wear muted chrome and do take
- * the theme's tokens, because there is no signal in them to keep still: `done` reads as the
- * statement of fact it is, and `Check` is what this application already draws for „it happened"
- * (`docs/guideline/ui_styling_guide.md` §12).
+ * The traffic light is literal palette values, not theme tokens: those three must not move when the
+ * theme does. Amber for an expired certificate rather than red is the point of US-06 — the verdict is
+ * still "serve". The two that are not a traffic light take the theme's tokens, there being no signal
+ * in them to keep still (`docs/guideline/ui_styling_guide.md` §12).
  */
 const TONES = {
   serve: { className: "bg-green-700 text-white ring-black/10", Icon: Check },
@@ -83,36 +72,32 @@ function statementFor(verdict: Verdict): Statement {
     case "NOT_FOUND":
       return { tone: "unknown", headline: words.notFound.headline, detail: null };
     case "ARCHIVED":
-      // The status badge on the record below says "archiviert" and no serve action is offered, so
-      // "nicht ausgeben" was the screen telling the reader what it had already done.
+      // The badge below says „archiviert“ and no serve action is offered, so a „nicht ausgeben“
+      // would be the screen narrating what it has already done.
       return { tone: "refuse", headline: words.archived.headline, detail: null };
     case "BLOCKED":
       return {
         tone: "refuse",
         headline: words.blocked.headline,
-        // The one verdict that keeps its sentence. The reason is the record of why this household
-        // was blocked (US-08); it is shown verbatim because paraphrasing it at the counter would be
-        // paraphrasing the decision itself, and nothing else on the screen holds it.
+        // The one verdict that keeps its sentence: the reason is the record of why this household was
+        // blocked (US-08), shown verbatim because nothing else on the screen holds it.
         detail: verdict.reason ?? words.blocked.noReason,
       };
     case "WRONG_GROUP":
-      // Both colours are on screen in words — the household's on its badge, the week's in the
-      // banner above — which US-03.4 requires of them anyway.
+      // Both colours are already on screen in words, as US-03.4 requires anyway.
       return { tone: "refuse", headline: words.wrongGroup.headline, detail: null };
     case "OUTDATED_CARD":
       // The card that counts is the current one, and the record below prints it.
       return { tone: "refuse", headline: words.outdatedCard.headline, detail: null };
     case "ALREADY_SERVED_TODAY":
-      // No detail line: the time, the amount handed over and what was asked for are the rows of the
-      // already-served card immediately below, and repeating them here would be the screen saying
-      // one fact twice (`docs/guideline/ui_styling_guide.md` §8). No serve button is offered either,
-      // but that is `permitsServing`'s doing, not the paint's.
+      // No detail line: the time and the two amounts are rows of the already-served card immediately
+      // below (`docs/guideline/ui_styling_guide.md` §8).
       return { tone: "done", headline: words.alreadyServedToday.headline, detail: null };
     case "CLEAR_TO_SERVE":
       return { tone: "serve", headline: words.clearToServe.headline, detail: null };
     case "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED":
-      // The date is a row in the record, the count is the row under it, and the reminder button is
-      // the amber control below — the headline only has to say that both are true at once.
+      // The date and the count are rows in the record below; the headline only has to say that both
+      // "serve" and "expired" are true at once.
       return { tone: "warn", headline: words.certificateExpired.headline, detail: null };
     default: {
       const unhandled: never = verdict;
@@ -124,12 +109,9 @@ function statementFor(verdict: Verdict): Statement {
 /**
  * The verdict, full width and stated in words — the one thing on this screen that cannot be missed.
  *
- * Only the headline is painted. Colour is the counter's traffic light, so it marks the verdict and
- * nothing else; the sentence that says what to *do* reads better as prose than as white-on-red, and
- * keeping it out of the field means the bar is one height whatever the sentence turns out to be — a
- * block reason typed by hand runs to paragraphs, and used to push the strip past 400px on a narrow
- * screen. The `<section>` still wraps both, so a screen reader reads verdict and instruction as one
- * answer rather than two loose paragraphs.
+ * **Only the headline is painted**, so the bar is one height whatever the sentence turns out to be:
+ * a block reason typed by hand runs to paragraphs and used to push the strip past 400px. The
+ * `<section>` wraps both, so a screen reader reads verdict and instruction as one answer.
  */
 export function VerdictBanner({ verdict }: { verdict: Verdict }): React.ReactElement {
   const { tone, headline, detail } = statementFor(verdict);
@@ -193,14 +175,12 @@ function TableHeadCell({ children }: { children: string }): React.ReactElement {
 }
 
 /**
- * Everything the counter decision rests on, all of it on screen at once: FR-2 is that no field here
- * costs a further click, because the queue does not wait while somebody opens a second screen.
+ * Everything the counter decision rests on, on screen at once: no field here costs a further click,
+ * because the queue does not wait (FR-2).
  *
- * Ordered by how it is used rather than by how a record is normally written. The two numbers lead,
- * because the loop at the table is *call the number, check the card* and both of those are done at
- * arm's length; then the counts and the price; then the fields that are read only when something
- * is off. The name stays the heading — it is what the section is *about*, and the record
- * to fall back on when there is no card — but it is no longer the largest thing on the card.
+ * Ordered by how it is *used* rather than how a record is written: the two numbers lead, because the
+ * loop at the table is *call the number, check the card*; then the counts and the price; then the
+ * fields read only when something is off.
  */
 export function CustomerDetails({
   customer,

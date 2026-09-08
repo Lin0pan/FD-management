@@ -3,26 +3,20 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Three deliberate departures from what `shadcn add table` writes — all of which would be lost if
- * this file were ever regenerated, so they are stated here rather than left to be rediscovered.
+ * Three deliberate departures from what `shadcn add table` writes, stated here because regenerating
+ * the file would lose them.
  *
- * **No `"use client"`.** Nothing in this module is client-only: no hooks, no handlers, no browser
- * API. Upstream marks it so because that is how the whole set ships. Keeping the directive would
- * push the register's 240 rows across a client boundary for nothing. Removing it only widens where
- * the component may be used — a client component importing it still bundles it as before.
+ * **No `"use client"`.** Nothing here is client-only, and the directive would push the register's 240
+ * rows across a client boundary for nothing.
  *
- * **`containerClassName`.** The wrapper's `overflow-x-auto` is what makes a wide table scroll, and
- * it is also what stops a `sticky` header inside it from ever engaging with the page: when one axis
- * is not `visible` the other computes to `auto`, so the div becomes the scrollport the header
- * sticks to. A screen that wants a sticky header therefore has to be able to turn the container's
- * overflow off at the widths where the table fits (`overflow-x-auto lg:overflow-x-visible`).
+ * **`containerClassName`.** The wrapper's `overflow-x-auto` is what makes a wide table scroll *and*
+ * what stops a `sticky` header engaging with the page — when one axis is not `visible` the other
+ * computes to `auto`, so the div becomes the scrollport. A screen wanting a sticky header has to turn
+ * that off at the widths where the table fits.
  *
- * **`containerProps`.** The other side of the same coin: `...props` goes to the `<table>`, so a
- * screen that bounds the container's height — the customer record's hand-out history — has nowhere
- * to put the `tabIndex`, `role` and `aria-label` that make the box keyboard-scrollable (WCAG 2.1.1).
- * Those attributes have to land on the element that actually scrolls, and that is this div. Its
- * `className` is folded into the same `cn` as `containerClassName`, so passing one never silently
- * drops the other.
+ * **`containerProps`.** `...props` goes to the `<table>`, so a screen bounding the container's height
+ * has nowhere to put the `tabIndex`, `role` and `aria-label` that make the box keyboard-scrollable
+ * (WCAG 2.1.1). Those must land on the element that actually scrolls.
  */
 function Table({
   className,

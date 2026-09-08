@@ -2,25 +2,19 @@
 
 /**
  * The counter's certificate actions — logging today's reminder and recording a renewed certificate,
- * both without leaving the screen (tasks/prd-us-06-certificate-reminder.md §US-06.4).
+ * both without leaving the screen (`tasks/prd-us-06-certificate-reminder.md` §US-06.4).
  *
- * A client component for the same reason `ServeControls` is one: `useActionState` reports the
- * server's answer — the new count, or the refusal — back beside the button that asked. It holds no
- * rules: whether there is anything to remind about and whether today's reminder already exists are
- * decided behind `logReminder`; the disabled button here is a courtesy that repeats what the store
- * already knows via `reminderLoggedToday`, not the guard (FR-5).
+ * A client component for `ServeControls`' reason: `useActionState` reports the answer beside the
+ * button that asked. No rules — the disabled button repeats what the store knows through
+ * `reminderLoggedToday` rather than being the guard (FR-5).
  *
- * The section renders only while the certificate is expired — plus one extra render after a renewal
- * is saved, when the component (still mounted, because the page always renders it for a resolved
- * customer) shows the confirmation naming the reset count of 0 while the revalidated page around it
- * already shows the certificate as valid again.
+ * The section renders while the certificate is expired, plus one render after a renewal is saved:
+ * the confirmation naming the reset count of 0 stays on screen while the revalidated page already
+ * shows the certificate valid again.
  *
- * The renewal's two fields are **controlled**, so a refusal leaves what was typed where it is: a
- * `gültig bis` in the past is refused because it is a typo — most likely a wrong year — and the whole
- * point is to correct four characters rather than retype the certificate's type beside it. Nothing
- * clears them, and nothing needs to: the form is inside `expired`, and a successful renewal makes the
- * certificate valid, so it unmounts with the state it held. The same finding as on `/einstellungen`,
- * on a different screen.
+ * The renewal's two fields are **controlled**, so a refusal leaves what was typed where it is — a
+ * past `gültig bis` is a typo, and the point is to correct four characters rather than retype the
+ * field beside it. Nothing clears them: the form unmounts with the state it held.
  */
 
 import { useActionState, useRef, useState } from "react";
@@ -38,14 +32,9 @@ import { Confirmation, Notice } from "../notice";
 import { useNoticeSlot } from "../notice-board";
 
 /**
- * The renewal's two fields, and the button that submits them.
- *
- * Their own component so the state's lifetime is the form's: this is rendered inside `expired`, and a
- * successful renewal makes the certificate valid, so it unmounts with what it held. Keeping the two
- * `useState`s in `CertificateControls` would outlive the form they belong to — harmless today, since
- * the parent is keyed by customer, but it is the same shape that made a saved renewal stay in the
- * record's fields until the state moved below the key there (`renewal-form.tsx`). One meaning, one
- * placement.
+ * The renewal's two fields, and the button that submits them. Their own component so the state's
+ * lifetime is the form's — kept in `CertificateControls` it would outlive the form it belongs to,
+ * which is the shape that made a saved renewal stay in the record's fields (`renewal-form.tsx`).
  */
 function RenewalFields({
   submit,
@@ -63,9 +52,8 @@ function RenewalFields({
   const typeProblem = problemAt(fields, "certificateType");
   const validUntilProblem = problemAt(fields, "certificateValidUntil");
 
-  // The controls sit on one wrapped row, so a mark has to ride *under* its own field rather than
-  // pushing the row apart: `items-end` would otherwise align the button to the bottom of the tallest
-  // box and leave it floating below the one that was not refused.
+  // One wrapped row, so a mark rides *under* its own field rather than pushing the row apart:
+  // `items-end` would align the button to the tallest box and leave it floating.
   return (
     <div className="flex flex-wrap items-start gap-3">
       <div className="flex flex-col gap-1.5">
@@ -174,14 +162,14 @@ export function CertificateControls({
   const renewalFields = renewalState.status === "error" ? renewalState.fields : undefined;
   useFocusFirstRefusal(renewalFields, renewalForm);
 
-  // After a successful renewal the revalidated page reports the certificate valid again; staying
-  // mounted for that render keeps the confirmation — with its reset count of 0 — on screen.
+  // The revalidated page reports the certificate valid again, so staying mounted for that render is
+  // what keeps the confirmation — with its reset count of 0 — on screen.
   if (!expired && !renewalSaved) {
     return null;
   }
 
-  // Disabled for the rest of the day: the store says a reminder exists (survives any re-lookup), or
-  // this very submission just logged one and the revalidated page has not streamed back in yet.
+  // Disabled for the rest of the day: either the store says a reminder exists, or this submission
+  // just logged one and the revalidated page has not streamed back yet.
   const alreadyLogged = reminderLoggedToday || reminderState.status === "logged";
 
   return (

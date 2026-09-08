@@ -1,17 +1,14 @@
 "use client";
 
 /**
- * The registration screen's client half: the archive search, the form, and the one piece of state
- * they share — which archived household, if any, the form was filled from
- * (tasks/prd-us-11-reuse-archived-record.md §US-11.4).
+ * The registration screen's client half: the archive search, the form, and the one piece of state they
+ * share (`tasks/prd-us-11-reuse-archived-record.md` §US-11.4).
  *
- * The pre-fill is applied by **remounting the form** rather than by writing into its fields: the
- * form holds some values in React state and others as plain `defaultValue`s, and a `key` change
- * resets both in one move. That is also what "leer beginnen" means here — clearing the selection
- * mounts a blank form, with no half-filled field left behind from the household that was dropped.
+ * The pre-fill is applied by **remounting the form** rather than writing into its fields — a `key`
+ * change resets both the React state and the `defaultValue`s in one move, which is also what "leer
+ * beginnen" means here.
  *
- * The panel is a sibling of the form, never nested in it: HTML forms do not nest, and the search
- * criteria are not part of the registration that gets saved.
+ * The panel is a **sibling** of the form, never nested: HTML forms do not nest.
  */
 
 import { useEffect, useState } from "react";
@@ -39,18 +36,13 @@ export function RegistrationScreen({
   }
 
   /**
-   * Put the cursor in the first field after a household has been applied.
+   * Put the cursor in the first field after a household has been applied — the pre-fill lands ~700px
+   * below the fold and moves the page not at all, so focusing scrolls the form into view and says
+   * "you can start typing" in one gesture.
    *
-   * The pre-fill lands ~700px below the fold and moves the page not at all, so without this the
-   * only evidence of a click is a notice that has scrolled halfway into view. Focusing the field
-   * scrolls the form into view and says "you can start typing" in the same gesture — the counter's
-   * refocus after a lookup, for the same reason.
-   *
-   * `formGeneration` is what makes it fire at the right moment: the form is remounted on every
-   * apply, so the new `#firstName` does not exist until that render has happened. `selection` is a
-   * dependency too, and harmlessly — `apply` is the only thing that sets either, and it sets both
-   * together. The guard is what stops the first paint and "leer beginnen" stealing the focus:
-   * clearing a pre-fill is a step backwards, and the cursor should stay where staff put it.
+   * `formGeneration` is what makes it fire at the right moment: the form is remounted on every apply,
+   * so the new `#firstName` does not exist until that render. The guard stops the first paint and
+   * "leer beginnen" stealing the focus.
    */
   useEffect(() => {
     if (selection === null) {
@@ -69,14 +61,11 @@ export function RegistrationScreen({
       />
 
       {selection === null ? null : (
-        // Stated before the form and not inside it, because it is not about any one field: the
-        // riskiest mistake this feature can produce is a staff member believing the archived record
-        // was reactivated (PRD §6), and the correction has to be read before the form is.
+        // Before the form and not inside it: the riskiest mistake here is believing the archived
+        // record was reactivated (PRD §6), and the correction has to be read before the form is.
         //
-        // Neutral, not amber. Amber says a certificate has lapsed, or that an act was refused
-        // (`REFUSAL_ACCENT`), and this is neither — not a warning at all, but a statement of
-        // provenance with an undo attached. The `<h2>` stays, because `Alert` supplies no heading
-        // of its own.
+        // Neutral, not amber: this is a statement of provenance with an undo attached, not a warning.
+        // The `<h2>` stays, because `Alert` supplies no heading of its own.
         <Alert role="status" data-testid="archive-prefill-notice">
           <AlertDescription className="flex max-w-prose flex-col items-start gap-3">
             <h2 className="font-semibold text-foreground">{words.heading}</h2>

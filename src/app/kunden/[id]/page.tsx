@@ -1,19 +1,13 @@
 /**
  * The customer record — everything known about one household, and everything editable about them
- * (tasks/prd-us-16-maintain-customer-record.md §US-16.5).
+ * (`tasks/prd-us-16-maintain-customer-record.md` §US-16.5).
  *
- * Everything on screen that could be worked out already has been: `readCustomer` derives the
- * household counts from the birthdates, the card number from the slot and the card index, the
- * hand-out history and the two group sizes. This page lays them out and offers five forms, each
- * saving through one use case of its own.
+ * `readCustomer` has already worked out everything derivable; this page lays it out and offers five
+ * forms, each saving through one use case. They are separate because the edits are separate
+ * decisions with separate audit entries (PRD §7), and ordered the way a record is *read*.
  *
- * The forms are separate because the edits are separate decisions with separate audit entries
- * (PRD §7). They are laid out in the order a record is read rather than the order it is written:
- * who this is, where they live, who lives with them, what they may collect, and — last, behind a
- * heading that says so — the actions that cannot simply be typed over again.
- *
- * An archived record renders **fully read-only** (FR-8): every form is replaced by the same values
- * as text, so nothing on the screen invites an edit the use cases would refuse anyway.
+ * An archived record renders **fully read-only** (FR-8), so nothing invites an edit the use cases
+ * would refuse anyway.
  */
 
 import Link from "next/link";
@@ -61,18 +55,12 @@ import { RenewalForm } from "./renewal-form";
 export const dynamic = "force-dynamic";
 
 /**
- * A label and its value as one fact, read in passing. A `<p>`, not two stacked `<div>`s: split, a
- * screen reader reads "Kundennummer" and then "13" with nothing joining them (guide trap 2).
+ * A label and its value as one fact. A `<p>`, not two stacked `<div>`s: split, a screen reader reads
+ * "Kundennummer" and then "13" with nothing joining them (guide trap 2).
  *
- * This is the record's *one* inline idiom, and the screen used to have three of them: this one, and
- * two hand-rolled copies of the same two spans for the reminder tally and the no-show run. It also
- * used to wear `rounded-lg bg-muted/50 px-4 py-3` — the exact chrome of a `Stat` tile — while
- * saying its value inline at 14px. Two components that look identical and read differently is worse
- * than two that look different, so the fill goes where it means something: a **tile is a figure that
- * drives a decision**, and everything else is a line.
- *
- * The colon stays, and is not an inconsistency with the tiles above: a stacked label needs no
- * separator because the line break is one, and an inline label does.
+ * The record's *one* inline idiom, and it carries no tile chrome: a **tile is a figure that drives a
+ * decision**, everything else is a line. The colon stays — a stacked label needs no separator
+ * because the line break is one, an inline label does.
  */
 function Field({
   label,
@@ -94,11 +82,10 @@ function Field({
 }
 
 /**
- * A section of the record: one card, one form, one save. A card is what says where a form ends —
- * the screen carries five of them, and their five save buttons used to be five identical slabs at
- * five unpredictable depths with nothing bounding the form each belonged to.
+ * A section of the record: one card, one form, one save. A card is what says where a form ends, on a
+ * screen carrying five save buttons.
  *
- * The `<h2>` is written out inside `CardTitle`, which is a `div`: without it the record's heading
+ * The `<h2>` is written out inside `CardTitle`, which is a `div` — without it the record's heading
  * outline would collapse to its `h1` (guide trap 1).
  */
 function Section({
@@ -130,9 +117,8 @@ function NotFound(): React.ReactElement {
 }
 
 /**
- * What an archived record says about itself: when it happened, why, and that nothing on the screen
- * can be changed any more. It is the first thing on the page rather than a note further down —
- * every action below it is gone, and a reader has to know why before they look for one (US-10.4).
+ * What an archived record says about itself. First on the page rather than a note further down: every
+ * action below it is gone, and a reader has to know why before they look for one (US-10.4).
  */
 function ArchivedBanner({
   archivedAt,
@@ -142,13 +128,9 @@ function ArchivedBanner({
   reason: string | null;
 }): React.ReactElement {
   return (
-    // The headline is a real `<h2>` — it was a `<p className="text-2xl font-bold">`, so the single
-    // most important element of this variant of the screen contributed nothing to the outline and
-    // an archived record announced as `h1 → h2 Stammdaten → …` (guide trap 1, from the direction
-    // of a heading never written rather than one a primitive deleted).
-    //
-    // `outline` weight rather than another grey fill on a grey page: being archived is a state, not
-    // an alarm — the household is simply gone.
+    // A real `<h2>`, so the most important element of this variant of the screen reaches the outline
+    // (guide trap 1). `outline` weight rather than another grey fill: being archived is a state, not
+    // an alarm.
     <Alert
       data-testid="archived-banner"
       className="border-foreground/30 ring-0 [&>div]:flex [&>div]:flex-col [&>div]:gap-2"
@@ -228,10 +210,8 @@ function HouseholdReadOnly({ view }: { view: CustomerCardView }): React.ReactEle
 }
 
 /**
- * The hand-out history, newest first (US-16.5).
- *
- * The price on each row is the record's own, captured when the hand-out was written: a policy change
- * since then must not rewrite what a household paid last March (US-05, FR-2).
+ * The hand-out history, newest first (US-16.5). Each row's price is the record's own, captured when
+ * the hand-out was written: a policy change must not rewrite what was paid last March (US-05, FR-2).
  */
 function History({
   records,
@@ -240,8 +220,8 @@ function History({
 }): React.ReactElement {
   const words = de.customers.record;
   if (records.length === 0) {
-    // An `Alert`, not a bare paragraph: a sentence on its own where a table was expected reads like
-    // a table that failed to load — the same reason `waiting-list-empty` became one.
+    // An `Alert`, not a bare paragraph: a sentence where a table was expected reads like a table
+    // that failed to load.
     return (
       <Alert role="status">
         <AlertDescription data-testid="history-empty" className="max-w-prose">
@@ -260,22 +240,18 @@ function History({
           reads the same in greyscale and on paper. */}
       {/*
        * A box of its own, so the record is the same shape whether a household has three hand-outs or
-       * three hundred. Measured against an inflated register, 130 rows — five years at the
-       * fortnightly cycle — took the opened record from 1 536px to 6 457px, and ten years doubles
-       * that again. It is not a performance problem (~19ms), so nothing here paginates or
-       * virtualises: every row stays in the DOM and browser find still crosses the whole history.
+       * three hundred: 130 rows — five years of the fortnightly cycle — took the opened record from
+       * 1 536px to 6 457px. Not a performance problem (~19ms), so nothing paginates or virtualises,
+       * and browser find still crosses the whole history.
        *
-       * The scrollport is the `Table` primitive's *own* container, which is what `containerProps`
-       * exists for. A second wrapper around it would nest two overflow contexts, and that is exactly
-       * what made the sticky header on /kunden take three attempts
-       * (`docs/guideline/ui_styling_guide.md` §3).
+       * The scrollport is the `Table` primitive's *own* container, which is what `containerProps` is
+       * for: a second wrapper would nest two overflow contexts, which is what made /kunden's sticky
+       * header take three attempts (`docs/guideline/ui_styling_guide.md` §3).
        *
-       * `tabIndex` is a requirement rather than a polish item: a scrollable region that cannot take
-       * focus cannot be scrolled by keyboard at all (WCAG 2.1.1). It therefore needs a name, hence
-       * the `role` and the label.
-       *
-       * The print overrides matter for the one occasion this table is put on paper — a disputed
-       * visit. An overflow box otherwise prints only the slice that happened to be visible.
+       * `tabIndex` is a requirement, not polish: a scrollable region that cannot take focus cannot be
+       * scrolled by keyboard at all (WCAG 2.1.1), which is why it also needs a name. The print
+       * overrides matter for the one occasion this goes on paper — an overflow box otherwise prints
+       * only the visible slice.
        */}
       <Table
         containerClassName="max-h-[60vh] overflow-y-auto print:max-h-none print:overflow-visible"
@@ -352,10 +328,9 @@ function CustomerRecord({
   const { details } = customer;
   const archived = customer.status === "ARCHIVED";
   const words = de.customers.record;
-  // The policy values the household editor derives its live figures from, and nothing more: the
-  // quota and the week anchor bear on neither what a household pays nor what it is handed. The egg
-  // rule travels with the prices because the preview derives the egg count the same way it derives
-  // the price — through the domain, against the rule in force, never re-implemented in the browser.
+  // What the household editor derives its live figures from, and nothing more — the quota and the
+  // week anchor bear on neither what a household pays nor what it is handed. The egg rule travels
+  // with the prices because the preview derives both through the domain, never in the browser.
   const policy: AllowanceValues = {
     pricePerGrownUp: settings.pricePerGrownUp,
     pricePerChild: settings.pricePerChild,
@@ -364,24 +339,18 @@ function CustomerRecord({
   };
 
   return (
-    // Eight write controls stand on this record, and each used to keep its own last answer until the
-    // page was left. The board holds them to one at a time: the answer to the last thing asked, and
-    // nothing older (`notice-board.tsx`).
+    // Eight write controls stand on this record, each holding its own last answer. The board keeps
+    // them to one at a time: the answer to the last thing asked (`notice-board.tsx`).
     <NoticeBoard>
       <main className={SHELL}>
         {/*
-         * The `h1` is the household, not the screen. Every record used to be headed
-         * "Kundenübersicht" with the name as a `<p>` below it — but the navigation bar already says
-         * which section you are in, and the one thing this page has that no other page has is *which
-         * household*. The status and the group are badges beside it, using the same chrome table
-         * as /kunden.
+         * **The `h1` is the household, not the screen**: the nav bar already says which section you
+         * are in, and the one thing this page has that no other has is *which household*. The status
+         * and group are badges beside it, from /kunden's chrome table.
          *
-         * The heading row carries the name and nothing else, and stays *outside* a card, as the
-         * heading row does on all seven screens (`docs/guideline/ui_styling_guide.md` §2). A
-         * heading needs no boundary; the facts under it do — which is why they have their own, below.
-         *
-         * `customer-status` keeps its exact text in a span of its own, and the badge wraps that span
-         * rather than replacing it.
+         * The heading row stays *outside* a card, as it does on all seven screens
+         * (`docs/guideline/ui_styling_guide.md` §2): a heading needs no boundary, the facts under it
+         * do. `customer-status` keeps its exact text in a span the badge wraps rather than replaces.
          */}
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
@@ -529,14 +498,9 @@ function CustomerRecord({
         ) : null}
 
         {/*
-         * The sections are ordered the way a record is *read*, which is not the order it is written.
-         *
-         * The previous order — who this is, where they live, who lives with them, what they may
-         * collect — was documented as deliberate, and for a paper record it is right. On screen it
-         * put the least-read section, the address, 480px above the most-read one, and it put the
-         * certificate and the note — which both exist for the counter — below 2 100px. DF were asked
-         * and chose the reading order. Nothing is removed and nothing is renamed; only the order
-         * changes, and it is trivially reversible.
+         * Ordered the way a record is *read*, not the order it is written — DF's own choice. The
+         * paper order put the least-read section 480px above the most-read one, and the certificate
+         * and note, which both exist for the counter, below 2 100px.
          */}
         <Section heading={de.customers.card.householdHeading}>
           {archived ? (
@@ -544,8 +508,8 @@ function CustomerRecord({
           ) : (
             <HouseholdEditor
               customerId={customer.id}
-              // Who the record is about, in a row's shape: the editor locks the household row that
-              // says this, because that is the row the save requires (`createHouseholdMembers`).
+              // Who the record is about, in a row's shape: the editor locks the row that says this,
+              // because that is the row the save requires (`createHouseholdMembers`).
               customer={{
                 firstName: details.firstName,
                 lastName: details.lastName,
@@ -602,8 +566,8 @@ function CustomerRecord({
               details={{
                 firstName: details.firstName,
                 lastName: details.lastName,
-                // Written as ISO on the server: read in the browser's own zone, a midnight-UTC day
-                // lands on the day before.
+                // ISO on the server: read in the browser's zone, a midnight-UTC day lands on the
+                // day before.
                 birthDate: formatCalendarDay(details.birthDate),
                 street: details.address.street,
                 houseNumber: details.address.houseNumber,
@@ -758,29 +722,26 @@ export default async function CustomerRecordPage({
 }: {
   params: Promise<{ id: string }>;
   /**
-   * `aufgenommen=1` is set by the two actions that register a household — the registration screen
-   * and the waiting-list promotion — because both redirect here and neither can hand the record page
-   * anything else. A param rather than a cookie: it is one boolean, it is honest about how the page
-   * was reached, and a server component cannot clear a cookie it has read.
+   * `aufgenommen=1` is set by the two actions that register a household, both of which redirect here
+   * with nothing else to hand over. A param rather than a cookie: one boolean, honest about how the
+   * page was reached, and a server component cannot clear a cookie it has read.
    *
-   * It follows that reloading that URL confirms again. That is the price of the simplest thing that
-   * works, and it is paid by an act nobody repeats.
+   * Reloading that URL therefore confirms again — the price of the simplest thing that works, paid by
+   * an act nobody repeats.
    */
   searchParams: Promise<{ aufgenommen?: string | string[]; [ARCHIVED]?: string | string[] }>;
 }): Promise<React.ReactElement> {
   const [{ id }, query] = await Promise.all([params, searchParams]);
-  // A URL is typed by hand as easily as it is clicked, so a non-numeric id is the same answer as an
-  // id nobody holds: there is no such customer.
+  // A URL is typed as easily as clicked, so a non-numeric id gets the same answer as one nobody
+  // holds: there is no such customer.
   const numericId = Number(id);
   if (!Number.isInteger(numericId)) {
     return <NotFound />;
   }
 
-  // Only the reads are guarded: a `try` around the JSX would catch nothing anyway, because React
-  // renders the component after this function has already returned. The settings are read beside the
-  // record because the household editor derives its figures in the browser and needs the four
-  // per-head values to do it; an unseeded database already takes this screen down through
-  // `readCustomer`, so this adds no failure of its own.
+  // Only the reads are guarded: React renders the component after this function returns, so a `try`
+  // around the JSX would catch nothing. The settings are read here because the household editor
+  // derives its figures in the browser; `readCustomer` already fails on an unseeded database.
   let view: CustomerCardView;
   let settings: Settings;
   try {

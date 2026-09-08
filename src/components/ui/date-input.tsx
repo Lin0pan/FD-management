@@ -5,26 +5,19 @@ import * as React from "react";
 import { Input } from "./input";
 
 /**
- * A day field DF type into: eight digits become `TT.MM.JJJJ` as they arrive.
+ * A day field DF type into: eight digits become `TT.MM.JJJJ` as they arrive. Not
+ * `<input type="date">` — ADR-013 has the reason.
  *
- * Not `<input type="date">`, and the reason is in `src/domain/calendarDay.ts` and ADR-013 — briefly,
- * that control lets the **operating system** decide which segment is typed first, and Chromium
- * silently clamps an impossible month instead of refusing it. This field's order is the same on
- * every machine, and what cannot be read is refused by the domain rather than guessed at.
- *
- * No German lives here: `components/ui` is the primitive layer and holds no strings, so the caller
- * passes the placeholder from `src/i18n/de.ts` like any other label.
+ * No German here: `components/ui` is the primitive layer and holds no strings, so the caller passes
+ * the placeholder from `src/i18n/de.ts` like any other label.
  */
 
 /**
- * Insert the dots as digits arrive: `11021985` → `11.02.1985`, `110` → `11.0`.
+ * Insert the dots as digits arrive: `11021985` → `11.02.1985`. Non-digits are dropped, which is what
+ * makes a paste of `11/02/1985` land either way, and anything past the eighth digit is ignored.
  *
- * Everything that is not a digit is dropped — which is what makes a paste of `11/02/1985` or
- * `11.02.1985` land correctly either way — and anything past the eighth digit is ignored, so the
- * field cannot grow past a day.
- *
- * Deliberately **lazy** about the trailing dot: two digits render as `11`, not `11.`. An eagerly
- * appended dot has to be deleted twice on backspace, which is worse at a counter than typing one.
+ * Deliberately **lazy** about the trailing dot: an eagerly appended one has to be deleted twice on
+ * backspace, which is worse at a counter than typing one.
  */
 export function maskCalendarDay(raw: string): string {
   const digits = raw.replace(/\D/g, "").slice(0, 8);
@@ -69,8 +62,8 @@ function DateInput({
       type="text"
       // A digit keypad on a touch device; harmless on a desktop, where the mask does the work.
       inputMode="numeric"
-      // Ten characters is a whole day. The mask enforces it too, so this is belt and braces for a
-      // paste that arrives before React sees it.
+      // Ten characters is a whole day; the mask enforces it too, so this catches a paste that
+      // arrives before React sees it.
       maxLength={10}
       // A browser offering a remembered street name inside a birthdate helps nobody.
       autoComplete="off"

@@ -1,13 +1,10 @@
 "use server";
 
 /**
- * The promotion form's server action — registering an applicant off the waiting list (US-12.4).
- *
- * It reads the form exactly as the registration screen does, sharing the schema in
- * `registration-input.ts`, and then calls **one** use case: `registerFromWaitingList`. It
- * deliberately does not call `registerCustomer` and then a removal of its own. The order of those two
- * — customer first, entry cleared only once the registration has landed — is the guarantee the whole
- * feature rests on (FR-7), and "remember to do B after A" is exactly what a screen forgets.
+ * The promotion form's server action (US-12.4). It reads the form exactly as the registration screen
+ * does and then calls **one** use case, deliberately not `registerCustomer` plus a removal of its
+ * own: the order — customer first, entry cleared only once the registration lands — is the guarantee
+ * the feature rests on (FR-7), and "remember to do B after A" is what a screen forgets.
  */
 
 import { revalidatePath } from "next/cache";
@@ -34,12 +31,8 @@ const entryId = z
   .transform((value): number => Number(value));
 
 /**
- * Validate the form, register the applicant with their number — the group follows from it (US-31)
- * — and their first card, take them off the waiting list, and go to the record that was just
- * created.
- *
- * A rejection leaves both the register and the list exactly as they were, so staff can correct the
- * form and try again with the applicant's place intact.
+ * Validate the form, register the applicant with their number and first card, take them off the list,
+ * and go to the record. A rejection leaves both the register and the list exactly as they were.
  */
 export async function submitPromotedRegistration(
   _previous: RegisterCustomerState,
@@ -87,17 +80,13 @@ export async function submitPromotedRegistration(
     };
   }
 
-  // Both screens this moves, because a promotion is two changes in one transaction: the applicant is
-  // off the queue, and the register has a household, a shifted group balance and one customer number
-  // fewer to give out. `removeApplicantAction` names the first of those for the removal alone; this
-  // is the same removal.
+  // Both screens this moves: a promotion is two changes in one transaction — the applicant is off the
+  // queue, and the register has a household, a shifted group balance and one number fewer to give.
   revalidatePath("/warteliste");
   revalidatePath("/kunden");
 
-  // Outside the try: `redirect` works by throwing, and catching it here would turn a successful
-  // registration into "could not be saved".
-  //
-  // The same `?aufgenommen=1` the registration screen sends: promoting an applicant *is* taking a
-  // household on, so it lands on the same record wearing the same confirmation.
+  // Outside the try: `redirect` throws, and catching it would turn a successful registration into
+  // "could not be saved". The same `?aufgenommen=1` the registration screen sends — promoting an
+  // applicant *is* taking a household on.
   redirect(`/kunden/${id}?aufgenommen=1`);
 }
