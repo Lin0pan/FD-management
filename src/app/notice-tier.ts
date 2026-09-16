@@ -64,6 +64,8 @@ const TIERS: Record<DomainErrorCode, NoticeTier> = {
   InvalidCalendarDay: "refusal",
   InvalidCustomerRecord: "refusal",
   EmptySearchQuery: "refusal",
+  CertificateTypeTooLong: "refusal",
+  DuplicateCertificateType: "refusal",
 
   // Something is wrong, and typing again will not fix it.
   CustomerNotFound: "error",

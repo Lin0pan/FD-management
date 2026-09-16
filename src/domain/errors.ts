@@ -45,7 +45,9 @@ export type DomainErrorCode =
   | "DuplicateEggThreshold"
   | "EggsNotIncreasing"
   | "OverpaymentNotConfirmed"
-  | "InvalidPaymentAmount";
+  | "InvalidPaymentAmount"
+  | "CertificateTypeTooLong"
+  | "DuplicateCertificateType";
 
 /** Base class of every domain error. `code` lets callers switch over the closed set above. */
 export abstract class DomainError extends Error {
@@ -673,5 +675,36 @@ export class InvalidPaymentAmount extends DomainError {
   constructor(paidCents: number) {
     super(`${paidCents} is not a whole, non-negative number of cents`);
     this.paidCents = paidCents;
+  }
+}
+
+/**
+ * A Nachweis-Art typed on the settings screen outgrew the length the table keeps for it (US-33.1). In
+ * the shape of {@link NotesTooLong}: not a business rule but a bound on a column.
+ */
+export class CertificateTypeTooLong extends DomainError {
+  readonly code = "CertificateTypeTooLong";
+  readonly length: number;
+  readonly maxLength: number;
+
+  constructor(length: number, maxLength: number) {
+    super(`A Nachweis-Art may hold at most ${maxLength} characters, not ${length}`);
+    this.length = length;
+    this.maxLength = maxLength;
+  }
+}
+
+/**
+ * Two Nachweis-Arten folded to the same comparable spelling (US-33.1) — "Jobcenter-Bescheid" and
+ * "jobcenter-bescheid" are one type recorded twice. Carries the second spelling as typed, so the form
+ * can mark the row that collides with one already accepted.
+ */
+export class DuplicateCertificateType extends DomainError {
+  readonly code = "DuplicateCertificateType";
+  readonly label: string;
+
+  constructor(label: string) {
+    super(`"${label}" is already in the list of Nachweis-Arten`);
+    this.label = label;
   }
 }
