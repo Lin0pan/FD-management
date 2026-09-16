@@ -463,3 +463,31 @@ If a spec needs editing, the control is wrong, not the spec.
     timestamp) held exactly as written — nothing new to add there, it is the eighth time this exact
     sequence has worked.
 ---
+
+## 2026-09-16 - US-003
+- New use case `src/application/settings/read-certificate-types.ts`: reads the repository's labels
+  back through `createCertificateTypeList`, so a hand-edited database cannot surface a duplicate.
+- New use case `src/application/settings/update-certificate-types.ts`: validates the submitted labels
+  through the domain first (nothing touches the repository if that throws), reads the previous list
+  via `readCertificateTypes` (reused rather than a second read of the raw repository), diffs the two
+  with `diffCertificateTypes`, and — only when the diff is non-empty — calls `replace` and appends one
+  `certificateTypes.updated` audit entry whose `why` renders `diffCertificateTypes`'s own order
+  (removed then added) with `−`/`+` prefixes. A resubmit that changes nothing (including a re-spelling
+  that folds the same) writes neither the list nor an audit entry.
+- Test-first: `src/application/settings/certificate-types.test.ts`, hand-written
+  `FakeCertificateTypeRepository`/`FakeAuditLog` fakes in the shape of `settings.test.ts`'s, one named
+  test per rule from the AC list plus two covering `what`/`changedFields` and the clock stamp.
+- Files changed: `src/application/settings/read-certificate-types.ts` (new),
+  `src/application/settings/update-certificate-types.ts` (new),
+  `src/application/settings/certificate-types.test.ts` (new), `scripts/ralph/prd.json`.
+- **Learnings for future iterations:**
+  - `updateCertificateTypes` deliberately calls the sibling `readCertificateTypes` use case to get the
+    previous list rather than reading `deps.certificateTypes.list()` a second raw time — one use case
+    calling another in the same layer is fine where the callee is exactly "the validated read" the
+    caller needs, and it means the previous list is defended against a hand-edited duplicate the same
+    way a fresh read would be.
+  - `diffCertificateTypes` already puts removed entries before added ones (its own doc comment says
+    so); the audit `why`'s AC ("added labels prefixed +, removed labels prefixed −") reads as *how to
+    render each entry*, not a re-ordering instruction — rendering the diff's own order was the
+    reading that produced a one-line `describeChanges` with no sort of its own.
+---

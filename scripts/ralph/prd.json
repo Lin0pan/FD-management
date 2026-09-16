@@ -71,7 +71,7 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-001 (domain value) and US-002 (port). No UI. The sharp edge is the no-op save: an unchanged list must write neither rows nor an audit entry, and that is a named test, not a comment."
     },
     {
