@@ -123,7 +123,7 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "The pivotal story: one component, one resolver, and the counter screen as its first consumer so it is browser-verifiable the moment it exists. The two things a later story must not re-invent are the SENTINEL and the PREFILL-BY-FOLD rule. Depends on US-003 for readCertificateTypes."
     },
     {

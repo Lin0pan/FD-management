@@ -1,6 +1,7 @@
 import type {
   AuditLog,
   CertificateRepository,
+  CertificateTypeRepository,
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
@@ -10,6 +11,7 @@ import type {
 import { systemClock } from "@/infrastructure/clock";
 import { PrismaAuditLog } from "@/infrastructure/prisma/audit-log";
 import { PrismaCertificateRepository } from "@/infrastructure/prisma/certificate-repository";
+import { PrismaCertificateTypeRepository } from "@/infrastructure/prisma/certificate-type-repository";
 import { prisma } from "@/infrastructure/prisma/client";
 import { PrismaCustomerRepository } from "@/infrastructure/prisma/customer-repository";
 import { PrismaDistributionRecordRepository } from "@/infrastructure/prisma/distribution-record-repository";
@@ -30,12 +32,14 @@ export const distributionDeps: {
   readonly settings: SettingsRepository;
   readonly records: DistributionRecordRepository;
   readonly reminders: ReminderLogRepository;
+  readonly certificateTypes: CertificateTypeRepository;
   readonly clock: Clock;
 } = {
   customers: new PrismaCustomerRepository(prisma),
   settings: new PrismaSettingsRepository(prisma),
   records: new PrismaDistributionRecordRepository(prisma),
   reminders: new PrismaReminderLogRepository(prisma),
+  certificateTypes: new PrismaCertificateTypeRepository(prisma),
   clock: systemClock,
 };
 

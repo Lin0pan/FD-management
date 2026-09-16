@@ -16,6 +16,7 @@ import Link from "next/link";
 import { lookupCustomer, type CounterLookup } from "@/application/customers/lookup-customer";
 import { getWeekColour, type WeekColourView } from "@/application/distribution/get-week-colour";
 import { readGroupRoster } from "@/application/distribution/read-group-roster";
+import { readCertificateTypes } from "@/application/settings/read-certificate-types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -266,10 +267,11 @@ export default async function DistributionPage({
   // Independent of the lookup — it asks who is in the week's group, not who this number is — so it
   // must not be sequenced behind it. `readGroupRoster` resolves the week's colour a second time
   // rather than being handed this view, which would tie the two use cases together for one query.
-  const [counter, roster, recorded] = await Promise.all([
+  const [counter, roster, recorded, certificateTypes] = await Promise.all([
     lookUpNumber(nummer),
     readGroupRoster(distributionDeps),
     recordedHandout(lookingUp ? undefined : params[HANDOUT_RECORDED]),
+    readCertificateTypes(distributionDeps),
   ]);
 
   return (
@@ -431,6 +433,7 @@ export default async function DistributionPage({
                   customerId={counter.lookup.customerId}
                   expired={counter.lookup.customer.certificateExpired}
                   reminderLoggedToday={counter.lookup.reminderLoggedToday}
+                  certificateTypes={certificateTypes}
                 />
                 {/* Every figure the payment turns on comes off the lookup, derived there from the
                     household's own hand-out history (US-29.5). Nothing about money is worked out on

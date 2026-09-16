@@ -201,6 +201,8 @@ export const de = {
       zip: "PLZ",
       city: "Ort",
       certificateType: "Art des Nachweises",
+      certificateTypeOtherOption: "Sonstiges",
+      certificateTypeOther: "Welche Art?",
       certificateValidUntil: "Nachweis gültig bis",
       notes: "Bemerkung (optional)",
       group: "Gruppe",

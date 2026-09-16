@@ -551,3 +551,70 @@ If a spec needs editing, the control is wrong, not the spec.
     policy form is always first in DOM order, but the safer long-term handle for e2e is the testid
     already on its `Notice` (`certificate-types-saved`/`-error`), which US-008 will need anyway.
 ---
+
+## 2026-09-16 - US-005
+- New shared client component `src/app/certificate-type-field.tsx` — the one control every screen
+  asking for the Art des Nachweises will use: a native `<select>` (`selectClass`) carrying the
+  configured types in the domain's own order plus a "Sonstiges" option last, which reveals a
+  `certificateTypeOther` text input and moves focus into it. Prefill matches an incoming value by
+  `foldName` against the configured list; a match selects that option under its *configured*
+  spelling, a non-match (or no incoming value at all) selects "Sonstiges" with the incoming text —
+  or nothing — standing in the free field. These two files (plus a stray progress-log entry that was
+  never written) were sitting untracked in the working tree at the start of this iteration, already
+  matching the AC precisely — a prior run had built them but was interrupted before wiring a
+  consumer, updating `de.ts` or committing. This iteration verified them against the spec, then did
+  the remaining wiring.
+- New plain module `src/app/certificate-type-resolver.ts`: the `CERTIFICATE_TYPE_OTHER` sentinel and
+  `resolveCertificateType(selected, other)`, deliberately neither `"use client"` nor `"use server"` so
+  both the component and every screen's server action can import it as values.
+- First consumer wired: `src/app/ausgabe/certificate-controls.tsx`'s `RenewalFields` now renders
+  `CertificateTypeField` instead of a plain `Input` named `certificateType`; `CertificateControls`
+  takes a new `certificateTypes: CertificateTypeList` prop. `src/app/ausgabe/page.tsx` reads it via
+  `readCertificateTypes(distributionDeps)` alongside the other independent reads already running in
+  `Promise.all`, and passes it down — the page stays read-only, the write path is untouched.
+  `distributionDeps` (`src/app/ausgabe/deps.ts`) gained a `certificateTypes: CertificateTypeRepository`
+  wired to `PrismaCertificateTypeRepository`, since the page's existing deps object had no read access
+  to the new table.
+- `src/app/ausgabe/actions.ts`'s `recordRenewal` now resolves `certificateType` +
+  `certificateTypeOther` through `resolveCertificateType` before either reaches `renewCertificate` —
+  no use case, port or domain signature changed, exactly as the AC requires.
+- **The one non-obvious wiring decision**: `customerErrorField` (shared by four screens, in
+  `registration-input.ts`) still maps `MissingRequiredField("certificate.type")` to the wire path
+  `certificateType`, because the other three screens haven't been converted yet and still point a
+  plain input there. Changing that shared mapping now would un-mark their still-unconverted field.
+  Instead, `renewalRefusal` in `ausgabe/actions.ts` remaps the field *locally*, after
+  `customerErrorField` returns: `certificateType` → `certificateTypeOther`. This is safe *only*
+  because the split control makes the select itself unable to submit blank — every option, sentinel
+  included, resolves to a non-empty string once chosen — so a blank reaching the domain can only be
+  the free-text box. The next two screens (US-006, US-007) will need the same local remap; if a third
+  reason ever needs `certificateType`'s own path to mean something else, it stops being safe to
+  hardcode per-screen and the shared mapping should take a parameter instead.
+- `de.ts` gained `customers.fields.certificateTypeOtherOption` ("Sonstiges") and
+  `certificateTypeOther` ("Welche Art?"), beside the reused `certificateType` label.
+- Verified in the browser against a production build (`npm run build` + `npm run start`, `db:reset` +
+  `db:demo` first) via `playwright-cli`, reading the accessibility snapshot: the combobox at `/ausgabe`
+  shows the four demo-seeded types (`Bescheid Sozialamt`, `Grundsicherung`, `Jobcenter-Bescheid`,
+  `Wohngeldbescheid`) then "Sonstiges"; choosing a configured type hides the free-text box and
+  choosing "Sonstiges" reveals it focused; submitted both a configured type and a free-text "Sonstiges"
+  value end to end and confirmed both landed correctly on the `Certificate` row via a direct Prisma
+  query. `db:reset` afterwards to leave a clean database.
+- Files changed: `src/app/certificate-type-field.tsx` (new, found untracked and verified),
+  `src/app/certificate-type-resolver.ts` (new, found untracked and verified),
+  `src/app/ausgabe/certificate-controls.tsx`, `src/app/ausgabe/page.tsx`, `src/app/ausgabe/deps.ts`,
+  `src/app/ausgabe/actions.ts`, `src/i18n/de.ts`, `scripts/ralph/prd.json`.
+- **Learnings for future iterations:**
+  - If a prior iteration's untracked files exist at the start of a run, don't assume they're
+    scratch — check `git status` first. Here they were a complete, spec-matching implementation of
+    the story's core files that simply never got wired to a consumer or committed. Read them closely
+    against the AC before writing a replacement; re-deriving them from scratch would have thrown away
+    correct work.
+  - **When editing `scripts/ralph/prd.json` with a Python script, always `json.dump(..., ensure_ascii=False)`
+    and match the file's existing indent (2).** The default `ensure_ascii=True` re-escapes every
+    German umlaut and curly quote already in the file as `\uXXXX`, turning a one-line `passes` flip
+    into a multi-hundred-line diff. Prefer a targeted `Edit` (exact string match on the `"priority":
+    N,\n"passes": false,\n"notes": "..."` block) over any full read-modify-write of this file.
+  - The registration form's `SELECT` constant pattern (`selectClass(height)` assigned once per file)
+    doesn't apply to `CertificateTypeField`, which takes `height` as a prop instead — it is shared
+    across screens that disagree on height (`h-8` registration, `h-9` elsewhere), so the constant
+    has to live inside the component, not beside each caller.
+---

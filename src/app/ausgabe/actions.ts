@@ -41,6 +41,7 @@ import {
 } from "@/domain/errors";
 import { parseEuros, type Cents } from "@/domain/money";
 import { customerFieldLabel, de } from "@/i18n/de";
+import { resolveCertificateType } from "../certificate-type-resolver";
 import { customerErrorField, fieldRefusals } from "../kunden/neu/registration-input";
 import { tierOf } from "../notice-tier";
 import { counterActionDeps } from "./deps";
@@ -285,11 +286,17 @@ function renewalMessage(error: unknown): string {
  */
 function renewalRefusal(error: unknown): RenewalState & { status: "error" } {
   const field = customerErrorField(error);
+  // `customerErrorField` still answers "certificateType" — the shared path four screens name — but
+  // this one submits it split in two, and the select can never itself be blank (every option, the
+  // sentinel included, resolves to something). A blank reaching the domain can only be the free-text
+  // box under "Sonstiges", so that is what the mark points at.
+  const marked =
+    field?.path === "certificateType" ? { ...field, path: "certificateTypeOther" } : field;
   return {
     status: "error",
     message: renewalMessage(error),
     tier: tierOf(error),
-    ...(field === null ? {} : { fields: [field] }),
+    ...(marked === null ? {} : { fields: [marked] }),
   };
 }
 
@@ -348,10 +355,15 @@ export async function recordRenewal(
     };
   }
 
+  const type = resolveCertificateType(
+    String(formData.get("certificateType") ?? ""),
+    String(formData.get("certificateTypeOther") ?? ""),
+  );
+
   try {
     await renewCertificate(counterActionDeps, {
       customerId: customerId.data,
-      type: String(formData.get("certificateType") ?? ""),
+      type,
       validUntil: validUntil.data.certificateValidUntil,
     });
     revalidatePath("/ausgabe");
