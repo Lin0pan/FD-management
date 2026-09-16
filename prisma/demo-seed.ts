@@ -45,6 +45,7 @@ import type {
   AuditLog,
   CardRepository,
   CertificateRepository,
+  CertificateTypeRepository,
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
@@ -65,6 +66,7 @@ import { startOfUtcDay } from "../src/domain/distribution/weekColour";
 import { PrismaAuditLog } from "../src/infrastructure/prisma/audit-log";
 import { PrismaCardRepository } from "../src/infrastructure/prisma/card-repository";
 import { PrismaCertificateRepository } from "../src/infrastructure/prisma/certificate-repository";
+import { PrismaCertificateTypeRepository } from "../src/infrastructure/prisma/certificate-type-repository";
 import { PrismaCustomerRepository } from "../src/infrastructure/prisma/customer-repository";
 import { PrismaDistributionRecordRepository } from "../src/infrastructure/prisma/distribution-record-repository";
 import { PrismaReminderLogRepository } from "../src/infrastructure/prisma/reminder-log-repository";
@@ -540,6 +542,7 @@ interface DemoDeps {
   readonly customers: CustomerRepository;
   readonly cards: CardRepository;
   readonly certificates: CertificateRepository;
+  readonly certificateTypes: CertificateTypeRepository;
   readonly settings: SettingsRepository;
   readonly records: DistributionRecordRepository;
   readonly reminders: ReminderLogRepository;
@@ -557,6 +560,7 @@ async function main(): Promise<void> {
       customers: new PrismaCustomerRepository(prisma),
       cards: new PrismaCardRepository(prisma),
       certificates: new PrismaCertificateRepository(prisma),
+      certificateTypes: new PrismaCertificateTypeRepository(prisma),
       settings: new PrismaSettingsRepository(prisma),
       records: new PrismaDistributionRecordRepository(prisma),
       reminders: new PrismaReminderLogRepository(prisma),
@@ -585,6 +589,9 @@ async function main(): Promise<void> {
 
     // The settings have to exist before anything can be priced or grouped.
     await seedSettings(deps.settings);
+    // A small synthetic vocabulary so the drop-down (US-33) has something to offer — the same set
+    // the invented certificates below are drawn from, so every household's type is one of these.
+    await deps.certificateTypes.replace(CERTIFICATE_TYPES);
 
     const versions = await deps.settings.listVersions();
     const earliestSettings = versions

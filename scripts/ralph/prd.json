@@ -50,7 +50,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "THE ONLY STORY IN THIS BATCH THAT TOUCHES prisma/. It is the seventh batch to regenerate the migration history, so the hand-written partial unique index on Customer.customerNumber MUST be put back — that is the single thing most likely to be forgotten here. No UI, no use case."
     },
     {

@@ -420,3 +420,46 @@ If a spec needs editing, the control is wrong, not the spec.
     file: `src/app/notice-tier.ts`'s `TIERS` is a total `Record`, so it must be updated in the same
     commit as the new code even when, as here, no `app/` screen calls the error yet.
 ---
+
+## 2026-09-16 - US-002
+- New `CertificateType` model in prisma/schema.prisma (id, label @unique, no relation anywhere) —
+  the model comment states why it is deletable at all (nothing points at it, ADR-019) and the
+  @unique/fold division of labour, matching the egg rule's own comment.
+- Regenerated prisma/migrations/ (delete migrations + data/fd.db, `npx prisma migrate dev --name
+  init`, then `npm run db:reset`), diffed against the deleted migration to confirm the only changes
+  were the new table/index, and re-added the hand-written partial unique index on
+  `Customer.customerNumber` by hand at the end of the new migration.sql. Verified with a raw query
+  against the actual `data/fd.db` (no `sqlite3` CLI in this sandbox — used `@prisma/client`'s
+  `$queryRawUnsafe` instead) that both the new table and the re-added index exist in the database
+  Prisma actually built, not just in the committed SQL.
+- New port `CertificateTypeRepository` in src/application/ports.ts (`list`, `replace`), documented
+  once on the port per the AC.
+- New adapter src/infrastructure/prisma/certificate-type-repository.ts: `replace` deletes and
+  re-inserts inside `$transaction([...])` (array form, not the interactive callback — matches
+  `settings-repository.ts`'s style of using Prisma's own transaction primitives directly).
+- New integration test certificate-type-repository.test.ts against a throwaway SQLite file, in the
+  shape of settings-repository.test.ts: round-trips a list, replaces a list, empty table returns [].
+- prisma/seed.ts is unchanged — it already seeds no certificate types, since it never mentioned them.
+- prisma/demo-seed.ts: added `certificateTypes: CertificateTypeRepository` to `DemoDeps`, wired the
+  Prisma adapter in `main()`, and seeded it with the demo file's own pre-existing `CERTIFICATE_TYPES`
+  constant (the same four labels the invented certificates already draw from) right after
+  `seedSettings`. No new fixture data invented — reused what was already there.
+- Files changed: prisma/schema.prisma, prisma/migrations/ (regenerated,
+  20260901233938_init to 20260916160242_init), src/application/ports.ts,
+  src/infrastructure/prisma/certificate-type-repository.ts (new),
+  src/infrastructure/prisma/certificate-type-repository.test.ts (new), prisma/demo-seed.ts,
+  scripts/ralph/prd.json.
+- **Learnings for future iterations:**
+  - `prisma/demo-seed.ts` already had a small synthetic certificate-type vocabulary
+    (`CERTIFICATE_TYPES`, used since before this batch to fill in invented certificates' `type`
+    strings) sitting right next to where `Identity` is built. When a schema story needs "a small
+    plausible synthetic set" for a list DF will configure, check whether `demo-seed.ts` already
+    invented one for an unrelated reason before writing a second — reusing it here means every demo
+    household's certificate type is guaranteed to be one of the configured options, which a
+    freshly-invented list would not guarantee without extra plumbing.
+  - The "regenerate a migration" checklist at the top of this file (delete `data/fd.db` first, diff
+    against the deleted file rather than eyeballing the new one, `db:reset` afterwards because
+    `migrate dev` applies before the hand-written index is appended, grep docs/src/tests for the old
+    timestamp) held exactly as written — nothing new to add there, it is the eighth time this exact
+    sequence has worked.
+---
