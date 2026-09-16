@@ -22,10 +22,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import { de } from "@/i18n/de";
 import { addApplicantAction } from "./actions";
 import { ADD_FORM_ANCHOR } from "./add-form-anchor";
 import { initialAddApplicantState } from "./waiting-list-state";
+import { CertificateTypeField } from "../certificate-type-field";
 import { guardEnter } from "../enter-guard";
 import { FieldRejection, useFocusFirstRefusal } from "../field-mark";
 import { marking, problemAt, type FieldRefusal } from "../field-refusal";
@@ -41,6 +43,10 @@ type ApplicationField = (typeof APPLICATION_FIELDS)[number];
  * the grid, and the lookup that marks them — because a field missing from any one of the three fails
  * silently: not submitted, not cleared, or not markable.
  */
+/**
+ * `certificateType` is not among these: `CertificateTypeField` (US-33.6) holds its own selection and
+ * free text rather than a raw string in `values`, exactly as `RenewalFields`' does.
+ */
 const APPLICATION_FIELDS = [
   "firstName",
   "lastName",
@@ -49,7 +55,6 @@ const APPLICATION_FIELDS = [
   "houseNumber",
   "zip",
   "city",
-  "certificateType",
   "certificateValidUntil",
   "contactNote",
 ] as const;
@@ -58,7 +63,11 @@ const BLANK: Application = Object.fromEntries(
   APPLICATION_FIELDS.map((name) => [name, ""]),
 ) as Application;
 
-/** The nine boxes of the grid, in order, and which of them wants a day. */
+/**
+ * The plain text/date boxes of the grid, in reading order — everything except the Art des
+ * Nachweises, which `Fields` renders as `CertificateTypeField` between `city` and
+ * `certificateValidUntil` (the position this array's gap leaves for it).
+ */
 const GRID_FIELDS: ReadonlyArray<{ name: ApplicationField; label: string; day?: true }> = [
   { name: "firstName", label: de.customers.fields.firstName },
   { name: "lastName", label: de.customers.fields.lastName },
@@ -67,7 +76,6 @@ const GRID_FIELDS: ReadonlyArray<{ name: ApplicationField; label: string; day?: 
   { name: "houseNumber", label: de.customers.fields.houseNumber },
   { name: "zip", label: de.customers.fields.zip },
   { name: "city", label: de.customers.fields.city },
-  { name: "certificateType", label: de.customers.fields.certificateType },
   { name: "certificateValidUntil", label: de.customers.fields.certificateValidUntil, day: true },
 ];
 
@@ -127,30 +135,49 @@ function Field({
   );
 }
 
+/** Where `CertificateTypeField` (US-33.6) goes among `GRID_FIELDS`: right after `city`. */
+const CERTIFICATE_TYPE_POSITION = 7;
+
 /** The ten fields, holding the application in progress. Under the key, so a save empties them. */
 function Fields({
+  certificateTypes,
   fields,
 }: {
+  certificateTypes: CertificateTypeList;
   fields: ReadonlyArray<FieldRefusal> | undefined;
 }): React.ReactElement {
   const [values, setValues] = useState<Application>(BLANK);
   const set = (name: ApplicationField, value: string): void =>
     setValues((current) => ({ ...current, [name]: value }));
 
+  const before = GRID_FIELDS.slice(0, CERTIFICATE_TYPE_POSITION);
+  const after = GRID_FIELDS.slice(CERTIFICATE_TYPE_POSITION);
+
+  const gridField = (field: (typeof GRID_FIELDS)[number]): React.ReactElement => (
+    <Field
+      key={field.name}
+      name={field.name}
+      label={field.label}
+      type={field.day === true ? "date" : "text"}
+      value={values[field.name]}
+      onChange={(value) => set(field.name, value)}
+      problem={problemAt(fields, field.name)}
+    />
+  );
+
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {GRID_FIELDS.map((field) => (
-          <Field
-            key={field.name}
-            name={field.name}
-            label={field.label}
-            type={field.day === true ? "date" : "text"}
-            value={values[field.name]}
-            onChange={(value) => set(field.name, value)}
-            problem={problemAt(fields, field.name)}
-          />
-        ))}
+        {before.map(gridField)}
+        <CertificateTypeField
+          types={certificateTypes}
+          height="h-9"
+          id="certificateType"
+          typeProblem={problemAt(fields, "certificateType")}
+          otherProblem={problemAt(fields, "certificateTypeOther")}
+          errorTestId="waiting-list-field-error"
+        />
+        {after.map(gridField)}
       </div>
       <Field
         name="contactNote"
@@ -164,7 +191,12 @@ function Fields({
   );
 }
 
-export function AddApplicantForm(): React.ReactElement {
+export function AddApplicantForm({
+  certificateTypes,
+}: {
+  /** The configured Nachweis-Arten, read on the waiting-list page (US-33.6). */
+  certificateTypes: CertificateTypeList;
+}): React.ReactElement {
   const [state, action, pending] = useActionState(addApplicantAction, initialAddApplicantState);
   const answer = useRef<HTMLDivElement>(null);
   const form = useRef<HTMLFormElement>(null);
@@ -203,7 +235,7 @@ export function AddApplicantForm(): React.ReactElement {
           {/* The remount that clears the form for the next applicant. It keys on how many have been
               saved, not on the message, so a second applicant of the same name still resets it —
               and a refusal, which does not change the count, leaves every field as it was typed. */}
-          <Fields key={state.savedCount} fields={fields} />
+          <Fields key={state.savedCount} certificateTypes={certificateTypes} fields={fields} />
 
           {state.status === "error" && state.message !== undefined ? (
             <Notice

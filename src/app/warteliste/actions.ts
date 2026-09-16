@@ -23,6 +23,7 @@ import {
 } from "@/domain/errors";
 import { customerFieldLabel, de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
+import { resolveCertificateType } from "../certificate-type-resolver";
 import { calendarDay, customerErrorField, fieldRefusals } from "../kunden/neu/registration-input";
 import { tierOf } from "../notice-tier";
 import { waitingListDeps } from "./deps";
@@ -38,6 +39,11 @@ const surrogateId = z
 /**
  * The application form: exactly what an entry records (FR-2) and nothing more — no household, no
  * group, no customer number, none of which is decided until the applicant is registered.
+ *
+ * `certificateType` stays `z.string()` — the schema's view of the wire is unchanged (US-33.6) —
+ * even though what is actually saved is the *resolved* value: the select can carry the "Sonstiges"
+ * sentinel rather than a type, and `resolveCertificateType` is what turns the submitted pair into
+ * the string a certificate takes.
  */
 const applicationForm = z.object({
   firstName: z.string(),
@@ -93,6 +99,10 @@ export async function addApplicantAction(
     };
   }
   const form = parsed.data;
+  const certificateType = resolveCertificateType(
+    form.certificateType,
+    String(formData.get("certificateTypeOther") ?? ""),
+  );
 
   try {
     await addToWaitingList(waitingListDeps, {
@@ -106,7 +116,7 @@ export async function addApplicantAction(
         city: form.city,
       },
       contactNote: form.contactNote,
-      certificate: { type: form.certificateType, validUntil: form.certificateValidUntil },
+      certificate: { type: certificateType, validUntil: form.certificateValidUntil },
     });
   } catch (error: unknown) {
     if (error instanceof CertificateExpired) {
@@ -119,8 +129,14 @@ export async function addApplicantAction(
     }
     if (error instanceof MissingRequiredField) {
       // The sentence is this screen's, the mark the shared one: nine of the ten inputs are spelled as
-      // the registration spells them, so a blank ZIP names the same box on both.
-      const field = customerErrorField(error);
+      // the registration spells them, so a blank ZIP names the same box on both. The select can
+      // never itself submit blank, so a mark on `certificateType` can only mean the free-text box
+      // under "Sonstiges" — the same remap the record's own renewal makes (`kunden/[id]/actions.ts`).
+      const rawField = customerErrorField(error);
+      const field =
+        rawField?.path === "certificateType"
+          ? { ...rawField, path: "certificateTypeOther" }
+          : rawField;
       return {
         ...saved,
         status: "error",

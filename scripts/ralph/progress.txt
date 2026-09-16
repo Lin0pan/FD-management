@@ -618,3 +618,71 @@ If a spec needs editing, the control is wrong, not the spec.
     across screens that disagree on height (`h-8` registration, `h-9` elsewhere), so the constant
     has to live inside the component, not beside each caller.
 ---
+
+## 2026-09-16 - US-006
+- Wired `CertificateTypeField` (US-33.5) into the two remaining simple consumers: the customer
+  record's renewal form and the waiting-list application form. Neither prefills a value, so both
+  land on this story's simpler half — US-007 is where the fold-prefill rule gets exercised.
+- `src/app/kunden/[id]/renewal-form.tsx`: `RenewalFields` now renders `CertificateTypeField`
+  (`height="h-9"`, `errorTestId="record-field-error"`, matching every other field on this form)
+  instead of a plain `Input` named `certificateType`; `RenewalForm` takes a new
+  `certificateTypes: CertificateTypeList` prop and threads `otherProblem` alongside the existing
+  `typeProblem`.
+- `src/app/kunden/[id]/actions.ts`: `renewalForm`'s zod schema dropped `certificateType` entirely
+  (matching `ausgabe/actions.ts`'s `renewalForm`, the counter's own — only `certificateValidUntil`
+  is parsed); `renewCertificateAction` resolves the type via `resolveCertificateType` on the raw
+  `certificateType`/`certificateTypeOther` form fields before calling `renewCertificate`, and
+  remaps a `certificateType`-refusal to `certificateTypeOther` in the catch block — the same local
+  remap `ausgabe/actions.ts`'s `renewalRefusal` makes, restated here because this screen has no
+  shared `renewalRefusal` helper to reuse (it inlines its error translation).
+- `src/app/kunden/deps.ts`: added `certificateTypes: CertificateTypeRepository` so the record page
+  can `readCertificateTypes`; `src/app/kunden/[id]/page.tsx` reads it in the existing `Promise.all`
+  beside `readCustomer`/`readCurrentSettings` and threads it through `CustomerRecord` to
+  `RenewalForm`.
+- `src/app/warteliste/add-applicant-form.tsx`: **this one diverges from the counter's pattern on
+  purpose, per this story's own acceptance criteria.** `applicationForm`'s zod schema *keeps*
+  `certificateType: z.string()` — "the schema's view of the wire is unchanged" — even though the
+  value actually saved is `resolveCertificateType(form.certificateType, <raw certificateTypeOther>)`,
+  not `form.certificateType` itself. The AC states this explicitly for this screen only; nothing
+  says the same for `kunden/[id]/actions.ts`, which does follow the counter's drop-the-field
+  pattern. **Read the AC's schema instructions per-screen — they are not always the same shape
+  even for two screens doing the same job**, and this batch's PRD will call out a divergence by
+  name when it wants one; do not assume US-005's precedent generalises silently.
+  `certificateType` was pulled out of `APPLICATION_FIELDS`/`GRID_FIELDS` (the array is now the
+  eight plain text/date fields with a documented gap `CertificateTypeField` fills at
+  `CERTIFICATE_TYPE_POSITION`), since `CertificateTypeField` holds its own selection and free text
+  rather than a raw string in the form's `values` state — the same reason `RenewalFields` never put
+  it in a `useState<Application>`.
+- `src/app/warteliste/actions.ts`: `addApplicantAction` reads the resolved type from
+  `resolveCertificateType(form.certificateType, <raw certificateTypeOther>)` and uses it for
+  `certificate.type`; a `MissingRequiredField` naming `certificateType` is remapped to
+  `certificateTypeOther` before marking, same reasoning as the record's.
+- `src/app/warteliste/deps.ts`: added `certificateTypes: CertificateTypeRepository`;
+  `src/app/warteliste/page.tsx` reads it via `readCertificateTypes(waitingListDeps)` in the
+  existing `Promise.all` and passes it to `AddApplicantForm`.
+- Verified in the browser against a production build (`npm run build` + `npm run start`, `db:reset`
+  + `db:demo` first) via `playwright-cli`, reading the accessibility snapshot: `/warteliste`'s
+  application form and `/kunden/6`'s renewal form both show the combobox with the four demo-seeded
+  types then "Sonstiges" last; choosing "Sonstiges" reveals the focused free-text field on both.
+  Submitted the record's renewal end to end with a configured type and confirmed the certificate
+  section and reminder count updated. `db:reset` afterwards to leave a clean database. A stale
+  `next-server` from an earlier iteration (still running, not listening on 3000) was killed first —
+  see the existing "stale `next start`" pattern at the top of this file; this one had exited its
+  listener but not the process.
+- Files changed: `src/app/kunden/[id]/renewal-form.tsx`, `src/app/kunden/[id]/actions.ts`,
+  `src/app/kunden/deps.ts`, `src/app/kunden/[id]/page.tsx`, `src/app/warteliste/add-applicant-form.tsx`,
+  `src/app/warteliste/actions.ts`, `src/app/warteliste/deps.ts`, `src/app/warteliste/page.tsx`,
+  `scripts/ralph/prd.json`.
+- **Learnings for future iterations:**
+  - **This story deliberately breaks `tests/e2e/waiting-list.spec.ts`** (and would break
+    `registration.spec.ts` too, if it touched `/kunden/neu`): `waiting-list.spec.ts` fills
+    `#certificateType` as a text input via the shared `fillEligibility` helper in
+    `tests/e2e/registration-form.ts`, and that field is now a `<select>`. This is expected and
+    scoped to US-008 ("`fillEligibility` learns the control"), not this story — the iteration
+    instructions only require lint/typecheck/test:coverage/build for US-006/US-007, e2e is US-008's
+    own gate. Do not "fix" the e2e spec early; US-008 owns that change and its AC is explicit that
+    *no* existing spec is edited except through that one helper.
+  - No unit test in `src/app/kunden/` or `src/app/warteliste/` exercises these forms or actions
+    directly — this layer is covered by Playwright per the project's testing table, so there was
+    nothing to update beyond the browser check above.
+---

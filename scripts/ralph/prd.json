@@ -146,7 +146,7 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-005. Two screens, both simple: neither prefills a type, so the fold-prefill rule is not exercised here — US-007 is where that matters."
     },
     {

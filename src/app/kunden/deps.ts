@@ -2,6 +2,7 @@ import type {
   AuditLog,
   CardRepository,
   CertificateRepository,
+  CertificateTypeRepository,
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
@@ -11,6 +12,7 @@ import { systemClock } from "@/infrastructure/clock";
 import { PrismaAuditLog } from "@/infrastructure/prisma/audit-log";
 import { PrismaCardRepository } from "@/infrastructure/prisma/card-repository";
 import { PrismaCertificateRepository } from "@/infrastructure/prisma/certificate-repository";
+import { PrismaCertificateTypeRepository } from "@/infrastructure/prisma/certificate-type-repository";
 import { prisma } from "@/infrastructure/prisma/client";
 import { PrismaCustomerRepository } from "@/infrastructure/prisma/customer-repository";
 import { PrismaDistributionRecordRepository } from "@/infrastructure/prisma/distribution-record-repository";
@@ -26,6 +28,7 @@ export const customerDeps: {
   readonly customers: CustomerRepository;
   readonly cards: CardRepository;
   readonly certificates: CertificateRepository;
+  readonly certificateTypes: CertificateTypeRepository;
   readonly settings: SettingsRepository;
   readonly records: DistributionRecordRepository;
   readonly clock: Clock;
@@ -37,6 +40,9 @@ export const customerDeps: {
   // the household brings the paperwork whenever they happen to bring it, not only when the counter
   // has just turned them away over it.
   certificates: new PrismaCertificateRepository(prisma),
+  // The renewal's drop-down reads the configured Nachweis-Arten the same way the counter's does
+  // (US-33.5/US-33.6).
+  certificateTypes: new PrismaCertificateTypeRepository(prisma),
   settings: new PrismaSettingsRepository(prisma),
   // The record shows how many of their own distributions a household has missed in a row (US-10.4),
   // which is derived from their hand-out history; the screens here only ever read it.

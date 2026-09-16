@@ -8,6 +8,7 @@
 
 import { UserPlus } from "lucide-react";
 import { proposeRegistration } from "@/application/customers/propose-registration";
+import { readCertificateTypes } from "@/application/settings/read-certificate-types";
 import { listWaiting, type WaitingListPlace } from "@/application/waiting-list/list-waiting";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -127,7 +128,7 @@ export default async function WaitingListPage({
 }: {
   searchParams: Promise<{ [REMOVED]?: string | string[] }>;
 }): Promise<React.ReactElement> {
-  const [places, proposal, params] = await Promise.all([
+  const [places, proposal, certificateTypes, params] = await Promise.all([
     listWaiting(waitingListDeps),
     // A full register is `customerNumber: null`, which is the question the banner asks. The proposal
     // reserves nothing — the number is allocated again when the applicant is registered.
@@ -139,6 +140,7 @@ export default async function WaitingListPage({
       }
       throw error;
     }),
+    readCertificateTypes(waitingListDeps),
     searchParams,
   ]);
   const removed = params[REMOVED] === "1";
@@ -215,7 +217,7 @@ export default async function WaitingListPage({
         </CardContent>
       </Card>
 
-      <AddApplicantForm />
+      <AddApplicantForm certificateTypes={certificateTypes} />
     </main>
   );
 }

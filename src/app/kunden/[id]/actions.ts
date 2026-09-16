@@ -33,6 +33,7 @@ import {
   MissingRequiredField,
 } from "@/domain/errors";
 import { customerFieldLabel, de } from "@/i18n/de";
+import { resolveCertificateType } from "../../certificate-type-resolver";
 import { tierOf } from "../../notice-tier";
 import { customerDeps } from "../deps";
 import {
@@ -84,11 +85,12 @@ const detailsForm = z.object({
 });
 
 /**
- * The renewed certificate. The fields are named as the registration names them, because a mark is
- * addressed by the input's own `name` (§7) and only a name the dictionary has a label for is
- * markable — two spellings for one box on four screens would mean two entries and a translation.
+ * The renewed certificate's date. The type is not parsed here — it arrives split across
+ * `certificateType` and `certificateTypeOther` (US-33.5) and is resolved before this ever runs. The
+ * field is still named as the registration names it, because a mark is addressed by the input's own
+ * `name` (§7) and only a name the dictionary has a label for is markable.
  */
-const renewalForm = z.object({ certificateType: z.string(), certificateValidUntil: calendarDay });
+const renewalForm = z.object({ certificateValidUntil: calendarDay });
 
 /**
  * The German sentence for a domain error one of the record's edits can raise. The rules about
@@ -375,14 +377,13 @@ export async function renewCertificateAction(
 ): Promise<RecordFormState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
   const fields = renewalForm.safeParse({
-    certificateType: String(formData.get("certificateType") ?? ""),
     certificateValidUntil: String(formData.get("certificateValidUntil") ?? ""),
   });
   if (!customerId.success) {
     return { status: "error", message: de.customers.record.errors.unknown, tier: "error" };
   }
   if (!fields.success) {
-    // The schema's own answer rather than a blanket „Kein gültiges Datum.“ (ADR-013). Both fields are
+    // The schema's own answer rather than a blanket „Kein gültiges Datum.“ (ADR-013). The field is
     // `required`, so only the unreadable branch is reachable through the UI — the distinction is kept
     // because the guard is the browser's, not a rule.
     return {
@@ -391,16 +392,28 @@ export async function renewCertificateAction(
     };
   }
 
+  const type = resolveCertificateType(
+    String(formData.get("certificateType") ?? ""),
+    String(formData.get("certificateTypeOther") ?? ""),
+  );
+
   try {
     await renewCertificate(customerDeps, {
       customerId: customerId.data,
-      type: fields.data.certificateType,
+      type,
       validUntil: fields.data.certificateValidUntil,
     });
   } catch (error: unknown) {
     // The renewal speaks the counter's dictionary, not the record's; the *fields* it names are the
-    // shared ones, so the mark comes from where every other screen's does.
-    const field = customerErrorField(error);
+    // shared ones, so the mark comes from where every other screen's does. The select can never
+    // itself submit blank (every option, the sentinel included, resolves to something), so a blank
+    // reaching the domain can only be the free-text box under "Sonstiges" — the same remap the
+    // counter's own `renewalRefusal` makes (`ausgabe/actions.ts`).
+    const rawField = customerErrorField(error);
+    const field =
+      rawField?.path === "certificateType"
+        ? { ...rawField, path: "certificateTypeOther" }
+        : rawField;
     const marks = field === null ? {} : { fields: [field] };
     if (error instanceof CertificateValidUntilInPast) {
       return {

@@ -12,6 +12,7 @@
 
 import Link from "next/link";
 import { readCustomer, type CustomerCardView } from "@/application/customers/read-customer";
+import { readCertificateTypes } from "@/application/settings/read-certificate-types";
 import { readCurrentSettings } from "@/application/settings/read-current-settings";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ import { balanceKind, type Settlement } from "@/domain/distribution/balance";
 import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
 import { DomainError } from "@/domain/errors";
 import { formatEuros } from "@/domain/money";
+import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import type { AllowanceValues, Settings } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
@@ -325,11 +327,14 @@ function History({
 function CustomerRecord({
   view,
   settings,
+  certificateTypes,
   justRegistered,
   justArchived,
 }: {
   view: CustomerCardView;
   settings: Settings;
+  /** The configured Nachweis-Arten, read on the server page (US-33.6). */
+  certificateTypes: CertificateTypeList;
   /** Whether this record was arrived at straight from a registration — see `CustomerRecordPage`. */
   justRegistered: boolean;
   /** Whether the archive control on this record was what brought the page back — same mechanism. */
@@ -547,7 +552,9 @@ function CustomerRecord({
             value={String(customer.reminderCount)}
             testId="reminder-count"
           />
-          {archived ? null : <RenewalForm customerId={customer.id} />}
+          {archived ? null : (
+            <RenewalForm customerId={customer.id} certificateTypes={certificateTypes} />
+          )}
         </Section>
 
         <Section heading={words.notesHeading}>
@@ -755,10 +762,12 @@ export default async function CustomerRecordPage({
   // derives its figures in the browser; `readCustomer` already fails on an unseeded database.
   let view: CustomerCardView;
   let settings: Settings;
+  let certificateTypes: CertificateTypeList;
   try {
-    [view, settings] = await Promise.all([
+    [view, settings, certificateTypes] = await Promise.all([
       readCustomer(customerDeps, numericId),
       readCurrentSettings(customerDeps),
+      readCertificateTypes(customerDeps),
     ]);
   } catch (error: unknown) {
     if (error instanceof DomainError && error.code === "CustomerNotFound") {
@@ -771,6 +780,7 @@ export default async function CustomerRecordPage({
     <CustomerRecord
       view={view}
       settings={settings}
+      certificateTypes={certificateTypes}
       justRegistered={query.aufgenommen === "1"}
       justArchived={query[ARCHIVED] === "1"}
     />

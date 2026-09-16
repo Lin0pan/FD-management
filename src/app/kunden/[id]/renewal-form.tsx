@@ -20,7 +20,8 @@
 import { useActionState, useRef, useState } from "react";
 import { de } from "@/i18n/de";
 import { DateInput } from "@/components/ui/date-input";
-import { Input } from "@/components/ui/input";
+import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
+import { CertificateTypeField } from "../../certificate-type-field";
 import { useFocusFirstRefusal } from "../../field-mark";
 import { marking, problemAt } from "../../field-refusal";
 import { renewCertificateAction } from "./actions";
@@ -33,37 +34,29 @@ import { initialRecordFormState } from "./record-state";
  * values *must* live here; the answer about them must not.
  */
 function RenewalFields({
+  certificateTypes,
   typeProblem,
+  otherProblem,
   validUntilProblem,
 }: {
+  certificateTypes: CertificateTypeList;
   typeProblem: string | null;
+  otherProblem: string | null;
   validUntilProblem: string | null;
 }): React.ReactElement {
-  const [type, setType] = useState("");
   const [validUntil, setValidUntil] = useState("");
 
   return (
     <div className={GRID}>
       <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-6">
-        <label
-          htmlFor="renewal-type-field"
-          className={`text-sm font-medium ${typeProblem === null ? "" : "text-destructive"}`.trimEnd()}
-        >
-          {de.customers.fields.certificateType}
-        </label>
-        <Input
+        <CertificateTypeField
+          types={certificateTypes}
+          height="h-9"
           id="renewal-type-field"
-          type="text"
-          name="certificateType"
-          required
-          value={type}
-          onChange={(event) => setType(event.target.value)}
-          data-testid="renewal-type"
-          {...marking("certificateType", "renewal-type-field", typeProblem)}
+          typeProblem={typeProblem}
+          otherProblem={otherProblem}
+          errorTestId="record-field-error"
         />
-        {typeProblem === null ? null : (
-          <RecordRejection id="renewal-type-field" problem={typeProblem} />
-        )}
       </div>
       <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-6">
         <label
@@ -90,7 +83,14 @@ function RenewalFields({
   );
 }
 
-export function RenewalForm({ customerId }: { customerId: number }): React.ReactElement {
+export function RenewalForm({
+  customerId,
+  certificateTypes,
+}: {
+  customerId: number;
+  /** The configured Nachweis-Arten, read on the server page (US-33.6). */
+  certificateTypes: CertificateTypeList;
+}): React.ReactElement {
   const [state, formAction, pending] = useActionState(
     renewCertificateAction,
     initialRecordFormState,
@@ -112,7 +112,9 @@ export function RenewalForm({ customerId }: { customerId: number }): React.React
       <h3 className="text-lg font-semibold">{words.heading}</h3>
       <p className="max-w-prose text-sm text-muted-foreground">{words.hint}</p>
       <RenewalFields
+        certificateTypes={certificateTypes}
         typeProblem={problemAt(fields, "certificateType")}
+        otherProblem={problemAt(fields, "certificateTypeOther")}
         validUntilProblem={problemAt(fields, "certificateValidUntil")}
       />
       <FormFooter>
