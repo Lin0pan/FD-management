@@ -193,8 +193,10 @@ export function CustomerDetails({
   return (
     <Card data-testid="counter-customer">
       <CardHeader>
-        <CardTitle className="text-2xl">
-          <h2 data-testid="counter-name">
+        <CardTitle className="min-w-0 text-2xl">
+          {/* `min-w-0` because `CardAction` shares this row: a flex item's floor is its content, so
+              without it an unbreakable name pushes the badges out of the card instead of wrapping. */}
+          <h2 data-testid="counter-name" className="break-words">
             {customer.firstName} {customer.lastName}
           </h2>
         </CardTitle>

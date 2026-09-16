@@ -138,14 +138,19 @@ function CustomerRow({ row }: { row: CustomerListRow }): React.ReactElement {
       </TableCell>
       {/* `min-w-64` and not `min-w-56`: when a column was dropped from this table (US-27), the
           width it paid back came here rather than being spread evenly over the rest. This is the
-          column staff scan, and the only one holding text that can wrap. */}
+          column staff scan, and the only one holding text long enough to need a ceiling as well as
+          a floor — the same `64`, so the column is a fixed width and the table cannot be widened by
+          what a household happens to be called (`docs/guideline/ui_styling_guide.md` §3). The cap is
+          on the link rather than the cell: in an auto-layout table it is the inner box's max-width
+          that clamps the column's min-content contribution. */}
       <TableCell className="min-w-64">
         {/* Underlined on hover rather than always: 240 permanent underlines is 240 pieces of noise,
             and the whole row lights up under the cursor anyway. */}
         <Link
           href={`/kunden/${row.customerId}`}
           data-testid="customer-row-link"
-          className="font-medium underline-offset-4 hover:underline"
+          title={`${row.lastName}, ${row.firstName}`}
+          className="block max-w-64 truncate font-medium underline-offset-4 hover:underline"
         >
           {row.lastName}, {row.firstName}
         </Link>

@@ -103,7 +103,7 @@ function MatchRow({
       className="flex flex-col gap-2 border-b border-border py-3 first:pt-0 last:border-0 last:pb-0"
     >
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <p data-testid="archive-match-name" className="font-semibold">
+        <p data-testid="archive-match-name" className="font-semibold break-words">
           {match.firstName} {match.lastName}
         </p>
         <p className="text-sm text-muted-foreground">{germanDate(match.birthDate)}</p>

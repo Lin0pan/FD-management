@@ -76,7 +76,9 @@ function Card({ view }: { view: CardView }): React.ReactElement {
         </span>
       </header>
 
-      <p data-testid="card-name" className="text-3xl">
+      {/* Wrapped, never cut: this is the card the household is handed, and a name it does not
+          carry in full is the one thing it may not print. */}
+      <p data-testid="card-name" className="text-3xl break-words">
         {view.firstName} {view.lastName}
       </p>
 

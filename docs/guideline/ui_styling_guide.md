@@ -111,6 +111,37 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   that width; `tests/e2e/layout.ts` is the assertion, and it belongs in the spec of any screen that
   grows one of these.
 
+- **Free text inside a table column gets a ceiling as well as a floor.** `TableCell` ships
+  `whitespace-nowrap`, so a long value in a column with only a `min-w-` cannot wrap and cannot be
+  cut — it widens the column, and with it the table. Below `xl` the container absorbs that by
+  scrolling sideways and the last column leaves the screen; at `xl` and above the container does not
+  scroll and the table grows out of its card. DF hit both on their first day of testing, with an
+  ordinary double-barrelled name.
+
+  The ceiling goes on an **inner block**, not on the cell: in an auto-layout table it is the inner
+  box's `max-width` that clamps the column's min-content contribution.
+
+  ```tsx
+  <TableCell className="min-w-64">
+    {" "}
+    {/* the floor, unchanged */}
+    <Link className="block max-w-64 truncate" title={name}>
+      {name}
+    </Link>
+  </TableCell>
+  ```
+
+  Floor and ceiling the same number makes the column a fixed width, which is the point: what a
+  household is called may not move the table. The full text stays in the DOM, so search, screen
+  readers and the e2e suite still see it, and the `title` spells it out for anyone who cannot tell
+  two rows apart from the part they can see. `tests/e2e/layout.ts` has the two assertions —
+  `expectNoHorizontalOverflow` and `expectTruncated`, which are needed together: a ceiling set wide
+  enough to cut nothing satisfies the first for ever.
+
+- **Outside a column, a name wraps — `break-words`, never `truncate`.** There is room on a heading
+  and in a flex row, and the only input that escapes one is a word with nowhere to break. The
+  household's printed card (`/kunden/[id]/karte`) is the hard case of the same rule: it is the
+  document they are handed, so it wraps and is never cut.
 - **Empty state is an `<Alert role="status">`** inside the card the list would have filled, naming
   the filters in force. "Not configured yet" is a gentler state of its own that points at
   `/einstellungen`; it is not an error screen.

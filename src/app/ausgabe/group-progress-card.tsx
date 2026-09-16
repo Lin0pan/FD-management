@@ -40,7 +40,7 @@ function MemberRow({ member }: { member: GroupRosterView["members"][number] }): 
       <Link
         href={`/ausgabe?nummer=${member.customerNumber}`}
         data-testid={`group-member-${member.customerNumber}`}
-        className="hover:underline focus-visible:underline"
+        className="break-words hover:underline focus-visible:underline"
       >
         <span className="tabular-nums text-muted-foreground">{member.customerNumber}</span>{" "}
         <span>
