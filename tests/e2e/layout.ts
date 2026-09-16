@@ -69,3 +69,51 @@ export async function coveringElement(target: Locator): Promise<string | null> {
 export async function expectNothingCovers(target: Locator, what: string): Promise<void> {
   expect(await coveringElement(target), `${what} is covered on screen`).toBeNull();
 }
+
+/**
+ * Fail unless `target` fits inside its own box — nothing of it reachable only by scrolling sideways.
+ *
+ * The one width DF gave us was a long name, and it never scrolled the *window*: the register's
+ * container absorbed it below `xl` and the table simply grew out of its card above. So this is
+ * pointed at whichever box is meant to be the boundary — `html` for the page, the table's container
+ * for a table — rather than at the page alone.
+ */
+export async function expectNoHorizontalOverflow(target: Locator, what: string): Promise<void> {
+  const overflow = await target.evaluate(
+    (element: Element) => element.scrollWidth - element.clientWidth,
+  );
+  // A pixel of slack: a fractional layout rounds one way in Chromium and the other in WebKit.
+  expect(overflow, `${what} scrolls sideways by ${overflow}px`).toBeLessThanOrEqual(1);
+}
+
+/**
+ * Fail unless `target` is genuinely cut off — its content wider than the box painting it.
+ *
+ * The other half of {@link expectNoHorizontalOverflow}, and not redundant with it: a ceiling set
+ * wide enough to cut nothing would satisfy the overflow check for ever while the ellipsis that
+ * earned it had quietly stopped appearing.
+ */
+export async function expectTruncated(target: Locator, what: string): Promise<void> {
+  const hidden = await target.evaluate(
+    (element: Element) => element.scrollWidth - element.clientWidth,
+  );
+  expect(hidden, `${what} is not cut off`).toBeGreaterThan(0);
+}
+
+/**
+ * Fail unless `inner` lies within the horizontal bounds of `outer`.
+ *
+ * Neither `toBeVisible()` nor a hit-test can see this one: an element that has grown out of its card
+ * is still visible, still clickable and still correct in the DOM — it is only in the wrong place, and
+ * the boxes are the only record of that. Horizontal only, because vertical growth is what a page is
+ * for.
+ */
+export async function expectWithin(inner: Locator, outer: Locator, what: string): Promise<void> {
+  const [innerBox, outerBox] = await Promise.all([inner.boundingBox(), outer.boundingBox()]);
+  expect(innerBox, `${what} has no box`).not.toBeNull();
+  expect(outerBox, `the box ${what} must fit into has no box`).not.toBeNull();
+  const left = (innerBox?.x ?? 0) - (outerBox?.x ?? 0);
+  const right =
+    (outerBox?.x ?? 0) + (outerBox?.width ?? 0) - ((innerBox?.x ?? 0) + (innerBox?.width ?? 0));
+  expect(Math.min(left, right), `${what} sticks out sideways`).toBeGreaterThanOrEqual(-1);
+}

@@ -5,7 +5,14 @@ import { PrismaClient } from "@prisma/client";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { foldName } from "@/domain/customer/nameSearch";
 import { de } from "@/i18n/de";
-import { BELOW_BREAKPOINT, GATE_WIDTH, expectNothingCovers } from "./layout";
+import {
+  BELOW_BREAKPOINT,
+  GATE_WIDTH,
+  expectNoHorizontalOverflow,
+  expectNothingCovers,
+  expectTruncated,
+  expectWithin,
+} from "./layout";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
 
@@ -43,7 +50,8 @@ const TODAY = "2026-01-08T09:00:00.000Z";
  * re-registration specs allocate against, and of the counter (201–209/239), allowance (211), serve
  * (213–219), number change (221–229), reminders (231), block (241), reissue (251) and age-13 (271)
  * specs in the shared
- * `data/e2e.db`.
+ * `data/e2e.db`. 286 belongs to this file too — see {@link LONG_NAME_SEED}, which is seeded and
+ * removed inside its own block rather than listed here.
  */
 const NUMBERS = {
   /** RED, active, certificate valid — and the household both searches must find. */
@@ -112,6 +120,8 @@ function pinToday(): void {
 /** One seeded household, as this spec's table below states it. */
 interface Seed {
   readonly customerNumber: number;
+  /** Overrides Faker's draw, for the one household whose *length* is the thing under test. */
+  readonly firstName?: string;
   readonly status: "ACTIVE" | "BLOCKED" | "ARCHIVED";
   readonly lastName: string;
   readonly certificateValidUntil: string;
@@ -119,6 +129,28 @@ interface Seed {
   readonly cards: number;
   readonly reminderCount: number;
 }
+
+/**
+ * The household whose name is longer than the column that has to hold it — DF's first finding on
+ * their first day of testing.
+ *
+ * Invented for the same reason {@link SURNAME} is, and long on purpose rather than by accident: a
+ * double surname and a double first name is an ordinary German name, and at `text-sm` the pair is
+ * half as wide again as the column. Kept out of {@link SEEDS} so the rest of the file's expected
+ * numbers and its balance delta stay where they are.
+ */
+const LONG_NAME_SEED: Seed = {
+  customerNumber: 286,
+  firstName: "Maximiliane-Friederike",
+  status: "ACTIVE",
+  lastName: "Schmiedeberg-Oberhausenkirchner",
+  certificateValidUntil: CERTIFICATES.valid,
+  cards: 1,
+  reminderCount: 0,
+};
+
+/** The name as the row writes it, which is the string the cut-off cell must still carry whole. */
+const LONG_NAME = `${LONG_NAME_SEED.lastName}, ${LONG_NAME_SEED.firstName}`;
 
 /**
  * The register this spec asserts against, in one table.
@@ -183,7 +215,7 @@ const SEEDED_BALANCE = { red: 3, blue: 1 } as const;
 
 /** Insert one household with a grown-up, a child, its certificate and its cards. */
 async function seedHousehold(seed: Seed): Promise<void> {
-  const firstName = faker.person.firstName();
+  const firstName = seed.firstName ?? faker.person.firstName();
   const childFirstName = faker.person.firstName();
   const grownUpBirthDate = new Date(`${GROWN_UP_BIRTH_DATE}T00:00:00.000Z`);
   const archived = seed.status === "ARCHIVED";
@@ -681,5 +713,65 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
     await expect(page.getByTestId("customer-search")).toHaveValue("");
     await expect(page.getByTestId("status-filter")).toHaveValue("");
     await expect(page.getByTestId("archived-toggle")).not.toBeChecked();
+  });
+
+  /**
+   * The register with a name too long for its column (DF, erster Testtag).
+   *
+   * Every cell in this table is `whitespace-nowrap`, so before this was fixed a long
+   * „Nachname, Vorname“ could neither wrap nor be cut — it widened the column, and with it the whole
+   * table. Below `xl` the container absorbed that by scrolling sideways, which took „Erinnerungen“
+   * off the screen; at `xl` and above the container does not scroll, so the table simply grew out of
+   * its card. Both halves are asserted, because the screen has two of them.
+   *
+   * Seeded and removed here rather than in the file's own `beforeAll`: an extra household in the
+   * register would move the group balance and the expected-number lists every other test in this
+   * file reads.
+   */
+  test.describe("ein Name, der länger ist als seine Spalte", () => {
+    test.beforeAll(async () => {
+      await seedHousehold(LONG_NAME_SEED);
+    });
+
+    test.afterAll(async () => {
+      await releaseNumbers(prisma, LONG_NAME_SEED.customerNumber);
+    });
+
+    test("unterhalb des Breakpoints bleibt die letzte Spalte auf dem Schirm", async ({ page }) => {
+      await page.setViewportSize(BELOW_BREAKPOINT);
+      await page.goto("/kunden");
+
+      const container = page.locator('[data-slot="table-container"]');
+      await expectNoHorizontalOverflow(container, "die Kundenliste");
+      await expectWithin(
+        row(page, LONG_NAME_SEED.customerNumber).getByTestId("customer-row-reminders"),
+        container,
+        "die Spalte „Erinnerungen“",
+      );
+    });
+
+    test("auf der Zielbreite bleibt die Tabelle in ihrer Karte", async ({ page }) => {
+      await page.setViewportSize({ width: GATE_WIDTH, height: 720 });
+      await page.goto("/kunden");
+
+      const table = page.getByTestId("customer-table");
+      await expectWithin(table, page.locator('[data-slot="card"]').last(), "die Kundenliste");
+      await expectNoHorizontalOverflow(page.locator("html"), "die Seite");
+    });
+
+    test("der Name wird abgeschnitten gezeigt und bleibt vollständig gespeichert", async ({
+      page,
+    }) => {
+      await page.setViewportSize(BELOW_BREAKPOINT);
+      await page.goto(`/kunden?suche=${LONG_NAME_SEED.customerNumber}`);
+
+      const link = row(page, LONG_NAME_SEED.customerNumber).getByTestId("customer-row-link");
+      await expectTruncated(link, "der lange Name");
+      // Cut off on screen and whole in the DOM, which is the whole of what DF asked for: the name is
+      // still what the row is called, still what a screen reader reads, and still what the `title`
+      // spells out for somebody who cannot tell two households apart from the part they can see.
+      await expect(link).toHaveText(LONG_NAME);
+      await expect(link).toHaveAttribute("title", LONG_NAME);
+    });
   });
 });

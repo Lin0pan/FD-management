@@ -74,7 +74,7 @@ function Row({
             {de.waitingList.position} {place.position}
           </span>
         </Badge>
-        <h3 data-testid="waiting-list-applicant" className="text-lg font-semibold">
+        <h3 data-testid="waiting-list-applicant" className="text-lg font-semibold break-words">
           {applicant}
         </h3>
         {/* A fact stated beside the applicant, never a colour that reads as a verdict: they keep

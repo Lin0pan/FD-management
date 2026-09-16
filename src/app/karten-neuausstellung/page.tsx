@@ -70,7 +70,7 @@ function Row({ due }: { due: CardDueForReissue }): React.ReactElement {
       className="flex flex-col gap-3 border-b border-border py-4 first:pt-0 last:border-0 last:pb-0"
     >
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h3 className="text-lg font-semibold">
+        <h3 className="text-lg font-semibold break-words">
           {due.firstName} {due.lastName}
         </h3>
         {/* The reason is not a third data point beside the two count sets — it is their summary, and

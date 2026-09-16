@@ -195,8 +195,19 @@ function HouseholdReadOnly({ view }: { view: CustomerCardView }): React.ReactEle
             // Two members can share a name and a birthdate, so the position is the only key there is.
             <TableRow key={index} data-testid="household-member" className="hover:bg-transparent">
               <TableCell className="text-muted-foreground tabular-nums">{index + 1}</TableCell>
-              <TableCell>{member.firstName}</TableCell>
-              <TableCell>{member.lastName}</TableCell>
+              {/* Capped and cut for the same reason the register's name column is, and by the same
+                  means — the ceiling on the inner box, the whole name on the `title`
+                  (`docs/guideline/ui_styling_guide.md` §3). */}
+              <TableCell>
+                <span className="block max-w-48 truncate" title={member.firstName}>
+                  {member.firstName}
+                </span>
+              </TableCell>
+              <TableCell>
+                <span className="block max-w-48 truncate" title={member.lastName}>
+                  {member.lastName}
+                </span>
+              </TableCell>
               <TableCell className="tabular-nums">{germanDate(member.birthDate)}</TableCell>
               <TableCell className="whitespace-nowrap tabular-nums">
                 {de.customers.card.memberAge(member.age)}
@@ -354,7 +365,7 @@ function CustomerRecord({
          */}
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight">
+            <h1 className="text-3xl font-semibold tracking-tight break-words">
               {details.firstName} {details.lastName}
             </h1>
             {/* The number and the week it collects in, on one badge (US-31.7, R-27). Reading „37“
