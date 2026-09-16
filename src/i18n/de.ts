@@ -1403,6 +1403,39 @@ export const de = {
       /** Spelled `priceCap` on both sides, so the refusal marks the field without a translation. */
       priceCap: "Maximalpreis je Ausgabe",
     } as Record<string, string | undefined>,
+    /**
+     * The Nachweis-Art vocabulary (US-33.4) — its own card, outside the policy form: the list is not a
+     * policy version (ADR-019), so its words are here rather than folded into `fields`/`errorFields`
+     * above, which name the eight that are.
+     */
+    certificateTypes: {
+      heading: "Arten des Nachweises",
+      column: "Art des Nachweises",
+      addRow: "Art hinzufügen",
+      /** The same words the egg rule's remove control carries — it is the same gesture. */
+      removeRow: "Art entfernen",
+      /**
+       * One row's input, wherever it is named — the `aria-label` and the field a refusal points at
+       * from the summary. Rows count from 1 on screen, from 0 in the domain and the form.
+       */
+      fieldLabel: (position: number): string => `Art des Nachweises, Zeile ${position}`,
+      save: "Speichern",
+      saving: "Wird gespeichert …",
+      saved: "Gespeichert.",
+      /**
+       * The one line this card may carry (§8): what removing a type does to records that already carry
+       * it, which the screen otherwise cannot show.
+       */
+      hint: "Eine entfernte Art bleibt bei bereits gespeicherten Nachweisen erhalten.",
+      errors: {
+        duplicate: (label: string): string =>
+          `„${label}“ steht bereits in der Liste. Es wurde nichts gespeichert.`,
+        tooLong: (length: number, maxLength: number): string =>
+          `Die Art ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
+          `möglich. Es wurde nichts gespeichert.`,
+        unknown: "Die Änderung konnte nicht gespeichert werden.",
+      },
+    },
     reason: "Grund der Änderung (optional)",
     reasonHint: "Wird, falls angegeben, im Änderungsprotokoll festgehalten.",
     save: "Speichern",

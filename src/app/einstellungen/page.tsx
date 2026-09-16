@@ -8,6 +8,7 @@ import {
   listSettingsVersions,
   type SettingsVersionEntry,
 } from "@/application/settings/list-settings-versions";
+import { readCertificateTypes } from "@/application/settings/read-certificate-types";
 import { readCurrentSettings } from "@/application/settings/read-current-settings";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +21,7 @@ import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { FoldChevron } from "../disclosure";
 import { SHELL } from "../shell";
+import { CertificateTypeTable } from "./certificate-type-table";
 import { settingsDeps } from "./deps";
 import { SettingsForm } from "./settings-form";
 
@@ -285,6 +287,7 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
   }
 
   const history = await listSettingsVersions(settingsDeps);
+  const certificateTypes = await readCertificateTypes(settingsDeps);
 
   return (
     <main className={SHELL}>
@@ -293,6 +296,9 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
         <p className="max-w-prose text-muted-foreground">{de.settings.intro}</p>
       </header>
       <SettingsForm settings={current} />
+      {/* Its own card and its own `<form>`, deliberately outside the one above: the vocabulary is not
+          a policy value and saving it must not append a `SettingsVersion` (ADR-019). */}
+      <CertificateTypeTable types={certificateTypes} />
       <VersionHistory entries={history} now={now} />
     </main>
   );

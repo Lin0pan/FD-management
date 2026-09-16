@@ -8,13 +8,17 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { updateCertificateTypes } from "@/application/settings/update-certificate-types";
 import { updateSettings } from "@/application/settings/update-settings";
 import {
+  CertificateTypeTooLong,
   DomainError,
+  DuplicateCertificateType,
   DuplicateEggThreshold,
   EggsNotIncreasing,
   InvalidEuroAmount,
   InvalidSettings,
+  MissingRequiredField,
   QuotaBelowActiveCustomers,
 } from "@/domain/errors";
 import { parseEuros } from "@/domain/money";
@@ -23,6 +27,7 @@ import { de, settingsFormFieldLabel } from "@/i18n/de";
 import { summarise, type FormRefusal } from "../field-refusal";
 import { tierOf } from "../notice-tier";
 import { settingsDeps } from "./deps";
+import type { SaveCertificateTypesState } from "./save-certificate-types-state";
 import type { SaveSettingsState, SubmittedSettings } from "./save-settings-state";
 
 /** A whole number as typed into a form field. Range rules belong to the domain, not here. */
@@ -288,4 +293,110 @@ export async function saveSettings(
 
   revalidatePath("/einstellungen");
   return { status: "saved", message: de.settings.saved };
+}
+
+/**
+ * One typed row of the certificate-type list, with its position **on screen** alongside — carried
+ * because a wholly blank row is dropped before it reaches the domain, which shifts every index below
+ * it. The egg rule's `TypedEggRow` in the same shape, for the same reason.
+ */
+interface TypedCertificateTypeRow {
+  readonly position: number;
+  readonly label: string;
+}
+
+/**
+ * Pair the repeated `certificateTypeLabel` inputs into rows, dropping a wholly blank one — the row
+ * „Art hinzufügen" just made. One field per row, unlike the egg rule's two, so there is no partial row
+ * to preserve: a row is either typed or it is the blank one just added.
+ */
+function certificateTypeRows(formData: FormData): ReadonlyArray<TypedCertificateTypeRow> {
+  return formData
+    .getAll("certificateTypeLabel")
+    .map(String)
+    .map((label, position) => ({ position, label }))
+    .filter((row) => row.label.trim() !== "");
+}
+
+/** A row of the certificate-type list as the domain names it, e.g. `certificateTypes.1.label`. */
+const CERTIFICATE_TYPE_PATH = /^certificateTypes\.(\d+)\.label$/;
+
+/**
+ * The path a refusal named, with a certificate-type row's index put back to its position **on
+ * screen** — `screenPath`'s egg-rule counterpart, for the same reason.
+ */
+function certificateTypeScreenPath(
+  path: string,
+  rows: ReadonlyArray<TypedCertificateTypeRow>,
+): string {
+  const match = CERTIFICATE_TYPE_PATH.exec(path);
+  if (match === null) {
+    return path;
+  }
+  const row = rows[Number(match[1])];
+  return row === undefined ? path : `certificateTypes.${row.position}.label`;
+}
+
+/**
+ * Turn a typed domain error from `updateCertificateTypes` into the answer the card shows.
+ *
+ * **`DuplicateCertificateType` and `CertificateTypeTooLong` name no field**, in `DuplicateEggThreshold`'s
+ * own shape: neither carries which row is at fault (a spelling collides with *another* row; a length
+ * is a property of the text alone), so marking one would call it malformed when the true fault is
+ * between two rows or a length nobody has picked out from the sentence.
+ */
+function certificateTypeRefusal(
+  error: unknown,
+  rows: ReadonlyArray<TypedCertificateTypeRow>,
+): Pick<SaveCertificateTypesState, "message" | "tier" | "fields"> {
+  const tier = tierOf(error);
+  if (error instanceof DuplicateCertificateType) {
+    return { message: de.settings.certificateTypes.errors.duplicate(error.label), tier };
+  }
+  if (error instanceof CertificateTypeTooLong) {
+    return {
+      message: de.settings.certificateTypes.errors.tooLong(error.length, error.maxLength),
+      tier,
+    };
+  }
+  if (error instanceof MissingRequiredField) {
+    const path = certificateTypeScreenPath(error.field, rows);
+    const match = CERTIFICATE_TYPE_PATH.exec(path);
+    const position = match === null ? null : Number(match[1]) + 1;
+    return {
+      message: de.customers.errors.missingField(
+        position === null ? error.field : de.settings.certificateTypes.fieldLabel(position),
+      ),
+      tier,
+      fields: [{ path, problem: de.customers.errors.fieldRequired }],
+    };
+  }
+  return { message: de.settings.certificateTypes.errors.unknown, tier };
+}
+
+/**
+ * Validate the submitted list through the domain, replace it and record one audit entry — all of it
+ * `updateCertificateTypes`'s. This adapter only turns form data into an array of strings and a typed
+ * refusal back into the card's words.
+ *
+ * On any failure nothing is written, and the card comes back with the explanation and, where the
+ * refusal names one, the row to mark.
+ */
+export async function saveCertificateTypes(
+  _previous: SaveCertificateTypesState,
+  formData: FormData,
+): Promise<SaveCertificateTypesState> {
+  const rows = certificateTypeRows(formData);
+
+  try {
+    await updateCertificateTypes(
+      settingsDeps,
+      rows.map((row) => row.label),
+    );
+  } catch (error: unknown) {
+    return { status: "error", ...certificateTypeRefusal(error, rows) };
+  }
+
+  revalidatePath("/einstellungen");
+  return { status: "saved", message: de.settings.certificateTypes.saved };
 }

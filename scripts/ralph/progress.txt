@@ -491,3 +491,63 @@ If a spec needs editing, the control is wrong, not the spec.
     render each entry*, not a re-ordering instruction — rendering the diff's own order was the
     reading that produced a one-line `describeChanges` with no sort of its own.
 ---
+
+## 2026-09-16 - US-004
+- New card „Arten des Nachweises" on `/einstellungen`, its own `<Card>` and its own `<form>` —
+  rendered as a sibling of `<SettingsForm>` in `page.tsx`, not nested inside it, since HTML forbids a
+  nested `<form>` and the AC requires it stay outside the policy form so saving it never appends a
+  `SettingsVersion` (ADR-019, cited in a one-line comment rather than re-argued).
+- New client component `src/app/einstellungen/certificate-type-table.tsx`: unlike `egg-rule-table.tsx`
+  (which only owns the rows and is embedded inside `SettingsForm`'s one `<form>`), this component owns
+  the whole card — the `<form>`, `useActionState`, the rows-as-`useState` table, the add/remove
+  buttons, the one permitted hint line and the save button — because it is the only new component the
+  story names and there is no policy-form parent left to host a second `<form>`.
+- New use-case-facing state type `save-certificate-types-state.ts`, outside `actions.ts` for the same
+  `"use server"`-exports-only-async-functions reason `save-settings-state.ts` is. No `values` echo:
+  the rows are React state, `egg-rule-table.tsx`'s reason.
+- New server action `saveCertificateTypes` in `actions.ts`: pairs the repeated `certificateTypeLabel`
+  inputs into rows, drops a wholly blank one with its screen position kept (`certificateTypeRows`,
+  `certificateTypeScreenPath` — `eggRuleRows`/`screenPath`'s shape, but simpler: one field per row
+  means there is no partial-row case to preserve, only a fully blank one to drop), then calls
+  `updateCertificateTypes` directly with no Zod stage — there is nothing to parse, since every field on
+  this form is already the string the domain wants.
+- `deps.ts` gained `certificateTypes: CertificateTypeRepository`, wired to
+  `PrismaCertificateTypeRepository`.
+- `de.ts` gained `settings.certificateTypes.*`: heading, column, addRow, removeRow, `fieldLabel`,
+  save/saving/saved, the one permitted hint line, and `errors.{duplicate,tooLong,unknown}`. Reused
+  rather than duplicated: `de.customers.errors.missingField`/`fieldRequired` for `MissingRequiredField`
+  — already reused by three other non-customer screens (`ausgabe`, `warteliste`,
+  `kunden/[id]` actions.ts), so a fourth reuse rather than a fifth pair of near-identical strings.
+- Verified in the browser against the production build (`npm run build` + `npm run start`, `db:reset`
+  first): added a row, saved it, reloaded to confirm it persisted, removed it and saved again to leave
+  the table empty for the next iteration. `db:reset` afterwards to leave a clean database.
+- Files changed: `src/app/einstellungen/certificate-type-table.tsx` (new),
+  `src/app/einstellungen/save-certificate-types-state.ts` (new), `src/app/einstellungen/actions.ts`,
+  `src/app/einstellungen/deps.ts`, `src/app/einstellungen/page.tsx`, `src/i18n/de.ts`,
+  `scripts/ralph/prd.json`.
+- **Learnings for future iterations:**
+  - `DuplicateCertificateType` carries the offending `label`, but `CertificateTypeTooLong` carries
+    only `length`/`maxLength` (`NotesTooLong`'s own shape) — so „QUOTING the offending label" in the
+    AC only applies to the duplicate sentence; the too-long one quotes the lengths instead, the same
+    asymmetry `notesTooLong`'s wording already has. Neither error carries a row index (a duplicate is a
+    collision between two rows, a length is a property of the text alone), so neither marks a specific
+    input — the same reasoning `DuplicateEggThreshold`/`EggsNotIncreasing` already state in
+    `einstellungen/actions.ts`'s `refusal()`.
+  - With one field per row instead of the egg rule's two, dropping "wholly blank" rows and dropping
+    "blank after trim" rows are the *same* filter — so `MissingRequiredField` becomes unreachable from
+    this form's own UI (a row is either typed or it is the blank one `EMPTY_ROW` was, and that one is
+    filtered before the domain ever sees it). The handling is still written, tested by construction
+    only through `certificateTypeRefusal`'s own logic (not exercised by a browser click), and left in
+    place as a defensive mapping — the same posture `errors.test.ts`'s "no caller yet" bullet already
+    names for a typed error with no reachable path.
+  - `playwright-cli`'s `find` command and a bare `element.textContent` both go blind on this screen:
+    an `<input value="…">`'s value is an attribute, not a text node, and an icon-only button's
+    `aria-label` isn't text content either — so a page with a filled text row can read as "no row
+    there" by `textContent` alone. Read a controlled input's value with
+    `eval("el => el.value", ref)` or a scoped `querySelectorAll('input').map(i => i.value)`, not by
+    grepping rendered text.
+  - Two `<form>`s on one page both end in a `button` named "Speichern" (the policy form and this new
+    card) — `getByRole('button', { name: 'Speichern' }).nth(1)` reaches the second reliably since the
+    policy form is always first in DOM order, but the safer long-term handle for e2e is the testid
+    already on its `Notice` (`certificate-types-saved`/`-error`), which US-008 will need anyway.
+---

@@ -96,7 +96,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "First UI story. Depends on US-003. Read egg-rule-table.tsx FIRST and follow it — this is deliberately the same shape DF have already used on that screen. The card is OUTSIDE the policy form: putting it inside would append a settings version for every word added, which is the whole thing ADR-019 refuses."
     },
     {
