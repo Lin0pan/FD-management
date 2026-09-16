@@ -294,12 +294,20 @@ export function germanMessage(error: unknown): string {
  *
  * `lastWord` for the same reason {@link fieldRefusals} takes one: the rules are shared, the sentence
  * for an error nobody has words for is not.
+ *
+ * The only caller of this function is the registration form, on both screens it is shared with — and
+ * `CertificateTypeField` (US-33.6, US-33.7) means the select can never itself submit blank: every
+ * option, "Sonstiges" included, resolves to a non-empty string once chosen. So a mark this function
+ * would put on `certificateType` can only mean the free-text box under "Sonstiges", the same remap
+ * `ausgabe/actions.ts`'s `renewalRefusal` and the record's and waiting-list's own renewal forms make.
  */
 export function germanRefusal(
   error: unknown,
   lastWord: string = de.customers.errors.unknown,
 ): RegistrationRefusal {
-  const field = customerErrorField(error);
+  const rawField = customerErrorField(error);
+  const field =
+    rawField?.path === "certificateType" ? { ...rawField, path: "certificateTypeOther" } : rawField;
   return {
     message: customerErrorMessage(error) ?? lastWord,
     tier: tierOf(error),

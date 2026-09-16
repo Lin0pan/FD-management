@@ -686,3 +686,73 @@ If a spec needs editing, the control is wrong, not the spec.
     directly — this layer is covered by Playwright per the project's testing table, so there was
     nothing to update beyond the browser check above.
 ---
+
+## 2026-09-16 - US-007
+- Wired `CertificateTypeField` (US-33.5) into the last two consumers: `/kunden/neu`'s registration
+  form and the waiting-list promotion form at `/warteliste/[entryId]/registrieren`, both of which
+  share `registration-form.tsx`, `registration-input.ts`'s `registrationForm`/`registrationValues`
+  Zod schema and `germanRefusal`.
+- `registration-form.tsx`: the `certificateType` `Field` is replaced by `CertificateTypeField`
+  (`height="h-8"`, matching this screen's own `Input`s rather than `/einstellungen`'s `h-9`),
+  `initialValue={draft?.certificateType}` carrying the fold-prefill rule. `certificateType` dropped
+  out of `DetailsDraft`/`initialDetails` (six fields now, not seven — the comment's count updated)
+  since `CertificateTypeField` holds its own selection and free text, the same reasoning
+  `RenewalFields` and the waiting-list form already state. `RegistrationForm` and
+  `RegistrationScreen` both gained a `certificateTypes: CertificateTypeList` prop threaded down from
+  the server page; `PromotionScreen` gained the same, threaded from its own page.
+- `kunden/neu/page.tsx` and `warteliste/[entryId]/registrieren/page.tsx` both read
+  `readCertificateTypes` alongside their existing independent `Promise.all` reads (matching how
+  `ausgabe/page.tsx` did it in US-005) and pass the list down.
+- **`certificateType` stays `z.string()` in `registrationForm`** (the AC's explicit divergence from
+  the drop-the-field pattern `kunden/[id]/actions.ts`'s renewal uses, matching what
+  `warteliste/actions.ts`'s application form already did in US-006): `kunden/neu/actions.ts` and
+  `warteliste/[entryId]/registrieren/actions.ts` both resolve `certificateType` via
+  `resolveCertificateType(form.certificateType, <raw certificateTypeOther>)` **after** the Zod parse
+  succeeds (`form.certificateType` is the already-parsed, untransformed value — `z.string()` never
+  rejects it, so before/after the parse is the same value), the same shape `warteliste/actions.ts`
+  established rather than the pre-parse shape `ausgabe/actions.ts`'s and `kunden/[id]/actions.ts`'s
+  schema-less renewals use.
+- **The `certificateType` → `certificateTypeOther` mark remap now lives once, in
+  `registration-input.ts`'s `germanRefusal`**, rather than being copied into both actions the way
+  `ausgabe/actions.ts`'s `renewalRefusal` and `warteliste/actions.ts`'s inline remap each carry their
+  own. `germanRefusal` has exactly one caller each in `kunden/neu/actions.ts` and
+  `warteliste/[entryId]/registrieren/actions.ts` (checked by grep before changing it) and no other
+  caller anywhere, so folding the remap into the shared function is safe and avoids a third copy of
+  the identical four lines — the difference from the other three screens is that here the shared
+  function was already the single seam both actions call through.
+- Verified in the browser against a production build (`npm run build` + `npm run start`, `db:reset`
+  first, then `db:demo -- --reset` for the four configured types) via `playwright-cli`: on
+  `/kunden/neu`, a configured type (`Jobcenter-Bescheid`) saves correctly (checked via a direct
+  Prisma query against `Certificate`), "Sonstiges" with free text
+  (`Selbstständigkeitsbescheinigung`) also saves correctly, and the select sits at `h-8` beside the
+  form's `Input`s. On the promotion form, an entry whose type folds to a configured one
+  (`Jobcenter-Bescheid`) prefilled selected; a freshly-created entry with an unconfigured type
+  (`Rentenbescheid uralt`, added via `/warteliste`'s own form first) prefilled onto "Sonstiges" with
+  the exact old wording intact in the free-text box, and promoting it saved that exact string — the
+  story's central rule, confirmed both in the accessibility snapshot and in the database.
+- **Attempted but could not reach via a real click**: the AC's "a blank free text under 'Sonstiges'
+  is refused by `MissingRequiredField`, marking the free-text input" is true in the code
+  (`germanRefusal`'s remap) but not reachable by clicking submit with an empty free-text box in a
+  real browser — `CertificateTypeField`'s free-text `Input` carries a native `required` attribute
+  (present since US-005), so HTML5's own validation intercepts the submission and focuses the field
+  *before* the server action ever runs, and no `MissingRequiredField` is ever thrown. This is
+  pre-existing behaviour shared by all four screens, not introduced here, and matches the
+  already-documented "defensive mapping, no reachable browser path" posture (see the
+  `errors.test.ts` bullet at the top of this file) — worth knowing before spending time trying to
+  provoke it live rather than trusting the code path.
+- Files changed: `src/app/kunden/neu/registration-form.tsx`, `src/app/kunden/neu/registration-screen.tsx`,
+  `src/app/kunden/neu/registration-input.ts`, `src/app/kunden/neu/actions.ts`,
+  `src/app/kunden/neu/page.tsx`, `src/app/warteliste/[entryId]/registrieren/promotion-screen.tsx`,
+  `src/app/warteliste/[entryId]/registrieren/actions.ts`,
+  `src/app/warteliste/[entryId]/registrieren/page.tsx`, `scripts/ralph/prd.json`.
+- **Learnings for future iterations:**
+  - `npm run db:demo` refuses to seed on top of `db:seed`'s own customers ("The register already
+    holds N customer(s)") — after a plain `db:reset` (which runs `db:seed`), `npm run db:demo --
+    --reset` is needed to get the demo register's configured certificate types, not `npm run db:demo`
+    alone.
+  - Before concluding a browser click "found no refusal", check for a native `required` attribute on
+    the control first — it silently intercepts the submission client-side, and the resulting
+    behaviour (focus moves, nothing else changes, no network request in `playwright-cli requests`)
+    looks identical to "the refusal fired but rendered nothing" until you check `aria-invalid` and the
+    element's `outerHTML` directly.
+---

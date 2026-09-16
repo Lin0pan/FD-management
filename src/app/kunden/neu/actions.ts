@@ -9,6 +9,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { registerCustomer } from "@/application/customers/register-customer";
+import { resolveCertificateType } from "../../certificate-type-resolver";
 import { customerDeps } from "../deps";
 import { freshPoolAfterRace } from "./fresh-pool";
 import type { RegisterCustomerState } from "./register-customer-state";
@@ -32,6 +33,13 @@ export async function submitRegistration(
     return { status: "error", ...fieldRefusals(parsed.error) };
   }
   const form = parsed.data;
+  // `certificateType` stays `z.string()` in `registrationForm` (the wire's shape is unchanged), but
+  // what it names on screen is `CertificateTypeField`'s select — resolved against the free-text box
+  // it may have opened (US-33.6/7), the same reading `warteliste/actions.ts`'s application form makes.
+  const certificateType = resolveCertificateType(
+    form.certificateType,
+    String(formData.get("certificateTypeOther") ?? ""),
+  );
 
   let id: number;
   try {
@@ -45,7 +53,7 @@ export async function submitRegistration(
         zip: form.zip,
         city: form.city,
       },
-      certificate: { type: form.certificateType, validUntil: form.certificateValidUntil },
+      certificate: { type: certificateType, validUntil: form.certificateValidUntil },
       householdMembers: form.householdMembers,
       notes: form.notes,
       customerNumber: form.customerNumber,

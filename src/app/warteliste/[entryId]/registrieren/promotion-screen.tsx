@@ -18,17 +18,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { PrefillDraft } from "@/app/kunden/neu/archive-search-state";
 import { RegistrationForm } from "@/app/kunden/neu/registration-form";
+import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import { de } from "@/i18n/de";
 import { submitPromotedRegistration } from "./actions";
 
 export function PromotionScreen({
   proposal,
+  certificateTypes,
   draft,
   entryId,
   certificateExpired,
   certificateValidUntil,
 }: {
   proposal: RegistrationProposal;
+  /** The configured Nachweis-Arten, read on the server page (US-33.6). */
+  certificateTypes: CertificateTypeList;
   draft: PrefillDraft;
   entryId: number;
   certificateExpired: boolean;
@@ -71,6 +75,7 @@ export function PromotionScreen({
   return (
     <RegistrationForm
       proposal={proposal}
+      certificateTypes={certificateTypes}
       draft={draft}
       entryId={entryId}
       submit={submitPromotedRegistration}

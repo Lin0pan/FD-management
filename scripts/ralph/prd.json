@@ -169,7 +169,7 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-005. The two screens that share registration-input.ts, kept together for that reason. THE PREFILL RULE IS THE WHOLE POINT OF THIS STORY — a registration pre-filled from a household whose old type DF have since removed must still arrive with that wording."
     },
     {
