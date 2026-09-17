@@ -1285,7 +1285,7 @@ export const de = {
   },
   settings: {
     heading: "Einstellungen",
-    intro: "Änderungen gelten sofort. Frühere Fassungen bleiben erhalten.",
+    intro: "Änderungen gelten sofort.",
     /**
      * The three card headings, and they are the grouping: what a household gets, when they get it,
      * and the write itself.
@@ -1294,6 +1294,13 @@ export const de = {
     rhythmHeading: "Ausgaberhythmus",
     /** The section that held the reason and the save button unnamed until now (§3.8). */
     changeHeading: "Änderung speichern",
+    /**
+     * What the button below it does beyond changing the values — it appends a version, and the
+     * previous one stays readable. It stood in the page intro until the Nachweis-Arten card arrived:
+     * up there it promised versioning for everything on the screen, and the vocabulary keeps no
+     * versions (ADR-019).
+     */
+    changeHint: "Frühere Fassungen bleiben erhalten.",
     fields: {
       quotaN: "Höchstzahl der Kunden (N)",
       weekAnchorIsoWeek: "Ankerwoche (ISO, z. B. 2026-W02)",

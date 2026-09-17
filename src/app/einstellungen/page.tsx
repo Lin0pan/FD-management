@@ -296,10 +296,14 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
         <p className="max-w-prose text-muted-foreground">{de.settings.intro}</p>
       </header>
       <SettingsForm settings={current} />
-      {/* Its own card and its own `<form>`, deliberately outside the one above: the vocabulary is not
-          a policy value and saving it must not append a `SettingsVersion` (ADR-019). */}
-      <CertificateTypeTable types={certificateTypes} />
       <VersionHistory entries={history} now={now} />
+      {/* Below the history and behind a rule, because the policy form and its history are one thing
+          and this is a second: its own `<form>` with a save of its own, which appends no
+          `SettingsVersion` (ADR-019). Stacked in the cards' own `gap-6` rhythm it read as a fifth
+          section of the form above, and „Speichern“ as the button that saved it too. */}
+      <div className="mt-6 border-t pt-12">
+        <CertificateTypeTable types={certificateTypes} />
+      </div>
     </main>
   );
 }
