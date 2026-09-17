@@ -12,7 +12,7 @@
 import { useActionState, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -104,12 +104,9 @@ export function CertificateTypeTable({
   }
 
   return (
+    // No `CardTitle`: the section heading in `page.tsx` names this block, and a second copy of the
+    // same words inside the card would be one heading too many in the outline (§2, §9).
     <Card>
-      <CardHeader>
-        <CardTitle>
-          <h2>{words.heading}</h2>
-        </CardTitle>
-      </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <form ref={form} action={formAction} onKeyDown={guardEnter} className="flex flex-col gap-4">
           {rows.length > 0 ? (

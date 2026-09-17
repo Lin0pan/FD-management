@@ -46,13 +46,26 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   its heading outline and nothing fails (§9).
 - Reach for `CardTitle` when the block is a _part_ of the page; leave it off when the block is what
   the page is _about_. A boundary is not a section.
-- **Two save buttons on one screen need a rule between them.** A page carrying a second `<form>`
-  that saves independently — `/einstellungen` and its Nachweis-Arten list — must break the `gap-6`
-  card rhythm where the first form ends, or the second card reads as one more section the first
-  button saves: put the form's own history next to it, then
-  `<div className="mt-6 border-t pt-12">` around the block below. Naming the buttons apart
-  („Speichern" / „Arten speichern", §6) is the other half and not a substitute. Never make the
-  second save quieter than the first — an unsaved list is the failure this is guarding against.
+- **Two save buttons on one screen need a chapter mark, and a bare rule is not one.** A page
+  carrying a second `<form>` that saves independently — `/einstellungen` and its Nachweis-Arten list
+  — must break the `gap-6` card rhythm where the first form ends, or the second card reads as one
+  more section the first button saves. A hairline on its own cannot do it between ringed cards:
+  centred in the whitespace it belongs to neither neighbour, and tightened against the card below it
+  doubles that card's own top edge. **The rule needs the heading under it**, and the card then drops
+  its `CardTitle`:
+
+  ```tsx
+  <section aria-labelledby="…-heading" className="mt-8 flex flex-col gap-4 border-t pt-8">
+    <h2 id="…-heading" className="text-xl font-semibold">{…}</h2>
+    <Card>…</Card>
+  </section>
+  ```
+
+  That is the same section register as `/kunden/[id]/karte`, and it makes the block a named region
+  rather than a card in a stack. Naming the buttons apart („Speichern" / „Arten speichern", §6) is
+  the other half and not a substitute. Never make the second save quieter than the first — an
+  unsaved list is the failure this is guarding against.
+
 - **No back-link to a section** — the nav reaches all four from everywhere. A back-link that names a
   _record_ stays, in the header row, never stranded under the last card.
 - The nav holds exactly four links and nothing else. Anything else global goes beside `<Nav />` in

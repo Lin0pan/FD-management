@@ -300,10 +300,20 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
       {/* Below the history and behind a rule, because the policy form and its history are one thing
           and this is a second: its own `<form>` with a save of its own, which appends no
           `SettingsVersion` (ADR-019). Stacked in the cards' own `gap-6` rhythm it read as a fifth
-          section of the form above, and „Speichern“ as the button that saved it too. */}
-      <div className="mt-6 border-t pt-12">
+          section of the form above, and „Speichern“ as the button that saved it too.
+
+          The heading stands under the rule rather than in the card, so the two are one chapter mark:
+          a hairline centred in whitespace between two ringed cards belongs to neither, and tightened
+          against the card below it only doubles that card's own top edge. */}
+      <section
+        aria-labelledby="certificate-types-heading"
+        className="mt-8 flex flex-col gap-4 border-t pt-8"
+      >
+        <h2 id="certificate-types-heading" className="text-xl font-semibold">
+          {de.settings.certificateTypes.heading}
+        </h2>
         <CertificateTypeTable types={certificateTypes} />
-      </div>
+      </section>
     </main>
   );
 }
