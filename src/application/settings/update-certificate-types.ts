@@ -27,10 +27,18 @@ function describeChanges(changes: ReadonlyArray<CertificateTypeChange>): string 
     .join(", ");
 }
 
+/** Whether two validated lists are the same words in the same spelling — both are fold-sorted. */
+function sameSpellings(previous: CertificateTypeList, next: CertificateTypeList): boolean {
+  return previous.length === next.length && previous.every((label, index) => label === next[index]);
+}
+
 /**
  * Validate the submitted labels through the domain, write them, and append one audit entry.
- * Nothing is written unless validation passes, and a save that changes nothing writes neither the
+ * Nothing is written unless validation passes, and the same list re-submitted writes neither the
  * list nor an audit entry.
+ *
+ * Returns what is now **stored**, which is what the screen may show: the re-submitted list is the
+ * one already on file, down to the spelling.
  *
  * @throws {MissingRequiredField} if a label is blank after trimming.
  * @throws {CertificateTypeTooLong} if a label exceeds the domain's maximum length.
@@ -43,17 +51,24 @@ export async function updateCertificateTypes(
   const next = createCertificateTypeList(labels);
   const previous = await readCertificateTypes(deps);
 
-  const changes = diffCertificateTypes(previous, next);
-  if (changes.length === 0) {
-    return next;
+  if (sameSpellings(previous, next)) {
+    return previous;
   }
 
   await deps.certificateTypes.replace(next);
-  await deps.audit.append({
-    what: CERTIFICATE_TYPES_UPDATED,
-    changedFields: ["certificateTypes"],
-    when: deps.clock.now(),
-    why: describeChanges(changes),
-  });
+
+  // The write and the log part company over a re-spelling. „jobcenter" corrected to „Jobcenter" is
+  // stored, because the label is the word the drop-down shows; but it adds and removes no type, so
+  // `diffCertificateTypes` has nothing to report and the log — which records *changes* — stays out
+  // of it.
+  const changes = diffCertificateTypes(previous, next);
+  if (changes.length > 0) {
+    await deps.audit.append({
+      what: CERTIFICATE_TYPES_UPDATED,
+      changedFields: ["certificateTypes"],
+      when: deps.clock.now(),
+      why: describeChanges(changes),
+    });
+  }
   return next;
 }

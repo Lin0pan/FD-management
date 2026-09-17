@@ -82,10 +82,27 @@ describe("updateCertificateTypes", () => {
   });
 
   it("writes nothing when the list is unchanged", async () => {
-    await updateCertificateTypes(deps(), ["jobcenter-bescheid"]);
+    await updateCertificateTypes(deps(), ["Jobcenter-Bescheid"]);
 
     expect(repository.labels).toEqual(["Jobcenter-Bescheid"]);
     expect(audit.entries).toHaveLength(0);
+  });
+
+  it("stores a re-spelling without recording a change", async () => {
+    // The label is the word the drop-down shows, so the correction is kept — but „jobcenter" and
+    // „Jobcenter" are one type, so there is no addition and no removal for the log to name.
+    const stored = await updateCertificateTypes(deps(), ["jobcenter-bescheid"]);
+
+    expect(repository.labels).toEqual(["jobcenter-bescheid"]);
+    expect(stored).toEqual(["jobcenter-bescheid"]);
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("answers with the stored spelling when the same list is re-submitted", async () => {
+    // Not the submitted array: a save that wrote nothing must not report a list nobody stored.
+    expect(await updateCertificateTypes(deps(), ["Jobcenter-Bescheid"])).toEqual([
+      "Jobcenter-Bescheid",
+    ]);
   });
 
   it("stamps the audit entry with the clock", async () => {
