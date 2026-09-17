@@ -191,7 +191,7 @@
         "Lint passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-004 through US-007. The hardest criterion is the untouched-existing-specs one, and it is the most valuable: it is what proves the drop-down replaced a text box without changing the contract."
     },
     {

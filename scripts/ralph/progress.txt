@@ -358,6 +358,18 @@ bullets that sat under „Where batch 32 starts" are not carried over — they a
   real use cases, so it holds a call to almost all of them, and the
   `npm run typecheck 2>&1 | grep -E "^src/"` filter in the bullets above **hides it** — it is the
   one file outside `src/` that a wide domain change always reaches. Grep the raw typecheck output.
+- **A second submit button on one screen is a screen defect, not a spec problem.** Playwright runs
+  in strict mode, so a card that ends in a button already named on that page breaks every existing
+  spec clicking the older one — and the temptation is `.first()`. Don't: `ui_styling_guide.md` §6
+  and §9 already require distinct accessible names, and the German label is the one-line fix
+  (US-33.7 found fifteen such call sites behind one duplicated „Speichern"). The *spec* breaking is
+  the gate working.
+- **A controlled `<select>` or radio inside a `useActionState` form needs its `default…` written by
+  a `ref`.** React resets the form when the action resolves and a native reset reads the
+  `selected`/`checked` **attribute**, which React never writes for a controlled control — so the
+  value silently rewinds while the state says otherwise, on a save *and* on a refusal.
+  `number-control.tsx` states the argument in full; `certificate-type-field.tsx` and
+  `registration-form.tsx`'s group radio both carry the same three lines.
 
 
 ### Where batch 33 starts
@@ -755,4 +767,55 @@ If a spec needs editing, the control is wrong, not the spec.
     behaviour (focus moves, nothing else changes, no network request in `playwright-cli requests`)
     looks identical to "the refusal fired but rendered nothing" until you check `aria-invalid` and the
     element's `outerHTML` directly.
+---
+
+## 2026-09-17 - US-008
+- The round trip from `/einstellungen` to a saved certificate, proved over both engines. New
+  `tests/e2e/certificate-types.spec.ts` on the **shared** register: it adds two types and asserts the
+  card's own rows, then adds one and removes another **in one save** and asserts the list the card
+  re-renders with no `page.goto` in between (a reload follows, to separate "redrawn" from
+  "written"); then the intake offers them with „Sonstiges" last, a household registered under a
+  configured type carries that word to its record and to the `Certificate` row, „Sonstiges" saves the
+  typed string character for character, and a type removed afterwards leaves that household's record
+  showing it. Synthetic names via Faker; the four German Nachweis words are ordinary public benefit
+  notices, not DF case-file wording.
+- `tests/e2e/registration-form.ts` learns the control: `fillCertificateTypeControl(page, id, type)`
+  reads the `<select>`'s **own** options and selects `type` when it is offered, otherwise picks
+  „Sonstiges" and types it. Reading the options rather than assuming a fixture is what lets one call
+  serve a register with the type configured and a register with nothing configured — which is every
+  spec that runs before this one alphabetically. `Eligibility` keeps its shape, so nothing that
+  fills a registration through `fillPersonalData` changed.
+- **Two `src/` fixes, each committed on its own, both found by this story's gate:**
+  - `certificate-type-field.tsx`: a controlled `<select>` rewound to its first option on every save
+    and every refusal, because React's post-action form reset reads the `selected` attribute it
+    never writes. Fixed with the `defaultSelected` ref `number-control.tsx` already uses.
+  - `de.settings.certificateTypes.save` was a second „Speichern" on `/einstellungen`, identical to
+    the policy form's. Renamed to „Arten speichern" (and `saving` with it). See the new Codebase
+    Pattern; this is what let four existing specs go back to untouched.
+- Files changed: `src/app/certificate-type-field.tsx`, `src/i18n/de.ts`,
+  `tests/e2e/certificate-types.spec.ts` (new), `tests/e2e/registration-form.ts`,
+  `tests/e2e/archive.spec.ts`, `tests/e2e/card.spec.ts`, `tests/e2e/card-number.spec.ts`,
+  `tests/e2e/reregistration.spec.ts`, `tests/e2e/customer-record.spec.ts`,
+  `tests/e2e/reminders.spec.ts`, `tests/e2e/waiting-list.spec.ts`, `scripts/ralph/prd.json`.
+- Gates: `lint`, `typecheck`, `test:coverage` (1326 tests, domain+application at 100%), `build`,
+  `npm run test:e2e` (209 passed) and `npm run test:e2e:webkit` (209 passed). No `browserName`
+  anywhere in `src/`. Checked the renamed button in the browser with `playwright-cli` against a
+  production build: the accessibility tree reads „Speichern" under „Änderung speichern" and „Arten
+  speichern" under „Arten des Nachweises", distinct, and the longer label sits fine in the card.
+- No documentation needed updating: no chapter, guide or handout names an e2e spec file or that
+  button. The handout section is US-009's and ADR-019 is US-010's.
+- **Learnings for future iterations:**
+  - **The AC's „no existing spec changes" could not be met literally, and the six that changed say
+    something worth knowing.** Four (`archive`, `card`, `card-number`, `reregistration`) hand-roll
+    the intake's fields instead of calling `fillPersonalData`, so a shared helper cannot reach them —
+    the PRD's count of ten assumed they all went through it. Two (`customer-record`, `reminders`)
+    drive the **renewal** control, which US-005/US-006 changed and explicitly left to this story.
+    Each was pointed at the helper rather than taught the control a second time. The criterion still
+    did its job: it is what turned the fifteen `.first()` calls from a chore into a screen defect.
+  - **Do not overload `fillSticky` to cope with a `<select>`.** It was tempting — two of the four
+    hand-rolling specs call it — but it is the generic retry-until-sticky helper and giving it
+    „Sonstiges" knowledge would hide the control in every unrelated fill.
+  - A spec that writes settings the rest of the suite reads is safe **because the helper reads the
+    live options**, not because of file ordering: within one page load a `<select>`'s options cannot
+    change under it, so read-then-select never races.
 ---
