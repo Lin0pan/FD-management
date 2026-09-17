@@ -38,6 +38,14 @@ The one deliberate exception is a household's member rows: editing a household *
 because no history of past compositions is kept and what a household was survives on the card that
 printed its counts.
 
+**Amended, not superseded, by
+[ADR-019](019-keep-the-certificate-type-list-out-of-the-versioned-settings-history.md):** there is a
+second exception, and it rests on a different argument. A `CertificateType` row — one word in the
+vocabulary of Nachweis-Arten DF maintain — is **deleted** when DF take it off the list, because
+nothing references it: a certificate carries its type as text, not as a foreign key, so the delete
+destroys no history and every record saved with that word goes on showing it. Everything above still
+holds for every table that holds customer data.
+
 ## Consequences
 
 - A refused delete is a loud error instead of silent data loss.

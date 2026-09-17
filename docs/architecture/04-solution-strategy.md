@@ -1,6 +1,6 @@
 # 4. Solution strategy
 
-_Last reviewed: 2026-08-29_
+_Last reviewed: 2026-09-17_
 
 Six statements. Each names an approach, why it was taken given a goal or constraint, what it makes
 easier and what it makes harder, and where the full reasoning lives.
@@ -56,8 +56,14 @@ threshold — not the prices per head, not the cap, not the quota, and not the e
 household sizes that earn them. That is a standing rule, and the reason there is no configurable
 reminder escalation: whether an expired certificate ends in archiving is a judgement, not a number.
 
+**Where it stops.** Not everything DF configure is a policy version. The list of Nachweis-Arten they
+maintain is a table of its own, edited in place, because no past record has to be re-derived through
+it — a certificate's type is text on the record. The question to ask of the next configurable thing
+is that one, not "is it configurable".
+
 → [ADR-005](adr/005-keep-business-rules-as-dated-append-only-settings-data.md),
 [ADR-014](adr/014-store-the-egg-allowance-as-versioned-threshold-rows.md),
+[ADR-019](adr/019-keep-the-certificate-type-list-out-of-the-versioned-settings-history.md),
 [chapter 8](08-crosscutting-concepts.md#configuration-as-data)
 
 ## 4. Derive anything computable; a stored duplicate needs an argument
