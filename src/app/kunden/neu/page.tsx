@@ -11,6 +11,7 @@
  */
 
 import { proposeRegistration } from "@/application/customers/propose-registration";
+import { readCertificateTypes } from "@/application/settings/read-certificate-types";
 import { listWaiting } from "@/application/waiting-list/list-waiting";
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
@@ -26,12 +27,14 @@ export const dynamic = "force-dynamic";
 export default async function NewCustomerPage(): Promise<React.ReactElement> {
   let proposal;
   let places;
+  let certificateTypes;
   try {
     // Concurrently: neither read depends on the other, and the form is what the staff member is
     // waiting for.
-    [proposal, places] = await Promise.all([
+    [proposal, places, certificateTypes] = await Promise.all([
       proposeRegistration(customerDeps),
       listWaiting(waitingListDeps),
+      readCertificateTypes(customerDeps),
     ]);
   } catch (error: unknown) {
     // An unseeded database has no quota, so there is no register to propose a slot in: a setup
@@ -65,7 +68,7 @@ export default async function NewCustomerPage(): Promise<React.ReactElement> {
         <FreeSlotBanner head={head} customerNumber={proposal.customerNumber} showListLink />
       ) : null}
 
-      <RegistrationScreen proposal={proposal} />
+      <RegistrationScreen proposal={proposal} certificateTypes={certificateTypes} />
     </main>
   );
 }

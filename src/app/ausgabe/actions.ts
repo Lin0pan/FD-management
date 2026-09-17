@@ -41,6 +41,7 @@ import {
 } from "@/domain/errors";
 import { parseEuros, type Cents } from "@/domain/money";
 import { customerFieldLabel, de } from "@/i18n/de";
+import { certificateTypeMark, resolveCertificateType } from "../certificate-type-resolver";
 import { customerErrorField, fieldRefusals } from "../kunden/neu/registration-input";
 import { tierOf } from "../notice-tier";
 import { counterActionDeps } from "./deps";
@@ -281,10 +282,11 @@ function renewalMessage(error: unknown): string {
 /**
  * A thrown renewal failure as the counter shows it. The sentence is the counter's dictionary and the
  * mark is the shared `customerErrorField` — the record's renewal makes the same division, the two
- * forms being the same two boxes refused by the same rules.
+ * forms being the same two boxes refused by the same rules. `selected` is what the drop-down
+ * submitted, which is what decides *which* of its two controls a mark on the type belongs to.
  */
-function renewalRefusal(error: unknown): RenewalState & { status: "error" } {
-  const field = customerErrorField(error);
+function renewalRefusal(error: unknown, selected: string): RenewalState & { status: "error" } {
+  const field = certificateTypeMark(customerErrorField(error), selected);
   return {
     status: "error",
     message: renewalMessage(error),
@@ -348,15 +350,21 @@ export async function recordRenewal(
     };
   }
 
+  const selectedType = String(formData.get("certificateType") ?? "");
+  const type = resolveCertificateType(
+    selectedType,
+    String(formData.get("certificateTypeOther") ?? ""),
+  );
+
   try {
     await renewCertificate(counterActionDeps, {
       customerId: customerId.data,
-      type: String(formData.get("certificateType") ?? ""),
+      type,
       validUntil: validUntil.data.certificateValidUntil,
     });
     revalidatePath("/ausgabe");
     return { status: "saved" };
   } catch (error: unknown) {
-    return renewalRefusal(error);
+    return renewalRefusal(error, selectedType);
   }
 }

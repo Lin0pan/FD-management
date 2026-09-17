@@ -39,6 +39,17 @@ export interface SettingsRepository {
   append(version: SettingsVersion): Promise<void>;
 }
 
+/**
+ * The vocabulary of Nachweis-Arten DF maintain themselves (US-33) — a table of its own rather than a
+ * `SettingsVersion`, because nothing resolves a saved certificate's type back through it (ADR-019).
+ * `replace` is the whole set in one transaction: add, remove and re-spell arrive together from one
+ * form, and half a saved list is a vocabulary nobody typed.
+ */
+export interface CertificateTypeRepository {
+  list(): Promise<ReadonlyArray<string>>;
+  replace(labels: ReadonlyArray<string>): Promise<void>;
+}
+
 /** How many customers currently hold a slot — the reality the quota `N` may not fall below. */
 export interface CustomerCounter {
   countActive(): Promise<number>;

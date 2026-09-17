@@ -117,6 +117,27 @@ model EggAllowanceRow {
   @@index([settingsVersionId])
 }
 
+/// One Nachweis-Art DF has configured on `/einstellungen` (US-33) — a word offered in the drop-down
+/// wherever a certificate's type is asked for.
+///
+/// **No relation to anything, and that is the point.** A `Certificate` stores its type as a plain
+/// string, not a foreign key, so nothing points at this row — which is what makes it deletable at
+/// all under a project rule that otherwise deletes nothing (ADR-019). Removing a type here rewrites
+/// no record: a certificate saved with it keeps showing the string it was saved with.
+///
+/// **Not a `SettingsVersion`.** That table is append-only so a past hand-out stays priceable under
+/// the rule in force then (ADR-005); a certificate's type has never needed that; versioning the
+/// vocabulary would append a policy version every time DF add a word. So this is a table of its own,
+/// edited in place and audited on every change (ADR-019).
+///
+/// `@unique` catches an identical spelling; the fold-level duplicate ("Jobcenter" vs. "jobcenter") is
+/// `createCertificateTypeList`'s to catch, the same division of labour the egg rule already states —
+/// the database cannot fold in an index and is not asked to.
+model CertificateType {
+  id    Int    @id @default(autoincrement())
+  label String @unique
+}
+
 /// A household DF serves.
 ///
 /// `id` is the surrogate key and the **only identity** there is. `customerNumber` is a *slot*: it is

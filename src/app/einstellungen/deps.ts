@@ -1,5 +1,12 @@
-import type { AuditLog, Clock, CustomerCounter, SettingsRepository } from "@/application/ports";
+import type {
+  AuditLog,
+  CertificateTypeRepository,
+  Clock,
+  CustomerCounter,
+  SettingsRepository,
+} from "@/application/ports";
 import { systemClock } from "@/infrastructure/clock";
+import { PrismaCertificateTypeRepository } from "@/infrastructure/prisma/certificate-type-repository";
 import { PrismaCustomerCounter } from "@/infrastructure/prisma/customer-repository";
 import { PrismaAuditLog } from "@/infrastructure/prisma/audit-log";
 import { prisma } from "@/infrastructure/prisma/client";
@@ -16,9 +23,11 @@ export const settingsDeps: {
   readonly clock: Clock;
   readonly customers: CustomerCounter;
   readonly audit: AuditLog;
+  readonly certificateTypes: CertificateTypeRepository;
 } = {
   settings: new PrismaSettingsRepository(prisma),
   clock: systemClock,
   customers: new PrismaCustomerCounter(prisma),
   audit: new PrismaAuditLog(prisma),
+  certificateTypes: new PrismaCertificateTypeRepository(prisma),
 };

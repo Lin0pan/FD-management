@@ -34,6 +34,7 @@ import {
 import { parseCalendarDay } from "@/domain/calendarDay";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -44,8 +45,10 @@ import {
 } from "@/components/ui/table";
 import { composition } from "@/domain/customer/householdComposition";
 import { GROUPS, inGroup, type Group } from "@/domain/customer/group";
+import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import { de } from "@/i18n/de";
 import { GROUP_STYLES } from "../../accents";
+import { CertificateTypeField } from "../../certificate-type-field";
 import { guardEnter } from "../../enter-guard";
 import { FieldRejection, useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
@@ -61,7 +64,9 @@ import {
 } from "./register-customer-state";
 
 /**
- * The address, the certificate and the note as the form holds them, keyed by each input's `name`.
+ * The address and the note as the form holds them, keyed by each input's `name`. The certificate's
+ * type is not among them — `CertificateTypeField` (US-33.6) holds its own selection and free text,
+ * exactly as `RenewalFields`' and the waiting-list form's do.
  *
  * **React state rather than `defaultValue`s, and that is load-bearing.** React calls `form.reset()`
  * once a `<form action>` resolves — on a refusal as well as a save — and a reset restores each input
@@ -69,26 +74,24 @@ import {
  * `docs/guideline/ui_styling_guide.md` §7 gives three ways out; this form never returns on a save, so
  * controlled fields simply survive.
  *
- * One object rather than seven `useState` calls, the shape `kunden/[id]/details-editor.tsx` uses.
+ * One object rather than six `useState` calls, the shape `kunden/[id]/details-editor.tsx` uses.
  */
 interface DetailsDraft {
   readonly street: string;
   readonly houseNumber: string;
   readonly zip: string;
   readonly city: string;
-  readonly certificateType: string;
   readonly certificateValidUntil: string;
   readonly notes: string;
 }
 
-/** The address, certificate and note the form starts out with — the draft's, or blank. */
+/** The address and note the form starts out with — the draft's, or blank. */
 function initialDetails(draft: PrefillDraft | null): DetailsDraft {
   return {
     street: draft?.street ?? "",
     houseNumber: draft?.houseNumber ?? "",
     zip: draft?.zip ?? "",
     city: draft?.city ?? "",
-    certificateType: draft?.certificateType ?? "",
     certificateValidUntil: draft?.certificateValidUntil ?? "",
     notes: draft?.notes ?? "",
   };
@@ -170,12 +173,9 @@ function Field({
   const marks = marking(name, name, problem);
   return (
     <div className={`flex flex-col gap-1.5 ${span}`}>
-      <label
-        htmlFor={name}
-        className={`text-sm font-medium ${problem === null ? "" : "text-destructive"}`.trimEnd()}
-      >
+      <Label htmlFor={name} className={problem === null ? undefined : "text-destructive"}>
         {label}
-      </label>
+      </Label>
       {type === "date" ? (
         <DateInput
           name={name}
@@ -329,12 +329,15 @@ function initialCustomerRow(
 
 export function RegistrationForm({
   proposal,
+  certificateTypes,
   draft = null,
   previousCustomerId = null,
   entryId = null,
   submit = submitRegistration,
 }: {
   proposal: RegistrationProposal;
+  /** The configured Nachweis-Arten, read on the server page (US-33.6). */
+  certificateTypes: CertificateTypeList;
   /** The household this form was filled from, or `null` for a walk-in registration. */
   draft?: PrefillDraft | null;
   /**
@@ -541,13 +544,15 @@ export function RegistrationForm({
           {de.customers.new.certificateHeading}
         </p>
         <div className={GRID}>
-          <Field
-            name="certificateType"
-            label={de.customers.fields.certificateType}
-            span="lg:col-span-6"
-            value={details.certificateType}
-            onChange={(certificateType) => setDetails({ ...details, certificateType })}
-            problem={problem("certificateType")}
+          <CertificateTypeField
+            types={certificateTypes}
+            height="h-8"
+            id="certificateType"
+            className="lg:col-span-6"
+            initialValue={draft?.certificateType}
+            typeProblem={problem("certificateType")}
+            otherProblem={problem("certificateTypeOther")}
+            errorTestId="registration-field-error"
           />
           <Field
             name="certificateValidUntil"
@@ -804,14 +809,12 @@ export function RegistrationForm({
            * is still free in the group they are standing in.
            */}
           <div className="flex flex-col gap-1.5">
-            <label
+            <Label
               htmlFor="customerNumber"
-              className={`text-sm font-medium ${
-                numberProblem === null ? "" : "text-destructive"
-              }`.trimEnd()}
+              className={numberProblem === null ? undefined : "text-destructive"}
             >
               {de.customers.fields.customerNumber}
-            </label>
+            </Label>
             {/* A box holding at most three digits, at the width the record's control has for the
                 same list (`kunden/[id]/number-control.tsx`) — the two are one decision made in two
                 places, and R-11 asks them to look it. */}

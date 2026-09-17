@@ -6,7 +6,11 @@ import { de } from "@/i18n/de";
 import { clearRegister } from "@/infrastructure/prisma/test-support";
 import { ISOLATED } from "./registers";
 import { fillSticky } from "./day";
-import { fillPersonalData as fillPersonalDataOn, type Person } from "./registration-form";
+import {
+  expectCertificateTypeBlank,
+  fillPersonalData as fillPersonalDataOn,
+  type Person,
+} from "./registration-form";
 
 /**
  * The waiting list from a full register to a promoted applicant (`tasks/prd-us-12-waiting-list.md`
@@ -150,7 +154,7 @@ async function addToWaitingList(page: Page, person: Applicant): Promise<void> {
   // are React state under the `savedCount` key, so the remount empties them — and state moved *above*
   // the key would leave the saved applicant in the boxes, which is what this catches.
   await expect(page.locator("#firstName")).toHaveValue("");
-  await expect(page.locator("#certificateType")).toHaveValue("");
+  await expectCertificateTypeBlank(page);
   await expect(page.locator("#certificateValidUntil")).toHaveValue("");
 }
 
@@ -183,6 +187,14 @@ test.describe("Warteliste", () => {
   test.beforeAll(async () => {
     await prisma.waitingListEntry.deleteMany();
     await clearRegister(prisma);
+    // This register never sees `/einstellungen` (US-33), so without this the control would fall onto
+    // "Sonstiges" for every fill below — configuring the one type this spec fills lets it exercise the
+    // same selected-option path the shared register's specs do.
+    await prisma.certificateType.upsert({
+      where: { label: CERTIFICATE_TYPE },
+      update: {},
+      create: { label: CERTIFICATE_TYPE },
+    });
   });
 
   test.afterAll(async () => {

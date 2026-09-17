@@ -13,6 +13,7 @@ import { z } from "zod";
 import { registerFromWaitingList } from "@/application/waiting-list/register-from-waiting-list";
 import { WaitingListEntryNotFound } from "@/domain/errors";
 import { de } from "@/i18n/de";
+import { resolveCertificateType } from "@/app/certificate-type-resolver";
 import { freshPoolAfterRace } from "@/app/kunden/neu/fresh-pool";
 import type { RegisterCustomerState } from "@/app/kunden/neu/register-customer-state";
 import {
@@ -48,6 +49,13 @@ export async function submitPromotedRegistration(
     return { status: "error", ...fieldRefusals(parsed.error) };
   }
   const form = parsed.data;
+  // `certificateType` stays `z.string()` in `registrationForm` (the wire's shape is unchanged), but
+  // what it names on screen is `CertificateTypeField`'s select — resolved against the free-text box
+  // it may have opened (US-33.6/7), the same reading `warteliste/actions.ts`'s application form makes.
+  const certificateType = resolveCertificateType(
+    form.certificateType,
+    String(formData.get("certificateTypeOther") ?? ""),
+  );
 
   let id: number;
   try {
@@ -62,7 +70,7 @@ export async function submitPromotedRegistration(
         zip: form.zip,
         city: form.city,
       },
-      certificate: { type: form.certificateType, validUntil: form.certificateValidUntil },
+      certificate: { type: certificateType, validUntil: form.certificateValidUntil },
       householdMembers: form.householdMembers,
       notes: form.notes,
       customerNumber: form.customerNumber,
@@ -75,7 +83,7 @@ export async function submitPromotedRegistration(
     }
     return {
       status: "error",
-      ...germanRefusal(error),
+      ...germanRefusal(error, form.certificateType),
       ...(await freshPoolAfterRace(waitingListDeps, error)),
     };
   }

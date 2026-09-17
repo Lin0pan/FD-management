@@ -5,7 +5,7 @@ number). Each file is a complete, self-contained Ralph run: its own `branchName`
 starting at `US-001`, its own priorities `1..n`.
 
 [`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
-it. It currently holds **batch 32**, the next one to run. `done/` holds the finished copy of each
+it. It currently holds **batch 33**, the next one to run. `done/` holds the finished copy of each
 batch that has run — the same file with every story's `passes` flipped to `true`.
 
 ## Workflow
@@ -77,42 +77,43 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 
 ## Batches
 
-| #   | File                                         | Stories | Branch                                     |
-| --- | -------------------------------------------- | ------- | ------------------------------------------ |
-| 01  | `01-us-14-configure-business-rules.json`     | 5       | `ralph/us-14-configure-business-rules`     |
-| 02  | `02-us-01-register-customer.json`            | 7       | `ralph/us-01-register-customer`            |
-| 03  | `03-us-02-issue-customer-card.json`          | 5       | `ralph/us-02-issue-customer-card`          |
-| 04  | `04-us-03-week-colour.json`                  | 5       | `ralph/us-03-week-colour`                  |
-| 05  | `05-us-07-portions-and-price.json`           | 3       | `ralph/us-07-portions-and-price`           |
-| 06  | `06-us-04-lookup-customer.json`              | 7       | `ralph/us-04-lookup-customer`              |
-| 07  | `07-us-05-record-attendance.json`            | 5       | `ralph/us-05-record-attendance`            |
-| 08  | `08-us-06-certificate-reminder.json`         | 5       | `ralph/us-06-certificate-reminder`         |
-| 09  | `09-us-08-block-unblock-customer.json`       | 6       | `ralph/us-08-block-unblock-customer`       |
-| 10  | `10-us-09-reissue-card-after-loss.json`      | 4       | `ralph/us-09-reissue-card-after-loss`      |
-| 11  | `11-us-10-archive-customer.json`             | 5       | `ralph/us-10-archive-customer`             |
-| 12  | `12-us-13-age-13-reclassification.json`      | 5       | `ralph/us-13-age-13-reclassification`      |
-| 13  | `13-us-11-reuse-archived-record.json`        | 5       | `ralph/us-11-reuse-archived-record`        |
-| 14  | `14-us-12-waiting-list.json`                 | 5       | `ralph/us-12-waiting-list`                 |
-| 15  | `15-us-15-customer-list.json`                | 4       | `ralph/us-15-customer-list`                |
-| 16  | `16-us-16-maintain-customer-record.json`     | 5       | `ralph/us-16-maintain-customer-record`     |
-| 17  | `17-us-17-navigation-shell.json`             | 6       | `ralph/us-17-navigation-shell`             |
-| 18  | `18-us-18-waiting-list-signals.json`         | 4       | `ralph/us-18-waiting-list-signals`         |
-| 19  | `19-us-19-fold-archive-search.json`          | 3       | `ralph/us-19-fold-archive-search`          |
-| 20  | `20-us-20-fold-group-choice.json`            | 3       | `ralph/us-20-fold-group-choice`            |
-| 21  | `21-us-22-drop-week-colour-lookup.json`      | 4       | `ralph/us-22-drop-week-colour-lookup`      |
-| 22  | `22-us-21-step-through-group.json`           | 4       | `ralph/us-21-step-through-group`           |
-| 23  | `23-us-23-group-progress.json`               | 5       | `ralph/us-23-group-progress`               |
-| 24  | `24-us-24-choose-customer-number.json`       | 5       | `ralph/us-24-choose-customer-number`       |
-| 25  | `25-us-25-globally-unique-card-numbers.json` | 7       | `ralph/us-25-globally-unique-card-numbers` |
-| 26  | `26-us-26-price-cap.json`                    | 7       | `ralph/us-26-price-cap`                    |
-| 27  | `27-us-27-remove-portion-allowance.json`     | 6       | `ralph/us-27-remove-portion-allowance`     |
-| 28  | `28-us-28-egg-allowance.json`                | 9       | `ralph/us-28-egg-allowance`                |
-| 29  | `29-us-29-customer-balance.json`             | 10      | `ralph/us-29-customer-balance`             |
-| 30  | `30-us-30-change-customer-number.json`       | 8       | `ralph/us-30-change-customer-number`       |
-| 31  | `31-us-31-number-decides-the-group.json`     | 9       | `ralph/us-31-number-decides-the-group`     |
-| 32  | `32-us-32-one-household-at-a-time.json`      | 9       | `ralph/us-32-one-household-at-a-time`      |
+| #   | File                                            | Stories | Branch                                        |
+| --- | ----------------------------------------------- | ------- | --------------------------------------------- |
+| 01  | `01-us-14-configure-business-rules.json`        | 5       | `ralph/us-14-configure-business-rules`        |
+| 02  | `02-us-01-register-customer.json`               | 7       | `ralph/us-01-register-customer`               |
+| 03  | `03-us-02-issue-customer-card.json`             | 5       | `ralph/us-02-issue-customer-card`             |
+| 04  | `04-us-03-week-colour.json`                     | 5       | `ralph/us-03-week-colour`                     |
+| 05  | `05-us-07-portions-and-price.json`              | 3       | `ralph/us-07-portions-and-price`              |
+| 06  | `06-us-04-lookup-customer.json`                 | 7       | `ralph/us-04-lookup-customer`                 |
+| 07  | `07-us-05-record-attendance.json`               | 5       | `ralph/us-05-record-attendance`               |
+| 08  | `08-us-06-certificate-reminder.json`            | 5       | `ralph/us-06-certificate-reminder`            |
+| 09  | `09-us-08-block-unblock-customer.json`          | 6       | `ralph/us-08-block-unblock-customer`          |
+| 10  | `10-us-09-reissue-card-after-loss.json`         | 4       | `ralph/us-09-reissue-card-after-loss`         |
+| 11  | `11-us-10-archive-customer.json`                | 5       | `ralph/us-10-archive-customer`                |
+| 12  | `12-us-13-age-13-reclassification.json`         | 5       | `ralph/us-13-age-13-reclassification`         |
+| 13  | `13-us-11-reuse-archived-record.json`           | 5       | `ralph/us-11-reuse-archived-record`           |
+| 14  | `14-us-12-waiting-list.json`                    | 5       | `ralph/us-12-waiting-list`                    |
+| 15  | `15-us-15-customer-list.json`                   | 4       | `ralph/us-15-customer-list`                   |
+| 16  | `16-us-16-maintain-customer-record.json`        | 5       | `ralph/us-16-maintain-customer-record`        |
+| 17  | `17-us-17-navigation-shell.json`                | 6       | `ralph/us-17-navigation-shell`                |
+| 18  | `18-us-18-waiting-list-signals.json`            | 4       | `ralph/us-18-waiting-list-signals`            |
+| 19  | `19-us-19-fold-archive-search.json`             | 3       | `ralph/us-19-fold-archive-search`             |
+| 20  | `20-us-20-fold-group-choice.json`               | 3       | `ralph/us-20-fold-group-choice`               |
+| 21  | `21-us-22-drop-week-colour-lookup.json`         | 4       | `ralph/us-22-drop-week-colour-lookup`         |
+| 22  | `22-us-21-step-through-group.json`              | 4       | `ralph/us-21-step-through-group`              |
+| 23  | `23-us-23-group-progress.json`                  | 5       | `ralph/us-23-group-progress`                  |
+| 24  | `24-us-24-choose-customer-number.json`          | 5       | `ralph/us-24-choose-customer-number`          |
+| 25  | `25-us-25-globally-unique-card-numbers.json`    | 7       | `ralph/us-25-globally-unique-card-numbers`    |
+| 26  | `26-us-26-price-cap.json`                       | 7       | `ralph/us-26-price-cap`                       |
+| 27  | `27-us-27-remove-portion-allowance.json`        | 6       | `ralph/us-27-remove-portion-allowance`        |
+| 28  | `28-us-28-egg-allowance.json`                   | 9       | `ralph/us-28-egg-allowance`                   |
+| 29  | `29-us-29-customer-balance.json`                | 10      | `ralph/us-29-customer-balance`                |
+| 30  | `30-us-30-change-customer-number.json`          | 8       | `ralph/us-30-change-customer-number`          |
+| 31  | `31-us-31-number-decides-the-group.json`        | 9       | `ralph/us-31-number-decides-the-group`        |
+| 32  | `32-us-32-one-household-at-a-time.json`         | 9       | `ralph/us-32-one-household-at-a-time`         |
+| 33  | `33-us-33-certificate-types-from-settings.json` | 10      | `ralph/us-33-certificate-types-from-settings` |
 
-180 stories total — the rows sum to it. Every story cites its source PRD section in its
+190 stories total — the rows sum to it. Every story cites its source PRD section in its
 `description`, so an iteration can read the full context when a criterion is ambiguous.
 
 Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 onwards are not
@@ -307,6 +308,26 @@ before starting the next batch" rule matters more than usual here: both change
 `tests/e2e/reregistration.spec.ts`, so starting 20 before 19 has merged gives 20 a branch cut from a
 `main` that does not have 19's edit, and the two will conflict. `docs/ui_redesign_kunden_neu.md` §12
 records why the edits are needed — Playwright cannot reach a control inside a closed `<details>`.
+
+**Batch 33 (US-33)** is DF's first request that is not about the counter: the **Art des Nachweises**
+is asked for on four screens and asked for as an empty text box on all four, so the same half a dozen
+answers are retyped week after week and arrive in four spellings. DF get a list they maintain on
+`/einstellungen` and a native drop-down wherever the type is asked for, with **„Sonstiges"** opening a
+free-text field so a notice nobody has configured is still recordable without leaving the form. Domain
+
+- schema + infrastructure + application + settings screen + four forms + e2e + handout + an ADR.
+
+Four things about 33 to hold on to. **The list is deliberately not a policy version**: `SettingsVersion`
+is append-only so a past hand-out can be re-priced (ADR-005), and a certificate's type is already a
+string on the record, so nothing resolves it and versioning the vocabulary would append a policy
+version for every word DF add — it is a table of its own, edited in place and audited on change
+(ADR-019). It is the **eighth batch to regenerate `prisma/migrations/`**, so the hand-written partial
+unique index on `Customer.customerNumber` has to be re-added again, this time by story 2. It carries
+one **silent trap**: a form pre-filled from an archived record (US-11.3) or a promoted waiting-list
+entry (US-12.4) whose type is not configured must land on „Sonstiges" with the old wording intact —
+substituting a near match or blanking the field would rewrite a household's record without saying so.
+And **`Eligibility` keeps its shape** in `tests/e2e/registration-form.ts`, so no existing spec changes:
+if a spec needs editing, the control is wrong, not the spec.
 
 ## Regenerating
 

@@ -8,6 +8,7 @@ import {
   listSettingsVersions,
   type SettingsVersionEntry,
 } from "@/application/settings/list-settings-versions";
+import { readCertificateTypes } from "@/application/settings/read-certificate-types";
 import { readCurrentSettings } from "@/application/settings/read-current-settings";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +21,7 @@ import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { FoldChevron } from "../disclosure";
 import { SHELL } from "../shell";
+import { CertificateTypeTable } from "./certificate-type-table";
 import { settingsDeps } from "./deps";
 import { SettingsForm } from "./settings-form";
 
@@ -285,6 +287,7 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
   }
 
   const history = await listSettingsVersions(settingsDeps);
+  const certificateTypes = await readCertificateTypes(settingsDeps);
 
   return (
     <main className={SHELL}>
@@ -294,6 +297,23 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
       </header>
       <SettingsForm settings={current} />
       <VersionHistory entries={history} now={now} />
+      {/* Below the history and behind a rule, because the policy form and its history are one thing
+          and this is a second: its own `<form>` with a save of its own, which appends no
+          `SettingsVersion` (ADR-019). Stacked in the cards' own `gap-6` rhythm it read as a fifth
+          section of the form above, and „Speichern“ as the button that saved it too.
+
+          The heading stands under the rule rather than in the card, so the two are one chapter mark:
+          a hairline centred in whitespace between two ringed cards belongs to neither, and tightened
+          against the card below it only doubles that card's own top edge. */}
+      <section
+        aria-labelledby="certificate-types-heading"
+        className="mt-8 flex flex-col gap-4 border-t pt-8"
+      >
+        <h2 id="certificate-types-heading" className="text-xl font-semibold">
+          {de.settings.certificateTypes.heading}
+        </h2>
+        <CertificateTypeTable types={certificateTypes} />
+      </section>
     </main>
   );
 }

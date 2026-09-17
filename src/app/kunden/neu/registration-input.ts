@@ -29,6 +29,7 @@ import {
   NoFreeCustomerNumber,
 } from "@/domain/errors";
 import { customerFieldLabel, customerFormFieldLabel, de } from "@/i18n/de";
+import { certificateTypeMark } from "../../certificate-type-resolver";
 import { summarise, type FieldRefusal, type FormRefusal } from "../../field-refusal";
 import { tierOf } from "../../notice-tier";
 import type { PrefillDraft, PrefillMember } from "./archive-search-state";
@@ -294,12 +295,17 @@ export function germanMessage(error: unknown): string {
  *
  * `lastWord` for the same reason {@link fieldRefusals} takes one: the rules are shared, the sentence
  * for an error nobody has words for is not.
+ *
+ * `selectedCertificateType` is what the Art-des-Nachweises drop-down submitted (US-33.6, US-33.7):
+ * the domain names one field and the control is two, so `certificateTypeMark` is what decides which
+ * of them a mark on the type belongs to — the same rule the other two screens read.
  */
 export function germanRefusal(
   error: unknown,
+  selectedCertificateType: string,
   lastWord: string = de.customers.errors.unknown,
 ): RegistrationRefusal {
-  const field = customerErrorField(error);
+  const field = certificateTypeMark(customerErrorField(error), selectedCertificateType);
   return {
     message: customerErrorMessage(error) ?? lastWord,
     tier: tierOf(error),

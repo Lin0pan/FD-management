@@ -1,6 +1,7 @@
 import type {
   AuditLog,
   CardRepository,
+  CertificateTypeRepository,
   Clock,
   CustomerRepository,
   SettingsRepository,
@@ -9,6 +10,7 @@ import type {
 import { systemClock } from "@/infrastructure/clock";
 import { PrismaAuditLog } from "@/infrastructure/prisma/audit-log";
 import { PrismaCardRepository } from "@/infrastructure/prisma/card-repository";
+import { PrismaCertificateTypeRepository } from "@/infrastructure/prisma/certificate-type-repository";
 import { prisma } from "@/infrastructure/prisma/client";
 import { PrismaCustomerRepository } from "@/infrastructure/prisma/customer-repository";
 import { PrismaSettingsRepository } from "@/infrastructure/prisma/settings-repository";
@@ -27,6 +29,7 @@ export const waitingListDeps: {
   readonly customers: CustomerRepository;
   readonly cards: CardRepository;
   readonly settings: SettingsRepository;
+  readonly certificateTypes: CertificateTypeRepository;
   readonly clock: Clock;
   readonly audit: AuditLog;
 } = {
@@ -34,6 +37,9 @@ export const waitingListDeps: {
   customers: new PrismaCustomerRepository(prisma),
   cards: new PrismaCardRepository(prisma),
   settings: new PrismaSettingsRepository(prisma),
+  // The application form's drop-down reads the configured Nachweis-Arten the same way the counter's
+  // does (US-33.5/US-33.6).
+  certificateTypes: new PrismaCertificateTypeRepository(prisma),
   clock: systemClock,
   audit: new PrismaAuditLog(prisma),
 };

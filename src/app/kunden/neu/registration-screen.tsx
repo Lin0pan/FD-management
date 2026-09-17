@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import type { RegistrationProposal } from "@/application/customers/propose-registration";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { ArchiveSearchPanel, type ArchiveSelection } from "./archive-search-panel";
@@ -22,8 +23,11 @@ import { RegistrationForm } from "./registration-form";
 
 export function RegistrationScreen({
   proposal,
+  certificateTypes,
 }: {
   proposal: RegistrationProposal;
+  /** The configured Nachweis-Arten, read on the server page (US-33.6). */
+  certificateTypes: CertificateTypeList;
 }): React.ReactElement {
   const [selection, setSelection] = useState<ArchiveSelection | null>(null);
   // Bumped on every apply and every clear, so picking a second household after a first replaces the
@@ -92,6 +96,7 @@ export function RegistrationScreen({
       <RegistrationForm
         key={formGeneration}
         proposal={proposal}
+        certificateTypes={certificateTypes}
         draft={selection?.draft ?? null}
         previousCustomerId={selection?.match.customerId ?? null}
       />

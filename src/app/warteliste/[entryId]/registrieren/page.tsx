@@ -14,6 +14,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { proposeRegistration } from "@/application/customers/propose-registration";
+import { readCertificateTypes } from "@/application/settings/read-certificate-types";
 import { promoteFromWaitingList } from "@/application/waiting-list/promote-from-waiting-list";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -98,7 +99,11 @@ export default async function PromoteApplicantPage({
     throw error;
   }
 
-  const proposal = await proposeRegistration(waitingListDeps);
+  // Concurrently: neither read depends on the other.
+  const [proposal, certificateTypes] = await Promise.all([
+    proposeRegistration(waitingListDeps),
+    readCertificateTypes(waitingListDeps),
+  ]);
 
   // The certificate and the contact note are the two things a waiting-list draft carries that an
   // archived one deliberately does not — both were written while the applicant waited, and both
@@ -118,6 +123,7 @@ export default async function PromoteApplicantPage({
       </p>
       <PromotionScreen
         proposal={proposal}
+        certificateTypes={certificateTypes}
         draft={draft}
         entryId={promotion.entryId}
         certificateExpired={promotion.certificateExpired}

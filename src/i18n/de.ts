@@ -201,6 +201,10 @@ export const de = {
       zip: "PLZ",
       city: "Ort",
       certificateType: "Art des Nachweises",
+      /** The option a control with nothing pre-filled stands on, so nothing is answered for DF. */
+      certificateTypeUnchosen: "Bitte auswählen",
+      certificateTypeOtherOption: "Sonstiges",
+      certificateTypeOther: "Welche Art?",
       certificateValidUntil: "Nachweis gültig bis",
       notes: "Bemerkung (optional)",
       group: "Gruppe",
@@ -1281,7 +1285,7 @@ export const de = {
   },
   settings: {
     heading: "Einstellungen",
-    intro: "Änderungen gelten sofort. Frühere Fassungen bleiben erhalten.",
+    intro: "Änderungen gelten sofort.",
     /**
      * The three card headings, and they are the grouping: what a household gets, when they get it,
      * and the write itself.
@@ -1290,6 +1294,13 @@ export const de = {
     rhythmHeading: "Ausgaberhythmus",
     /** The section that held the reason and the save button unnamed until now (§3.8). */
     changeHeading: "Änderung speichern",
+    /**
+     * What the button below it does beyond changing the values — it appends a version, and the
+     * previous one stays readable. It stood in the page intro until the Nachweis-Arten card arrived:
+     * up there it promised versioning for everything on the screen, and the vocabulary keeps no
+     * versions (ADR-019).
+     */
+    changeHint: "Frühere Fassungen bleiben erhalten.",
     fields: {
       quotaN: "Höchstzahl der Kunden (N)",
       weekAnchorIsoWeek: "Ankerwoche (ISO, z. B. 2026-W02)",
@@ -1403,6 +1414,39 @@ export const de = {
       /** Spelled `priceCap` on both sides, so the refusal marks the field without a translation. */
       priceCap: "Maximalpreis je Ausgabe",
     } as Record<string, string | undefined>,
+    /**
+     * The Nachweis-Art vocabulary (US-33.4) — its own card, outside the policy form: the list is not a
+     * policy version (ADR-019), so its words are here rather than folded into `fields`/`errorFields`
+     * above, which name the eight that are.
+     */
+    certificateTypes: {
+      heading: "Arten des Nachweises",
+      column: "Art des Nachweises",
+      addRow: "Art hinzufügen",
+      /** The same words the egg rule's remove control carries — it is the same gesture. */
+      removeRow: "Art entfernen",
+      /**
+       * One row's input, wherever it is named — the `aria-label` and the field a refusal points at
+       * from the summary. Rows count from 1 on screen, from 0 in the domain and the form.
+       */
+      fieldLabel: (position: number): string => `Art des Nachweises, Zeile ${position}`,
+      /**
+       * Named after what it saves, because a second "Speichern" stands on the same screen — the
+       * policy form's — and two submits with one accessible name are one control to a screen reader
+       * (`ui_styling_guide.md` §6, §9).
+       */
+      save: "Arten speichern",
+      saving: "Arten werden gespeichert …",
+      saved: "Gespeichert.",
+      errors: {
+        duplicate: (label: string): string =>
+          `„${label}“ steht bereits in der Liste. Es wurde nichts gespeichert.`,
+        tooLong: (length: number, maxLength: number): string =>
+          `Die Art ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
+          `möglich. Es wurde nichts gespeichert.`,
+        unknown: "Die Änderung konnte nicht gespeichert werden.",
+      },
+    },
     reason: "Grund der Änderung (optional)",
     reasonHint: "Wird, falls angegeben, im Änderungsprotokoll festgehalten.",
     save: "Speichern",

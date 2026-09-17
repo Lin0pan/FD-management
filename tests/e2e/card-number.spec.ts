@@ -6,6 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { SHARED } from "./registers";
 import { fillDay, hydrated } from "./day";
+import { fillCertificateType } from "./registration-form";
 
 /**
  * A card number is handed out once and never again
@@ -126,7 +127,7 @@ async function register(page: Page): Promise<Household> {
   await page.locator("#houseNumber").fill(faker.location.buildingNumber());
   await page.locator("#zip").fill(faker.location.zipCode("#####"));
   await page.locator("#city").fill(faker.location.city());
-  await page.locator("#certificateType").fill("Jobcenter-Bescheid");
+  await fillCertificateType(page, "Jobcenter-Bescheid");
   await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
 
   await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();

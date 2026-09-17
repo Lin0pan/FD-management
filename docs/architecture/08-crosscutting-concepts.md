@@ -1,6 +1,6 @@
 # 8. Cross-cutting concepts
 
-_Last reviewed: 2026-09-02_
+_Last reviewed: 2026-09-17_
 
 The rules that apply everywhere, so that five modules do not solve one problem five ways. Each says
 what it is, why it exists, the rules that follow, and where it shows up. The "why did we choose this
@@ -8,7 +8,7 @@ over that" is [chapter 9](09-architectural-decisions.md); this chapter is "how d
 
 ## Domain model and persistence
 
-Ten tables. The schema doubles as domain documentation and carries the argument for every unusual
+Eleven tables. The schema doubles as domain documentation and carries the argument for every unusual
 decision in its comments.
 
 ```mermaid
@@ -67,10 +67,16 @@ erDiagram
         string changedFields "comma-joined"
         string why "no actor, ever"
     }
+    CertificateType {
+        string label "unique; the vocabulary, not a policy version (US-33)"
+    }
 ```
 
 `WaitingListEntry` and `AuditEntry` have **no relation to `Customer`** — deliberately. An applicant
-is not a customer, and an audit entry outlives whatever it describes.
+is not a customer, and an audit entry outlives whatever it describes. `CertificateType` has no
+relation to anything at all: a certificate carries its type as text, so the list is read to fill a
+drop-down and never joined
+([ADR-019](adr/019-keep-the-certificate-type-list-out-of-the-versioned-settings-history.md)).
 
 **The rules that follow:**
 
@@ -97,6 +103,10 @@ is not a customer, and an audit entry outlives whatever it describes.
   counts.
 - Certificates are appended, never edited: a renewal stacks a row. The one on file is the latest by
   `recordedAt`, and the trail behind it says when each renewal was brought.
+- `CertificateType` rows are the second set that is not archived but **deleted**, and on a different
+  argument from the member rows: nothing references one, so removing it destroys no history and the
+  records saved with that word keep showing it —
+  [ADR-019](adr/019-keep-the-certificate-type-list-out-of-the-versioned-settings-history.md).
 
 ## Time
 
@@ -148,6 +158,17 @@ Policy is `SettingsVersion` rows, not constants — [ADR-005](adr/005-keep-busin
     `from`/`to` pair: printing two whole rules side by side is the restatement the Änderungsverlauf
     exists to avoid, so a change names the rows added, removed and moved from how many eggs to how
     many.
+
+- **Not everything DF configure is a policy version.** The list of Nachweis-Arten is a table of its
+  own, edited in place and audited on change, because nothing resolves a stored certificate type back
+  through it — versioning it would append a policy version for every word added
+  ([ADR-019](adr/019-keep-the-certificate-type-list-out-of-the-versioned-settings-history.md)). It is
+  list-valued, so the first two rules above hold for it as they do for the egg staircase: an empty
+  list is a configuration and never "not configured", and its order — ascending by folded label — is
+  part of the value rather than of the screen. The third does not, because its diff is an audit entry
+  naming what was added and removed rather than a `SettingsChange`. Before moving anything else out of
+  the versioned history, the question is the one ADR-019 answers: does a past record have to be
+  re-derivable through it?
 
 ## Money
 
@@ -204,7 +225,7 @@ Append-only entries recording _what_, _when_ and _why_ — **never who**, becaus
 tell its volunteers apart — [ADR-006](adr/006-record-what-when-and-why-in-the-audit-log-never-who.md).
 
 - Required on every state change: archive, block, unblock, number change, card reissue, note edit,
-  policy edit. Skipping one is a defect, not an omission.
+  policy edit, a change to the list of Nachweis-Arten. Skipping one is a defect, not an omission.
 - The _why_ is **mandatory** where the judgement is the record (block, archive) and optional where
   the changed fields already say it (a settings edit).
 - `changedFields` is a comma-joined string because SQLite has no array type; it is only read back for

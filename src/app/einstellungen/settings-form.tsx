@@ -10,7 +10,7 @@
 
 import { useActionState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { type Cents, formatEuroAmount } from "@/domain/money";
 import type { Settings } from "@/domain/policy/settings";
@@ -108,9 +108,12 @@ function Field({
 /** A section of the form: one card, one real `<h2>` inside its title (guide trap 1). */
 function Section({
   heading,
+  description,
   children,
 }: {
   heading: string;
+  /** A side effect of the section's control, where it has one — never a restatement of it (§8). */
+  description?: string;
   children: React.ReactNode;
 }): React.ReactElement {
   return (
@@ -119,6 +122,7 @@ function Section({
         <CardTitle>
           <h2>{heading}</h2>
         </CardTitle>
+        {description === undefined ? null : <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">{children}</CardContent>
     </Card>
@@ -359,7 +363,7 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
         </div>
       </Section>
 
-      <Section heading={de.settings.changeHeading}>
+      <Section heading={de.settings.changeHeading} description={de.settings.changeHint}>
         <div className={GRID}>
           <Field name="reason" label={de.settings.reason} span="lg:col-span-12" problem={null}>
             <div className="flex flex-col gap-1.5">

@@ -21,11 +21,12 @@ import { useActionState, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DateInput } from "@/components/ui/date-input";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import { de } from "@/i18n/de";
 import { logReminder, recordRenewal } from "./actions";
 import { initialReminderState, initialRenewalState } from "./serve-state";
+import { CertificateTypeField } from "../certificate-type-field";
 import { FieldRejection, useFocusFirstRefusal } from "../field-mark";
 import { marking, problemAt, type FieldRefusal } from "../field-refusal";
 import { Confirmation, Notice } from "../notice";
@@ -40,44 +41,35 @@ function RenewalFields({
   submit,
   pending,
   fields,
+  certificateTypes,
 }: {
   submit: string;
   pending: boolean;
   /** The fields the last refusal named, so each can mark itself. */
   fields: ReadonlyArray<FieldRefusal> | undefined;
+  certificateTypes: CertificateTypeList;
 }): React.ReactElement {
-  const [type, setType] = useState("");
   const [validUntil, setValidUntil] = useState("");
 
   const typeProblem = problemAt(fields, "certificateType");
+  const otherProblem = problemAt(fields, "certificateTypeOther");
   const validUntilProblem = problemAt(fields, "certificateValidUntil");
 
   // One wrapped row, so a mark rides *under* its own field rather than pushing the row apart:
   // `items-end` would align the button to the tallest box and leave it floating.
   return (
     <div className="flex flex-wrap items-start gap-3">
-      <div className="flex flex-col gap-1.5">
-        <Label
-          htmlFor="renewal-type"
-          className={typeProblem === null ? undefined : "text-destructive"}
-        >
-          {de.customers.fields.certificateType}
-        </Label>
-        <Input
-          type="text"
-          id="renewal-type"
-          name="certificateType"
-          required
-          value={type}
-          onChange={(event) => setType(event.target.value)}
-          data-testid="renewal-type"
-          className="h-9 w-64"
-          {...marking("certificateType", "renewal-type", typeProblem)}
-        />
-        {typeProblem === null ? null : (
-          <FieldRejection id="renewal-type" problem={typeProblem} testId="counter-field-error" />
-        )}
-      </div>
+      <CertificateTypeField
+        types={certificateTypes}
+        height="h-9"
+        id="renewal-type"
+        // The width the text box it replaced was fixed at. A cap rather than a fixed width: the
+        // select sizes itself to its longest option, and DF type those.
+        className="max-w-64"
+        typeProblem={typeProblem}
+        otherProblem={otherProblem}
+        errorTestId="counter-field-error"
+      />
       <div className="flex flex-col gap-1.5">
         <Label
           htmlFor="renewal-valid-until"
@@ -134,12 +126,15 @@ export function CertificateControls({
   customerId,
   expired,
   reminderLoggedToday,
+  certificateTypes,
 }: {
   customerId: number;
   /** Whether the verdict found the certificate expired — the only state with anything to act on. */
   expired: boolean;
   /** Whether today's reminder is already on file, so the action stays disabled across re-lookups. */
   reminderLoggedToday: boolean;
+  /** The configured Nachweis-Arten, read on the server page (US-33.5). */
+  certificateTypes: CertificateTypeList;
 }): React.ReactElement | null {
   const [reminderState, remind, reminding] = useActionState(logReminder, initialReminderState);
   const [renewalState, renew, renewing] = useActionState(recordRenewal, initialRenewalState);
@@ -224,6 +219,7 @@ export function CertificateControls({
                 submit={words.renewal.submit}
                 pending={renewing}
                 fields={renewalFields}
+                certificateTypes={certificateTypes}
               />
               {showingRenewal && renewalState.status === "error" ? (
                 <Notice

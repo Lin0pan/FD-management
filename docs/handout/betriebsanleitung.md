@@ -67,6 +67,26 @@ die Software nicht an, und eine höhere Stufe muss mehr Eier geben als die darun
 nichts gespeichert und Sie erhalten eine Meldung. Nach dem Speichern gilt die neue Regel sofort;
 die bisherige bleibt im Änderungsverlauf darunter stehen.
 
+## Art des Nachweises
+
+Überall dort, wo die Software nach dem Nachweis fragt — bei der Aufnahme, beim Erneuern an der
+**Ausgabe** oder beim Kunden und auf der **Warteliste** —, wählen Sie die **Art des Nachweises** aus
+einer Liste aus, statt sie zu tippen. So heißt derselbe Bescheid überall gleich.
+
+Welche Arten in der Liste stehen, bestimmen Sie unter **Einstellungen**, Abschnitt **Arten des
+Nachweises**: eine Zeile je Art. **Art hinzufügen** legt eine Zeile an, das **×** rechts neben einer
+Zeile nimmt sie wieder weg, **Arten speichern** übernimmt die Änderungen. Dieselbe Art zweimal nimmt
+die Software nicht an. Nach dem Speichern steht die Liste sofort überall zur Auswahl.
+
+**Eine entfernte Art ändert nichts an dem, was schon gespeichert ist.** Wo ein Nachweis mit dieser
+Art erfasst wurde, steht sie weiterhin; sie wird nur nicht mehr zur Auswahl angeboten.
+
+Bringt jemand einen Nachweis, der nicht in der Liste steht, wählen Sie **Sonstiges** — der letzte
+Eintrag der Liste. Darunter erscheint das Feld **Welche Art?**, in das Sie die Bezeichnung
+schreiben. Sie wird beim Haushalt genau so gespeichert, wie Sie sie eintippen, und rückt nicht von
+selbst in die Liste. Solange Sie noch keine Arten eingerichtet haben, steht überall **Sonstiges** —
+Sie tippen die Art dann ein wie bisher.
+
 ## Saldo — Guthaben und offene Beträge
 
 Nicht jeder Haushalt zahlt genau den Betrag, der an diesem Tag fällig ist. Mancher gibt weniger,

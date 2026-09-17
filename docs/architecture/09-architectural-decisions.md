@@ -1,8 +1,8 @@
 # 9. Architectural decisions
 
-_Last reviewed: 2026-09-02_
+_Last reviewed: 2026-09-17_
 
-A timeline. The seventeen decisions that constrain future work and are hard to reverse have an ADR
+A timeline. The nineteen decisions that constrain future work and are hard to reverse have an ADR
 of their own in [`adr/`](adr/); the smaller ones below them are recorded as a row and nothing more,
 because a decision log full of trivia teaches people to skim it.
 
@@ -28,6 +28,7 @@ because a decision log full of trivia teaches people to skim it.
 | [016](adr/016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md) | A customer number may be changed, and a card keeps the number it was printed with | Accepted | 2026-09-01 |
 | [017](adr/017-the-customer-number-decides-the-group.md)                                            | The customer number decides the group                                             | Accepted | 2026-09-02 |
 | [018](adr/018-keep-lucide-react-as-the-single-icon-set.md)                                         | Keep lucide-react as the single icon set                                          | Accepted | 2026-09-06 |
+| [019](adr/019-keep-the-certificate-type-list-out-of-the-versioned-settings-history.md)             | Keep the certificate-type list out of the versioned settings history              | Accepted | 2026-09-17 |
 
 ## Smaller decisions, recorded without an ADR
 

@@ -6,8 +6,12 @@ import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
-import { fillDay, fillSticky } from "./day";
+import { fillDay } from "./day";
+import { expectCertificateTypeControlValue, fillCertificateTypeControl } from "./registration-form";
 import { releaseNumbers } from "./seeding";
+
+/** `CertificateTypeField`'s id on the counter's own renewal form (`certificate-controls.tsx`). */
+const RENEWAL_TYPE = "renewal-type";
 
 /**
  * The reminder trail, end to end (`tasks/prd-us-06-certificate-reminder.md` §US-06.5).
@@ -314,7 +318,7 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
   test("a renewal refused for a past date marks the date, not the type", async ({ page }) => {
     await lookUp(page);
 
-    await fillSticky(page.getByTestId("renewal-type"), "Rentenbescheid");
+    await fillCertificateTypeControl(page, RENEWAL_TYPE, "Rentenbescheid");
     await fillDay(page.getByTestId("renewal-valid-until"), "2025-06-30");
     await page.getByTestId("renewal-save").click();
 
@@ -326,11 +330,11 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
       de.customers.errors.dateInPast,
     );
     await expect(page.getByTestId("renewal-valid-until")).toHaveAttribute("aria-invalid", "true");
-    await expect(page.getByTestId("renewal-type")).not.toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId(RENEWAL_TYPE)).not.toHaveAttribute("aria-invalid", "true");
     await expect(page.getByTestId("renewal-valid-until")).toBeFocused();
 
     // Both fields still hold what was typed, so only the year is retyped.
-    await expect(page.getByTestId("renewal-type")).toHaveValue("Rentenbescheid");
+    await expectCertificateTypeControlValue(page, RENEWAL_TYPE, "Rentenbescheid");
 
     // And nothing was written: the count is untouched and no certificate was appended.
     const { reminderCount } = await householdRow();
@@ -342,7 +346,7 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
   }) => {
     await lookUp(page);
 
-    await fillSticky(page.getByTestId("renewal-type"), "Wohngeldbescheid");
+    await fillCertificateTypeControl(page, RENEWAL_TYPE, "Wohngeldbescheid");
     await fillDay(page.getByTestId("renewal-valid-until"), RENEWED_CERTIFICATE);
     await page.getByTestId("renewal-save").click();
 
