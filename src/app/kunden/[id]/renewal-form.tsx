@@ -20,6 +20,7 @@
 import { useActionState, useRef, useState } from "react";
 import { de } from "@/i18n/de";
 import { DateInput } from "@/components/ui/date-input";
+import { Label } from "@/components/ui/label";
 import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import { CertificateTypeField } from "../../certificate-type-field";
 import { useFocusFirstRefusal } from "../../field-mark";
@@ -51,7 +52,7 @@ function RenewalFields({
       <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-6">
         <CertificateTypeField
           types={certificateTypes}
-          height="h-9"
+          height="h-8"
           id="renewal-type-field"
           typeProblem={typeProblem}
           otherProblem={otherProblem}
@@ -59,12 +60,12 @@ function RenewalFields({
         />
       </div>
       <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-6">
-        <label
+        <Label
           htmlFor="renewal-valid-until-field"
-          className={`text-sm font-medium ${validUntilProblem === null ? "" : "text-destructive"}`.trimEnd()}
+          className={validUntilProblem === null ? undefined : "text-destructive"}
         >
           {de.customers.fields.certificateValidUntil}
-        </label>
+        </Label>
         <DateInput
           id="renewal-valid-until-field"
           name="certificateValidUntil"

@@ -63,6 +63,9 @@ function RenewalFields({
         types={certificateTypes}
         height="h-9"
         id="renewal-type"
+        // The width the text box it replaced was fixed at. A cap rather than a fixed width: the
+        // select sizes itself to its longest option, and DF type those.
+        className="max-w-64"
         typeProblem={typeProblem}
         otherProblem={otherProblem}
         errorTestId="counter-field-error"

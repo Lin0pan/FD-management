@@ -34,6 +34,7 @@ import {
 import { parseCalendarDay } from "@/domain/calendarDay";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -172,12 +173,9 @@ function Field({
   const marks = marking(name, name, problem);
   return (
     <div className={`flex flex-col gap-1.5 ${span}`}>
-      <label
-        htmlFor={name}
-        className={`text-sm font-medium ${problem === null ? "" : "text-destructive"}`.trimEnd()}
-      >
+      <Label htmlFor={name} className={problem === null ? undefined : "text-destructive"}>
         {label}
-      </label>
+      </Label>
       {type === "date" ? (
         <DateInput
           name={name}
@@ -546,17 +544,16 @@ export function RegistrationForm({
           {de.customers.new.certificateHeading}
         </p>
         <div className={GRID}>
-          <div className="flex flex-col gap-1.5 lg:col-span-6">
-            <CertificateTypeField
-              types={certificateTypes}
-              height="h-8"
-              id="certificateType"
-              initialValue={draft?.certificateType}
-              typeProblem={problem("certificateType")}
-              otherProblem={problem("certificateTypeOther")}
-              errorTestId="registration-field-error"
-            />
-          </div>
+          <CertificateTypeField
+            types={certificateTypes}
+            height="h-8"
+            id="certificateType"
+            className="lg:col-span-6"
+            initialValue={draft?.certificateType}
+            typeProblem={problem("certificateType")}
+            otherProblem={problem("certificateTypeOther")}
+            errorTestId="registration-field-error"
+          />
           <Field
             name="certificateValidUntil"
             label={de.customers.fields.certificateValidUntil}
@@ -812,14 +809,12 @@ export function RegistrationForm({
            * is still free in the group they are standing in.
            */}
           <div className="flex flex-col gap-1.5">
-            <label
+            <Label
               htmlFor="customerNumber"
-              className={`text-sm font-medium ${
-                numberProblem === null ? "" : "text-destructive"
-              }`.trimEnd()}
+              className={numberProblem === null ? undefined : "text-destructive"}
             >
               {de.customers.fields.customerNumber}
-            </label>
+            </Label>
             {/* A box holding at most three digits, at the width the record's control has for the
                 same list (`kunden/[id]/number-control.tsx`) — the two are one decision made in two
                 places, and R-11 asks them to look it. */}

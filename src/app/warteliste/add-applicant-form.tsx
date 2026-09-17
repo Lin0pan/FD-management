@@ -33,19 +33,18 @@ import { FieldRejection, useFocusFirstRefusal } from "../field-mark";
 import { marking, problemAt, type FieldRefusal } from "../field-refusal";
 import { Notice } from "../notice";
 
-/** The ten fields as the form holds them: raw strings, keyed by the `name` each input carries. */
+/** The nine text fields as the form holds them: raw strings, keyed by the `name` each input carries. */
 type Application = Record<ApplicationField, string>;
 
 type ApplicationField = (typeof APPLICATION_FIELDS)[number];
 
 /**
- * Every field the form submits, in reading order. Listed once and used three times — the blank state,
- * the grid, and the lookup that marks them — because a field missing from any one of the three fails
- * silently: not submitted, not cleared, or not markable.
- */
-/**
- * `certificateType` is not among these: `CertificateTypeField` (US-33.6) holds its own selection and
- * free text rather than a raw string in `values`, exactly as `RenewalFields`' does.
+ * Every field the form submits as a raw string, in reading order. Listed once and used three times —
+ * the blank state, the grid, and the lookup that marks them — because a field missing from any one of
+ * the three fails silently: not submitted, not cleared, or not markable.
+ *
+ * `certificateType` is not among them: `CertificateTypeField` (US-33.6) holds its own selection and
+ * free text, exactly as `RenewalFields`' does.
  */
 const APPLICATION_FIELDS = [
   "firstName",
@@ -104,7 +103,9 @@ function Field({
 }): React.ReactElement {
   const marks = marking(name, name, problem);
   return (
-    <div className="flex flex-col gap-1">
+    // `gap-1.5`, the label-to-control gap every other form on the screen keeps — and the one
+    // `CertificateTypeField` brings with it, which shares this grid row.
+    <div className="flex flex-col gap-1.5">
       <Label htmlFor={name} className={problem === null ? undefined : "text-destructive"}>
         {label}
       </Label>
@@ -135,10 +136,13 @@ function Field({
   );
 }
 
-/** Where `CertificateTypeField` (US-33.6) goes among `GRID_FIELDS`: right after `city`. */
-const CERTIFICATE_TYPE_POSITION = 7;
+/**
+ * Where `CertificateTypeField` (US-33.6) goes among `GRID_FIELDS`: right after `city`. Read off the
+ * array rather than counted by hand, so reordering the boxes moves the drop-down with them.
+ */
+const CERTIFICATE_TYPE_POSITION = GRID_FIELDS.findIndex((field) => field.name === "city") + 1;
 
-/** The ten fields, holding the application in progress. Under the key, so a save empties them. */
+/** The boxes holding the application in progress. Under the key, so a save empties them. */
 function Fields({
   certificateTypes,
   fields,
@@ -171,7 +175,7 @@ function Fields({
         {before.map(gridField)}
         <CertificateTypeField
           types={certificateTypes}
-          height="h-9"
+          height="h-8"
           id="certificateType"
           typeProblem={problemAt(fields, "certificateType")}
           otherProblem={problemAt(fields, "certificateTypeOther")}
