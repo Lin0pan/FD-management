@@ -9,7 +9,15 @@ import { foldName } from "@/domain/customer/nameSearch";
 import { expectNothingCovers } from "./layout";
 import { SHARED } from "./registers";
 import { fillDay, fillSticky, typedDay } from "./day";
+import {
+  expectCertificateTypeControlBlank,
+  expectCertificateTypeControlValue,
+  fillCertificateTypeControl,
+} from "./registration-form";
 import { releaseNumbers } from "./seeding";
+
+/** `CertificateTypeField`'s id on the record's own renewal form (`renewal-form.tsx`). */
+const RENEWAL_TYPE = "renewal-type-field";
 
 /**
  * A household changes and the whole application follows (`tasks/prd-us-16-maintain-customer-record.md`
@@ -519,7 +527,7 @@ test.describe("Kundenakte pflegen", () => {
     await page.goto(`/kunden/${id}`);
     await expect(page.getByTestId("reminder-count")).toHaveText(String(REMINDERS_SENT));
 
-    await fillSticky(page.getByTestId("renewal-type"), "Wohngeldbescheid");
+    await fillCertificateTypeControl(page, RENEWAL_TYPE, "Wohngeldbescheid");
     await fillDay(page.getByTestId("renewal-valid-until"), RENEWED_CERTIFICATE);
     await page.getByTestId("renewal-save").click();
 
@@ -542,7 +550,7 @@ test.describe("Kundenakte pflegen", () => {
     // A wrong year is the mistake this refusal exists for: the type is right, four characters of the
     // date are not. Uncontrolled, React's post-action reset would empty *both* fields on the way
     // back, so correcting a typo would mean retyping the certificate too.
-    await fillSticky(page.getByTestId("renewal-type"), "Rentenbescheid");
+    await fillCertificateTypeControl(page, RENEWAL_TYPE, "Rentenbescheid");
     await fillDay(page.getByTestId("renewal-valid-until"), "2025-06-30");
     await page.getByTestId("renewal-save").click();
 
@@ -554,10 +562,10 @@ test.describe("Kundenakte pflegen", () => {
     // date, and the type beside it is left alone.
     await expect(page.getByTestId("record-field-error")).toHaveText(de.customers.errors.dateInPast);
     await expect(page.getByTestId("renewal-valid-until")).toHaveAttribute("aria-invalid", "true");
-    await expect(page.getByTestId("renewal-type")).not.toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId(RENEWAL_TYPE)).not.toHaveAttribute("aria-invalid", "true");
     await expect(page.getByTestId("renewal-valid-until")).toBeFocused();
 
-    await expect(page.getByTestId("renewal-type")).toHaveValue("Rentenbescheid");
+    await expectCertificateTypeControlValue(page, RENEWAL_TYPE, "Rentenbescheid");
     await expect(page.getByTestId("renewal-valid-until")).toHaveValue(typedDay("2025-06-30"));
 
     // Correct only the date. If the type had been cleared the form would not submit at all — it is
@@ -571,7 +579,7 @@ test.describe("Kundenakte pflegen", () => {
     // A save remounts the form on its `saves` key, so the next renewal starts empty rather than on
     // the values just filed — the other half of the pair, and the reason a refusal is not enough to
     // decide this on its own.
-    await expect(page.getByTestId("renewal-type")).toHaveValue("");
+    await expectCertificateTypeControlBlank(page, RENEWAL_TYPE);
     await expect(page.getByTestId("renewal-valid-until")).toHaveValue("");
   });
 

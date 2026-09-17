@@ -7,6 +7,7 @@ import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { SHARED } from "./registers";
 import { fillDay, fillSticky, hydrated, typedDay } from "./day";
+import { expectCertificateTypeBlank, fillCertificateType } from "./registration-form";
 
 /**
  * A household that was archived coming back and being registered again
@@ -122,7 +123,7 @@ async function register(page: Page, lastName: string): Promise<Household> {
   await fillSticky(page.locator("#houseNumber"), address.houseNumber);
   await fillSticky(page.locator("#zip"), address.zip);
   await fillSticky(page.locator("#city"), address.city);
-  await fillSticky(page.locator("#certificateType"), "Jobcenter-Bescheid");
+  await fillCertificateType(page, "Jobcenter-Bescheid");
   await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
 
   // The applicant mirrors into the first household row; only the child is added by hand.
@@ -399,7 +400,7 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
 
     // What is decided afresh did not come with it: the certificate is the paper the applicant holds
     // *today*, and the number on offer is the allocator's, not the one they used to have.
-    await expect(page.locator("#certificateType")).toHaveValue("");
+    await expectCertificateTypeBlank(page);
     await expect(page.locator("#certificateValidUntil")).toHaveValue("");
     await expect(page.getByTestId("customer-number-select")).toHaveValue(offered);
 
@@ -427,7 +428,7 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     await selectMatch(page, returning.id);
 
     // The one thing that has to be typed: the certificate they present today.
-    await fillSticky(page.locator("#certificateType"), RETURNING_CERTIFICATE_TYPE);
+    await fillCertificateType(page, RETURNING_CERTIFICATE_TYPE);
     await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
 
     await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();

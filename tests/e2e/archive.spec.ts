@@ -7,6 +7,7 @@ import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { SHARED } from "./registers";
 import { fillDay, fillSticky, hydrated } from "./day";
+import { fillCertificateType } from "./registration-form";
 
 /**
  * Archiving a household and watching their customer number come back into circulation
@@ -105,7 +106,7 @@ async function register(page: Page): Promise<Household> {
   await fillSticky(page.locator("#houseNumber"), faker.location.buildingNumber());
   await fillSticky(page.locator("#zip"), faker.location.zipCode("#####"));
   await fillSticky(page.locator("#city"), faker.location.city());
-  await fillSticky(page.locator("#certificateType"), "Jobcenter-Bescheid");
+  await fillCertificateType(page, "Jobcenter-Bescheid");
   await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
 
   // The applicant mirrors into the first household row; only the child is added by hand.

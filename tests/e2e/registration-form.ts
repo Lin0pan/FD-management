@@ -1,6 +1,7 @@
 import { faker } from "@faker-js/faker";
-import type { Page } from "@playwright/test";
-import { fillDay, fillSticky } from "./day";
+import { expect, type Locator, type Page } from "@playwright/test";
+import { CERTIFICATE_TYPE_OTHER } from "@/app/certificate-type-resolver";
+import { fillDay, fillSticky, hydrated } from "./day";
 
 /**
  * Filling the intake at `/kunden/neu`, and the identical half of the waiting-list application.
@@ -59,6 +60,83 @@ export async function fillPersonalData(
   await fillSticky(page.locator("#houseNumber"), faker.location.buildingNumber());
   await fillSticky(page.locator("#zip"), faker.location.zipCode("#####"));
   await fillSticky(page.locator("#city"), faker.location.city());
-  await fillSticky(page.locator("#certificateType"), eligibility.certificateType);
+  await fillCertificateType(page, eligibility.certificateType);
   await fillDay(page.locator("#certificateValidUntil"), eligibility.certificateValidUntil);
+}
+
+/**
+ * `CertificateTypeField` (US-33.5) is one component behind four different ids — `certificateType` at
+ * the two intake forms, `renewal-type-field` on the record, `renewal-type` at the counter — so every
+ * helper below takes the id rather than assuming the intake's own.
+ */
+
+async function configuredValues(select: Locator): Promise<ReadonlyArray<string | null>> {
+  return select
+    .locator("option")
+    .evaluateAll((options) => options.map((option) => option.getAttribute("value")));
+}
+
+/**
+ * Fill an Art-des-Nachweises control: the type is selected when the register's current vocabulary
+ * carries it, and typed into the "Sonstiges" field it reveals otherwise.
+ *
+ * Reads the `<select>`'s *own* options rather than assuming a fixture configured them, so one call
+ * works unmodified whether this register has the type configured or not — a register with nothing
+ * configured falls onto "Sonstiges", exactly like the plain text box this control replaced.
+ */
+export async function fillCertificateTypeControl(
+  page: Page,
+  id: string,
+  type: string,
+): Promise<void> {
+  const select = page.locator(`#${id}`);
+  await hydrated(select);
+  const configured = await configuredValues(select);
+
+  if (configured.includes(type)) {
+    await select.selectOption(type);
+  } else {
+    await select.selectOption(CERTIFICATE_TYPE_OTHER);
+    await fillSticky(page.locator(`#${id}-other`), type);
+  }
+}
+
+/** {@link fillCertificateTypeControl} for the intake's own `certificateType` control. */
+export async function fillCertificateType(page: Page, type: string): Promise<void> {
+  await fillCertificateTypeControl(page, "certificateType", type);
+}
+
+/**
+ * A control with nothing pre-filled: "Sonstiges" selected and its free-text field empty — the one
+ * state a plain blank input used to have, now split across the select and the field it reveals.
+ */
+export async function expectCertificateTypeControlBlank(page: Page, id: string): Promise<void> {
+  await expect(page.locator(`#${id}`)).toHaveValue(CERTIFICATE_TYPE_OTHER);
+  await expect(page.locator(`#${id}-other`)).toHaveValue("");
+}
+
+/** {@link expectCertificateTypeControlBlank} for the intake's own `certificateType` control. */
+export async function expectCertificateTypeBlank(page: Page): Promise<void> {
+  await expectCertificateTypeControlBlank(page, "certificateType");
+}
+
+/**
+ * What a control holds after a fill: selected under `type` when it is configured, "Sonstiges" with
+ * `type` standing in the free-text field otherwise — the same rule {@link fillCertificateTypeControl}
+ * fills by, read back rather than assumed.
+ */
+export async function expectCertificateTypeControlValue(
+  page: Page,
+  id: string,
+  type: string,
+): Promise<void> {
+  const select = page.locator(`#${id}`);
+  const configured = await configuredValues(select);
+
+  if (configured.includes(type)) {
+    await expect(select).toHaveValue(type);
+  } else {
+    await expect(select).toHaveValue(CERTIFICATE_TYPE_OTHER);
+    await expect(page.locator(`#${id}-other`)).toHaveValue(type);
+  }
 }
