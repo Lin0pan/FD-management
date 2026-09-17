@@ -23,7 +23,7 @@ import {
 } from "@/domain/errors";
 import { customerFieldLabel, de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
-import { resolveCertificateType } from "../certificate-type-resolver";
+import { certificateTypeMark, resolveCertificateType } from "../certificate-type-resolver";
 import { calendarDay, customerErrorField, fieldRefusals } from "../kunden/neu/registration-input";
 import { tierOf } from "../notice-tier";
 import { waitingListDeps } from "./deps";
@@ -129,14 +129,10 @@ export async function addApplicantAction(
     }
     if (error instanceof MissingRequiredField) {
       // The sentence is this screen's, the mark the shared one: nine of the ten inputs are spelled as
-      // the registration spells them, so a blank ZIP names the same box on both. The select can
-      // never itself submit blank, so a mark on `certificateType` can only mean the free-text box
-      // under "Sonstiges" — the same remap the record's own renewal makes (`kunden/[id]/actions.ts`).
-      const rawField = customerErrorField(error);
-      const field =
-        rawField?.path === "certificateType"
-          ? { ...rawField, path: "certificateTypeOther" }
-          : rawField;
+      // the registration spells them, so a blank ZIP names the same box on both. A mark on the type
+      // is placed between the drop-down's two controls by `certificateTypeMark`, as on the other
+      // three screens.
+      const field = certificateTypeMark(customerErrorField(error), form.certificateType);
       return {
         ...saved,
         status: "error",

@@ -41,7 +41,7 @@ import {
 } from "@/domain/errors";
 import { parseEuros, type Cents } from "@/domain/money";
 import { customerFieldLabel, de } from "@/i18n/de";
-import { resolveCertificateType } from "../certificate-type-resolver";
+import { certificateTypeMark, resolveCertificateType } from "../certificate-type-resolver";
 import { customerErrorField, fieldRefusals } from "../kunden/neu/registration-input";
 import { tierOf } from "../notice-tier";
 import { counterActionDeps } from "./deps";
@@ -282,21 +282,16 @@ function renewalMessage(error: unknown): string {
 /**
  * A thrown renewal failure as the counter shows it. The sentence is the counter's dictionary and the
  * mark is the shared `customerErrorField` — the record's renewal makes the same division, the two
- * forms being the same two boxes refused by the same rules.
+ * forms being the same two boxes refused by the same rules. `selected` is what the drop-down
+ * submitted, which is what decides *which* of its two controls a mark on the type belongs to.
  */
-function renewalRefusal(error: unknown): RenewalState & { status: "error" } {
-  const field = customerErrorField(error);
-  // `customerErrorField` still answers "certificateType" — the shared path four screens name — but
-  // this one submits it split in two, and the select can never itself be blank (every option, the
-  // sentinel included, resolves to something). A blank reaching the domain can only be the free-text
-  // box under "Sonstiges", so that is what the mark points at.
-  const marked =
-    field?.path === "certificateType" ? { ...field, path: "certificateTypeOther" } : field;
+function renewalRefusal(error: unknown, selected: string): RenewalState & { status: "error" } {
+  const field = certificateTypeMark(customerErrorField(error), selected);
   return {
     status: "error",
     message: renewalMessage(error),
     tier: tierOf(error),
-    ...(marked === null ? {} : { fields: [marked] }),
+    ...(field === null ? {} : { fields: [field] }),
   };
 }
 
@@ -355,8 +350,9 @@ export async function recordRenewal(
     };
   }
 
+  const selectedType = String(formData.get("certificateType") ?? "");
   const type = resolveCertificateType(
-    String(formData.get("certificateType") ?? ""),
+    selectedType,
     String(formData.get("certificateTypeOther") ?? ""),
   );
 
@@ -369,6 +365,6 @@ export async function recordRenewal(
     revalidatePath("/ausgabe");
     return { status: "saved" };
   } catch (error: unknown) {
-    return renewalRefusal(error);
+    return renewalRefusal(error, selectedType);
   }
 }

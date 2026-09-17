@@ -83,7 +83,7 @@ export async function submitPromotedRegistration(
     }
     return {
       status: "error",
-      ...germanRefusal(error),
+      ...germanRefusal(error, form.certificateType),
       ...(await freshPoolAfterRace(waitingListDeps, error)),
     };
   }

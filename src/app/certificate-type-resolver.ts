@@ -1,5 +1,5 @@
 /**
- * The Art-des-Nachweises drop-down's sentinel and the one rule that reads it — shared by
+ * The Art-des-Nachweises drop-down's sentinel and the two rules that read it — shared by
  * `certificate-type-field.tsx` (which renders the sentinel as its "Sonstiges" option) and every
  * screen's `"use server"` action (which resolves the submitted pair before it reaches the use case).
  *
@@ -9,6 +9,8 @@
  * at a `"use server"` action as client-reference proxies, not values (`select.ts`'s reason). Plain,
  * this file is a normal import on both sides of the boundary.
  */
+
+import type { FieldRefusal } from "./field-refusal";
 
 /**
  * The `<select>`'s value for "Sonstiges" — never a certificate type DF could configure, so a
@@ -24,4 +26,23 @@ export const CERTIFICATE_TYPE_OTHER = "__CERTIFICATE_TYPE_OTHER__";
  */
 export function resolveCertificateType(selected: string, other: string): string {
   return selected === CERTIFICATE_TYPE_OTHER ? other : selected;
+}
+
+/**
+ * Where a refusal that names `certificateType` points on screen, given what the select submitted.
+ *
+ * The domain knows one field; this screen asks for it with two controls, so the mark has to be
+ * placed. Under "Sonstiges" the blank the domain refused was typed into the free-text box, and
+ * marking the select would redden a control holding a perfectly good answer; with nothing chosen it
+ * is the select itself. All four screens ask the same question, so they read the answer off here
+ * rather than each repeating it.
+ */
+export function certificateTypeMark(
+  field: FieldRefusal | null,
+  selected: string,
+): FieldRefusal | null {
+  if (field === null || field.path !== "certificateType" || selected !== CERTIFICATE_TYPE_OTHER) {
+    return field;
+  }
+  return { ...field, path: "certificateTypeOther" };
 }

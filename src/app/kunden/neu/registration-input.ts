@@ -29,6 +29,7 @@ import {
   NoFreeCustomerNumber,
 } from "@/domain/errors";
 import { customerFieldLabel, customerFormFieldLabel, de } from "@/i18n/de";
+import { certificateTypeMark } from "../../certificate-type-resolver";
 import { summarise, type FieldRefusal, type FormRefusal } from "../../field-refusal";
 import { tierOf } from "../../notice-tier";
 import type { PrefillDraft, PrefillMember } from "./archive-search-state";
@@ -295,19 +296,16 @@ export function germanMessage(error: unknown): string {
  * `lastWord` for the same reason {@link fieldRefusals} takes one: the rules are shared, the sentence
  * for an error nobody has words for is not.
  *
- * The only caller of this function is the registration form, on both screens it is shared with — and
- * `CertificateTypeField` (US-33.6, US-33.7) means the select can never itself submit blank: every
- * option, "Sonstiges" included, resolves to a non-empty string once chosen. So a mark this function
- * would put on `certificateType` can only mean the free-text box under "Sonstiges", the same remap
- * `ausgabe/actions.ts`'s `renewalRefusal` and the record's and waiting-list's own renewal forms make.
+ * `selectedCertificateType` is what the Art-des-Nachweises drop-down submitted (US-33.6, US-33.7):
+ * the domain names one field and the control is two, so `certificateTypeMark` is what decides which
+ * of them a mark on the type belongs to — the same rule the other two screens read.
  */
 export function germanRefusal(
   error: unknown,
+  selectedCertificateType: string,
   lastWord: string = de.customers.errors.unknown,
 ): RegistrationRefusal {
-  const rawField = customerErrorField(error);
-  const field =
-    rawField?.path === "certificateType" ? { ...rawField, path: "certificateTypeOther" } : rawField;
+  const field = certificateTypeMark(customerErrorField(error), selectedCertificateType);
   return {
     message: customerErrorMessage(error) ?? lastWord,
     tier: tierOf(error),

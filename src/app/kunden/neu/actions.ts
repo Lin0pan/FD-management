@@ -63,7 +63,7 @@ export async function submitRegistration(
   } catch (error: unknown) {
     return {
       status: "error",
-      ...germanRefusal(error),
+      ...germanRefusal(error, form.certificateType),
       ...(await freshPoolAfterRace(customerDeps, error)),
     };
   }

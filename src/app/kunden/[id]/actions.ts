@@ -33,7 +33,7 @@ import {
   MissingRequiredField,
 } from "@/domain/errors";
 import { customerFieldLabel, de } from "@/i18n/de";
-import { resolveCertificateType } from "../../certificate-type-resolver";
+import { certificateTypeMark, resolveCertificateType } from "../../certificate-type-resolver";
 import { tierOf } from "../../notice-tier";
 import { customerDeps } from "../deps";
 import {
@@ -392,8 +392,9 @@ export async function renewCertificateAction(
     };
   }
 
+  const selectedType = String(formData.get("certificateType") ?? "");
   const type = resolveCertificateType(
-    String(formData.get("certificateType") ?? ""),
+    selectedType,
     String(formData.get("certificateTypeOther") ?? ""),
   );
 
@@ -405,15 +406,9 @@ export async function renewCertificateAction(
     });
   } catch (error: unknown) {
     // The renewal speaks the counter's dictionary, not the record's; the *fields* it names are the
-    // shared ones, so the mark comes from where every other screen's does. The select can never
-    // itself submit blank (every option, the sentinel included, resolves to something), so a blank
-    // reaching the domain can only be the free-text box under "Sonstiges" — the same remap the
-    // counter's own `renewalRefusal` makes (`ausgabe/actions.ts`).
-    const rawField = customerErrorField(error);
-    const field =
-      rawField?.path === "certificateType"
-        ? { ...rawField, path: "certificateTypeOther" }
-        : rawField;
+    // shared ones, so the mark comes from where every other screen's does — placed between the
+    // drop-down's two controls by `certificateTypeMark`, as on the other three screens.
+    const field = certificateTypeMark(customerErrorField(error), selectedType);
     const marks = field === null ? {} : { fields: [field] };
     if (error instanceof CertificateValidUntilInPast) {
       return {
