@@ -851,3 +851,53 @@ If a spec needs editing, the control is wrong, not the spec.
     `preserve`), so `format:check` passes on any wrapping. Wrap by hand at the column the
     surrounding sections use or the diff looks foreign.
 ---
+
+## 2026-09-17 - US-010 (ADR-019 and the chapters it makes wrong)
+- Documentation only; no source file and no spec file touched. `record-adr` wrote
+  `docs/architecture/adr/019-keep-the-certificate-type-list-out-of-the-versioned-settings-history.md`
+  through `arc42.py new-adr` (which also appended the chapter 9 row as `Pending`), and the `arc42`
+  skill drove the chapter edits.
+- **The ADR carries both halves.** Where the list lives: `SettingsVersion` is append-only so a past
+  hand-out stays priceable (ADR-005) and a certificate's type is text on the record that nothing
+  resolves back through a list, so versioning the vocabulary would append a policy version per word.
+  And the deletion: a `CertificateType` row is **deleted**, the one exception to ADR-010 besides a
+  household's member rows and on a different argument — nothing references the row, so the delete
+  destroys no history. Six considered options, including the two the PRD had already refused
+  (`<datalist>`, a list that learns from free text) so they are not re-opened as preferences.
+- **ADR-010 is amended, not superseded** (the ADR-016/ADR-007 pattern): its Decision gains a
+  paragraph naming the second exception and saying everything above still holds for customer data.
+- Chapters corrected while reading — each of these was **wrong**, not merely incomplete:
+  - **08:** „Ten tables" → eleven, `CertificateType` in the ER diagram with the note that it has no
+    relation to anything at all; a rule bullet for the delete; the audit list gains the vocabulary
+    change; and a „Not everything DF configure is a policy version" bullet under _Configuration as
+    data_, which is where a future tidy-up would start.
+  - **05:** 26 → 27 domain modules, 37 → 39 use cases, ten → eleven ports (a
+    `CertificateTypeRepository` row), 12 → 13 adapters, the `policy/` and `settings/` rows, and
+    `/einstellungen` now maintaining the list as well as the policy values.
+  - **04:** a „Where it stops" paragraph under _Policy is data DF owns_ — the strategy statement
+    three ADRs now point at (005, 014, 019).
+  - **03:** DF's manager sets the Nachweis-Art list too.
+  - **01 + README:** the story range still said US-01 to US-31; `tasks/` holds 32 and 33.
+  - **12:** a **Certificate type** glossary row (de. _Art des Nachweises_).
+- `CLAUDE.md`'s Don'ts: „The one deliberate exception" → „exactly two deliberate exceptions", the
+  second in one clause citing ADR-019, and the audited-state-change list gains the vocabulary edit
+  (ADR-019 says explicitly that it is *not* a policy edit, and the two bullets sit four lines apart).
+- Gates: `arc42.py check` (no errors, the 2 open TODOs are chapter 7's and pre-existing),
+  `format:check`, `lint`, `typecheck`, `test:coverage` (1326 tests, 58 files, domain and application
+  at 100%), `build`. No browser check applies.
+- **Learnings for future iterations:**
+  - **The infrastructure table's `prisma/*-repository.ts` glob row is a trap when a new adapter does
+    not fit its sentence.** That row says „each translates Prisma's `P2002` into the right typed
+    domain error", which the certificate-type adapter does not do — a duplicate is refused by the
+    domain's fold before it can reach the index. So it got a row of its own and the glob became
+    „(the other 7)". A new adapter either matches the glob's sentence or leaves it, never both.
+  - **Do not anchor a cross-chapter link on a heading that carries a count.**
+    `#srcapplication--39-use-cases-behind-eleven-ports` would break on the next batch that adds a
+    use case; ADR-015 already links `#level-2--inside-each-layer` and that is the one to copy.
+  - **`arc42.py check` sees no anchors and no counts.** It passed on both the dead-on-arrival anchor
+    above and on „seventeen decisions" over eighteen rows — a count ADR-018 had already left stale.
+    Re-count the chapter 9 intro from the table every time, not from the previous sentence.
+  - **A new table is a four-place edit in chapter 8 alone**: the „Ten tables" sentence, the mermaid
+    block, the paragraph under it that explains the relation-less entities, and _the rules that
+    follow_. Three of the four are prose no gate reads.
+---

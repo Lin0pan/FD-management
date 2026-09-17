@@ -233,7 +233,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Last story. US-001 and US-002 both cite ADR-019 in a comment before it exists — that is deliberate, they are the same PR. Use record-adr for the ADR and arc42 for chapter 5; do not hand-write either."
     }
   ]
