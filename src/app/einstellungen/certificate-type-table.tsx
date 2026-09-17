@@ -165,8 +165,6 @@ export function CertificateTypeTable({
             </Button>
           </div>
 
-          <p className="max-w-prose text-sm text-muted-foreground">{words.hint}</p>
-
           {state.status !== "idle" && state.message !== undefined ? (
             <Notice
               tone={state.status === "error" ? (state.tier ?? "error") : "success"}

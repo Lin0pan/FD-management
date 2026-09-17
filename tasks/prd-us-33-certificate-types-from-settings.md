@@ -197,10 +197,11 @@ about how we run, so there is one place I go to configure the software.
 - [ ] All German strings live under `de.settings.certificateTypes.*` in `src/i18n/de.ts` — heading,
       column heading, the add and remove labels, the save button, the saved confirmation and the
       error sentences. No literal in the component.
-- [ ] **No explanatory hint under the card.** The screen shows a list of types and a way to add one;
-      a sentence saying that is what `docs/guideline/ui_styling_guide.md` §8 rules out. The one thing
-      worth saying that the screen cannot show — that removing a type leaves records already saved
-      with it untouched — is the single line the card may carry, and it goes in `de.ts` as such.
+- [ ] **No explanatory hint under the card at all.** The screen shows a list of types and a way to
+      add one; a sentence saying that is what `docs/guideline/ui_styling_guide.md` §8 rules out. What
+      removing a type does to records already saved with it was tried as the one line the card may
+      carry and taken out again on review: `docs/handout/betriebsanleitung.md` says it where it is
+      read once, and on screen it was one more sentence DF do not need.
 - [ ] Verified with the `playwright-cli` skill against a production build: the accessibility snapshot
       of `/einstellungen` shows the card as a named region with one textbox per type, each with its
       own accessible name, and the add and remove controls named in German.

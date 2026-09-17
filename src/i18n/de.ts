@@ -1431,11 +1431,6 @@ export const de = {
       save: "Arten speichern",
       saving: "Arten werden gespeichert …",
       saved: "Gespeichert.",
-      /**
-       * The one line this card may carry (§8): what removing a type does to records that already carry
-       * it, which the screen otherwise cannot show.
-       */
-      hint: "Eine entfernte Art bleibt bei bereits gespeicherten Nachweisen erhalten.",
       errors: {
         duplicate: (label: string): string =>
           `„${label}“ steht bereits in der Liste. Es wurde nichts gespeichert.`,
