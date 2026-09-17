@@ -99,11 +99,30 @@ export function CertificateTypeField({
           {...marking("certificateType", id, typeProblem)}
         >
           {types.map((type) => (
-            <option key={type} value={type}>
+            <option
+              key={type}
+              value={type}
+              // What keeps the choice standing through a save or a refusal: a native reset reads
+              // the `selected` **attribute**, which React never sets for a controlled select, so
+              // with none marked the browser rewinds to the first option. `number-control.tsx`'s
+              // radio states the argument in full.
+              ref={(node) => {
+                if (node !== null) {
+                  node.defaultSelected = type === selected;
+                }
+              }}
+            >
               {type}
             </option>
           ))}
-          <option value={CERTIFICATE_TYPE_OTHER}>
+          <option
+            value={CERTIFICATE_TYPE_OTHER}
+            ref={(node) => {
+              if (node !== null) {
+                node.defaultSelected = selected === CERTIFICATE_TYPE_OTHER;
+              }
+            }}
+          >
             {de.customers.fields.certificateTypeOtherOption}
           </option>
         </select>
