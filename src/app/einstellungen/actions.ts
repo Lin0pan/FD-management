@@ -309,6 +309,10 @@ interface TypedCertificateTypeRow {
  * Pair the repeated `certificateTypeLabel` inputs into rows, dropping a wholly blank one — the row
  * „Art hinzufügen" just made. One field per row, unlike the egg rule's two, so there is no partial row
  * to preserve: a row is either typed or it is the blank one just added.
+ *
+ * Dropping it here is also why `createCertificateTypeList`'s own blank refusal cannot arrive from
+ * this screen — the branch below is kept anyway, because the drop is this adapter's convenience and
+ * the rule is the domain's.
  */
 function certificateTypeRows(formData: FormData): ReadonlyArray<TypedCertificateTypeRow> {
   return formData

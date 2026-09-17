@@ -107,12 +107,22 @@ export async function fillCertificateType(page: Page, type: string): Promise<voi
 }
 
 /**
- * A control with nothing pre-filled: "Sonstiges" selected and its free-text field empty — the one
- * state a plain blank input used to have, now split across the select and the field it reveals.
+ * A control with nothing pre-filled — the one state a plain blank input used to have, now read off
+ * whichever of the two shapes this register's vocabulary puts the control in: nothing chosen where
+ * there are types to choose from, and "Sonstiges" with an empty free-text field where there are not.
  */
 export async function expectCertificateTypeControlBlank(page: Page, id: string): Promise<void> {
-  await expect(page.locator(`#${id}`)).toHaveValue(CERTIFICATE_TYPE_OTHER);
-  await expect(page.locator(`#${id}-other`)).toHaveValue("");
+  const select = page.locator(`#${id}`);
+  await hydrated(select);
+  const configured = await configuredValues(select);
+
+  if (configured.some((value) => value !== "" && value !== CERTIFICATE_TYPE_OTHER)) {
+    await expect(select).toHaveValue("");
+    await expect(page.locator(`#${id}-other`)).toHaveCount(0);
+  } else {
+    await expect(select).toHaveValue(CERTIFICATE_TYPE_OTHER);
+    await expect(page.locator(`#${id}-other`)).toHaveValue("");
+  }
 }
 
 /** {@link expectCertificateTypeControlBlank} for the intake's own `certificateType` control. */

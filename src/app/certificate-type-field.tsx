@@ -13,6 +13,13 @@
  * incoming value standing in the free-text field, unchanged. A type DF removed still arrives intact
  * — the fold match is `foldName`'s, the same comparison the vocabulary itself uses for a duplicate.
  *
+ * **Nothing to prefill leaves the question unanswered**, not answered with "Sonstiges": the feature
+ * exists to stop one notice being typed four ways, and a free-text box standing open by default is
+ * an invitation to type a word the list already holds. So the control starts on an unchosen option
+ * and `required` makes the browser ask. An *empty* configured list is the exception — there is
+ * nothing to choose, so it starts on "Sonstiges" with the box open, which is exactly the plain text
+ * input this control replaced.
+ *
  * The two wire names are fixed: `certificateType` (the select, so every existing refusal path
  * naming it still points at a control) and `certificateTypeOther` (the free text, unmounted — not
  * merely hidden — while a configured type is chosen, so its typed text is never submitted).
@@ -29,11 +36,13 @@ import { FieldRejection } from "./field-mark";
 import { marking } from "./field-refusal";
 import { selectClass } from "./select";
 
+/** The unchosen option's value — blank, which is the one answer the domain refuses. */
+const UNCHOSEN = "";
+
 /**
- * What the control starts showing. `incoming` is `undefined` on a form with nothing to prefill (the
- * counter's renewal, first consumer) and an empty configured list folds nothing, so both collapse
- * into the same case as no match: "Sonstiges", open, carrying whatever came in — which is exactly
- * today's plain text input's behaviour.
+ * What the control starts showing: the configured option an incoming value folds to, else
+ * "Sonstiges" carrying that value — and, with nothing incoming at all, the unchosen option, unless
+ * there is nothing configured to choose from.
  */
 function initialSelection(
   types: CertificateTypeList,
@@ -41,24 +50,66 @@ function initialSelection(
 ): { selected: string; other: string } {
   const value = incoming ?? "";
   const match = value === "" ? undefined : types.find((type) => foldName(type) === foldName(value));
-  return match === undefined
-    ? { selected: CERTIFICATE_TYPE_OTHER, other: value }
-    : { selected: match, other: "" };
+  if (match !== undefined) {
+    return { selected: match, other: "" };
+  }
+  if (value === "" && types.length > 0) {
+    return { selected: UNCHOSEN, other: "" };
+  }
+  return { selected: CERTIFICATE_TYPE_OTHER, other: value };
+}
+
+/**
+ * One option of the select, marked `defaultSelected` when it is the chosen one.
+ *
+ * That attribute is what keeps the choice standing through a save or a refusal: a native reset reads
+ * the `selected` **attribute**, which React never sets for a controlled select, so with none marked
+ * the browser rewinds to the first option. `number-control.tsx`'s radio states the argument in full.
+ */
+function TypeOption({
+  value,
+  label,
+  selected,
+}: {
+  value: string;
+  label: string;
+  selected: string;
+}): React.ReactElement {
+  return (
+    <option
+      value={value}
+      ref={(node) => {
+        if (node !== null) {
+          node.defaultSelected = value === selected;
+        }
+      }}
+    >
+      {label}
+    </option>
+  );
 }
 
 export function CertificateTypeField({
   types,
   height,
   id,
+  className,
   initialValue,
   typeProblem,
   otherProblem,
   errorTestId,
 }: {
   types: CertificateTypeList;
+  /** The height of the boxes beside it on this screen — `h-9` only at the counter. */
   height: "h-8" | "h-9";
   /** The select's id and `data-testid` both — `RenewalFields`' own convention. */
   id: string;
+  /**
+   * Where the control sits on the screen around it: a grid span, or a width cap in a wrapped row —
+   * the select is `w-full` and its content is DF's to type, so a row that does not cap it can be
+   * pushed apart by one long Nachweis-Art.
+   */
+  className?: string;
   /** The value to prefill from, or `undefined` on a form with nothing to prefill. */
   initialValue?: string;
   /** The last refusal's problem for `certificateType`, or `null`. */
@@ -76,7 +127,7 @@ export function CertificateTypeField({
   const showingOther = selected === CERTIFICATE_TYPE_OTHER;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className={`flex flex-col gap-3${className === undefined ? "" : ` ${className}`}`}>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={id} className={typeProblem === null ? undefined : "text-destructive"}>
           {de.customers.fields.certificateType}
@@ -84,6 +135,7 @@ export function CertificateTypeField({
         <select
           id={id}
           name="certificateType"
+          required
           value={selected}
           onChange={(event) => {
             const next = event.target.value;
@@ -98,33 +150,21 @@ export function CertificateTypeField({
           data-testid={id}
           {...marking("certificateType", id, typeProblem)}
         >
+          {types.length > 0 ? (
+            <TypeOption
+              value={UNCHOSEN}
+              label={de.customers.fields.certificateTypeUnchosen}
+              selected={selected}
+            />
+          ) : null}
           {types.map((type) => (
-            <option
-              key={type}
-              value={type}
-              // What keeps the choice standing through a save or a refusal: a native reset reads
-              // the `selected` **attribute**, which React never sets for a controlled select, so
-              // with none marked the browser rewinds to the first option. `number-control.tsx`'s
-              // radio states the argument in full.
-              ref={(node) => {
-                if (node !== null) {
-                  node.defaultSelected = type === selected;
-                }
-              }}
-            >
-              {type}
-            </option>
+            <TypeOption key={type} value={type} label={type} selected={selected} />
           ))}
-          <option
+          <TypeOption
             value={CERTIFICATE_TYPE_OTHER}
-            ref={(node) => {
-              if (node !== null) {
-                node.defaultSelected = selected === CERTIFICATE_TYPE_OTHER;
-              }
-            }}
-          >
-            {de.customers.fields.certificateTypeOtherOption}
-          </option>
+            label={de.customers.fields.certificateTypeOtherOption}
+            selected={selected}
+          />
         </select>
         {typeProblem === null ? null : (
           <FieldRejection id={id} problem={typeProblem} testId={errorTestId} />

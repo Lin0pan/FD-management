@@ -6,7 +6,11 @@ import { CERTIFICATE_TYPE_OTHER } from "@/app/certificate-type-resolver";
 import { de } from "@/i18n/de";
 import { SHARED } from "./registers";
 import { fillSticky, hydrated } from "./day";
-import { fillPersonalData as fillPersonalDataOn, type Person } from "./registration-form";
+import {
+  expectCertificateTypeBlank,
+  fillPersonalData as fillPersonalDataOn,
+  type Person,
+} from "./registration-form";
 
 /**
  * The Nachweis-Art vocabulary, end to end (`tasks/prd-us-33-certificate-types-from-settings.md`
@@ -157,6 +161,11 @@ test.describe("Arten des Nachweises", () => {
     expect(offered).toContain(GRUNDSICHERUNG);
     // "Sonstiges" is always last, after whatever DF configured.
     expect(offered.at(-1)).toBe(CERTIFICATE_TYPE_OTHER);
+
+    // And nothing is answered for DF: with a vocabulary configured the control opens unchosen, and
+    // the free-text box does not exist until "Sonstiges" is the choice — which is the whole point of
+    // configuring words at all.
+    await expectCertificateTypeBlank(page);
 
     configuredHouseholdId = await registerHousehold(page, JOBCENTER);
     await expect(page.getByRole("main")).toContainText(JOBCENTER);

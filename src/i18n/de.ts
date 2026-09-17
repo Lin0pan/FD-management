@@ -201,6 +201,8 @@ export const de = {
       zip: "PLZ",
       city: "Ort",
       certificateType: "Art des Nachweises",
+      /** The option a control with nothing pre-filled stands on, so nothing is answered for DF. */
+      certificateTypeUnchosen: "Bitte auswählen",
       certificateTypeOtherOption: "Sonstiges",
       certificateTypeOther: "Welche Art?",
       certificateValidUntil: "Nachweis gültig bis",

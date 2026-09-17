@@ -15,7 +15,11 @@ export interface SaveCertificateTypesState {
   readonly status: "idle" | "saved" | "error";
   readonly message?: string;
   readonly tier?: NoticeTier;
-  /** The row a refusal names, where it names one — `MissingRequiredField` does, the other two don't. */
+  /**
+   * The row a refusal names, where it names one. Only `MissingRequiredField` ever does, and the
+   * action drops a blank row before the domain can raise it — so in practice a refusal from this card
+   * marks nothing and the sentence carries it (`actions.ts`).
+   */
   readonly fields?: ReadonlyArray<FieldRefusal>;
 }
 
