@@ -211,7 +211,7 @@
         "Full unit suite passes: npm run test:coverage"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Documentation only — no code. Read the surrounding sections and match their register before writing; the handout is the one document DF actually hold."
     },
     {

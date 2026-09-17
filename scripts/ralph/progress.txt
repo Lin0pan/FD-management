@@ -819,3 +819,35 @@ If a spec needs editing, the control is wrong, not the spec.
     live options**, not because of file ordering: within one page load a `<select>`'s options cannot
     change under it, so read-then-select never races.
 ---
+
+## 2026-09-17 - US-009 (Betriebsanleitung says how to maintain the list)
+- Documentation only, no source or spec file touched. `docs/handout/betriebsanleitung.md` gains one
+  German section, `## Art des Nachweises`, placed **after `## Eier` and before `## Saldo`** — the
+  handout has no chapter literally called „Einstellungen", and `Eier` is the one section that is
+  settings-shaped (what the thing is, then how it is maintained under **Einstellungen**). The new
+  section mirrors that shape deliberately, down to the „**Zeile hinzufügen** … das **×** rechts
+  neben einer Zeile nimmt sie wieder weg" construction.
+- What it says, in DF's register and nobody else's: where the type is now picked rather than typed
+  (Aufnahme, Ausgabe, beim Kunden, Warteliste); how to add and remove one under **Einstellungen →
+  Arten des Nachweises**; that a removed type leaves records already saved with it untouched; and
+  that **Sonstiges** with the **Welche Art?** field is the way through a notice nobody configured —
+  what is typed there is stored as typed and does not join the list. Closes with the empty-list
+  case, which reads exactly like today's text box.
+- No field names, file paths, ports, folds or audit entries. No other section rewritten; the
+  „Stand"-Datum at the top is left alone (it dates the testing round, not the last edit).
+- Files changed: `docs/handout/betriebsanleitung.md`, `scripts/ralph/prd.json`.
+- Gates: `format:check`, `lint`, `typecheck`, `test:coverage` (1326 tests, 58 files, domain and
+  application at 100%). No browser check applies — nothing renders this file.
+- **Learnings for future iterations:**
+  - **Write the handout from `de.ts`, not from the PRD.** Every control this section names is
+    quoted from `src/i18n/de.ts` („Arten des Nachweises", „Art hinzufügen", „Arten speichern",
+    „Sonstiges", „Welche Art?"), so a later rename of a label is grep-able from the handout. The
+    PRD's prose names the *feature*; the dictionary names what DF actually reads on screen.
+  - The one line the settings card carries (`de.settings.certificateTypes.hint`) and the handout's
+    paragraph about a removed type are the **same** fact said to the same audience in two places.
+    That is deliberate — §8 lets the card keep the consequence the screen cannot show, and the
+    handout is read away from the screen — but if one is ever reworded, reword both.
+  - `printWidth: 100` does not reflow markdown prose (`proseWrap` is Prettier's default
+    `preserve`), so `format:check` passes on any wrapping. Wrap by hand at the column the
+    surrounding sections use or the diff looks foreign.
+---
