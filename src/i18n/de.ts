@@ -1421,8 +1421,13 @@ export const de = {
        * from the summary. Rows count from 1 on screen, from 0 in the domain and the form.
        */
       fieldLabel: (position: number): string => `Art des Nachweises, Zeile ${position}`,
-      save: "Speichern",
-      saving: "Wird gespeichert …",
+      /**
+       * Named after what it saves, because a second "Speichern" stands on the same screen — the
+       * policy form's — and two submits with one accessible name are one control to a screen reader
+       * (`ui_styling_guide.md` §6, §9).
+       */
+      save: "Arten speichern",
+      saving: "Arten werden gespeichert …",
       saved: "Gespeichert.",
       /**
        * The one line this card may carry (§8): what removing a type does to records that already carry
