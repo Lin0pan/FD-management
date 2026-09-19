@@ -25,7 +25,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "First story, src/domain/ only. No schema, no UI, no use case. The judgement call is the group ORDER: RED before BLUE, because GROUPS and the Kundenliste's group balance already read that way — do not invent a second order."
     },
     {

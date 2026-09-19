@@ -429,3 +429,43 @@ caller until US-36.
 every session ended before its freeze rule exists is lost to the detail view for good.
 
 ---
+
+## 2026-09-19 — US-001 (US-34.1) The distribution session is a domain value
+
+**Implemented.** `src/domain/distribution/session.ts`: `SessionGroups` made only by
+`createSessionGroups` (de-duplicates, RED before BLUE by *filtering* `GROUPS` — one line that both
+orders and de-duplicates and cites the order rather than restating it), `formatSessionGroups` /
+`parseSessionGroups` over the comma-separated column, `servesGroup`, `DistributionSession`,
+`isRunning`, `proposeGroups`, `canDiscard`, `canReopen`. Seven new domain errors and their tiers.
+
+Files: `src/domain/distribution/session.ts` (new), `session.test.ts` (new, 22 tests),
+`src/domain/errors.ts`, `src/domain/errors.test.ts`, `src/app/notice-tier.ts`.
+
+**Learnings for future iterations:**
+
+- **The two day-errors are still standing, deliberately, and story 5 deletes them.** The AC said to
+  delete `AlreadyServedToday` / `ReminderAlreadyLoggedToday` in this story and fix every caller. That
+  is not reachable while the tree stays green: their replacements carry a `sessionId` and no column
+  supplies one until story 3, so every caller would have to invent one. Both classes carry a one-line
+  `Replaced by {@link …} (US-34.5)` pointer instead. **Story 2 must not delete them either** — it
+  rewrites `attendance.ts`, whose *application* callers only move in story 5.
+- **`canReopen` takes an object, not two positional sessions.** The rule needs "nothing is running"
+  as well as "this is the one that ended last", and two adjacent parameters of type
+  `DistributionSession | null` are silently swappable — `canReopen(session, { mostRecentlyEnded,
+  running })` is the shape, matching `canDiscard`'s `{ handouts, reminders }`.
+- **`GROUPS.filter((g) => given.includes(g))` is the whole of "de-duplicate and order".** Worth
+  copying wherever a chosen subset of a small closed set has to come back canonical.
+- **Tiering the new codes was a decision, not bookkeeping.** `DistributionSessionNotEmpty` is amber
+  (a rule refused a well-formed request; end the session instead), while
+  `NoDistributionSessionRunning`, `DistributionSessionAlreadyRunning` and
+  `DistributionSessionNotReopenable` are red: each means the screen is stale because another
+  workstation moved on, and the stories that render them (7–9) should read them that way.
+- **`AlreadyServedInSession` carries only the session id.** The domain's `canRecord` will see records
+  shaped `{ sessionId }` and nothing else, and the adapter catching the `(customerId, sessionId)`
+  P2002 knows the same. `ReminderAlreadyLoggedInSession` keeps its customer id, as its predecessor
+  did, and `DistributionSessionAlreadyRunning` carries the running row's id — story 3's adapter has
+  to re-read on the collision path to name it, which is one query on a refusal.
+- **Documentation is untouched on purpose:** US-34.12 owns chapter 05's entry for this module and
+  the ADR. Nothing in `docs/` is *wrong* yet — only incomplete.
+
+---
