@@ -1,0 +1,903 @@
+# Ralph Progress Log
+Started: Mon Sep 16 2026 (batch 33 — US-33 pick the Art des Nachweises instead of typing it)
+
+The `## Codebase Patterns` block below is CARRIED OVER from earlier batches on purpose
+(`scripts/ralph/prds/README.md` point 2). Add to it; do not reset it. The batch-32-specific
+bullets that sat under „Where batch 32 starts" are not carried over — they are in
+`scripts/ralph/archive/2026-09-07-us-32-one-household-at-a-time/progress.txt`.
+
+## Codebase Patterns
+- **Adding a `DomainErrorCode` is a three-file change**: the union in `src/domain/errors.ts`, the
+  class beside it, and `TIERS` in `src/app/notice-tier.ts`. `TIERS` is a `Record` over the union, so
+  the *build* fails until the code is tiered — that is the mechanism, not an obstacle. The header
+  comment of `notice-tier.ts` counts the codes ("a 32nd code…", "the six red ones"), so it goes
+  stale silently; update it with the entry.
+- **The same mechanism guards `SettingsChange`**: its `switch` in `src/app/einstellungen/page.tsx`
+  is exhaustive with no `default`, so adding a member to the union fails the build until the screen
+  renders it. Do not silence it with a `default` branch.
+- **An error class with no caller yet still needs a test**, because `domain/` coverage is gated at
+  100%. `src/domain/errors.test.ts` is where those live — see the `MissingAuditReason` block for the
+  shape, including the comment saying which story will call it.
+- **`errors.ts` cannot import from `domain/card/`**: `cardNumber.ts` imports `errors.ts`, so a
+  message that wants to read `66k1` writes the `k` inline rather than calling `formatCardNumber`.
+- **Adding a field to `Settings` is a wide change before it is a deep one.** `createSettings` is
+  called from the repository, the seed, the settings server action and every hand-written fake in
+  the application tests; all of them must supply the new field before anything compiles. Land the
+  field with a placeholder value at each call site, then replace them in the story that owns each.
+  Get the *files* out of a wide break rather than the errors:
+  `npm run typecheck 2>&1 | grep -E "^src/" | cut -d'(' -f1 | sort -u`.
+- **A test that merely *uses* a field is not a test *of* it.** Several `settings.test.ts` cases
+  reach for an arbitrary second field to prove the same-instant tie rule or the audit's changed-field
+  list. When that field goes away, **re-point them**, do not delete them — deleting takes an
+  unrelated rule with it and drops coverage below the gate.
+- **A Prisma `P2002` cannot always name *which* constraint was broken.** `meta` is
+  `{ modelName, target: [columns] }`, but where two unique indexes both cover the offending row
+  SQLite reports only one of them, and not the one that was declared or created first. Where the
+  distinction matters, match the target for the *shape* and then ask the database the question that
+  actually distinguishes the two faults (`card-repository.ts`'s `issue` counts the customer's own
+  rows on that index). For a **nested** write Prisma reports the *rooted* model — a card refused
+  inside `customer.create` comes back as `modelName: "Customer"` — so the model name alone tells
+  nothing about which table failed.
+- **Regenerating `prisma/migrations/` drops the hand-written partial unique index** on
+  `Customer.customerNumber` (`Customer_customerNumber_onRegister_key`) at the end of the migration
+  SQL. `src/infrastructure/prisma/schema.test.ts` greps for it and for the `onDelete: Restrict`
+  clauses, so a lost line fails CI rather than production — but re-add it deliberately. Three things
+  batches 25–27 each had to learn:
+  - **Delete `data/fd.db` before `migrate dev`**: with the old migration row still in
+    `_prisma_migrations`, Prisma refuses to regenerate and writes nothing.
+  - **Verify with `diff`, not by reading the new file**:
+    `git show HEAD:prisma/migrations/<old>/migration.sql > /tmp/old.sql && diff /tmp/old.sql <new>`
+    states in a few lines what the story is allowed to have changed. Anything else is a Prisma
+    version drifting the DDL under you, which no gate would attribute to this commit.
+  - **`migrate dev` applies the migration *before* the hand-written index is appended**, so the
+    database it leaves does not have the index even though the committed SQL does. `npm run db:reset`
+    afterwards is what makes the two agree — check with
+    `SELECT sql FROM sqlite_master WHERE name='Customer_customerNumber_onRegister_key'` rather than
+    trusting that the reset ran.
+  - A regeneration **renames a directory that documents cite by name**. `grep -rn "<old-timestamp>_init"
+    docs/ src/ tests/` afterwards; prefer the `prisma/migrations/*_init/migration.sql` glob, which
+    survives the next one.
+- **Never `pkill -f "next dev"`, and never `pkill -f "node.*next-server"`** — both patterns match the
+  Bash tool's own wrapper command line and kill the shell (exit 144, no output). **And `ss` is not
+  installed in this sandbox**, so `ss -ltnp | grep :3000 || echo free` reports "free" for every port,
+  always: the `||` fires on `command not found`. (Batch 27's per-story notes recommend `ss` in two
+  places — they are wrong; that is the bug this bullet exists to stop.) Check
+  `ps aux | grep "[n]ext-server"` — the bracket keeps the pattern out of its own match — and
+  `kill <pid>` by number.
+- **A stale `next start` from an earlier iteration silently serves a mixed build.** The new
+  `npm run start` fails with `EADDRINUSE` in the background while the page still renders, from the
+  old server reading the *new* chunks off disk — a couple of console 500s are the only symptom.
+  Check for a live server (`ps`, above) **before** trusting any browser check.
+- **`npm run db:reset` does not reach a server that is already running.** It deletes `data/fd.db`,
+  and SQLite keeps serving the running process from the deleted inode, so the screen goes on showing
+  the pre-reset data. Restart the server after a reset, or the verification is of the old database.
+  `db:seed` fills settings only — customers are not seeded, so a reset empties whatever manual
+  clicking built up (the e2e suite makes its own registers).
+- **Changing a seeded policy value moves e2e expectations.** `grep -rn ',00 €' tests/e2e/` before
+  editing a number in `seed.ts`.
+- **The e2e customer-number bands, as they now stand — and the parity IS the fixture (US-31).** A
+  household's week is the parity of its number, so no spec seeds a group any more: it seeds an odd
+  number for RED and an even one for BLUE, and a band whose parity contradicts its assertions is a
+  spec that fails for a reason it never mentions. Below the quota of 240: counter 201–209 (201 clear,
+  202 the wrong-week one, 203 expired, 204 blocked, 205 outdated card, 206 archived, 207 notes, 209
+  already served today) and 239 unassigned, allowance 211, serve 213–219 odd (213 confirmed, 215 the
+  hand-out of nothing / removal / overpayment, 217 in view, 219 corrected), number change 221–229
+  odd, reminders 231,
+  registration 232/234/236, card numbers 237. Above it: block 241, reissue 251, age-13 271,
+  customer-list 281–285, customer-record 291–293, group-progress 301/303/305, group-walk
+  311/313/314/315/317, price cap 321, eggs 332–338 even, balance 342–348 even. A spec whose number
+  must be **pickable in the /kunden/neu dropdown** has to sit below 240 — the pool is `1..quotaN` —
+  and everything else should stay above it, clear of the low sequence the allocating specs
+  (registration, card, archive, reregistration) consume. **A new spec takes a new band**; do not
+  borrow another spec's numbers. **The „band above 317 must be even" rule is GONE (batch 32,
+  US-32.1):** it existed only because `group-walk.spec.ts` read the whole shared register and
+  asserted that its own 317 was the highest walkable RED number. That spec is deleted with the walk,
+  so `eggs` (332–338) and `balance` (342–348) are even by history and not by constraint, and a new
+  odd band above 317 is now safe. The comments in `eggs`, `balance`, `number-change` and
+  `group-progress` still cite the vanished spec by name — stale prose no gate sees; US-32.9 changes
+  no spec file, so they outlive it.
+  **A band that has to reach „Ausgabe frei" on the RED Thursday `2026-01-08`** — the day the
+  reissue, card-number, serve and number-change specs all pin — **must be odd**, which is why
+  `number-change` (221–229) and `serve` (213–217) are. Sweep the numbers in use with
+  `grep -rhno "\b[23][0-9][0-9]\b" tests/e2e/*.spec.ts | cut -d: -f2 | sort -un`.
+- **Choosing a number at the intake now starts with choosing the week.** `/kunden/neu` offers one
+  parity at a time, so `selectOption("236")` finds no such option unless `#group-BLUE` is checked
+  first — and the radio is controlled, so the check has to come after `hydrated()` or it moves the
+  dot without moving the list. Same on the record's `number-change-select`. Six specs that used to
+  open a `<details>` (`group-choice-open`, deleted in US-31.6) now just check the radio, and every
+  spec that reads the *proposed* number must read it **after** the check.
+- **Two specs share the isolated register now** (`ISOLATED_SPECS`), `number-group` before
+  `waiting-list`. Sharing is safe only because each empties it with `clearRegister` in its own
+  `beforeAll` and sets the quota it needs in its first test — which they both have to do anyway, since
+  a CI retry replays a `serial` block against the register the previous attempt filled. A spec needs
+  that register when it has to **decide the quota**: since US-31 that includes making one *week* full
+  while the register is not, which no quota on the shared register could ever reach.
+- **e2e spec files run in alphabetical path order, one worker, one shared database.** So a spec that
+  *writes* shared state is only ever seen by the files sorting after it — `npx playwright test --list`
+  prints the order, and a **rename moves a spec in that order** (batch 27's `portions.spec.ts` →
+  `allowance.spec.ts` moved it from the middle to second). Anything a spec asserts as an **absolute
+  count of a shared thing** is therefore a landmine: `settings.spec.ts` counted its version history
+  as `3` and `4` and read the seeded version as `nth(2)`. It now takes a baseline with
+  `versionCount(page)` and asserts `before + 1`, and reads the oldest version as `.last()` — the same
+  claim, stated so that it does not depend on who ran first.
+- **Two consecutive saves on the settings screen need a `page.reload()` between them in e2e.** A
+  successful save *clears* the form, and the revalidated render that does it can land **after** the
+  next `fill`, rewinding the field to the stored value; the second save then appends a version that
+  changed nothing and every history index below it shifts. **`selectOption` loses the race too** —
+  this bullet used to say it survived, and batch 29 watched WebKit fail the Ausgabetag spec on that
+  claim twice in a row. Reload and re-assert the stored value before touching the field again,
+  whichever control it is.
+- **The customer record renders two different household blocks.** `/kunden/<active>` gives the live
+  editor (`household-editor.tsx`), `/kunden/<archived>` gives `HouseholdReadOnly` in `[id]/page.tsx`.
+  Both hold the same tiles, so a screen-level change has to be checked on one of each — **seed
+  customer 6 is archived**.
+- **Counts baked into prose go stale in files no story names, in both directions.** Removing two
+  settings made "the ten fields of the settings form", "nine of the ten need no translation",
+  "Seven of the nine settings", "printed only five of the eight settings" and a `toHaveLength(8)` all
+  wrong at once; *adding* a field or a tile does the same. After any such change,
+  `grep -rn "nine\|ten fields\|eight\|six tiles\|four figures" src/` — the suite catches only the
+  assertion. The same applies to an **exported type you delete or rename**: `grep -rn "<TypeName>"`
+  finds the `{@link}`-shaped references left behind in comments, which no gate sees.
+- **Prettier does not reflow comments.** Shortening a sentence inside a `/** */` block leaves a
+  ragged short line that `prettier --check` happily accepts — and so does an over-wide one, though
+  the repo's width is 100. Re-wrap the paragraph by hand, and **measure with Python, not `awk`**: an
+  em dash is three bytes, `awk` counts it as three columns, and every sentence carrying one is
+  reported as a violation it is not.
+  `git diff -U0 | python3 -c "import sys; [print(len(l[1:-1]), l) for l in sys.stdin if l.startswith('+') and not l.startswith('+++') and len(l[1:-1]) > 100]"`
+- **A `toEqual` on a *whole* record is the assertion a new field breaks, and `tsc` cannot see it.**
+  Adding a required field to a domain type (`IssuedCard.customerNumber`, batch 30) leaves every
+  `expect(x).toEqual({ …every field… })` typechecking and failing at run time with a one-line diff.
+  The compiler finds the *constructors*; only the suite finds the assertions. Same family as the
+  „renaming a Prisma column is not finished when `tsc` is green" bullet — run the tests even when
+  the wide break looks closed.
+- **A domain story that changes a signature is not domain-only.** Deleting an exported function or
+  giving one a second argument breaks `app/`, `application/` and `infrastructure/` in the same
+  commit, and those call sites are that story's own work — the tree has to be green at every
+  iteration. Two rules keep it honest: change the *shape* only and never the behaviour, and write in
+  a comment which later story deletes the line. Where a narrowing is still needed for one more
+  iteration because a column still holds the old value, push it *down* into the adapter rather than
+  keeping the domain function alive (batch 31's `parseStoredGroup` in `card-repository.ts`).
+- **A required field added to a type a *writer* passes is a signal to split the type**, not to teach
+  every writer the new field. `NewCard = Omit<IssuedCard, "customerNumber">` and `NewCustomer.card:
+  NewCard` kept the slot the store's to fill in — which is the actual invariant — and cut the fixture
+  break from ~50 errors to 17 as a side effect. `RegisteredCustomer extends NewCustomer` then
+  re-declares `card: IssuedCard`, which TypeScript allows because the stored shape is assignable to
+  the written one. Look for that split whenever a "wide break" is mostly test fixtures: it usually
+  means the field belongs to the read model alone.
+- **Prettier owns every markdown table in `docs/`, and `npm run lint` does not check it.** `lint` is
+  `eslint` alone; markdown formatting is `npm run format:check` (the pre-commit hook runs it). Widen
+  one cell and Prettier re-flows every row of that table, so run `npx prettier --write` on the files
+  you touched *before* reading the diff — otherwise you are reviewing a re-alignment.
+- **Recording an ADR is four steps, and the script does one of them.**
+  `python3 .claude/skills/arc42/scripts/arc42.py new-adr "<decision as a sentence>"` picks the
+  number, renders the template and appends the chapter 9 index row as `Pending`. By hand afterwards:
+  set `Accepted` in the file **and** the row, **re-count** the intro sentence („The thirteen
+  decisions …“), and `npx prettier --write` chapter 9 — the appended row is narrower than the table
+  and Prettier re-flows every row of it. Finish with `arc42.py check`, which sees structure and dead
+  links but never staleness. **Batch 30 adds a fifth step:** a long ADR title widens the table, and
+  the intro paragraph above it then breaks the 100-column wrap — Prettier does not reflow prose, so
+  re-wrap that sentence by hand after changing the counting word.
+- **An ADR that corrects an older one is an amendment unless the whole decision fell.** ADR-016
+  changed one row of ADR-007's four-exception table, so ADR-007 stays `Accepted` and gains a
+  paragraph saying which row moved and that it is „amended, not superseded“ — a reader arriving from
+  either side has to be able to tell what still holds. Reserve `Superseded` for a decision that is
+  wholly replaced, and keep the *argument* in whatever you rewrite: a corrected rule with its
+  reasoning deleted is a rule nobody can later tell is still right.
+- **A claim worth writing once has been copied, so correct it by grepping the phrasing.** When a
+  story reverses a stated rule, sweep `src/ prisma/ docs/ tasks/` for the *sentences* („fixed at
+  registration", „released only by archiving", „never edited", „lässt sich nicht ändern") rather
+  than for the concept. Batch 30's PRD named four documents and the sweep found six: schema comments
+  and server-action headers repeat ports.ts's wording almost verbatim. Out of scope by convention:
+  `scripts/ralph/prds/*.json` and the per-story PRDs are records of what was **asked for** — they
+  get a dated `> **Note (YYYY-MM-DD).**` blockquote after the block carrying the claim, never a
+  rewrite.
+- **`prettier --check` cannot parse `prisma/schema.prisma`** — „no parser could be inferred", so it
+  is outside `npm run format:check` and nothing checks the width of a schema doc comment. Measure it
+  by hand (Python, not `awk`) like any `/** */` block.
+- **Never wrap a Markdown code span across two lines.** Prettier removes the continuation line's
+  indentation, which silently breaks the list item around it — in root `CLAUDE.md` it dropped
+  `` `card.index)` `` into column 0 inside a nested bullet. Keep the span on one line and rewrap the
+  sentence.
+- **A use case that already loads a customer's records must not load them twice.** `recordAttendance`
+  reads `listForCustomer` for the once-per-day guard and the balance both; `lookupCustomer` reads it
+  for `recordForDay`, `countNoShows` and the balance. One `const history = await …` at the top, and
+  everything derived from it — a second query is the thing US-04.3 and US-29 both forbid by name.
+- **An unreachable `?? fallback` fails the 100% branch gate.** Where a lookup cannot miss (a row that
+  came out of `findById` being in that customer's own list), reduce over the list with a ternary
+  instead of `find(...) ?? x` — both arms of the ternary are covered by any test with two rows, and
+  nothing pretends to handle a case that cannot arise. Where the fallback *is* wanted — a domain
+  answer that went nullable and one caller not ready for it — **move the expression to where a test
+  already goes** instead: batch 31's `suggestGroup(...) ?? "RED"` sits above the allocation inside
+  `registerCustomer`'s retry loop, so the full-register test reaches it before the allocation throws.
+- **Two files carry the story range and neither is anybody's story:**
+  `docs/architecture/01-introduction-and-goals.md` („one PRD per user story, US-01 to US-nn“) and
+  the `tasks/` row of `docs/architecture/README.md` say the same thing, and both go stale on every
+  batch that adds a PRD. `grep -rn "US-01 to US" docs/`.
+- **Documentation has no gate.** Nothing fails CI when a chapter goes stale, so a change that adds or
+  removes a concept finishes with an explicit sweep — `grep -rin <concept> --include="*.md" .` — and
+  the answer is not always zero: `docs/architecture/01`'s non-goals and `09`'s „Decisions that were
+  reversed“ exist precisely to keep a withdrawn idea named, with its reason. **`docs/architecture/`
+  is the tree to update**; `docs/technical_documentation.md`, `tech_stack_architecture_sketch.md` and
+  `fd_dev_setup_overview.md` were retired in #102 and only the archived progress logs still name them.
+- **`docs/archiv/` is annotated, never rewritten** (root `CLAUDE.md`). A dated `> **Note (YYYY-MM-DD).**`
+  blockquote goes after the *block* carrying the claim, not inside the table cell or list item that
+  states it, and names which bullets it answers when it follows several. The per-story PRDs in
+  `tasks/` are the same kind of record: they say what was asked for, so a superseded one gets a
+  banner and the rest are left alone.
+- **A controlled field filled straight after a `goto` needs `fillSticky`, not `fill`** — including a
+  `<textarea>`. Hydration re-renders it from the prop and the typed text comes back with the stored
+  value spliced into it (`notes-field`, batch 29), which reads like a broken assertion rather than a
+  race. `tests/e2e/day.ts` explains the window; the rule is the whole of it: plain `fill` only once
+  the page has been interacted with, or on a field React does not own.
+- **Before touching an e2e spec your story has no business in, `git stash` and run the suite on
+  clean `HEAD`.** It is the only thing that separates a regression from this suite's WebKit
+  flakiness. Note that a failure **aborts the files behind it** (`6 did not run`), so one flake hides
+  whatever else would have failed — and a green run after a fix is worth repeating twice.
+- **A controlled *radio* does not survive React's post-action `form.reset()`; a controlled text input
+  does.** React keeps a controlled input's `defaultValue` attribute in step with its value and does
+  **not** do the same for `defaultChecked`, so a reset restores the radio from the attribute the
+  *server* rendered while the unchanged `checked` prop makes React repaint nothing — the dot rewinds
+  and the state it is supposed to show does not. One line fixes it, on the input itself:
+  `ref={(node) => { if (node !== null) node.defaultChecked = <the state>; }}`. Passing `checked` and
+  `defaultChecked` together instead is a React warning, not a fix. No gate sees any of this: it is a
+  browser check or nothing (batch 31, `/kunden/neu` and the record's number control). Assert
+  `hasAttribute("checked")` and not only `.checked` — the attribute is what the reset restores from,
+  so it is the half that tells a fixed control from one that happens to look right.
+- **`list[0]` lies in this repo; `list.at(0) ?? fallback` does not.** `tsconfig` has no
+  `noUncheckedIndexedAccess`, so an index access on a possibly-empty array types as present and the
+  `?? fallback` beside it reads as dead code to the next reader. `.at(0)` returns `T | undefined`,
+  which lets a chain of `??` state the fallbacks a value actually has without a `!` — see
+  `number-control.tsx`'s pick → own slot → group's lowest.
+- **Radios that must not be submitted simply have no `name`.** An unnamed control is left out of
+  `FormData`, mutual exclusion comes from React's `checked`, and what is lost is only the arrow-key
+  roving of a native group — Tab reaches each radio and Space picks it. That is how a control can be
+  browser state inside a `<form>` without a field nobody reads (US-31.6).
+- **A `<select>` or a text input inside a form on a *record* screen needs `onKeyDown={guardEnter}`.**
+  `submitsOnEnter` (`src/app/enter-guard.ts`) returns `true` for `SELECT`, so Enter in a dropdown
+  submits the form around it — and where the save sits inside a `<details>` confirmation, that
+  keystroke performs the write with the sentence describing it never having been on screen. No gate
+  sees this: typecheck, lint and the unit suite are all green either way. Press Enter in the control
+  in a browser. (`group-control.tsx`'s radios have the same exposure and no guard.)
+- **The two-step save has one shape in this repo, and it is `reissue-controls.tsx`'s**: a `<summary>`
+  wearing `buttonVariants({ variant: "outline" })` plus `list-none
+  [&::-webkit-details-marker]:hidden`, then an `<Alert>` naming what will happen and the real
+  `<Button type="submit">` inside the same `<details>`. It tabs select → summary → submit and reads
+  as `group > generic + alert + button` in the accessibility tree. Copy it; do not invent a second.
+- **`npm run db:demo` is what makes a record worth driving in the browser.** `db:reset` seeds
+  settings only, so every `/kunden/<id>` is a 404 and „the screen is broken" is the wrong conclusion.
+  In the demo register ids 1–5 are ARCHIVED, 6/9/10 ACTIVE, 7/8 BLOCKED — **id 6 is the active record
+  and id 1 the archived one**. (The „seed customer 6 is archived" bullet elsewhere is about
+  `seed.ts`, a different register.) Slots 1 and 2 are held by re-registrations, so the free pool
+  starts at 3.
+- **Verify a screen's acceptance list with one `--raw eval` returning `JSON.stringify({...})` over
+  its testids**, rather than a snapshot per claim: a receipt, the revalidated facts above it, a
+  control's post-save value and a collapsed disclosure come back in one call for a fraction of the
+  tokens. Screenshots at 390 and 1280 are for what the eye is needed for, not for reading text back.
+- **`playwright-cli` needs a role locator, not a testid, to fill the counter's Nummer input**, and a
+  `cmd-a || cmd-b` shell chain hides a silent no-op — the first command exits 0 without filling
+  anything. Run the fill on its own and re-snapshot to confirm it landed. Verify against
+  `npm run start` (production build), not `next dev`.
+- **WebKit's nav-bar click is flaky at roughly one failure in two full-suite runs**
+  (`navigation.spec.ts` „von Kunden verwalten aus …“, `waitForURL` timing out after the click). It
+  passes alone and on re-run. If it recurs, the click needs the „wait for React to own the control“
+  treatment `day.ts`'s `hydrated` gives the fields (#116) — worth watching rather than chasing.
+- **A test about „what the rest of the app reads after X" belongs in the suite that can *do* X.**
+  Several suites deliberately give a port method that *rejects* („moving one has its own suite"), so
+  a cross-use-case test written in the reading use case's own file has to hand-build a fixture that
+  merely looks like the outcome — or teach three fakes an act one already performs. Put it in the
+  writing act's suite instead and drive the real use case; it usually costs one small extra fake
+  (`FakeReminderLogRepository`, batch 30) rather than three copies of a big one. Related: **a fake
+  that lets a caller state a value the adapter derives** (a card's slot, read off the customer row)
+  turns a two-line story into a wide break, because every fixture then carries a value that can
+  disagree — keep the fake's rule identical to the adapter's.
+- **An AC that says „needs no change and gets tests proving it" produces tests that pass on the
+  first run, and that is the deliverable.** Eight of batch 30's nine US-005 tests were green before
+  the fix; only the one naming the defect was red. Do not read „green immediately" as a fixture
+  mistake and do not delete the test — it is the proof the AC asked for. Still run the suite
+  **before** implementing, so which ones are red is a fact rather than a guess.
+- **Prior runs' patterns are in the archive**, not in this file:
+  `scripts/ralph/archive/2026-08-29-us-29-customer-balance/progress.txt` is the most recent (a
+  boolean becoming an amount, a balance derived and never stored, a fifth schema regeneration and a
+  two-screen rework — and it keeps the batch-29 hazards this file no longer carries),
+  `archive/2026-08-25-us-28-egg-allowance/` before it (the first list-valued policy value: a
+  validated staircase, a child table on `SettingsVersion`, a repeating add/remove form and a
+  row-by-row diff), `archive/2026-08-24-us-27-remove-portion-allowance/` before that (a deletion, run
+  outside-in), and
+  `archive/2026-08-07-us-25-globally-unique-card-numbers/progress.txt` keeps a long consolidated list
+  (playwright-cli usage, e2e customer-number bands, killing the dev server safely, testid greps).
+  Read the most recent two before any UI or e2e story.
+- **React resets an uncontrolled form once its server action resolves.** So a field cannot survive
+  its own submission's answer: after a refusal that has to be re-submitted — the overpayment
+  confirmation is the one we have — the field snaps back to its `defaultValue` while the notice
+  beside it still names what was typed, and the second submit sends the wrong number. Every gate
+  stays green; only driving it in a browser finds it. The fix is both halves together: derive the
+  default from the refusal (`refusal?.paidCents ?? theDefault`) **and** `key` the field on it, so a
+  fresh input mounts on the refused value whichever order React re-renders and resets in.
+- **`whitespace-nowrap` on a `Stat` value is a narrow-screen bug, and the overflow check cannot see
+  it.** A phrase („Offen 2,00 €") runs out through the *tile's* padding at 390px while
+  `documentElement.scrollWidth - clientWidth` still reads `0` — the page does not overflow, the tile
+  does. Pass the nowrap/width-floor pair only where two tiles exist to be diffed (§4); let a phrase
+  wrap where they are not, and read the screenshot at 390 rather than the number.
+- **A dictionary entry may not read `de` inside its own initialiser** — TypeScript makes the whole
+  object implicitly `any` (TS7022) even though it would work at run time. Lift the shared clause to a
+  module-level function above the object, which is what `eggRow`/`fromPersons` already are. Note also
+  that `de.ts` is no longer import-free: `formatEuros` and `balanceKind` are imported so that money
+  and the balance's wording are formatted in one place and no screen can print a leading minus.
+- **`ui_styling_guide.md` §11's snippet still says `pkill -f next-server`, and that kills the Bash
+  tool** (exit 144, no output) — the bullet above says why. Kill by pid from
+  `ps aux | grep "[n]ext-server"`. And **driving the counter by hand needs `FD_FIXED_NOW_FILE` set on
+  the server**, not just a seeded register: the demo day is deliberately not a distribution day, so no
+  household is clear to serve. Pin a Thursday whose week colour matches the household (anchor
+  `2026-W02` = RED, so odd week offsets are BLUE) and restart `npm run start` with it.
+- **Renaming a Prisma column is not finished when `tsc` is green.** A `select: { paid: true }` in an
+  e2e spec typechecks against the *generated client*, so `npm run typecheck` on `src/` passes while
+  the suite would fail at run time — and five specs held one. After any column rename,
+  `grep -rn "<oldColumn>" tests/e2e/ prisma/` and run **both** engines, not just Chromium.
+- **A scripted fixture in `demo-seed.ts` must be exempted from the counted patterns, not layered on
+  top of them.** `UNPAID_EVERY` and `NO_SHOW_EVERY` reach across the whole cast, so a household
+  scripted to demonstrate one state ends on whatever the modulus left it with (batch 29's three
+  balance households first came out at −12,00 €, −5,00 € and +1,00 €). Skip the pattern for the
+  scripted shape while still incrementing its counter, so the rest of the register is unchanged —
+  and verify the fixture by querying the seeded database, never by reading the script.
+- **`/warteliste` has no free-slot count, and a move can never change one.** The waiting list names
+  *one* free number and *one* applicant in a banner, and `/kunden` carries a boolean „Platz frei"
+  badge — neither is a figure that can go up. „Noch N freie Nummern" lives on `/kunden/neu` and on
+  the record's number control, and a household moving between slots swaps one taken number for
+  another, so `|taken|` is invariant. Batch 30 wrote an AC asserting a count that rose on a screen
+  that has none; assert the *composition* of the offer (the vacated number is offered, the taken one
+  is not) rather than its size.
+- **A lost race is driven with a second real tab**, `page.context().newPage()` plus the same
+  registration helper — not a hand-written Prisma row, which would skip the intake's own allocation
+  and prove nothing about the refusal staff actually meet.
+
+- **`tests/**` is inside `tsconfig`'s `include`, so a dictionary key cannot be deleted alone.**
+  `npm run typecheck` covers `tests/e2e/*.spec.ts`, which read their expected text out of
+  `src/i18n/de.ts` — removing a string breaks the typecheck until every spec quoting it goes too.
+  Delete the German and the specs in one commit, or leave both and say which story takes them.
+- **`prisma/demo-seed.ts` belongs to no story and breaks on every domain deletion.** It drives the
+  real use cases, so it holds a call to almost all of them, and the
+  `npm run typecheck 2>&1 | grep -E "^src/"` filter in the bullets above **hides it** — it is the
+  one file outside `src/` that a wide domain change always reaches. Grep the raw typecheck output.
+- **A second submit button on one screen is a screen defect, not a spec problem.** Playwright runs
+  in strict mode, so a card that ends in a button already named on that page breaks every existing
+  spec clicking the older one — and the temptation is `.first()`. Don't: `ui_styling_guide.md` §6
+  and §9 already require distinct accessible names, and the German label is the one-line fix
+  (US-33.7 found fifteen such call sites behind one duplicated „Speichern"). The *spec* breaking is
+  the gate working.
+- **A controlled `<select>` or radio inside a `useActionState` form needs its `default…` written by
+  a `ref`.** React resets the form when the action resolves and a native reset reads the
+  `selected`/`checked` **attribute**, which React never writes for a controlled control — so the
+  value silently rewinds while the state says otherwise, on a save *and* on a refusal.
+  `number-control.tsx` states the argument in full; `certificate-type-field.tsx` and
+  `registration-form.tsx`'s group radio both carry the same three lines.
+
+
+### Where batch 33 starts
+
+Four screens ask for the Art des Nachweises and all four ask it as an empty text box, so the same
+half a dozen answers are retyped week after week and arrive in four spellings. This batch gives DF a
+list they maintain on `/einstellungen` and a native drop-down wherever the type is asked for, with
+„Sonstiges" opening a free-text field so a notice nobody has configured is still recordable without
+leaving the form.
+
+**The list is not a policy version.** `SettingsVersion` is append-only so a past hand-out can be
+re-priced (ADR-005); a certificate's type is already a string on the record, so nothing resolves it
+and versioning the vocabulary would append a policy version for every word DF add. It is a table of
+its own, edited in place and audited on change (ADR-019, story 10).
+
+**This batch has a schema change** — one new table with **no relations** — so `prisma/migrations/` is
+regenerated (pre-release) and **the hand-written partial unique index on `Customer.customerNumber`
+must be put back** in story 2. `schema.test.ts` is what catches a miss.
+
+**Nothing outside the feature changes signature.** What reaches `registerCustomer`,
+`renewCertificate` and `addToWaitingList` is the same certificate with the same `type` string it took
+before; the four forms gain a second wire field (`certificateTypeOther`) that the server actions
+resolve away before Zod sees it.
+
+**The two things most likely to go wrong:**
+
+- The re-added partial unique index (story 2). The first symptom of the drift it causes is the
+  settings screen reporting that nothing is configured.
+- **Prefill silently substituting** (stories 5 and 7). A form pre-filled from an archived record
+  (US-11.3) or a promoted waiting-list entry (US-12.4) whose type is not configured must land on
+  „Sonstiges" with the old wording intact — never on a different type, never blank. A type DF removed
+  last month still has to arrive as it was saved.
+
+**`Eligibility` keeps its shape** in `tests/e2e/registration-form.ts`, so no existing spec changes.
+If a spec needs editing, the control is wrong, not the spec.
+
+---
+
+## 2026-09-16 - US-001
+- Implemented src/domain/policy/certificateTypes.ts: CertificateTypeList, createCertificateTypeList
+  (trims, refuses blank/too-long/duplicate labels, sorts by folded label ascending) and
+  diffCertificateTypes (fold-matched added/removed changes).
+- Added DuplicateCertificateType and CertificateTypeTooLong to src/domain/errors.ts (and the
+  DomainErrorCode union), plus their "refusal" tier entries in src/app/notice-tier.ts — adding a
+  DomainErrorCode fails typecheck on TIERS until tiered, even though no screen consumes these
+  sentences until US-004.
+- Test-first: src/domain/policy/certificateTypes.test.ts, one named test per rule from the AC list.
+- Files changed: src/domain/policy/certificateTypes.ts (new), src/domain/policy/certificateTypes.test.ts
+  (new), src/domain/errors.ts, src/app/notice-tier.ts, scripts/ralph/prd.json.
+- **Learnings for future iterations:**
+  - Test names containing a literal `"` (the „…" German-quote convention used throughout this batch's
+    PRD) must use single-quoted `it('…')` — vitest/esbuild fails to parse a double-quoted string title
+    containing an unescaped `"`, with an unhelpful "Expected ')' but found 'and'" error pointing at the
+    quote.
+  - A sort comparator with an `a === b` branch that can never fire (duplicates were already refused
+    before sorting) fails the 100% branch-coverage gate on domain/. Drop the equality arm —
+    `foldName(a) < foldName(b) ? -1 : 1` — once the earlier duplicate check makes the two folds
+    provably different; do not write a test to hit dead code instead.
+  - Confirms the "Adding a DomainErrorCode is a three-file change" pattern already at the top of this
+    file: `src/app/notice-tier.ts`'s `TIERS` is a total `Record`, so it must be updated in the same
+    commit as the new code even when, as here, no `app/` screen calls the error yet.
+---
+
+## 2026-09-16 - US-002
+- New `CertificateType` model in prisma/schema.prisma (id, label @unique, no relation anywhere) —
+  the model comment states why it is deletable at all (nothing points at it, ADR-019) and the
+  @unique/fold division of labour, matching the egg rule's own comment.
+- Regenerated prisma/migrations/ (delete migrations + data/fd.db, `npx prisma migrate dev --name
+  init`, then `npm run db:reset`), diffed against the deleted migration to confirm the only changes
+  were the new table/index, and re-added the hand-written partial unique index on
+  `Customer.customerNumber` by hand at the end of the new migration.sql. Verified with a raw query
+  against the actual `data/fd.db` (no `sqlite3` CLI in this sandbox — used `@prisma/client`'s
+  `$queryRawUnsafe` instead) that both the new table and the re-added index exist in the database
+  Prisma actually built, not just in the committed SQL.
+- New port `CertificateTypeRepository` in src/application/ports.ts (`list`, `replace`), documented
+  once on the port per the AC.
+- New adapter src/infrastructure/prisma/certificate-type-repository.ts: `replace` deletes and
+  re-inserts inside `$transaction([...])` (array form, not the interactive callback — matches
+  `settings-repository.ts`'s style of using Prisma's own transaction primitives directly).
+- New integration test certificate-type-repository.test.ts against a throwaway SQLite file, in the
+  shape of settings-repository.test.ts: round-trips a list, replaces a list, empty table returns [].
+- prisma/seed.ts is unchanged — it already seeds no certificate types, since it never mentioned them.
+- prisma/demo-seed.ts: added `certificateTypes: CertificateTypeRepository` to `DemoDeps`, wired the
+  Prisma adapter in `main()`, and seeded it with the demo file's own pre-existing `CERTIFICATE_TYPES`
+  constant (the same four labels the invented certificates already draw from) right after
+  `seedSettings`. No new fixture data invented — reused what was already there.
+- Files changed: prisma/schema.prisma, prisma/migrations/ (regenerated,
+  20260901233938_init to 20260916160242_init), src/application/ports.ts,
+  src/infrastructure/prisma/certificate-type-repository.ts (new),
+  src/infrastructure/prisma/certificate-type-repository.test.ts (new), prisma/demo-seed.ts,
+  scripts/ralph/prd.json.
+- **Learnings for future iterations:**
+  - `prisma/demo-seed.ts` already had a small synthetic certificate-type vocabulary
+    (`CERTIFICATE_TYPES`, used since before this batch to fill in invented certificates' `type`
+    strings) sitting right next to where `Identity` is built. When a schema story needs "a small
+    plausible synthetic set" for a list DF will configure, check whether `demo-seed.ts` already
+    invented one for an unrelated reason before writing a second — reusing it here means every demo
+    household's certificate type is guaranteed to be one of the configured options, which a
+    freshly-invented list would not guarantee without extra plumbing.
+  - The "regenerate a migration" checklist at the top of this file (delete `data/fd.db` first, diff
+    against the deleted file rather than eyeballing the new one, `db:reset` afterwards because
+    `migrate dev` applies before the hand-written index is appended, grep docs/src/tests for the old
+    timestamp) held exactly as written — nothing new to add there, it is the eighth time this exact
+    sequence has worked.
+---
+
+## 2026-09-16 - US-003
+- New use case `src/application/settings/read-certificate-types.ts`: reads the repository's labels
+  back through `createCertificateTypeList`, so a hand-edited database cannot surface a duplicate.
+- New use case `src/application/settings/update-certificate-types.ts`: validates the submitted labels
+  through the domain first (nothing touches the repository if that throws), reads the previous list
+  via `readCertificateTypes` (reused rather than a second read of the raw repository), diffs the two
+  with `diffCertificateTypes`, and — only when the diff is non-empty — calls `replace` and appends one
+  `certificateTypes.updated` audit entry whose `why` renders `diffCertificateTypes`'s own order
+  (removed then added) with `−`/`+` prefixes. A resubmit that changes nothing (including a re-spelling
+  that folds the same) writes neither the list nor an audit entry.
+- Test-first: `src/application/settings/certificate-types.test.ts`, hand-written
+  `FakeCertificateTypeRepository`/`FakeAuditLog` fakes in the shape of `settings.test.ts`'s, one named
+  test per rule from the AC list plus two covering `what`/`changedFields` and the clock stamp.
+- Files changed: `src/application/settings/read-certificate-types.ts` (new),
+  `src/application/settings/update-certificate-types.ts` (new),
+  `src/application/settings/certificate-types.test.ts` (new), `scripts/ralph/prd.json`.
+- **Learnings for future iterations:**
+  - `updateCertificateTypes` deliberately calls the sibling `readCertificateTypes` use case to get the
+    previous list rather than reading `deps.certificateTypes.list()` a second raw time — one use case
+    calling another in the same layer is fine where the callee is exactly "the validated read" the
+    caller needs, and it means the previous list is defended against a hand-edited duplicate the same
+    way a fresh read would be.
+  - `diffCertificateTypes` already puts removed entries before added ones (its own doc comment says
+    so); the audit `why`'s AC ("added labels prefixed +, removed labels prefixed −") reads as *how to
+    render each entry*, not a re-ordering instruction — rendering the diff's own order was the
+    reading that produced a one-line `describeChanges` with no sort of its own.
+---
+
+## 2026-09-16 - US-004
+- New card „Arten des Nachweises" on `/einstellungen`, its own `<Card>` and its own `<form>` —
+  rendered as a sibling of `<SettingsForm>` in `page.tsx`, not nested inside it, since HTML forbids a
+  nested `<form>` and the AC requires it stay outside the policy form so saving it never appends a
+  `SettingsVersion` (ADR-019, cited in a one-line comment rather than re-argued).
+- New client component `src/app/einstellungen/certificate-type-table.tsx`: unlike `egg-rule-table.tsx`
+  (which only owns the rows and is embedded inside `SettingsForm`'s one `<form>`), this component owns
+  the whole card — the `<form>`, `useActionState`, the rows-as-`useState` table, the add/remove
+  buttons, the one permitted hint line and the save button — because it is the only new component the
+  story names and there is no policy-form parent left to host a second `<form>`.
+- New use-case-facing state type `save-certificate-types-state.ts`, outside `actions.ts` for the same
+  `"use server"`-exports-only-async-functions reason `save-settings-state.ts` is. No `values` echo:
+  the rows are React state, `egg-rule-table.tsx`'s reason.
+- New server action `saveCertificateTypes` in `actions.ts`: pairs the repeated `certificateTypeLabel`
+  inputs into rows, drops a wholly blank one with its screen position kept (`certificateTypeRows`,
+  `certificateTypeScreenPath` — `eggRuleRows`/`screenPath`'s shape, but simpler: one field per row
+  means there is no partial-row case to preserve, only a fully blank one to drop), then calls
+  `updateCertificateTypes` directly with no Zod stage — there is nothing to parse, since every field on
+  this form is already the string the domain wants.
+- `deps.ts` gained `certificateTypes: CertificateTypeRepository`, wired to
+  `PrismaCertificateTypeRepository`.
+- `de.ts` gained `settings.certificateTypes.*`: heading, column, addRow, removeRow, `fieldLabel`,
+  save/saving/saved, the one permitted hint line, and `errors.{duplicate,tooLong,unknown}`. Reused
+  rather than duplicated: `de.customers.errors.missingField`/`fieldRequired` for `MissingRequiredField`
+  — already reused by three other non-customer screens (`ausgabe`, `warteliste`,
+  `kunden/[id]` actions.ts), so a fourth reuse rather than a fifth pair of near-identical strings.
+- Verified in the browser against the production build (`npm run build` + `npm run start`, `db:reset`
+  first): added a row, saved it, reloaded to confirm it persisted, removed it and saved again to leave
+  the table empty for the next iteration. `db:reset` afterwards to leave a clean database.
+- Files changed: `src/app/einstellungen/certificate-type-table.tsx` (new),
+  `src/app/einstellungen/save-certificate-types-state.ts` (new), `src/app/einstellungen/actions.ts`,
+  `src/app/einstellungen/deps.ts`, `src/app/einstellungen/page.tsx`, `src/i18n/de.ts`,
+  `scripts/ralph/prd.json`.
+- **Learnings for future iterations:**
+  - `DuplicateCertificateType` carries the offending `label`, but `CertificateTypeTooLong` carries
+    only `length`/`maxLength` (`NotesTooLong`'s own shape) — so „QUOTING the offending label" in the
+    AC only applies to the duplicate sentence; the too-long one quotes the lengths instead, the same
+    asymmetry `notesTooLong`'s wording already has. Neither error carries a row index (a duplicate is a
+    collision between two rows, a length is a property of the text alone), so neither marks a specific
+    input — the same reasoning `DuplicateEggThreshold`/`EggsNotIncreasing` already state in
+    `einstellungen/actions.ts`'s `refusal()`.
+  - With one field per row instead of the egg rule's two, dropping "wholly blank" rows and dropping
+    "blank after trim" rows are the *same* filter — so `MissingRequiredField` becomes unreachable from
+    this form's own UI (a row is either typed or it is the blank one `EMPTY_ROW` was, and that one is
+    filtered before the domain ever sees it). The handling is still written, tested by construction
+    only through `certificateTypeRefusal`'s own logic (not exercised by a browser click), and left in
+    place as a defensive mapping — the same posture `errors.test.ts`'s "no caller yet" bullet already
+    names for a typed error with no reachable path.
+  - `playwright-cli`'s `find` command and a bare `element.textContent` both go blind on this screen:
+    an `<input value="…">`'s value is an attribute, not a text node, and an icon-only button's
+    `aria-label` isn't text content either — so a page with a filled text row can read as "no row
+    there" by `textContent` alone. Read a controlled input's value with
+    `eval("el => el.value", ref)` or a scoped `querySelectorAll('input').map(i => i.value)`, not by
+    grepping rendered text.
+  - Two `<form>`s on one page both end in a `button` named "Speichern" (the policy form and this new
+    card) — `getByRole('button', { name: 'Speichern' }).nth(1)` reaches the second reliably since the
+    policy form is always first in DOM order, but the safer long-term handle for e2e is the testid
+    already on its `Notice` (`certificate-types-saved`/`-error`), which US-008 will need anyway.
+---
+
+## 2026-09-16 - US-005
+- New shared client component `src/app/certificate-type-field.tsx` — the one control every screen
+  asking for the Art des Nachweises will use: a native `<select>` (`selectClass`) carrying the
+  configured types in the domain's own order plus a "Sonstiges" option last, which reveals a
+  `certificateTypeOther` text input and moves focus into it. Prefill matches an incoming value by
+  `foldName` against the configured list; a match selects that option under its *configured*
+  spelling, a non-match (or no incoming value at all) selects "Sonstiges" with the incoming text —
+  or nothing — standing in the free field. These two files (plus a stray progress-log entry that was
+  never written) were sitting untracked in the working tree at the start of this iteration, already
+  matching the AC precisely — a prior run had built them but was interrupted before wiring a
+  consumer, updating `de.ts` or committing. This iteration verified them against the spec, then did
+  the remaining wiring.
+- New plain module `src/app/certificate-type-resolver.ts`: the `CERTIFICATE_TYPE_OTHER` sentinel and
+  `resolveCertificateType(selected, other)`, deliberately neither `"use client"` nor `"use server"` so
+  both the component and every screen's server action can import it as values.
+- First consumer wired: `src/app/ausgabe/certificate-controls.tsx`'s `RenewalFields` now renders
+  `CertificateTypeField` instead of a plain `Input` named `certificateType`; `CertificateControls`
+  takes a new `certificateTypes: CertificateTypeList` prop. `src/app/ausgabe/page.tsx` reads it via
+  `readCertificateTypes(distributionDeps)` alongside the other independent reads already running in
+  `Promise.all`, and passes it down — the page stays read-only, the write path is untouched.
+  `distributionDeps` (`src/app/ausgabe/deps.ts`) gained a `certificateTypes: CertificateTypeRepository`
+  wired to `PrismaCertificateTypeRepository`, since the page's existing deps object had no read access
+  to the new table.
+- `src/app/ausgabe/actions.ts`'s `recordRenewal` now resolves `certificateType` +
+  `certificateTypeOther` through `resolveCertificateType` before either reaches `renewCertificate` —
+  no use case, port or domain signature changed, exactly as the AC requires.
+- **The one non-obvious wiring decision**: `customerErrorField` (shared by four screens, in
+  `registration-input.ts`) still maps `MissingRequiredField("certificate.type")` to the wire path
+  `certificateType`, because the other three screens haven't been converted yet and still point a
+  plain input there. Changing that shared mapping now would un-mark their still-unconverted field.
+  Instead, `renewalRefusal` in `ausgabe/actions.ts` remaps the field *locally*, after
+  `customerErrorField` returns: `certificateType` → `certificateTypeOther`. This is safe *only*
+  because the split control makes the select itself unable to submit blank — every option, sentinel
+  included, resolves to a non-empty string once chosen — so a blank reaching the domain can only be
+  the free-text box. The next two screens (US-006, US-007) will need the same local remap; if a third
+  reason ever needs `certificateType`'s own path to mean something else, it stops being safe to
+  hardcode per-screen and the shared mapping should take a parameter instead.
+- `de.ts` gained `customers.fields.certificateTypeOtherOption` ("Sonstiges") and
+  `certificateTypeOther` ("Welche Art?"), beside the reused `certificateType` label.
+- Verified in the browser against a production build (`npm run build` + `npm run start`, `db:reset` +
+  `db:demo` first) via `playwright-cli`, reading the accessibility snapshot: the combobox at `/ausgabe`
+  shows the four demo-seeded types (`Bescheid Sozialamt`, `Grundsicherung`, `Jobcenter-Bescheid`,
+  `Wohngeldbescheid`) then "Sonstiges"; choosing a configured type hides the free-text box and
+  choosing "Sonstiges" reveals it focused; submitted both a configured type and a free-text "Sonstiges"
+  value end to end and confirmed both landed correctly on the `Certificate` row via a direct Prisma
+  query. `db:reset` afterwards to leave a clean database.
+- Files changed: `src/app/certificate-type-field.tsx` (new, found untracked and verified),
+  `src/app/certificate-type-resolver.ts` (new, found untracked and verified),
+  `src/app/ausgabe/certificate-controls.tsx`, `src/app/ausgabe/page.tsx`, `src/app/ausgabe/deps.ts`,
+  `src/app/ausgabe/actions.ts`, `src/i18n/de.ts`, `scripts/ralph/prd.json`.
+- **Learnings for future iterations:**
+  - If a prior iteration's untracked files exist at the start of a run, don't assume they're
+    scratch — check `git status` first. Here they were a complete, spec-matching implementation of
+    the story's core files that simply never got wired to a consumer or committed. Read them closely
+    against the AC before writing a replacement; re-deriving them from scratch would have thrown away
+    correct work.
+  - **When editing `scripts/ralph/prd.json` with a Python script, always `json.dump(..., ensure_ascii=False)`
+    and match the file's existing indent (2).** The default `ensure_ascii=True` re-escapes every
+    German umlaut and curly quote already in the file as `\uXXXX`, turning a one-line `passes` flip
+    into a multi-hundred-line diff. Prefer a targeted `Edit` (exact string match on the `"priority":
+    N,\n"passes": false,\n"notes": "..."` block) over any full read-modify-write of this file.
+  - The registration form's `SELECT` constant pattern (`selectClass(height)` assigned once per file)
+    doesn't apply to `CertificateTypeField`, which takes `height` as a prop instead — it is shared
+    across screens that disagree on height (`h-8` registration, `h-9` elsewhere), so the constant
+    has to live inside the component, not beside each caller.
+---
+
+## 2026-09-16 - US-006
+- Wired `CertificateTypeField` (US-33.5) into the two remaining simple consumers: the customer
+  record's renewal form and the waiting-list application form. Neither prefills a value, so both
+  land on this story's simpler half — US-007 is where the fold-prefill rule gets exercised.
+- `src/app/kunden/[id]/renewal-form.tsx`: `RenewalFields` now renders `CertificateTypeField`
+  (`height="h-9"`, `errorTestId="record-field-error"`, matching every other field on this form)
+  instead of a plain `Input` named `certificateType`; `RenewalForm` takes a new
+  `certificateTypes: CertificateTypeList` prop and threads `otherProblem` alongside the existing
+  `typeProblem`.
+- `src/app/kunden/[id]/actions.ts`: `renewalForm`'s zod schema dropped `certificateType` entirely
+  (matching `ausgabe/actions.ts`'s `renewalForm`, the counter's own — only `certificateValidUntil`
+  is parsed); `renewCertificateAction` resolves the type via `resolveCertificateType` on the raw
+  `certificateType`/`certificateTypeOther` form fields before calling `renewCertificate`, and
+  remaps a `certificateType`-refusal to `certificateTypeOther` in the catch block — the same local
+  remap `ausgabe/actions.ts`'s `renewalRefusal` makes, restated here because this screen has no
+  shared `renewalRefusal` helper to reuse (it inlines its error translation).
+- `src/app/kunden/deps.ts`: added `certificateTypes: CertificateTypeRepository` so the record page
+  can `readCertificateTypes`; `src/app/kunden/[id]/page.tsx` reads it in the existing `Promise.all`
+  beside `readCustomer`/`readCurrentSettings` and threads it through `CustomerRecord` to
+  `RenewalForm`.
+- `src/app/warteliste/add-applicant-form.tsx`: **this one diverges from the counter's pattern on
+  purpose, per this story's own acceptance criteria.** `applicationForm`'s zod schema *keeps*
+  `certificateType: z.string()` — "the schema's view of the wire is unchanged" — even though the
+  value actually saved is `resolveCertificateType(form.certificateType, <raw certificateTypeOther>)`,
+  not `form.certificateType` itself. The AC states this explicitly for this screen only; nothing
+  says the same for `kunden/[id]/actions.ts`, which does follow the counter's drop-the-field
+  pattern. **Read the AC's schema instructions per-screen — they are not always the same shape
+  even for two screens doing the same job**, and this batch's PRD will call out a divergence by
+  name when it wants one; do not assume US-005's precedent generalises silently.
+  `certificateType` was pulled out of `APPLICATION_FIELDS`/`GRID_FIELDS` (the array is now the
+  eight plain text/date fields with a documented gap `CertificateTypeField` fills at
+  `CERTIFICATE_TYPE_POSITION`), since `CertificateTypeField` holds its own selection and free text
+  rather than a raw string in the form's `values` state — the same reason `RenewalFields` never put
+  it in a `useState<Application>`.
+- `src/app/warteliste/actions.ts`: `addApplicantAction` reads the resolved type from
+  `resolveCertificateType(form.certificateType, <raw certificateTypeOther>)` and uses it for
+  `certificate.type`; a `MissingRequiredField` naming `certificateType` is remapped to
+  `certificateTypeOther` before marking, same reasoning as the record's.
+- `src/app/warteliste/deps.ts`: added `certificateTypes: CertificateTypeRepository`;
+  `src/app/warteliste/page.tsx` reads it via `readCertificateTypes(waitingListDeps)` in the
+  existing `Promise.all` and passes it to `AddApplicantForm`.
+- Verified in the browser against a production build (`npm run build` + `npm run start`, `db:reset`
+  + `db:demo` first) via `playwright-cli`, reading the accessibility snapshot: `/warteliste`'s
+  application form and `/kunden/6`'s renewal form both show the combobox with the four demo-seeded
+  types then "Sonstiges" last; choosing "Sonstiges" reveals the focused free-text field on both.
+  Submitted the record's renewal end to end with a configured type and confirmed the certificate
+  section and reminder count updated. `db:reset` afterwards to leave a clean database. A stale
+  `next-server` from an earlier iteration (still running, not listening on 3000) was killed first —
+  see the existing "stale `next start`" pattern at the top of this file; this one had exited its
+  listener but not the process.
+- Files changed: `src/app/kunden/[id]/renewal-form.tsx`, `src/app/kunden/[id]/actions.ts`,
+  `src/app/kunden/deps.ts`, `src/app/kunden/[id]/page.tsx`, `src/app/warteliste/add-applicant-form.tsx`,
+  `src/app/warteliste/actions.ts`, `src/app/warteliste/deps.ts`, `src/app/warteliste/page.tsx`,
+  `scripts/ralph/prd.json`.
+- **Learnings for future iterations:**
+  - **This story deliberately breaks `tests/e2e/waiting-list.spec.ts`** (and would break
+    `registration.spec.ts` too, if it touched `/kunden/neu`): `waiting-list.spec.ts` fills
+    `#certificateType` as a text input via the shared `fillEligibility` helper in
+    `tests/e2e/registration-form.ts`, and that field is now a `<select>`. This is expected and
+    scoped to US-008 ("`fillEligibility` learns the control"), not this story — the iteration
+    instructions only require lint/typecheck/test:coverage/build for US-006/US-007, e2e is US-008's
+    own gate. Do not "fix" the e2e spec early; US-008 owns that change and its AC is explicit that
+    *no* existing spec is edited except through that one helper.
+  - No unit test in `src/app/kunden/` or `src/app/warteliste/` exercises these forms or actions
+    directly — this layer is covered by Playwright per the project's testing table, so there was
+    nothing to update beyond the browser check above.
+---
+
+## 2026-09-16 - US-007
+- Wired `CertificateTypeField` (US-33.5) into the last two consumers: `/kunden/neu`'s registration
+  form and the waiting-list promotion form at `/warteliste/[entryId]/registrieren`, both of which
+  share `registration-form.tsx`, `registration-input.ts`'s `registrationForm`/`registrationValues`
+  Zod schema and `germanRefusal`.
+- `registration-form.tsx`: the `certificateType` `Field` is replaced by `CertificateTypeField`
+  (`height="h-8"`, matching this screen's own `Input`s rather than `/einstellungen`'s `h-9`),
+  `initialValue={draft?.certificateType}` carrying the fold-prefill rule. `certificateType` dropped
+  out of `DetailsDraft`/`initialDetails` (six fields now, not seven — the comment's count updated)
+  since `CertificateTypeField` holds its own selection and free text, the same reasoning
+  `RenewalFields` and the waiting-list form already state. `RegistrationForm` and
+  `RegistrationScreen` both gained a `certificateTypes: CertificateTypeList` prop threaded down from
+  the server page; `PromotionScreen` gained the same, threaded from its own page.
+- `kunden/neu/page.tsx` and `warteliste/[entryId]/registrieren/page.tsx` both read
+  `readCertificateTypes` alongside their existing independent `Promise.all` reads (matching how
+  `ausgabe/page.tsx` did it in US-005) and pass the list down.
+- **`certificateType` stays `z.string()` in `registrationForm`** (the AC's explicit divergence from
+  the drop-the-field pattern `kunden/[id]/actions.ts`'s renewal uses, matching what
+  `warteliste/actions.ts`'s application form already did in US-006): `kunden/neu/actions.ts` and
+  `warteliste/[entryId]/registrieren/actions.ts` both resolve `certificateType` via
+  `resolveCertificateType(form.certificateType, <raw certificateTypeOther>)` **after** the Zod parse
+  succeeds (`form.certificateType` is the already-parsed, untransformed value — `z.string()` never
+  rejects it, so before/after the parse is the same value), the same shape `warteliste/actions.ts`
+  established rather than the pre-parse shape `ausgabe/actions.ts`'s and `kunden/[id]/actions.ts`'s
+  schema-less renewals use.
+- **The `certificateType` → `certificateTypeOther` mark remap now lives once, in
+  `registration-input.ts`'s `germanRefusal`**, rather than being copied into both actions the way
+  `ausgabe/actions.ts`'s `renewalRefusal` and `warteliste/actions.ts`'s inline remap each carry their
+  own. `germanRefusal` has exactly one caller each in `kunden/neu/actions.ts` and
+  `warteliste/[entryId]/registrieren/actions.ts` (checked by grep before changing it) and no other
+  caller anywhere, so folding the remap into the shared function is safe and avoids a third copy of
+  the identical four lines — the difference from the other three screens is that here the shared
+  function was already the single seam both actions call through.
+- Verified in the browser against a production build (`npm run build` + `npm run start`, `db:reset`
+  first, then `db:demo -- --reset` for the four configured types) via `playwright-cli`: on
+  `/kunden/neu`, a configured type (`Jobcenter-Bescheid`) saves correctly (checked via a direct
+  Prisma query against `Certificate`), "Sonstiges" with free text
+  (`Selbstständigkeitsbescheinigung`) also saves correctly, and the select sits at `h-8` beside the
+  form's `Input`s. On the promotion form, an entry whose type folds to a configured one
+  (`Jobcenter-Bescheid`) prefilled selected; a freshly-created entry with an unconfigured type
+  (`Rentenbescheid uralt`, added via `/warteliste`'s own form first) prefilled onto "Sonstiges" with
+  the exact old wording intact in the free-text box, and promoting it saved that exact string — the
+  story's central rule, confirmed both in the accessibility snapshot and in the database.
+- **Attempted but could not reach via a real click**: the AC's "a blank free text under 'Sonstiges'
+  is refused by `MissingRequiredField`, marking the free-text input" is true in the code
+  (`germanRefusal`'s remap) but not reachable by clicking submit with an empty free-text box in a
+  real browser — `CertificateTypeField`'s free-text `Input` carries a native `required` attribute
+  (present since US-005), so HTML5's own validation intercepts the submission and focuses the field
+  *before* the server action ever runs, and no `MissingRequiredField` is ever thrown. This is
+  pre-existing behaviour shared by all four screens, not introduced here, and matches the
+  already-documented "defensive mapping, no reachable browser path" posture (see the
+  `errors.test.ts` bullet at the top of this file) — worth knowing before spending time trying to
+  provoke it live rather than trusting the code path.
+- Files changed: `src/app/kunden/neu/registration-form.tsx`, `src/app/kunden/neu/registration-screen.tsx`,
+  `src/app/kunden/neu/registration-input.ts`, `src/app/kunden/neu/actions.ts`,
+  `src/app/kunden/neu/page.tsx`, `src/app/warteliste/[entryId]/registrieren/promotion-screen.tsx`,
+  `src/app/warteliste/[entryId]/registrieren/actions.ts`,
+  `src/app/warteliste/[entryId]/registrieren/page.tsx`, `scripts/ralph/prd.json`.
+- **Learnings for future iterations:**
+  - `npm run db:demo` refuses to seed on top of `db:seed`'s own customers ("The register already
+    holds N customer(s)") — after a plain `db:reset` (which runs `db:seed`), `npm run db:demo --
+    --reset` is needed to get the demo register's configured certificate types, not `npm run db:demo`
+    alone.
+  - Before concluding a browser click "found no refusal", check for a native `required` attribute on
+    the control first — it silently intercepts the submission client-side, and the resulting
+    behaviour (focus moves, nothing else changes, no network request in `playwright-cli requests`)
+    looks identical to "the refusal fired but rendered nothing" until you check `aria-invalid` and the
+    element's `outerHTML` directly.
+---
+
+## 2026-09-17 - US-008
+- The round trip from `/einstellungen` to a saved certificate, proved over both engines. New
+  `tests/e2e/certificate-types.spec.ts` on the **shared** register: it adds two types and asserts the
+  card's own rows, then adds one and removes another **in one save** and asserts the list the card
+  re-renders with no `page.goto` in between (a reload follows, to separate "redrawn" from
+  "written"); then the intake offers them with „Sonstiges" last, a household registered under a
+  configured type carries that word to its record and to the `Certificate` row, „Sonstiges" saves the
+  typed string character for character, and a type removed afterwards leaves that household's record
+  showing it. Synthetic names via Faker; the four German Nachweis words are ordinary public benefit
+  notices, not DF case-file wording.
+- `tests/e2e/registration-form.ts` learns the control: `fillCertificateTypeControl(page, id, type)`
+  reads the `<select>`'s **own** options and selects `type` when it is offered, otherwise picks
+  „Sonstiges" and types it. Reading the options rather than assuming a fixture is what lets one call
+  serve a register with the type configured and a register with nothing configured — which is every
+  spec that runs before this one alphabetically. `Eligibility` keeps its shape, so nothing that
+  fills a registration through `fillPersonalData` changed.
+- **Two `src/` fixes, each committed on its own, both found by this story's gate:**
+  - `certificate-type-field.tsx`: a controlled `<select>` rewound to its first option on every save
+    and every refusal, because React's post-action form reset reads the `selected` attribute it
+    never writes. Fixed with the `defaultSelected` ref `number-control.tsx` already uses.
+  - `de.settings.certificateTypes.save` was a second „Speichern" on `/einstellungen`, identical to
+    the policy form's. Renamed to „Arten speichern" (and `saving` with it). See the new Codebase
+    Pattern; this is what let four existing specs go back to untouched.
+- Files changed: `src/app/certificate-type-field.tsx`, `src/i18n/de.ts`,
+  `tests/e2e/certificate-types.spec.ts` (new), `tests/e2e/registration-form.ts`,
+  `tests/e2e/archive.spec.ts`, `tests/e2e/card.spec.ts`, `tests/e2e/card-number.spec.ts`,
+  `tests/e2e/reregistration.spec.ts`, `tests/e2e/customer-record.spec.ts`,
+  `tests/e2e/reminders.spec.ts`, `tests/e2e/waiting-list.spec.ts`, `scripts/ralph/prd.json`.
+- Gates: `lint`, `typecheck`, `test:coverage` (1326 tests, domain+application at 100%), `build`,
+  `npm run test:e2e` (209 passed) and `npm run test:e2e:webkit` (209 passed). No `browserName`
+  anywhere in `src/`. Checked the renamed button in the browser with `playwright-cli` against a
+  production build: the accessibility tree reads „Speichern" under „Änderung speichern" and „Arten
+  speichern" under „Arten des Nachweises", distinct, and the longer label sits fine in the card.
+- No documentation needed updating: no chapter, guide or handout names an e2e spec file or that
+  button. The handout section is US-009's and ADR-019 is US-010's.
+- **Learnings for future iterations:**
+  - **The AC's „no existing spec changes" could not be met literally, and the six that changed say
+    something worth knowing.** Four (`archive`, `card`, `card-number`, `reregistration`) hand-roll
+    the intake's fields instead of calling `fillPersonalData`, so a shared helper cannot reach them —
+    the PRD's count of ten assumed they all went through it. Two (`customer-record`, `reminders`)
+    drive the **renewal** control, which US-005/US-006 changed and explicitly left to this story.
+    Each was pointed at the helper rather than taught the control a second time. The criterion still
+    did its job: it is what turned the fifteen `.first()` calls from a chore into a screen defect.
+  - **Do not overload `fillSticky` to cope with a `<select>`.** It was tempting — two of the four
+    hand-rolling specs call it — but it is the generic retry-until-sticky helper and giving it
+    „Sonstiges" knowledge would hide the control in every unrelated fill.
+  - A spec that writes settings the rest of the suite reads is safe **because the helper reads the
+    live options**, not because of file ordering: within one page load a `<select>`'s options cannot
+    change under it, so read-then-select never races.
+---
+
+## 2026-09-17 - US-009 (Betriebsanleitung says how to maintain the list)
+- Documentation only, no source or spec file touched. `docs/handout/betriebsanleitung.md` gains one
+  German section, `## Art des Nachweises`, placed **after `## Eier` and before `## Saldo`** — the
+  handout has no chapter literally called „Einstellungen", and `Eier` is the one section that is
+  settings-shaped (what the thing is, then how it is maintained under **Einstellungen**). The new
+  section mirrors that shape deliberately, down to the „**Zeile hinzufügen** … das **×** rechts
+  neben einer Zeile nimmt sie wieder weg" construction.
+- What it says, in DF's register and nobody else's: where the type is now picked rather than typed
+  (Aufnahme, Ausgabe, beim Kunden, Warteliste); how to add and remove one under **Einstellungen →
+  Arten des Nachweises**; that a removed type leaves records already saved with it untouched; and
+  that **Sonstiges** with the **Welche Art?** field is the way through a notice nobody configured —
+  what is typed there is stored as typed and does not join the list. Closes with the empty-list
+  case, which reads exactly like today's text box.
+- No field names, file paths, ports, folds or audit entries. No other section rewritten; the
+  „Stand"-Datum at the top is left alone (it dates the testing round, not the last edit).
+- Files changed: `docs/handout/betriebsanleitung.md`, `scripts/ralph/prd.json`.
+- Gates: `format:check`, `lint`, `typecheck`, `test:coverage` (1326 tests, 58 files, domain and
+  application at 100%). No browser check applies — nothing renders this file.
+- **Learnings for future iterations:**
+  - **Write the handout from `de.ts`, not from the PRD.** Every control this section names is
+    quoted from `src/i18n/de.ts` („Arten des Nachweises", „Art hinzufügen", „Arten speichern",
+    „Sonstiges", „Welche Art?"), so a later rename of a label is grep-able from the handout. The
+    PRD's prose names the *feature*; the dictionary names what DF actually reads on screen.
+  - The one line the settings card carries (`de.settings.certificateTypes.hint`) and the handout's
+    paragraph about a removed type are the **same** fact said to the same audience in two places.
+    That is deliberate — §8 lets the card keep the consequence the screen cannot show, and the
+    handout is read away from the screen — but if one is ever reworded, reword both.
+  - `printWidth: 100` does not reflow markdown prose (`proseWrap` is Prettier's default
+    `preserve`), so `format:check` passes on any wrapping. Wrap by hand at the column the
+    surrounding sections use or the diff looks foreign.
+---
+
+## 2026-09-17 - US-010 (ADR-019 and the chapters it makes wrong)
+- Documentation only; no source file and no spec file touched. `record-adr` wrote
+  `docs/architecture/adr/019-keep-the-certificate-type-list-out-of-the-versioned-settings-history.md`
+  through `arc42.py new-adr` (which also appended the chapter 9 row as `Pending`), and the `arc42`
+  skill drove the chapter edits.
+- **The ADR carries both halves.** Where the list lives: `SettingsVersion` is append-only so a past
+  hand-out stays priceable (ADR-005) and a certificate's type is text on the record that nothing
+  resolves back through a list, so versioning the vocabulary would append a policy version per word.
+  And the deletion: a `CertificateType` row is **deleted**, the one exception to ADR-010 besides a
+  household's member rows and on a different argument — nothing references the row, so the delete
+  destroys no history. Six considered options, including the two the PRD had already refused
+  (`<datalist>`, a list that learns from free text) so they are not re-opened as preferences.
+- **ADR-010 is amended, not superseded** (the ADR-016/ADR-007 pattern): its Decision gains a
+  paragraph naming the second exception and saying everything above still holds for customer data.
+- Chapters corrected while reading — each of these was **wrong**, not merely incomplete:
+  - **08:** „Ten tables" → eleven, `CertificateType` in the ER diagram with the note that it has no
+    relation to anything at all; a rule bullet for the delete; the audit list gains the vocabulary
+    change; and a „Not everything DF configure is a policy version" bullet under _Configuration as
+    data_, which is where a future tidy-up would start.
+  - **05:** 26 → 27 domain modules, 37 → 39 use cases, ten → eleven ports (a
+    `CertificateTypeRepository` row), 12 → 13 adapters, the `policy/` and `settings/` rows, and
+    `/einstellungen` now maintaining the list as well as the policy values.
+  - **04:** a „Where it stops" paragraph under _Policy is data DF owns_ — the strategy statement
+    three ADRs now point at (005, 014, 019).
+  - **03:** DF's manager sets the Nachweis-Art list too.
+  - **01 + README:** the story range still said US-01 to US-31; `tasks/` holds 32 and 33.
+  - **12:** a **Certificate type** glossary row (de. _Art des Nachweises_).
+- `CLAUDE.md`'s Don'ts: „The one deliberate exception" → „exactly two deliberate exceptions", the
+  second in one clause citing ADR-019, and the audited-state-change list gains the vocabulary edit
+  (ADR-019 says explicitly that it is *not* a policy edit, and the two bullets sit four lines apart).
+- Gates: `arc42.py check` (no errors, the 2 open TODOs are chapter 7's and pre-existing),
+  `format:check`, `lint`, `typecheck`, `test:coverage` (1326 tests, 58 files, domain and application
+  at 100%), `build`. No browser check applies.
+- **Learnings for future iterations:**
+  - **The infrastructure table's `prisma/*-repository.ts` glob row is a trap when a new adapter does
+    not fit its sentence.** That row says „each translates Prisma's `P2002` into the right typed
+    domain error", which the certificate-type adapter does not do — a duplicate is refused by the
+    domain's fold before it can reach the index. So it got a row of its own and the glob became
+    „(the other 7)". A new adapter either matches the glob's sentence or leaves it, never both.
+  - **Do not anchor a cross-chapter link on a heading that carries a count.**
+    `#srcapplication--39-use-cases-behind-eleven-ports` would break on the next batch that adds a
+    use case; ADR-015 already links `#level-2--inside-each-layer` and that is the one to copy.
+  - **`arc42.py check` sees no anchors and no counts.** It passed on both the dead-on-arrival anchor
+    above and on „seventeen decisions" over eighteen rows — a count ADR-018 had already left stale.
+    Re-count the chapter 9 intro from the table every time, not from the previous sentence.
+  - **A new table is a four-place edit in chapter 8 alone**: the „Ten tables" sentence, the mermaid
+    block, the paragraph under it that explains the relation-less entities, and _the rules that
+    follow_. Three of the four are prose no gate reads.
+---

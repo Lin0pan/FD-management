@@ -1,0 +1,91 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-35-session-receipt",
+  "description": "US-35 A hand-out is the receipt of who stood at the counter. US-34 made a hand-out belong to a session; DF then asked for something the software has NEVER been able to do — A PAST SESSION MUST SHOW THE HOUSEHOLDS AS THEY STOOD THEN: the name they had that afternoon, the counts that were true that afternoon, the number they held, the card they carried, the certificate date on file. MOST OF THAT CANNOT BE RECONSTRUCTED. The price and the amount paid are on the hand-out; the card, the certificate date and the reminder count could be assembled out of three append-only histories; the NUMBER and GROUP only indirectly, via the card valid then; and THE NAME AND THE HOUSEHOLD COUNTS NOT AT ALL, because editing a household OVERWRITES the names and REPLACES the member rows (US-16). So all of it is CAPTURED TOGETHER — DF's own recommendation — because a table in which half the columns show what was and the other half a reconstruction is one nobody can check. The hand-out becomes THE RECEIPT of who stood at the counter that afternoon, the same kind of thing a printed card already is (Card.grownUpsAtIssue). WHEN IT IS CAPTURED IS THE WHOLE DESIGN: while the session runs the details still follow every correction — a misspelt name noticed after the hand-out still reaches the record — and ENDING THE SESSION SETTLES THEM. Reopening (US-34) THAWS them; ending again re-freezes. Two rules for one state would not be explainable. THIS REVERSES A WRITTEN DECISION: US-16 states that no history of past household compositions is kept and that there is no „as of\" view of a past household. There still is not, in general — customer administration goes on showing today's state — but it is now BOUNDED TO THE SESSION, and that reversal is recorded as ADR-021 (last story), which also makes the ROOT CLAUDE.md's „exactly three exceptions to derive-don't-store\" and „exactly two deletion exceptions\" wrong until they are updated. THIS BATCH HAS AN EXPIRY DATE AND IT IS THE ONLY ONE IN THE PROJECT THAT DOES: every session ended before the freeze rule exists is LOST TO THE DETAIL VIEW FOR GOOD, because the values it would have shown are overwritten by ordinary editing. It must merge IMMEDIATELY AFTER US-34 and before DF are handed a build they run a real afternoon on. NOTHING IN THIS BATCH IS VISIBLE: the freeze is proved by application and integration tests, and US-37's e2e proves it end to end — a story that finds itself editing src/app/** has misread the batch. SCHEMA CHANGE: yes, one new table with one relation, so prisma/migrations/ is REGENERATED and BOTH hand-written indexes (the partial unique on Customer.customerNumber and the one-running-session index from US-34) MUST BE PUT BACK — story 2. Requirements: local_only/manually-start-ausgabe/refined-requirements.md requirement E (E-4, E-5, E-7, E-8, E-9). Full PRD: tasks/prd-us-35-session-receipt.md",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "The receipt is a domain value (domain)",
+      "description": "As a developer, I want the set of details a receipt holds — and how they are read off a household — in one pure module, so that the adapter never decides what 'as it stood' means. Source: tasks/prd-us-35-session-receipt.md §US-35.1",
+      "acceptanceCriteria": [
+        "NEW module src/domain/distribution/handoutReceipt.ts. PURE: no I/O, no clock, nothing from Next.js, React or Prisma",
+        "HandoutReceipt = { customerNumber: number; firstName: string; lastName: string; grownUps: number; children: number; cardCustomerNumber: number; cardIndex: number; certificateValidUntil: Date; reminderCount: number }",
+        "THE GROUP IS NOT AMONG THEM: it is groupOf(customerNumber) of the CAPTURED number (ADR-017), derived wherever it is shown. A group column here would be the second recording US-31 removed, free to disagree with the number beside it. One line of comment says so",
+        "THE CARD NUMBER IS NOT AMONG THEM EITHER, for the same reason: it is formatCardNumber(cardCustomerNumber, cardIndex) and the TWO INTEGERS are what is stored, exactly as Card stores them. A card printed under a slot the household has since left KEEPS that slot (ADR-016), which is why the card's OWN number is captured and not the holder's",
+        "receiptFor({ customer, members, card, at }) builds one, deriving the counts through composition(members, at) — the household's counts AT THE SESSION'S END INSTANT, never the card's printed ones (grownUpsAtIssue) and never a stored count",
+        "WRITTEN TEST-FIRST, one named test per rule: captures the name as it is spelled at the end of the session / captures the counts as they stand at the end of the session, not as printed on the card / captures the card's own slot, not the holder's current one / derives the group from the captured number / counts a child who turns 13 after the session as a child",
+        "Domain coverage stays at 100%",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "Small, pure, first. The temptation to resist is storing the group and the formatted card number 'for convenience' — both are derived from values already on the row, and storing them is exactly the fault ADR-017 and ADR-016 were written about."
+    },
+    {
+      "id": "US-002",
+      "title": "The receipt table, written and thawed with the session (schema + infrastructure)",
+      "description": "As DF, I want the captured state stored beside the hand-out it describes, so that a past afternoon reads back whole rather than being assembled out of four histories. Source: tasks/prd-us-35-session-receipt.md §US-35.2",
+      "acceptanceCriteria": [
+        "NEW model HandoutReceipt in prisma/schema.prisma, ONE ROW PER DistributionRecord: recordId Int @unique with a relation to DistributionRecord (onDelete: Restrict STATED OUT LOUD), plus the nine captured columns of story 1 and NO OTHERS",
+        "The model comment states in AT MOST THREE LINES the one thing the code cannot: this is a SNAPSHOT IN THE SENSE Card.grownUpsAtIssue IS — never read as the household's current name, number or counts — and it exists because two of these values are not reconstructable at all (ADR-021, US-35). It does NOT narrate the project's history",
+        "priceCents and paidCents are NOT copied here: both are already on the hand-out, and copying them would be the first place two figures could disagree about one payment",
+        "NEW port methods on DistributionRecordRepository, documented ONCE on the port: freezeSession(sessionId, receipts) — write every receipt of a session in ONE TRANSACTION with the session's end — and thawSession(sessionId) — remove them, which only a reopening does",
+        "THE THAW IS A DELETE, and the schema comment says why that is allowed where ADR-010 forbids deleting: a receipt is NOT HISTORY, it is the freeze itself, re-taken whole by the next ending. A reopened session may have a hand-out removed, and a receipt still pointing at it would make the store REFUSE that removal — so thawing is what keeps the correction window open at all. It is the THIRD deliberate exception, beside HouseholdMember and CertificateType",
+        "MIGRATIONS REGENERATED, NOT STACKED (ADR-009). RE-ADD BY HAND both hand-written indexes: the partial unique index on Customer.customerNumber AND the one-running-session index from US-34. Then npm run db:reset",
+        "clearRegister in src/infrastructure/prisma/test-support.ts and releaseNumbers in tests/e2e/seeding.ts delete receipts BEFORE the records they point at",
+        "prisma/demo-seed.ts's ended session gets receipts so the demo build's detail view (US-37) has something in it. prisma/seed.ts still seeds no session and therefore no receipt",
+        "NEW integration test against a THROWAWAY SQLite FILE: receipts round-trip; freezeSession writes one per record and no more; thawSession leaves the records untouched; a record whose receipt was thawed CAN then be removed, and one whose receipt stands CANNOT",
+        "npm run build passes after npm run db:reset",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "THE ONLY STORY IN THIS BATCH THAT TOUCHES prisma/. Tenth batch to regenerate the migration history and the SECOND with two hand-written indexes to put back — that is the single thing most likely to be forgotten."
+    },
+    {
+      "id": "US-003",
+      "title": "Ending a session takes the receipts; reopening gives them back (application)",
+      "description": "As DF, I want the capture to happen when I end the afternoon and at no other moment, so that a correction made while the session runs still reaches the record. Source: tasks/prd-us-35-session-receipt.md §US-35.3",
+      "acceptanceCriteria": [
+        "endDistributionSession builds ONE HandoutReceipt PER HAND-OUT of the session — reading the customer, household members, current card and certificate through the repositories it already has — and writes them WITH the ending, IN ONE TRANSACTION. If the freeze fails, THE SESSION DOES NOT END",
+        "The receipt is taken at the END INSTANT: a child who turned 13 during the afternoon is counted as the composition at that instant says, not as the price charged earlier says. That divergence is REAL, is what Card.grownUpsAtIssue already exposes, and is NOT to be 'fixed'",
+        "reopenDistributionSession calls thawSession in the SAME transaction as clearing endedAt, so a reopened session behaves EXACTLY like a running one",
+        "A HOUSEHOLD MOVED TO ANOTHER CUSTOMER NUMBER while the session runs is captured under the NEW number and therefore the NEW group — in a RED-only session possibly as BLUE. This is ACCEPTED and deliberately NOT PREVENTED. One comment says so and cites DF's answer J-1; it does not argue with the requirement",
+        "A HOUSEHOLD ARCHIVED AND ITS NUMBER GIVEN TO SOMEBODY ELSE is still the household that was served: the receipt is joined by DistributionRecord.customerId — THE SURROGATE ID, NEVER THE CUSTOMER NUMBER — so a past session can never name a household that was never there",
+        "A named application test proves exactly that: serve, end, archive, register a new household on the freed number, read the session back",
+        "Ending an EMPTY session writes no receipts and is NOT an error",
+        "TDD against HAND-WRITTEN FAKES; application coverage stays at 100%. Named tests: freezes every hand-out of the session when it is ended / keeps following corrections while the session is still running / thaws the frozen state when the session is reopened / freezes it again when the reopened session is ended / keeps the household that was served after its number is given to another",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Order matters inside endDistributionSession: the receipts are built from the state as it is BEFORE endedAt is written and are committed WITH it, so an aborted ending leaves neither. There is no updateReceipt and there must never be one — a change is a thaw and a fresh freeze."
+    },
+    {
+      "id": "US-004",
+      "title": "Record ADR-021 and correct what it reverses (documentation)",
+      "description": "As the next developer, I want the reversal written down as a decision, so that the next reader does not find two documents disagreeing about whether this project keeps history. Source: tasks/prd-us-35-session-receipt.md §US-35.4",
+      "acceptanceCriteria": [
+        "ADR-021 via the record-adr skill: „Capture the household's state when a distribution session is ended\". CONTEXT: a past session must show the households as they stood then; TWO of the eight details cannot be reconstructed at all (the name, the counts) and three more only by assembling three histories. DECISION: one receipt per hand-out, written when the session is ended, thawed and re-taken on a reopening; the group and the card number stay DERIVED from the two numbers captured",
+        "ADR-021 CONSEQUENCES: US-16's statement that no past household composition is kept is now BOUNDED rather than absolute; nothing outside a session gains a history; the receipt is the FOURTH exception to derive-don't-store; the thaw is the THIRD deliberate deletion in the schema",
+        "tasks/prd-us-16-maintain-customer-record.md §FR-2 gains a DATED NOTE AT THE TOP naming ADR-021 and this PRD. Its body is NOT rewritten",
+        "ROOT CLAUDE.md IS UPDATED IN TWO PLACES, both of which currently state something that has stopped being true: the THREE exceptions to „derive, don't store\" become FOUR, with the receipt's argument of its own kind stated in the same voice as the others; and the TWO deliberate deletion exceptions in the „Don'ts\" list become THREE",
+        "arc42 updated with the arc42 skill: 05 (the new domain module and the two port methods), 08 (what is derived and what is snapshotted — this is where the exception list is argued at length), 09 (the ADR-021 row), 12 (glossary: Beleg / Zustand bei Beendigung)",
+        "docs/handout/betriebsanleitung.md gains THREE OR FOUR SENTENCES in German: what a past Ausgabe shows, that corrections made WHILE THE AUSGABE RUNS still reach it, and that ending settles it — the one thing DF have to know to use the reopening sensibly",
+        "npm run arc42:check passes",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "The CLAUDE.md edit is the part that matters most: the file states there are exactly THREE exceptions to derive-don't-store and exactly TWO deletion exceptions, and after this batch both numbers are wrong. Leaving them is how the next reader concludes the receipt is a mistake."
+    }
+  ]
+}
