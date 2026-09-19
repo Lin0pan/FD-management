@@ -194,6 +194,17 @@ bullets that sat under „Where batch 33 starts" are not carried over — they a
 - **`prettier --check` cannot parse `prisma/schema.prisma`** — „no parser could be inferred", so it
   is outside `npm run format:check` and nothing checks the width of a schema doc comment. Measure it
   by hand (Python, not `awk`) like any `/** */` block.
+- **A use case that stops needing a port should stop declaring it.** `ReadGroupRosterDeps` dropped
+  `settings` and `clock` with the week colour (US-34.6), and **no call site changed**: every
+  composition root (`distributionDeps`) is wider than each `Deps` interface, so structural typing
+  carries it. What it buys is in the suite — a whole hand-written `FakeSettingsRepository`, its
+  fixtures and its clock left the test file with the dependency, rather than sitting there implying
+  the roster still reads settings.
+- **A screen state the application cannot reach yet is still checkable in a browser.** Write the row
+  by hand with a `tsx` script under `local_only/` (gitignored) against the demo register, then drive
+  `npm run start` — `npx tsx /tmp/x.ts` cannot, because `@prisma/client` only resolves from inside
+  the repo, and `tsx` refuses top-level `await` (wrap it in `async function main()`). That is how
+  US-34.6's merged-session card was read at 390px while no screen can yet start a session.
 - **Never wrap a Markdown code span across two lines.** Prettier removes the continuation line's
   indentation, which silently breaks the list item around it — in root `CLAUDE.md` it dropped
   `` `card.index)` `` into column 0 inside a nested bullet. Keep the span on one line and rewrap the
@@ -717,4 +728,55 @@ Files: `src/domain/distribution/{attendance.ts,attendance.test.ts}`, `attendance
 - **The e2e suite is compile-green and behaviour-red**, as US-34.3 left it: the specs still record
   hand-outs with no session started. US-34.10 is where they turn green; `npm run test:e2e` before
   then tells you nothing this batch does not already know.
+---
+
+## 2026-09-19 — US-006 (US-34.6) The group tally follows the session
+
+**Implemented.** `readGroupRoster` no longer resolves a week colour: it takes the running session's
+groups (`servesGroup`), lists the `ACTIVE` and `BLOCKED` households in them — both groups means
+every household — and marks `servedInSession` from `listForSession`. `GroupRosterView.group:
+WeekColour` became `groups: SessionGroups`, and `progress: Progress` became
+`tallies: ReadonlyArray<GroupTally>`, **one fraction per served group**. `ProgressEntry.servedToday`
+→ `servedInSession` (name and doc only — the counting rule is byte-for-byte what it was).
+`group-progress-card.tsx` renders one summary per tally, joined by `de…progress.summaries`, and
+derives the group names itself, so the page no longer passes `groupName`.
+
+Files: `src/application/distribution/read-group-roster.ts(+test)`,
+`src/domain/distribution/groupProgress.ts(+test)`, `src/app/ausgabe/group-progress-card.tsx`,
+`src/app/ausgabe/page.tsx`, `src/i18n/de.ts`.
+
+**Learnings for future iterations:**
+
+- **`getWeekColour` now has no application caller at all** — the AC US-34.5 could not meet is met
+  here. Its two remaining callers are screens: `/ausgabe`'s banner (US-34.7 removes it) and the
+  Start screen's „nächste Ausgabe" line (US-36 removes it with the module). Its own suite
+  (`distribution.test.ts`) is what keeps it at 100% now that the roster's tests no longer reach it.
+- **The per-group split is `session.groups.map(...)`, not a second pass over the records.** Each
+  member carries its own `group` (derived once, where the parity was already being read), so the
+  tally is `groupProgress(members.filter(m => m.group === group))` and `groupProgress` never learned
+  about sessions. A group the session serves but nobody belongs to still gets a tally — `{ served:
+  0, expected: 0 }` — because the screen must be able to state both halves of a merged afternoon;
+  `isEmpty` stays the *whole* roster's question and still guards the disclosure.
+- **The single-group sentence is unchanged on purpose.** `words.summary(group, served, expected)`
+  kept its signature and its wording, so `group-progress.spec.ts` (which builds the expected text
+  out of `de.ts`) asserts exactly what it did before, and only the merged case is new text. The
+  merged line reads „Gruppe Rot: 1 von 6 Haushalten abgeholt · Gruppe Blau: 1 von 6 Haushalten
+  abgeholt", which is **wordy** — the PRD's own target („Rot: 43 von 60 · Blau: 44 von 60") drops
+  the prefix and the repeated noun. **That sentence is US-34.7's**, which owns the wording of this
+  screen; the data shape it needs is in place.
+- **A separator is a German string too.** `perGroup.join(" · ")` lives in `de.ts` as
+  `progress.summaries` rather than in the card — the same middle dot `customers.groupBalance`
+  already joins its two figures with, so one change moves both if DF ever ask.
+- **`de.distribution.groups(colours)` is new and US-34.7 should reuse it** („Gruppe Rot und Blau").
+  The empty-roster sentence needed a name for a *set* of groups, and `group(colour)` only names one.
+- **Verified in a browser, and the contradiction US-34.7 removes is now visible.** With a running
+  RED+BLUE session written by hand into the demo register, `/ausgabe` renders 200 with the two
+  tallies correct against the register (RED 1 von 6, BLUE 1 von 6, three blocked rows listed and out
+  of the denominator) — and the banner above it says **„Heute ist keine Ausgabe"** while the counter
+  serves. That is exactly the false sentence US-34.7's first AC deletes.
+- **The e2e suite is still compile-green and behaviour-red** (US-34.10 starts the sessions), and
+  `group-progress.spec.ts` needs no edit from this story: its local `Member` type is its own, and the
+  text it builds is the dictionary's.
+- **Documentation is untouched on purpose:** chapter 05's row („answer this week's colour, read the
+  group roster") is still literally true, and US-34.12 owns the rest of the sweep.
 ---

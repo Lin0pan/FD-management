@@ -137,7 +137,7 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "readGroupRoster is the use case batch 23 built and batch 32 kept when the walk was withdrawn. It stays one use case and one query — the register is ~240 rows and a per-household query would make the counter's own screen the slowest in the app."
     },
     {
