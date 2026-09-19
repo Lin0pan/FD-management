@@ -1,6 +1,6 @@
 /**
- * One hand-out: a customer showed up on a day, handed over an amount, and owed the price the policy
- * set for their household then (US-05, FR-1). Rows are appended, never overwritten (FR-6), and a
+ * One hand-out: a customer showed up at a distribution session, handed over an amount, and owed the
+ * price the policy set for their household then (US-05, FR-1; US-34). Rows are appended, never overwritten (FR-6), and a
  * no-show is simply the absence of one.
  *
  * *When* a hand-out may be written and *whether* it may still be changed live in `./attendance`; the
@@ -18,7 +18,9 @@ import type { Cents } from "../money";
 export interface NewDistributionRecord {
   /** The surrogate id of the customer served — the slot's holder, not the customer number (FR-6). */
   readonly customerId: number;
-  /** The instant the hand-out was recorded; the Berlin calendar day of it is the once-per-day key. */
+  /** The session it was recorded in — the afternoon it belongs to, and belongs to no other. */
+  readonly sessionId: number;
+  /** The instant the hand-out was recorded, which the no-show count and every display read. */
   readonly date: Date;
   /** Whether the customer showed up. Always true today — a no-show writes no record at all. */
   readonly showedUp: boolean;

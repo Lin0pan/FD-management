@@ -74,7 +74,7 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "THE ONLY STORY IN THIS BATCH THAT TOUCHES prisma/. Ninth batch to regenerate the migration history: the hand-written partial unique index on Customer.customerNumber MUST be put back, and a SECOND hand-written index arrives beside it. Two port methods change name and shape here, so every hand-written fake changes with them."
     },
     {

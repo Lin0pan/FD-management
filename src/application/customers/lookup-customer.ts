@@ -16,7 +16,6 @@ import { staleCardReason, type StaleCardReason } from "@/domain/card/staleCard";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import { groupOf, type Group } from "@/domain/customer/group";
 import type { HouseholdComposition } from "@/domain/customer/householdComposition";
-import { berlinDayKey } from "@/domain/distribution/attendance";
 import { recordForDay } from "@/domain/distribution/attendance-by-day";
 import { amountToPay, askedForRecord, balanceOf } from "@/domain/distribution/balance";
 import {
@@ -33,6 +32,7 @@ import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  DistributionSessionRepository,
   ReminderLogRepository,
   SettingsRepository,
 } from "../ports";
@@ -42,6 +42,7 @@ export interface LookupCustomerDeps {
   readonly settings: SettingsRepository;
   readonly records: DistributionRecordRepository;
   readonly reminders: ReminderLogRepository;
+  readonly sessions: DistributionSessionRepository;
   readonly clock: Clock;
 }
 
@@ -171,12 +172,13 @@ export async function lookupCustomer(
 ): Promise<CounterLookup> {
   const query = parseCounterQuery(rawQuery);
   const today = deps.clock.now();
-  const [customer, week] = await Promise.all([
+  const [customer, week, session] = await Promise.all([
     deps.customers.findByCustomerNumber(query.customerNumber),
     getWeekColour(deps, today),
+    deps.sessions.findRunning(),
   ]);
-  // The running session is loaded here in US-34.5; until then the week's colour stands in for the
-  // groups it serves, so the verdict asks the session's question and answers exactly as before.
+  // US-34.5 hands `session.groups` to the verdict and refuses the lookup outside a session
+  // altogether; until then the week's colour stands in and the verdict answers exactly as before.
   const sessionGroups = createSessionGroups([week.colour]);
 
   if (customer === null) {
@@ -199,9 +201,10 @@ export async function lookupCustomer(
 
   // Loaded with the customer rather than on a later click, so the serve action, the correction of an
   // existing record and the reminder action are all offered in one render (US-04.3, US-05.4, US-06.4).
-  const [recordsForCustomer, todaysReminder] = await Promise.all([
+  const [recordsForCustomer, sessionReminder] = await Promise.all([
     deps.records.listForCustomer(customer.id),
-    deps.reminders.findOnDay(customer.id, berlinDayKey(today)),
+    // A reminder belongs to a session, so between afternoons there is none to be found.
+    session === null ? null : deps.reminders.findInSession(customer.id, session.id),
   ]);
   const existing = recordForDay(recordsForCustomer, today);
 
@@ -247,7 +250,7 @@ export async function lookupCustomer(
     verdict,
     customerId: customer.id,
     todaysRecord,
-    reminderLoggedToday: todaysReminder !== null,
+    reminderLoggedToday: sessionReminder !== null,
     customer: {
       firstName: customer.details.firstName,
       lastName: customer.details.lastName,

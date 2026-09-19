@@ -348,6 +348,14 @@ bullets that sat under „Where batch 33 starts" are not carried over — they a
   another, so `|taken|` is invariant. Batch 30 wrote an AC asserting a count that rose on a screen
   that has none; assert the *composition* of the offer (the vacated number is offered, the taken one
   is not) rather than its size.
+- **A partial unique index on an *expression* is how "at most one row in state X" is stated in
+  SQLite**, and Prisma cannot express it: `CREATE UNIQUE INDEX "one_running_session" ON "T"("col" IS
+  NOT NULL) WHERE <predicate>` hand-written at the end of the migration. Every row in the state
+  indexes the same constant, so the second one collides. Two things follow that the column-based
+  constraints in this repo do not prepare you for: **`P2002` names the index, not a column**, so the
+  adapter matches `meta.target` on the index name; and the row that *won* is not in the error, so a
+  refusal naming it costs one extra read (`distribution-session-repository.ts`).
+
 - **A lost race is driven with a second real tab**, `page.context().newPage()` plus the same
   registration helper — not a hand-written Prisma row, which would skip the intake's own allocation
   and prove nothing about the refusal staff actually meet.
@@ -518,5 +526,80 @@ Files: `src/domain/distribution/attendance.ts`, `attendance.test.ts` (rewritten,
   precedence chain and `06`'s „opposite orders" paragraph were corrected in this commit — the rest
   of `06`'s §Scenario 1 (the day key, `AlreadyServedToday`, the unique `(customerId, dayKey)` index)
   is still true until stories 3 and 5, and US-34.12 owns the rewrite.
+
+---
+
+## 2026-09-19 — US-003 (US-34.3) The session table, the port and the adapter
+
+**Implemented.** `DistributionSession` in `prisma/schema.prisma` (`startedAt`, `endedAt?`,
+`discardedAt?`, `groups`, `@@index([startedAt])`); `DistributionRecord` and `ReminderLog` each gained
+`sessionId` with `onDelete: Restrict` and a unique `(customerId, sessionId)`, and lost `dayKey` and
+`loggedOn`. Migrations regenerated (`20260919153410_init`) with **both** hand-written partial unique
+indexes re-added at the end: `Customer_customerNumber_onRegister_key` and the new
+`one_running_session`. New port `DistributionSessionRepository`, new adapter, new integration suite
+(13 tests); `listForDay` → `listForSession`, `findOnDay` → `findInSession`, `ReminderLogEntry.loggedOn`
+→ `sessionId`, plus `ReminderLogRepository.listForSession` for US-34.4's discard rule.
+
+Files: `prisma/{schema.prisma,migrations/*_init/migration.sql,demo-seed.ts}`,
+`src/application/ports.ts`, `src/domain/distribution/distributionRecord.ts`, `src/domain/errors.ts`,
+`src/app/notice-tier.ts`, `src/app/ausgabe/{deps.ts,actions.ts}`,
+`src/application/distribution/{record-attendance.ts,read-group-roster.ts}`,
+`src/application/customers/{record-reminder.ts,lookup-customer.ts}`,
+`src/infrastructure/prisma/{distribution-session-repository.ts(+test),distribution-record-repository.ts(+test),reminder-log-repository.ts(+test),schema.test.ts,test-support.ts}`,
+seven application test files, `tests/e2e/seeding.ts` and six specs (typecheck only).
+
+**Learnings for future iterations:**
+
+- **SQLite takes the partial index on an expression, so no `runningMarker` fallback was needed.**
+  `CREATE UNIQUE INDEX "one_running_session" ON "DistributionSession"("startedAt" IS NOT NULL)
+  WHERE "endedAt" IS NULL AND "discardedAt" IS NULL;` works through Prisma's engine, and **Prisma's
+  `P2002` names the index** (`meta.target` contains `one_running_session`) rather than a column — so
+  the adapter matches on the index name, unlike the column-name matches everywhere else. It guards
+  `reopen` as well as `start`, which is why reopening while another session runs is refused by the
+  database and not only by the use case.
+- **A `?? 0` on the refusal path was refused.** `DistributionSessionAlreadyRunning` needs the running
+  row's id, which the collision does not carry; the adapter re-reads it and **rethrows the original
+  error** when the read comes back empty, rather than inventing an id for a session nobody can name.
+- **Story 3 could not stay out of `src/application`, and here is the line it drew.** Once `sessionId`
+  is a required column and `listForDay` is gone, four use cases must name a session:
+  `recordAttendance`, `recordReminder`, `readGroupRoster` and `lookupCustomer`. They each load
+  `sessions.findRunning()` — that much is plumbing, and the alternative (the *adapter* resolving the
+  running session) would have put a rule in infrastructure that US-34.5 would then have to take out.
+  **What was deliberately left to US-34.5/34.6:** the once-per-session guard (`recordAttendance` still
+  asks `attendance-by-day.canRecord`), the verdict's `sessionGroups` (still
+  `createSessionGroups([week.colour])` at both call sites), the correction window, the per-group
+  tally, and every rename (`TodaysRecordView`, `reminderLoggedToday`, `servedToday`).
+- **`lookupCustomer` does *not* throw with no session running yet** — it skips the reminder query and
+  reports `reminderLoggedToday: false`, which is literally true and costs the screen nothing. US-34.5
+  owns the refusal, because that is a screen-visible decision and it ships with US-34.8's inert
+  `?nummer=`.
+- **`ReminderAlreadyLoggedToday` is gone already, one story early.** The reminder's last day-caller
+  went with the column, so the class had no caller and no coverage — the 100% gate is what said so.
+  `AlreadyServedToday` is still standing (US-34.5 deletes it with `attendance-by-day.ts`), and the
+  German string behind it (`de…reminder.errors.alreadyLogged`, „heute bereits") still says „heute":
+  **US-34.7 owns the wording**, exactly as it owns `alreadyServedToday`.
+- **`/ausgabe` returns 500 until US-34.7/34.8 build the start screen.** `readGroupRoster` now throws
+  `NoDistributionSessionRunning` and nothing on the page starts a session yet. `/` and
+  `/einstellungen` are fine (checked against `npm run start` after `db:reset` — settings render fully,
+  so there is no schema/database drift). This is the inside-out build order working as planned; do not
+  "fix" it with a half-built screen.
+- **The demo register now holds one ended session per distribution day (14), none running.** One
+  session for the whole history was never possible: the unique `(customerId, sessionId)` would reject
+  the second hand-out of any household. Reminder events start and end a session of their own — a
+  reminder is a counter act and needs an afternoon to belong to. `prisma/seed.ts` still seeds **no**
+  session.
+- **`tests/e2e/seeding.ts` gained `seedEndedSession`**, which is what a spec hangs seeded hand-outs
+  and reminders on. **Ended**, because the register is shared with the spec sorting after it and a
+  running session is state that spec would inherit — US-34.10's specs start the running one through
+  the screen.
+- **The e2e suite is compile-fixed here, not behaviour-fixed.** Six specs stopped selecting `dayKey` /
+  `loggedOn` (the record fingerprints now read `date`), and `group-progress.spec.ts` counts the
+  running session's hand-outs. They will still **fail** until US-34.10 starts a session before each
+  recorded hand-out; `npm run typecheck` covers `tests/**`, so the compile fix had to land now.
+- **Documentation US-34.12 must sweep, found by this story:** `docs/architecture/04-solution-strategy.md`
+  (the constraint list names `(customerId, dayKey)` and `(customerId, loggedOn)`),
+  `02-architecture-constraints.md` (`dayKey` as a stored key), `08-crosscutting-concepts.md` (the ER
+  diagram and the invariants table) and `06-runtime-view.md` §Scenario 1. None of them is this story's
+  to rewrite, but all four are now wrong.
 
 ---

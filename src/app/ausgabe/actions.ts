@@ -37,7 +37,7 @@ import {
   NotClearToServe,
   OverpaymentNotConfirmed,
   RecordNoLongerCorrectable,
-  ReminderAlreadyLoggedToday,
+  ReminderAlreadyLoggedInSession,
 } from "@/domain/errors";
 import { parseEuros, type Cents } from "@/domain/money";
 import { customerFieldLabel, de } from "@/i18n/de";
@@ -259,7 +259,7 @@ export async function correctServe(
 
 /** Turn a typed domain error from the reminder path into the German sentence the counter shows. */
 function reminderMessage(error: unknown): string {
-  if (error instanceof ReminderAlreadyLoggedToday) {
+  if (error instanceof ReminderAlreadyLoggedInSession) {
     return de.distribution.certificate.reminder.errors.alreadyLogged;
   }
   if (error instanceof CertificateStillValid) {

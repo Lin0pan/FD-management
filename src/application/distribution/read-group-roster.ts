@@ -21,13 +21,14 @@
 
 import type { CustomerStatus } from "@/domain/customer/customer";
 import { groupOf } from "@/domain/customer/group";
-import { berlinDayKey } from "@/domain/distribution/attendance";
 import { groupProgress, type Progress } from "@/domain/distribution/groupProgress";
+import { NoDistributionSessionRunning } from "@/domain/errors";
 import type { WeekColour } from "@/domain/policy/settings";
 import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  DistributionSessionRepository,
   SettingsRepository,
 } from "../ports";
 import { getWeekColour } from "./get-week-colour";
@@ -36,6 +37,7 @@ export interface ReadGroupRosterDeps {
   readonly customers: CustomerRepository;
   readonly settings: SettingsRepository;
   readonly records: DistributionRecordRepository;
+  readonly sessions: DistributionSessionRepository;
   readonly clock: Clock;
 }
 
@@ -55,7 +57,7 @@ export interface GroupRosterMember {
   readonly lastName: string;
   /** Blocked households are listed — the counter has to *state* the block — but cannot collect (US-08). */
   readonly blocked: boolean;
-  /** Whether a hand-out was recorded for this household on today's **Berlin** day (US-05). */
+  /** Whether a hand-out was recorded for this household in the running session (US-05, US-34). */
   readonly servedToday: boolean;
 }
 
@@ -75,12 +77,20 @@ export interface GroupRosterView {
 }
 
 /**
- * The group of the week being read in, the households that belong to it, and today's tally.
+ * The group of the week being read in, the households that belong to it, and the running session's
+ * tally.
  *
+ * @throws {NoDistributionSessionRunning} if no session is running — the screen does not offer the
+ *   tally between afternoons, and there is nothing to count against.
  * @throws {NoSettingsInForce} if no settings version had taken effect today.
  * @throws {InvalidSettings} if the week anchor does not name a week of the ISO calendar.
  */
 export async function readGroupRoster(deps: ReadGroupRosterDeps): Promise<GroupRosterView> {
+  const session = await deps.sessions.findRunning();
+  if (session === null) {
+    throw new NoDistributionSessionRunning();
+  }
+  // US-34.6 takes the membership off the week's colour too, and reads the tally per served group.
   const week = await getWeekColour(deps);
   const group = week.colour;
   const rostered = await deps.customers.list({ statuses: ROSTERED_STATUSES });
@@ -88,9 +98,7 @@ export async function readGroupRoster(deps: ReadGroupRosterDeps): Promise<GroupR
   // The whole afternoon in one query, joined in memory: a group is ~120 households, and a query
   // apiece would make the counter's own screen the slowest in the app (§FR-4).
   const servedIds = new Set(
-    (await deps.records.listForDay(berlinDayKey(deps.clock.now()))).map(
-      (record) => record.customerId,
-    ),
+    (await deps.records.listForSession(session.id)).map((record) => record.customerId),
   );
   const members: ReadonlyArray<GroupRosterMember> = households.map((customer) => ({
     customerId: customer.id,

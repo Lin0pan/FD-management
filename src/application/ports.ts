@@ -21,6 +21,7 @@ import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
+import type { DistributionSession, SessionGroups } from "@/domain/distribution/session";
 import type { Cents } from "@/domain/money";
 import type { SettingsVersion } from "@/domain/policy/settings";
 
@@ -349,35 +350,63 @@ export interface CardRepository {
 /**
  * The distribution records — the append-many history of hand-outs (US-05).
  *
- * The store does not decide the once-per-day rule: that is `attendance-by-day.canRecord`'s,
- * backstopped by the database's unique day-key constraint (US-05.3), which makes the adapter the
- * final authority on a lost race and reports it as {@link AlreadyServedToday}. Records are never
- * cascade-deleted (ADR-010); only a same-day correction removes one.
+ * The store does not decide the once-per-session rule: that is `attendance.canRecord`'s, backstopped
+ * by the database's unique `(customerId, sessionId)` constraint (US-34), which makes the adapter the
+ * final authority on a lost race. Records are never cascade-deleted (ADR-010); only a correction
+ * made while the record's own session runs removes one.
  */
 export interface DistributionRecordRepository {
   /** Every record ever written for the customer — the raw material the duplicate check reads. */
   listForCustomer(customerId: number): Promise<ReadonlyArray<DistributionRecord>>;
   /**
-   * Every hand-out written on one day, in **one** query, so "which of this group have collected?"
-   * (US-23) reads the day once instead of once per household.
-   *
-   * `dayKey` is the **Berlin** day as `berlinDayKey` writes it. The caller derives it from the
-   * {@link Clock} and the adapter matches it rather than re-deriving, so the two cannot drift to
-   * different answers about when today ended.
+   * Every hand-out written in one session, in **one** query, so "which of this group have
+   * collected?" (US-23) reads the afternoon once instead of once per household.
    */
-  listForDay(dayKey: string): Promise<ReadonlyArray<DistributionRecord>>;
+  listForSession(sessionId: number): Promise<ReadonlyArray<DistributionRecord>>;
   /** The record with this surrogate id, or `null` if the id belongs to none. */
   findById(recordId: number): Promise<DistributionRecord | null>;
   /**
    * Write one hand-out and hand it back as stored, with its assigned id.
    *
-   * @throws {AlreadyServedToday} if a record for the customer's day already existed when this landed.
+   * @throws {AlreadyServedInSession} if a record for the customer's session landed first.
    */
   create(record: NewDistributionRecord): Promise<DistributionRecord>;
-  /** Amend the amount handed over on a record made today, and return it as stored. */
+  /** Amend the amount handed over on a record still correctable, and return it as stored. */
   setPayment(recordId: number, paidCents: Cents): Promise<DistributionRecord>;
-  /** Remove a record made today — the one deletion the history permits (US-05, FR-7). */
+  /** Remove a record whose session still runs — the one deletion the history permits (US-05, FR-7). */
   remove(recordId: number): Promise<void>;
+}
+
+/**
+ * The distribution sessions — the afternoons that actually took place (US-34). A session is started
+ * and ended by a person; nothing here ends one on a schedule.
+ *
+ * **Discarded sessions are stamped, not deleted** (ADR-010), and every read below filters them out,
+ * so the domain never sees a third state. `start` is guarded by the hand-written
+ * `one_running_session` index: the use case asks {@link findRunning} first, but two workstations
+ * pressing the button in the same second are settled here, exactly as a customer number is by
+ * `CustomerRepository.create`.
+ */
+export interface DistributionSessionRepository {
+  /** The session running now, or `null` — the question every hand-out and every screen asks first. */
+  findRunning(): Promise<DistributionSession | null>;
+  /** The session that ended last, or `null`: what the next group is proposed from, and what a
+   * reopening may address (US-34, FR-2 and FR-16). */
+  lastEnded(): Promise<DistributionSession | null>;
+  /** The session with this id, or `null` — how a record's own session is loaded for a correction. */
+  findById(sessionId: number): Promise<DistributionSession | null>;
+  /**
+   * Start one and hand it back as stored.
+   *
+   * @throws {DistributionSessionAlreadyRunning} if another session was already running.
+   */
+  start(groups: SessionGroups, at: Date): Promise<DistributionSession>;
+  /** Stamp the session as ended. Its hand-outs are frozen from that instant (US-34, FR-14). */
+  end(sessionId: number, at: Date): Promise<void>;
+  /** Stamp an empty session as thrown away; every read above stops seeing it. */
+  discard(sessionId: number, at: Date): Promise<void>;
+  /** Clear `endedAt` again, so the afternoon can be corrected (US-34, FR-16). */
+  reopen(sessionId: number): Promise<void>;
 }
 
 /**
@@ -385,8 +414,8 @@ export interface DistributionRecordRepository {
  * entry, so the trail is readable without replaying it.
  */
 export interface ReminderLogEntry {
-  /** The Berlin day the reminder was given, as `berlinDayKey` writes it — both happen at a counter. */
-  readonly loggedOn: string;
+  /** The session it was given in — the unit a hand-out belongs to; both happen at the counter. */
+  readonly sessionId: number;
   /** The customer's reminder count after this entry. */
   readonly resultingCount: number;
 }
@@ -396,16 +425,18 @@ export interface ReminderLogEntry {
  * renewed certificate, resets the *count* and not the log.
  *
  * `record` is **one transaction**, so the count can never disagree with the trail. The unique
- * `(customerId, loggedOn)` constraint makes the adapter the final authority on one reminder per day
- * (US-06.3), reported as `ReminderAlreadyLoggedToday`.
+ * `(customerId, sessionId)` constraint makes the adapter the final authority on one reminder per
+ * session (US-06.3, US-34 FR-5), reported as `ReminderAlreadyLoggedInSession`.
  */
 export interface ReminderLogRepository {
-  /** The reminder logged for the customer on the given Berlin day, or `null` when there is none. */
-  findOnDay(customerId: number, loggedOn: string): Promise<ReminderLogEntry | null>;
+  /** The reminder logged for the customer in the given session, or `null` when there is none. */
+  findInSession(customerId: number, sessionId: number): Promise<ReminderLogEntry | null>;
+  /** Every reminder given in one session — what `canDiscard` weighs the afternoon by (US-34, FR-7). */
+  listForSession(sessionId: number): Promise<ReadonlyArray<ReminderLogEntry>>;
   /**
    * Write the entry and set the customer's `reminderCount` to its `resultingCount`, transactionally.
    *
-   * @throws {ReminderAlreadyLoggedToday} if a reminder for that customer and day landed first.
+   * @throws {ReminderAlreadyLoggedInSession} if a reminder for that customer and session landed first.
    */
   record(customerId: number, entry: ReminderLogEntry): Promise<void>;
 }

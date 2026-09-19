@@ -5,6 +5,7 @@ import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  DistributionSessionRepository,
   ReminderLogRepository,
   SettingsRepository,
 } from "@/application/ports";
@@ -15,6 +16,7 @@ import { PrismaCertificateTypeRepository } from "@/infrastructure/prisma/certifi
 import { prisma } from "@/infrastructure/prisma/client";
 import { PrismaCustomerRepository } from "@/infrastructure/prisma/customer-repository";
 import { PrismaDistributionRecordRepository } from "@/infrastructure/prisma/distribution-record-repository";
+import { PrismaDistributionSessionRepository } from "@/infrastructure/prisma/distribution-session-repository";
 import { PrismaReminderLogRepository } from "@/infrastructure/prisma/reminder-log-repository";
 import { PrismaSettingsRepository } from "@/infrastructure/prisma/settings-repository";
 
@@ -22,16 +24,18 @@ import { PrismaSettingsRepository } from "@/infrastructure/prisma/settings-repos
  * Composition root for the distribution screen: the one place the real adapters are chosen.
  *
  * The week colour is derived from the settings history alone; the counter lookup adds the customer
- * register and — to show a hand-out already recorded today beside the serve action, and whether
- * today's certificate reminder is already logged — the reading side of the distribution and
- * reminder stores. It holds no audit log: the page only ever reads, and every write is the separate
- * `counterActionDeps` below, so the page cannot write even by mistake (US-04.2, FR-4).
+ * register, the running session and — to show a hand-out already recorded today beside the serve
+ * action, and whether this session's certificate reminder is already logged — the reading side of
+ * the distribution and reminder stores. It holds no audit log: the page only ever reads, and every
+ * write is the separate `counterActionDeps` below, so the page cannot write even by mistake
+ * (US-04.2, FR-4).
  */
 export const distributionDeps: {
   readonly customers: CustomerRepository;
   readonly settings: SettingsRepository;
   readonly records: DistributionRecordRepository;
   readonly reminders: ReminderLogRepository;
+  readonly sessions: DistributionSessionRepository;
   readonly certificateTypes: CertificateTypeRepository;
   readonly clock: Clock;
 } = {
@@ -39,6 +43,7 @@ export const distributionDeps: {
   settings: new PrismaSettingsRepository(prisma),
   records: new PrismaDistributionRecordRepository(prisma),
   reminders: new PrismaReminderLogRepository(prisma),
+  sessions: new PrismaDistributionSessionRepository(prisma),
   certificateTypes: new PrismaCertificateTypeRepository(prisma),
   clock: systemClock,
 };
@@ -54,6 +59,7 @@ export const counterActionDeps: {
   readonly settings: SettingsRepository;
   readonly records: DistributionRecordRepository;
   readonly reminders: ReminderLogRepository;
+  readonly sessions: DistributionSessionRepository;
   readonly certificates: CertificateRepository;
   readonly audit: AuditLog;
   readonly clock: Clock;
@@ -62,6 +68,7 @@ export const counterActionDeps: {
   settings: new PrismaSettingsRepository(prisma),
   records: new PrismaDistributionRecordRepository(prisma),
   reminders: new PrismaReminderLogRepository(prisma),
+  sessions: new PrismaDistributionSessionRepository(prisma),
   certificates: new PrismaCertificateRepository(prisma),
   audit: new PrismaAuditLog(prisma),
   clock: systemClock,

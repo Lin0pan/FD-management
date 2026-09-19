@@ -33,7 +33,6 @@ export type NoticeTier = "refusal" | "error";
 const TIERS: Record<DomainErrorCode, NoticeTier> = {
   // A rule refused a well-formed request.
   AlreadyServedToday: "refusal",
-  ReminderAlreadyLoggedToday: "refusal",
   AlreadyServedInSession: "refusal",
   ReminderAlreadyLoggedInSession: "refusal",
   DistributionSessionNotEmpty: "refusal",

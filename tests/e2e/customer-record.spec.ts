@@ -4,7 +4,6 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
-import { berlinDayKey } from "@/domain/distribution/attendance";
 import { foldName } from "@/domain/customer/nameSearch";
 import { expectNothingCovers } from "./layout";
 import { SHARED } from "./registers";
@@ -14,7 +13,7 @@ import {
   expectCertificateTypeControlValue,
   fillCertificateTypeControl,
 } from "./registration-form";
-import { releaseNumbers } from "./seeding";
+import { releaseNumbers, seedEndedSession } from "./seeding";
 
 /** `CertificateTypeField`'s id on the record's own renewal form (`renewal-form.tsx`). */
 const RENEWAL_TYPE = "renewal-type-field";
@@ -254,21 +253,28 @@ async function seedHouseholdWithHistory(customerNumber: number, handOuts: number
   });
 
   if (handOuts > 0) {
+    // Fortnightly, walking back from the distribution before the pinned day — and one **session**
+    // apiece, because the unique `(customerId, sessionId)` index is what would reject two rows
+    // sharing an afternoon (US-34).
+    const dates = Array.from(
+      { length: handOuts },
+      (_unused, index) => new Date(FIRST_HAND_OUT.getTime() - index * FORTNIGHT_MS),
+    );
+    const afternoons = await Promise.all(
+      dates.map(async (date) => ({
+        date,
+        sessionId: await seedEndedSession(prisma, { at: date }),
+      })),
+    );
     await prisma.distributionRecord.createMany({
-      // Fortnightly, walking back from the distribution before the pinned day. The day key comes
-      // from `berlinDayKey`, the rule the write path uses, because the unique `(customerId, dayKey)`
-      // index is what would reject two rows sharing a day.
-      data: Array.from({ length: handOuts }, (_unused, index) => {
-        const date = new Date(FIRST_HAND_OUT.getTime() - index * FORTNIGHT_MS);
-        return {
-          customerId: customer.id,
-          date,
-          dayKey: berlinDayKey(date),
-          showedUp: true,
-          paidCents: 200,
-          priceCents: 200,
-        };
-      }),
+      data: afternoons.map(({ date, sessionId }) => ({
+        customerId: customer.id,
+        sessionId,
+        date,
+        showedUp: true,
+        paidCents: 200,
+        priceCents: 200,
+      })),
     });
   }
 

@@ -2,16 +2,18 @@
  * Record one hand-out — the transaction that turns a lookup into history
  * (`tasks/prd-us-05-record-attendance.md` §US-05.2, `tasks/prd-us-29-customer-balance.md` §US-29.4).
  *
- * Three guards stand before the write, all the use case's own because the screen is not allowed to be
+ * Four guards stand before the write, all the use case's own because the screen is not allowed to be
  * the only one (FR-8). **Their order is load-bearing:**
  *
- *  1. **Once per day** (`canRecord`). First, because the counter verdict knows the day's hand-out too
- *     (US-32.4) — asked second, it would report a duplicate write as an eligibility refusal and
- *     reword the sentence the counter reads. The database repeats the rule as a unique constraint
- *     (US-05.3), so a race that slips past still cannot double-record.
- *  2. **Eligibility** (`evaluateAtCounter`). `OUTDATED_CARD` cannot arise — a bare-number hand-out
+ *  1. **A session is running** (US-34, FR-10). First of all: a hand-out that belongs to no afternoon
+ *     cannot be written at all, and the write needs its id.
+ *  2. **Once per day** (`canRecord`). Before the verdict, because the counter verdict knows the day's
+ *     hand-out too (US-32.4) — asked second, it would report a duplicate write as an eligibility
+ *     refusal and reword the sentence the counter reads. The database repeats the rule as a unique
+ *     constraint (US-05.3), so a race that slips past still cannot double-record.
+ *  3. **Eligibility** (`evaluateAtCounter`). `OUTDATED_CARD` cannot arise — a bare-number hand-out
  *     presents no card — and an expired certificate serves and reminds rather than refusing.
- *  3. **The payment.** Only now is an amount looked at; asked earlier, the screen would put a staff
+ *  4. **The payment.** Only now is an amount looked at; asked earlier, the screen would put a staff
  *     member to confirming a credit for a household that may not be served at all.
  *
  * The price comes through `describeAllowance` at today's instant, so the amount stored is the one
@@ -25,7 +27,12 @@ import { amountToPay, balanceOf } from "@/domain/distribution/balance";
 import { evaluateAtCounter } from "@/domain/distribution/counterVerdict";
 import { createSessionGroups } from "@/domain/distribution/session";
 import { requirePayment, type DistributionRecord } from "@/domain/distribution/distributionRecord";
-import { CustomerNotFound, NotClearToServe, OverpaymentNotConfirmed } from "@/domain/errors";
+import {
+  CustomerNotFound,
+  NoDistributionSessionRunning,
+  NotClearToServe,
+  OverpaymentNotConfirmed,
+} from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 import { describeAllowance } from "../allowance/describe-allowance";
 import { getWeekColour } from "../distribution/get-week-colour";
@@ -34,6 +41,7 @@ import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  DistributionSessionRepository,
   SettingsRepository,
 } from "../ports";
 
@@ -43,6 +51,7 @@ const DISTRIBUTION_RECORDED = "distribution.recorded";
 export interface RecordAttendanceDeps {
   readonly customers: CustomerRepository;
   readonly records: DistributionRecordRepository;
+  readonly sessions: DistributionSessionRepository;
   readonly settings: SettingsRepository;
   readonly audit: AuditLog;
   readonly clock: Clock;
@@ -69,6 +78,7 @@ export interface RecordAttendanceInput {
  * Record that the customer showed up today, and return the stored record. Nothing is written unless
  * all three guards pass.
  *
+ * @throws {NoDistributionSessionRunning} if no distribution session is running.
  * @throws {CustomerNotFound} if no customer holds `customerId`.
  * @throws {NotClearToServe} if the counter verdict refuses this customer today.
  * @throws {AlreadyServedToday} if a record for the customer already exists on today's Berlin day.
@@ -82,6 +92,11 @@ export async function recordAttendance(
 ): Promise<DistributionRecord> {
   // One read of the clock for the verdict, the day-key and the price, so all three agree on "now".
   const now = deps.clock.now();
+
+  const session = await deps.sessions.findRunning();
+  if (session === null) {
+    throw new NoDistributionSessionRunning();
+  }
 
   const customer = await deps.customers.findById(input.customerId);
   if (customer === null) {
@@ -109,8 +124,9 @@ export async function recordAttendance(
     // A bare-number hand-out presents no card, so an outdated card can never be the reason.
     presentedCardIndex: null,
     today: now,
-    // The running session is loaded here in US-34.5; until then the week's colour stands in for the
-    // groups it serves, so the verdict asks the session's question and answers exactly as before.
+    // US-34.5 hands `session.groups` in here along with the once-per-session guard above, so the
+    // wrong-group rule moves off the calendar in one story. Until then the week's colour stands in
+    // and the verdict answers exactly as before.
     sessionGroups: createSessionGroups([week.colour]),
     // `canRecord` has just proved there is no hand-out today, so the verdict is asked about
     // eligibility alone and `ALREADY_SERVED` cannot arise here (US-32.5).
@@ -130,6 +146,7 @@ export async function recordAttendance(
 
   const record = await deps.records.create({
     customerId: input.customerId,
+    sessionId: session.id,
     date: now,
     showedUp: true,
     paidCents,

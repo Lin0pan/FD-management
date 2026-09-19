@@ -80,6 +80,27 @@ describe("the committed migrations", () => {
   });
 
   /**
+   * At most one distribution session runs at a time (US-34, FR-5), hand-written beside the partial
+   * index above for the same reason: Prisma cannot express it. Regenerating the migration drops
+   * both, and a lost one would leave two workstations able to start two afternoons.
+   */
+  it("keep the hand-written partial unique index that allows only one running session", () => {
+    expect(migrationSql()).toContain('CREATE UNIQUE INDEX "one_running_session"');
+  });
+
+  /**
+   * One hand-out per household per session (US-34, FR-13), enforced where a raced-past guard cannot
+   * reach it. It replaced the day-key constraint, so the day key must be gone with it: a column no
+   * rule reads is one a later reader would take for one.
+   */
+  it("keep the unique index that stops a household collecting twice at one session", () => {
+    expect(migrationSql()).toContain(
+      'CREATE UNIQUE INDEX "DistributionRecord_customerId_sessionId_key" ON "DistributionRecord"("customerId", "sessionId")',
+    );
+    expect(migrationSql()).not.toContain("dayKey");
+  });
+
+  /**
    * The guarantee that a card number is handed out once and never again (US-25). It rests on the
    * database rather than on every caller asking the right question first, so a regenerated migration
    * that lost it would leave the rule enforced by application code alone — the same failure mode as

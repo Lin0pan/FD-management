@@ -10,12 +10,12 @@ import type {
 } from "@/domain/customer/customer";
 import { groupOf, type GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
-import { berlinDayKey } from "@/domain/distribution/attendance";
 import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
-import { NoSettingsInForce } from "@/domain/errors";
+import { createSessionGroups, type DistributionSession } from "@/domain/distribution/session";
+import { NoDistributionSessionRunning, NoSettingsInForce } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
 import type {
@@ -24,6 +24,7 @@ import type {
   CustomerListQuery,
   CustomerRepository,
   DistributionRecordRepository,
+  DistributionSessionRepository,
   SettingsRepository,
 } from "../ports";
 import { readGroupRoster } from "./read-group-roster";
@@ -42,13 +43,16 @@ const THE_RED_DAY_BEFORE = "2026-01-01T09:00:00.000Z";
 const DAY_AFTER_A_RED_DISTRIBUTION = "2026-01-09T09:00:00.000Z";
 
 /**
- * The two instants that tell the Berlin day apart from the UTC one. Berlin is an hour ahead in
- * January, so between 23:00Z and midnight the two calendars disagree: `JUST_AFTER_BERLIN_MIDNIGHT`
- * is still 8 January in UTC and already the 9th in Berlin.
+ * An afternoon that has run past Berlin midnight: still the same session, and the tally still counts
+ * what it handed out — the calendar has stopped deciding anything here (US-34).
  */
 const JUST_AFTER_BERLIN_MIDNIGHT = "2026-01-08T23:10:00.000Z";
 const HALF_PAST_ELEVEN_UTC = "2026-01-08T23:30:00.000Z";
 const AFTERNOON_OF_THE_RED_DAY = "2026-01-08T15:00:00.000Z";
+
+/** The session being read, and an earlier one whose hand-outs this tally must leave alone. */
+const SESSION_ID = 12;
+const EARLIER_SESSION_ID = 11;
 
 const GROWN_UP = "1985-03-11T00:00:00.000Z";
 
@@ -179,13 +183,12 @@ class FakeCustomerRepository implements CustomerRepository {
 }
 
 /**
- * The day's hand-outs, filtered by the **Berlin** day key as the adapter is, so a test can state which
- * instants count as "today". `dayKeysAsked` records every key queried — one per read is what keeps
- * the roster from becoming a query per household.
+ * The session's hand-outs, filtered by `sessionId` as the adapter is. `sessionsAsked` records every
+ * session queried — one per read is what keeps the roster from becoming a query per household.
  */
 class FakeDistributionRecordRepository implements DistributionRecordRepository {
   readonly records: DistributionRecord[] = [];
-  readonly dayKeysAsked: string[] = [];
+  readonly sessionsAsked: number[] = [];
   writes = 0;
 
   constructor(...records: DistributionRecord[]) {
@@ -196,9 +199,9 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve(this.records.filter((record) => record.customerId === customerId));
   }
 
-  listForDay(dayKey: string): Promise<ReadonlyArray<DistributionRecord>> {
-    this.dayKeysAsked.push(dayKey);
-    return Promise.resolve(this.records.filter((record) => berlinDayKey(record.date) === dayKey));
+  listForSession(sessionId: number): Promise<ReadonlyArray<DistributionRecord>> {
+    this.sessionsAsked.push(sessionId);
+    return Promise.resolve(this.records.filter((record) => record.sessionId === sessionId));
   }
 
   findById(recordId: number): Promise<DistributionRecord | null> {
@@ -231,11 +234,57 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
   }
 }
 
-/** A hand-out as the store holds it: whose it is, and the instant that decides its Berlin day. */
-function recordFor(customerId: number, instant: string, id = customerId): DistributionRecord {
+/** A session that is running while the roster is read; `null` stands for between two afternoons. */
+class FakeDistributionSessionRepository implements DistributionSessionRepository {
+  constructor(
+    private readonly running: DistributionSession | null = {
+      id: SESSION_ID,
+      startedAt: new Date(RED_DISTRIBUTION_DAY),
+      endedAt: null,
+      groups: createSessionGroups(["RED"]),
+    },
+  ) {}
+
+  findRunning(): Promise<DistributionSession | null> {
+    return Promise.resolve(this.running);
+  }
+
+  lastEnded(): Promise<DistributionSession | null> {
+    return Promise.resolve(null);
+  }
+
+  findById(): Promise<DistributionSession | null> {
+    return Promise.resolve(this.running);
+  }
+
+  start(): Promise<DistributionSession> {
+    return Promise.reject(new Error("The roster is a read; it starts nothing"));
+  }
+
+  end(): Promise<void> {
+    return Promise.reject(new Error("The roster is a read; it ends nothing"));
+  }
+
+  discard(): Promise<void> {
+    return Promise.reject(new Error("The roster is a read; it discards nothing"));
+  }
+
+  reopen(): Promise<void> {
+    return Promise.reject(new Error("The roster is a read; it reopens nothing"));
+  }
+}
+
+/** A hand-out as the store holds it: whose it is, which afternoon it belongs to, and when. */
+function recordFor(
+  customerId: number,
+  instant: string,
+  id = customerId,
+  sessionId = SESSION_ID,
+): DistributionRecord {
   return {
     id,
     customerId,
+    sessionId,
     date: new Date(instant),
     showedUp: true,
     paidCents: 400 as Cents,
@@ -316,15 +365,23 @@ describe("readGroupRoster", () => {
   let customers: FakeCustomerRepository;
   let settings: FakeSettingsRepository;
   let records: FakeDistributionRecordRepository;
+  let sessions: FakeDistributionSessionRepository;
 
   function deps(today = RED_DISTRIBUTION_DAY) {
-    return { customers, settings, records, clock: fakeClock(today) };
+    return { customers, settings, records, sessions, clock: fakeClock(today) };
   }
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
     settings = new FakeSettingsRepository(version());
     records = new FakeDistributionRecordRepository();
+    sessions = new FakeDistributionSessionRepository();
+  });
+
+  it("refuses the roster with no session running — there is nothing to count against", async () => {
+    sessions = new FakeDistributionSessionRepository(null);
+
+    await expect(readGroupRoster(deps())).rejects.toBeInstanceOf(NoDistributionSessionRunning);
   });
 
   it("reads the current week's group, not the next distribution's, on a non-distribution day", async () => {
@@ -427,7 +484,7 @@ describe("readGroupRoster", () => {
     });
   });
 
-  it("counts a member with a record from today as served", async () => {
+  it("counts a member with a record from this session as served", async () => {
     customers.holders.push(customerRecord({ customerNumber: 11 }));
     records.records.push(recordFor(11, EARLIER_ON_THE_RED_DAY));
 
@@ -439,7 +496,7 @@ describe("readGroupRoster", () => {
 
   it("does not count a member whose only record is from an earlier distribution", async () => {
     customers.holders.push(customerRecord({ customerNumber: 11 }));
-    records.records.push(recordFor(11, THE_RED_DAY_BEFORE));
+    records.records.push(recordFor(11, THE_RED_DAY_BEFORE, 11, EARLIER_SESSION_ID));
 
     const roster = await readGroupRoster(deps());
 
@@ -456,7 +513,9 @@ describe("readGroupRoster", () => {
     expect(roster.progress).toEqual({ served: 0, expected: 1 });
   });
 
-  it("counts a hand-out from just after midnight in Berlin, though UTC still calls it yesterday", async () => {
+  it("counts a hand-out made after midnight, while the same afternoon is still running", async () => {
+    // The session is the unit, so an afternoon that overruns is one afternoon — whichever day the
+    // calendar has turned to in Berlin or in UTC.
     customers.holders.push(customerRecord({ customerNumber: 11 }));
     records.records.push(recordFor(11, JUST_AFTER_BERLIN_MIDNIGHT));
 
@@ -465,16 +524,16 @@ describe("readGroupRoster", () => {
     expect(roster.members[0].servedToday).toBe(true);
   });
 
-  it("does not count yesterday's hand-out at half past eleven, when only Berlin has turned the day", async () => {
+  it("does not count a hand-out from the session before, held the same calendar day", async () => {
     customers.holders.push(customerRecord({ customerNumber: 11 }));
-    records.records.push(recordFor(11, AFTERNOON_OF_THE_RED_DAY));
+    records.records.push(recordFor(11, AFTERNOON_OF_THE_RED_DAY, 11, EARLIER_SESSION_ID));
 
     const roster = await readGroupRoster(deps(HALF_PAST_ELEVEN_UTC));
 
     expect(roster.members[0].servedToday).toBe(false);
   });
 
-  it("joins the day's records by the surrogate id, never by the customer number", async () => {
+  it("joins the session's records by the surrogate id, never by the customer number", async () => {
     customers.holders.push(
       customerRecord({ customerNumber: 11, id: 501 }),
       customerRecord({ customerNumber: 501, id: 10 }),
@@ -511,7 +570,7 @@ describe("readGroupRoster", () => {
     expect(roster.progress).toEqual({ served: 0, expected: 1 });
   });
 
-  it("reads the day's hand-outs in one query, whatever the group holds", async () => {
+  it("reads the session's hand-outs in one query, whatever the group holds", async () => {
     customers.holders.push(
       customerRecord({ customerNumber: 11 }),
       customerRecord({ customerNumber: 21 }),
@@ -520,7 +579,7 @@ describe("readGroupRoster", () => {
 
     await readGroupRoster(deps());
 
-    expect(records.dayKeysAsked).toEqual(["2026-01-08"]);
+    expect(records.sessionsAsked).toEqual([SESSION_ID]);
   });
 
   it("reports a group holding no household as an empty roster with an empty tally", async () => {

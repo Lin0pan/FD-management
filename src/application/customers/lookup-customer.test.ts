@@ -10,11 +10,11 @@ import type {
   RegisteredCustomer,
 } from "@/domain/customer/customer";
 import { composition } from "@/domain/customer/householdComposition";
-import { berlinDayKey } from "@/domain/distribution/attendance";
 import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
+import { createSessionGroups, type DistributionSession } from "@/domain/distribution/session";
 import { InvalidCardNumber } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
@@ -23,6 +23,7 @@ import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  DistributionSessionRepository,
   ReminderLogEntry,
   ReminderLogRepository,
   SettingsRepository,
@@ -38,6 +39,9 @@ import { lookupCustomer } from "./lookup-customer";
 faker.seed(20260723);
 
 const TODAY = "2026-07-23T09:00:00.000Z";
+/** The afternoon the counter is working in, and one held before it. */
+const SESSION_ID = 4;
+const EARLIER_SESSION_ID = 3;
 
 class FakeSettingsRepository implements SettingsRepository {
   readonly versions: SettingsVersion[] = [];
@@ -211,8 +215,8 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve(this.records.filter((record) => record.customerId === customerId));
   }
 
-  listForDay(dayKey: string): Promise<ReadonlyArray<DistributionRecord>> {
-    return Promise.resolve(this.records.filter((record) => berlinDayKey(record.date) === dayKey));
+  listForSession(sessionId: number): Promise<ReadonlyArray<DistributionRecord>> {
+    return Promise.resolve(this.records.filter((record) => record.sessionId === sessionId));
   }
 
   findById(recordId: number): Promise<DistributionRecord | null> {
@@ -244,8 +248,8 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
 }
 
 /**
- * A reminder trail the lookup only ever reads from — it answers whether today's reminder is already
- * on file (US-06.4), and `writes` proves the read-only lookup never logged one itself.
+ * A reminder trail the lookup only ever reads from — it answers whether this session's reminder is
+ * already on file (US-06.4), and `writes` proves the read-only lookup never logged one itself.
  */
 class FakeReminderLogRepository implements ReminderLogRepository {
   readonly entries: Array<{ customerId: number; entry: ReminderLogEntry }> = [];
@@ -255,11 +259,19 @@ class FakeReminderLogRepository implements ReminderLogRepository {
     this.entries.push(...entries);
   }
 
-  findOnDay(customerId: number, loggedOn: string): Promise<ReminderLogEntry | null> {
+  findInSession(customerId: number, sessionId: number): Promise<ReminderLogEntry | null> {
     const found = this.entries.find(
-      (candidate) => candidate.customerId === customerId && candidate.entry.loggedOn === loggedOn,
+      (candidate) => candidate.customerId === customerId && candidate.entry.sessionId === sessionId,
     );
     return Promise.resolve(found?.entry ?? null);
+  }
+
+  listForSession(sessionId: number): Promise<ReadonlyArray<ReminderLogEntry>> {
+    return Promise.resolve(
+      this.entries
+        .filter((candidate) => candidate.entry.sessionId === sessionId)
+        .map((c) => c.entry),
+    );
   }
 
   record(customerId: number, entry: ReminderLogEntry): Promise<void> {
@@ -269,7 +281,47 @@ class FakeReminderLogRepository implements ReminderLogRepository {
   }
 }
 
-/** A stored hand-out for customer id 1 on the given instant — the day's record the counter reads. */
+/** The session the counter reads in; `null` is the screen between two afternoons. */
+class FakeDistributionSessionRepository implements DistributionSessionRepository {
+  constructor(
+    private readonly running: DistributionSession | null = {
+      id: SESSION_ID,
+      startedAt: new Date(TODAY),
+      endedAt: null,
+      groups: createSessionGroups(["RED", "BLUE"]),
+    },
+  ) {}
+
+  findRunning(): Promise<DistributionSession | null> {
+    return Promise.resolve(this.running);
+  }
+
+  lastEnded(): Promise<DistributionSession | null> {
+    return Promise.resolve(null);
+  }
+
+  findById(): Promise<DistributionSession | null> {
+    return Promise.resolve(this.running);
+  }
+
+  start(): Promise<DistributionSession> {
+    return Promise.reject(new Error("the lookup is a read; it starts nothing"));
+  }
+
+  end(): Promise<void> {
+    return Promise.reject(new Error("the lookup is a read; it ends nothing"));
+  }
+
+  discard(): Promise<void> {
+    return Promise.reject(new Error("the lookup is a read; it discards nothing"));
+  }
+
+  reopen(): Promise<void> {
+    return Promise.reject(new Error("the lookup is a read; it reopens nothing"));
+  }
+}
+
+/** A stored hand-out for customer id 1 on the given instant — the record the counter reads. */
 function distributionRecord(
   iso: string,
   overrides: Partial<DistributionRecord> = {},
@@ -277,6 +329,7 @@ function distributionRecord(
   return {
     id: 7,
     customerId: 1,
+    sessionId: SESSION_ID,
     date: new Date(iso),
     showedUp: true,
     paidCents: 500 as Cents,
@@ -383,9 +436,10 @@ describe("lookupCustomer", () => {
   let settings: FakeSettingsRepository;
   let records: FakeDistributionRecordRepository;
   let reminders: FakeReminderLogRepository;
+  let sessions: FakeDistributionSessionRepository;
 
   function deps(today = TODAY) {
-    return { customers, settings, records, reminders, clock: fakeClock(today) };
+    return { customers, settings, records, reminders, sessions, clock: fakeClock(today) };
   }
 
   beforeEach(() => {
@@ -393,6 +447,7 @@ describe("lookupCustomer", () => {
     settings = new FakeSettingsRepository(version());
     records = new FakeDistributionRecordRepository();
     reminders = new FakeReminderLogRepository();
+    sessions = new FakeDistributionSessionRepository();
   });
 
   it("reports an unassigned number as not found, not as an error", async () => {
@@ -706,13 +761,13 @@ describe("lookupCustomer", () => {
     expect(result.todaysRecord).toBeNull();
   });
 
-  it("reports a reminder already logged today, so the action stays disabled for the day", async () => {
+  it("reports a reminder already logged in this session, so the action stays disabled", async () => {
     customers = new FakeCustomerRepository(
       customerRecord({ id: 1, certificateValidUntil: "2026-07-01T00:00:00.000Z" }),
     );
     reminders = new FakeReminderLogRepository({
       customerId: 1,
-      entry: { loggedOn: "2026-07-23", resultingCount: 1 },
+      entry: { sessionId: SESSION_ID, resultingCount: 1 },
     });
 
     const result = await lookupCustomer(deps(), "50");
@@ -720,13 +775,13 @@ describe("lookupCustomer", () => {
     expect(result.reminderLoggedToday).toBe(true);
   });
 
-  it("reports no reminder for today when the trail holds only earlier days", async () => {
+  it("reports no reminder when the trail holds only earlier sessions", async () => {
     customers = new FakeCustomerRepository(
       customerRecord({ id: 1, certificateValidUntil: "2026-07-01T00:00:00.000Z" }),
     );
     reminders = new FakeReminderLogRepository({
       customerId: 1,
-      entry: { loggedOn: "2026-07-16", resultingCount: 1 },
+      entry: { sessionId: EARLIER_SESSION_ID, resultingCount: 1 },
     });
 
     const result = await lookupCustomer(deps(), "50");
@@ -734,7 +789,22 @@ describe("lookupCustomer", () => {
     expect(result.reminderLoggedToday).toBe(false);
   });
 
-  it("reports no reminder logged today for an unassigned number", async () => {
+  it("reports no reminder at all with no session running — there is none to have been given in", async () => {
+    customers = new FakeCustomerRepository(
+      customerRecord({ id: 1, certificateValidUntil: "2026-07-01T00:00:00.000Z" }),
+    );
+    reminders = new FakeReminderLogRepository({
+      customerId: 1,
+      entry: { sessionId: SESSION_ID, resultingCount: 1 },
+    });
+    sessions = new FakeDistributionSessionRepository(null);
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.reminderLoggedToday).toBe(false);
+  });
+
+  it("reports no reminder logged for an unassigned number", async () => {
     const result = await lookupCustomer(deps(), "50");
 
     expect(result.reminderLoggedToday).toBe(false);

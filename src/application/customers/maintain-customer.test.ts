@@ -22,6 +22,7 @@ import {
   MissingRequiredField,
   NotesTooLong,
 } from "@/domain/errors";
+import { createSessionGroups, type DistributionSession } from "@/domain/distribution/session";
 import { createSettings, type SettingsVersion } from "@/domain/policy/settings";
 import type {
   ArchivedCustomer,
@@ -30,6 +31,7 @@ import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  DistributionSessionRepository,
   ReminderLogEntry,
   ReminderLogRepository,
   SettingsRepository,
@@ -102,7 +104,7 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve([]);
   }
 
-  listForDay(): Promise<ReadonlyArray<DistributionRecord>> {
+  listForSession(): Promise<ReadonlyArray<DistributionRecord>> {
     return Promise.resolve([]);
   }
 
@@ -123,14 +125,56 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
   }
 }
 
-/** No reminder has ever been logged here, so today's is always still open. */
+/** No reminder has ever been logged here, so this session's is always still open. */
 class FakeReminderLogRepository implements ReminderLogRepository {
-  findOnDay(): Promise<ReminderLogEntry | null> {
+  findInSession(): Promise<ReminderLogEntry | null> {
     return Promise.resolve(null);
+  }
+
+  listForSession(): Promise<ReadonlyArray<ReminderLogEntry>> {
+    return Promise.resolve([]);
   }
 
   record(): Promise<void> {
     return Promise.reject(new Error("No use case in this file logs a reminder"));
+  }
+}
+
+/** The lookup below is read at a counter, so an afternoon is running while it is asked. */
+const RUNNING_SESSION: DistributionSession = {
+  id: 1,
+  startedAt: new Date(TODAY),
+  endedAt: null,
+  groups: createSessionGroups(["RED"]),
+};
+
+class FakeDistributionSessionRepository implements DistributionSessionRepository {
+  findRunning(): Promise<DistributionSession | null> {
+    return Promise.resolve(RUNNING_SESSION);
+  }
+
+  lastEnded(): Promise<DistributionSession | null> {
+    return Promise.resolve(null);
+  }
+
+  findById(): Promise<DistributionSession | null> {
+    return Promise.resolve(RUNNING_SESSION);
+  }
+
+  start(): Promise<DistributionSession> {
+    return Promise.reject(new Error("No use case in this file starts a session"));
+  }
+
+  end(): Promise<void> {
+    return Promise.reject(new Error("No use case in this file ends a session"));
+  }
+
+  discard(): Promise<void> {
+    return Promise.reject(new Error("No use case in this file discards a session"));
+  }
+
+  reopen(): Promise<void> {
+    return Promise.reject(new Error("No use case in this file reopens a session"));
   }
 }
 
@@ -819,6 +863,7 @@ describe("updateNotes", () => {
         settings: new FakeSettingsRepository(SETTINGS),
         records: new FakeDistributionRecordRepository(),
         reminders: new FakeReminderLogRepository(),
+        sessions: new FakeDistributionSessionRepository(),
         clock: fakeClock(TODAY),
       },
       "50",

@@ -185,8 +185,8 @@ async function belongings(id: number): Promise<string> {
     }),
     prisma.distributionRecord.findMany({
       where: { customerId: id },
-      select: { dayKey: true, paidCents: true, showedUp: true },
-      orderBy: { dayKey: "asc" },
+      select: { date: true, paidCents: true, showedUp: true },
+      orderBy: { date: "asc" },
     }),
   ]);
   return JSON.stringify({ customer, cards, records });

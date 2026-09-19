@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
-import { releaseNumbers } from "./seeding";
+import { releaseNumbers, seedEndedSession } from "./seeding";
 
 /**
  * Every verdict the counter can hand down (`tasks/prd-us-04-lookup-customer.md` §US-04.5).
@@ -80,9 +80,6 @@ const CHILD_BIRTH_DATE = "2020-06-15";
 const VALID_CERTIFICATE = "2027-06-30";
 /** Lapsed a week before {@link TODAY} — recently enough that the household is still served. */
 const EXPIRED_CERTIFICATE = "2025-12-31";
-
-/** The Europe/Berlin calendar day of {@link TODAY}, as `berlinDayKey` writes it to a record. */
-const TODAYS_DAY_KEY = "2026-01-08";
 
 /** What one of these households is asked for: one grown-up and one child under the seeded policy. */
 const PRICE_CENTS = 300;
@@ -218,11 +215,14 @@ async function recordHandOut(customerNumber: number): Promise<void> {
   if (customer === null) {
     throw new Error(`No household on ${customerNumber} to record a hand-out for`);
   }
+  // The hand-out belongs to an afternoon (US-34); this one is already over, so the seeded row is
+  // there to be *read* and nothing here goes on writing to it.
+  const sessionId = await seedEndedSession(prisma, { at: new Date(TODAY) });
   await prisma.distributionRecord.create({
     data: {
       customerId: customer.id,
+      sessionId,
       date: new Date(TODAY),
-      dayKey: TODAYS_DAY_KEY,
       showedUp: true,
       paidCents: PRICE_CENTS,
       priceCents: PRICE_CENTS,

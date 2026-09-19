@@ -10,15 +10,16 @@ import type {
   RegisteredCustomer,
 } from "@/domain/customer/customer";
 import { composition } from "@/domain/customer/householdComposition";
-import { berlinDayKey } from "@/domain/distribution/attendance";
 import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
+import { createSessionGroups, type DistributionSession } from "@/domain/distribution/session";
 import {
   AlreadyServedToday,
   CustomerNotFound,
   InvalidPaymentAmount,
+  NoDistributionSessionRunning,
   NotClearToServe,
   OverpaymentNotConfirmed,
 } from "@/domain/errors";
@@ -31,6 +32,7 @@ import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  DistributionSessionRepository,
   SettingsRepository,
 } from "../ports";
 import { recordAttendance } from "./record-attendance";
@@ -44,6 +46,8 @@ import { recordAttendance } from "./record-attendance";
 faker.seed(20260723);
 
 const TODAY = "2026-07-23T09:00:00.000Z";
+/** The afternoon every hand-out below is recorded at — the counter is never open outside one. */
+const SESSION_ID = 7;
 const GROWN_UP = "1985-03-11T00:00:00.000Z";
 const CHILD = "2020-06-01T00:00:00.000Z";
 
@@ -194,8 +198,8 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve(this.records.filter((record) => record.customerId === customerId));
   }
 
-  listForDay(dayKey: string): Promise<ReadonlyArray<DistributionRecord>> {
-    return Promise.resolve(this.records.filter((record) => berlinDayKey(record.date) === dayKey));
+  listForSession(sessionId: number): Promise<ReadonlyArray<DistributionRecord>> {
+    return Promise.resolve(this.records.filter((record) => record.sessionId === sessionId));
   }
 
   findById(recordId: number): Promise<DistributionRecord | null> {
@@ -308,6 +312,47 @@ interface RecordOverrides {
   readonly id?: number;
   readonly priceCents?: Cents;
   readonly paidCents?: Cents;
+  readonly sessionId?: number;
+}
+
+/** The session the counter is working in, unless a test hands `null` for "between afternoons". */
+class FakeDistributionSessionRepository implements DistributionSessionRepository {
+  constructor(
+    private readonly running: DistributionSession | null = {
+      id: SESSION_ID,
+      startedAt: new Date(TODAY),
+      endedAt: null,
+      groups: createSessionGroups(["RED", "BLUE"]),
+    },
+  ) {}
+
+  findRunning(): Promise<DistributionSession | null> {
+    return Promise.resolve(this.running);
+  }
+
+  lastEnded(): Promise<DistributionSession | null> {
+    return Promise.resolve(null);
+  }
+
+  findById(): Promise<DistributionSession | null> {
+    return Promise.resolve(this.running);
+  }
+
+  start(): Promise<DistributionSession> {
+    return Promise.reject(new Error("Starting a session has a suite of its own"));
+  }
+
+  end(): Promise<void> {
+    return Promise.reject(new Error("Ending a session has a suite of its own"));
+  }
+
+  discard(): Promise<void> {
+    return Promise.reject(new Error("Discarding a session has a suite of its own"));
+  }
+
+  reopen(): Promise<void> {
+    return Promise.reject(new Error("Reopening a session has a suite of its own"));
+  }
 }
 
 /** A hand-out already on file. Paid in full unless a test says otherwise — the ordinary case. */
@@ -316,6 +361,7 @@ function existingRecord(date: string, overrides: RecordOverrides = {}): Distribu
   return {
     id: overrides.id ?? 99,
     customerId: 1,
+    sessionId: overrides.sessionId ?? SESSION_ID,
     date: new Date(date),
     showedUp: true,
     paidCents: overrides.paidCents ?? priceCents,
@@ -327,17 +373,37 @@ describe("recordAttendance", () => {
   let customers: FakeCustomerRepository;
   let records: FakeDistributionRecordRepository;
   let settings: FakeSettingsRepository;
+  let sessions: FakeDistributionSessionRepository;
   let audit: FakeAuditLog;
 
   function deps(today = TODAY) {
-    return { customers, records, settings, audit, clock: fakeClock(today) };
+    return { customers, records, settings, sessions, audit, clock: fakeClock(today) };
   }
 
   beforeEach(() => {
     customers = new FakeCustomerRepository(customerRecord());
     records = new FakeDistributionRecordRepository();
     settings = new FakeSettingsRepository(version());
+    sessions = new FakeDistributionSessionRepository();
     audit = new FakeAuditLog();
+  });
+
+  it("refuses a hand-out with no session running, and writes nothing", async () => {
+    // A hand-out belongs to exactly one afternoon (US-34), so outside one there is nothing to
+    // record against — and this is asked before every other guard, including the customer's own id.
+    sessions = new FakeDistributionSessionRepository(null);
+
+    await expect(recordAttendance(deps(), { customerId: 1 })).rejects.toBeInstanceOf(
+      NoDistributionSessionRunning,
+    );
+    expect(records.records).toHaveLength(0);
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("records the hand-out against the running session", async () => {
+    const record = await recordAttendance(deps(), { customerId: 1 });
+
+    expect(record.sessionId).toBe(SESSION_ID);
   });
 
   it("records the hand-out with showedUp, the payment and the price in force today", async () => {

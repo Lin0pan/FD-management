@@ -86,12 +86,22 @@ CREATE TABLE "Card" (
 CREATE TABLE "DistributionRecord" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "customerId" INTEGER NOT NULL,
+    "sessionId" INTEGER NOT NULL,
     "date" DATETIME NOT NULL,
-    "dayKey" TEXT NOT NULL,
     "showedUp" BOOLEAN NOT NULL,
     "paidCents" INTEGER NOT NULL,
     "priceCents" INTEGER NOT NULL,
-    CONSTRAINT "DistributionRecord_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT "DistributionRecord_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "DistributionRecord_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "DistributionSession" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "DistributionSession" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "startedAt" DATETIME NOT NULL,
+    "endedAt" DATETIME,
+    "discardedAt" DATETIME,
+    "groups" TEXT NOT NULL
 );
 
 -- CreateTable
@@ -116,9 +126,10 @@ CREATE TABLE "WaitingListEntry" (
 CREATE TABLE "ReminderLog" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "customerId" INTEGER NOT NULL,
-    "loggedOn" TEXT NOT NULL,
+    "sessionId" INTEGER NOT NULL,
     "resultingCount" INTEGER NOT NULL,
-    CONSTRAINT "ReminderLog_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT "ReminderLog_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "ReminderLog_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "DistributionSession" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -173,13 +184,19 @@ CREATE INDEX "DistributionRecord_date_idx" ON "DistributionRecord"("date");
 CREATE INDEX "DistributionRecord_customerId_date_idx" ON "DistributionRecord"("customerId", "date");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "DistributionRecord_customerId_dayKey_key" ON "DistributionRecord"("customerId", "dayKey");
+CREATE INDEX "DistributionRecord_sessionId_idx" ON "DistributionRecord"("sessionId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DistributionRecord_customerId_sessionId_key" ON "DistributionRecord"("customerId", "sessionId");
+
+-- CreateIndex
+CREATE INDEX "DistributionSession_startedAt_idx" ON "DistributionSession"("startedAt");
 
 -- CreateIndex
 CREATE INDEX "WaitingListEntry_addedOn_idx" ON "WaitingListEntry"("addedOn");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ReminderLog_customerId_loggedOn_key" ON "ReminderLog"("customerId", "loggedOn");
+CREATE UNIQUE INDEX "ReminderLog_customerId_sessionId_key" ON "ReminderLog"("customerId", "sessionId");
 
 -- CreateIndex
 CREATE INDEX "AuditEntry_when_idx" ON "AuditEntry"("when");
@@ -199,3 +216,16 @@ CREATE INDEX "AuditEntry_when_idx" ON "AuditEntry"("when");
 CREATE UNIQUE INDEX "Customer_customerNumber_onRegister_key"
     ON "Customer"("customerNumber")
     WHERE "status" <> 'ARCHIVED';
+
+-- CreateIndex (hand-written: the same reason, on a different shape of rule)
+--
+-- At most one distribution session runs at a time, on every workstation at once (US-34, FR-5). The
+-- indexed expression is constant by construction — every running row indexes the same value — so
+-- the *second* running row is the one that collides. Ending or discarding a session takes it out of
+-- the partial index and the next one may start.
+--
+-- The application asks `findRunning` before it starts one; only the database can settle two
+-- workstations pressing the button in the same second.
+CREATE UNIQUE INDEX "one_running_session"
+    ON "DistributionSession"("startedAt" IS NOT NULL)
+    WHERE "endedAt" IS NULL AND "discardedAt" IS NULL;

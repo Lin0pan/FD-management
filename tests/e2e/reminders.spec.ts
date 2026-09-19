@@ -142,13 +142,13 @@ async function householdRow(): Promise<{ status: string; reminderCount: number; 
 
 /** Every reminder-log entry the household holds, oldest first. */
 async function reminderRows(): Promise<
-  ReadonlyArray<{ loggedOn: string; resultingCount: number }>
+  ReadonlyArray<{ sessionId: number; resultingCount: number }>
 > {
   const { id } = await householdRow();
   return prisma.reminderLog.findMany({
     where: { customerId: id },
-    select: { loggedOn: true, resultingCount: true },
-    orderBy: { loggedOn: "asc" },
+    select: { sessionId: true, resultingCount: true },
+    orderBy: { id: "asc" },
   });
 }
 

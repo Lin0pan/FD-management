@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { balanceOf } from "@/domain/distribution/balance";
-import { berlinDayKey } from "@/domain/distribution/attendance";
 import type {
   DistributionRecord,
   NewDistributionRecord,
@@ -32,8 +31,8 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve(this.records.filter((record) => record.customerId === customerId));
   }
 
-  listForDay(dayKey: string): Promise<ReadonlyArray<DistributionRecord>> {
-    return Promise.resolve(this.records.filter((record) => berlinDayKey(record.date) === dayKey));
+  listForSession(sessionId: number): Promise<ReadonlyArray<DistributionRecord>> {
+    return Promise.resolve(this.records.filter((record) => record.sessionId === sessionId));
   }
 
   findById(recordId: number): Promise<DistributionRecord | null> {
@@ -77,11 +76,14 @@ function fakeClock(iso: string): Clock {
 }
 
 const PRICE = 300 as Cents;
+/** The afternoon the record was made at; US-34.5 is where the correction window turns on it. */
+const SESSION_ID = 7;
 
 function record(date: string, paidCents: Cents = PRICE, id = 7): DistributionRecord {
   return {
     id,
     customerId: 1,
+    sessionId: SESSION_ID,
     date: new Date(date),
     showedUp: true,
     paidCents,

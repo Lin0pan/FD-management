@@ -13,7 +13,6 @@ import { lowestFreeNumber } from "@/domain/customer/customerNumber";
 import { foldName } from "@/domain/customer/nameSearch";
 import { groupOf, type GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
-import { berlinDayKey } from "@/domain/distribution/attendance";
 import type {
   DistributionRecord,
   NewDistributionRecord,
@@ -69,6 +68,8 @@ import { unblockCustomer } from "./unblock-customer";
 faker.seed(20260722);
 
 const TODAY = "2026-07-22T09:00:00.000Z";
+/** The afternoon every hand-out in this file belongs to — no test here turns on which one it is. */
+const SESSION_ID = 1;
 
 class FakeSettingsRepository implements SettingsRepository {
   readonly versions: SettingsVersion[] = [];
@@ -445,8 +446,8 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve(this.records.filter((record) => record.customerId === customerId));
   }
 
-  listForDay(dayKey: string): Promise<ReadonlyArray<DistributionRecord>> {
-    return Promise.resolve(this.records.filter((record) => berlinDayKey(record.date) === dayKey));
+  listForSession(sessionId: number): Promise<ReadonlyArray<DistributionRecord>> {
+    return Promise.resolve(this.records.filter((record) => record.sessionId === sessionId));
   }
 
   findById(recordId: number): Promise<DistributionRecord | null> {
@@ -1133,6 +1134,7 @@ describe("reissueCard", () => {
     return {
       id: 1,
       customerId,
+      sessionId: SESSION_ID,
       date: new Date(TODAY),
       showedUp: true,
       paidCents: 500 as Cents,
@@ -1456,6 +1458,7 @@ describe("readCustomer", () => {
   async function attend(customerId: number, iso: string, paidCents = 500): Promise<void> {
     await records.create({
       customerId,
+      sessionId: SESSION_ID,
       date: new Date(iso),
       showedUp: true,
       paidCents: paidCents as Cents,
@@ -2175,6 +2178,7 @@ describe("archiveCustomer", () => {
     for (const date of ["2026-06-11T09:00:00.000Z", "2026-06-25T09:00:00.000Z"]) {
       await distribution.create({
         customerId: customer.id,
+        sessionId: SESSION_ID,
         date: new Date(date),
         showedUp: true,
         paidCents: 500 as Cents,
@@ -2687,6 +2691,7 @@ describe("draftFromArchived", () => {
     cards.place(customerId, 1);
     await distribution.create({
       customerId,
+      sessionId: SESSION_ID,
       date: new Date("2026-06-11T09:00:00.000Z"),
       showedUp: true,
       paidCents: 500 as Cents,
@@ -2910,6 +2915,7 @@ describe("re-registering a household from an archived record", () => {
     cards.place(archivedId, 1, 2);
     await distribution.create({
       customerId: archivedId,
+      sessionId: SESSION_ID,
       date: new Date("2025-10-08T09:00:00.000Z"),
       showedUp: true,
       paidCents: 500 as Cents,

@@ -1,9 +1,9 @@
 /**
  * Integration tests for the SQLite distribution-record adapter — thin and test-after (CLAUDE.md).
- * What the pure layers cannot state: that `(customerId, dayKey)` is unique on the **Berlin** calendar
- * day even if the use-case guard is bypassed, that the key is Berlin and not UTC (two minutes either
- * side of Berlin midnight is two days), that it is scoped to the customer, and that a record outlives
- * its customer's status changes and is never cascade-deleted (US-05.3, FR-6).
+ * What the pure layers cannot state: that `(customerId, sessionId)` is unique even if the use-case
+ * guard is bypassed, that it is scoped to the customer and to the session — an afternoon running
+ * past midnight is one, and a second distribution on one day is two — and that a record outlives its
+ * customer's status changes and is never cascade-deleted (US-05.3, FR-6; US-34).
  *
  * Each run migrates a throwaway database file, so nothing touches `data/fd.db`.
  */
@@ -15,20 +15,23 @@ import { faker } from "@faker-js/faker";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { NewDistributionRecord } from "@/domain/distribution/distributionRecord";
-import { AlreadyServedToday, DistributionRecordNotFound } from "@/domain/errors";
+import { createSessionGroups } from "@/domain/distribution/session";
+import { AlreadyServedInSession, DistributionRecordNotFound } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 import { PrismaDistributionRecordRepository } from "./distribution-record-repository";
+import { PrismaDistributionSessionRepository } from "./distribution-session-repository";
 import { clearRegister, migrateThrowawayDatabase } from "./test-support";
 import { foldName } from "@/domain/customer/nameSearch";
 
 faker.seed(20260724);
 
-// Berlin is CEST (UTC+2) in July, so its midnight is 22:00 UTC the day before.
-const MORNING = new Date("2026-07-23T09:00:00.000Z"); // Berlin 2026-07-23 11:00
-const AFTERNOON = new Date("2026-07-23T16:00:00.000Z"); // Berlin 2026-07-23 18:00 — same day
-const NEXT_DAY = new Date("2026-08-06T09:00:00.000Z"); // Berlin 2026-08-06 — a later day
-const JUST_BEFORE_MIDNIGHT = new Date("2026-07-23T21:59:00.000Z"); // Berlin 2026-07-23 23:59
-const JUST_AFTER_MIDNIGHT = new Date("2026-07-23T22:01:00.000Z"); // Berlin 2026-07-24 00:01
+const MORNING = new Date("2026-07-23T09:00:00.000Z");
+const AFTERNOON = new Date("2026-07-23T16:00:00.000Z"); // the same afternoon, a few hours on
+// Berlin is CEST (UTC+2) in July, so its midnight is 22:00 UTC the day before: an afternoon that
+// runs from here to there crosses the calendar day and stays one session (US-34).
+const JUST_BEFORE_MIDNIGHT = new Date("2026-07-23T21:59:00.000Z");
+const JUST_AFTER_MIDNIGHT = new Date("2026-07-23T22:01:00.000Z");
+const NEXT_WEEK = new Date("2026-08-06T09:00:00.000Z");
 
 const PRICE = 550 as Cents;
 /** Less than the price and more than it — the two cases a flag could not hold (US-29). */
@@ -38,6 +41,10 @@ const OVERPAYMENT = 800 as Cents;
 let directory: string;
 let prisma: PrismaClient;
 let repository: PrismaDistributionRecordRepository;
+let sessions: PrismaDistributionSessionRepository;
+/** The afternoon the hand-outs below belong to, and the week after's. */
+let thisSession: number;
+let nextSession: number;
 
 beforeAll(() => {
   directory = mkdtempSync(join(tmpdir(), "fd-distribution-"));
@@ -45,6 +52,7 @@ beforeAll(() => {
   migrateThrowawayDatabase(url);
   prisma = new PrismaClient({ datasourceUrl: url });
   repository = new PrismaDistributionRecordRepository(prisma);
+  sessions = new PrismaDistributionSessionRepository(prisma);
 }, 60_000);
 
 afterAll(async () => {
@@ -54,6 +62,10 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await clearRegister(prisma);
+  thisSession = (await sessions.start(createSessionGroups(["RED"]), MORNING)).id;
+  await sessions.end(thisSession, JUST_AFTER_MIDNIGHT);
+  nextSession = (await sessions.start(createSessionGroups(["BLUE"]), NEXT_WEEK)).id;
+  await sessions.end(nextSession, NEXT_WEEK);
 });
 
 /** A customer holding the given slot, written straight through Prisma — records are what is tested. */
@@ -90,6 +102,7 @@ function handOut(
 ): NewDistributionRecord {
   return {
     customerId,
+    sessionId: thisSession,
     date: MORNING,
     showedUp: true,
     paidCents: PRICE,
@@ -107,6 +120,7 @@ describe("PrismaDistributionRecordRepository.create", () => {
     expect(record).toEqual({
       id: expect.any(Number),
       customerId,
+      sessionId: thisSession,
       date: MORNING,
       showedUp: true,
       paidCents: PART_PAYMENT,
@@ -137,46 +151,49 @@ describe("PrismaDistributionRecordRepository.create", () => {
     expect((await repository.findById(record.id))?.paidCents).toBe(OVERPAYMENT);
   });
 
-  it("stores a Berlin day-key column the unique constraint rests on", async () => {
+  it("stores the session the hand-out belongs to, which the unique constraint rests on", async () => {
     const customerId = await insertCustomer(50);
     await repository.create(handOut(customerId));
 
     const [row] = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
-      `SELECT "dayKey" FROM "DistributionRecord" WHERE "customerId" = ${customerId}`,
+      `SELECT "sessionId" FROM "DistributionRecord" WHERE "customerId" = ${customerId}`,
     );
-    expect(row.dayKey).toBe("2026-07-23");
+    expect(row.sessionId).toBe(thisSession);
   });
 
-  it("refuses a second hand-out on the same Berlin day, as AlreadyServedToday", async () => {
+  it("refuses a second hand-out in the same session, as AlreadyServedInSession", async () => {
     const customerId = await insertCustomer(50);
     await repository.create(handOut(customerId, { date: MORNING }));
 
     await expect(
       repository.create(handOut(customerId, { date: AFTERNOON })),
-    ).rejects.toBeInstanceOf(AlreadyServedToday);
+    ).rejects.toBeInstanceOf(AlreadyServedInSession);
     expect(await prisma.distributionRecord.count({ where: { customerId } })).toBe(1);
   });
 
-  it("keys the day in Europe/Berlin, not UTC — two minutes either side of midnight is two days", async () => {
+  it("refuses the second hand-out of an afternoon that has run past midnight, which is still one", async () => {
     const customerId = await insertCustomer(50);
     await repository.create(handOut(customerId, { date: JUST_BEFORE_MIDNIGHT }));
 
-    // Same UTC day, but the Berlin day rolled over at 00:00 CEST — so this is a new day, not a clash.
+    // Two minutes later the Berlin calendar has turned the day; the session has not, so this is the
+    // same collection and the constraint says so.
     await expect(
       repository.create(handOut(customerId, { date: JUST_AFTER_MIDNIGHT })),
+    ).rejects.toBeInstanceOf(AlreadyServedInSession);
+    expect(await prisma.distributionRecord.count({ where: { customerId } })).toBe(1);
+  });
+
+  it("lets the same customer collect again at a later session", async () => {
+    const customerId = await insertCustomer(50);
+    await repository.create(handOut(customerId, { date: MORNING }));
+
+    await expect(
+      repository.create(handOut(customerId, { date: NEXT_WEEK, sessionId: nextSession })),
     ).resolves.toBeDefined();
     expect(await prisma.distributionRecord.count({ where: { customerId } })).toBe(2);
   });
 
-  it("lets the same customer collect again on a later day", async () => {
-    const customerId = await insertCustomer(50);
-    await repository.create(handOut(customerId, { date: MORNING }));
-
-    await expect(repository.create(handOut(customerId, { date: NEXT_DAY }))).resolves.toBeDefined();
-    expect(await prisma.distributionRecord.count({ where: { customerId } })).toBe(2);
-  });
-
-  it("scopes the once-per-day rule to the customer, so two households may collect the same day", async () => {
+  it("scopes the once-per-session rule to the customer, so two households may collect at one", async () => {
     const one = await insertCustomer(50);
     const other = await insertCustomer(51);
 
@@ -184,7 +201,7 @@ describe("PrismaDistributionRecordRepository.create", () => {
     await expect(repository.create(handOut(other, { date: MORNING }))).resolves.toBeDefined();
   });
 
-  it("lets neither of two simultaneous hand-outs on one day leave two records", async () => {
+  it("lets neither of two simultaneous hand-outs in one session leave two records", async () => {
     const customerId = await insertCustomer(50);
 
     const results = await Promise.allSettled([
@@ -194,7 +211,7 @@ describe("PrismaDistributionRecordRepository.create", () => {
 
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     const rejected = results.find((result) => result.status === "rejected");
-    expect(rejected?.reason).toBeInstanceOf(AlreadyServedToday);
+    expect(rejected?.reason).toBeInstanceOf(AlreadyServedInSession);
     expect(await prisma.distributionRecord.count({ where: { customerId } })).toBe(1);
   });
 });
@@ -223,12 +240,12 @@ describe("a record outliving its customer's status changes", () => {
 describe("PrismaDistributionRecordRepository reads and corrections", () => {
   it("lists every record for the customer, oldest first", async () => {
     const customerId = await insertCustomer(50);
-    await repository.create(handOut(customerId, { date: NEXT_DAY }));
+    await repository.create(handOut(customerId, { date: NEXT_WEEK, sessionId: nextSession }));
     await repository.create(handOut(customerId, { date: MORNING }));
 
     const records = await repository.listForCustomer(customerId);
 
-    expect(records.map((record) => record.date)).toEqual([MORNING, NEXT_DAY]);
+    expect(records.map((record) => record.date)).toEqual([MORNING, NEXT_WEEK]);
   });
 
   it("lists only the records of the customer asked about", async () => {
@@ -240,32 +257,31 @@ describe("PrismaDistributionRecordRepository reads and corrections", () => {
     expect(await repository.listForCustomer(one)).toHaveLength(1);
   });
 
-  it("lists every hand-out written on the Berlin day asked about, whoever collected", async () => {
+  it("lists every hand-out written in the session asked about, whoever collected", async () => {
     const one = await insertCustomer(50);
     const other = await insertCustomer(51);
     await repository.create(handOut(one, { date: MORNING }));
-    await repository.create(handOut(other, { date: AFTERNOON })); // same Berlin day, later hour
+    await repository.create(handOut(other, { date: AFTERNOON })); // same session, later hour
 
-    const records = await repository.listForDay("2026-07-23");
+    const records = await repository.listForSession(thisSession);
 
     expect(records.map((record) => record.customerId).sort()).toEqual([one, other].sort());
   });
 
-  it("leaves out the day before and the day after — the day asked for is the whole filter", async () => {
+  it("leaves out the hand-outs of another session — the session asked for is the whole filter", async () => {
     const customerId = await insertCustomer(50);
-    await repository.create(handOut(customerId, { date: JUST_BEFORE_MIDNIGHT })); // Berlin 07-23
-    await repository.create(handOut(customerId, { date: JUST_AFTER_MIDNIGHT })); // Berlin 07-24
+    await repository.create(handOut(customerId, { date: MORNING }));
+    await repository.create(handOut(customerId, { date: NEXT_WEEK, sessionId: nextSession }));
 
-    expect(await repository.listForDay("2026-07-22")).toEqual([]);
-    expect(await repository.listForDay("2026-07-23")).toHaveLength(1);
-    expect(await repository.listForDay("2026-07-24")).toHaveLength(1);
+    expect(await repository.listForSession(thisSession)).toHaveLength(1);
+    expect(await repository.listForSession(nextSession)).toHaveLength(1);
   });
 
-  it("answers an empty list for a day nobody collected on", async () => {
+  it("answers an empty list for a session nobody collected at", async () => {
     const customerId = await insertCustomer(50);
     await repository.create(handOut(customerId, { date: MORNING }));
 
-    expect(await repository.listForDay("2026-07-30")).toEqual([]);
+    expect(await repository.listForSession(nextSession)).toEqual([]);
   });
 
   it("finds a record by id, and answers null for an id nobody holds", async () => {
@@ -276,7 +292,7 @@ describe("PrismaDistributionRecordRepository reads and corrections", () => {
     expect(await repository.findById(9_999)).toBeNull();
   });
 
-  it("amends the amount handed over on a record made today", async () => {
+  it("amends the amount handed over on a record whose session still runs", async () => {
     const customerId = await insertCustomer(50);
     const created = await repository.create(handOut(customerId));
 
@@ -296,7 +312,7 @@ describe("PrismaDistributionRecordRepository reads and corrections", () => {
     expect((await repository.findById(created.id))?.paidCents).toBe(0);
   });
 
-  it("removes a record made today, the one deletion the history permits", async () => {
+  it("removes a record, the one deletion the history permits", async () => {
     const customerId = await insertCustomer(50);
     const created = await repository.create(handOut(customerId));
 

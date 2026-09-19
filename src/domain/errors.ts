@@ -25,7 +25,6 @@ export type DomainErrorCode =
   | "CardIndexTaken"
   | "CardNumberTaken"
   | "AlreadyServedToday"
-  | "ReminderAlreadyLoggedToday"
   | "AlreadyServedInSession"
   | "ReminderAlreadyLoggedInSession"
   | "InvalidSessionGroups"
@@ -402,28 +401,6 @@ export class AlreadyServedToday extends DomainError {
   constructor(existingDate: Date) {
     super(`Already served today; a record exists from ${existingDate.toISOString()}`);
     this.existingDate = existingDate;
-  }
-}
-
-/**
- * A reminder for this customer already exists on this calendar day — a second would double-log one
- * conversation, and a mis-click must not consume a grace period (US-06, FR-5).
- *
- * Raised by the use case after reading the day's log, and repeated by the repository for a race that
- * slips past it — the unique `(customerId, loggedOn)` constraint is the final authority (US-06.3).
- *
- * Replaced by {@link ReminderAlreadyLoggedInSession}, and goes with its last caller (US-34.5).
- */
-export class ReminderAlreadyLoggedToday extends DomainError {
-  readonly code = "ReminderAlreadyLoggedToday";
-  readonly customerId: number;
-  /** The Berlin calendar day of the reminder already on file, as a `YYYY-MM-DD` key. */
-  readonly loggedOn: string;
-
-  constructor(customerId: number, loggedOn: string) {
-    super(`Customer ${customerId} already has a reminder logged on ${loggedOn}`);
-    this.customerId = customerId;
-    this.loggedOn = loggedOn;
   }
 }
 

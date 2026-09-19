@@ -169,7 +169,7 @@ async function seedHousehold(customerNumber: number): Promise<string> {
 /** Every distribution record a household holds, found via its surrogate id from the customer number. */
 async function recordsFor(
   customerNumber: number,
-): Promise<ReadonlyArray<{ paidCents: number; dayKey: string; showedUp: boolean }>> {
+): Promise<ReadonlyArray<{ paidCents: number; date: Date; showedUp: boolean }>> {
   // `customerNumber` is unique only through a hand-written partial index Prisma cannot see, so it is
   // not a `findUnique` key here — `findFirst` reads the single row all the same.
   const customer = await prisma.customer.findFirst({
@@ -181,7 +181,7 @@ async function recordsFor(
   }
   return prisma.distributionRecord.findMany({
     where: { customerId: customer.id },
-    select: { paidCents: true, dayKey: true, showedUp: true },
+    select: { paidCents: true, date: true, showedUp: true },
   });
 }
 

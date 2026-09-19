@@ -44,9 +44,6 @@ const NOW_FILE = SHARED.now;
  */
 const TODAY = "2026-01-08T09:00:00.000Z";
 
-/** The Europe/Berlin calendar day of {@link TODAY}, as `berlinDayKey` writes it to a record. */
-const TODAYS_DAY_KEY = "2026-01-08";
-
 /**
  * The numbers this spec owns — see the note above on why they sit below the walk spec's block.
  *
@@ -145,6 +142,18 @@ interface Member {
  * households and recorded hand-outs of their own on this same pinned day, so anything asserted about
  * the tally has to be counted from the register as it stands at that moment.
  */
+async function servedInRunningSession(): Promise<ReadonlyArray<{ customerId: number }>> {
+  const running = await prisma.distributionSession.findFirst({
+    where: { endedAt: null, discardedAt: null },
+    select: { id: true },
+  });
+  if (running === null) return [];
+  return prisma.distributionRecord.findMany({
+    where: { sessionId: running.id },
+    select: { customerId: true },
+  });
+}
+
 async function todaysGroup(): Promise<ReadonlyArray<Member>> {
   const [customers, records] = await Promise.all([
     prisma.customer.findMany({
@@ -153,11 +162,9 @@ async function todaysGroup(): Promise<ReadonlyArray<Member>> {
       orderBy: { customerNumber: "asc" },
     }),
     // Joined by the surrogate id, never the customer number — a released number can belong to a
-    // different household than the one whose record carries it (US-10).
-    prisma.distributionRecord.findMany({
-      where: { dayKey: TODAYS_DAY_KEY },
-      select: { customerId: true },
-    }),
+    // different household than the one whose record carries it (US-10). The afternoon is the
+    // running session now, not the calendar day (US-34): with none running, nobody has collected.
+    servedInRunningSession(),
   ]);
   const servedIds = new Set(records.map((record) => record.customerId));
   // RED is a parity, not a column (US-31): the register comes back whole and the week's own half is

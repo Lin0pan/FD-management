@@ -40,8 +40,11 @@ export function migrateThrowawayDatabase(url: string): void {
  * once so the next table added has one place to be listed rather than five.
  */
 export async function clearRegister(prisma: PrismaClient): Promise<void> {
+  // A hand-out and a reminder each point at a session as well as at a customer, so the sessions go
+  // once both are gone — children first twice over.
   await prisma.distributionRecord.deleteMany();
   await prisma.reminderLog.deleteMany();
+  await prisma.distributionSession.deleteMany();
   await prisma.card.deleteMany();
   await prisma.certificate.deleteMany();
   await prisma.householdMember.deleteMany();
