@@ -603,3 +603,59 @@ seven application test files, `tests/e2e/seeding.ts` and six specs (typecheck on
   to rewrite, but all four are now wrong.
 
 ---
+
+## 2026-09-19 — US-004 (US-34.4) Starting, discarding, ending and reopening a session
+
+**Implemented.** Five use cases in `src/application/distribution/`:
+`start-distribution-session.ts` (refuses a second session, stamps `startedAt` from the `Clock`, no
+audit entry), `discard-distribution-session.ts` (counts the afternoon's hand-outs and reminders,
+refuses a non-empty one with `DistributionSessionNotEmpty`, stamps `discardedAt`, no audit entry),
+`end-distribution-session.ts` (returns `SessionSummary { households, totalPaidCents }` and writes the
+one `distribution.session.ended` entry), `reopen-distribution-session.ts` (trimmed reason required,
+`canReopen` guard, `distribution.session.reopened` with the reason as `why`) and
+`read-distribution-session-state.ts` (`{ running, lastEnded, proposedGroups }` for the screens).
+One suite, `distribution-session.test.ts`, 22 tests against hand-written fakes.
+
+Files: `src/application/distribution/{start,discard,end,reopen}-distribution-session.ts`,
+`read-distribution-session-state.ts`, `distribution-session.test.ts`,
+`docs/architecture/05-building-block-view.md`.
+
+**Learnings for future iterations:**
+
+- **`reopenDistributionSession` takes `{ sessionId, reason }`, not `{ reason }` as the PRD's
+  shorthand writes it — deliberate, and US-34.8 must pass the id.** With no target there is no
+  defensible error for „nothing has ever ended" (`DistributionSessionNotReopenable` carries a
+  sessionId and no id exists), and `canReopen`'s first half — `mostRecentlyEnded?.id === session.id`
+  — could only ever be tautologically true. The domain rule was built to *compare* a target against
+  the most recent, and the PRD's own wording („unless **the target** is the most recently ended
+  session") has no referent otherwise. It also settles the race the other reading loses: between the
+  screen rendering the last ended session and the reason being saved, another workstation may have
+  ended a newer one, and reopening *that* is not what anybody asked for. `lastEnded` carries the id
+  the form needs (`read-distribution-session-state`), so the screen pays a hidden field for it.
+- **Start and discard write NOTHING to the audit log, and both have a test that says so by name.**
+  The rule is not „no entry for a small change" — it is that the log never shows a session that
+  began and never ended, which is only true if the entry is written at the *end*, where it can name
+  both instants at once. A later reader adding a `distribution.session.started` entry would break
+  that without any gate noticing; the two named tests are the gate.
+- **The guard order in `startDistributionSession` is the running session first, the group choice
+  second.** Told the form is incomplete, a staff member fixes the form — when what is actually in
+  their way is the afternoon somebody else has under way. `createSessionGroups` is therefore called
+  *after* `findRunning`, inside the `sessions.start(…)` call.
+- **A hand-written fake that stamps rather than deletes has to hide the stamp from its reads.** The
+  first cut of `FakeDistributionSessionRepository` stored `DistributionSession & { discardedAt }` and
+  handed the whole row back, so `toEqual` against a started session failed on an extra key. It now
+  holds `{ discardedAt, session }` and returns `row.session` — which is also what the adapter does
+  (`SessionRow` never leaves `distribution-session-repository.ts`). Worth copying for any port whose
+  store filters rows out.
+- **`SessionSummary.households` is `handouts.length`, not a count of distinct `customerId`s.**
+  `@@unique([customerId, sessionId])` makes the two the same number, and re-deriving it in the use
+  case would be a second answer to a question the database already settles.
+- **Chapter 5's application table counts use cases and ports in its heading** („39 use cases behind
+  eleven ports"), and nothing greps it. It is now „44 use cases behind twelve ports" — the twelfth
+  port arrived with US-34.3 and the heading had not caught up. Check that line whenever a use case or
+  a port is added.
+- **No UI in this story, so no browser check was possible or needed.** `/ausgabe` still returns 500
+  until US-34.7/34.8 build the start screen — unchanged from US-34.3, and still the inside-out build
+  order working as planned.
+
+---

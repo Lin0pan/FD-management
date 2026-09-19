@@ -95,7 +95,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Four use cases, one file each — small, and they share one fake repository, which is why they are one story. The only subtle rule is that START and DISCARD write NOTHING to the audit log: the log never shows a session that began and never ended."
     },
     {
