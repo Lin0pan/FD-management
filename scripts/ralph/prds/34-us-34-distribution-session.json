@@ -1,0 +1,271 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-34-distribution-session",
+  "description": "US-34 The distribution session is started and ended by hand. THE SOFTWARE DERIVES EVERYTHING FROM THE CALENDAR TODAY: settings hold a week anchor („KW 02/2026 war Rot\") and a distribution weekday, and from those follow the eligibility check at the counter, the group tally, the no-show count and the correction window („nur am selben Kalendertag\"). THE REAL PROCESS DOES NOT FOLLOW THE CALENDAR — DF merge the two groups for a while, cancel a distribution, hold an extra one — and each time the calendar and the afternoon that actually happened part company: a cancelled Thursday shifts the colour of every week after it as far as the software is concerned, and shifts nothing at all as far as DF are concerned. SO THE BASIS BECOMES THE SESSION THAT ACTUALLY TOOK PLACE: a staff member presses a button to start it, chooses which group(s) it serves (RED, BLUE or both), and presses a button to end it. AT MOST ONE RUNS AT A TIME, the same one on every workstation, and the software NEVER ends one itself — not at midnight, not after a deadline. EVERY HAND-OUT AND EVERY REMINDER BELONGS TO EXACTLY ONE SESSION: „once per calendar day\" becomes „once per session\", „correctable until midnight\" becomes „correctable until the session is ended\", and „wrong group\" is judged against the RUNNING SESSION'S GROUPS rather than the parity of the calendar week. ENDING freezes the session's hand-outs and writes ONE audit entry carrying the start and the end; a session started by mistake is DISCARDED while empty and leaves NO audit entry at all; the MOST RECENTLY ENDED session can be REOPENED with a reason while no new one has started. A and B OF THE REQUIREMENTS SHIP TOGETHER — without A there is no session for B's hand-outs to belong to, and without B a session is a row nothing reads — which is why this is the largest batch the project has run. THIS BATCH DOES NOT REMOVE THE WEEK ANCHOR: it stops the four rules reading it, and US-36 takes the values out of settings and deletes the arithmetic. Between the two, the settings screen still holds an anchor that only the Start screen's „nächste Ausgabe\" line reads — a deliberate intermediate state, one batch long. SCHEMA CHANGE: yes — a new DistributionSession table, sessionId on DistributionRecord and ReminderLog, dayKey and loggedOn REMOVED — so prisma/migrations/ is REGENERATED (pre-release, ADR-009) and THE HAND-WRITTEN PARTIAL UNIQUE INDEX ON Customer.customerNumber MUST BE PUT BACK, alongside a SECOND hand-written index that makes the database refuse a second running session (story 3). BUILD ORDER IS INSIDE-OUT and stories 1–6 must land before any screen story. THE THREE THINGS MOST LIKELY TO GO WRONG: the re-added partial unique index (story 3); the GUARD ORDER in recordAttendance, which US-32.5 documents and which a reordering silently rewords the counter's refusal (story 5); and the TEN EXISTING E2E SPECS that record a hand-out and now need a session started first (story 10). Requirements: local_only/manually-start-ausgabe/refined-requirements.md sections A, B and D-3. Full PRD: tasks/prd-us-34-distribution-session.md",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "The distribution session is a domain value (domain)",
+      "description": "As a developer, I want the session's rules — which groups it may serve, which group is proposed next, whether it may be discarded or reopened — in one pure module, so that no screen and no adapter decides any of them. Source: tasks/prd-us-34-distribution-session.md §US-34.1",
+      "acceptanceCriteria": [
+        "NEW module src/domain/distribution/session.ts. PURE: imports nothing from Next.js, React or Prisma, does no I/O, reads no clock (fd/domain-boundary enforces it)",
+        "SessionGroups = ReadonlyArray<Group>, made ONLY by createSessionGroups(groups): de-duplicates, orders RED BEFORE BLUE (the order GROUPS in src/domain/customer/group.ts already states and de.customers.list.groupBalance already prints), and throws MissingRequiredField(\"groups\") for an empty set. The TYPE IS THE INVARIANT — a reader may rely on the order and on there being no duplicate, exactly as EggRule works",
+        "formatSessionGroups(groups) / parseSessionGroups(stored): comma-separated \"RED\", \"BLUE\" or \"RED,BLUE\". SQLite has no array type; AuditEntry.changedFields already stores a list this way — CITE that, do not re-argue it. parseSessionGroups throws a NEW InvalidSessionGroups(stored) on anything else, because the value re-enters the domain from a column",
+        "servesGroup(groups, group): boolean — the one question the counter asks of a session",
+        "DistributionSession = { id: number; startedAt: Date; endedAt: Date | null; groups: SessionGroups }, and isRunning(session) is endedAt === null. A DISCARDED SESSION IS NEVER HANDED TO THE DOMAIN — the store filters it out — so there is NO third state here",
+        "proposeGroups(lastSession: DistributionSession | null): SessionGroups | null — the group that was NOT up last time; BOTH again when both were; null when no session is on record (the screen renders that as nothing preselected). One line of comment says this is what carries a merged period forward and what stops a cancelled week shifting the cycle; it does NOT re-tell the calendar's story",
+        "canDiscard(session, { handouts, reminders }): true only while a RUNNING session holds NEITHER. The counts are passed in — the rule does not know what a hand-out is",
+        "canReopen(session, mostRecentlyEnded): true only when session IS the most recently ended one and nothing is running",
+        "NEW errors in src/domain/errors.ts in the file's existing shape (readonly code, offending values as readonly fields): InvalidSessionGroups, NoDistributionSessionRunning, DistributionSessionAlreadyRunning, DistributionSessionNotEmpty, DistributionSessionNotReopenable, AlreadyServedInSession, ReminderAlreadyLoggedInSession",
+        "AlreadyServedToday and ReminderAlreadyLoggedToday are REPLACED by the last two, not kept beside them — delete them and fix every caller",
+        "WRITTEN TEST-FIRST, red → green → refactor, one named test per RULE named after the rule: proposes the group that was not up last time / proposes both groups again after a session that served both / preselects nothing when no session has ever taken place / refuses a session that serves no group / reads a stored RED,BLUE as both groups / refuses to discard a session that has served somebody / refuses to reopen anything but the most recent session",
+        "Domain coverage stays at 100%",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "First story, src/domain/ only. No schema, no UI, no use case. The judgement call is the group ORDER: RED before BLUE, because GROUPS and the Kundenliste's group balance already read that way — do not invent a second order."
+    },
+    {
+      "id": "US-002",
+      "title": "The attendance rules turn on the session, not the calendar (domain)",
+      "description": "As a developer, I want 'once per session' and 'correctable until the session ends' to replace 'once per day' and 'correctable today', so that an afternoon running past midnight is ONE collection and a second distribution on the same day is a second. Source: tasks/prd-us-34-distribution-session.md §US-34.2",
+      "acceptanceCriteria": [
+        "src/domain/distribution/attendance.ts is rewritten around the session: recordForSession(recordsForCustomer, sessionId), canRecord(recordsForCustomer, sessionId) returning \"OK\" | AlreadyServedInSession, and canCorrect(session) — a record is amendable EXACTLY while ITS OWN session is running",
+        "berlinDayKey STAYS, with its comment: noShows.ts still matches attended days against calendar distributions until US-36 retires it. REMOVING IT HERE BREAKS THE NO-SHOW COUNT — this is the one deliberate leftover in this batch",
+        "src/domain/distribution/counterVerdict.ts: CounterInput.weekColour: WeekColour becomes sessionGroups: SessionGroups, and servedToday becomes servedInSession",
+        "The verdict PRECEDENCE IS OTHERWISE UNCHANGED, including the two orders the module already documents as deliberately opposite between the read path (evaluateAtCounter) and the write path (recordAttendance). Do not 'tidy' that comment away",
+        "WRONG_GROUP carries { group: Group; sessionGroups: SessionGroups }. A session serving BOTH groups can never produce it",
+        "ALREADY_SERVED_TODAY is renamed ALREADY_SERVED. The union is exhaustive-switched in the UI, so the rename is a COMPILE ERROR everywhere it must be read — that is the mechanism working, not an obstacle",
+        "WRITTEN TEST-FIRST, one named test per rule: serves a household once per session, however long it runs / serves the same household again at a second session on the same day / refuses a household whose group the session does not serve / serves every household when the session serves both groups / keeps a record correctable while its session runs / refuses to correct a record whose session has ended",
+        "Domain coverage stays at 100%",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Still domain only. The application layer will not compile after this story until story 5 lands — that is expected and fine WITHIN the story's own scope, but keep the domain suite green and do not leave src/application half-edited here."
+    },
+    {
+      "id": "US-003",
+      "title": "The session table, the port and the adapter (schema + infrastructure)",
+      "description": "As DF, I want a started session to survive a restart and a crash, so that a power cut in the middle of an afternoon does not lose which group is being served. Source: tasks/prd-us-34-distribution-session.md §US-34.3",
+      "acceptanceCriteria": [
+        "NEW model DistributionSession in prisma/schema.prisma: id, startedAt DateTime, endedAt DateTime?, discardedAt DateTime?, groups String, @@index([startedAt])",
+        "A DISCARDED SESSION IS STAMPED, NEVER DELETED — discardedAt is written and every read filters it out. The model comment says why in two lines: the project deletes nothing (ADR-010) and WaitingListEntry already keeps removed rows for this reason. DF get no paperwork for a misclick because NO AUDIT ENTRY is written, which is a different thing from the row not existing",
+        "DistributionRecord GAINS sessionId Int with onDelete: Restrict STATED OUT LOUD, gains @@unique([customerId, sessionId]) and @@index([sessionId]), and LOSES dayKey and @@unique([customerId, dayKey]) — once-per-day is not a rule any more, and a column no rule reads is one a later reader will take for one",
+        "ReminderLog GAINS sessionId Int (onDelete: Restrict) and @@unique([customerId, sessionId]), and LOSES loggedOn",
+        "AT MOST ONE RUNNING SESSION, ENFORCED BY THE DATABASE. Prisma cannot express a partial unique index, so hand-write it at the END of the regenerated migration beside the one on Customer.customerNumber: CREATE UNIQUE INDEX \"one_running_session\" ON \"DistributionSession\" (\"startedAt\" IS NOT NULL) WHERE \"endedAt\" IS NULL AND \"discardedAt\" IS NULL; — the indexed expression is constant-by-construction, which is the point: every running row collides",
+        "IF SQLite refuses that expression, the fallback is a nullable runningMarker Int? column carrying 1 while running and NULL otherwise with @@unique([runningMarker]), documented as A KEY THE CONSTRAINT NEEDS in the sense Customer.firstNameFolded is one — NEVER as a second answer to 'endedAt IS NULL'. Whichever is used, an integration test proves a second running session is refused",
+        "MIGRATIONS ARE REGENERATED, NOT STACKED (pre-release, ADR-009): delete prisma/migrations/, npx prisma migrate dev --name init, then npm run db:reset",
+        "RE-ADD BY HAND the partial unique index on Customer.customerNumber at the end of the regenerated migration.sql. Regenerating DROPS it and the slot rule would then rest on application code alone. src/infrastructure/prisma/schema.test.ts catches a miss — run it",
+        "NEW port DistributionSessionRepository in src/application/ports.ts, documented ONCE on the port (never again on the adapter): findRunning(), lastEnded(), start(groups, at) — throws DistributionSessionAlreadyRunning, THE ADAPTER IS THE FINAL AUTHORITY exactly as create() is for a customer number — end(id, at), discard(id, at), reopen(id)",
+        "DistributionRecordRepository.listForDay(dayKey) becomes listForSession(sessionId); ReminderLogRepository.findOnDay(customerId, loggedOn) becomes findInSession(customerId, sessionId); ReminderLogEntry.loggedOn becomes sessionId. EVERY hand-written fake in src/application/**/*.test.ts gains them in THIS story or the suite does not compile",
+        "NEW adapter src/infrastructure/prisma/distribution-session-repository.ts; the record and reminder adapters follow their ports",
+        "NEW integration test against a THROWAWAY SQLite FILE in the shape of distribution-record-repository.test.ts: a session round-trips; a second start is refused while one runs; discard hides the row from findRunning and lastEnded; two hand-outs for one customer in one session are refused by the constraint; listForSession returns only that session's rows",
+        "src/infrastructure/prisma/test-support.ts clearRegister deletes the new children first, and tests/e2e/seeding.ts releaseNumbers keeps its delete order the schema's relation list",
+        "prisma/seed.ts seeds NO session — a register with one already running would put DF in the middle of an afternoon nobody started. prisma/demo-seed.ts seeds ONE ENDED session with a few hand-outs so the demo build has something in it. Both stay idempotent and write no audit entry",
+        "npm run build passes after npm run db:reset — the first symptom of schema/database drift is the settings screen reporting that nothing is configured, so open it",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "THE ONLY STORY IN THIS BATCH THAT TOUCHES prisma/. Ninth batch to regenerate the migration history: the hand-written partial unique index on Customer.customerNumber MUST be put back, and a SECOND hand-written index arrives beside it. Two port methods change name and shape here, so every hand-written fake changes with them."
+    },
+    {
+      "id": "US-004",
+      "title": "Starting, discarding, ending and reopening a session (application)",
+      "description": "As DF, I want the four things I can do to a session to be four small use cases, so that each one is guarded where its rule lives. Source: tasks/prd-us-34-distribution-session.md §US-34.4",
+      "acceptanceCriteria": [
+        "FOUR files in src/application/distribution/, one business action each: start-distribution-session.ts, discard-distribution-session.ts, end-distribution-session.ts, reopen-distribution-session.ts — plus read-distribution-session-state.ts answering what the screens need: the running session, the last ended one, and proposeGroups' proposal for the start form",
+        "startDistributionSession({ groups }) refuses with DistributionSessionAlreadyRunning when one runs, stamps startedAt from the Clock, and writes NO AUDIT ENTRY",
+        "discardDistributionSession() refuses with DistributionSessionNotEmpty when the running session holds a hand-out or a reminder, stamps discardedAt, and writes NO AUDIT ENTRY. The counts come from listForSession and the reminder store, never from a flag",
+        "endDistributionSession() refuses with NoDistributionSessionRunning when none runs, stamps endedAt, and RETURNS a SessionSummary { households: number; totalPaidCents: Cents } derived from that session's records. NOTHING about who did NOT turn up is counted or returned",
+        "Ending writes exactly ONE audit entry: what: \"distribution.session.ended\", changedFields: [\"startedAt\", \"endedAt\", \"groups\"], when = the end instant, and why = the machine-written value this log already uses for changes that ask for no reason — e.g. startedAt=<ISO>, groups=RED,BLUE, households=87, totalPaid=43500. A discarded session is NOWHERE in the log, and no session appears in it that began and never ended",
+        "reopenDistributionSession({ reason }) requires a trimmed non-empty reason (MissingAuditReason), refuses with DistributionSessionNotReopenable unless the target is the most recently ended session AND nothing is running, clears endedAt, and writes what: \"distribution.session.reopened\" with the reason as why",
+        "TDD against HAND-WRITTEN FAKES, never a mock library. Named tests: refuses a second session while one is running / discards a session nobody was served at / refuses to discard a session that served somebody / counts what was taken when the session ends / writes one audit entry naming the start and the end / writes nothing to the log when a session is discarded / refuses to reopen a session with another one running / refuses a reopening with no reason",
+        "Application coverage stays at 100%",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Four use cases, one file each — small, and they share one fake repository, which is why they are one story. The only subtle rule is that START and DISCARD write NOTHING to the audit log: the log never shows a session that began and never ended."
+    },
+    {
+      "id": "US-005",
+      "title": "Every hand-out and every reminder belongs to the running session (application)",
+      "description": "As DF, I want nothing to be recordable outside a session, so that a booking can never end up belonging to no afternoon. Source: tasks/prd-us-34-distribution-session.md §US-34.5",
+      "acceptanceCriteria": [
+        "recordAttendance loads the running session FIRST and throws NoDistributionSessionRunning when there is none. THE GUARD ORDER IS LOAD-BEARING and its comment is UPDATED, not deleted: session → once-per-session (canRecord) → eligibility (evaluateAtCounter against the session's groups) → the payment. Asked in any other order the counter reads the wrong sentence back (US-32.5)",
+        "The record is written WITH sessionId. The price still comes through describeAllowance at the recording instant and the balance is still derived (ADR-015) — neither changes",
+        "correctAttendance loads the record's OWN session and refuses with RecordNoLongerCorrectable unless it is running. The error keeps its shape but names the session rather than the day",
+        "Removing a hand-out makes the household unserved IN THAT SESSION again, with NO CODE OF ITS OWN: the constraint is (customerId, sessionId) and the row is gone",
+        "recordReminder writes sessionId, refuses a second reminder in the same session with ReminderAlreadyLoggedInSession, and refuses outside a session like the hand-out does",
+        "lookupCustomer takes the running session, throws NoDistributionSessionRunning when there is none (the screen will not offer the lookup; a hand-typed URL is not the screen's to refuse), and feeds sessionGroups and servedInSession to the verdict",
+        "TodaysRecordView becomes SessionRecordView and reminderLoggedToday becomes reminderLoggedInSession. The THREE MONEY FIGURES on it (paidCents, askedCents, balanceWithoutRecordCents) are unchanged",
+        "getWeekColour is NO LONGER CALLED BY ANY USE CASE. It survives for the Start screen until US-36 — do not delete it here, and do not add a caller",
+        "Application coverage stays at 100%. Named tests: refuses a hand-out with no session running / records against the running session / serves a BLUE household at a session serving both groups / turns a RED household away from a BLUE session / lets a record be corrected while its session runs / refuses to correct a record whose session has ended / allows a household served yesterday to collect at today's session",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "This is where the calendar stops deciding anything at the counter. The two traps: the GUARD ORDER in recordAttendance (US-32.5 documents why), and CertificateControls deriving 'expired' from lookupCustomer.customer.certificateExpired rather than from the verdict kind — which must stay true now that ALREADY_SERVED outranks CLEAR_TO_SERVE_CERTIFICATE_EXPIRED."
+    },
+    {
+      "id": "US-006",
+      "title": "The group tally follows the session (application)",
+      "description": "As DF, I want '87 von 120 Haushalten abgeholt' to count the households THIS session serves, so the figure means something on a merged afternoon and at an extra distribution. Source: tasks/prd-us-34-distribution-session.md §US-34.6",
+      "acceptanceCriteria": [
+        "readGroupRoster takes the RUNNING SESSION instead of resolving a week colour: members are the ACTIVE and BLOCKED households whose group THE SESSION SERVES (both groups means every household), and servedInSession comes from listForSession",
+        "GroupRosterView.group: WeekColour becomes groups: SessionGroups",
+        "The counting rule in src/domain/distribution/groupProgress.ts is UNTOUCHED: a blocked household stays out of the expected count UNLESS it has already collected (a household blocked at three o'clock did collect at two)",
+        "Where BOTH groups are served, the tally is read PER GROUP so the screen can state 'Rot: 43 von 60 · Blau: 44 von 60' rather than one merged fraction — the register's own reading, and the one that shows a group falling behind",
+        "readGroupRoster is not called at all when no session runs; the screen decides that, and the use case throws NoDistributionSessionRunning if asked anyway",
+        "isEmpty survives and still means 'this session's groups hold no active or blocked household' — group-progress-card.tsx branches on it to show a sentence rather than a tally of nothing",
+        "Application coverage stays at 100%. Named tests: covers both groups at a merged session / counts a blocked household that already collected / reports an empty group in words",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "readGroupRoster is the use case batch 23 built and batch 32 kept when the walk was withdrawn. It stays one use case and one query — the register is ~240 rows and a per-household query would make the counter's own screen the slowest in the app."
+    },
+    {
+      "id": "US-007",
+      "title": "Starting and ending the session on the distribution screen (presentation)",
+      "description": "As a DF staff member, I want to start the afternoon with one press and end it with one, so that the screen says what is happening rather than what the calendar predicted. Source: tasks/prd-us-34-distribution-session.md §US-34.7",
+      "acceptanceCriteria": [
+        "/ausgabe shows, WHILE A SESSION RUNS, a session header stating that one is running and which group(s) it serves, in the place the week-colour banner stood",
+        "THE WEEK-COLOUR BANNER IS REMOVED FROM THIS SCREEN IN THIS STORY: on a Tuesday session it would read „Heute ist keine Ausgabe\" over a counter serving customers, which is the one plainly false thing the screen could say. Its de.distribution.banner.* keys go with it",
+        "The group(s) are NAMED IN WORDS and wear the same badge the Kundenliste and a customer's record wear (GROUP_STYLES, variant=\"outline\") — one colour means one thing application-wide (ui_styling_guide.md §12)",
+        "With no session running the screen offers „Ausgabe starten\" with a group choice: THREE options — „Rot\", „Blau\", „Rot und Blau\" — as a native radio group, ONE PRESELECTED from proposeGroups, and NONE preselected when there is no session on record",
+        "Deviating from the proposal asks for NOTHING: no reason, no confirmation, and NO SENTENCE EXPLAINING THAT IT IS ALLOWED (ui_styling_guide.md §8)",
+        "While a session runs the screen offers „Ausgabe beenden\", which CONFIRMS in a dialog naming what is being closed: how many households were served and the total taken. The dialog says NOTHING about households that did not turn up — that is the normal case, not a warning",
+        "While the running session holds nothing, the screen also offers „Ausgabe verwerfen\", which DISAPPEARS the moment the first hand-out or reminder is recorded. It confirms in one dialog",
+        "The group(s) CANNOT be changed while the session runs: there is no control for it, and nothing on the screen explains its absence",
+        "All German strings live in src/i18n/de.ts under distribution.session; NO German literal enters a component. The verdict wording alreadyServedToday: „Heute bereits ausgegeben\" becomes alreadyServed: „Bereits ausgegeben\"",
+        "Server actions validate with Zod, call EXACTLY ONE use case and render — no business logic on this page (fd/application-boundary)",
+        "Verify in the browser with the playwright-cli skill — the ACCESSIBILITY SNAPSHOT, not a screenshot (docs/guideline/ui_styling_guide.md §11)",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "The counter screen is the most-read screen in the product. Six write controls already stand on it and NoticeBoard exists so only one answer shows at a time — the end and discard confirmations join that discipline. Do not turn the session header into a hint: it states two facts, running and which group(s)."
+    },
+    {
+      "id": "US-008",
+      "title": "The distribution screen with no session running (presentation)",
+      "description": "As a DF staff member, I want the distribution screen between afternoons to offer the start and show me what the last one did, so that I can see at a glance whether I forgot to end one. Source: tasks/prd-us-34-distribution-session.md §US-34.8",
+      "acceptanceCriteria": [
+        "With no session running, /ausgabe shows the start form (story 7) and a SUMMARY OF THE LAST SESSION: when it started and ended, which group(s), how many households, the total taken",
+        "THE COUNTER LOOKUP IS NOT OFFERED while no session runs, and neither is the group tally: there is nothing to record against. A household can still be looked up through /kunden at any time — THE SCREEN DOES NOT SAY SO, the nav bar is how DF get there",
+        "Beside the last session's summary stands „Ausgabe wieder öffnen\": a CLOSED DISCLOSURE requiring a reason before it saves, in the shape of the existing block and archive controls. Offered only for the most recently ended session and only while nothing is running",
+        "A ?nummer= still in someone's history with no session running is INERT, not an error — the same treatment ?datum= got in US-22",
+        "German strings only in src/i18n/de.ts",
+        "Verify in the browser with the playwright-cli skill — the ACCESSIBILITY SNAPSHOT, not a screenshot (docs/guideline/ui_styling_guide.md §11)",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "This is the screen DF see on a Monday. It has exactly two jobs: start the next afternoon, and show what the last one did. The reopening lives here because it is only ever reached from here."
+    },
+    {
+      "id": "US-009",
+      "title": "A running session on the Start screen (presentation)",
+      "description": "As a DF staff member, I want a running session to be unmissable on the Start screen, so that a session forgotten on Thursday evening is noticed on Friday morning. Source: tasks/prd-us-34-distribution-session.md §US-34.9",
+      "acceptanceCriteria": [
+        "/ states a RUNNING session prominently: the group(s) it serves, when it started, and a link to /ausgabe. A PANEL, not a line — the Start screen has one thing to say when a session is running and this is it",
+        "With no session running the Start screen is EXACTLY what it is today: greeting, date, the „nächste Ausgabe\" line. THAT LINE IS REMOVED IN US-36, NOT HERE",
+        "Nothing on the panel explains what a session is or what ending one does (ui_styling_guide.md §8): it states a fact and links to the screen that acts on it",
+        "The page stays a PLAIN SERVER COMPONENT with no client boundary — the panel renders from the injected Clock and the session repository, and nothing ticks",
+        "The existing data-testid=\"today-date\" wrapper keeps exactly one <p> inside it: home.spec.ts asserts its text exactly",
+        "Verify in the browser with the playwright-cli skill — the ACCESSIBILITY SNAPSHOT, not a screenshot (docs/guideline/ui_styling_guide.md §11)",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "The whole point of A-7 is a forgotten session being noticed the next morning. 'Prominent' is an effect, not a design instruction — judge it in the browser at DF's window size."
+    },
+    {
+      "id": "US-010",
+      "title": "The existing specs run inside a session (e2e)",
+      "description": "As a developer, I want every spec that serves a household to start a session first, so the suite proves the new rule rather than being rewritten around it. Source: tasks/prd-us-34-distribution-session.md §US-34.10",
+      "acceptanceCriteria": [
+        "NEW helper tests/e2e/session.ts: startSession(page, groups) and endSession(page), DRIVING THE REAL CONTROLS — never writing to the database behind the screen, which would prove nothing about the rule the screen is the front of",
+        "Every spec that records a hand-out or a reminder opens a session first and ends it after: counter.spec.ts, serve.spec.ts, balance.spec.ts, group-progress.spec.ts, reminders.spec.ts, age-13.spec.ts, eggs.spec.ts, price-cap.spec.ts, allowance.spec.ts, distribution.spec.ts as applicable",
+        "ASSERTIONS ABOUT THE WEEK COLOUR ARE REPLACED by assertions about the session's group(s), NOT DELETED",
+        "Specs that assumed 'today is a RED week' now start a RED session and say so. A spec that needs both groups starts ONE session serving both — a thing the suite could not express before",
+        "home.spec.ts KEEPS its „nächste Ausgabe\" assertions (they go in US-36) and gains the running-session panel",
+        "BOTH ENGINES PASS: npm run test:e2e AND npm run test:e2e:webkit (ADR-012). No spec branches on browserName — if the engines disagree, the markup is what is wrong",
+        "STOP ANY RUNNING DEV SERVER FIRST: the e2e run starts its own servers over its own registers",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "THE LARGEST HIDDEN COST OF THIS BATCH. Ten specs record a hand-out and every one needs a session started first. That is why this is a story of its own and not a line in the next one."
+    },
+    {
+      "id": "US-011",
+      "title": "The session loop, end to end (e2e)",
+      "description": "As DF, I want the whole afternoon proved in one spec, so that the rules that replaced the calendar are checked together rather than one at a time. Source: tasks/prd-us-34-distribution-session.md §US-34.11",
+      "acceptanceCriteria": [
+        "NEW tests/e2e/session.spec.ts covering: starting a session preselects the group the last one did not serve, and the staff member may deviate",
+        "A second session cannot be started while one runs (the control is not offered)",
+        "A household of the served group collects; a household of the other group is turned away with „Falsche Gruppe\"",
+        "The same household cannot collect twice in the session, AND CAN collect again at a SECOND SESSION STARTED THE SAME DAY — the rule 'once per calendar day' could not express this",
+        "The hand-out is correctable and removable while the session runs; a removed household may be recorded afresh",
+        "THE GROUP TALLY ON THE SAME PAGE rises when a hand-out is recorded, WITHOUT NAVIGATING — the panel coupling a suite of per-form tests cannot see (CLAUDE.md: a write that another panel displays is proved on that panel)",
+        "Ending confirms with the households served and the total taken, and afterwards the hand-outs can no longer be corrected",
+        "A session holding nothing can be discarded; a session holding a hand-out cannot",
+        "The last ended session can be reopened WITH A REASON, its hand-outs become correctable again, and ending it a second time closes them again",
+        "Blocking and unblocking a household work WHILE a session runs and AFTER it has ended (otherwise a household blocked during the distribution could never be unblocked)",
+        "BOTH ENGINES PASS: npm run test:e2e and npm run test:e2e:webkit",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "One spec, the whole afternoon. It is the only place the new rules are checked together. Use the helper from story 10 rather than a second way of starting a session."
+    },
+    {
+      "id": "US-012",
+      "title": "Record ADR-020 and update what it makes wrong (documentation)",
+      "description": "As the next developer, I want the reason the calendar stopped deciding written down once, so that nobody re-derives it from the code. Source: tasks/prd-us-34-distribution-session.md §US-34.12",
+      "acceptanceCriteria": [
+        "ADR-020 via the record-adr skill: „The distribution session, not the calendar, is what a hand-out belongs to\". CONTEXT: merged groups, cancelled weeks and extra distributions make the calendar a poor model of what happened, and four rules hung off it. DECISION: a session is started and ended by hand, at most one runs, it names the group(s) it serves, and every hand-out and reminder belongs to exactly one",
+        "ADR-020 CONSEQUENCES: 'once per day' and the same-day correction window go; a session may run past midnight; the week anchor and the distribution weekday have no reader left and are removed in US-36; a session ended by mistake is REOPENED rather than edited; a discarded session is STAMPED rather than deleted, because ADR-010 holds",
+        "tasks/prd-us-03-week-colour.md and tasks/prd-us-05-record-attendance.md each gain a DATED NOTE AT THE TOP naming this PRD — the treatment batch 21 gave the withdrawn week-colour lookup. DO NOT rewrite their bodies",
+        "arc42 chapters updated IN THE SAME PR, driven with the arc42 skill: 05 (new domain module, four use cases, new adapter), 06 (the counter's runtime scenario, whose documented guard order changes), 08 (the 'same day' concept and where time enters), 09 (the ADR-020 row), 12 (glossary: Ausgabetermin, laufende Ausgabe; Wochenfarbe MARKED as on its way out, not yet removed)",
+        "A GAP IS LEFT AS A MARKED > **TODO:** rather than filled with a plausible guess, and a contradiction between code and chapter is SURFACED, not silently resolved (the arc42 skill's rule)",
+        "docs/handout/betriebsanleitung.md gains a GERMAN, PRINTABLE section on starting and ending an Ausgabe: what the group choice means, that a session must be ended, that a forgotten one shows on the Start screen, that a mistake is discarded while empty and reopened afterwards",
+        "Root CLAUDE.md's „Don't skip the audit entry on a state change\" list gains ending and reopening a session. NOTHING ELSE in CLAUDE.md changes in this batch",
+        "npm run arc42:check passes — the ADR is in the chapter 9 log, the statuses agree, no dead links",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "Last story. Cite ADR-020 from code rather than re-arguing it (CLAUDE.md: where the argument is already recorded, cite it and stop). Do NOT remove Wochenfarbe from the glossary yet — US-36 does that, and a glossary that drops a word still in the code is worse than one that marks it."
+    }
+  ]
+}

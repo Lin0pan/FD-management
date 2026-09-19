@@ -5,7 +5,7 @@ number). Each file is a complete, self-contained Ralph run: its own `branchName`
 starting at `US-001`, its own priorities `1..n`.
 
 [`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
-it. It currently holds **batch 33**, the next one to run. `done/` holds the finished copy of each
+it. It currently holds **batch 34**, the next one to run. `done/` holds the finished copy of each
 batch that has run — the same file with every story's `passes` flipped to `true`.
 
 ## Workflow
@@ -112,8 +112,12 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 31  | `31-us-31-number-decides-the-group.json`        | 9       | `ralph/us-31-number-decides-the-group`        |
 | 32  | `32-us-32-one-household-at-a-time.json`         | 9       | `ralph/us-32-one-household-at-a-time`         |
 | 33  | `33-us-33-certificate-types-from-settings.json` | 10      | `ralph/us-33-certificate-types-from-settings` |
+| 34  | `34-us-34-distribution-session.json`            | 12      | `ralph/us-34-distribution-session`            |
+| 35  | `35-us-35-session-receipt.json`                 | 4       | `ralph/us-35-session-receipt`                 |
+| 36  | `36-us-36-sessions-not-the-calendar.json`       | 7       | `ralph/us-36-sessions-not-the-calendar`       |
+| 37  | `37-us-37-session-overview-and-detail.json`     | 6       | `ralph/us-37-session-overview-and-detail`     |
 
-190 stories total — the rows sum to it. Every story cites its source PRD section in its
+219 stories total — the rows sum to it. Every story cites its source PRD section in its
 `description`, so an iteration can read the full context when a criterion is ambiguous.
 
 Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 onwards are not
@@ -328,6 +332,45 @@ entry (US-12.4) whose type is not configured must land on „Sonstiges" with the
 substituting a near match or blanking the field would rewrite a household's record without saying so.
 And **`Eligibility` keeps its shape** in `tests/e2e/registration-form.ts`, so no existing spec changes:
 if a spec needs editing, the control is wrong, not the spec.
+
+**Batches 34 to 37 are one piece of work in four parts**, and they are the first batches since the
+MVP that have to run **in order and without a gap**. DF's requirement document
+(`local_only/manually-start-ausgabe/refined-requirements.md`, agreed 19.09.2026) replaces the
+calendar as the basis of a distribution: the week anchor and the distribution weekday decided which
+group collected, who was eligible, how far through the group the afternoon was, how many
+distributions a household had missed and how long a record stayed correctable — and the real process
+has none of that, because DF merge the groups for a while, cancel a Thursday and hold extra
+distributions. From now on the basis is the **Ausgabetermin** that actually took place, started and
+ended by a human being.
+
+- **34 (US-34)** is the core and the largest batch the project has run. Requirements **A** and **B**
+  ship together — without A there is no session for B's hand-outs to belong to, and without B a
+  session is a row nothing reads. Domain + schema + infrastructure + application + both screens +
+  e2e + docs and ADR-020. It regenerates `prisma/migrations/` (the ninth batch to) and adds a
+  **second hand-written index** beside the partial unique one on `Customer.customerNumber`: SQLite
+  is what refuses a second running session. Its largest hidden cost is **ten existing e2e specs**
+  that record a hand-out and now need a session started first, which is why that is a story of its
+  own (story 10).
+- **35 (US-35)** captures the household's state when a session ends — the hand-out becomes the
+  receipt of who stood at the counter. **It has an expiry date, and it is the only batch in the
+  project that does**: every session ended before the freeze rule exists is lost to the detail view
+  for good, because a name and a household's members are overwritten by ordinary editing. It must
+  merge immediately after 34. Nothing in it is visible; 37's e2e is what proves it.
+- **36 (US-36)** finishes the removal: the no-show count walks **sessions** instead of calendar
+  weeks — every cancelled week in that walk is a miss nobody made today — and the week anchor and
+  the distribution weekday leave settings, schema and domain without replacement, taking
+  `weekColour.ts`, `distributionDay.ts`, `get-week-colour.ts` and `berlinDayKey` with them.
+- **37 (US-37)** is the two screens: `/ausgabetermine` and `/ausgabetermine/[id]`. No schema change,
+  no new domain rule, no new ADR.
+
+Three things to hold on to across the four. **The order is the requirement's own** (§4 of the
+document): A+B, then the freeze, then D, then the screens — and 35 is the one that cannot be
+deferred. **Two port methods change name and shape in 34** (`listForDay` → `listForSession`,
+`findOnDay` → `findInSession`), so every hand-written fake in the application tests changes with
+them in the story that introduces them or nothing compiles. And **the guard order in
+`recordAttendance` is load-bearing**: US-32.5 documented why the once-per-day check comes before the
+verdict, and the once-per-session check inherits that position — reordered, a duplicate write is
+reported as an eligibility refusal and the counter reads the wrong sentence back.
 
 ## Regenerating
 

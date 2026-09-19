@@ -1,0 +1,143 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-36-sessions-not-the-calendar",
+  "description": "US-36 The derived rules follow sessions, not the calendar. After US-34 and US-35, TWO THINGS STILL READ THE CALENDAR. FIRST, THE NO-SHOW COUNT: „how many of their own distributions has this household missed in a row\" is counted by walking backwards through the calendar a fortnight at a time, asking the week anchor which colour each week carried — so EVERY CANCELLED WEEK IN THAT WALK IS COUNTED AS A MISS NOBODY MADE. It now counts SESSIONS THAT ACTUALLY TOOK PLACE: a session counts against a household when it has ENDED, its groups INCLUDE the household's group, it STARTED AFTER the household joined the register, and it holds NO HAND-OUT for them. The running session never counts. The figure stays DISPLAY ONLY — no threshold, no automatic archive — and a block is still deliberately NOT excluded. SECOND, THE SETTINGS SCREEN: it still holds a week anchor („KW 02/2026 war Rot\") and a distribution weekday. After US-34 NOTHING reads the weekday at all and the anchor is read by exactly ONE line on the Start screen. BOTH ARE REMOVED WITHOUT REPLACEMENT — a settings value with no effect is one that eventually gets maintained wrongly, and a screen predicting „die nächste Ausgabe ist am Donnerstag (Rot)\" makes a promise the software no longer has any way to keep. The software stops predicting when the next distribution is and what colour a week carries; it knows what happened and what is happening, and that is all it claims. WHAT GOES WITH THE ANCHOR is a satisfying amount of code: weekColour.ts's ISO-week arithmetic, distributionDay.ts, get-week-colour.ts, three SettingsVersion columns, two form controls, three variants of the SettingsChange union, the WeekColour/WeekAnchor/IsoWeekday types, and berlinDayKey, whose last caller was the no-show walk. WHAT STAYS is startOfUtcDay, which the certificate comparison needs and which MOVES to src/domain/calendarDay.ts. A HOUSEHOLD'S GROUP IS UNCHANGED: still groupOf(customerNumber), even is BLUE and odd is RED (ADR-017), shown everywhere it is shown today — only the statement „this week is RED\" disappears. ORDER WITHIN THE BATCH is inside-out for the rule half (1, 2) and OUTSIDE-IN for the removal half (3 domain, 4 schema, 5 screens): built the other way round, story 3 would break every caller at once. The EXHAUSTIVE SWITCH on SettingsChange is the safety net — the build fails until the settings screen stops rendering the three removed kinds. SCHEMA CHANGE: yes, three columns dropped, so prisma/migrations/ is REGENERATED and BOTH hand-written indexes (Customer.customerNumber partial unique, and the one-running-session index) MUST BE PUT BACK — story 4. THE FAILURE MODE OF A REMOVAL IS A SURVIVOR — a dictionary key, a comment, a test helper — which is why story 5 makes a grep an acceptance criterion, as US-27 did. NO NEW ADR: ADR-020 already recorded this removal as its own consequence. Requirements: local_only/manually-start-ausgabe/refined-requirements.md requirement D. Full PRD: tasks/prd-us-36-sessions-not-the-calendar.md",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "A no-show is a session that was missed (domain)",
+      "description": "As DF, I want the no-show figure to count the afternoons that actually happened, so that the number beside a household means what I think it means. Source: tasks/prd-us-36-sessions-not-the-calendar.md §US-36.1",
+      "acceptanceCriteria": [
+        "src/domain/distribution/noShows.ts is REWRITTEN around sessions. Its input becomes { sessions, attendedSessionIds, customerGroup, registeredOn } — NO settings, NO weekday, NO anchor, NO clock",
+        "A session counts against a household when ALL FOUR hold: it has ENDED; its groups INCLUDE the household's group; it STARTED AFTER the household joined the register; and it holds NO HAND-OUT for that household. THE RUNNING SESSION NEVER COUNTS",
+        "consecutiveNoShows walks the ended sessions NEWEST FIRST and stops at the first one the household collected at, or at their registration. 0 still means both „came last time\" and „has not seen a session yet\" — the same thing as far as archiving goes",
+        "A DISCARDED session is never in the input at all: the store filters it out, so the rule does not have to know the state exists",
+        "The module comment KEEPS the two things that stay true — the figure is DISPLAY ONLY, no threshold lives here and nothing automatic follows from any value; and a BLOCK IS DELIBERATELY NOT EXCLUDED. It DROPS the three calendar boundaries, which the four conditions replace, and it does NOT narrate that it used to count weeks",
+        "berlinDayKey and the Berlin-day matching LEAVE src/domain/distribution/attendance.ts with their last caller. Prove it: grep -rn berlinDayKey src/ tests/ returns nothing",
+        "WRITTEN TEST-FIRST, one named test per rule: counts a session the household's group was served at and they missed / does not count a session that served only the other group / counts a session that served both groups / does not count the session that is still running / does not count a session that started before the household joined / stops counting at the last session they collected at / answers zero for a household that has not seen a session yet",
+        "Domain coverage stays at 100%",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "This story fixes a real bug: today every cancelled week in the walk is counted as a miss nobody made. Do not keep a calendar fallback for households registered before the first session — 'no session on record' is zero, which is what it has always meant."
+    },
+    {
+      "id": "US-002",
+      "title": "Counting no-shows reads the ended sessions (application)",
+      "description": "As a developer, I want the seam both screens read to load the sessions rather than the settings, so the rule has nothing left to resolve a policy for. Source: tasks/prd-us-36-sessions-not-the-calendar.md §US-36.2",
+      "acceptanceCriteria": [
+        "DistributionSessionRepository gains listEnded(): Promise<ReadonlyArray<DistributionSession>> — every ENDED, NON-DISCARDED session, MOST RECENT FIRST, ordering being the adapter's job. At one distribution a week this is a few hundred rows over the software's whole life, which is why there is no narrower query — the port says so in ONE line",
+        "countNoShows takes the sessions and the household's attended session ids instead of resolving settings at a date. Its SettingsRepository dependency GOES",
+        "lookupCustomer and the customer record pass the attended ids off the records THEY ALREADY LOAD — no second query (US-04.3 still holds)",
+        "A named application test proves a CANCELLED WEEK produces no no-show — the bug this story exists to fix",
+        "Application coverage stays at 100%",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "One new port method and one changed dependency. Every hand-written fake DistributionSessionRepository gains listEnded in this story."
+    },
+    {
+      "id": "US-003",
+      "title": "The week anchor and the distribution weekday leave the domain (domain)",
+      "description": "As a developer, I want the alternation arithmetic gone rather than unused, so that nobody finds a working week-colour function and starts calling it again. Source: tasks/prd-us-36-sessions-not-the-calendar.md §US-36.3",
+      "acceptanceCriteria": [
+        "Settings loses weekAnchor and distributionWeekday; createSettings loses their validation; the types WeekAnchor, IsoWeekday and WeekColour are DELETED",
+        "Group in src/domain/customer/group.ts becomes the ONLY type for the two halves, and its comment LOSES the paragraph explaining why Group and WeekColour are deliberately different types — an argument about a type that no longer exists ages into a description of code nobody can find",
+        "src/domain/distribution/weekColour.ts and src/domain/distribution/distributionDay.ts are DELETED, with their tests",
+        "startOfUtcDay MOVES to src/domain/calendarDay.ts, where a helper about calendar days belongs (counterVerdict.certificateExpired is its caller). isoWeekdayOf, isoWeekOf, colourOf and the ISO-week parsing GO with the files",
+        "settings-diff.ts loses the weekAnchorIsoWeek, weekAnchorColour and distributionWeekday variants of SettingsChange. THE UNION IS SWITCHED EXHAUSTIVELY on the settings screen, so every removal is a COMPILE ERROR until the screen is updated — that is the mechanism working",
+        "InvalidSettings keeps its shape; only the fields it can name shrink",
+        "Every affected test is UPDATED where the rule survives; weekColour.test.ts and distributionDay.test.ts go with their modules",
+        "Domain coverage stays at 100%",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "A deletion story. The failure mode of a deletion in this project is A SURVIVOR — a helper, a type, a dictionary key. Story 5 greps for them; here, make sure nothing re-exports what was removed."
+    },
+    {
+      "id": "US-004",
+      "title": "The three columns leave the schema and the settings (schema + infrastructure + application)",
+      "description": "As DF, I want the two values I can no longer act on to disappear from the settings, so that I am not maintaining a rhythm the software does not use. Source: tasks/prd-us-36-sessions-not-the-calendar.md §US-36.4",
+      "acceptanceCriteria": [
+        "SettingsVersion loses weekAnchorIsoWeek, weekAnchorColour and distributionWeekday",
+        "MIGRATIONS REGENERATED, NOT STACKED (ADR-009). RE-ADD BY HAND both hand-written indexes: the partial unique index on Customer.customerNumber and the one-running-session index from US-34. Then npm run db:reset",
+        "src/infrastructure/prisma/settings-repository.ts, prisma/seed.ts and prisma/demo-seed.ts stop writing them. The seed stays IDEMPOTENT and still writes no audit entry",
+        "updateSettings and readCurrentSettings follow; src/application/distribution/get-week-colour.ts is DELETED along with its tests",
+        "tasks/README.md's seed table loses the „Week-cycle anchor\" and „Distribution weekday\" rows",
+        "Integration suite passes; npm run build passes after npm run db:reset",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "ELEVENTH batch to regenerate the migration history and the second with TWO hand-written indexes to put back. Nothing else in this story is risky."
+    },
+    {
+      "id": "US-005",
+      "title": "The screens stop predicting (presentation)",
+      "description": "As a DF staff member, I want the screens to tell me what is happening rather than what the calendar thinks will happen, so that nothing on screen can be wrong about next Thursday. Source: tasks/prd-us-36-sessions-not-the-calendar.md §US-36.5",
+      "acceptanceCriteria": [
+        "/einstellungen loses the week-anchor and weekday controls, and the Änderungsverlauf loses their three change kinds. The remaining grid is RE-SPANNED so nothing is left with a hole in it — the tidy-up US-27 did when the portion allowance left",
+        "/ loses the „Die nächste Ausgabe findet am … statt (Rot)\" line AND the „Heute ist Ausgabetag\" line with it. What is left: the greeting, the date, and — when one is running — the running-session panel from US-34",
+        "de.home.distribution.* goes with them EXCEPT notConfigured, which still has quota and prices to be missing",
+        "/ausgabe has NO reference to a week or a weekday left",
+        "PROVE IT: grep -rniE \"wochenfarbe|weekcolour|weekanchor|distributionweekday|nächste ausgabe\" src/ returns nothing. A leftover string is the failure mode here, exactly as a surviving Stat was in US-27",
+        "NO HINT is written explaining that the rhythm is no longer configured (ui_styling_guide.md §8): a control that is gone needs no epitaph",
+        "Verify in the browser with the playwright-cli skill — the accessibility snapshot, not a screenshot",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Outside-in deletion: the screens stop reading first, which story 3 and 4 already made a compile error. Watch the settings grid — it was re-spanned once before and looks wrong with a gap."
+    },
+    {
+      "id": "US-006",
+      "title": "The suite stops asserting a colour it cannot know (e2e)",
+      "description": "As a developer, I want the specs to prove the new rule, so that a no-show count is checked against sessions rather than against a pinned clock. Source: tasks/prd-us-36-sessions-not-the-calendar.md §US-36.6",
+      "acceptanceCriteria": [
+        "settings.spec.ts loses the anchor and weekday assertions and keeps everything else",
+        "home.spec.ts loses the next-distribution assertions and keeps the date, the greeting and the running-session panel",
+        "A spec proves the NO-SHOW COUNT OVER SESSIONS: a household misses two sessions of its own group and reads 2; a session serving ONLY THE OTHER GROUP in between changes nothing; a session that is STILL RUNNING is not counted",
+        "BOTH ENGINES PASS: npm run test:e2e and npm run test:e2e:webkit. No spec branches on browserName",
+        "STOP ANY RUNNING DEV SERVER FIRST",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "The no-show spec is the only place the rewritten rule is proved through the screen. Build it with the session helper from US-34's tests/e2e/session.ts rather than a second way of starting a session."
+    },
+    {
+      "id": "US-007",
+      "title": "The documents stop describing a cycle (documentation)",
+      "description": "As the next developer, I want the withdrawn requirement recorded where it was written, so that the week colour is not re-implemented from a document that still asks for it. Source: tasks/prd-us-36-sessions-not-the-calendar.md §US-36.7",
+      "acceptanceCriteria": [
+        "tasks/prd-us-03-week-colour.md is marked WITHDRAWN at the top, dated, naming US-34 and this PRD — the treatment batch 21 gave the withdrawn week-colour lookup. Its BODY IS NOT REWRITTEN",
+        "docs/archiv/user_stories_mvp.md's US-03 gets the same ONE-LINE note; the archive is not otherwise edited",
+        "arc42 updated with the arc42 skill: 08 (the week-colour concept and the 'same calendar day' notion both go; what replaces them is the session), 05 (the deleted modules and use case), 12 (glossary: Wochenfarbe and Ausgabetag removed or marked historical), 11 if a risk row mentioned the anchor",
+        "NO NEW ADR: ADR-020's consequences already predicted this removal. A story that writes one has misread the batch",
+        "docs/handout/betriebsanleitung.md: the settings section stops describing the two values, and the section on Fehlzeiten says what the figure NOW counts",
+        "npm run arc42:check passes",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Batches 21 and 32 both withdrew a requirement and both edited the document that asked for it. Do the same here and do not delete those documents — a withdrawn requirement that leaves no trace gets re-requested."
+    }
+  ]
+}
