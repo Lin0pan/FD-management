@@ -14,9 +14,10 @@ import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
+import type { Group } from "@/domain/customer/group";
 import { createSessionGroups, type DistributionSession } from "@/domain/distribution/session";
 import {
-  AlreadyServedToday,
+  AlreadyServedInSession,
   CustomerNotFound,
   InvalidPaymentAmount,
   NoDistributionSessionRunning,
@@ -38,9 +39,9 @@ import type {
 import { recordAttendance } from "./record-attendance";
 
 /**
- * Hand-written fakes, synthetic data only. `2026-07-23` is a Thursday an even number of weeks from
- * the `2026-W02` RED anchor, so it is a RED distribution day: a RED customer is clear to serve and a
- * BLUE one is in the wrong group.
+ * Hand-written fakes, synthetic data only. Since US-34 the calendar decides nothing at the counter:
+ * who may be served follows from the groups the **running session** serves, so a test that wants a
+ * household turned away hands the session one group rather than moving the date.
  */
 
 faker.seed(20260723);
@@ -48,6 +49,8 @@ faker.seed(20260723);
 const TODAY = "2026-07-23T09:00:00.000Z";
 /** The afternoon every hand-out below is recorded at — the counter is never open outside one. */
 const SESSION_ID = 7;
+/** The afternoon before it, which a household may have collected at without blocking today's. */
+const EARLIER_SESSION_ID = 6;
 const GROWN_UP = "1985-03-11T00:00:00.000Z";
 const CHILD = "2020-06-01T00:00:00.000Z";
 
@@ -315,16 +318,19 @@ interface RecordOverrides {
   readonly sessionId?: number;
 }
 
+/** The afternoon under way, serving whichever groups a test names — both unless it says otherwise. */
+function session(groups: ReadonlyArray<Group> = ["RED", "BLUE"]): DistributionSession {
+  return {
+    id: SESSION_ID,
+    startedAt: new Date(TODAY),
+    endedAt: null,
+    groups: createSessionGroups(groups),
+  };
+}
+
 /** The session the counter is working in, unless a test hands `null` for "between afternoons". */
 class FakeDistributionSessionRepository implements DistributionSessionRepository {
-  constructor(
-    private readonly running: DistributionSession | null = {
-      id: SESSION_ID,
-      startedAt: new Date(TODAY),
-      endedAt: null,
-      groups: createSessionGroups(["RED", "BLUE"]),
-    },
-  ) {}
+  constructor(private readonly running: DistributionSession | null = session()) {}
 
   findRunning(): Promise<DistributionSession | null> {
     return Promise.resolve(this.running);
@@ -353,6 +359,14 @@ class FakeDistributionSessionRepository implements DistributionSessionRepository
   reopen(): Promise<void> {
     return Promise.reject(new Error("Reopening a session has a suite of its own"));
   }
+}
+
+/**
+ * A hand-out from an earlier afternoon. Every fixture dated before today belongs to another session —
+ * which is what the once-per-session rule reads, the date being carried for the balance alone.
+ */
+function earlierRecord(date: string, overrides: RecordOverrides = {}): DistributionRecord {
+  return existingRecord(date, { sessionId: EARLIER_SESSION_ID, ...overrides });
 }
 
 /** A hand-out already on file. Paid in full unless a test says otherwise — the ordinary case. */
@@ -506,7 +520,7 @@ describe("recordAttendance", () => {
   it("asks for the price plus an old debt", async () => {
     // A fortnight ago the household was asked for 300 and handed over 100, so they owe 200.
     records = new FakeDistributionRecordRepository(
-      existingRecord("2026-07-09T09:00:00.000Z", { paidCents: 100 as Cents }),
+      earlierRecord("2026-07-09T09:00:00.000Z", { paidCents: 100 as Cents }),
     );
 
     const record = await recordAttendance(deps(), { customerId: 1 });
@@ -518,7 +532,7 @@ describe("recordAttendance", () => {
   it("asks for nothing when the credit covers the price", async () => {
     // They handed over 800 against a 300 price a fortnight ago, so 500 stands to them.
     records = new FakeDistributionRecordRepository(
-      existingRecord("2026-07-09T09:00:00.000Z", { paidCents: 800 as Cents }),
+      earlierRecord("2026-07-09T09:00:00.000Z", { paidCents: 800 as Cents }),
     );
 
     const record = await recordAttendance(deps(), { customerId: 1 });
@@ -533,7 +547,7 @@ describe("recordAttendance", () => {
     // does not cap what they are asked for, so the 100 they still owe is added on top of the cap.
     settings = new FakeSettingsRepository(version({ priceCap: 250 }));
     records = new FakeDistributionRecordRepository(
-      existingRecord("2026-07-09T09:00:00.000Z", {
+      earlierRecord("2026-07-09T09:00:00.000Z", {
         priceCents: 250 as Cents,
         paidCents: 150 as Cents,
       }),
@@ -586,9 +600,20 @@ describe("recordAttendance", () => {
     expect(records.creates).toBe(0);
   });
 
-  it("refuses to record for a customer of the wrong group for the week", async () => {
-    // 50 is even and therefore BLUE, in a RED week.
+  it("serves a BLUE household at a session serving both groups", async () => {
+    // A merged afternoon is the whole reason the session states its groups: 50 is even and therefore
+    // BLUE, and the default session here serves RED and BLUE together.
     customers = new FakeCustomerRepository(customerRecord({ customerNumber: 50 }));
+
+    const record = await recordAttendance(deps(), { customerId: 1 });
+
+    expect(record.sessionId).toBe(SESSION_ID);
+  });
+
+  it("turns a RED household away from a BLUE session", async () => {
+    // 49 is odd and therefore RED. Nothing about the calendar was touched — the session's own groups
+    // are what the verdict is asked about (US-34, FR-12).
+    sessions = new FakeDistributionSessionRepository(session(["BLUE"]));
 
     const error = await recordAttendance(deps(), { customerId: 1 }).catch((e) => e);
 
@@ -597,38 +622,37 @@ describe("recordAttendance", () => {
     expect(records.creates).toBe(0);
   });
 
-  it("rejects a second recording on the same day with AlreadyServedToday and writes nothing", async () => {
+  it("rejects a second hand-out in the same session with AlreadyServedInSession and writes nothing", async () => {
     records = new FakeDistributionRecordRepository(existingRecord("2026-07-23T08:00:00.000Z"));
 
     const error = await recordAttendance(deps(), { customerId: 1 }).catch((e) => e);
 
-    expect(error).toBeInstanceOf(AlreadyServedToday);
-    expect((error as AlreadyServedToday).existingDate).toEqual(
-      new Date("2026-07-23T08:00:00.000Z"),
-    );
+    expect(error).toBeInstanceOf(AlreadyServedInSession);
+    expect((error as AlreadyServedInSession).sessionId).toBe(SESSION_ID);
     expect(records.creates).toBe(0);
     expect(audit.entries).toHaveLength(0);
   });
 
-  it("names the day's write, not the verdict, when a served household is offered a second hand-out", async () => {
+  it("names the session's write, not the verdict, when a served household is offered a second hand-out", async () => {
     // The guard order is the rule under test: the verdict is asked about eligibility alone, so a
-    // duplicate hand-out must keep saying `AlreadyServedToday` and never become a verdict refusal.
+    // duplicate hand-out must keep saying `AlreadyServedInSession` and never become a verdict refusal.
     records = new FakeDistributionRecordRepository(existingRecord("2026-07-23T08:00:00.000Z"));
 
     const error = await recordAttendance(deps(), { customerId: 1 }).catch((e) => e);
 
-    expect(error).toBeInstanceOf(AlreadyServedToday);
+    expect(error).toBeInstanceOf(AlreadyServedInSession);
     expect(error).not.toBeInstanceOf(NotClearToServe);
-    expect((error as AlreadyServedToday).code).toBe("AlreadyServedToday");
+    expect((error as AlreadyServedInSession).code).toBe("AlreadyServedInSession");
   });
 
-  it("records again on a later day, since the once-per-day rule is calendar-day based", async () => {
-    // A fortnight-old record must not block today's — 2026-08-06 is the next RED Thursday (the week
-    // between is BLUE, so the same RED customer only collects two weeks on).
-    records = new FakeDistributionRecordRepository(existingRecord("2026-07-23T08:00:00.000Z"));
+  it("allows a household served yesterday to collect at today's session", async () => {
+    // Yesterday's hand-out belongs to yesterday's afternoon, and the rule reads the session and not
+    // the calendar — so an extra distribution the day after a cancelled one serves them (US-34).
+    records = new FakeDistributionRecordRepository(earlierRecord("2026-07-22T15:00:00.000Z"));
 
-    const record = await recordAttendance(deps("2026-08-06T09:00:00.000Z"), { customerId: 1 });
+    const record = await recordAttendance(deps(), { customerId: 1 });
 
-    expect(record.date).toEqual(new Date("2026-08-06T09:00:00.000Z"));
+    expect(record.sessionId).toBe(SESSION_ID);
+    expect(records.records).toHaveLength(2);
   });
 });

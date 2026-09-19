@@ -72,7 +72,10 @@ export function canRecord(
  * Whether a record made in `session` may still be amended or removed (FR-14). The caller loads the
  * record's **own** session, never the running one: a session reopened for a correction is running
  * again, and every older afternoon stays frozen.
+ *
+ * `null` — a session the store cannot hand back — is not correctable, so the one answer this rule
+ * gives is "only inside a running session" rather than "unless we found a reason".
  */
-export function canCorrect(session: DistributionSession): boolean {
-  return isRunning(session);
+export function canCorrect(session: DistributionSession | null): boolean {
+  return session !== null && isRunning(session);
 }

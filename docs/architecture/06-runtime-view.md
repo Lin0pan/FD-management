@@ -9,7 +9,7 @@ the architecture actually lives.
 ## Scenario 1 — serving a household at the counter
 
 **Intention:** a staff member has a card number in front of them and must answer one question: may
-this household collect today, and what do they hand over?
+this household collect at the session under way, and what do they hand over?
 
 ```mermaid
 sequenceDiagram
@@ -27,7 +27,7 @@ sequenceDiagram
     Page->>Lookup: parse the query, resolve the household
     Lookup->>Repo: findByCustomerNumber
     Repo->>DB: SELECT
-    Lookup->>Verdict: status, group vs this week's colour,<br/>card index, today's record, certificate
+    Lookup->>Verdict: status, group vs the session's groups,<br/>card index, this session's record, certificate
     Verdict-->>Lookup: exactly one verdict
     Lookup->>Allow: composition + settings in force now
     Allow-->>Lookup: counts, price (capped), eggs
@@ -43,7 +43,7 @@ sequenceDiagram
         Record-->>Staff: OverpaymentNotConfirmed — asks once, writes nothing
         Staff->>Record: submits again, overpayment confirmed
     end
-    Record->>DB: INSERT (customerId, dayKey, paidCents, priceCents)
+    Record->>DB: INSERT (customerId, sessionId, paidCents, priceCents)
     DB-->>Record: OK
     Record->>DB: append audit entry distribution.recorded
     Record-->>Page: redirect /ausgabe?erfasst=<Kundennummer>
@@ -78,20 +78,28 @@ is owed (US-32.7).
 history rather than trusting the figure the screen showed, and refuses a larger payment with
 `OverpaymentNotConfirmed` — **writing nothing**. The staff member is asked once and submits again
 with the confirmation, which is how a mistyped 50,00 € is caught while it is still only a number in a
-field. `correctAttendance` guards the same way against the amount that was asked for that day, and
-both may only touch a record made **today**: a mistake found later is put right by a compensating
-amount at the household's next hand-out, which the balance absorbs by construction.
+field. `correctAttendance` guards the same way against the amount that was asked for at that record's
+own session, and both may only touch a record whose session **is still running**: a mistake found
+after the afternoon has ended is put right by a compensating amount at the household's next hand-out,
+which the balance absorbs by construction.
 
-**Key exception — already served today.** `canRecord` refuses a second hand-out on the same
-_Europe/Berlin_ calendar day and nothing is written. If two requests race past that guard, the
-`@@unique([customerId, dayKey])` index refuses the second, and the adapter turns Prisma's `P2002`
-into `AlreadyServedToday`. The guard is convenience; **the constraint is the rule**. It runs
-**before** the eligibility check, because the counter verdict knows the day's hand-out too since
+**Key exception — already served at this session.** `canRecord` refuses a second hand-out at the
+same distribution session and nothing is written. If two requests race past that guard, the
+`@@unique([customerId, sessionId])` index refuses the second, and the adapter turns Prisma's `P2002`
+into `AlreadyServedInSession`. The guard is convenience; **the constraint is the rule**. It runs
+**before** the eligibility check, because the counter verdict knows this session's hand-out too since
 US-32: asked the other way round, a duplicate write would come back as an eligibility refusal and
 the sentence a staff member reads would quietly change. So the two paths rank these facts in
 **opposite orders** — the read puts `BLOCKED` above `ALREADY_SERVED`, the write puts
-`AlreadyServedToday` above the eligibility check — and both are right for the question they answer:
-_may they collect_ versus _may this write happen_. `counterVerdict.ts` says the same from its end.
+`AlreadyServedInSession` above the eligibility check — and both are right for the question they
+answer: _may they collect_ versus _may this write happen_. `counterVerdict.ts` says the same from its
+end.
+
+**And before all of it, a session.** Both `lookupCustomer` and `recordAttendance` load the running
+session first and throw `NoDistributionSessionRunning` when there is none: which groups are served
+and what the household already collected are questions about an afternoon, not about the calendar
+(US-34). The screen does not offer the lookup between afternoons, so this refusal answers a
+hand-typed URL.
 
 **Other exceptions.** An `ARCHIVED`, `BLOCKED` or `WRONG_GROUP` household is refused with
 `NotClearToServe` — re-checked inside the use case, because the counter screen is not its only

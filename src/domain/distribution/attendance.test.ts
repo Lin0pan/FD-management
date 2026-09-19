@@ -58,4 +58,8 @@ describe("canCorrect", () => {
   it("refuses to correct a record whose session has ended", () => {
     expect(canCorrect(session({ endedAt: new Date("2026-07-23T17:00:00Z") }))).toBe(false);
   });
+
+  it("refuses to correct a record whose session the store cannot hand back", () => {
+    expect(canCorrect(null)).toBe(false);
+  });
 });

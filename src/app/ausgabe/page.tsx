@@ -203,15 +203,15 @@ async function recordedHandout(
   if (result === null || result.lookup === null) {
     return null;
   }
-  const { customer, todaysRecord } = result.lookup;
-  if (customer === null || todaysRecord === null) {
+  const { customer, sessionRecord } = result.lookup;
+  if (customer === null || sessionRecord === null) {
     return null;
   }
   return {
     customerNumber: customer.customerNumber,
     name: `${customer.firstName} ${customer.lastName}`,
-    paidCents: todaysRecord.paidCents,
-    time: germanTime(todaysRecord.at),
+    paidCents: sessionRecord.paidCents,
+    time: germanTime(sessionRecord.at),
   };
 }
 
@@ -432,7 +432,7 @@ export default async function DistributionPage({
                   key={counter.lookup.customerId}
                   customerId={counter.lookup.customerId}
                   expired={counter.lookup.customer.certificateExpired}
-                  reminderLoggedToday={counter.lookup.reminderLoggedToday}
+                  reminderLoggedInSession={counter.lookup.reminderLoggedInSession}
                   certificateTypes={certificateTypes}
                 />
                 {/* Every figure the payment turns on comes off the lookup, derived there from the
@@ -445,16 +445,16 @@ export default async function DistributionPage({
                   amountToPayCents={counter.lookup.customer.amountToPayCents}
                   balanceCents={counter.lookup.customer.balanceCents}
                   lookedUpNumber={typeof nummer === "string" ? nummer : ""}
-                  todaysRecord={
-                    counter.lookup.todaysRecord === null
+                  sessionRecord={
+                    counter.lookup.sessionRecord === null
                       ? null
                       : {
-                          recordId: counter.lookup.todaysRecord.recordId,
-                          time: germanTime(counter.lookup.todaysRecord.at),
-                          paidCents: counter.lookup.todaysRecord.paidCents,
-                          askedCents: counter.lookup.todaysRecord.askedCents,
+                          recordId: counter.lookup.sessionRecord.recordId,
+                          time: germanTime(counter.lookup.sessionRecord.at),
+                          paidCents: counter.lookup.sessionRecord.paidCents,
+                          askedCents: counter.lookup.sessionRecord.askedCents,
                           balanceWithoutRecordCents:
-                            counter.lookup.todaysRecord.balanceWithoutRecordCents,
+                            counter.lookup.sessionRecord.balanceWithoutRecordCents,
                         }
                   }
                 />

@@ -24,7 +24,7 @@ import { PrismaSettingsRepository } from "@/infrastructure/prisma/settings-repos
  * Composition root for the distribution screen: the one place the real adapters are chosen.
  *
  * The week colour is derived from the settings history alone; the counter lookup adds the customer
- * register, the running session and — to show a hand-out already recorded today beside the serve
+ * register, the running session and — to show a hand-out already recorded at it beside the serve
  * action, and whether this session's certificate reminder is already logged — the reading side of
  * the distribution and reminder stores. It holds no audit log: the page only ever reads, and every
  * write is the separate `counterActionDeps` below, so the page cannot write even by mistake

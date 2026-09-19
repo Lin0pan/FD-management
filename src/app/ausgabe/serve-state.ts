@@ -37,7 +37,7 @@ export const initialServeState: ServeState = { status: "idle" };
 
 /**
  * What the correction control shows after amending today's record. There is no `removed`: a removal
- * makes `todaysRecord` null, so the card holding this state unmounts in the same render that would
+ * makes `sessionRecord` null, so the card holding this state unmounts in the same render that would
  * have shown the answer, and the confirmation goes through a redirect instead (`removed-flag.ts`).
  */
 export type CorrectState =

@@ -24,7 +24,6 @@ export type DomainErrorCode =
   | "InvalidCardNumber"
   | "CardIndexTaken"
   | "CardNumberTaken"
-  | "AlreadyServedToday"
   | "AlreadyServedInSession"
   | "ReminderAlreadyLoggedInSession"
   | "InvalidSessionGroups"
@@ -386,25 +385,6 @@ export class CardNumberTaken extends DomainError {
 }
 
 /**
- * The customer already has a distribution record for today (US-05, FR-5). Carries the date on file,
- * so the counter can quote back when they were served.
- *
- * "Today" is a Berlin calendar day, not a 24-hour window. The comparison is the domain rule's; the
- * database repeats it as a unique constraint so the guard cannot be bypassed (US-05.3).
- *
- * Replaced by {@link AlreadyServedInSession}: it goes with the last caller of the day rule (US-34.5).
- */
-export class AlreadyServedToday extends DomainError {
-  readonly code = "AlreadyServedToday";
-  readonly existingDate: Date;
-
-  constructor(existingDate: Date) {
-    super(`Already served today; a record exists from ${existingDate.toISOString()}`);
-    this.existingDate = existingDate;
-  }
-}
-
-/**
  * The household has already collected at this distribution session (US-34, FR-13). Carries the
  * session, which is what the rule turns on — an afternoon running past midnight is one collection
  * and a second session on the same day is a second.
@@ -615,22 +595,18 @@ export class DistributionRecordNotFound extends DomainError {
 }
 
 /**
- * A record was corrected or removed after the day it was made, when it is already immutable (US-05,
- * FR-7). A distribution's history is not rewritten after the fact.
+ * A record was corrected or removed after its own session ended, when it is already immutable
+ * (US-05, FR-7; US-34, FR-14). A distribution's history is not rewritten after the fact.
  */
 export class RecordNoLongerCorrectable extends DomainError {
   readonly code = "RecordNoLongerCorrectable";
   readonly recordId: number;
-  readonly recordDate: Date;
-  readonly today: Date;
+  readonly sessionId: number;
 
-  constructor(recordId: number, recordDate: Date, today: Date) {
-    super(
-      `Record ${recordId} from ${recordDate.toISOString()} can no longer be corrected on ${today.toISOString()}`,
-    );
+  constructor(recordId: number, sessionId: number) {
+    super(`Record ${recordId} belongs to session ${sessionId}, which is no longer running`);
     this.recordId = recordId;
-    this.recordDate = recordDate;
-    this.today = today;
+    this.sessionId = sessionId;
   }
 }
 

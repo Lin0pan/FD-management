@@ -4,6 +4,7 @@ import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
+import { createSessionGroups, type DistributionSession } from "@/domain/distribution/session";
 import {
   DistributionRecordNotFound,
   InvalidPaymentAmount,
@@ -11,10 +12,20 @@ import {
   RecordNoLongerCorrectable,
 } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
-import type { AuditEntry, AuditLog, Clock, DistributionRecordRepository } from "../ports";
+import type {
+  AuditEntry,
+  AuditLog,
+  Clock,
+  DistributionRecordRepository,
+  DistributionSessionRepository,
+} from "../ports";
 import { correctAttendance } from "./correct-attendance";
 
-/** Hand-written fakes, synthetic data only. "Today" is 2026-07-23 in Europe/Berlin. */
+/**
+ * Hand-written fakes, synthetic data only. "Today" is 2026-07-23 in Europe/Berlin — carried by the
+ * records for the balance alone. What decides whether one may still be touched is its **own**
+ * session: correctable while that session runs, frozen the moment it ends (US-34, FR-14).
+ */
 
 const TODAY = "2026-07-23T09:00:00.000Z";
 
@@ -76,8 +87,58 @@ function fakeClock(iso: string): Clock {
 }
 
 const PRICE = 300 as Cents;
-/** The afternoon the record was made at; US-34.5 is where the correction window turns on it. */
+/** The afternoon the record was made at — the one the correction window turns on. */
 const SESSION_ID = 7;
+
+/** The session a record belongs to, still running unless a test ends it. */
+function session(endedAt: Date | null = null): DistributionSession {
+  return {
+    id: SESSION_ID,
+    startedAt: new Date("2026-07-23T06:00:00.000Z"),
+    endedAt,
+    groups: createSessionGroups(["RED", "BLUE"]),
+  };
+}
+
+/**
+ * Hands back the record's own session, never the running one — which is the distinction the use case
+ * is built on, and the reason `findById` takes an id at all.
+ */
+class FakeDistributionSessionRepository implements DistributionSessionRepository {
+  constructor(private readonly stored: DistributionSession | null = session()) {}
+
+  findById(sessionId: number): Promise<DistributionSession | null> {
+    return Promise.resolve(
+      this.stored !== null && this.stored.id === sessionId ? this.stored : null,
+    );
+  }
+
+  findRunning(): Promise<DistributionSession | null> {
+    return Promise.reject(
+      new Error("a correction asks the record's own session, not the running one"),
+    );
+  }
+
+  lastEnded(): Promise<DistributionSession | null> {
+    return Promise.reject(new Error("correcting a record reads no session but its own"));
+  }
+
+  start(): Promise<DistributionSession> {
+    return Promise.reject(new Error("Starting a session has a suite of its own"));
+  }
+
+  end(): Promise<void> {
+    return Promise.reject(new Error("Ending a session has a suite of its own"));
+  }
+
+  discard(): Promise<void> {
+    return Promise.reject(new Error("Discarding a session has a suite of its own"));
+  }
+
+  reopen(): Promise<void> {
+    return Promise.reject(new Error("Reopening a session has a suite of its own"));
+  }
+}
 
 function record(date: string, paidCents: Cents = PRICE, id = 7): DistributionRecord {
   return {
@@ -93,18 +154,21 @@ function record(date: string, paidCents: Cents = PRICE, id = 7): DistributionRec
 
 describe("correctAttendance", () => {
   let records: FakeDistributionRecordRepository;
+  let sessions: FakeDistributionSessionRepository;
   let audit: FakeAuditLog;
 
   function deps(today = TODAY) {
-    return { records, audit, clock: fakeClock(today) };
+    return { records, sessions, audit, clock: fakeClock(today) };
   }
 
   beforeEach(() => {
     audit = new FakeAuditLog();
+    sessions = new FakeDistributionSessionRepository();
   });
 
-  it("raises a payment recorded earlier today", async () => {
-    // They handed over 100 of the 300 asked for and came back with the rest before the day was out.
+  it("lets a record be corrected while its session runs", async () => {
+    // They handed over 100 of the 300 asked for and came back with the rest before the afternoon
+    // was over, which is exactly as long as the record stays amendable.
     records = new FakeDistributionRecordRepository(record(TODAY, 100 as Cents));
 
     await correctAttendance(deps(), { recordId: 7, action: "SET_PAYMENT", paidCents: PRICE });
@@ -157,10 +221,11 @@ describe("correctAttendance", () => {
     expect(records.setPaymentCalls).toHaveLength(0);
   });
 
-  it("still refuses a record from an earlier day before it looks at the amount", async () => {
+  it("still refuses a record from an ended session before it looks at the amount", async () => {
     // Guard order: a record that may not be touched at all is refused as such, so a staff member is
-    // told the day has passed rather than being told to fix a number that would change nothing.
+    // told the afternoon is closed rather than being told to fix a number that would change nothing.
     records = new FakeDistributionRecordRepository(record("2026-07-16T09:00:00.000Z"));
+    sessions = new FakeDistributionSessionRepository(session(new Date("2026-07-16T17:00:00.000Z")));
 
     const error = await correctAttendance(deps(), {
       recordId: 7,
@@ -233,7 +298,7 @@ describe("correctAttendance", () => {
     expect(balanceOf(records.records)).toBe(-200);
   });
 
-  it("removes a record made today and audits the removal", async () => {
+  it("removes a record made at the running session and audits the removal", async () => {
     records = new FakeDistributionRecordRepository(record(TODAY));
 
     await correctAttendance(deps(), { recordId: 7, action: "REMOVE" });
@@ -243,9 +308,10 @@ describe("correctAttendance", () => {
     expect(audit.entries[0]).toMatchObject({ what: "distribution.removed", why: "" });
   });
 
-  it("refuses to correct a record from an earlier day", async () => {
-    // Recorded on the previous distribution day; the correction is attempted today.
+  it("refuses to correct a record whose session has ended", async () => {
+    // Recorded at the previous distribution, which was ended that evening.
     records = new FakeDistributionRecordRepository(record("2026-07-16T09:00:00.000Z"));
+    sessions = new FakeDistributionSessionRepository(session(new Date("2026-07-16T17:00:00.000Z")));
 
     const error = await correctAttendance(deps(), {
       recordId: 7,
@@ -254,19 +320,19 @@ describe("correctAttendance", () => {
     }).catch((e) => e);
 
     expect(error).toBeInstanceOf(RecordNoLongerCorrectable);
-    expect((error as RecordNoLongerCorrectable).recordDate).toEqual(
-      new Date("2026-07-16T09:00:00.000Z"),
-    );
+    expect((error as RecordNoLongerCorrectable).sessionId).toBe(SESSION_ID);
     expect(records.setPaymentCalls).toHaveLength(0);
     expect(records.removed).toHaveLength(0);
     expect(audit.entries).toHaveLength(0);
   });
 
-  it("rejects removing a record the day after it was made", async () => {
-    // Made 2026-07-23, corrected 2026-07-24 — one Berlin day later, so no longer correctable.
+  it("refuses to remove a record once its session has ended, even on the same day", async () => {
+    // Made and ended on 2026-07-23; the removal is attempted an hour later. The calendar day is the
+    // same and says nothing — what closed the window is the afternoon being over (US-34, FR-14).
     records = new FakeDistributionRecordRepository(record(TODAY));
+    sessions = new FakeDistributionSessionRepository(session(new Date("2026-07-23T15:00:00.000Z")));
 
-    const error = await correctAttendance(deps("2026-07-24T09:00:00.000Z"), {
+    const error = await correctAttendance(deps("2026-07-23T16:00:00.000Z"), {
       recordId: 7,
       action: "REMOVE",
     }).catch((e) => e);
@@ -274,6 +340,16 @@ describe("correctAttendance", () => {
     expect(error).toBeInstanceOf(RecordNoLongerCorrectable);
     expect(records.removed).toHaveLength(0);
     expect(records.records).toHaveLength(1);
+  });
+
+  it("corrects a record at a reopened session, which is running again", async () => {
+    // A session reopened to fix a mistake is running, so its own records are amendable once more —
+    // and no other afternoon's are (US-34, FR-16).
+    records = new FakeDistributionRecordRepository(record("2026-07-16T09:00:00.000Z"));
+
+    await correctAttendance(deps(), { recordId: 7, action: "REMOVE" });
+
+    expect(records.removed).toEqual([7]);
   });
 
   it("rejects correcting a record that does not exist", async () => {

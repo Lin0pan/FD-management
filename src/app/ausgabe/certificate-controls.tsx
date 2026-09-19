@@ -6,7 +6,7 @@
  *
  * A client component for `ServeControls`' reason: `useActionState` reports the answer beside the
  * button that asked. No rules — the disabled button repeats what the store knows through
- * `reminderLoggedToday` rather than being the guard (FR-5).
+ * `reminderLoggedInSession` rather than being the guard (FR-5).
  *
  * The section renders while the certificate is expired, plus one render after a renewal is saved:
  * the confirmation naming the reset count of 0 stays on screen while the revalidated page already
@@ -125,14 +125,14 @@ function RenewalFields({
 export function CertificateControls({
   customerId,
   expired,
-  reminderLoggedToday,
+  reminderLoggedInSession,
   certificateTypes,
 }: {
   customerId: number;
   /** Whether the verdict found the certificate expired — the only state with anything to act on. */
   expired: boolean;
-  /** Whether today's reminder is already on file, so the action stays disabled across re-lookups. */
-  reminderLoggedToday: boolean;
+  /** Whether this session's reminder is on file, so the action stays disabled across re-lookups. */
+  reminderLoggedInSession: boolean;
   /** The configured Nachweis-Arten, read on the server page (US-33.5). */
   certificateTypes: CertificateTypeList;
 }): React.ReactElement | null {
@@ -163,9 +163,9 @@ export function CertificateControls({
     return null;
   }
 
-  // Disabled for the rest of the day: either the store says a reminder exists, or this submission
-  // just logged one and the revalidated page has not streamed back yet.
-  const alreadyLogged = reminderLoggedToday || reminderState.status === "logged";
+  // Disabled for the rest of the session: either the store says a reminder exists, or this
+  // submission just logged one and the revalidated page has not streamed back yet.
+  const alreadyLogged = reminderLoggedInSession || reminderState.status === "logged";
 
   return (
     <Card data-testid="certificate-controls">
