@@ -349,10 +349,10 @@ export interface CardRepository {
 /**
  * The distribution records — the append-many history of hand-outs (US-05).
  *
- * The store does not decide the once-per-day rule: that is `attendance.canRecord`'s, backstopped by
- * the database's unique day-key constraint (US-05.3), which makes the adapter the final authority on
- * a lost race and reports it as {@link AlreadyServedToday}. Records are never cascade-deleted
- * (ADR-010); only a same-day correction removes one.
+ * The store does not decide the once-per-day rule: that is `attendance-by-day.canRecord`'s,
+ * backstopped by the database's unique day-key constraint (US-05.3), which makes the adapter the
+ * final authority on a lost race and reports it as {@link AlreadyServedToday}. Records are never
+ * cascade-deleted (ADR-010); only a same-day correction removes one.
  */
 export interface DistributionRecordRepository {
   /** Every record ever written for the customer — the raw material the duplicate check reads. */

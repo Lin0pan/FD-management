@@ -24,7 +24,7 @@ import { releaseNumbers } from "./seeding";
  * them. They take numbers in the 200s so the allocating specs keep their low sequence, and each takes
  * the *parity* its verdict needs (ADR-017).
  *
- * `ALREADY_SERVED_TODAY` is the last of them, and its record is written through Prisma like the rest:
+ * `ALREADY_SERVED` is the last of them, and its record is written through Prisma like the rest:
  * this spec is about what a *lookup* says, and serving through the UI is `serve.spec.ts`'s subject.
  */
 
@@ -442,7 +442,7 @@ test.describe("Verdikt am Tresen", () => {
     // is the ordinary route to a correction. So the banner is muted chrome with no sentence under
     // it — the time and the amount are the record's own card below — and it is emphatically not the
     // green „Ausgabe frei" this lookup answered before the rule was given the day's record.
-    await expectVerdict(page, "ALREADY_SERVED_TODAY", verdicts.alreadyServedToday.headline);
+    await expectVerdict(page, "ALREADY_SERVED", verdicts.alreadyServedToday.headline);
     await expect(page.getByTestId("counter-name")).toHaveText(names[NUMBERS.servedToday]);
     // And no second hand-out is offered, however the number was reached.
     await expect(page.getByTestId("serve-button")).toHaveCount(0);

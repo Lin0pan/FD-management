@@ -16,13 +16,15 @@ import { staleCardReason, type StaleCardReason } from "@/domain/card/staleCard";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import { groupOf, type Group } from "@/domain/customer/group";
 import type { HouseholdComposition } from "@/domain/customer/householdComposition";
-import { berlinDayKey, recordForDay } from "@/domain/distribution/attendance";
+import { berlinDayKey } from "@/domain/distribution/attendance";
+import { recordForDay } from "@/domain/distribution/attendance-by-day";
 import { amountToPay, askedForRecord, balanceOf } from "@/domain/distribution/balance";
 import {
   certificateExpired,
   evaluateAtCounter,
   type Verdict,
 } from "@/domain/distribution/counterVerdict";
+import { createSessionGroups } from "@/domain/distribution/session";
 import type { Cents } from "@/domain/money";
 import { describeAllowance } from "../allowance/describe-allowance";
 import { getWeekColour } from "../distribution/get-week-colour";
@@ -65,7 +67,7 @@ export interface CounterCustomerView {
   /**
    * Whether that day has passed, judged against the same instant the verdict is (US-32.5). Stated
    * here rather than read off the verdict kind, because a household that already collected is
-   * `ALREADY_SERVED_TODAY` (US-32.4) and the lapsed certificate is still true of them.
+   * `ALREADY_SERVED` (US-32.4) and the lapsed certificate is still true of them.
    */
   readonly certificateExpired: boolean;
   readonly status: CustomerStatus;
@@ -173,6 +175,9 @@ export async function lookupCustomer(
     deps.customers.findByCustomerNumber(query.customerNumber),
     getWeekColour(deps, today),
   ]);
+  // The running session is loaded here in US-34.5; until then the week's colour stands in for the
+  // groups it serves, so the verdict asks the session's question and answers exactly as before.
+  const sessionGroups = createSessionGroups([week.colour]);
 
   if (customer === null) {
     // The rule decides the verdict even here rather than this use case naming `NOT_FOUND` itself:
@@ -182,8 +187,8 @@ export async function lookupCustomer(
         customer: null,
         presentedCardIndex: query.cardIndex,
         today,
-        weekColour: week.colour,
-        servedToday: false,
+        sessionGroups,
+        servedInSession: false,
       }),
       customer: null,
       customerId: null,
@@ -213,10 +218,10 @@ export async function lookupCustomer(
     },
     presentedCardIndex: query.cardIndex,
     today,
-    weekColour: week.colour,
+    sessionGroups,
     // The fact, not the record (US-32.4), off the hand-out already loaded — so the verdict cannot
     // disagree with what the screen shows.
-    servedToday: existing !== null,
+    servedInSession: existing !== null,
   });
   // Off the records just loaded (US-04.3, US-29.5), as the balance stands *now* — so a hand-out
   // already recorded today is counted in.

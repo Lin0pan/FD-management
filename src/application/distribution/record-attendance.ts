@@ -20,9 +20,10 @@
  */
 
 import { groupOf } from "@/domain/customer/group";
-import { canRecord } from "@/domain/distribution/attendance";
+import { canRecord } from "@/domain/distribution/attendance-by-day";
 import { amountToPay, balanceOf } from "@/domain/distribution/balance";
 import { evaluateAtCounter } from "@/domain/distribution/counterVerdict";
+import { createSessionGroups } from "@/domain/distribution/session";
 import { requirePayment, type DistributionRecord } from "@/domain/distribution/distributionRecord";
 import { CustomerNotFound, NotClearToServe, OverpaymentNotConfirmed } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
@@ -108,10 +109,12 @@ export async function recordAttendance(
     // A bare-number hand-out presents no card, so an outdated card can never be the reason.
     presentedCardIndex: null,
     today: now,
-    weekColour: week.colour,
+    // The running session is loaded here in US-34.5; until then the week's colour stands in for the
+    // groups it serves, so the verdict asks the session's question and answers exactly as before.
+    sessionGroups: createSessionGroups([week.colour]),
     // `canRecord` has just proved there is no hand-out today, so the verdict is asked about
-    // eligibility alone and `ALREADY_SERVED_TODAY` cannot arise here (US-32.5).
-    servedToday: false,
+    // eligibility alone and `ALREADY_SERVED` cannot arise here (US-32.5).
+    servedInSession: false,
   });
   if (verdict.kind === "ARCHIVED" || verdict.kind === "BLOCKED" || verdict.kind === "WRONG_GROUP") {
     throw new NotClearToServe(verdict);

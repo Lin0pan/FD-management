@@ -89,7 +89,7 @@ into `AlreadyServedToday`. The guard is convenience; **the constraint is the rul
 **before** the eligibility check, because the counter verdict knows the day's hand-out too since
 US-32: asked the other way round, a duplicate write would come back as an eligibility refusal and
 the sentence a staff member reads would quietly change. So the two paths rank these facts in
-**opposite orders** — the read puts `BLOCKED` above `ALREADY_SERVED_TODAY`, the write puts
+**opposite orders** — the read puts `BLOCKED` above `ALREADY_SERVED`, the write puts
 `AlreadyServedToday` above the eligibility check — and both are right for the question they answer:
 _may they collect_ versus _may this write happen_. `counterVerdict.ts` says the same from its end.
 

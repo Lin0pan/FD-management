@@ -276,7 +276,7 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     // stays active, and nothing anywhere prompts an archive — that judgement is US-10's, made by a
     // person.
     //
-    // The verdict on this second look-up is ALREADY_SERVED_TODAY and not the serve-and-remind one
+    // The verdict on this second look-up is ALREADY_SERVED and not the serve-and-remind one
     // asserted before the hand-out (line ~198): since US-32 the day's record outranks the lapsed
     // certificate. What the re-lookup has to prove is that the reminder controls survive that —
     // `CertificateControls` reads `certificateExpired` off the household, not off the verdict kind,
@@ -286,7 +286,7 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.ACTIVE);
     await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
       "data-verdict",
-      "ALREADY_SERVED_TODAY",
+      "ALREADY_SERVED",
     );
     await expect(page.getByTestId("counter-verdict-headline")).toHaveText(
       verdicts.alreadyServedToday.headline,
@@ -361,7 +361,7 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     await lookUp(page);
     await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
       "data-verdict",
-      "ALREADY_SERVED_TODAY",
+      "ALREADY_SERVED",
     );
     await expect(page.getByTestId("counter-reminder-count")).toHaveText("0");
     await expect(page.getByTestId("certificate-controls")).toHaveCount(0);

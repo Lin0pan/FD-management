@@ -423,7 +423,7 @@ export default async function DistributionPage({
                     reads as valid again. */}
                 {/* `customer.certificateExpired`, and deliberately not the verdict kind it used to
                     be compared against. Since US-32 an already-collected household answers
-                    ALREADY_SERVED_TODAY, which outranks CLEAR_TO_SERVE_CERTIFICATE_EXPIRED — so
+                    ALREADY_SERVED, which outranks CLEAR_TO_SERVE_CERTIFICATE_EXPIRED — so
                     reading the reminder controls off the verdict would make them vanish the moment
                     the household was served, on the very re-lookup a staff member does to correct
                     the record. Whether the certificate has lapsed is a fact about the household;

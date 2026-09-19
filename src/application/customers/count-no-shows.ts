@@ -11,8 +11,7 @@
 
 import type { RegisteredCustomer } from "@/domain/customer/customer";
 import { groupOf } from "@/domain/customer/group";
-import type { AttendanceRecord } from "@/domain/distribution/attendance";
-import { consecutiveNoShows } from "@/domain/distribution/noShows";
+import { consecutiveNoShows, type AttendedDay } from "@/domain/distribution/noShows";
 import { resolveSettingsAt } from "@/domain/policy/settings";
 import type { SettingsRepository } from "../ports";
 
@@ -30,7 +29,7 @@ export interface CountNoShowsDeps {
 export async function countNoShows(
   deps: CountNoShowsDeps,
   customer: RegisteredCustomer,
-  records: ReadonlyArray<AttendanceRecord>,
+  records: ReadonlyArray<AttendedDay>,
   today: Date,
 ): Promise<number> {
   return consecutiveNoShows({

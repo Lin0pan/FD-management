@@ -469,3 +469,54 @@ Files: `src/domain/distribution/session.ts` (new), `session.test.ts` (new, 22 te
   the ADR. Nothing in `docs/` is *wrong* yet — only incomplete.
 
 ---
+
+## 2026-09-19 — US-002 (US-34.2) The attendance rules turn on the session, not the calendar
+
+**Implemented.** `src/domain/distribution/attendance.ts` rewritten around the session:
+`AttendanceRecord` is now `{ sessionId }` alone, `recordForSession`, `canRecord(records, sessionId)`
+returning `"OK" | AlreadyServedInSession`, and `canCorrect(session)` = `isRunning`. `berlinDayKey`
+stays, with its comment now naming its two remaining readers. `counterVerdict.ts` asks the session
+its question: `sessionGroups: SessionGroups` replaces `weekColour`, `servedInSession` replaces
+`servedToday`, `WRONG_GROUP` carries `{ group, sessionGroups }` and `ALREADY_SERVED_TODAY` is
+`ALREADY_SERVED`.
+
+Files: `src/domain/distribution/attendance.ts`, `attendance.test.ts` (rewritten, 7 tests),
+`attendance-by-day.ts` + `attendance-by-day.test.ts` (new, see below), `counterVerdict.ts`,
+`counterVerdict.test.ts`, `noShows.ts`; `src/application/customers/{lookup-customer,count-no-shows}.ts`,
+`src/application/distribution/{record-attendance,correct-attendance}.ts`, `src/application/ports.ts`
+(one citation), `src/app/ausgabe/{counter-lookup.tsx,page.tsx}`, three e2e specs,
+`docs/architecture/05` and `06` (the verdict's name in the precedence chain).
+
+**Learnings for future iterations:**
+
+- **The calendar rules moved to `attendance-by-day.ts`, and US-34.5 deletes that file.** The AC's
+  „rewritten around the session" cannot be reached in one commit while the tree stays green: the
+  session rules need a `sessionId` that no column supplies until US-34.3, so `recordAttendance`,
+  `lookupCustomer` and `correctAttendance` still have to ask the day's question for one more
+  iteration. A separate module was the cheapest honest way to hold both: the names do not collide
+  (all three would have had to be renamed inside one file), the application changed by **one import
+  line each** rather than by any logic, and story 5 removes a whole file instead of untangling one.
+  Nothing new may call it — the head comment says so.
+- **A story whose note says „the application will not compile until story 5" still has to compile.**
+  Story 1 met the same instruction and kept two errors alive; this one kept three functions alive.
+  Read such a note as „do not do story 5's work here", not as permission to commit a red tree.
+- **The interim bridge is one expression, stated at both call sites:**
+  `sessionGroups: createSessionGroups([week.colour])`. The verdict now asks which groups the session
+  serves; until US-34.5 loads one, the week's colour stands in for it and the answer is unchanged —
+  a one-group session refuses exactly whom a wrong-week check refused. Both sites carry the same
+  two-line comment naming the story that removes it.
+- **`AttendanceRecord` losing `date` reaches `noShows.ts`, which is not an attendance rule.** It now
+  declares its own `AttendedDay { date }` — the last rule reading the calendar should not borrow its
+  input type from the rules that stopped. `count-no-shows.ts` imports the type from `noShows.ts` with
+  it.
+- **The exhaustive verdict switch did its job.** Renaming `ALREADY_SERVED_TODAY` failed the build in
+  `counter-lookup.tsx` until the case was renamed, and the `data-verdict` attribute carries the kind
+  to the browser — so three e2e specs assert the new string. The German key stays
+  `alreadyServedToday` („Heute bereits ausgegeben") for one more iteration: **US-34.7 owns the
+  wording**, so a case named `ALREADY_SERVED` reading a key named `…Today` is deliberate and short-lived.
+- **Two architecture chapters name the verdict by its old name and nothing greps them.** `05`'s
+  precedence chain and `06`'s „opposite orders" paragraph were corrected in this commit — the rest
+  of `06`'s §Scenario 1 (the day key, `AlreadyServedToday`, the unique `(customerId, dayKey)` index)
+  is still true until stories 3 and 5, and US-34.12 owns the rewrite.
+
+---

@@ -336,7 +336,7 @@ test.describe("Ausgabe erfassen", () => {
     await expect(page).toHaveURL(`/ausgabe?nummer=${NUMBERS.corrected}`);
     await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
       "data-verdict",
-      "ALREADY_SERVED_TODAY",
+      "ALREADY_SERVED",
     );
     await expect(page.getByTestId("already-served-message")).toHaveText(
       serve.alreadyServed(SERVED_AT, PRICE_CENTS, PRICE_CENTS),

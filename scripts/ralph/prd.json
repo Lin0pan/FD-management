@@ -46,7 +46,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Still domain only. The application layer will not compile after this story until story 5 lands — that is expected and fine WITHIN the story's own scope, but keep the domain suite green and do not leave src/application half-edited here."
     },
     {

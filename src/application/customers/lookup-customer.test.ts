@@ -442,7 +442,7 @@ describe("lookupCustomer", () => {
     expect(result.verdict.kind).toBe("WRONG_GROUP");
     if (result.verdict.kind !== "WRONG_GROUP") throw new Error("unreachable");
     expect(result.verdict.group).toBe("RED");
-    expect(result.verdict.weekColour).toBe("BLUE");
+    expect(result.verdict.sessionGroups).toEqual(["BLUE"]);
   });
 
   it("marks a card whose index is below the current one as outdated", async () => {
@@ -484,7 +484,7 @@ describe("lookupCustomer", () => {
 
     const result = await lookupCustomer(deps(), "50");
 
-    expect(result.verdict.kind).toBe("ALREADY_SERVED_TODAY");
+    expect(result.verdict.kind).toBe("ALREADY_SERVED");
   });
 
   it("clears a household that collected at an earlier distribution, not today", async () => {
@@ -504,7 +504,7 @@ describe("lookupCustomer", () => {
 
     const result = await lookupCustomer(deps(), "50");
 
-    expect(result.verdict.kind).toBe("ALREADY_SERVED_TODAY");
+    expect(result.verdict.kind).toBe("ALREADY_SERVED");
     expect(result.customer?.certificateExpired).toBe(true);
   });
 

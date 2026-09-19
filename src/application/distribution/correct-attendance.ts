@@ -13,7 +13,7 @@
  * paying ahead.
  */
 
-import { canCorrect } from "@/domain/distribution/attendance";
+import { canCorrect } from "@/domain/distribution/attendance-by-day";
 import { askedForRecord } from "@/domain/distribution/balance";
 import { requirePayment } from "@/domain/distribution/distributionRecord";
 import {
