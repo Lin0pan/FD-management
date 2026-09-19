@@ -1058,6 +1058,12 @@ export const de = {
     },
     /** The colour is always named in words; the banner's colour only repeats what the text says. */
     group: (colour: string): string => `Gruppe ${colour}`,
+    /**
+     * The group or groups one session serves, in words: „Gruppe Rot" or „Gruppe Rot und Blau"
+     * (US-34.6). The plural is written as DF say it — one „Gruppe", two colours — rather than as
+     * two labels a reader has to pair up.
+     */
+    groups: (colours: ReadonlyArray<string>): string => `Gruppe ${colours.join(" und ")}`,
     banner: {
       isDistributionDay: "Heute ist Ausgabe",
       noDistributionDay: "Heute ist keine Ausgabe",
@@ -1154,6 +1160,12 @@ export const de = {
     progress: {
       summary: (group: string, served: number, expected: number): string =>
         `${group}: ${served} von ${expected} Haushalten abgeholt`,
+      /**
+       * A merged afternoon's two tallies on one line, joined with the middle dot the Kundenliste's
+       * group balance uses. Never added up: a group falling behind is exactly what one fraction
+       * over both would hide (US-34.6).
+       */
+      summaries: (perGroup: ReadonlyArray<string>): string => perGroup.join(" · "),
       open: "Liste anzeigen",
       close: "Liste ausblenden",
       /** The mark on a household that has collected today. Only these rows are marked. */

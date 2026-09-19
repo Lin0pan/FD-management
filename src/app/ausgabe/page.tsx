@@ -338,18 +338,14 @@ export default async function DistributionPage({
 
         {/* How far through the group the afternoon is (US-23), between the banner and the counter:
           it is a fact about today, like the banner, and it must be readable without scrolling past
-          the field staff type into. The group it names is the roster's — the week's own — which on a
-          distribution day is the group the banner paints.
+          the field staff type into. The group(s) it names are the running session's, which is what
+          the calendar week has stopped deciding (US-34.6).
 
           Keyed by the number looked up, because a `<details>` keeps `open` through any re-render and
           only a remount closes it (`docs/guideline/ui_styling_guide.md` §6): clicking a name in the list is a
           soft navigation, so without the key the household's verdict would arrive underneath a
           hundred rows the staff member has to scroll past. */}
-        <GroupProgressCard
-          key={typeof nummer === "string" ? nummer : ""}
-          roster={roster}
-          groupName={colourName(roster.group)}
-        />
+        <GroupProgressCard key={typeof nummer === "string" ? nummer : ""} roster={roster} />
 
         {/* The counter loop, keyboard only: type the number, press Enter, read the verdict. The form
           navigates, so the input comes back empty and — being autofocused — ready for the next

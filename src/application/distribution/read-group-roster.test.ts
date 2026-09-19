@@ -8,31 +8,28 @@ import type {
   NewCustomer,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
-import { groupOf, type GroupCounts } from "@/domain/customer/group";
+import { groupOf, type Group, type GroupCounts } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
 import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
 import { createSessionGroups, type DistributionSession } from "@/domain/distribution/session";
-import { NoDistributionSessionRunning, NoSettingsInForce } from "@/domain/errors";
+import { NoDistributionSessionRunning } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
-import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
 import type {
   ArchivedCustomer,
-  Clock,
   CustomerListQuery,
   CustomerRepository,
   DistributionRecordRepository,
   DistributionSessionRepository,
-  SettingsRepository,
 } from "../ports";
 import { readGroupRoster } from "./read-group-roster";
 
 /**
- * Hand-written fakes and synthetic data only. The dates are why the clock is pinned: under the seeded
- * anchor, Thursday 8 January 2026 is a RED distribution day, and Friday 9 January stands in a RED
- * week whose *next* distribution is the BLUE one after.
+ * Hand-written fakes and synthetic data only. **No clock and no settings**: since US-34.6 the
+ * roster is the running session's, so nothing here turns on which day it is read on. The instants
+ * below are only the moments hand-outs were recorded at.
  */
 
 faker.seed(20260801);
@@ -40,14 +37,12 @@ faker.seed(20260801);
 const RED_DISTRIBUTION_DAY = "2026-01-08T09:00:00.000Z";
 const EARLIER_ON_THE_RED_DAY = "2026-01-08T07:30:00.000Z";
 const THE_RED_DAY_BEFORE = "2026-01-01T09:00:00.000Z";
-const DAY_AFTER_A_RED_DISTRIBUTION = "2026-01-09T09:00:00.000Z";
 
 /**
  * An afternoon that has run past Berlin midnight: still the same session, and the tally still counts
  * what it handed out — the calendar has stopped deciding anything here (US-34).
  */
 const JUST_AFTER_BERLIN_MIDNIGHT = "2026-01-08T23:10:00.000Z";
-const HALF_PAST_ELEVEN_UTC = "2026-01-08T23:30:00.000Z";
 const AFTERNOON_OF_THE_RED_DAY = "2026-01-08T15:00:00.000Z";
 
 /** The session being read, and an earlier one whose hand-outs this tally must leave alone. */
@@ -55,29 +50,6 @@ const SESSION_ID = 12;
 const EARLIER_SESSION_ID = 11;
 
 const GROWN_UP = "1985-03-11T00:00:00.000Z";
-
-function fakeClock(iso: string): Clock {
-  return { now: () => new Date(iso) };
-}
-
-class FakeSettingsRepository implements SettingsRepository {
-  readonly versions: SettingsVersion[] = [];
-  appended = 0;
-
-  constructor(...versions: SettingsVersion[]) {
-    this.versions.push(...versions);
-  }
-
-  listVersions(): Promise<SettingsVersion[]> {
-    return Promise.resolve([...this.versions]);
-  }
-
-  append(version: SettingsVersion): Promise<void> {
-    this.appended += 1;
-    this.versions.push(version);
-    return Promise.resolve();
-  }
-}
 
 /**
  * A register that answers `list` as the adapter is documented to. `writes` counts every mutating
@@ -234,16 +206,22 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
   }
 }
 
+/**
+ * The afternoon a test states: which groups it serves, or `null` for between two of them. The
+ * default serves RED alone, which is what most of these rules are about.
+ */
+function session(groups: ReadonlyArray<Group> = ["RED"]): DistributionSession {
+  return {
+    id: SESSION_ID,
+    startedAt: new Date(RED_DISTRIBUTION_DAY),
+    endedAt: null,
+    groups: createSessionGroups(groups),
+  };
+}
+
 /** A session that is running while the roster is read; `null` stands for between two afternoons. */
 class FakeDistributionSessionRepository implements DistributionSessionRepository {
-  constructor(
-    private readonly running: DistributionSession | null = {
-      id: SESSION_ID,
-      startedAt: new Date(RED_DISTRIBUTION_DAY),
-      endedAt: null,
-      groups: createSessionGroups(["RED"]),
-    },
-  ) {}
+  constructor(private readonly running: DistributionSession | null = session()) {}
 
   findRunning(): Promise<DistributionSession | null> {
     return Promise.resolve(this.running);
@@ -289,27 +267,6 @@ function recordFor(
     showedUp: true,
     paidCents: 400 as Cents,
     priceCents: 400 as Cents,
-  };
-}
-
-function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
-  return {
-    quotaN: 240,
-    // 2026-W02 is 5–11 January 2026; Thursday of that week is 8 January 2026.
-    weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
-    distributionWeekday: 4,
-    pricePerGrownUp: 200,
-    pricePerChild: 100,
-    priceCap: null,
-    eggRule: [],
-    ...overrides,
-  };
-}
-
-function version(): SettingsVersion {
-  return {
-    recordedAt: new Date("2026-01-01T00:00:00.000Z"),
-    settings: createSettings(settingsInput()),
   };
 }
 
@@ -363,17 +320,15 @@ function customerRecord(overrides: CustomerOverrides): RegisteredCustomer {
 
 describe("readGroupRoster", () => {
   let customers: FakeCustomerRepository;
-  let settings: FakeSettingsRepository;
   let records: FakeDistributionRecordRepository;
   let sessions: FakeDistributionSessionRepository;
 
-  function deps(today = RED_DISTRIBUTION_DAY) {
-    return { customers, settings, records, sessions, clock: fakeClock(today) };
+  function deps() {
+    return { customers, records, sessions };
   }
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
-    settings = new FakeSettingsRepository(version());
     records = new FakeDistributionRecordRepository();
     sessions = new FakeDistributionSessionRepository();
   });
@@ -384,19 +339,64 @@ describe("readGroupRoster", () => {
     await expect(readGroupRoster(deps())).rejects.toBeInstanceOf(NoDistributionSessionRunning);
   });
 
-  it("reads the current week's group, not the next distribution's, on a non-distribution day", async () => {
+  it("names the groups the session serves, and only the households in them", async () => {
     customers.holders.push(
       customerRecord({ customerNumber: 11 }),
+      customerRecord({ customerNumber: 20 }),
+      customerRecord({ customerNumber: 31 }),
       customerRecord({ customerNumber: 40 }),
     );
 
-    // Friday 9 January 2026 stands in the RED week 2026-W02, and its next distribution is the
-    // Thursday of 2026-W03 — a BLUE one. The roster follows the week it is being read in, which is
-    // the colour the banner badges beside the calendar week.
-    const roster = await readGroupRoster(deps(DAY_AFTER_A_RED_DISTRIBUTION));
+    const roster = await readGroupRoster(deps());
 
-    expect(roster.group).toBe("RED");
-    expect(roster.members.map((member) => member.customerNumber)).toEqual([11]);
+    expect(roster.groups).toEqual(["RED"]);
+    expect(roster.members.map((member) => member.customerNumber)).toEqual([11, 31]);
+  });
+
+  it("covers both groups at a merged session", async () => {
+    sessions = new FakeDistributionSessionRepository(session(["RED", "BLUE"]));
+    customers.holders.push(
+      customerRecord({ customerNumber: 11 }),
+      customerRecord({ customerNumber: 20 }),
+      customerRecord({ customerNumber: 31 }),
+    );
+    records.records.push(recordFor(20, EARLIER_ON_THE_RED_DAY));
+
+    const roster = await readGroupRoster(deps());
+
+    expect(roster.groups).toEqual(["RED", "BLUE"]);
+    expect(roster.members.map((member) => member.customerNumber)).toEqual([11, 20, 31]);
+    // Per group and never merged: „1 von 1" beside „0 von 2" is what shows RED falling behind,
+    // which the merged „1 von 3" hides.
+    expect(roster.tallies).toEqual([
+      { group: "RED", progress: { served: 0, expected: 2 } },
+      { group: "BLUE", progress: { served: 1, expected: 1 } },
+    ]);
+  });
+
+  it("tallies the served group alone when the session serves one", async () => {
+    sessions = new FakeDistributionSessionRepository(session(["BLUE"]));
+    customers.holders.push(
+      customerRecord({ customerNumber: 20 }),
+      customerRecord({ customerNumber: 31 }),
+    );
+
+    const roster = await readGroupRoster(deps());
+
+    expect(roster.members.map((member) => member.customerNumber)).toEqual([20]);
+    expect(roster.tallies).toEqual([{ group: "BLUE", progress: { served: 0, expected: 1 } }]);
+  });
+
+  it("names each household's own group, so the screen need not work out the parity", async () => {
+    sessions = new FakeDistributionSessionRepository(session(["RED", "BLUE"]));
+    customers.holders.push(
+      customerRecord({ customerNumber: 11 }),
+      customerRecord({ customerNumber: 20 }),
+    );
+
+    const roster = await readGroupRoster(deps());
+
+    expect(roster.members.map((member) => member.group)).toEqual(["RED", "BLUE"]);
   });
 
   it("leaves archived households out of the group", async () => {
@@ -417,22 +417,7 @@ describe("readGroupRoster", () => {
     expect(customers.lastQuery).toEqual({ statuses: ["ACTIVE", "BLOCKED"] });
   });
 
-  it("names the week's group and only the households in it", async () => {
-    // Only the odd numbers are RED, and the week is RED — the register was asked for all four.
-    customers.holders.push(
-      customerRecord({ customerNumber: 11 }),
-      customerRecord({ customerNumber: 20 }),
-      customerRecord({ customerNumber: 31 }),
-      customerRecord({ customerNumber: 40 }),
-    );
-
-    const roster = await readGroupRoster(deps());
-
-    expect(roster.group).toBe("RED");
-    expect(roster.members.map((member) => member.customerNumber)).toEqual([11, 31]);
-  });
-
-  it("reports a group holding no active or blocked household as empty", async () => {
+  it("reports an empty group in words — nothing active or blocked in what it serves", async () => {
     customers.holders.push(
       customerRecord({ customerNumber: 11, status: "ARCHIVED" }),
       customerRecord({ customerNumber: 40 }),
@@ -441,6 +426,7 @@ describe("readGroupRoster", () => {
     const roster = await readGroupRoster(deps());
 
     expect(roster.isEmpty).toBe(true);
+    expect(roster.tallies).toEqual([{ group: "RED", progress: { served: 0, expected: 0 } }]);
   });
 
   it("reports a group holding one household as not empty", async () => {
@@ -457,13 +443,6 @@ describe("readGroupRoster", () => {
     await readGroupRoster(deps());
 
     expect(customers.writes).toBe(0);
-    expect(settings.appended).toBe(0);
-  });
-
-  it("refuses to answer before DF has settings in force", async () => {
-    settings = new FakeSettingsRepository();
-
-    await expect(readGroupRoster(deps())).rejects.toThrow(NoSettingsInForce);
   });
 
   it("names every household of the group, lowest customer number first", async () => {
@@ -490,8 +469,8 @@ describe("readGroupRoster", () => {
 
     const roster = await readGroupRoster(deps());
 
-    expect(roster.members[0].servedToday).toBe(true);
-    expect(roster.progress).toEqual({ served: 1, expected: 1 });
+    expect(roster.members[0].servedInSession).toBe(true);
+    expect(roster.tallies[0].progress).toEqual({ served: 1, expected: 1 });
   });
 
   it("does not count a member whose only record is from an earlier distribution", async () => {
@@ -500,8 +479,8 @@ describe("readGroupRoster", () => {
 
     const roster = await readGroupRoster(deps());
 
-    expect(roster.members[0].servedToday).toBe(false);
-    expect(roster.progress).toEqual({ served: 0, expected: 1 });
+    expect(roster.members[0].servedInSession).toBe(false);
+    expect(roster.tallies[0].progress).toEqual({ served: 0, expected: 1 });
   });
 
   it("does not count a member with no record at all", async () => {
@@ -509,8 +488,8 @@ describe("readGroupRoster", () => {
 
     const roster = await readGroupRoster(deps());
 
-    expect(roster.members[0].servedToday).toBe(false);
-    expect(roster.progress).toEqual({ served: 0, expected: 1 });
+    expect(roster.members[0].servedInSession).toBe(false);
+    expect(roster.tallies[0].progress).toEqual({ served: 0, expected: 1 });
   });
 
   it("counts a hand-out made after midnight, while the same afternoon is still running", async () => {
@@ -519,18 +498,18 @@ describe("readGroupRoster", () => {
     customers.holders.push(customerRecord({ customerNumber: 11 }));
     records.records.push(recordFor(11, JUST_AFTER_BERLIN_MIDNIGHT));
 
-    const roster = await readGroupRoster(deps(DAY_AFTER_A_RED_DISTRIBUTION));
+    const roster = await readGroupRoster(deps());
 
-    expect(roster.members[0].servedToday).toBe(true);
+    expect(roster.members[0].servedInSession).toBe(true);
   });
 
   it("does not count a hand-out from the session before, held the same calendar day", async () => {
     customers.holders.push(customerRecord({ customerNumber: 11 }));
     records.records.push(recordFor(11, AFTERNOON_OF_THE_RED_DAY, 11, EARLIER_SESSION_ID));
 
-    const roster = await readGroupRoster(deps(HALF_PAST_ELEVEN_UTC));
+    const roster = await readGroupRoster(deps());
 
-    expect(roster.members[0].servedToday).toBe(false);
+    expect(roster.members[0].servedInSession).toBe(false);
   });
 
   it("joins the session's records by the surrogate id, never by the customer number", async () => {
@@ -542,7 +521,7 @@ describe("readGroupRoster", () => {
 
     const roster = await readGroupRoster(deps());
 
-    expect(roster.members.map((member) => member.servedToday)).toEqual([true, false]);
+    expect(roster.members.map((member) => member.servedInSession)).toEqual([true, false]);
   });
 
   it("keeps a blocked household in the list and out of what was expected", async () => {
@@ -554,10 +533,27 @@ describe("readGroupRoster", () => {
     const roster = await readGroupRoster(deps());
 
     expect(roster.members.map((member) => member.blocked)).toEqual([false, true]);
-    expect(roster.progress).toEqual({ served: 0, expected: 1 });
+    expect(roster.tallies[0].progress).toEqual({ served: 0, expected: 1 });
   });
 
-  it("ignores the records of customers in the other group", async () => {
+  it("counts a blocked household that already collected", async () => {
+    // Blocked at three o'clock, collected at two: dropping it from the denominator alone would let
+    // the tally read „2 von 1".
+    customers.holders.push(
+      customerRecord({ customerNumber: 11 }),
+      customerRecord({ customerNumber: 21, status: "BLOCKED" }),
+    );
+    records.records.push(
+      recordFor(11, EARLIER_ON_THE_RED_DAY),
+      recordFor(21, EARLIER_ON_THE_RED_DAY),
+    );
+
+    const roster = await readGroupRoster(deps());
+
+    expect(roster.tallies[0].progress).toEqual({ served: 2, expected: 2 });
+  });
+
+  it("ignores the records of customers in a group the session does not serve", async () => {
     customers.holders.push(
       customerRecord({ customerNumber: 11 }),
       customerRecord({ customerNumber: 40 }),
@@ -567,7 +563,7 @@ describe("readGroupRoster", () => {
     const roster = await readGroupRoster(deps());
 
     expect(roster.members.map((member) => member.customerNumber)).toEqual([11]);
-    expect(roster.progress).toEqual({ served: 0, expected: 1 });
+    expect(roster.tallies).toEqual([{ group: "RED", progress: { served: 0, expected: 1 } }]);
   });
 
   it("reads the session's hand-outs in one query, whatever the group holds", async () => {
@@ -586,7 +582,7 @@ describe("readGroupRoster", () => {
     const roster = await readGroupRoster(deps());
 
     expect(roster.members).toEqual([]);
-    expect(roster.progress).toEqual({ served: 0, expected: 0 });
+    expect(roster.tallies).toEqual([{ group: "RED", progress: { served: 0, expected: 0 } }]);
   });
 
   it("writes no distribution record while reading the roster", async () => {
