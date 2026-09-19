@@ -26,6 +26,13 @@ export type DomainErrorCode =
   | "CardNumberTaken"
   | "AlreadyServedToday"
   | "ReminderAlreadyLoggedToday"
+  | "AlreadyServedInSession"
+  | "ReminderAlreadyLoggedInSession"
+  | "InvalidSessionGroups"
+  | "NoDistributionSessionRunning"
+  | "DistributionSessionAlreadyRunning"
+  | "DistributionSessionNotEmpty"
+  | "DistributionSessionNotReopenable"
   | "CertificateStillValid"
   | "CertificateValidUntilInPast"
   | "CertificateExpired"
@@ -385,6 +392,8 @@ export class CardNumberTaken extends DomainError {
  *
  * "Today" is a Berlin calendar day, not a 24-hour window. The comparison is the domain rule's; the
  * database repeats it as a unique constraint so the guard cannot be bypassed (US-05.3).
+ *
+ * Replaced by {@link AlreadyServedInSession}: it goes with the last caller of the day rule (US-34.5).
  */
 export class AlreadyServedToday extends DomainError {
   readonly code = "AlreadyServedToday";
@@ -402,6 +411,8 @@ export class AlreadyServedToday extends DomainError {
  *
  * Raised by the use case after reading the day's log, and repeated by the repository for a race that
  * slips past it — the unique `(customerId, loggedOn)` constraint is the final authority (US-06.3).
+ *
+ * Replaced by {@link ReminderAlreadyLoggedInSession}, and goes with its last caller (US-34.5).
  */
 export class ReminderAlreadyLoggedToday extends DomainError {
   readonly code = "ReminderAlreadyLoggedToday";
@@ -413,6 +424,115 @@ export class ReminderAlreadyLoggedToday extends DomainError {
     super(`Customer ${customerId} already has a reminder logged on ${loggedOn}`);
     this.customerId = customerId;
     this.loggedOn = loggedOn;
+  }
+}
+
+/**
+ * The household has already collected at this distribution session (US-34, FR-13). Carries the
+ * session, which is what the rule turns on — an afternoon running past midnight is one collection
+ * and a second session on the same day is a second.
+ *
+ * Raised by the attendance rule and repeated by the repository for a race that slips past it: the
+ * unique `(customerId, sessionId)` constraint is the final authority.
+ */
+export class AlreadyServedInSession extends DomainError {
+  readonly code = "AlreadyServedInSession";
+  readonly sessionId: number;
+
+  constructor(sessionId: number) {
+    super(`Already served at distribution session ${sessionId}`);
+    this.sessionId = sessionId;
+  }
+}
+
+/**
+ * A reminder for this customer already exists in this session — a second would double-log one
+ * conversation, and a mis-click must not consume a grace period (US-06, FR-5; US-34, FR-13).
+ */
+export class ReminderAlreadyLoggedInSession extends DomainError {
+  readonly code = "ReminderAlreadyLoggedInSession";
+  readonly customerId: number;
+  readonly sessionId: number;
+
+  constructor(customerId: number, sessionId: number) {
+    super(`Customer ${customerId} already has a reminder logged in session ${sessionId}`);
+    this.customerId = customerId;
+    this.sessionId = sessionId;
+  }
+}
+
+/**
+ * A stored group list named something that is not a group (US-34.1). Carries the column's value as
+ * it was read, so a corrupted row can be named rather than guessed at.
+ */
+export class InvalidSessionGroups extends DomainError {
+  readonly code = "InvalidSessionGroups";
+  readonly stored: string;
+
+  constructor(stored: string) {
+    super(`"${stored}" is not a list of distribution groups`);
+    this.stored = stored;
+  }
+}
+
+/**
+ * Something that only happens at a distribution was asked for while none is running (US-34, FR-10).
+ * There is no offending value: the fault is the absence itself.
+ */
+export class NoDistributionSessionRunning extends DomainError {
+  readonly code = "NoDistributionSessionRunning";
+
+  constructor() {
+    super("No distribution session is running");
+  }
+}
+
+/**
+ * A second distribution session was started while one was running (US-34, FR-3). Carries the session
+ * already running, so the screen can name the afternoon that is under way rather than the attempt.
+ */
+export class DistributionSessionAlreadyRunning extends DomainError {
+  readonly code = "DistributionSessionAlreadyRunning";
+  readonly runningId: number;
+
+  constructor(runningId: number) {
+    super(`Distribution session ${runningId} is already running`);
+    this.runningId = runningId;
+  }
+}
+
+/**
+ * A session that has served somebody was to be discarded (US-34, FR-7). Discarding is for a session
+ * started by mistake; a session with hand-outs in it is ended, which leaves the record an ended one
+ * leaves. Carries both counts, because either of them alone is grounds.
+ */
+export class DistributionSessionNotEmpty extends DomainError {
+  readonly code = "DistributionSessionNotEmpty";
+  readonly sessionId: number;
+  readonly handouts: number;
+  readonly reminders: number;
+
+  constructor(sessionId: number, handouts: number, reminders: number) {
+    super(
+      `Distribution session ${sessionId} holds ${handouts} hand-out(s) and ${reminders} reminder(s)`,
+    );
+    this.sessionId = sessionId;
+    this.handouts = handouts;
+    this.reminders = reminders;
+  }
+}
+
+/**
+ * A session other than the one that ended last was to be reopened, or one was running (US-34, FR-16).
+ * Only the most recent afternoon can be corrected; everything before it is closed for good.
+ */
+export class DistributionSessionNotReopenable extends DomainError {
+  readonly code = "DistributionSessionNotReopenable";
+  readonly sessionId: number;
+
+  constructor(sessionId: number) {
+    super(`Distribution session ${sessionId} is not the one that may be reopened`);
+    this.sessionId = sessionId;
   }
 }
 
