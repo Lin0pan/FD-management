@@ -117,7 +117,7 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "This is where the calendar stops deciding anything at the counter. The two traps: the GUARD ORDER in recordAttendance (US-32.5 documents why), and CertificateControls deriving 'expired' from lookupCustomer.customer.certificateExpired rather than from the verdict kind — which must stay true now that ALREADY_SERVED outranks CLEAR_TO_SERVE_CERTIFICATE_EXPIRED."
     },
     {

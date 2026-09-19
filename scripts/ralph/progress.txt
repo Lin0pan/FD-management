@@ -659,3 +659,62 @@ Files: `src/application/distribution/{start,discard,end,reopen}-distribution-ses
   order working as planned.
 
 ---
+
+## 2026-09-19 — US-005 (US-34.5) Every hand-out and every reminder belongs to the running session
+
+**Implemented.** The calendar now decides nothing at the counter. `recordAttendance` asks
+`canRecord(history, session.id)` and hands `session.groups` to the verdict; `correctAttendance`
+loads the record's **own** session (`sessions.findById(record.sessionId)`) and refuses unless it is
+running; `lookupCustomer` throws `NoDistributionSessionRunning` outside a session and reads
+`recordForSession`. `TodaysRecordView` → `SessionRecordView`, `todaysRecord` → `sessionRecord`,
+`reminderLoggedToday` → `reminderLoggedInSession`. `attendance-by-day.ts` and `AlreadyServedToday`
+deleted with their last callers; `RecordNoLongerCorrectable` now carries `(recordId, sessionId)`.
+
+Files: `src/domain/distribution/{attendance.ts,attendance.test.ts}`, `attendance-by-day.ts(+test)`
+(deleted), `src/domain/errors.ts`, `src/app/notice-tier.ts`,
+`src/application/distribution/{record-attendance,correct-attendance}.ts(+tests)`,
+`src/application/customers/lookup-customer.ts(+test)`,
+`src/app/ausgabe/{page.tsx,actions.ts,serve-controls.tsx,serve-state.ts,certificate-controls.tsx,deps.ts}`,
+`docs/architecture/06-runtime-view.md`.
+
+**Learnings for future iterations:**
+
+- **`canCorrect` takes `DistributionSession | null`, and that is what kept the branch gate honest.**
+  The port's `findById` is nullable while the FK makes a missing session impossible, so
+  `session === null || !canCorrect(session)` in the use case would have been an application branch no
+  honest test can reach. Widening the *domain* rule instead states it as one answer — "only inside a
+  running session" — and the null arm is covered by a domain test, where a total function over its
+  input type belongs. Same family as the „unreachable `?? fallback`" bullet above.
+- **A fixture dated before today must be given an earlier session id, or half the suite goes green
+  for the wrong reason.** `existingRecord("2026-07-09…")` defaulted to the running session, so under
+  the new rule every balance test's fortnight-old hand-out counted as *this* afternoon's — three
+  tests failed loudly and several would have passed while asserting nothing. Both suites now carry an
+  `earlierRecord(...)` helper whose whole body is `{ sessionId: EARLIER_SESSION_ID, ...overrides }`.
+  Copy it into any suite that grows a session-scoped rule.
+- **Turning a household away no longer needs a date.** A wrong-group test used to move the clock to a
+  RED Thursday; it now hands the session one group (`session(["BLUE"])`). The fixture helper
+  `session(groups = ["RED", "BLUE"])` beside each fake is the shape — the fake's constructor takes
+  the session, so a test states the afternoon rather than the calendar.
+- **`lookupCustomer` refusing outside a session cannot be asserted as „before the register".** The
+  customer and the session are loaded in one `Promise.all`, so the refusal is before the *verdict*,
+  not before the read. The test says what is true instead: a known and an unknown number are both
+  refused, so nothing comes back as a `NOT_FOUND` verdict nobody could act on.
+- **`getWeekColour` has one application caller left, `readGroupRoster`, and US-34.6 removes it.** The
+  AC's „no longer called by any use case" is only true after the next story — do not read this
+  story's diff as having missed it, and do not take the roster's call out here.
+- **The German is deliberately still wrong, and US-34.7 owns it.** `de…serve.errors.alreadyServed`
+  says „heute bereits", `reminder.loggedToday` likewise, and `words.alreadyServedToday` is the key
+  `counter-lookup.tsx` reads for the `ALREADY_SERVED` verdict. Identifiers moved to the session in
+  this story; the sentences move with the screen.
+- **Chapter 06 §Scenario 1 was corrected here, not left to US-34.12.** The paragraphs naming
+  `AlreadyServedToday`, `@@unique([customerId, dayKey])` and „may only touch a record made today" are
+  what *this* change falsified, so they moved with it (plus the two mermaid lines). US-34.12 still
+  owns `02`, `04`, `08`'s ER diagram and invariants table, and the chapter's `_Last reviewed_` date —
+  which is deliberately **not** bumped, because only one scenario was read.
+- **`/ausgabe` still returns 500 and now for two reasons** (`readGroupRoster` and `lookupCustomer`),
+  so no browser check was possible — unchanged from US-34.3 and US-34.4, and still the inside-out
+  build order working as planned. US-34.7/34.8 build the screen that starts a session.
+- **The e2e suite is compile-green and behaviour-red**, as US-34.3 left it: the specs still record
+  hand-outs with no session started. US-34.10 is where they turn green; `npm run test:e2e` before
+  then tells you nothing this batch does not already know.
+---
