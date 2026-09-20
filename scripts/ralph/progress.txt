@@ -602,3 +602,63 @@ this batch that finds itself deleting `weekColour.ts` has picked up US-36's work
   case. Two call sites, one deliberate: the alternative is a domain function taking a stored record,
   which is exactly what `ReceiptHousehold` exists to avoid.
 ---
+
+## 2026-09-20 — US-003 (US-35.3: ending takes the receipts; reopening gives them back)
+
+- **`endDistributionSession`** gains `customers: CustomerRepository` and, between summarising the
+  afternoon and stamping it, builds one `FrozenHandout` per hand-out: `customers.findById` on the
+  record's **surrogate id**, mapped to the domain's `ReceiptHousehold` by a local `receiptOf` and
+  through `receiptFor({ …, at: now })`. Then `records.freezeSession` and only afterwards
+  `sessions.end` — a freeze that fails leaves the afternoon running. `@throws {CustomerNotFound}`
+  for a hand-out naming a household the register does not hold.
+- **`reopenDistributionSession`** gains `records: DistributionRecordRepository` and calls
+  `thawSession` **after** `sessions.reopen`, before the audit entry.
+- **No call site changed**: `counterActionDeps` already carries `customers` and `records`, and every
+  composition root is wider than each `Deps` interface (structural typing). `tsc` stayed green on
+  `src/app/**` with no edit — the batch really is invisible.
+- Tests (written first, nine red): `FakeCustomerRepository` and a `frozen` map plus a `freezeFails`
+  flag on the record fake in `distribution-session.test.ts`, then the five named rules from the AC
+  plus the card's own slot, the empty afternoon, the failed freeze and the unknown household.
+- Files: `end-distribution-session.ts`, `reopen-distribution-session.ts`,
+  `distribution-session.test.ts`. No `docs/` and no `prisma/` — US-004 owns both.
+- Gates: lint, typecheck, `test:coverage` (63 files, 1439 tests, domain + application 100%), `build`,
+  `format:check`, and **both** e2e engines (221 passed each) all green. The suite proved the wiring
+  end to end without a new spec: each e2e register came out of the run holding **20 receipts**
+  written by the real screen, action and adapter.
+
+**Learnings for future iterations:**
+
+- **Adding a dependency to a use case's `Deps` breaks nothing at the call sites**, and that is the
+  design: every composition root in `src/app/**/deps.ts` is wider than each `Deps` interface, so a
+  use case may start reading any port the root already holds without a single edit outside its own
+  file and suite. Check the root before assuming a wide break — `counterActionDeps` holds all eight.
+- **The end instant is only observable across Berlin midnight.** `composition` compares *calendar
+  days*, so every instant of one afternoon gives the same counts and a test asserting "taken at the
+  end, not at the hand-out" passes just as well against `session.startedAt`. The one fixture that
+  separates them is an afternoon **ended after midnight** (`2026-01-08T23:30Z` = 00:30 Berlin) with a
+  member whose 13th birthday is the next day. Without it the whole AC is untested.
+- **A `Partial<T>` fixture builder hides a field that has to move with another.** `receipt()` defaults
+  both `customerNumber` and `cardCustomerNumber` to 49, so the second household's expectation read
+  `{ customerNumber: 50 }` and silently kept card slot 49 — a one-line diff at the end of a green
+  implementation that looked like a bug in the use case. Where two fields are equal *by default and
+  not by rule*, override both or let the builder derive one from the other.
+- **Order between two stores is stated as a comment or it is not stated at all.** `freezeSession`
+  before `end`, `thawSession` **after** `reopen`: the asymmetry is deliberate — each leaves the
+  half-done state that the *next* act heals, since the freeze is re-taken whole. The port doc written
+  in US-35.2 already anticipated „a reopening whose `thawSession` did not land", which is what
+  settled the direction. Read the port before choosing an order.
+- **A nullable port read inside the happy path needs a typed error, not a `??`.** `customers.findById`
+  is `T | null` and the 100% branch gate reaches both arms only if the `null` is *thrown*, which also
+  makes the refusal honest: a hand-out naming a household the register does not hold leaves the
+  afternoon running rather than closing one that cannot be read back. `CustomerNotFound` already
+  existed and `tierOf` already covers it, so no German string and no `notice-tier.ts` edit followed.
+- **`Promise.all` over `handouts.map(async …)` is the house shape for N independent reads** (see
+  `lookup-customer.ts`), preserves order for the assertion, and keeps a `throw` inside the callback
+  working as a rejection. There is no `no-await-in-loop` rule, but the parallel form is what this
+  codebase reads like.
+- **Prove an invisible batch against the e2e registers, not with a new spec.** `data/e2e*.db` are
+  ordinary SQLite files and a five-line `tsx` script against `PrismaClient` with
+  `datasources.db.url = file:../data/e2e.db` counts what the suite just wrote. It has to live **inside
+  the repo** (`@prisma/client` resolves nowhere else) and wrap its `await` in a function — the same
+  two constraints the `local_only/` bullet above names.
+---

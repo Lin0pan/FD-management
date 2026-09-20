@@ -64,7 +64,7 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Order matters inside endDistributionSession: the receipts are built from the state as it is BEFORE endedAt is written and are committed WITH it, so an aborted ending leaves neither. There is no updateReceipt and there must never be one — a change is a thaw and a fresh freeze."
     },
     {
