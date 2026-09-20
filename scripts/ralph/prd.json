@@ -1,91 +1,143 @@
 {
   "project": "FD-Management",
-  "branchName": "ralph/us-35-session-receipt",
-  "description": "US-35 A hand-out is the receipt of who stood at the counter. US-34 made a hand-out belong to a session; DF then asked for something the software has NEVER been able to do — A PAST SESSION MUST SHOW THE HOUSEHOLDS AS THEY STOOD THEN: the name they had that afternoon, the counts that were true that afternoon, the number they held, the card they carried, the certificate date on file. MOST OF THAT CANNOT BE RECONSTRUCTED. The price and the amount paid are on the hand-out; the card, the certificate date and the reminder count could be assembled out of three append-only histories; the NUMBER and GROUP only indirectly, via the card valid then; and THE NAME AND THE HOUSEHOLD COUNTS NOT AT ALL, because editing a household OVERWRITES the names and REPLACES the member rows (US-16). So all of it is CAPTURED TOGETHER — DF's own recommendation — because a table in which half the columns show what was and the other half a reconstruction is one nobody can check. The hand-out becomes THE RECEIPT of who stood at the counter that afternoon, the same kind of thing a printed card already is (Card.grownUpsAtIssue). WHEN IT IS CAPTURED IS THE WHOLE DESIGN: while the session runs the details still follow every correction — a misspelt name noticed after the hand-out still reaches the record — and ENDING THE SESSION SETTLES THEM. Reopening (US-34) THAWS them; ending again re-freezes. Two rules for one state would not be explainable. THIS REVERSES A WRITTEN DECISION: US-16 states that no history of past household compositions is kept and that there is no „as of\" view of a past household. There still is not, in general — customer administration goes on showing today's state — but it is now BOUNDED TO THE SESSION, and that reversal is recorded as ADR-021 (last story), which also makes the ROOT CLAUDE.md's „exactly three exceptions to derive-don't-store\" and „exactly two deletion exceptions\" wrong until they are updated. THIS BATCH HAS AN EXPIRY DATE AND IT IS THE ONLY ONE IN THE PROJECT THAT DOES: every session ended before the freeze rule exists is LOST TO THE DETAIL VIEW FOR GOOD, because the values it would have shown are overwritten by ordinary editing. It must merge IMMEDIATELY AFTER US-34 and before DF are handed a build they run a real afternoon on. NOTHING IN THIS BATCH IS VISIBLE: the freeze is proved by application and integration tests, and US-37's e2e proves it end to end — a story that finds itself editing src/app/** has misread the batch. SCHEMA CHANGE: yes, one new table with one relation, so prisma/migrations/ is REGENERATED and BOTH hand-written indexes (the partial unique on Customer.customerNumber and the one-running-session index from US-34) MUST BE PUT BACK — story 2. Requirements: local_only/manually-start-ausgabe/refined-requirements.md requirement E (E-4, E-5, E-7, E-8, E-9). Full PRD: tasks/prd-us-35-session-receipt.md",
+  "branchName": "ralph/us-36-sessions-not-the-calendar",
+  "description": "US-36 The derived rules follow sessions, not the calendar. After US-34 and US-35, TWO THINGS STILL READ THE CALENDAR. FIRST, THE NO-SHOW COUNT: „how many of their own distributions has this household missed in a row\" is counted by walking backwards through the calendar a fortnight at a time, asking the week anchor which colour each week carried — so EVERY CANCELLED WEEK IN THAT WALK IS COUNTED AS A MISS NOBODY MADE. It now counts SESSIONS THAT ACTUALLY TOOK PLACE: a session counts against a household when it has ENDED, its groups INCLUDE the household's group, it STARTED AFTER the household joined the register, and it holds NO HAND-OUT for them. The running session never counts. The figure stays DISPLAY ONLY — no threshold, no automatic archive — and a block is still deliberately NOT excluded. SECOND, THE SETTINGS SCREEN: it still holds a week anchor („KW 02/2026 war Rot\") and a distribution weekday. After US-34 NOTHING reads the weekday at all and the anchor is read by exactly ONE line on the Start screen. BOTH ARE REMOVED WITHOUT REPLACEMENT — a settings value with no effect is one that eventually gets maintained wrongly, and a screen predicting „die nächste Ausgabe ist am Donnerstag (Rot)\" makes a promise the software no longer has any way to keep. The software stops predicting when the next distribution is and what colour a week carries; it knows what happened and what is happening, and that is all it claims. WHAT GOES WITH THE ANCHOR is a satisfying amount of code: weekColour.ts's ISO-week arithmetic, distributionDay.ts, get-week-colour.ts, three SettingsVersion columns, two form controls, three variants of the SettingsChange union, the WeekColour/WeekAnchor/IsoWeekday types, and the BERLIN-DAY MATCHING of attended days in the no-show walk. WHAT STAYS is startOfUtcDay, which the certificate comparison needs and which MOVES to src/domain/calendarDay.ts — and berlinDayKey ITSELF, which this batch was written believing the walk was the last caller of: the 13-year boundary has read it since US-13.1 because a birthday turns over at Berlin midnight (householdComposition.ts), so it stays in attendance.ts with that one caller. A HOUSEHOLD'S GROUP IS UNCHANGED: still groupOf(customerNumber), even is BLUE and odd is RED (ADR-017), shown everywhere it is shown today — only the statement „this week is RED\" disappears. ORDER WITHIN THE BATCH is inside-out for the rule half (1, 2) and OUTSIDE-IN for the removal half (3 domain, 4 schema, 5 screens): built the other way round, story 3 would break every caller at once. The EXHAUSTIVE SWITCH on SettingsChange is the safety net — the build fails until the settings screen stops rendering the three removed kinds. SCHEMA CHANGE: yes, three columns dropped, so prisma/migrations/ is REGENERATED and BOTH hand-written indexes (Customer.customerNumber partial unique, and the one-running-session index) MUST BE PUT BACK — story 4. THE FAILURE MODE OF A REMOVAL IS A SURVIVOR — a dictionary key, a comment, a test helper — which is why story 5 makes a grep an acceptance criterion, as US-27 did. NO NEW ADR: ADR-020 already recorded this removal as its own consequence. Requirements: local_only/manually-start-ausgabe/refined-requirements.md requirement D. Full PRD: tasks/prd-us-36-sessions-not-the-calendar.md",
   "userStories": [
     {
       "id": "US-001",
-      "title": "The receipt is a domain value (domain)",
-      "description": "As a developer, I want the set of details a receipt holds — and how they are read off a household — in one pure module, so that the adapter never decides what 'as it stood' means. Source: tasks/prd-us-35-session-receipt.md §US-35.1",
+      "title": "A no-show is a session that was missed (domain)",
+      "description": "As DF, I want the no-show figure to count the afternoons that actually happened, so that the number beside a household means what I think it means. Source: tasks/prd-us-36-sessions-not-the-calendar.md §US-36.1",
       "acceptanceCriteria": [
-        "NEW module src/domain/distribution/handoutReceipt.ts. PURE: no I/O, no clock, nothing from Next.js, React or Prisma",
-        "HandoutReceipt = { customerNumber: number; firstName: string; lastName: string; grownUps: number; children: number; cardCustomerNumber: number; cardIndex: number; certificateValidUntil: Date; reminderCount: number }",
-        "THE GROUP IS NOT AMONG THEM: it is groupOf(customerNumber) of the CAPTURED number (ADR-017), derived wherever it is shown. A group column here would be the second recording US-31 removed, free to disagree with the number beside it. One line of comment says so",
-        "THE CARD NUMBER IS NOT AMONG THEM EITHER, for the same reason: it is formatCardNumber(cardCustomerNumber, cardIndex) and the TWO INTEGERS are what is stored, exactly as Card stores them. A card printed under a slot the household has since left KEEPS that slot (ADR-016), which is why the card's OWN number is captured and not the holder's",
-        "receiptFor({ customer, members, card, at }) builds one, deriving the counts through composition(members, at) — the household's counts AT THE SESSION'S END INSTANT, never the card's printed ones (grownUpsAtIssue) and never a stored count",
-        "WRITTEN TEST-FIRST, one named test per rule: captures the name as it is spelled at the end of the session / captures the counts as they stand at the end of the session, not as printed on the card / captures the card's own slot, not the holder's current one / derives the group from the captured number / counts a child who turns 13 after the session as a child",
+        "src/domain/distribution/noShows.ts is REWRITTEN around sessions. Its input becomes { sessions, attendedSessionIds, customerGroup, registeredOn } — NO settings, NO weekday, NO anchor, NO clock",
+        "A session counts against a household when ALL FOUR hold: it has ENDED; its groups INCLUDE the household's group; it STARTED AFTER the household joined the register; and it holds NO HAND-OUT for that household. THE RUNNING SESSION NEVER COUNTS",
+        "consecutiveNoShows walks the ended sessions NEWEST FIRST and stops at the first one the household collected at, or at their registration. 0 still means both „came last time\" and „has not seen a session yet\" — the same thing as far as archiving goes",
+        "A DISCARDED session is never in the input at all: the store filters it out, so the rule does not have to know the state exists",
+        "The module comment KEEPS the two things that stay true — the figure is DISPLAY ONLY, no threshold lives here and nothing automatic follows from any value; and a BLOCK IS DELIBERATELY NOT EXCLUDED. It DROPS the three calendar boundaries, which the four conditions replace, and it does NOT narrate that it used to count weeks",
+        "The BERLIN-DAY MATCHING of attended days leaves noShows.ts with the walk it served — attendance is matched by SESSION ID from here on, not by calendar day. berlinDayKey ITSELF STAYS in attendance.ts: the 13-year boundary has called it since US-13.1 and a birthday still turns over at Berlin midnight. Prove it: grep -rn berlinDayKey src/ tests/ leaves householdComposition.ts as the only caller",
+        "WRITTEN TEST-FIRST, one named test per rule: counts a session the household's group was served at and they missed / does not count a session that served only the other group / counts a session that served both groups / does not count the session that is still running / does not count a session that started before the household joined / stops counting at the last session they collected at / answers zero for a household that has not seen a session yet",
         "Domain coverage stays at 100%",
         "Full unit suite passes with coverage: npm run test:coverage",
         "Typecheck passes",
         "Lint passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Small, pure, first. The temptation to resist is storing the group and the formatted card number 'for convenience' — both are derived from values already on the row, and storing them is exactly the fault ADR-017 and ADR-016 were written about."
+      "passes": false,
+      "notes": "This story fixes a real bug: today every cancelled week in the walk is counted as a miss nobody made. Do not keep a calendar fallback for households registered before the first session — 'no session on record' is zero, which is what it has always meant."
     },
     {
       "id": "US-002",
-      "title": "The receipt table, written and thawed with the session (schema + infrastructure)",
-      "description": "As DF, I want the captured state stored beside the hand-out it describes, so that a past afternoon reads back whole rather than being assembled out of four histories. Source: tasks/prd-us-35-session-receipt.md §US-35.2",
+      "title": "Counting no-shows reads the ended sessions (application)",
+      "description": "As a developer, I want the seam both screens read to load the sessions rather than the settings, so the rule has nothing left to resolve a policy for. Source: tasks/prd-us-36-sessions-not-the-calendar.md §US-36.2",
       "acceptanceCriteria": [
-        "NEW model HandoutReceipt in prisma/schema.prisma, ONE ROW PER DistributionRecord: recordId Int @unique with a relation to DistributionRecord (onDelete: Restrict STATED OUT LOUD), plus the nine captured columns of story 1 and NO OTHERS",
-        "The model comment states in AT MOST THREE LINES the one thing the code cannot: this is a SNAPSHOT IN THE SENSE Card.grownUpsAtIssue IS — never read as the household's current name, number or counts — and it exists because two of these values are not reconstructable at all (ADR-021, US-35). It does NOT narrate the project's history",
-        "priceCents and paidCents are NOT copied here: both are already on the hand-out, and copying them would be the first place two figures could disagree about one payment",
-        "NEW port methods on DistributionRecordRepository, documented ONCE on the port: freezeSession(sessionId, receipts) — write every receipt of a session in ONE TRANSACTION with the session's end — and thawSession(sessionId) — remove them, which only a reopening does",
-        "THE THAW IS A DELETE, and the schema comment says why that is allowed where ADR-010 forbids deleting: a receipt is NOT HISTORY, it is the freeze itself, re-taken whole by the next ending. A reopened session may have a hand-out removed, and a receipt still pointing at it would make the store REFUSE that removal — so thawing is what keeps the correction window open at all. It is the THIRD deliberate exception, beside HouseholdMember and CertificateType",
-        "MIGRATIONS REGENERATED, NOT STACKED (ADR-009). RE-ADD BY HAND both hand-written indexes: the partial unique index on Customer.customerNumber AND the one-running-session index from US-34. Then npm run db:reset",
-        "clearRegister in src/infrastructure/prisma/test-support.ts and releaseNumbers in tests/e2e/seeding.ts delete receipts BEFORE the records they point at",
-        "prisma/demo-seed.ts's ended session gets receipts so the demo build's detail view (US-37) has something in it. prisma/seed.ts still seeds no session and therefore no receipt",
-        "NEW integration test against a THROWAWAY SQLite FILE: receipts round-trip; freezeSession writes one per record and no more; thawSession leaves the records untouched; a record whose receipt was thawed CAN then be removed, and one whose receipt stands CANNOT",
-        "npm run build passes after npm run db:reset",
+        "DistributionSessionRepository gains listEnded(): Promise<ReadonlyArray<DistributionSession>> — every ENDED, NON-DISCARDED session, MOST RECENT FIRST, ordering being the adapter's job. At one distribution a week this is a few hundred rows over the software's whole life, which is why there is no narrower query — the port says so in ONE line",
+        "countNoShows takes the sessions and the household's attended session ids instead of resolving settings at a date. Its SettingsRepository dependency GOES",
+        "lookupCustomer and the customer record pass the attended ids off the records THEY ALREADY LOAD — no second query (US-04.3 still holds)",
+        "A named application test proves a CANCELLED WEEK produces no no-show — the bug this story exists to fix",
+        "Application coverage stays at 100%",
         "Full unit suite passes with coverage: npm run test:coverage",
         "Typecheck passes",
         "Lint passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "THE ONLY STORY IN THIS BATCH THAT TOUCHES prisma/. Tenth batch to regenerate the migration history and the SECOND with two hand-written indexes to put back — that is the single thing most likely to be forgotten."
+      "passes": false,
+      "notes": "One new port method and one changed dependency. Every hand-written fake DistributionSessionRepository gains listEnded in this story."
     },
     {
       "id": "US-003",
-      "title": "Ending a session takes the receipts; reopening gives them back (application)",
-      "description": "As DF, I want the capture to happen when I end the afternoon and at no other moment, so that a correction made while the session runs still reaches the record. Source: tasks/prd-us-35-session-receipt.md §US-35.3",
+      "title": "The week anchor and the distribution weekday leave the domain (domain)",
+      "description": "As a developer, I want the alternation arithmetic gone rather than unused, so that nobody finds a working week-colour function and starts calling it again. Source: tasks/prd-us-36-sessions-not-the-calendar.md §US-36.3",
       "acceptanceCriteria": [
-        "endDistributionSession builds ONE HandoutReceipt PER HAND-OUT of the session — reading the customer, household members, current card and certificate through the repositories it already has — and writes them WITH the ending, IN ONE TRANSACTION. If the freeze fails, THE SESSION DOES NOT END",
-        "The receipt is taken at the END INSTANT: a child who turned 13 during the afternoon is counted as the composition at that instant says, not as the price charged earlier says. That divergence is REAL, is what Card.grownUpsAtIssue already exposes, and is NOT to be 'fixed'",
-        "reopenDistributionSession calls thawSession in the SAME transaction as clearing endedAt, so a reopened session behaves EXACTLY like a running one",
-        "A HOUSEHOLD MOVED TO ANOTHER CUSTOMER NUMBER while the session runs is captured under the NEW number and therefore the NEW group — in a RED-only session possibly as BLUE. This is ACCEPTED and deliberately NOT PREVENTED. One comment says so and cites DF's answer J-1; it does not argue with the requirement",
-        "A HOUSEHOLD ARCHIVED AND ITS NUMBER GIVEN TO SOMEBODY ELSE is still the household that was served: the receipt is joined by DistributionRecord.customerId — THE SURROGATE ID, NEVER THE CUSTOMER NUMBER — so a past session can never name a household that was never there",
-        "A named application test proves exactly that: serve, end, archive, register a new household on the freed number, read the session back",
-        "Ending an EMPTY session writes no receipts and is NOT an error",
-        "TDD against HAND-WRITTEN FAKES; application coverage stays at 100%. Named tests: freezes every hand-out of the session when it is ended / keeps following corrections while the session is still running / thaws the frozen state when the session is reopened / freezes it again when the reopened session is ended / keeps the household that was served after its number is given to another",
+        "Settings loses weekAnchor and distributionWeekday; createSettings loses their validation; the types WeekAnchor, IsoWeekday and WeekColour are DELETED",
+        "Group in src/domain/customer/group.ts becomes the ONLY type for the two halves, and its comment LOSES the paragraph explaining why Group and WeekColour are deliberately different types — an argument about a type that no longer exists ages into a description of code nobody can find",
+        "src/domain/distribution/weekColour.ts and src/domain/distribution/distributionDay.ts are DELETED, with their tests",
+        "startOfUtcDay MOVES to src/domain/calendarDay.ts, where a helper about calendar days belongs. Its callers are counterVerdict.certificateExpired AND prisma/demo-seed.ts, which anchors the demo register's day on it. isoWeekdayOf, isoWeekOf, colourOf and the ISO-week parsing GO with the files",
+        "settings-diff.ts loses the weekAnchorIsoWeek, weekAnchorColour and distributionWeekday variants of SettingsChange. THE UNION IS SWITCHED EXHAUSTIVELY on the settings screen, so every removal is a COMPILE ERROR until the screen is updated — that is the mechanism working",
+        "InvalidSettings keeps its shape; only the fields it can name shrink",
+        "Every affected test is UPDATED where the rule survives; weekColour.test.ts and distributionDay.test.ts go with their modules",
+        "Domain coverage stays at 100%",
         "Full unit suite passes with coverage: npm run test:coverage",
         "Typecheck passes",
         "Lint passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Order matters inside endDistributionSession: the receipts are built from the state as it is BEFORE endedAt is written and are committed WITH it, so an aborted ending leaves neither. There is no updateReceipt and there must never be one — a change is a thaw and a fresh freeze."
+      "passes": false,
+      "notes": "A deletion story. The failure mode of a deletion in this project is A SURVIVOR — a helper, a type, a dictionary key. Story 5 greps for them; here, make sure nothing re-exports what was removed."
     },
     {
       "id": "US-004",
-      "title": "Record ADR-021 and correct what it reverses (documentation)",
-      "description": "As the next developer, I want the reversal written down as a decision, so that the next reader does not find two documents disagreeing about whether this project keeps history. Source: tasks/prd-us-35-session-receipt.md §US-35.4",
+      "title": "The three columns leave the schema and the settings (schema + infrastructure + application)",
+      "description": "As DF, I want the two values I can no longer act on to disappear from the settings, so that I am not maintaining a rhythm the software does not use. Source: tasks/prd-us-36-sessions-not-the-calendar.md §US-36.4",
       "acceptanceCriteria": [
-        "ADR-021 via the record-adr skill: „Capture the household's state when a distribution session is ended\". CONTEXT: a past session must show the households as they stood then; TWO of the eight details cannot be reconstructed at all (the name, the counts) and three more only by assembling three histories. DECISION: one receipt per hand-out, written when the session is ended, thawed and re-taken on a reopening; the group and the card number stay DERIVED from the two numbers captured",
-        "ADR-021 CONSEQUENCES: US-16's statement that no past household composition is kept is now BOUNDED rather than absolute; nothing outside a session gains a history; the receipt is the FOURTH exception to derive-don't-store; the thaw is the THIRD deliberate deletion in the schema",
-        "tasks/prd-us-16-maintain-customer-record.md §FR-2 gains a DATED NOTE AT THE TOP naming ADR-021 and this PRD. Its body is NOT rewritten",
-        "ROOT CLAUDE.md IS UPDATED IN TWO PLACES, both of which currently state something that has stopped being true: the THREE exceptions to „derive, don't store\" become FOUR, with the receipt's argument of its own kind stated in the same voice as the others; and the TWO deliberate deletion exceptions in the „Don'ts\" list become THREE",
-        "arc42 updated with the arc42 skill: 05 (the new domain module and the two port methods), 08 (what is derived and what is snapshotted — this is where the exception list is argued at length), 09 (the ADR-021 row), 12 (glossary: Beleg / Zustand bei Beendigung)",
-        "docs/handout/betriebsanleitung.md gains THREE OR FOUR SENTENCES in German: what a past Ausgabe shows, that corrections made WHILE THE AUSGABE RUNS still reach it, and that ending settles it — the one thing DF have to know to use the reopening sensibly",
-        "npm run arc42:check passes",
+        "SettingsVersion loses weekAnchorIsoWeek, weekAnchorColour and distributionWeekday",
+        "MIGRATIONS REGENERATED, NOT STACKED (ADR-009). RE-ADD BY HAND both hand-written indexes: the partial unique index on Customer.customerNumber and the one-running-session index from US-34. Then npm run db:reset",
+        "src/infrastructure/prisma/settings-repository.ts, prisma/seed.ts and prisma/demo-seed.ts stop writing them. The seed stays IDEMPOTENT and still writes no audit entry",
+        "updateSettings and readCurrentSettings follow; src/application/distribution/get-week-colour.ts is DELETED along with its tests",
+        "tasks/README.md's seed table loses the „Week-cycle anchor\" and „Distribution weekday\" rows",
+        "Integration suite passes; npm run build passes after npm run db:reset",
         "Full unit suite passes with coverage: npm run test:coverage",
         "Typecheck passes",
         "Lint passes"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "The CLAUDE.md edit is the part that matters most: the file states there are exactly THREE exceptions to derive-don't-store and exactly TWO deletion exceptions, and after this batch both numbers are wrong. Leaving them is how the next reader concludes the receipt is a mistake."
+      "passes": false,
+      "notes": "ELEVENTH batch to regenerate the migration history and the second with TWO hand-written indexes to put back. Nothing else in this story is risky."
+    },
+    {
+      "id": "US-005",
+      "title": "The screens stop predicting (presentation)",
+      "description": "As a DF staff member, I want the screens to tell me what is happening rather than what the calendar thinks will happen, so that nothing on screen can be wrong about next Thursday. Source: tasks/prd-us-36-sessions-not-the-calendar.md §US-36.5",
+      "acceptanceCriteria": [
+        "/einstellungen loses the week-anchor and weekday controls, and the Änderungsverlauf loses their three change kinds. The remaining grid is RE-SPANNED so nothing is left with a hole in it — the tidy-up US-27 did when the portion allowance left",
+        "/ loses the „Die nächste Ausgabe findet am … statt (Rot)\" line AND the „Heute ist Ausgabetag\" line with it. What is left: the greeting, the date, and — when one is running — the running-session panel from US-34",
+        "de.home.distribution.* goes with them EXCEPT notConfigured, which still has quota and prices to be missing",
+        "/ausgabe has NO reference to a week or a weekday left",
+        "PROVE IT: grep -rniE \"wochenfarbe|weekcolour|weekanchor|distributionweekday|nächste ausgabe\" src/ returns nothing. A leftover string is the failure mode here, exactly as a surviving Stat was in US-27",
+        "NO HINT is written explaining that the rhythm is no longer configured (ui_styling_guide.md §8): a control that is gone needs no epitaph",
+        "Verify in the browser with the playwright-cli skill — the accessibility snapshot, not a screenshot",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Outside-in deletion: the screens stop reading first, which story 3 and 4 already made a compile error. Watch the settings grid — it was re-spanned once before and looks wrong with a gap."
+    },
+    {
+      "id": "US-006",
+      "title": "The suite stops asserting a colour it cannot know (e2e)",
+      "description": "As a developer, I want the specs to prove the new rule, so that a no-show count is checked against sessions rather than against a pinned clock. Source: tasks/prd-us-36-sessions-not-the-calendar.md §US-36.6",
+      "acceptanceCriteria": [
+        "settings.spec.ts loses the anchor and weekday assertions and keeps everything else",
+        "home.spec.ts loses the next-distribution assertions and keeps the date, the greeting and the running-session panel",
+        "A spec proves the NO-SHOW COUNT OVER SESSIONS: a household misses two sessions of its own group and reads 2; a session serving ONLY THE OTHER GROUP in between changes nothing; a session that is STILL RUNNING is not counted",
+        "BOTH ENGINES PASS: npm run test:e2e and npm run test:e2e:webkit. No spec branches on browserName",
+        "STOP ANY RUNNING DEV SERVER FIRST",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "The no-show spec is the only place the rewritten rule is proved through the screen. Build it with the session helper from US-34's tests/e2e/session.ts rather than a second way of starting a session."
+    },
+    {
+      "id": "US-007",
+      "title": "The documents stop describing a cycle (documentation)",
+      "description": "As the next developer, I want the withdrawn requirement recorded where it was written, so that the week colour is not re-implemented from a document that still asks for it. Source: tasks/prd-us-36-sessions-not-the-calendar.md §US-36.7",
+      "acceptanceCriteria": [
+        "tasks/prd-us-03-week-colour.md is marked WITHDRAWN at the top, dated, naming US-34 and this PRD — the treatment batch 21 gave the withdrawn week-colour lookup. Its BODY IS NOT REWRITTEN",
+        "docs/archiv/user_stories_mvp.md's US-03 gets the same ONE-LINE note; the archive is not otherwise edited",
+        "arc42 updated with the arc42 skill: 08 (the week-colour concept and the 'same calendar day' notion both go; what replaces them is the session), 05 (the deleted modules and use case), 12 (glossary: Wochenfarbe and Ausgabetag removed or marked historical), 11 if a risk row mentioned the anchor",
+        "NO NEW ADR: ADR-020's consequences already predicted this removal. A story that writes one has misread the batch",
+        "docs/handout/betriebsanleitung.md: the settings section stops describing the two values, and the section on Fehlzeiten says what the figure NOW counts",
+        "npm run arc42:check passes",
+        "Full unit suite passes with coverage: npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Batches 21 and 32 both withdrew a requirement and both edited the document that asked for it. Do the same here and do not delete those documents — a withdrawn requirement that leaves no trace gets re-requested."
     }
   ]
 }

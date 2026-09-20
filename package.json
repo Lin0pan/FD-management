@@ -27,6 +27,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:demo": "tsx prisma/demo-seed.ts",
     "db:reset": "node -e \"for (const s of ['','-journal','-wal','-shm']) require('fs').rmSync('data/fd.db'+s,{force:true})\" && prisma migrate deploy && npm run db:seed",
+    "arc42:check": "python3 .claude/skills/arc42/scripts/arc42.py check",
     "prepare": "husky"
   },
   "dependencies": {
