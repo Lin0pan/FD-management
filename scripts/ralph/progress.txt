@@ -926,3 +926,54 @@ Files: `src/app/page.tsx`, `src/app/ausgabe/session-group-badges.tsx` (new),
   helper for until that story writes `tests/e2e/session.ts`. The testids are in place for it:
   `running-session`, `running-session-groups`, `running-session-started`.
 ---
+
+## 2026-09-20 — US-010 (US-34.10) The existing specs run inside a session
+
+**Implemented.** Every spec that records a hand-out or a reminder now holds an afternoon of its own.
+`tests/e2e/session.ts` is the helper: `startSession(page, groups)` picks the radio and presses
+„Ausgabe starten", `endSession(page)` walks the two-step confirmation, and `startSessionInHook` /
+`endSessionInHook` wrap either for a `beforeAll`/`afterAll`, which refuse the `page` fixture and have
+to build their own from `browser` + `baseURL`. Nothing writes a session row through Prisma —
+`seedEndedSession` stays the one exception and is used only where a *past* afternoon is the fixture
+(`customer-record.spec.ts`'s history).
+
+Nineteen specs changed. The substantial ones: `counter.spec.ts` starts a RED afternoon so the even
+household is the one turned away and its `ALREADY_SERVED` row is written onto the running session;
+`serve.spec.ts` and `group-progress.spec.ts` hold one RED session each; `balance.spec.ts` needs
+**two**, because a fortnight of calendar no longer frees a household that has collected — only a new
+session does — so `secondAfternoon()` asks the register which one is running rather than remembering
+between tests; `reminders.spec.ts` walks three afternoons and collects their ids for the log
+assertions, `loggedOn` having become `sessionId`. `distribution.spec.ts` now starts and ends one
+session serving both groups before its first test, so „Rot und Blau" being preselected is a fact
+about a session it wrote. `home.spec.ts` keeps its „nächste Ausgabe" assertions (US-36 owns them) and
+gains the running-session panel, started and ended through the real controls inside one test.
+
+Files: `tests/e2e/session.ts` (new) and nineteen specs. No `src/` change, no documentation change —
+US-34.12 owns the docs and says nothing else in CLAUDE.md changes this batch.
+
+**Learnings for future iterations:**
+
+- **`beforeAll` and `afterAll` cannot take the `page` fixture** — it is created per test. A hook that
+  has to drive the screen builds one from `browser`, and **`baseURL` must be passed with it**: a page
+  made by `browser.newPage()` inherits nothing from the project's `use` block, so a relative `goto`
+  has no server to resolve against. That is the whole reason `startSessionInHook` exists beside
+  `startSession`.
+- **A teardown that throws buries the failure that matters.** `endSessionInHook` is silent when
+  nothing runs, because `afterAll` fires even when the block failed before it started a session;
+  `endSession` still throws, because a test that thinks it started one and did not is a fault worth
+  reporting at the helper rather than three assertions later.
+- **CI retries replay `beforeAll` against the register the failed attempt left behind** (`retries: 2`,
+  `mode: "serial"`). `startSession` therefore ends a session it finds running first — without it the
+  retry dies on „Es läuft bereits eine Ausgabe" nowhere near the hiccup that caused it — and
+  `reminders.spec.ts` clears its collected session ids in `beforeAll` for the same reason.
+- **A session left running is state the next file inherits.** The shared register is ordered by file
+  name, so the rule is: the spec that starts an afternoon ends it. `group-progress.spec.ts` depends
+  on this from the other side — its tally counts the *whole* register's RED households, and it can
+  only assert a served count of its own because every file before it ended its afternoon.
+- **`[data-slot="alert"]` needs `:visible` now.** The last-session card carries a reopen confirmation
+  inside a closed `<details>`, so „no error anywhere on the page" counts it unless the locator asks
+  for visibility.
+- **Nothing branched on `browserName` and both engines passed first time** (208 passed, 1 skipped, on
+  chromium and webkit). Kill any `next dev`/`next start` before believing that: the run starts servers
+  of its own over its own registers.
+---

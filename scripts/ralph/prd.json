@@ -219,7 +219,7 @@
         "Lint passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "THE LARGEST HIDDEN COST OF THIS BATCH. Ten specs record a hand-out and every one needs a session started first. That is why this is a story of its own and not a line in the next one."
     },
     {
