@@ -348,6 +348,20 @@ bullets that sat under „Where batch 34 starts" are not carried over — they a
   repositories. A heading and the table under it can disagree — US-34.4 updated „twelve ports" while
   the ports table stayed at eleven rows. Count both halves whenever a module, a port or a route is
   added.
+- **There is no `npm run arc42:check`**, though several PRDs name it. CI runs
+  `python3 .claude/skills/arc42/scripts/arc42.py check` directly (`.github/workflows/ci.yml`), and a
+  clean run still reports the two long-standing `> **TODO:**` markers in chapter 07.
+- **Root `CLAUDE.md` and ADR-007 count the derive-don't-store exceptions differently, and both are
+  right** — the ADR's table includes `DistributionRecord.priceCents`, the prose list never has. So a
+  batch that admits one exception writes „three → four" in one file and „four → five" in the other.
+  Name the file before changing a count, and state the discrepancy where a reader meets it rather
+  than aligning the two silently.
+- **Do not rewrap a markdown paragraph with a script that runs to the next blank line.** In a list,
+  that swallows the following item into the paragraph above it, and a two-space prefix applied to
+  the `-` turns a top-level bullet into a nested one. `prettier --check` passes on every one of
+  those — the results are valid markdown — so only reading `git diff` catches it. And re-run the
+  width sweep *after each* rewrap: fixing one 101-column line pushes words onto the next. Exclude
+  lines containing `](`; a long ADR link is unbreakable and Prettier accepts it.
 - **Prior runs' patterns are in the archive**, not in this file:
   `scripts/ralph/archive/2026-09-17-us-33-certificate-types-from-settings/progress.txt` is the most
   recent (a vocabulary DF maintain themselves, a table deliberately outside the versioned settings,
