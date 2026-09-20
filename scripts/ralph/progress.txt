@@ -636,3 +636,54 @@ reason US-001 and US-002 landed together.
   `today-date` — but it is not the browser check US-36.5 asks for. And **`pkill -f next-server`
   still kills the Bash tool** (exit 144), as the pattern above says; kill by pid.
 ---
+
+## 2026-09-20 — US-004 (batch 36)
+
+The three `SettingsVersion` columns leave the schema. A small story by design: US-36.3 had already
+taken the two fields off `Settings` and pushed the writes down into the adapter as
+`RETIRED_WEEK_CYCLE`, so nothing but the schema, the adapter and two raw fixtures still named them.
+
+- `prisma/schema.prisma` lost `weekAnchorIsoWeek`, `weekAnchorColour` and `distributionWeekday`;
+  the model's doc comment now names the egg allowance as the third thing a version carries.
+- **Migrations regenerated** (ADR-009, the eleventh time) and **both** hand-written partial unique
+  indexes re-added by hand — `Customer_customerNumber_onRegister_key` and `one_running_session`.
+  `npm run db:reset`, then both verified in `sqlite_master` rather than by reading the file.
+- `settings-repository.ts` lost `RETIRED_WEEK_CYCLE` and its spread; its `toDomain` comment stopped
+  claiming the rebuild guards against "an impossible weekday". The two raw `settingsVersion.create`
+  fixtures in its integration test lost the three lines.
+- `prisma/seed.ts` and `demo-seed.ts` needed **no change**: the seed writes through the repository,
+  and US-36.3 had already cut `demo-seed`'s week-colour dependency. `updateSettings` and
+  `readCurrentSettings` were likewise already clean, and `get-week-colour.ts` was deleted in
+  US-36.3 — four of this story's acceptance criteria were met before it started.
+- `tasks/README.md`'s seed table lost the „Week-cycle anchor" and „Distribution weekday" rows.
+
+**Learnings for future iterations:**
+
+- **Verify a regenerated migration with `diff` against the old one, and it is a two-line report.**
+  `git show HEAD:<old>/migration.sql > /tmp/old.sql` before `rm -rf prisma/migrations`, then diff
+  the new file after appending the hand-written tail: the whole output was the three dropped
+  columns. Anything else would have been Prisma drifting the DDL under the commit. Slice the tail
+  off the *old* file by index (`s.index("-- CreateIndex (hand-written")`) rather than retyping it —
+  both indexes and their comments come back byte-identical, which is what `schema.test.ts` greps.
+- **`sqlite3` is not installed in this sandbox.** Query `sqlite_master` through
+  `npx tsx -e` with `$queryRawUnsafe` instead — and check the *columns* of a seeded row in the same
+  script (`Object.keys(rows[0])`), which proves the reset actually re-applied the new schema rather
+  than serving an old file.
+- **`prisma migrate dev` wants `--skip-seed`** here, or it runs the seed against a database the
+  hand-written indexes have not been appended to yet. `npm run db:reset` afterwards is still what
+  makes the committed SQL and the database agree.
+- **A story whose predecessor "dragged along" half of it is still worth reading end to end.** Four
+  of the seven acceptance criteria were already satisfied by US-36.3's commit. Grep each one before
+  implementing it rather than after — the risk is re-deleting something and reviewing a diff that
+  is mostly noise.
+- **Removing a form control leaves a count in prose that no gate sees, and it is not always in the
+  screen's own file.** Two survived US-36.3: „The eight fields of the settings form" in
+  `save-settings-state.ts` and „not the seven values that did not" in `list-settings-versions.ts`
+  (five `SETTINGS_FIELDS` now, so four unmoved). The counting-word sweep is
+  `grep -rniE "(three|four|…|ten) (policy )?(values|settings|fields|rows|columns)"` over `src/` and
+  `docs/` — and ADR-005's „a wall of eight columns turned out to be unreadable" is a **past-tense
+  observation about the decision** and was deliberately left alone.
+- **Prettier re-flows a markdown table when its widest row is the one removed.** The two dropped
+  rows were the widest in `tasks/README.md`'s seed table, so every remaining row shifted two columns
+  left. `npx prettier --write` the file *before* reading the diff, as the pattern above says.
+---

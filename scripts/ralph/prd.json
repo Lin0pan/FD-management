@@ -79,7 +79,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "ELEVENTH batch to regenerate the migration history and the second with TWO hand-written indexes to put back. Nothing else in this story is risky."
     },
     {
