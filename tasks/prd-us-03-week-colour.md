@@ -3,15 +3,19 @@
 > Source story: `docs/archiv/user_stories_mvp.md` §US-03 (Tier 1). Depends on **US-14** (anchor week and
 > distribution weekday). Feeds **US-04** (the wrong-group verdict).
 
-> ⚠️ **The colour no longer decides anything — superseded by
-> [US-34](prd-us-34-distribution-session.md) (2026-09-20).** DF merge the two groups, cancel a
+> ⚠️ **Withdrawn — superseded by [US-34](prd-us-34-distribution-session.md) and
+> [US-36](prd-us-36-sessions-not-the-calendar.md) (2026-09-20).** DF merge the two groups, cancel a
 > Thursday and hold extra distributions, so the calendar regularly names a colour for an afternoon
-> that did not happen. A hand-out now belongs to the **distribution session** a staff member started
-> and ended, and „falsche Gruppe" is judged against the groups that session serves
+> that did not happen. A hand-out belongs to the **distribution session** a staff member started and
+> ended, and „falsche Gruppe" is judged against the groups that session serves
 > ([ADR-020](../docs/architecture/adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md)).
-> Everything below is the requirement as it was written and is kept as the record of what was asked
-> for. `getWeekColour` survives with one reader, the Start screen's „nächste Ausgabe" line; US-36
-> removes the anchor, the weekday and the arithmetic with it.
+> US-36 then removed the anchor, the distribution weekday and the alternation arithmetic altogether:
+> no screen states what colour a week carries, and nothing predicts when the next Ausgabe is. A
+> household's **group** is untouched — it is the parity of its customer number
+> ([ADR-017](../docs/architecture/adr/017-the-customer-number-decides-the-group.md)).
+>
+> Everything below is the requirement as it was written and is **not** deleted: the next person to
+> propose a week colour should find the argument to beat rather than a gap.
 
 ## 1. Introduction
 

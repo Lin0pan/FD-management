@@ -95,6 +95,14 @@ the last session that took place, never from the week number.
 - Revisit if DF ever ask for more than one counter working at once, which is where "at most one
   session" stops being a simplification and starts being a limit.
 
+> **Note (2026-09-20).** US-36 landed the removal predicted above: the week anchor, the distribution
+> weekday and `weekColour.ts` are gone, and the consecutive no-show count — which had walked the
+> calendar a fortnight at a time, counting every cancelled week as a miss nobody made — now walks
+> the ended sessions instead. One detail of this record was wrong when it was written:
+> `berlinDayKey`'s surviving reader is not the no-show count but the **13-year boundary**, which has
+> called it since US-13.1 because a birthday turns over at Berlin midnight. The decision itself
+> stands unamended.
+
 ## More information
 
 - [ADR-006 — record what, when and why in the audit log, never who](006-record-what-when-and-why-in-the-audit-log-never-who.md)

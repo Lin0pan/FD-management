@@ -39,9 +39,9 @@ const NOW_FILE = SHARED.now;
 /**
  * The day the hand-out is recorded on: Thursday 08.01.2026.
  *
- * It follows from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor `2026-W02`
- * = RED, distributions on ISO weekday 4. So it is a distribution day and the group collecting is
- * RED, which is what makes this RED household clear to serve.
+ * Pinned rather than derived, because the certificate and card dates seeded below are written
+ * relative to it, so the counter's verdict for this household cannot move with the calendar. Which
+ * group collects is not a property of the day — the session this spec starts names it (US-36).
  */
 const TODAY = "2026-01-08T09:00:00.000Z";
 

@@ -136,7 +136,7 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Batches 21 and 32 both withdrew a requirement and both edited the document that asked for it. Do the same here and do not delete those documents — a withdrawn requirement that leaves no trace gets re-requested."
     }
   ]

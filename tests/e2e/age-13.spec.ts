@@ -30,7 +30,7 @@ import { endSessionInHook, startSessionInHook } from "./session";
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
-// stays a literal, because a birthday, a distribution day and a valid certificate are all dates.
+// stays a literal, because a birthday and a certificate's validity are both dates.
 faker.seed(20260728);
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */

@@ -399,6 +399,21 @@ bullets that sat under „Where batch 35 starts" are not carried over — they a
   `npm run start` honours `FD_FIXED_NOW_FILE`, so pinning an instant *before* the seeded version's
   `effectiveFrom` renders it against the real build. `settingsVersion.deleteMany()` fails on a
   foreign key anyway.
+- **A removal's documentation sweep greps the *explanation*, not only the identifier.** After a
+  concept is deleted, `grep -rn "<oldName>"` comes back clean while the prose that taught the
+  concept survives in comment headers — „anchor `2026-W02` = RED, distributions on ISO weekday 4"
+  sat in five e2e spec headers and „a distribution day … is decided by dates" in six more, three
+  stories after the anchor was deleted. Sweep the removed rule's **vocabulary** over `src/`,
+  `tests/`, `prisma/` and the root configs (`wrong week|red week|this week|distribution day|
+  anchor`), not the story's own files.
+- **An accepted ADR whose prediction came true gets a dated note, never a rewrite.** „Removed in
+  US-nn … until then a deliberate intermediate state" reads as pending forever. A
+  `> **Note (YYYY-MM-DD).**` under *Consequences* says the prediction landed and corrects any claim
+  that turned out wrong; the decision and its reasoning stay as argued (ADR-020, batch 36).
+- **A deleted word stays in the glossary, marked Historical.** It is in years of commits and in
+  half a dozen PRDs, so a reader meeting it needs to be told it is gone and what replaced it — which
+  a deleted row cannot do. Chapter 01's **non-goals** table and chapter 09's **reversed decisions**
+  table are the same mechanism one level up, and a withdrawn PRD's banner one level down.
 - **Prior runs' patterns are in the archive**, not in this file:
   `scripts/ralph/archive/2026-09-17-us-33-certificate-types-from-settings/progress.txt` is the most
   recent (a vocabulary DF maintain themselves, a table deliberately outside the versioned settings,
@@ -830,4 +845,74 @@ this story started and what was left is the new spec and the two engine runs.
   the same afternoons, one of which collected at the last one, is what separates „counts the
   sessions" from „counts the sessions with no hand-out": without the second household the first
   test passes against a rule that ignores hand-outs entirely.
+---
+
+## 2026-09-20 — US-007 (batch 36)
+
+The documents stop describing a cycle. A documentation story, and the largest part of it was the
+sweep rather than the writing: eleven arc42 files, two records of a withdrawn requirement, the
+handout, and eighteen comments in `src/`, `tests/` and `prisma/` that still explained a screen or a
+fixture by a week colour nobody computes any more.
+
+- `tasks/prd-us-03-week-colour.md` is **withdrawn** at the top, dated, naming US-34 and US-36, in
+  the shape `prd-us-21-step-through-group.md` carries. Body untouched. `docs/archiv/
+  user_stories_mvp.md`'s US-03 got the one-line dated blockquote after the criteria block; nothing
+  else in the archive was touched.
+- arc42, driven with the `arc42` skill: **08** (the three columns out of the ER diagram, the
+  two-calendars bullet rewritten — Berlin day for the age boundary, UTC day for the certificate
+  comparison — and the session bullet now states what a no-show counts), **05** (27 domain modules,
+  43 use cases, `calendarDay.ts` named in the root-modules row, `listEnded` on the session port,
+  the Start screen's row), **12** (Wochenfarbe marked **historical** rather than deleted, Ausgabetag
+  the same, `Group` no longer „deliberately not the same type as week colour"), **09** (three log
+  rows marked ⚠️ reversed/moot and a new „week rhythm as configured data" row in the reversed
+  table), **01** (the alternation bullet deleted, a non-goal row added), **03**, **04**, **02**,
+  **06**, **07** (the seeded values no longer claim „Thursday, anchored at 2026-W02 RED").
+  **11 needed nothing** — no risk row ever mentioned the anchor.
+- **No new ADR** (ADR-020 predicted this). ADR-020 itself got a dated `> **Note**` under its
+  consequences: the prediction landed, and one sentence in it was **wrong when written** —
+  `berlinDayKey`'s surviving reader is the 13-year boundary, not the no-show count.
+- `docs/handout/betriebsanleitung.md`: a new section **„Verpasste Ausgaben"** saying what the figure
+  counts (ended afternoons the household's group was served at, with no hand-out; a cancelled week
+  counts nothing, nor does the running one) and that nothing follows from it. The settings section
+  never described the two values, so there was nothing to remove — the handout only ever documented
+  the eggs and the Nachweis-Arten.
+- Eighteen comments corrected, all of them false rather than merely dated: five e2e specs explained
+  their pinned Thursday by „anchor `2026-W02` = RED, distributions on ISO weekday 4", six more said
+  a date stays a literal „because a distribution day … is decided by dates", two said „only a RED
+  household is clear to serve in a RED week", and `lookup-customer.test.ts` and
+  `maintain-customer.test.ts` still anchored their fixtures' weeks.
+- Gates: lint, typecheck, `test:coverage` (60 files, 1369 tests, domain and application at 100%),
+  `build`, and `arc42.py check` — clean but for chapter 07's two long-standing TODOs. **The e2e
+  suite was not re-run**: every change under `tests/` is a comment, proved with
+  `git diff -U0 -- tests/ | grep -v '^[+-]\s*\*'` returning nothing, and US-006 ran both engines
+  green on the same specs.
+
+**Learnings for future iterations:**
+
+- **A documentation sweep for a removed concept has to grep the *explanations*, not just the
+  identifier.** `weekanchor|weekcolour|distributionweekday` was clean in `src/` and `tests/` before
+  this story started — US-36.5 and US-36.6 had both run it. What it could never find was
+  „anchor `2026-W02` = RED, distributions on ISO weekday 4" spelled out in prose in five spec
+  headers, or „a distribution day … is decided by dates" in six. The sweep that found them was
+  `grep -rniE "wrong week|red week|this week|distribution day|anchor" src/ tests/ prisma/` — the
+  *vocabulary* of the removed rule, run over the whole tree rather than over the story's own files.
+- **An accepted ADR whose prediction came true needs a note, not a rewrite.** ADR-020 said „removed
+  in US-36 … until then a deliberate one-batch-long intermediate state", which reads as a pending
+  promise for as long as it stands. A dated `> **Note (YYYY-MM-DD).**` under the consequences says
+  the prediction landed and corrects the one claim that was wrong, while the decision and its
+  reasoning stay exactly as they were argued.
+- **A glossary entry for a removed word is worth keeping, marked historical.** „Wochenfarbe" appears
+  in years of commits and in half a dozen PRDs; a reader meeting it needs to be told it is gone and
+  what replaced it, which a deleted row cannot do. The row says **Historical**, names the story and
+  says what a household's **group** is instead — deletion would have left the word findable only in
+  code that no longer exists.
+- **Two arc42 chapters were stale in ways US-36 did not cause**, and both were fixed here because
+  the sweep opened them anyway: chapter 05 had never listed `calendarDay.ts` among the root domain
+  modules, and its use-case count needed re-deriving rather than decrementing
+  (`grep -rn "^export async function \|^export function " src/application | grep -v test`, 43 —
+  the file count, 41, is a different number and not the one the heading states).
+- **Chapter 01's non-goals table is where a withdrawn requirement goes to stay named.** The portion
+  allowance row (US-27) is the pattern: what was withdrawn, the date, and DF's own reason. „A
+  calendar of distributions" now sits beside it, so the next person to propose a week anchor meets
+  the argument rather than a gap — the same job the withdrawn PRD banner does one level down.
 ---

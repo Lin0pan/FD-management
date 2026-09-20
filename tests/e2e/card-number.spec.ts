@@ -27,7 +27,7 @@ import { endSessionInHook, startSessionInHook } from "./session";
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
-// stays a literal, because a distribution day and a valid certificate are decided by dates.
+// stays a literal, because a card's validity and a certificate's are decided by dates.
 faker.seed(20260806);
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
@@ -36,10 +36,11 @@ const NOW_FILE = SHARED.now;
 /**
  * The day this spec is judged on: Thursday 08.01.2026, 09:00 UTC.
  *
- * It follows from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor `2026-W02`
- * = RED, distributions on ISO weekday 4. So it is a RED distribution day, which is what lets the
- * successor's card reach „Ausgabe frei" — the point of the story is that *their* card works and the
- * archived household's does not, and a wrong-colour week would refuse both for the same reason.
+ * Pinned rather than derived, because the certificate and card dates seeded below are written
+ * relative to it: the successor's card has to reach „Ausgabe frei" today. The point of the story is
+ * that *their* card works and the archived household's does not, so the session this spec starts
+ * serves the group both numbers fall in — a session on the other group would refuse both for the
+ * same reason (US-36).
  */
 const TODAY = "2026-01-08T09:00:00.000Z";
 
@@ -48,9 +49,9 @@ const TODAY = "2026-01-08T09:00:00.000Z";
  *
  * It has to be **inside the quota of 240**, unlike the bands the seeding specs took (241 upwards):
  * the control offers `1..quotaN`, and a number nobody may pick could not be chosen twice. It is
- * **odd, and therefore RED** (US-31), which is what lets the successor's card be cleared on the RED
- * distribution day pinned above — the group is not a second thing to choose any more, it is what
- * this number is. 237 is free of every band named in `scripts/ralph/progress.txt`: counter
+ * **odd, and therefore RED** (US-31), which is what lets the successor's card be cleared at the RED
+ * session this spec starts — the group is not a second thing to choose any more, it is what this
+ * number is. 237 is free of every band named in `scripts/ralph/progress.txt`: counter
  * (201–209, 239), allowance (211), serve (213–219), number change (221–229), reminders (231) and
  * registration (232–236) are the only ones below 240, and the low sequence the allocating specs
  * consume is nowhere near it.
@@ -97,8 +98,8 @@ interface Household {
  * two households can be put on one slot: the allocator offers the lowest free number, and that is
  * never the number the household before them is still holding.
  *
- * The week is checked by hand rather than accepted from the recommendation, because the counter
- * assertions depend on it — only a RED household is clear to serve in a RED week. Since US-31 that
+ * The group is checked by hand rather than accepted from the recommendation, because the counter
+ * assertions depend on it — only a RED household is clear to serve at a RED session. Since US-31 that
  * is the same act as choosing the slot: the radios filter the list the number is picked from.
  *
  * @returns the record's id and the card number the screen shows for it.

@@ -39,7 +39,7 @@ const NOW_FILE = SHARED.now;
 /**
  * The day this spec is judged on: Thursday 08.01.2026, 09:00 UTC.
  *
- * Nothing here depends on it being a distribution day — the list is a read. It is pinned because the
+ * Nothing here depends on an afternoon being under way — the list is a read. It is pinned because the
  * three certificate states are relative to *today*: "läuft bald ab" is within 30 days of it, and a
  * spec whose today drifted would assert one bucket and be shown another.
  */

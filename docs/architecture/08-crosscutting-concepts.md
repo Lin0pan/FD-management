@@ -26,9 +26,6 @@ erDiagram
     SettingsVersion {
         datetime recordedAt "indexed, NOT unique"
         int quotaN
-        string weekAnchorIsoWeek
-        string weekAnchorColour
-        int distributionWeekday
         int pricePerGrownUpCents
         int pricePerChildCents
         int priceCapCents "nullable = no cap"
@@ -153,7 +150,10 @@ drop-down and never joined
   The FK is permanent: „once per afternoon", „the wrong group" and „still correctable" are all read
   off it. A session started by mistake is stamped `discardedAt` and filtered out of every read, so a
   third state never reaches the domain, and `endedAt` is the freeze — the one column a reopening
-  ever moves back.
+  ever moves back. **Everything counted across afternoons is counted over sessions too**:
+  consecutive no-shows walk the ended sessions newest first, counting one whose groups include the
+  household's and which holds no hand-out for them, so a cancelled week is an afternoon that never
+  happened rather than one the household missed (US-36).
 - **Ending a session settles what it showed.** One `HandoutReceipt` per hand-out captures the
   household as it stood at the **ending instant**: the name, the counts, the number, the card's own
   slot, the certificate date and the reminder count. Price and amount paid are not copied — they are
@@ -178,12 +178,10 @@ dependency like any other.
   `Card.grownUpsAtIssue` already exposes against the price charged earlier — real, and not to be
   "fixed". It is observable only across Berlin midnight, which is what the boundary test for it pins
   ([ADR-021](adr/021-capture-the-household-s-state-when-a-distribution-session-is-ended.md)).
-- **Two calendars, for what is left.** The **Europe/Berlin** day (`berlinDayKey`) is read by the
-  no-show count, which still matches attended days against the calendar's distributions until US-36,
-  and by the age boundary, which counts a birthday in the zone the counter is worked in. Week
-  colour, distribution day and birthdates use the **UTC** day, because a week's colour is a property
-  of a configured week where the minute is irrelevant. Both derivations are named and shared;
-  neither is re-implemented.
+- **Two calendars, for what is left.** The **Europe/Berlin** day (`berlinDayKey`) is read by the age
+  boundary alone, which counts a birthday in the zone the counter is worked in. The **UTC** day
+  (`startOfUtcDay`) is read by the certificate comparison, where a stored day is midnight UTC and
+  the minute is irrelevant. Both derivations are named and shared; neither is re-implemented.
 - **Named boundary tests.** A time-dependent rule is tested the day before, the day of and the day
   after, plus 29 February. `turns grown-up on the 13th birthday, not the day before` is the shape.
 - The e2e suite cannot inject a fake, so the clock adapter carries the `FD_FIXED_NOW_FILE` seam —

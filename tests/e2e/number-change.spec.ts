@@ -32,7 +32,7 @@ import { fillPersonalData } from "./registration-form";
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
-// stays a literal, because a distribution day and a valid certificate are decided by dates.
+// stays a literal, because a card's validity and a certificate's are decided by dates.
 faker.seed(20260901);
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */

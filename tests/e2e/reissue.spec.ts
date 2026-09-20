@@ -24,7 +24,7 @@ import { endSessionInHook, startSessionInHook } from "./session";
  */
 
 // A fixed seed so a failure is reproducible; only the name and address come from Faker. Every date
-// stays a literal, because a distribution day and a valid certificate are decided by dates.
+// stays a literal, because a card's validity and a certificate's are decided by dates.
 faker.seed(20260726);
 
 /**
@@ -45,10 +45,9 @@ const NOW_FILE = SHARED.now;
 /**
  * The day this spec is judged on: Thursday 08.01.2026, 09:00 UTC.
  *
- * It follows from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor `2026-W02`
- * = RED, distributions on ISO weekday 4. So it is a RED distribution day, which is what makes the
- * RED household clear to serve on its new card — the replacement has to be good for food *today*,
- * not merely on file.
+ * Pinned rather than derived, because the certificate and card dates seeded below are written
+ * relative to it: the replacement card has to be good for food *today*, not merely on file. Which
+ * group collects is not a property of the day — the session this spec starts names it (US-36).
  */
 const TODAY = "2026-01-08T09:00:00.000Z";
 

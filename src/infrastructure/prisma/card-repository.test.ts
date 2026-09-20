@@ -162,7 +162,7 @@ describe("the counts printed on a card", () => {
       countsAtIssue: { grownUps: 1, children: 0 },
     });
 
-    // The household is moved to an odd slot, so they collect in the RED week from now on. The card
+    // The household is moved to an odd slot, so they collect with RED from now on. The card
     // in their pocket was printed on 50 and goes on saying BLUE, because its week follows from its
     // own slot and nothing about it was stored (US-31).
     await prisma.customer.update({ where: { id: customerId }, data: { customerNumber: 67 } });

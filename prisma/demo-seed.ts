@@ -624,7 +624,7 @@ async function main(): Promise<void> {
 
     /** Filled as registrations run; every later event on a household reads its id from here. */
     const customerIds = new Map<string, number>();
-    /** Which colour collects on each of the distribution days the history covers. */
+    /** Which group collects at each of the afternoons the history covers. */
     const distributionDays = pastDistributionDays();
 
     const events: DemoEvent[] = [];

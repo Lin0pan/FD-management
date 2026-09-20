@@ -37,7 +37,7 @@ Eine Sicherung ist das **Kopieren eines Ordners**. Sie brauchen dafür keine EDV
 2. Den kompletten Ordner `data` auf einen USB-Stick oder eine externe Festplatte kopieren.
 3. Den Ordner auf dem Stick mit dem heutigen Datum benennen, zum Beispiel `data-2026-08-08`.
 
-**Wann:** nach jedem Ausgabetag, an dem Sie mit dem Programm gearbeitet haben.
+**Wann:** nach jeder Ausgabe, bei der Sie mit dem Programm gearbeitet haben.
 **Wohin:** auf einen Datenträger, der **nicht** im selben Raum liegt wie der Rechner.
 **Wer:** _(vor dem Echtstart festzulegen)_
 
@@ -146,6 +146,19 @@ erforderlich, der protokolliert wird. Danach sind ihre Einträge wieder zu korri
 **Solange keine Ausgabe läuft**, zeigt der Ausgabe-Bildschirm nur den Start und die letzte Ausgabe
 mit ihren Zahlen. Eine Kundennummer lässt sich dann nicht nachschlagen — Kunden anlegen, sperren,
 ändern und Karten ausstellen geht wie immer.
+
+## Verpasste Ausgaben
+
+Bei einem Haushalt steht — beim Kunden selbst und unter **Ausgabe**, sobald Sie ihn nachgeschlagen
+haben — die Zahl **Ausgaben in Folge verpasst**. Gezählt werden nur Ausgaben, die **tatsächlich
+stattgefunden haben**: beendete Ausgaben, bei denen die Gruppe des Haushalts an der Reihe war und er
+nichts abgeholt hat. Eine ausgefallene Woche zählt nicht mit, denn es gab an ihr keine Ausgabe; die
+gerade laufende zählt ebenfalls nicht, und Ausgaben vor der Anmeldung des Haushalts auch nicht.
+Sobald er wieder abholt, beginnt die Zählung von vorn, und die Zeile verschwindet.
+
+Die Zahl ist ein Hinweis und sonst nichts. Die Software zieht keine Folgerung daraus: niemand wird
+deswegen gesperrt oder archiviert. Auch bei einem gesperrten Haushalt läuft die Zählung weiter — was
+eine Zahl bedeutet, entscheiden Sie.
 
 ## Saldo — Guthaben und offene Beträge
 

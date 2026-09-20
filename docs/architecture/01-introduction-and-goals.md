@@ -28,9 +28,9 @@ current — see [chapter 11](11-risks-and-technical-debt.md).) What matters arch
 
 - **Register a household** onto a free customer number within the quota, with its members, address
   and proof of need, and issue its first card.
-- **Derive which week a household collects in** from the number it holds — even is BLUE, odd is RED,
-  DF's own rule and never a second stored field
-  ([ADR-017](adr/017-the-customer-number-decides-the-group.md)). Moving a household between weeks is
+- **Derive which group a household collects with** from the number it holds — even is BLUE, odd is
+  RED, DF's own rule and never a second stored field
+  ([ADR-017](adr/017-the-customer-number-decides-the-group.md)). Moving a household between groups is
   moving it onto another number, and prints a card.
 - **Derive the household composition** — grown-ups and children — from birthdates against today,
   never from stored counts. The boundary is the 13th birthday.
@@ -48,34 +48,31 @@ current — see [chapter 11](11-risks-and-technical-debt.md).) What matters arch
   until that session is ended, after which the last one may be reopened with a reason.
 - **Track the proof of need**: flag an expiring or expired certificate, log each reminder given,
   record a renewal. There is no automatic consequence; escalation is a staff judgement.
-- **Alternate RED and BLUE weeks** strictly, derived from the calendar so two weeks of one colour in
-  a row are impossible. Since ADR-020 the alternation decides nothing — which groups collect is the
-  choice made when a session is started — and only the Start screen's „nächste Ausgabe" line still
-  reads it, until US-36.
 - **Keep the register true over time**: block and unblock, archive (releasing the number), reuse an
   archived record for a re-registration, run a waiting list in strict arrival order.
-- **Let DF change their own rules** — quota, prices, price cap, distribution weekday, week anchor,
-  the egg allowance — in the UI, with the change in force immediately and the history kept.
+- **Let DF change their own rules** — quota, prices, price cap, the egg allowance and the list of
+  Nachweis-Arten — in the UI, with the change in force immediately and the history kept.
 - **Notice when a printed card has been overtaken** by a birthday or a household change, and offer a
-  reissue. A card cannot be overtaken by its week: it prints the slot it was issued under, and the
-  week is that slot's parity ([ADR-017](adr/017-the-customer-number-decides-the-group.md)).
+  reissue. A card cannot be overtaken by its group: it prints the slot it was issued under, and the
+  group is that slot's parity ([ADR-017](adr/017-the-customer-number-decides-the-group.md)).
 
 ### Non-goals
 
 Deliberately out of scope, each because DF said so or because it is someone else's job. Confirmed
 still current on 2026-08-07:
 
-| Not built                                    | Why                                                                                                                                                                                                       |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Login, accounts, roles                       | DF are a handful of trusted colleagues on one machine — see [ADR-003](adr/003-ship-without-login-and-bind-the-application-to-localhost.md)                                                                |
-| Printing the physical card                   | A separate existing system does it; this app produces the numbers on it                                                                                                                                   |
-| A portion allowance                          | Withdrawn 2026-08-24 (US-27): food is not handed out in portions. A staff member decides per distribution how much each head gets, from what was donated that week — so the figure named no real quantity |
-| Reporting and statistics                     | Not asked for; the data is there when it is                                                                                                                                                               |
-| A full field-level change history            | The audit log records the state changes that matter, not every edit                                                                                                                                       |
-| Retention or deletion rules                  | Archived records are kept indefinitely; DF has no rule today                                                                                                                                              |
-| Contact details, letters, e-mail reminders   | DF does not hold phone numbers or addresses for this purpose                                                                                                                                              |
-| Importing the existing Excel sheet           | A migration question, still unanswered — see [chapter 11](11-risks-and-technical-debt.md)                                                                                                                 |
-| Multi-user, multi-machine or cloud operation | One machine, by design                                                                                                                                                                                    |
+| Not built                                    | Why                                                                                                                                                                                                                                                                                                                                          |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Login, accounts, roles                       | DF are a handful of trusted colleagues on one machine — see [ADR-003](adr/003-ship-without-login-and-bind-the-application-to-localhost.md)                                                                                                                                                                                                   |
+| Printing the physical card                   | A separate existing system does it; this app produces the numbers on it                                                                                                                                                                                                                                                                      |
+| A portion allowance                          | Withdrawn 2026-08-24 (US-27): food is not handed out in portions. A staff member decides per distribution how much each head gets, from what was donated that week — so the figure named no real quantity                                                                                                                                    |
+| A calendar of distributions                  | Withdrawn 2026-09-20 (US-36): DF cancel an afternoon, merge the groups and hold an extra one, so nothing the software could compute from a week anchor would keep being true. It records the sessions staff start and end, and predicts none — [ADR-020](adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md) |
+| Reporting and statistics                     | Not asked for; the data is there when it is                                                                                                                                                                                                                                                                                                  |
+| A full field-level change history            | The audit log records the state changes that matter, not every edit                                                                                                                                                                                                                                                                          |
+| Retention or deletion rules                  | Archived records are kept indefinitely; DF has no rule today                                                                                                                                                                                                                                                                                 |
+| Contact details, letters, e-mail reminders   | DF does not hold phone numbers or addresses for this purpose                                                                                                                                                                                                                                                                                 |
+| Importing the existing Excel sheet           | A migration question, still unanswered — see [chapter 11](11-risks-and-technical-debt.md)                                                                                                                                                                                                                                                    |
+| Multi-user, multi-machine or cloud operation | One machine, by design                                                                                                                                                                                                                                                                                                                       |
 
 ## Quality goals
 

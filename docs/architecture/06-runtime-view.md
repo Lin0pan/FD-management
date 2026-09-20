@@ -57,9 +57,9 @@ The price stored on the record is the same one the staff member saw, because bot
 `describeAllowance` reading the clock once.
 
 **Money is an amount, not a flag.** The counter does not ask whether the household paid; it shows
-what they owe — the week's price offset by their balance — and collects the amount actually handed
-over. Both the balance and the amount to pay are derived from the hand-outs the use case has already
-loaded ([ADR-015](adr/015-derive-the-customer-balance-from-the-hand-out-history-never-store-it.md)),
+what they owe — the afternoon's price offset by their balance — and collects the amount actually
+handed over. Both the balance and the amount to pay are derived from the hand-outs the use case has
+already loaded ([ADR-015](adr/015-derive-the-customer-balance-from-the-hand-out-history-never-store-it.md)),
 so the counter issues no second query for them. The field arrives pre-filled with the amount to pay
 and is normally just confirmed; a staff member may overwrite it with less (a part payment) or with
 more (paying ahead), and what is stored is what was handed over.
@@ -218,9 +218,9 @@ The printed card is the one thing that _cannot_ update itself, which is exactly 
 `grownUpsAtIssue` and `childrenAtIssue` are stored: without a snapshot of what the physical card
 says, there is nothing to compare today's household against, and the reissue list could not exist.
 Those columns are never updated in place — **the reissue is how the change is recorded.** The card's
-**week** needs no third column: it is the parity of the slot the card was printed under
+**group** needs no third column: it is the parity of the slot the card was printed under
 ([ADR-017](adr/017-the-customer-number-decides-the-group.md)), and a card therefore never falls stale
-for its week.
+for its group.
 
 **Key exception — the household never comes back.** The card stays on the reissue list indefinitely,
 and that is correct: the list is a prompt for staff, not a queue the system drains. There is no
