@@ -1,6 +1,6 @@
 # 4. Solution strategy
 
-_Last reviewed: 2026-09-17_
+_Last reviewed: 2026-09-20_
 
 Six statements. Each names an approach, why it was taken given a goal or constraint, what it makes
 easier and what it makes harder, and where the full reasoning lives.
@@ -91,8 +91,9 @@ rows.
 
 **Approach.** Each invariant that must never break is stated twice: once as a rule in `domain/`, and
 once as a constraint the database enforces — the partial unique index on non-archived customer
-numbers, `(customerId, index)` and `(customerNumber, index)` on cards, `(customerId, dayKey)` on
-distribution records, `(customerId, loggedOn)` on reminders. Nothing carries `onDelete: Cascade`.
+numbers, `(customerId, index)` and `(customerNumber, index)` on cards, `(customerId, sessionId)` on
+distribution records and on reminders, and a second partial index admitting one running distribution
+session. Nothing carries `onDelete: Cascade`.
 
 **Rationale.** A read-then-write guard cannot settle a race, and the invariants in
 [goal 2](01-introduction-and-goals.md#quality-goals) are the ones where being _usually_ right is

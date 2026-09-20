@@ -1,11 +1,14 @@
 /**
- * The distribution screen — the counter. Two questions: which group collects today (US-03.4), stated
- * in words *and* painted and only on a distribution day; and may *this* person collect, for the
- * number just typed (US-04.4).
+ * The distribution screen — the counter. Two questions: whether an Ausgabe is under way and whom it
+ * serves (US-34.7); and may *this* person collect, for the number just typed (US-04.4).
  *
- * Nothing is computed here — `getWeekColour` and `lookupCustomer` answer, this page lays them out.
- * Both are reads (FR-4), so a plain GET form carries the query in the URL, which also means Enter
- * reloads the page with the input empty and focused for the next customer in the queue.
+ * Nothing is computed here — `readDistributionSessionState` and `lookupCustomer` answer, this page
+ * lays them out. The lookup is a read (FR-4), so a plain GET form carries the query in the URL, which
+ * also means Enter reloads the page with the input empty and focused for the next customer.
+ *
+ * **Every counter read is behind the running session**: with none running there is nothing to record
+ * against, so the lookup, the tally and the household's controls are not built at all — and the use
+ * cases behind them refuse to answer anyway (US-34.5).
  *
  * The screen answers about *now* and nothing else (US-22): a `?datum=` still in someone's history is
  * deliberately inert rather than an error.
@@ -14,19 +17,25 @@
 import { CircleAlert, Search } from "lucide-react";
 import Link from "next/link";
 import { lookupCustomer, type CounterLookup } from "@/application/customers/lookup-customer";
-import { getWeekColour, type WeekColourView } from "@/application/distribution/get-week-colour";
-import { readGroupRoster } from "@/application/distribution/read-group-roster";
+import {
+  readDistributionSessionState,
+  type EndedSession,
+  type RunningSession,
+} from "@/application/distribution/read-distribution-session-state";
+import {
+  readGroupRoster,
+  type GroupRosterView,
+} from "@/application/distribution/read-group-roster";
 import { readCertificateTypes } from "@/application/settings/read-certificate-types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { DomainError } from "@/domain/errors";
-import type { WeekColour } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
-import { germanDate, germanTime, isoWeekNumber } from "@/i18n/format";
+import { germanDateTime, germanTime } from "@/i18n/format";
 import { ArchiveControls } from "../kunden/archive-controls";
 import { BlockControls } from "../kunden/block-controls";
 import { CertificateControls } from "./certificate-controls";
@@ -34,10 +43,16 @@ import { CustomerDetails, VerdictBanner } from "./counter-lookup";
 import { distributionDeps } from "./deps";
 import { GroupProgressCard } from "./group-progress-card";
 import { RECORD_REMOVED } from "./removed-flag";
+import {
+  ReopenSessionControls,
+  RunningSessionControls,
+  StartSessionForm,
+} from "./session-controls";
+import { SessionGroupBadges } from "./session-group-badges";
+import { optionFor } from "./session-options";
 import { HANDOUT_RECORDED } from "./served-flag";
 import { ARCHIVED } from "../kunden/archived-flag";
 import { ServeControls } from "./serve-controls";
-import { GROUP_STYLES } from "../accents";
 import { Confirmation } from "../notice";
 import { NoticeBoard } from "../notice-board";
 import { SHELL } from "../shell";
@@ -51,90 +66,69 @@ function permitsServing(verdict: Verdict): boolean {
   return verdict.kind === "CLEAR_TO_SERVE" || verdict.kind === "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED";
 }
 
-/** The colour turns over at midnight and settings change under the screen, so never cache it. */
+/** A session is started and ended on another workstation too, so never cache this screen. */
 export const dynamic = "force-dynamic";
 
 /**
- * The group's colour, matching the customer card. Literal palette values rather than theme tokens:
- * RED and BLUE are the printed cards DF hands out, not a role the theme could re-map.
+ * The afternoon, where the week-colour banner stood (US-34.7). Two facts and no third: that an
+ * Ausgabe is under way, and which group or groups it serves — a badge each, wearing what the
+ * Kundenliste and a customer's record wear, so one colour means one thing application-wide.
+ *
+ * The groups cannot be changed while it runs, and nothing here says so: a control that is not on the
+ * screen needs no sentence explaining its absence (`ui_styling_guide.md` §8).
  */
-const COLOUR_STYLES = {
-  RED: "bg-red-600 text-white",
-  BLUE: "bg-blue-700 text-white",
-} as const;
-
-/** The German sentence for a domain error this screen can provoke. */
-function messageFor(error: DomainError): string {
-  return error.code === "NoSettingsInForce"
-    ? de.distribution.errors.noSettings
-    : de.distribution.errors.invalidAnchor;
-}
-
-function colourName(colour: WeekColour): string {
-  return de.distribution.group(de.distribution.colours[colour]);
+function SessionHeader({ running }: { running: RunningSession }): React.ReactElement {
+  return (
+    <Card data-testid="session-header">
+      {/* `text-base` against the `Card`'s own 14px: this is read at a glance from standing, not from
+          a chair like the admin tables the default is tuned for. */}
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-base font-medium">{de.distribution.session.running}</p>
+          <SessionGroupBadges groups={running.session.groups} testId="session-groups" />
+        </div>
+        <RunningSessionControls summary={running.summary} canDiscard={running.canDiscard} />
+      </CardContent>
+    </Card>
+  );
 }
 
 /**
- * What today means for the counter — compact, and loud only on the day it can be acted on. The group
- * is named and painted on a distribution day and on no other; off-day it appears only inside the
- * sentence naming the *date* it belongs to, so nothing reads as "the group collecting now".
+ * What the afternoon before this one came to, the second of the two jobs the screen has between
+ * afternoons (US-34.8) — the first being the start form above it.
  *
- * **Everything in prose takes its colour and date from `view.nextDistribution`, never
- * `view.colour`**: after a Thursday distribution the current week is still Rot while the next is
- * already Blau, and only the second answers what this screen is read for. FR-7 holds throughout.
- *
- * `view.colour` appears only on the badge beside the calendar week, and is the badge *because* the
- * two can disagree — the week is a property of the calendar, the sentence above it is about a
- * hand-out on a named date.
+ * It is here that a session nobody ended is noticed: one that ran through the night says so in its
+ * two instants. The reopening stands beside it because this is the only screen it is ever reached
+ * from, and it is offered by the state's own answer rather than by this branch happening to be the
+ * one where nothing runs.
  */
-function Banner({ view }: { view: WeekColourView }): React.ReactElement {
-  const { date, colour } = view.nextDistribution;
-  const meta = `${germanDate(view.date)} · ${de.distribution.banner.week(isoWeekNumber(view.isoWeek))}`;
-
-  if (view.isDistributionDay) {
-    return (
-      <section
-        data-testid="week-colour-banner"
-        className={`flex flex-col gap-1 rounded-2xl p-5 ring-1 ring-black/10 md:p-6 ${COLOUR_STYLES[colour]}`}
-      >
-        <p className="text-base font-medium text-white/90">
-          {de.distribution.banner.isDistributionDay}
-        </p>
-        <p data-testid="week-colour-group" className="text-3xl font-bold tracking-tight">
-          {colourName(colour)}
-        </p>
-        <p className="text-sm text-white/80">{meta}</p>
-      </section>
-    );
-  }
-
-  // No paint at all on a day without a distribution: there is no group to act on, so a red or blue
-  // card would be the one misleading thing this screen could show.
+function LastSessionCard({ ended }: { ended: EndedSession }): React.ReactElement {
+  const words = de.distribution.session.last;
   return (
-    <Card data-testid="week-colour-banner">
-      {/* `text-base` against the `Card`'s own 14px: this is read at a glance from standing, not from
-          a chair like the admin tables the default is tuned for. */}
-      <CardContent className="flex flex-col gap-1">
-        <p className="text-base font-medium">{de.distribution.banner.noDistributionDay}</p>
-        <p data-testid="next-distribution" className="text-base">
-          {de.distribution.banner.next(germanDate(date), de.distribution.colours[colour])}
-        </p>
-        {/* The week's own colour, beside the week it belongs to, wearing exactly the badge the
-            Kundenliste and a customer's record wear: `variant="outline"` over `GROUP_STYLES`. It
-            was the solid paint `COLOUR_STYLES` still gives the distribution-day banner below, and
-            that made the smallest mark on the screen the most saturated one — a group named in
-            passing, shouting louder than the group named in the sentence above it. A group badge
-            now looks the same wherever the application prints one. */}
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          {meta}
-          <Badge
-            data-testid="week-colour-week"
-            variant="outline"
-            className={GROUP_STYLES[view.colour]}
-          >
-            {de.distribution.colours[view.colour]}
-          </Badge>
-        </p>
+    <Card data-testid="last-session">
+      <CardHeader>
+        <CardTitle className="text-lg">
+          <h2>{words.heading}</h2>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <SessionGroupBadges groups={ended.session.groups} testId="last-session-groups" />
+        <div className="flex flex-col gap-1">
+          <p data-testid="last-session-started">
+            {words.startedAt(germanDateTime(ended.session.startedAt))}
+          </p>
+          {/* `endedAt` is non-null on every session the store reports as the last *ended* one; the
+              guard is how that is said without an assertion. */}
+          {ended.session.endedAt === null ? null : (
+            <p data-testid="last-session-ended">
+              {words.endedAt(germanDateTime(ended.session.endedAt))}
+            </p>
+          )}
+          <p data-testid="last-session-summary">
+            {words.summary(ended.summary.households, ended.summary.totalPaidCents)}
+          </p>
+        </div>
+        {ended.canReopen ? <ReopenSessionControls sessionId={ended.session.id} /> : null}
       </CardContent>
     </Card>
   );
@@ -203,16 +197,29 @@ async function recordedHandout(
   if (result === null || result.lookup === null) {
     return null;
   }
-  const { customer, todaysRecord } = result.lookup;
-  if (customer === null || todaysRecord === null) {
+  const { customer, sessionRecord } = result.lookup;
+  if (customer === null || sessionRecord === null) {
     return null;
   }
   return {
     customerNumber: customer.customerNumber,
     name: `${customer.firstName} ${customer.lastName}`,
-    paidCents: todaysRecord.paidCents,
-    time: germanTime(todaysRecord.at),
+    paidCents: sessionRecord.paidCents,
+    time: germanTime(sessionRecord.at),
   };
+}
+
+/**
+ * Everything the counter is built from, or `null` between afternoons — the running session is in it,
+ * so the screen guards **once**: there is no state in which the lookup is known and the session is
+ * not, and a second test would say there were.
+ */
+interface CounterReads {
+  readonly running: RunningSession;
+  readonly counter: CounterResult | null;
+  readonly roster: GroupRosterView;
+  readonly recorded: RecordedHandout | null;
+  readonly certificateTypes: CertificateTypeList;
 }
 
 /** No back-link: the nav bar reaches Start from every screen (US-17.4). */
@@ -242,37 +249,48 @@ export default async function DistributionPage({
   const lookingUp = typeof nummer === "string" && nummer.trim() !== "";
   const justArchived = params[ARCHIVED] === "1";
 
-  let today: WeekColourView;
-  try {
-    today = await getWeekColour(distributionDeps);
-  } catch (error: unknown) {
-    if (error instanceof DomainError) {
-      return (
-        <main className={SHELL}>
-          <PageHeader />
-          <Card>
-            <CardContent className="flex flex-col items-start gap-4">
-              <ErrorNote message={messageFor(error)} testId="settings-missing" />
-              <Button asChild>
-                <Link href="/einstellungen">{de.home.settingsLink}</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </main>
-      );
+  // The afternoon first, because everything below it is only built while one runs.
+  const session = await readDistributionSessionState(distributionDeps);
+
+  let counterReads: CounterReads | null = null;
+
+  if (session.running !== null) {
+    try {
+      // The roster is independent of the lookup — it asks who the session serves, not who this
+      // number is — so it must not be sequenced behind it.
+      const [counter, roster, recorded, certificateTypes] = await Promise.all([
+        lookUpNumber(nummer),
+        readGroupRoster(distributionDeps),
+        recordedHandout(lookingUp ? undefined : params[HANDOUT_RECORDED]),
+        readCertificateTypes(distributionDeps),
+      ]);
+      counterReads = { running: session.running, counter, roster, recorded, certificateTypes };
+    } catch (error: unknown) {
+      // An installation with no policy in force at all: the lookup prices a household and cannot.
+      // Every other domain error from these reads is a fault, and belongs on the error screen.
+      if (error instanceof DomainError && error.code === "NoSettingsInForce") {
+        return (
+          <main className={SHELL}>
+            <PageHeader />
+            <Card>
+              <CardContent className="flex flex-col items-start gap-4">
+                <ErrorNote message={de.distribution.errors.noSettings} testId="settings-missing" />
+                <Button asChild>
+                  <Link href="/einstellungen">{de.home.settingsLink}</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          </main>
+        );
+      }
+      throw error;
     }
-    throw error;
   }
 
-  // Independent of the lookup — it asks who is in the week's group, not who this number is — so it
-  // must not be sequenced behind it. `readGroupRoster` resolves the week's colour a second time
-  // rather than being handed this view, which would tie the two use cases together for one query.
-  const [counter, roster, recorded, certificateTypes] = await Promise.all([
-    lookUpNumber(nummer),
-    readGroupRoster(distributionDeps),
-    recordedHandout(lookingUp ? undefined : params[HANDOUT_RECORDED]),
-    readCertificateTypes(distributionDeps),
-  ]);
+  // What the two confirmations above the header read. Both are silent between afternoons: there is
+  // no lookup to name a household with, and nothing was recorded at a session that is not running.
+  const recorded = counterReads?.recorded ?? null;
+  const counter = counterReads?.counter ?? null;
 
   return (
     // Six write controls stand here. One answer at a time, so a confirmation from the household
@@ -311,8 +329,8 @@ export default async function DistributionPage({
         {/* At the top of the screen rather than beside the button that was pressed, which is the rule
           everywhere else on this page. The removal navigates — it has to, because it destroys the
           card the answer would have stood in — and a navigation lands at the top, so this is where
-          the eye already is. Above the week's banner: it is about what just happened, and the banner
-          is about the afternoon. */}
+          the eye already is. Above the session header: it is about what just happened, and the
+          header is about the afternoon. */}
         {recordRemoved ? (
           <Confirmation
             text={de.distribution.serve.correct.removed}
@@ -334,24 +352,36 @@ export default async function DistributionPage({
           />
         ) : null}
 
-        <Banner view={today} />
+        {counterReads === null ? (
+          /* Between afternoons the screen has two jobs: start the next afternoon and say what the
+             last one did (US-34.7, US-34.8). The counter lookup and the group tally are not
+             offered, there being nothing to record against — and a `?nummer=` left in the URL is
+             inert for the same reason, never an error. */
+          <>
+            <StartSessionForm
+              proposed={session.proposedGroups === null ? null : optionFor(session.proposedGroups)}
+            />
+            {session.lastEnded === null ? null : <LastSessionCard ended={session.lastEnded} />}
+          </>
+        ) : (
+          <>
+            <SessionHeader running={counterReads.running} />
 
-        {/* How far through the group the afternoon is (US-23), between the banner and the counter:
-          it is a fact about today, like the banner, and it must be readable without scrolling past
-          the field staff type into. The group it names is the roster's — the week's own — which on a
-          distribution day is the group the banner paints.
+            {/* How far through the group the afternoon is (US-23), between the session header and the
+          counter: it is a fact about the afternoon, like the header, and it must be readable without
+          scrolling past the field staff type into. The group(s) it names are the running session's,
+          which is what the calendar week has stopped deciding (US-34.6).
 
           Keyed by the number looked up, because a `<details>` keeps `open` through any re-render and
           only a remount closes it (`docs/guideline/ui_styling_guide.md` §6): clicking a name in the list is a
           soft navigation, so without the key the household's verdict would arrive underneath a
           hundred rows the staff member has to scroll past. */}
-        <GroupProgressCard
-          key={typeof nummer === "string" ? nummer : ""}
-          roster={roster}
-          groupName={colourName(roster.group)}
-        />
+            <GroupProgressCard
+              key={typeof nummer === "string" ? nummer : ""}
+              roster={counterReads.roster}
+            />
 
-        {/* The counter loop, keyboard only: type the number, press Enter, read the verdict. The form
+            {/* The counter loop, keyboard only: type the number, press Enter, read the verdict. The form
           navigates, so the input comes back empty and — being autofocused — ready for the next
           customer without touching the mouse. A native `<label>` rather than the shadcn one: this
           form is deliberately server-rendered with no client component, and Radix's label would drag
@@ -361,104 +391,104 @@ export default async function DistributionPage({
           every lookup of every afternoon, for a field that is labelled, autofocused and the only one
           on the screen. The formats are worth stating at the one moment they are not obvious — a
           mistyped entry — and `errors.notANumber` states them there. */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">
-              <h2>{de.distribution.counter.heading}</h2>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <form method="get" className="flex flex-wrap items-end gap-3">
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="counter-input" className="text-sm font-medium">
-                  {de.distribution.counter.label}
-                </label>
-                <Input
-                  // Keyed on the hand-out just recorded, and that is what re-focuses the field. A
-                  // `redirect` out of a server action is a *soft* navigation: React reconciles an
-                  // input that is already in the tree, so `autoFocus` — which only fires on mount —
-                  // would not fire again and the cursor would be left nowhere. The lookup form's
-                  // own GET submit is a full document navigation and never needed this. The key
-                  // changes exactly when a hand-out lands, so nothing else remounts the field.
-                  key={recorded === null ? "" : String(recorded.customerNumber)}
-                  // Not `type="number"`: a card number carries a `k`, and a spinner has no meaning here.
-                  type="text"
-                  name="nummer"
-                  id="counter-input"
-                  inputMode="numeric"
-                  autoComplete="off"
-                  autoFocus
-                  data-testid="counter-input"
-                  className="h-12 w-44 text-2xl tabular-nums md:text-2xl"
-                />
-              </div>
-              <Button type="submit" size="lg" className="h-12 px-6">
-                <Search aria-hidden="true" data-icon="inline-start" />
-                {de.distribution.counter.submit}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">
+                  <h2>{de.distribution.counter.heading}</h2>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-3">
+                <form method="get" className="flex flex-wrap items-end gap-3">
+                  <div className="flex flex-col gap-1.5">
+                    <label htmlFor="counter-input" className="text-sm font-medium">
+                      {de.distribution.counter.label}
+                    </label>
+                    <Input
+                      // Keyed on the hand-out just recorded, and that is what re-focuses the field. A
+                      // `redirect` out of a server action is a *soft* navigation: React reconciles an
+                      // input that is already in the tree, so `autoFocus` — which only fires on mount —
+                      // would not fire again and the cursor would be left nowhere. The lookup form's
+                      // own GET submit is a full document navigation and never needed this. The key
+                      // changes exactly when a hand-out lands, so nothing else remounts the field.
+                      key={recorded === null ? "" : String(recorded.customerNumber)}
+                      // Not `type="number"`: a card number carries a `k`, and a spinner has no meaning here.
+                      type="text"
+                      name="nummer"
+                      id="counter-input"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      autoFocus
+                      data-testid="counter-input"
+                      className="h-12 w-44 text-2xl tabular-nums md:text-2xl"
+                    />
+                  </div>
+                  <Button type="submit" size="lg" className="h-12 px-6">
+                    <Search aria-hidden="true" data-icon="inline-start" />
+                    {de.distribution.counter.submit}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
 
-        {counter === null ? null : counter.lookup === null ? (
-          <ErrorNote message={counter.error} testId="counter-error" />
-        ) : (
-          <>
-            <VerdictBanner verdict={counter.lookup.verdict} />
-            {/* One guard, not two. `customer` and `customerId` are null on exactly the same
+            {counter === null ? null : counter.lookup === null ? (
+              <ErrorNote message={counter.error} testId="counter-error" />
+            ) : (
+              <>
+                <VerdictBanner verdict={counter.lookup.verdict} />
+                {/* One guard, not two. `customer` and `customerId` are null on exactly the same
                 NOT_FOUND branch — `lookupCustomer` says so where it defines `CounterLookup` — so
                 testing them separately said there were cases where a household has an id but no
                 details, and there are none. Both are narrowed here because `CustomerDetails` now
                 needs the id, and a non-null assertion is not an option. The banner stays outside:
                 a number nobody holds still gets a verdict. */}
-            {counter.lookup.customer === null || counter.lookup.customerId === null ? null : (
-              <>
-                <CustomerDetails
-                  customer={counter.lookup.customer}
-                  customerId={counter.lookup.customerId}
-                />
-                {/* Keyed by customer so a confirmation from one lookup cannot survive into the
+                {counter.lookup.customer === null || counter.lookup.customerId === null ? null : (
+                  <>
+                    <CustomerDetails
+                      customer={counter.lookup.customer}
+                      customerId={counter.lookup.customerId}
+                    />
+                    {/* Keyed by customer so a confirmation from one lookup cannot survive into the
                     next customer's screen; within one customer the state rides out revalidation,
                     which is what keeps the renewal confirmation visible once the certificate
                     reads as valid again. */}
-                {/* `customer.certificateExpired`, and deliberately not the verdict kind it used to
+                    {/* `customer.certificateExpired`, and deliberately not the verdict kind it used to
                     be compared against. Since US-32 an already-collected household answers
-                    ALREADY_SERVED_TODAY, which outranks CLEAR_TO_SERVE_CERTIFICATE_EXPIRED — so
+                    ALREADY_SERVED, which outranks CLEAR_TO_SERVE_CERTIFICATE_EXPIRED — so
                     reading the reminder controls off the verdict would make them vanish the moment
                     the household was served, on the very re-lookup a staff member does to correct
                     the record. Whether the certificate has lapsed is a fact about the household;
                     `lookupCustomer` derives it at the same instant the verdict is evaluated. */}
-                <CertificateControls
-                  key={counter.lookup.customerId}
-                  customerId={counter.lookup.customerId}
-                  expired={counter.lookup.customer.certificateExpired}
-                  reminderLoggedToday={counter.lookup.reminderLoggedToday}
-                  certificateTypes={certificateTypes}
-                />
-                {/* Every figure the payment turns on comes off the lookup, derived there from the
+                    <CertificateControls
+                      key={counter.lookup.customerId}
+                      customerId={counter.lookup.customerId}
+                      expired={counter.lookup.customer.certificateExpired}
+                      reminderLoggedInSession={counter.lookup.reminderLoggedInSession}
+                      certificateTypes={counterReads.certificateTypes}
+                    />
+                    {/* Every figure the payment turns on comes off the lookup, derived there from the
                     household's own hand-out history (US-29.5). Nothing about money is worked out on
                     this page: it hands the amounts down and the controls render them. */}
-                <ServeControls
-                  customerId={counter.lookup.customerId}
-                  customerNumber={counter.lookup.customer.customerNumber}
-                  canServe={permitsServing(counter.lookup.verdict)}
-                  amountToPayCents={counter.lookup.customer.amountToPayCents}
-                  balanceCents={counter.lookup.customer.balanceCents}
-                  lookedUpNumber={typeof nummer === "string" ? nummer : ""}
-                  todaysRecord={
-                    counter.lookup.todaysRecord === null
-                      ? null
-                      : {
-                          recordId: counter.lookup.todaysRecord.recordId,
-                          time: germanTime(counter.lookup.todaysRecord.at),
-                          paidCents: counter.lookup.todaysRecord.paidCents,
-                          askedCents: counter.lookup.todaysRecord.askedCents,
-                          balanceWithoutRecordCents:
-                            counter.lookup.todaysRecord.balanceWithoutRecordCents,
-                        }
-                  }
-                />
-                {/* Blocking and archiving are offered here because the reasons for both show up at
+                    <ServeControls
+                      customerId={counter.lookup.customerId}
+                      customerNumber={counter.lookup.customer.customerNumber}
+                      canServe={permitsServing(counter.lookup.verdict)}
+                      amountToPayCents={counter.lookup.customer.amountToPayCents}
+                      balanceCents={counter.lookup.customer.balanceCents}
+                      lookedUpNumber={typeof nummer === "string" ? nummer : ""}
+                      sessionRecord={
+                        counter.lookup.sessionRecord === null
+                          ? null
+                          : {
+                              recordId: counter.lookup.sessionRecord.recordId,
+                              time: germanTime(counter.lookup.sessionRecord.at),
+                              paidCents: counter.lookup.sessionRecord.paidCents,
+                              askedCents: counter.lookup.sessionRecord.askedCents,
+                              balanceWithoutRecordCents:
+                                counter.lookup.sessionRecord.balanceWithoutRecordCents,
+                            }
+                      }
+                    />
+                    {/* Blocking and archiving are offered here because the reasons for both show up at
                     the counter: the certificate still expired after several reminders, the no-show
                     run above (FR-2), and whatever a household does in front of the person serving
                     them. US-08.4 shipped the block controls on the record only, which left a staff
@@ -478,30 +508,32 @@ export default async function DistributionPage({
                     call `cardsDue` makes for the reissue words. No hint paragraph and no `<h3>`
                     per control: the record needs those to tell three controls apart, and here each
                     `<summary>` names itself. */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>
-                      <h2>{de.customers.record.dangerHeading}</h2>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-3">
-                    <BlockControls
-                      key={`block-${counter.lookup.customerId}`}
-                      customerId={counter.lookup.customerId}
-                      status={counter.lookup.customer.status}
-                      blockReason={counter.lookup.customer.blockReason}
-                    />
-                    <ArchiveControls
-                      key={counter.lookup.customerId}
-                      customerId={counter.lookup.customerId}
-                      customerNumber={counter.lookup.customer.customerNumber}
-                      status={counter.lookup.customer.status}
-                      returnTo={`/ausgabe?nummer=${encodeURIComponent(
-                        typeof nummer === "string" ? nummer : "",
-                      )}`}
-                    />
-                  </CardContent>
-                </Card>
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>
+                          <h2>{de.customers.record.dangerHeading}</h2>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="flex flex-col gap-3">
+                        <BlockControls
+                          key={`block-${counter.lookup.customerId}`}
+                          customerId={counter.lookup.customerId}
+                          status={counter.lookup.customer.status}
+                          blockReason={counter.lookup.customer.blockReason}
+                        />
+                        <ArchiveControls
+                          key={counter.lookup.customerId}
+                          customerId={counter.lookup.customerId}
+                          customerNumber={counter.lookup.customer.customerNumber}
+                          status={counter.lookup.customer.status}
+                          returnTo={`/ausgabe?nummer=${encodeURIComponent(
+                            typeof nummer === "string" ? nummer : "",
+                          )}`}
+                        />
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
               </>
             )}
           </>

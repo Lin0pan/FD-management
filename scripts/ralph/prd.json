@@ -25,7 +25,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "First story, src/domain/ only. No schema, no UI, no use case. The judgement call is the group ORDER: RED before BLUE, because GROUPS and the Kundenliste's group balance already read that way — do not invent a second order."
     },
     {
@@ -46,7 +46,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Still domain only. The application layer will not compile after this story until story 5 lands — that is expected and fine WITHIN the story's own scope, but keep the domain suite green and do not leave src/application half-edited here."
     },
     {
@@ -74,7 +74,7 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "THE ONLY STORY IN THIS BATCH THAT TOUCHES prisma/. Ninth batch to regenerate the migration history: the hand-written partial unique index on Customer.customerNumber MUST be put back, and a SECOND hand-written index arrives beside it. Two port methods change name and shape here, so every hand-written fake changes with them."
     },
     {
@@ -95,7 +95,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Four use cases, one file each — small, and they share one fake repository, which is why they are one story. The only subtle rule is that START and DISCARD write NOTHING to the audit log: the log never shows a session that began and never ended."
     },
     {
@@ -117,7 +117,7 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "This is where the calendar stops deciding anything at the counter. The two traps: the GUARD ORDER in recordAttendance (US-32.5 documents why), and CertificateControls deriving 'expired' from lookupCustomer.customer.certificateExpired rather than from the verdict kind — which must stay true now that ALREADY_SERVED outranks CLEAR_TO_SERVE_CERTIFICATE_EXPIRED."
     },
     {
@@ -137,7 +137,7 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "readGroupRoster is the use case batch 23 built and batch 32 kept when the walk was withdrawn. It stays one use case and one query — the register is ~240 rows and a per-household query would make the counter's own screen the slowest in the app."
     },
     {
@@ -161,7 +161,7 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "The counter screen is the most-read screen in the product. Six write controls already stand on it and NoticeBoard exists so only one answer shows at a time — the end and discard confirmations join that discipline. Do not turn the session header into a hint: it states two facts, running and which group(s)."
     },
     {
@@ -180,7 +180,7 @@
         "Lint passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "This is the screen DF see on a Monday. It has exactly two jobs: start the next afternoon, and show what the last one did. The reopening lives here because it is only ever reached from here."
     },
     {
@@ -199,7 +199,7 @@
         "Lint passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "The whole point of A-7 is a forgotten session being noticed the next morning. 'Prominent' is an effect, not a design instruction — judge it in the browser at DF's window size."
     },
     {
@@ -219,7 +219,7 @@
         "Lint passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "THE LARGEST HIDDEN COST OF THIS BATCH. Ten specs record a hand-out and every one needs a session started first. That is why this is a story of its own and not a line in the next one."
     },
     {
@@ -243,7 +243,7 @@
         "Lint passes"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "One spec, the whole afternoon. It is the only place the new rules are checked together. Use the helper from story 10 rather than a second way of starting a session."
     },
     {
@@ -264,7 +264,7 @@
         "Lint passes"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "Last story. Cite ADR-020 from code rather than re-arguing it (CLAUDE.md: where the argument is already recorded, cite it and stop). Do NOT remove Wochenfarbe from the glossary yet — US-36 does that, and a glossary that drops a word still in the code is worse than one that marks it."
     }
   ]

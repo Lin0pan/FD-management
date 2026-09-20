@@ -7,6 +7,7 @@ import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /**
  * A child turns 13 and every number that depends on it follows
@@ -38,10 +39,11 @@ const NOW_FILE = SHARED.now;
 /**
  * The two days this spec is judged on: Thursday 08.01.2026 and Thursday 22.01.2026, both 09:00 UTC.
  *
- * Both follow from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor `2026-W02`
- * = RED, distributions on ISO weekday 4. 08.01. is the Thursday of W02 and 22.01. the Thursday of
- * W04, so both are RED distribution days — which is what lets the household be looked up and served
- * on either side of the birthday, with the group and the calendar held still and only the age moving.
+ * A fortnight apart so the birthday falls between them, and nothing else about them matters any
+ * more: what makes the household servable on either side of it is the RED afternoon this file starts
+ * once and ends once (US-34). The software never ends a session itself, not even at midnight — so
+ * one session spanning both days is a state the suite is entitled to drive, and it holds the group
+ * and the calendar still while only the age moves.
  */
 const BEFORE_BIRTHDAY = "2026-01-08T09:00:00.000Z";
 const AFTER_BIRTHDAY = "2026-01-22T09:00:00.000Z";
@@ -250,12 +252,17 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
   /** The household as it stood before the clock moved — nothing here may change afterwards. */
   let beforeSnapshot: string;
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     pinNow(BEFORE_BIRTHDAY);
     id = await seedHousehold();
+    // RED, because 271 is odd and that is the whole of the household's group (US-31).
+    await startSessionInHook({ browser, baseURL }, "RED");
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: a session left running is state the file sorting after this
+    // one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // The pinned today goes with the spec: leaving it would freeze January for the settings specs,
     // which save a version stamped *now* and would then assert against the wrong month.
     rmSync(NOW_FILE, { force: true });

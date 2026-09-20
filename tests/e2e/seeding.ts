@@ -50,5 +50,24 @@ export async function releaseNumbers(
 
   // `AuditEntry` is deliberately absent: it holds no customer reference at all, because the log
   // records what, when and why and never who (ADR-006). Entries a released household produced stay,
-  // which is correct — they are not that household's, they are the register's.
+  // which is correct — they are not that household's, they are the register's. `DistributionSession`
+  // is absent for the same reason: an afternoon belongs to the register, not to a household.
+}
+
+/**
+ * An **ended** distribution session for a spec to hang seeded hand-outs and reminders on (US-34).
+ *
+ * Ended, because the register is shared with the spec running next and a running session is state it
+ * would inherit — a spec that needs a *running* one starts it through the screen. `groups` is the
+ * column value `parseSessionGroups` reads: `RED`, `BLUE` or `RED,BLUE`.
+ */
+export async function seedEndedSession(
+  prisma: PrismaClient,
+  options: { readonly at: Date; readonly groups?: string },
+): Promise<number> {
+  const row = await prisma.distributionSession.create({
+    data: { startedAt: options.at, endedAt: options.at, groups: options.groups ?? "RED,BLUE" },
+    select: { id: true },
+  });
+  return row.id;
 }

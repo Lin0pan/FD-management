@@ -8,6 +8,7 @@ import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { fillDay } from "./day";
 import { releaseNumbers } from "./seeding";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /**
  * The Maximalpreis from the settings screen to the counter (`tasks/prd-us-26-price-cap.md` §US-26.7,
@@ -214,12 +215,17 @@ test.describe.configure({ mode: "serial" });
 test.describe("Maximalpreis", () => {
   let id: number;
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     pinToday();
     id = await seedHousehold();
+    // RED, because 321 is odd and that is the whole of the household's group (US-31).
+    await startSessionInHook({ browser, baseURL }, "RED");
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: a session left running is state the file sorting after this
+    // one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // Belt and braces: the specs below hand the wall clock back themselves, and a spec that failed
     // before reaching that line must not leave January frozen for the settings specs, which save a
     // version stamped *now*.

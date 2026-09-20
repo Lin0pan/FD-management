@@ -6,9 +6,14 @@
  * only the reading methods of its stores — the writes live in `recordAttendance` and
  * `recordReminder`.
  *
- * Everything on the screen is derived through the same seams the card view uses
- * (`describeAllowance`, `getWeekColour`), so the counter cannot disagree with the rest of the app,
- * and it is all read in one pass — the counter never issues a second query (US-04.3).
+ * Everything on the screen is derived through the same seams the rest of the app uses
+ * (`describeAllowance`, the running session), so the counter cannot disagree with it, and it is all
+ * read in one pass — the counter never issues a second query (US-04.3).
+ *
+ * **There is no lookup outside a session** (US-34, FR-10): the verdict turns on which groups the
+ * afternoon serves and on what the household already collected at it, and neither question has an
+ * answer between afternoons. The screen does not offer the lookup then; a hand-typed `?nummer=` is
+ * refused here.
  */
 
 import { formatCardNumber, parseCounterQuery } from "@/domain/card/cardNumber";
@@ -16,21 +21,22 @@ import { staleCardReason, type StaleCardReason } from "@/domain/card/staleCard";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import { groupOf, type Group } from "@/domain/customer/group";
 import type { HouseholdComposition } from "@/domain/customer/householdComposition";
-import { berlinDayKey, recordForDay } from "@/domain/distribution/attendance";
+import { recordForSession } from "@/domain/distribution/attendance";
 import { amountToPay, askedForRecord, balanceOf } from "@/domain/distribution/balance";
 import {
   certificateExpired,
   evaluateAtCounter,
   type Verdict,
 } from "@/domain/distribution/counterVerdict";
+import { NoDistributionSessionRunning } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 import { describeAllowance } from "../allowance/describe-allowance";
-import { getWeekColour } from "../distribution/get-week-colour";
 import { countNoShows } from "./count-no-shows";
 import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  DistributionSessionRepository,
   ReminderLogRepository,
   SettingsRepository,
 } from "../ports";
@@ -40,6 +46,7 @@ export interface LookupCustomerDeps {
   readonly settings: SettingsRepository;
   readonly records: DistributionRecordRepository;
   readonly reminders: ReminderLogRepository;
+  readonly sessions: DistributionSessionRepository;
   readonly clock: Clock;
 }
 
@@ -65,7 +72,7 @@ export interface CounterCustomerView {
   /**
    * Whether that day has passed, judged against the same instant the verdict is (US-32.5). Stated
    * here rather than read off the verdict kind, because a household that already collected is
-   * `ALREADY_SERVED_TODAY` (US-32.4) and the lapsed certificate is still true of them.
+   * `ALREADY_SERVED` (US-32.4) and the lapsed certificate is still true of them.
    */
   readonly certificateExpired: boolean;
   readonly status: CustomerStatus;
@@ -117,19 +124,19 @@ export interface CounterCustomerView {
 }
 
 /**
- * The record the customer already holds for today — what the counter shows instead of the serve
- * action (US-05.4). The three money figures are three different questions: what was handed over,
- * what was asked for on the day, and where a removal would leave the household.
+ * The record the customer already holds at this session — what the counter shows instead of the
+ * serve action (US-05.4). The three money figures are three different questions: what was handed
+ * over, what was asked for at the time, and where a removal would leave the household.
  */
-export interface TodaysRecordView {
+export interface SessionRecordView {
   readonly recordId: number;
   readonly at: Date;
   /** What the household handed over — the stored amount, which the correction form opens on. */
   readonly paidCents: Cents;
   /**
-   * What the counter asked for that day: the price offset by the balance of the *earlier* hand-outs
-   * only, replayed from the history rather than stored — which is why a household settling an old
-   * debt reads as having paid what it was asked rather than as paying ahead.
+   * What the counter asked for at that session: the price offset by the balance of the *earlier*
+   * hand-outs only, replayed from the history rather than stored — which is why a household settling
+   * an old debt reads as having paid what it was asked rather than as paying ahead.
    */
   readonly askedCents: Cents;
   /**
@@ -148,18 +155,19 @@ export interface CounterLookup {
   readonly verdict: Verdict;
   readonly customer: CounterCustomerView | null;
   readonly customerId: number | null;
-  readonly todaysRecord: TodaysRecordView | null;
+  readonly sessionRecord: SessionRecordView | null;
   /**
-   * Whether a certificate reminder is already on file for today (US-06.4), so the action stays
-   * disabled across reloads — the screen must not offer what the rule is bound to refuse.
+   * Whether a certificate reminder is already on file for this session (US-06.4), so the action
+   * stays disabled across reloads — the screen must not offer what the rule is bound to refuse.
    */
-  readonly reminderLoggedToday: boolean;
+  readonly reminderLoggedInSession: boolean;
 }
 
 /**
  * Resolve `rawQuery` — a card number (`50k3`) or a bare customer number (`50`) — and return the
  * verdict with the data the screen shows. An unassigned number is `NOT_FOUND`, not an error.
  *
+ * @throws {NoDistributionSessionRunning} if no distribution session is running.
  * @throws {InvalidCardNumber} if `rawQuery` is not a customer number or a card number.
  * @throws {NoSettingsInForce} if no settings version had taken effect by today.
  */
@@ -169,10 +177,13 @@ export async function lookupCustomer(
 ): Promise<CounterLookup> {
   const query = parseCounterQuery(rawQuery);
   const today = deps.clock.now();
-  const [customer, week] = await Promise.all([
+  const [customer, session] = await Promise.all([
     deps.customers.findByCustomerNumber(query.customerNumber),
-    getWeekColour(deps, today),
+    deps.sessions.findRunning(),
   ]);
+  if (session === null) {
+    throw new NoDistributionSessionRunning();
+  }
 
   if (customer === null) {
     // The rule decides the verdict even here rather than this use case naming `NOT_FOUND` itself:
@@ -182,23 +193,23 @@ export async function lookupCustomer(
         customer: null,
         presentedCardIndex: query.cardIndex,
         today,
-        weekColour: week.colour,
-        servedToday: false,
+        sessionGroups: session.groups,
+        servedInSession: false,
       }),
       customer: null,
       customerId: null,
-      todaysRecord: null,
-      reminderLoggedToday: false,
+      sessionRecord: null,
+      reminderLoggedInSession: false,
     };
   }
 
   // Loaded with the customer rather than on a later click, so the serve action, the correction of an
   // existing record and the reminder action are all offered in one render (US-04.3, US-05.4, US-06.4).
-  const [recordsForCustomer, todaysReminder] = await Promise.all([
+  const [recordsForCustomer, sessionReminder] = await Promise.all([
     deps.records.listForCustomer(customer.id),
-    deps.reminders.findOnDay(customer.id, berlinDayKey(today)),
+    deps.reminders.findInSession(customer.id, session.id),
   ]);
-  const existing = recordForDay(recordsForCustomer, today);
+  const existing = recordForSession(recordsForCustomer, session.id);
 
   const verdict = evaluateAtCounter({
     // The current card index comes off the row loaded above rather than a second query (US-04.3).
@@ -213,15 +224,15 @@ export async function lookupCustomer(
     },
     presentedCardIndex: query.cardIndex,
     today,
-    weekColour: week.colour,
+    sessionGroups: session.groups,
     // The fact, not the record (US-32.4), off the hand-out already loaded — so the verdict cannot
     // disagree with what the screen shows.
-    servedToday: existing !== null,
+    servedInSession: existing !== null,
   });
   // Off the records just loaded (US-04.3, US-29.5), as the balance stands *now* — so a hand-out
-  // already recorded today is counted in.
+  // already recorded at this session is counted in.
   const balanceCents = balanceOf(recordsForCustomer);
-  const todaysRecord =
+  const sessionRecord =
     existing === null
       ? null
       : {
@@ -241,8 +252,8 @@ export async function lookupCustomer(
   return {
     verdict,
     customerId: customer.id,
-    todaysRecord,
-    reminderLoggedToday: todaysReminder !== null,
+    sessionRecord,
+    reminderLoggedInSession: sessionReminder !== null,
     customer: {
       firstName: customer.details.firstName,
       lastName: customer.details.lastName,

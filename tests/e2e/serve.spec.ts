@@ -10,15 +10,16 @@ import { formatEuroAmount, formatEuros } from "@/domain/money";
 import { fillSticky } from "./day";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /**
- * The distribution-day happy path (`tasks/prd-us-05-record-attendance.md` §US-05.5).
+ * The afternoon's happy path (`tasks/prd-us-05-record-attendance.md` §US-05.5).
  *
  * The rules are proved below. What no unit gate can see is the counter loop a staff member performs:
  * type a number, read the verdict, press the button, watch the screen switch. So this records a
- * hand-out on the real screen and proves what the UI must never let slip — a second hand-out on the
- * same day, an amount typed over the pre-filled one, and *what the screen does with the household
- * afterwards*.
+ * hand-out on the real screen and proves what the UI must never let slip — a second hand-out at the
+ * same afternoon, an amount typed over the pre-filled one, and *what the screen does with the
+ * household afterwards*.
  *
  * **That last one is the spine.** A recorded hand-out clears the counter: the write navigates and the
  * confirmation stands at the top of the empty screen the next person is typed into. Nothing else
@@ -27,6 +28,9 @@ import { releaseNumbers } from "./seeding";
  *
  * Five households seeded through Prisma, all RED, on the odd numbers 213–219 and 243 — clear of the
  * bands the other specs own in the shared `data/e2e.db`.
+ *
+ * The whole file is **one afternoon**, started and ended through the real controls (US-34.10): every
+ * hand-out below belongs to it, which is what „schon abgeholt" is judged against now.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -39,24 +43,21 @@ const NOW_FILE = SHARED.now;
 /**
  * The day this spec is judged on: Thursday 08.01.2026, 09:00 UTC.
  *
- * It follows from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor `2026-W02`
- * = RED, distributions on ISO weekday 4. So it is a RED distribution day, which is what makes a RED
- * household clear to serve. In January Berlin is UTC+1, so the hand-out is recorded at 10:00 local —
- * the time the confirmation and today's record both name.
+ * The calendar decides nothing here any more — the afternoon this file runs is the session it starts
+ * itself (US-34). What the day is still for is the clock the record and the confirmation are stamped
+ * from: in January Berlin is UTC+1, so the hand-out is recorded at 10:00 local.
  */
 const TODAY = "2026-01-08T09:00:00.000Z";
 /** The Berlin wall-clock time of {@link TODAY}, as `germanTime` renders it on the screen. */
 const SERVED_AT = germanTime(new Date(TODAY));
-/** The Europe/Berlin calendar day of {@link TODAY}, as `berlinDayKey` writes it to the record. */
-const TODAYS_DAY_KEY = "2026-01-08";
 
 /**
  * The numbers this spec owns. Well clear of the low sequence the other specs consume.
  *
  * All five are **odd, and therefore RED** (US-31): a household is in the week its number puts it
  * in, so „seeded RED" is now „seeded on an odd slot" and there is nothing else to set. They have to
- * be RED because everything here happens on a RED distribution day — a household of the other week
- * would be turned away before the Betrag field this spec is about ever rendered.
+ * be RED because the afternoon this file holds serves RED — a household of the other group would be
+ * turned away before the Betrag field this spec is about ever rendered.
  */
 const NUMBERS = {
   /** Served for the amount the field opens on, which is what staff confirm on an ordinary day. */
@@ -169,7 +170,7 @@ async function seedHousehold(customerNumber: number): Promise<string> {
 /** Every distribution record a household holds, found via its surrogate id from the customer number. */
 async function recordsFor(
   customerNumber: number,
-): Promise<ReadonlyArray<{ paidCents: number; dayKey: string; showedUp: boolean }>> {
+): Promise<ReadonlyArray<{ paidCents: number; date: Date; showedUp: boolean }>> {
   // `customerNumber` is unique only through a hand-written partial index Prisma cannot see, so it is
   // not a `findUnique` key here — `findFirst` reads the single row all the same.
   const customer = await prisma.customer.findFirst({
@@ -181,7 +182,7 @@ async function recordsFor(
   }
   return prisma.distributionRecord.findMany({
     where: { customerId: customer.id },
-    select: { paidCents: true, dayKey: true, showedUp: true },
+    select: { paidCents: true, date: true, showedUp: true },
   });
 }
 
@@ -201,14 +202,19 @@ test.describe("Ausgabe erfassen", () => {
   /** The name each seeded household carries, by customer number: the confirmation prints it. */
   const names: Record<number, string> = {};
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     pinToday();
     for (const customerNumber of Object.values(NUMBERS)) {
       names[customerNumber] = await seedHousehold(customerNumber);
     }
+    // The clock first: the session is stamped from it, and every record below belongs to the session.
+    await startSessionInHook({ browser, baseURL }, "RED");
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec, and before the clock does: a session left running is state
+    // the file sorting after this one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // The pinned today goes with the spec: leaving it would freeze January for the settings specs,
     // which save a version stamped *now* and would then assert against the wrong month.
     rmSync(NOW_FILE, { force: true });
@@ -243,12 +249,13 @@ test.describe("Ausgabe erfassen", () => {
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
 
     const records = await recordsFor(NUMBERS.confirmed);
-    expect(records).toEqual([{ paidCents: PRICE_CENTS, dayKey: TODAYS_DAY_KEY, showedUp: true }]);
+    expect(records).toEqual([{ paidCents: PRICE_CENTS, date: new Date(TODAY), showedUp: true }]);
   });
 
-  test("prevents a second hand-out on the same day", async ({ page }) => {
-    // A staff member types the number again expecting to serve; the screen shows today's record
-    // instead of the button, so the queue cannot double-serve — and the database still holds one row.
+  test("prevents a second hand-out in the same session", async ({ page }) => {
+    // A staff member types the number again expecting to serve; the screen shows the afternoon's
+    // record instead of the button, so the queue cannot double-serve — and the database still holds
+    // one row.
     await lookUp(page, NUMBERS.confirmed);
 
     await expect(page.getByTestId("already-served-message")).toHaveText(
@@ -280,7 +287,7 @@ test.describe("Ausgabe erfassen", () => {
     );
 
     const records = await recordsFor(NUMBERS.nothing);
-    expect(records).toEqual([{ paidCents: 0, dayKey: TODAYS_DAY_KEY, showedUp: true }]);
+    expect(records).toEqual([{ paidCents: 0, date: new Date(TODAY), showedUp: true }]);
   });
 
   test("clears the screen and states the hand-out at the top of it", async ({ page }) => {
@@ -336,7 +343,7 @@ test.describe("Ausgabe erfassen", () => {
     await expect(page).toHaveURL(`/ausgabe?nummer=${NUMBERS.corrected}`);
     await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
       "data-verdict",
-      "ALREADY_SERVED_TODAY",
+      "ALREADY_SERVED",
     );
     await expect(page.getByTestId("already-served-message")).toHaveText(
       serve.alreadyServed(SERVED_AT, PRICE_CENTS, PRICE_CENTS),
@@ -350,7 +357,7 @@ test.describe("Ausgabe erfassen", () => {
 
     await expect(page.getByTestId("serve-confirmation")).toHaveText(serve.correct.saved);
     expect(await recordsFor(NUMBERS.corrected)).toEqual([
-      { paidCents: 100, dayKey: TODAYS_DAY_KEY, showedUp: true },
+      { paidCents: 100, date: new Date(TODAY), showedUp: true },
     ]);
   });
 
@@ -373,7 +380,9 @@ test.describe("Ausgabe erfassen", () => {
     await expect(page.getByTestId("serve-recorded-confirmation")).toHaveCount(0);
   });
 
-  test("removing today's hand-out says so, on a screen the record has left", async ({ page }) => {
+  test("removing the afternoon's hand-out says so, on a screen the record has left", async ({
+    page,
+  }) => {
     await lookUp(page, NUMBERS.nothing);
     await expect(page.getByTestId("already-served")).toBeVisible();
 
@@ -390,7 +399,7 @@ test.describe("Ausgabe erfassen", () => {
     await expect(page.getByTestId("serve-removed-confirmation")).toHaveText(serve.correct.removed);
     await expect(page.getByTestId("serve-removed-confirmation")).toBeInViewport();
 
-    // And the household can be served again today, which is what the sentence promises.
+    // And the household can be served again at this afternoon, which is what the sentence promises.
     await expect(page.getByTestId("already-served")).toHaveCount(0);
     await expect(page.getByTestId("serve-button")).toBeVisible();
     expect(await recordsFor(NUMBERS.nothing)).toHaveLength(0);

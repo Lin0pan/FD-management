@@ -14,8 +14,10 @@ import {
   CertificateValidUntilInPast,
   CustomerNotFound,
   MissingRequiredField,
-  ReminderAlreadyLoggedToday,
+  NoDistributionSessionRunning,
+  ReminderAlreadyLoggedInSession,
 } from "@/domain/errors";
+import { createSessionGroups, type DistributionSession } from "@/domain/distribution/session";
 import type {
   ArchivedCustomer,
   AuditEntry,
@@ -23,6 +25,7 @@ import type {
   CertificateRepository,
   Clock,
   CustomerRepository,
+  DistributionSessionRepository,
   ReminderLogEntry,
   ReminderLogRepository,
 } from "../ports";
@@ -30,13 +33,14 @@ import { recordReminder } from "./record-reminder";
 import { renewCertificate } from "./renew-certificate";
 
 /**
- * Hand-written fakes, synthetic data only. `2026-07-23T09:00:00.000Z` is 11:00 in Berlin, so the
- * Berlin day key of "today" is `2026-07-23`; the default certificate lapsed on `2026-06-30`, well
- * before it.
+ * Hand-written fakes, synthetic data only. `2026-07-23T09:00:00.000Z` is 11:00 in Berlin; the
+ * default certificate lapsed on `2026-06-30`, well before it. A reminder is given at the counter,
+ * so every case here runs inside a distribution session (US-34).
  */
 
 const TODAY = "2026-07-23T09:00:00.000Z";
-const TODAY_KEY = "2026-07-23";
+const SESSION_ID = 7;
+const LATER_SESSION_ID = 8;
 const EXPIRED = "2026-06-30T00:00:00.000Z";
 const VALID = "2027-01-31T00:00:00.000Z";
 
@@ -155,7 +159,7 @@ class FakeCustomerRepository implements CustomerRepository {
   }
 }
 
-/** Enforces the per-day constraint like the real adapter, and counts writes to prove refusals wrote nothing. */
+/** Enforces the per-session constraint like the real adapter, and counts writes to prove refusals wrote nothing. */
 class FakeReminderLogRepository implements ReminderLogRepository {
   readonly entries: Array<ReminderLogEntry & { customerId: number }> = [];
   writes = 0;
@@ -164,22 +168,68 @@ class FakeReminderLogRepository implements ReminderLogRepository {
     this.entries.push(...entries);
   }
 
-  findOnDay(customerId: number, loggedOn: string): Promise<ReminderLogEntry | null> {
+  findInSession(customerId: number, sessionId: number): Promise<ReminderLogEntry | null> {
     return Promise.resolve(
-      this.entries.find((e) => e.customerId === customerId && e.loggedOn === loggedOn) ?? null,
+      this.entries.find((e) => e.customerId === customerId && e.sessionId === sessionId) ?? null,
     );
+  }
+
+  listForSession(sessionId: number): Promise<ReadonlyArray<ReminderLogEntry>> {
+    return Promise.resolve(this.entries.filter((e) => e.sessionId === sessionId));
   }
 
   record(customerId: number, entry: ReminderLogEntry): Promise<void> {
     const clash = this.entries.find(
-      (e) => e.customerId === customerId && e.loggedOn === entry.loggedOn,
+      (e) => e.customerId === customerId && e.sessionId === entry.sessionId,
     );
     if (clash !== undefined) {
-      return Promise.reject(new ReminderAlreadyLoggedToday(customerId, entry.loggedOn));
+      return Promise.reject(new ReminderAlreadyLoggedInSession(customerId, entry.sessionId));
     }
     this.writes += 1;
     this.entries.push({ customerId, ...entry });
     return Promise.resolve();
+  }
+}
+
+/** The afternoon the reminders below are given at; `null` is the counter between distributions. */
+function session(id: number): DistributionSession {
+  return {
+    id,
+    startedAt: new Date(TODAY),
+    endedAt: null,
+    groups: createSessionGroups(["RED"]),
+  };
+}
+
+class FakeDistributionSessionRepository implements DistributionSessionRepository {
+  constructor(private readonly running: DistributionSession | null) {}
+
+  findRunning(): Promise<DistributionSession | null> {
+    return Promise.resolve(this.running);
+  }
+
+  lastEnded(): Promise<DistributionSession | null> {
+    return Promise.resolve(null);
+  }
+
+  findById(): Promise<DistributionSession | null> {
+    return Promise.resolve(this.running);
+  }
+
+  start(): Promise<DistributionSession> {
+    return Promise.reject(new Error("No use case in this file starts a session"));
+  }
+
+  end(): Promise<void> {
+    return Promise.reject(new Error("No use case in this file ends a session"));
+  }
+
+  discard(): Promise<void> {
+    return Promise.reject(new Error("No use case in this file discards a session"));
+  }
+
+  reopen(): Promise<void> {
+    return Promise.reject(new Error("No use case in this file reopens a session"));
   }
 }
 
@@ -265,14 +315,16 @@ describe("recordReminder", () => {
   let customers: FakeCustomerRepository;
   let reminders: FakeReminderLogRepository;
   let audit: FakeAuditLog;
+  let sessions: FakeDistributionSessionRepository;
 
   function deps(today = TODAY) {
-    return { customers, reminders, audit, clock: fakeClock(today) };
+    return { customers, reminders, sessions, audit, clock: fakeClock(today) };
   }
 
   beforeEach(() => {
     customers = new FakeCustomerRepository(customerRecord());
     reminders = new FakeReminderLogRepository();
+    sessions = new FakeDistributionSessionRepository(session(SESSION_ID));
     audit = new FakeAuditLog();
   });
 
@@ -280,60 +332,75 @@ describe("recordReminder", () => {
     const count = await recordReminder(deps(), { customerId: 1 });
 
     expect(count).toBe(1);
-    expect(reminders.entries).toEqual([{ customerId: 1, loggedOn: TODAY_KEY, resultingCount: 1 }]);
+    expect(reminders.entries).toEqual([
+      { customerId: 1, sessionId: SESSION_ID, resultingCount: 1 },
+    ]);
   });
 
-  it("rejects a second reminder on the same calendar day, and writes nothing", async () => {
+  it("rejects a second reminder in the same session, and writes nothing", async () => {
     reminders = new FakeReminderLogRepository({
       customerId: 1,
-      loggedOn: TODAY_KEY,
+      sessionId: SESSION_ID,
       resultingCount: 1,
     });
     customers = new FakeCustomerRepository(customerRecord({ reminderCount: 1 }));
 
     const error = await recordReminder(deps(), { customerId: 1 }).catch((e: unknown) => e);
 
-    expect(error).toBeInstanceOf(ReminderAlreadyLoggedToday);
-    expect((error as ReminderAlreadyLoggedToday).loggedOn).toBe(TODAY_KEY);
+    expect(error).toBeInstanceOf(ReminderAlreadyLoggedInSession);
+    expect((error as ReminderAlreadyLoggedInSession).sessionId).toBe(SESSION_ID);
     expect(reminders.writes).toBe(0);
     expect(audit.entries).toHaveLength(0);
   });
 
-  it("logs again on the next day — the second reminder returns a count of two", async () => {
+  it("logs again at the next session — the second reminder returns a count of two", async () => {
     reminders = new FakeReminderLogRepository({
       customerId: 1,
-      loggedOn: "2026-07-22",
+      sessionId: SESSION_ID,
       resultingCount: 1,
     });
     customers = new FakeCustomerRepository(customerRecord({ reminderCount: 1 }));
+    sessions = new FakeDistributionSessionRepository(session(LATER_SESSION_ID));
 
     const count = await recordReminder(deps(), { customerId: 1 });
 
     expect(count).toBe(2);
     expect(reminders.entries).toContainEqual({
       customerId: 1,
-      loggedOn: TODAY_KEY,
+      sessionId: LATER_SESSION_ID,
       resultingCount: 2,
     });
   });
 
-  it("counts the day in Berlin: after local midnight a reminder belongs to the new day", async () => {
-    // 22:30 UTC on the 22nd is 00:30 on the 23rd in Berlin — yesterday's entry does not block it.
+  it("counts a second distribution on the same day as a second session, not as a repeat", async () => {
+    // The afternoon is the unit, never the calendar day (US-34): an extra distribution held hours
+    // after the first is a session of its own, and the reminder it gives is a new one.
     reminders = new FakeReminderLogRepository({
       customerId: 1,
-      loggedOn: "2026-07-22",
+      sessionId: SESSION_ID,
       resultingCount: 1,
     });
     customers = new FakeCustomerRepository(customerRecord({ reminderCount: 1 }));
+    sessions = new FakeDistributionSessionRepository(session(LATER_SESSION_ID));
 
-    const count = await recordReminder(deps("2026-07-22T22:30:00.000Z"), { customerId: 1 });
+    const count = await recordReminder(deps("2026-07-23T16:30:00.000Z"), { customerId: 1 });
 
     expect(count).toBe(2);
     expect(reminders.entries).toContainEqual({
       customerId: 1,
-      loggedOn: "2026-07-23",
+      sessionId: LATER_SESSION_ID,
       resultingCount: 2,
     });
+  });
+
+  it("refuses a reminder with no session running, and writes nothing", async () => {
+    sessions = new FakeDistributionSessionRepository(null);
+
+    await expect(recordReminder(deps(), { customerId: 1 })).rejects.toBeInstanceOf(
+      NoDistributionSessionRunning,
+    );
+    expect(reminders.writes).toBe(0);
+    expect(audit.entries).toHaveLength(0);
   });
 
   it("rejects a reminder while the certificate is still valid, and writes nothing", async () => {

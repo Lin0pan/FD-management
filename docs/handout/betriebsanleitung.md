@@ -1,6 +1,6 @@
 # FD-Management — Betriebsanleitung
 
-**Testversion · Stand: 1. September 2026**
+**Testversion · Stand: 20. September 2026**
 
 Diese Software unterstützt die Kundenverwaltung und die Ausgabe des Delbrücker Füllhorns. Sie läuft
 auf **einem einzigen Rechner**, ohne Internet und ohne Anmeldung.
@@ -87,6 +87,57 @@ schreiben. Sie wird beim Haushalt genau so gespeichert, wie Sie sie eintippen, u
 selbst in die Liste. Solange Sie noch keine Arten eingerichtet haben, steht überall **Sonstiges** —
 Sie tippen die Art dann ein wie bisher.
 
+## Die Ausgabe starten und beenden
+
+Eine Ausgabe wird **von Hand begonnen und von Hand beendet**. Erst danach richtet sich alles
+Weitere: Erfasst wird nur, solange eine Ausgabe läuft, und ein Eintrag gehört immer zu genau der
+Ausgabe, bei der er entstanden ist — nicht zu einem Kalendertag. Deshalb darf eine Ausgabe auch über
+Mitternacht hinaus laufen.
+
+**Beginnen.** Unter **Ausgabe** steht, solange keine läuft, **Ausgabe starten**. Davor wählen Sie
+die Gruppe:
+
+| Auswahl          | Wer heute abholen darf                                                                 |
+| ---------------- | -------------------------------------------------------------------------------------- |
+| **Rot**          | Nur Haushalte mit ungerader Kundennummer                                               |
+| **Blau**         | Nur Haushalte mit gerader Kundennummer                                                 |
+| **Rot und Blau** | Alle Haushalte — die zusammengelegte Ausgabe, für die es keine eigene Einstellung gibt |
+
+Eine Auswahl ist bereits vorbelegt: die Gruppe, die beim letzten Mal **nicht** an der Reihe war —
+waren es beide, sind es wieder beide. Sie können jedes Mal davon abweichen; die Software fragt nicht
+nach einem Grund und warnt nicht. **Während die Ausgabe läuft, lässt sich die Gruppe nicht mehr
+ändern.** Wurde versehentlich die falsche gewählt, verwerfen Sie die Ausgabe (siehe unten) und
+starten sie neu.
+
+Es kann immer nur **eine** Ausgabe gleichzeitig laufen.
+
+**Beenden.** Am Ende des Nachmittags **Ausgabe beenden**. Die Software beendet von sich aus nie eine
+Ausgabe — nicht um Mitternacht, nicht nach einer Wartezeit und auch nicht, wenn Sie die nächste
+starten. Vor dem Beenden nennt sie Ihnen, wie viele Haushalte versorgt wurden und wie viel Geld
+eingenommen wurde. Dass nicht alle Haushalte einer Gruppe gekommen sind, ist der Normalfall und wird
+nirgends angemahnt.
+
+> **Mit dem Beenden sind die Einträge dieser Ausgabe festgeschrieben.** Betrag ändern und Eintrag
+> entfernen sind danach nicht mehr möglich.
+
+**Eine vergessene Ausgabe fällt auf.** Läuft noch eine, steht das ganz oben auf dem
+Startbildschirm — mit der Gruppe, dem Zeitpunkt des Beginns und einem Weg direkt zur Ausgabe. Wer am
+nächsten Morgen den Rechner einschaltet, sieht also sofort, dass der Nachmittag noch offen ist.
+
+**Versehentlich gestartet: verwerfen.** Solange bei einer laufenden Ausgabe **nichts** erfasst
+wurde — keine Lebensmittel, keine Erinnerung — bietet der Bildschirm **Ausgabe verwerfen** an. Eine
+verworfene Ausgabe hat es für die Software nie gegeben; es wird nichts darüber festgehalten. Sobald
+der erste Haushalt erfasst ist, verschwindet diese Möglichkeit und es bleibt nur das Beenden.
+
+**Zu früh beendet: wieder öffnen.** Solange **keine neue** Ausgabe läuft, lässt sich die **zuletzt
+beendete** unter **Ausgabe** über **Ausgabe wieder öffnen** noch einmal öffnen. Dafür ist ein Grund
+erforderlich, der protokolliert wird. Danach sind ihre Einträge wieder zu korrigieren wie vorher.
+Ältere Ausgaben bleiben festgeschrieben.
+
+**Solange keine Ausgabe läuft**, zeigt der Ausgabe-Bildschirm nur den Start und die letzte Ausgabe
+mit ihren Zahlen. Eine Kundennummer lässt sich dann nicht nachschlagen — Kunden anlegen, sperren,
+ändern und Karten ausstellen geht wie immer.
+
 ## Saldo — Guthaben und offene Beträge
 
 Nicht jeder Haushalt zahlt genau den Betrag, der an diesem Tag fällig ist. Mancher gibt weniger,
@@ -143,16 +194,18 @@ eingeben.
 
 ### Einen Fehler berichtigen
 
-**Am selben Tag** können Sie einen Eintrag ändern. Zwei Wege führen zum Haushalt zurück: die Nummer
-unter **Ausgabe** noch einmal eingeben — oder, solange die Bestätigungszeile der eben erfassten
-Ausgabe oben steht, dort auf **Korrigieren** klicken. Statt der Schaltfläche zum Erfassen steht dann
-dort, was heute schon gebucht wurde, und darunter **Heutigen Eintrag korrigieren** — den richtigen Betrag eintragen und **Betrag speichern**. Mit
-**Eintrag entfernen** verschwindet die Ausgabe ganz; der Saldo steht danach wieder so wie vor der
-Ausgabe, und die Rückfrage nennt Ihnen diesen Stand, bevor Sie bestätigen.
+**Solange die Ausgabe läuft** können Sie einen Eintrag ändern. Zwei Wege führen zum Haushalt zurück:
+die Nummer unter **Ausgabe** noch einmal eingeben — oder, solange die Bestätigungszeile der eben
+erfassten Ausgabe oben steht, dort auf **Korrigieren** klicken. Statt der Schaltfläche zum Erfassen
+steht dann dort, was bei dieser Ausgabe schon gebucht wurde, und darunter **Eintrag korrigieren** —
+den richtigen Betrag eintragen und **Betrag speichern**. Mit **Eintrag entfernen** verschwindet die
+Buchung ganz; der Saldo steht danach wieder so wie vorher, und die Rückfrage nennt Ihnen diesen
+Stand, bevor Sie bestätigen.
 
-**Ab dem nächsten Tag geht das nicht mehr** — ältere Einträge sind das Protokoll dessen, was
-tatsächlich geschehen ist, und werden nicht nachträglich verändert. Das ist Absicht, und es gibt
-dafür einen einfachen Weg:
+**Ist die Ausgabe beendet, geht das nicht mehr** — festgeschriebene Einträge sind das Protokoll
+dessen, was tatsächlich geschehen ist, und werden nicht nachträglich verändert. Fällt der Fehler
+kurz nach dem Beenden auf, können Sie die Ausgabe noch einmal öffnen (siehe **Die Ausgabe starten
+und beenden**), solange keine neue läuft. Sonst gibt es einen einfachen Weg:
 
 > **Fällt ein Fehler später auf, wird er bei der nächsten Ausgabe des Haushalts ausgeglichen.**
 > Haben Sie 5,00 € gebucht, obwohl nur 3,00 € übergeben wurden, tragen Sie bei der nächsten Ausgabe

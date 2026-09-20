@@ -89,10 +89,10 @@ function statementFor(verdict: Verdict): Statement {
     case "OUTDATED_CARD":
       // The card that counts is the current one, and the record below prints it.
       return { tone: "refuse", headline: words.outdatedCard.headline, detail: null };
-    case "ALREADY_SERVED_TODAY":
+    case "ALREADY_SERVED":
       // No detail line: the time and the two amounts are rows of the already-served card immediately
       // below (`docs/guideline/ui_styling_guide.md` §8).
-      return { tone: "done", headline: words.alreadyServedToday.headline, detail: null };
+      return { tone: "done", headline: words.alreadyServed.headline, detail: null };
     case "CLEAR_TO_SERVE":
       return { tone: "serve", headline: words.clearToServe.headline, detail: null };
     case "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED":

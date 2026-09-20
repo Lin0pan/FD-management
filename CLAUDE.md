@@ -209,9 +209,11 @@ settings screen reporting that nothing is configured.
   word off the list, on an argument of its own (US-33, ADR-019). Nothing else in the schema may be
   deleted.
 - ❌ Don't skip the audit entry on a state change (archive, block, number change, card reissue,
-  policy edit, a change to the Nachweis-Arten). With no login, the log is the only accountability the
-  system has — and it records _what, when and why_, never _who_. The _why_ is required where it is
-  the record (archive, block) and optional where the changed fields already say it (a policy edit).
+  policy edit, a change to the Nachweis-Arten, ending or reopening a distribution session). With no
+  login, the log is the only accountability the system has — and it records _what, when and why_,
+  never _who_. The _why_ is required where it is the record (archive, block, a reopening) and
+  optional where the changed fields already say it (a policy edit). Starting a session writes
+  nothing and a discarded one writes nothing either, which is the one deliberate gap (ADR-020).
 - ❌ Don't add a dependency to avoid ~50 lines of code, and don't reach for a heavier pattern
   (events, CQRS, aggregates) than the problem needs.
 - ❌ Don't bump the Next.js major casually — it is pinned on purpose.

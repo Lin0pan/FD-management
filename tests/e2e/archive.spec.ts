@@ -8,6 +8,7 @@ import { germanDate } from "@/i18n/format";
 import { SHARED } from "./registers";
 import { fillDay, fillSticky, hydrated } from "./day";
 import { fillCertificateType } from "./registration-form";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /**
  * Archiving a household and watching their customer number come back into circulation
@@ -36,9 +37,9 @@ const NOW_FILE = SHARED.now;
 /**
  * The day this spec is judged on: Thursday 08.01.2026, 09:00 UTC.
  *
- * It follows from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor `2026-W02`
- * = RED, distributions on ISO weekday 4. So it is a RED distribution day, which is what lets the RED
- * household be served before they are archived — the hand-out is the record the archive must keep.
+ * Nothing about the distribution follows from it any more: what lets the RED household be served
+ * before they are archived is the RED afternoon this file starts itself (US-34), and the hand-out it
+ * takes is the record the archive must keep. The day is still what the archived banner names.
  */
 const TODAY = "2026-01-08T09:00:00.000Z";
 /** The day the archived banner names, as `germanDate` renders it. */
@@ -166,8 +167,8 @@ async function belongings(id: number): Promise<string> {
     }),
     prisma.distributionRecord.findMany({
       where: { customerId: id },
-      select: { dayKey: true, paidCents: true, showedUp: true },
-      orderBy: { dayKey: "asc" },
+      select: { date: true, paidCents: true, showedUp: true },
+      orderBy: { date: "asc" },
     }),
   ]);
   return JSON.stringify({ customer, cards, records });
@@ -193,11 +194,16 @@ test.describe("Kunde archivieren", () => {
   /** The household this spec archives — registered in the first test, read by all the others. */
   let household: Household;
 
-  test.beforeAll(() => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     pinToday();
+    // RED, because the household below is registered onto RED's lowest free slot.
+    await startSessionInHook({ browser, baseURL }, "RED");
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: a session left running is state the file sorting after this
+    // one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // The pinned today goes with the spec: leaving it would freeze January for the settings specs,
     // which save a version stamped *now* and would then assert against the wrong month.
     rmSync(NOW_FILE, { force: true });

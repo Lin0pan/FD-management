@@ -22,7 +22,7 @@
 
 import type { Group } from "../customer/group";
 import type { Settings } from "../policy/settings";
-import { type AttendanceRecord, berlinDayKey } from "./attendance";
+import { berlinDayKey } from "./attendance";
 import { colourOf, isoWeekdayOf, startOfUtcDay } from "./weekColour";
 
 const MS_PER_DAY = 86_400_000;
@@ -30,13 +30,22 @@ const DAYS_PER_WEEK = 7;
 /** One turn of the two-week cycle — the gap between two distributions of the same colour. */
 const MS_PER_CYCLE = 2 * DAYS_PER_WEEK * MS_PER_DAY;
 
+/**
+ * The day a household stood at the counter, which is what a miss is the absence of. Declared here
+ * rather than taken from `attendance.ts`: the attendance rules turn on the session now (US-34), and
+ * this count is the last rule still reading the calendar — US-36 retires it.
+ */
+export interface AttendedDay {
+  readonly date: Date;
+}
+
 /** Everything the count turns on. */
 export interface NoShowInput {
   /**
    * The distribution records of **this customer only**, in any order. A record's presence is the
    * attendance: a no-show writes no row at all (`distributionRecord.ts`).
    */
-  readonly records: ReadonlyArray<AttendanceRecord>;
+  readonly records: ReadonlyArray<AttendedDay>;
   /** The group the customer is in **now** — a move takes their schedule with it (PRD §US-10.1). */
   readonly customerGroup: Group;
   /** The day the household joined the register; no distribution before it was theirs to attend. */
@@ -77,8 +86,8 @@ function lastOwnDistributionBefore(today: Date, group: Group, settings: Settings
  */
 export function consecutiveNoShows(input: NoShowInput): number {
   const { records, customerGroup, registeredOn, settings, today } = input;
-  // Matched by Berlin calendar day, as the once-per-day attendance rule counts, so a hand-out
-  // recorded at 23:45 belongs to the day the staff member lived through.
+  // Matched by Berlin calendar day, so a hand-out recorded at 23:45 belongs to the day the staff
+  // member lived through — the calendar this count still reads until US-36 retires it.
   const attendedDays = new Set(records.map((record) => berlinDayKey(record.date)));
   const registrationDay = startOfUtcDay(registeredOn).getTime();
 

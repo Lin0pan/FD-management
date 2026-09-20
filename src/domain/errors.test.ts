@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  AlreadyServedInSession,
   CardNumberTaken,
+  DistributionSessionAlreadyRunning,
+  DistributionSessionNotEmpty,
+  DistributionSessionNotReopenable,
   DomainError,
   MissingAuditReason,
+  NoDistributionSessionRunning,
   OverpaymentNotConfirmed,
+  ReminderAlreadyLoggedInSession,
 } from "./errors";
 
 /**
@@ -52,5 +58,67 @@ describe("OverpaymentNotConfirmed", () => {
     expect(error.amountToPayCents).toBe(800);
     expect(error.message).toContain("5000");
     expect(error.message).toContain("800");
+  });
+});
+
+/**
+ * The six session errors (US-34.1). Their callers arrive with the session table and the four use
+ * cases (US-34.3 to US-34.5); covered here so each rule stays stated until then.
+ */
+describe("the distribution session errors", () => {
+  it("names the session a household was already served at", () => {
+    const error = new AlreadyServedInSession(12);
+
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe("AlreadyServedInSession");
+    expect(error.sessionId).toBe(12);
+    expect(error.message).toContain("12");
+  });
+
+  it("names the household and the session a reminder is already logged in", () => {
+    const error = new ReminderAlreadyLoggedInSession(4, 12);
+
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe("ReminderAlreadyLoggedInSession");
+    expect(error.customerId).toBe(4);
+    expect(error.sessionId).toBe(12);
+    expect(error.message).toContain("12");
+  });
+
+  it("states the absence itself when nothing is running", () => {
+    const error = new NoDistributionSessionRunning();
+
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe("NoDistributionSessionRunning");
+  });
+
+  it("names the session already under way when a second is started", () => {
+    const error = new DistributionSessionAlreadyRunning(12);
+
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe("DistributionSessionAlreadyRunning");
+    expect(error.runningId).toBe(12);
+    expect(error.message).toContain("12");
+  });
+
+  it("names what a session holds that is being discarded", () => {
+    const error = new DistributionSessionNotEmpty(12, 3, 1);
+
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe("DistributionSessionNotEmpty");
+    expect(error.sessionId).toBe(12);
+    expect(error.handouts).toBe(3);
+    expect(error.reminders).toBe(1);
+    expect(error.message).toContain("3");
+    expect(error.message).toContain("1");
+  });
+
+  it("names the session that may not be reopened", () => {
+    const error = new DistributionSessionNotReopenable(11);
+
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe("DistributionSessionNotReopenable");
+    expect(error.sessionId).toBe(11);
+    expect(error.message).toContain("11");
   });
 });

@@ -7,6 +7,7 @@ import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /**
  * Replacing a lost card and watching the old one stop working
@@ -213,12 +214,17 @@ test.describe.configure({ mode: "serial" });
 test.describe("Karte nach Verlust neu ausstellen", () => {
   let id: number;
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     pinToday();
     id = await seedHousehold();
+    // RED, because 251 is odd and that is the whole of the household's group (US-31).
+    await startSessionInHook({ browser, baseURL }, "RED");
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: a session left running is state the file sorting after this
+    // one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // The pinned today goes with the spec: leaving it would freeze January for the settings specs,
     // which save a version stamped *now* and would then assert against the wrong month.
     rmSync(NOW_FILE, { force: true });
@@ -282,7 +288,7 @@ test.describe("Karte nach Verlust neu ausstellen", () => {
     expect(after.status).toBe("ACTIVE");
   });
 
-  test("the replacement card is clear to serve on the same day", async ({ page }) => {
+  test("the replacement card is clear to serve at the same afternoon", async ({ page }) => {
     await lookUp(page, card(2));
 
     await expect(page.getByTestId("counter-verdict")).toHaveAttribute(

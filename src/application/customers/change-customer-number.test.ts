@@ -16,6 +16,7 @@ import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
+import { createSessionGroups, type DistributionSession } from "@/domain/distribution/session";
 import {
   CustomerArchived,
   CustomerNotFound,
@@ -34,6 +35,7 @@ import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  DistributionSessionRepository,
   ReminderLogEntry,
   ReminderLogRepository,
   SettingsRepository,
@@ -101,7 +103,7 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve(this.records.filter((record) => record.customerId === customerId));
   }
 
-  listForDay(): Promise<ReadonlyArray<DistributionRecord>> {
+  listForSession(): Promise<ReadonlyArray<DistributionRecord>> {
     return Promise.resolve([]);
   }
 
@@ -132,12 +134,54 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
  * here gives a reminder, so answering `null` is the honest reading of a household nobody reminded.
  */
 class FakeReminderLogRepository implements ReminderLogRepository {
-  findOnDay(): Promise<ReminderLogEntry | null> {
+  findInSession(): Promise<ReminderLogEntry | null> {
     return Promise.resolve(null);
+  }
+
+  listForSession(): Promise<ReadonlyArray<ReminderLogEntry>> {
+    return Promise.resolve([]);
   }
 
   record(): Promise<void> {
     return Promise.reject(new Error("no test here logs a reminder"));
+  }
+}
+
+/** A running afternoon, because the lookups below are the ones staff make at the counter. */
+const RUNNING_SESSION: DistributionSession = {
+  id: 3,
+  startedAt: new Date(TODAY),
+  endedAt: null,
+  groups: createSessionGroups(["RED", "BLUE"]),
+};
+
+class FakeDistributionSessionRepository implements DistributionSessionRepository {
+  findRunning(): Promise<DistributionSession | null> {
+    return Promise.resolve(RUNNING_SESSION);
+  }
+
+  lastEnded(): Promise<DistributionSession | null> {
+    return Promise.resolve(null);
+  }
+
+  findById(): Promise<DistributionSession | null> {
+    return Promise.resolve(RUNNING_SESSION);
+  }
+
+  start(): Promise<DistributionSession> {
+    return Promise.reject(new Error("no test here starts a session"));
+  }
+
+  end(): Promise<void> {
+    return Promise.reject(new Error("no test here ends a session"));
+  }
+
+  discard(): Promise<void> {
+    return Promise.reject(new Error("no test here discards a session"));
+  }
+
+  reopen(): Promise<void> {
+    return Promise.reject(new Error("no test here reopens a session"));
   }
 }
 
@@ -475,7 +519,15 @@ function handOut(
   paidCents: Cents,
   priceCents: Cents,
 ): DistributionRecord {
-  return { id, customerId, date: new Date(date), showedUp: true, paidCents, priceCents };
+  return {
+    id,
+    customerId,
+    sessionId: RUNNING_SESSION.id,
+    date: new Date(date),
+    showedUp: true,
+    paidCents,
+    priceCents,
+  };
 }
 
 describe("changeCustomerNumber", () => {
@@ -775,7 +827,14 @@ describe("the record after a number change", () => {
   }
 
   function counterDeps() {
-    return { customers, settings, records, reminders, clock: fakeClock(TODAY) };
+    return {
+      customers,
+      settings,
+      records,
+      reminders,
+      sessions: new FakeDistributionSessionRepository(),
+      clock: fakeClock(TODAY),
+    };
   }
 
   /** Move the worked example from 5 to 23. */

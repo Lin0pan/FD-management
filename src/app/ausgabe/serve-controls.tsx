@@ -9,7 +9,7 @@
  * on the screen it lands on (`served-flag.ts`, US-32.7). No rules live here.
  *
  * Which of the two it shows is a property of the day rather than a click: the page decides by passing
- * `todaysRecord`, so a correction is reached by looking the household up again.
+ * `sessionRecord`, so a correction is reached by looking the household up again.
  *
  * **The transaction is one number, stated three times over**: what to collect, where the household
  * stands, and what was handed over. The last sits **on the same line as the button that books it**,
@@ -35,13 +35,13 @@ import { Confirmation, Notice } from "../notice";
 import { useNoticeSlot } from "../notice-board";
 import { Stat } from "../stat";
 
-/** Today's record as the controls need it — serialisable, with the time already in German. */
-export interface TodaysRecordProps {
+/** The session's record as the controls need it — serialisable, with the time already in German. */
+export interface SessionRecordProps {
   readonly recordId: number;
   readonly time: string;
   /** What the household handed over. The correction field opens on it, unchanged. */
   readonly paidCents: number;
-  /** What the counter asked for on the day this record was made — the figure it is judged against. */
+  /** What the counter asked at the session this record was made in — what it is judged against. */
   readonly askedCents: number;
   /** Where the household's balance would stand if this record were removed, so the warning says so. */
   readonly balanceWithoutRecordCents: number;
@@ -193,7 +193,7 @@ export function ServeControls({
   canServe,
   amountToPayCents,
   balanceCents,
-  todaysRecord,
+  sessionRecord,
   lookedUpNumber,
 }: {
   customerId: number;
@@ -207,7 +207,7 @@ export function ServeControls({
   amountToPayCents: number;
   /** The household's balance as it stands now — today's payment included once one is recorded. */
   balanceCents: number;
-  todaysRecord: TodaysRecordProps | null;
+  sessionRecord: SessionRecordProps | null;
   /**
    * What was typed to reach this household, submitted with a removal so the redirect comes back to
    * the same lookup rather than an empty field.
@@ -224,11 +224,11 @@ export function ServeControls({
     correctState.status === "idle" ? null : correctState,
   );
 
-  if (todaysRecord !== null) {
+  if (sessionRecord !== null) {
     // Off the action state, never `showingCorrect`: the board decides which *notice* is on screen,
     // and another control claiming it must not rewrite the amount somebody typed.
     const correctOverpayment = overpaymentIn(correctState);
-    const typedCents = correctOverpayment?.paidCents ?? todaysRecord.paidCents;
+    const typedCents = correctOverpayment?.paidCents ?? sessionRecord.paidCents;
 
     return (
       <Card data-testid="already-served">
@@ -238,9 +238,9 @@ export function ServeControls({
           <CardTitle className="text-xl">
             <h2 data-testid="already-served-message">
               {de.distribution.serve.alreadyServed(
-                todaysRecord.time,
-                todaysRecord.paidCents,
-                todaysRecord.askedCents,
+                sessionRecord.time,
+                sessionRecord.paidCents,
+                sessionRecord.askedCents,
               )}
             </h2>
           </CardTitle>
@@ -255,7 +255,7 @@ export function ServeControls({
               Betrag field must not submit it (`enter-guard.ts`). The counter's *lookup* form is a
               different form and keeps its Enter. */}
           <form action={correct} onKeyDown={guardEnter} className="flex flex-col gap-3">
-            <input type="hidden" name="recordId" value={todaysRecord.recordId} />
+            <input type="hidden" name="recordId" value={sessionRecord.recordId} />
             <input type="hidden" name="nummer" value={lookedUpNumber} />
             <h3 className="font-heading text-base font-medium">
               {de.distribution.serve.correct.heading}
@@ -264,7 +264,7 @@ export function ServeControls({
                 it can be read against something. Not today's amount to pay: that figure already has
                 this record's own payment folded into it. */}
             <p data-testid="correct-asked" className="text-sm text-muted-foreground">
-              {de.distribution.serve.asked(todaysRecord.askedCents)}
+              {de.distribution.serve.asked(sessionRecord.askedCents)}
             </p>
             {/* Field and save button on one line, as on the serve form — the same gesture, so the
                 same shape. The removal stays *out* of this row on purpose: an open `<details>` is
@@ -312,7 +312,7 @@ export function ServeControls({
                   className="max-w-prose text-sm text-muted-foreground"
                 >
                   {de.distribution.serve.correct.removeConfirm(
-                    todaysRecord.balanceWithoutRecordCents,
+                    sessionRecord.balanceWithoutRecordCents,
                   )}
                 </p>
                 <Button

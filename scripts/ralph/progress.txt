@@ -106,6 +106,20 @@ bullets that sat under „Where batch 33 starts" are not carried over — they a
   dot without moving the list. Same on the record's `number-change-select`. Six specs that used to
   open a `<details>` (`group-choice-open`, deleted in US-31.6) now just check the radio, and every
   spec that reads the *proposed* number must read it **after** the check.
+- **A spec that reads the session which ended LAST must run on the REAL clock.** `lastEnded` orders
+  by `endedAt`, and the register holds sessions from every file before it: the ones that pin January
+  are stamped January, but the ones that edit *settings* cannot pin at all — a saved version is
+  recorded at the real now and is only in force there — so `price-cap.spec.ts` ends its afternoon at
+  the real now and **beats** any pinned-past session. `session.spec.ts` therefore pins nothing,
+  `rmSync`s the now-file in its `beforeAll`, and dates its fixtures from `new Date()` (the clock
+  rule is `src/`-scoped, so a spec may read it). The trap is silent: the proposal assertion passed
+  against another spec's RED afternoon before a summary assertion two tests later exposed it.
+- **A spec that does not set the policy may not state a price.** With the real clock the version in
+  force is whatever the files before it left (`price-cap.spec.ts` leaves 9,99 € a head, capped at
+  5,00 €), so `session.spec.ts` reads the Betrag field and puts it through `parseEuros` — the very
+  function the server action reads the form with — and asserts every later figure against *that*.
+  A correction goes to **0,00 €**, the one amount that is certainly not an overpayment whatever the
+  cap is.
 - **Two specs share the isolated register now** (`ISOLATED_SPECS`), `number-group` before
   `waiting-list`. Sharing is safe only because each empties it with `clearRegister` in its own
   `beforeAll` and sets the quota it needs in its first test — which they both have to do anyway, since
@@ -194,6 +208,17 @@ bullets that sat under „Where batch 33 starts" are not carried over — they a
 - **`prettier --check` cannot parse `prisma/schema.prisma`** — „no parser could be inferred", so it
   is outside `npm run format:check` and nothing checks the width of a schema doc comment. Measure it
   by hand (Python, not `awk`) like any `/** */` block.
+- **A use case that stops needing a port should stop declaring it.** `ReadGroupRosterDeps` dropped
+  `settings` and `clock` with the week colour (US-34.6), and **no call site changed**: every
+  composition root (`distributionDeps`) is wider than each `Deps` interface, so structural typing
+  carries it. What it buys is in the suite — a whole hand-written `FakeSettingsRepository`, its
+  fixtures and its clock left the test file with the dependency, rather than sitting there implying
+  the roster still reads settings.
+- **A screen state the application cannot reach yet is still checkable in a browser.** Write the row
+  by hand with a `tsx` script under `local_only/` (gitignored) against the demo register, then drive
+  `npm run start` — `npx tsx /tmp/x.ts` cannot, because `@prisma/client` only resolves from inside
+  the repo, and `tsx` refuses top-level `await` (wrap it in `async function main()`). That is how
+  US-34.6's merged-session card was read at 390px while no screen can yet start a session.
 - **Never wrap a Markdown code span across two lines.** Prettier removes the continuation line's
   indentation, which silently breaks the list item around it — in root `CLAUDE.md` it dropped
   `` `card.index)` `` into column 0 inside a nested bullet. Keep the span on one line and rewrap the
@@ -243,6 +268,12 @@ bullets that sat under „Where batch 33 starts" are not carried over — they a
   browser check or nothing (batch 31, `/kunden/neu` and the record's number control). Assert
   `hasAttribute("checked")` and not only `.checked` — the attribute is what the reset restores from,
   so it is the half that tells a fixed control from one that happens to look right.
+- **`germanDate` is for days and `germanDateTime` for instants, and the difference is the time zone.**
+  `germanDate` reads UTC deliberately (a stored day is midnight UTC), so passing it a *moment* names
+  the wrong day for anything after 23:00 UTC — and a session left running overnight is exactly the
+  case the last-session summary is read in. Both instants of an afternoon are written out in full
+  rather than as one day with two times, for the same reason: „14:00–08:30" would state an overnight
+  session as a morning.
 - **`list[0]` lies in this repo; `list.at(0) ?? fallback` does not.** `tsconfig` has no
   `noUncheckedIndexedAccess`, so an index access on a possibly-empty array types as present and the
   `?? fallback` beside it reads as dead code to the next reader. `.at(0)` returns `T | undefined`,
@@ -295,6 +326,17 @@ bullets that sat under „Where batch 33 starts" are not carried over — they a
   the fix; only the one naming the defect was red. Do not read „green immediately" as a fixture
   mistake and do not delete the test — it is the proof the AC asked for. Still run the suite
   **before** implementing, so which ones are red is a fact rather than a guess.
+- **A documentation sweep greps the vanished identifier, not the concept.** When a story removes a
+  column or a function, `grep -rn "<oldName>" docs/ tasks/` names every chapter that has quietly
+  stopped being true in one command — including the accepted ADRs, whose *examples* may cite it even
+  though their decision is untouched. Grepping the concept („session", „group") matches hundreds of
+  lines and finds nothing. The counterpart rule holds for prose: a claim is corrected by grepping
+  its *phrasing*.
+- **Chapter 05 carries four counting words and nothing checks them:** „N modules in four families",
+  „N use cases behind N ports", „N modules" under `src/infrastructure/`, and „(the other N)" for the
+  repositories. A heading and the table under it can disagree — US-34.4 updated „twelve ports" while
+  the ports table stayed at eleven rows. Count both halves whenever a module, a port or a route is
+  added.
 - **Prior runs' patterns are in the archive**, not in this file:
   `scripts/ralph/archive/2026-09-17-us-33-certificate-types-from-settings/progress.txt` is the most
   recent (a vocabulary DF maintain themselves, a table deliberately outside the versioned settings,
@@ -348,6 +390,14 @@ bullets that sat under „Where batch 33 starts" are not carried over — they a
   another, so `|taken|` is invariant. Batch 30 wrote an AC asserting a count that rose on a screen
   that has none; assert the *composition* of the offer (the vacated number is offered, the taken one
   is not) rather than its size.
+- **A partial unique index on an *expression* is how "at most one row in state X" is stated in
+  SQLite**, and Prisma cannot express it: `CREATE UNIQUE INDEX "one_running_session" ON "T"("col" IS
+  NOT NULL) WHERE <predicate>` hand-written at the end of the migration. Every row in the state
+  indexes the same constant, so the second one collides. Two things follow that the column-based
+  constraints in this repo do not prepare you for: **`P2002` names the index, not a column**, so the
+  adapter matches `meta.target` on the index name; and the row that *won* is not in the error, so a
+  refusal naming it costs one extra read (`distribution-session-repository.ts`).
+
 - **A lost race is driven with a second real tab**, `page.context().newPage()` plus the same
   registration helper — not a hand-written Prisma row, which would skip the intake's own allocation
   and prove nothing about the refusal staff actually meet.
@@ -429,3 +479,637 @@ caller until US-36.
 every session ended before its freeze rule exists is lost to the detail view for good.
 
 ---
+
+## 2026-09-19 — US-001 (US-34.1) The distribution session is a domain value
+
+**Implemented.** `src/domain/distribution/session.ts`: `SessionGroups` made only by
+`createSessionGroups` (de-duplicates, RED before BLUE by *filtering* `GROUPS` — one line that both
+orders and de-duplicates and cites the order rather than restating it), `formatSessionGroups` /
+`parseSessionGroups` over the comma-separated column, `servesGroup`, `DistributionSession`,
+`isRunning`, `proposeGroups`, `canDiscard`, `canReopen`. Seven new domain errors and their tiers.
+
+Files: `src/domain/distribution/session.ts` (new), `session.test.ts` (new, 22 tests),
+`src/domain/errors.ts`, `src/domain/errors.test.ts`, `src/app/notice-tier.ts`.
+
+**Learnings for future iterations:**
+
+- **The two day-errors are still standing, deliberately, and story 5 deletes them.** The AC said to
+  delete `AlreadyServedToday` / `ReminderAlreadyLoggedToday` in this story and fix every caller. That
+  is not reachable while the tree stays green: their replacements carry a `sessionId` and no column
+  supplies one until story 3, so every caller would have to invent one. Both classes carry a one-line
+  `Replaced by {@link …} (US-34.5)` pointer instead. **Story 2 must not delete them either** — it
+  rewrites `attendance.ts`, whose *application* callers only move in story 5.
+- **`canReopen` takes an object, not two positional sessions.** The rule needs "nothing is running"
+  as well as "this is the one that ended last", and two adjacent parameters of type
+  `DistributionSession | null` are silently swappable — `canReopen(session, { mostRecentlyEnded,
+  running })` is the shape, matching `canDiscard`'s `{ handouts, reminders }`.
+- **`GROUPS.filter((g) => given.includes(g))` is the whole of "de-duplicate and order".** Worth
+  copying wherever a chosen subset of a small closed set has to come back canonical.
+- **Tiering the new codes was a decision, not bookkeeping.** `DistributionSessionNotEmpty` is amber
+  (a rule refused a well-formed request; end the session instead), while
+  `NoDistributionSessionRunning`, `DistributionSessionAlreadyRunning` and
+  `DistributionSessionNotReopenable` are red: each means the screen is stale because another
+  workstation moved on, and the stories that render them (7–9) should read them that way.
+- **`AlreadyServedInSession` carries only the session id.** The domain's `canRecord` will see records
+  shaped `{ sessionId }` and nothing else, and the adapter catching the `(customerId, sessionId)`
+  P2002 knows the same. `ReminderAlreadyLoggedInSession` keeps its customer id, as its predecessor
+  did, and `DistributionSessionAlreadyRunning` carries the running row's id — story 3's adapter has
+  to re-read on the collision path to name it, which is one query on a refusal.
+- **Documentation is untouched on purpose:** US-34.12 owns chapter 05's entry for this module and
+  the ADR. Nothing in `docs/` is *wrong* yet — only incomplete.
+
+---
+
+## 2026-09-19 — US-002 (US-34.2) The attendance rules turn on the session, not the calendar
+
+**Implemented.** `src/domain/distribution/attendance.ts` rewritten around the session:
+`AttendanceRecord` is now `{ sessionId }` alone, `recordForSession`, `canRecord(records, sessionId)`
+returning `"OK" | AlreadyServedInSession`, and `canCorrect(session)` = `isRunning`. `berlinDayKey`
+stays, with its comment now naming its two remaining readers. `counterVerdict.ts` asks the session
+its question: `sessionGroups: SessionGroups` replaces `weekColour`, `servedInSession` replaces
+`servedToday`, `WRONG_GROUP` carries `{ group, sessionGroups }` and `ALREADY_SERVED_TODAY` is
+`ALREADY_SERVED`.
+
+Files: `src/domain/distribution/attendance.ts`, `attendance.test.ts` (rewritten, 7 tests),
+`attendance-by-day.ts` + `attendance-by-day.test.ts` (new, see below), `counterVerdict.ts`,
+`counterVerdict.test.ts`, `noShows.ts`; `src/application/customers/{lookup-customer,count-no-shows}.ts`,
+`src/application/distribution/{record-attendance,correct-attendance}.ts`, `src/application/ports.ts`
+(one citation), `src/app/ausgabe/{counter-lookup.tsx,page.tsx}`, three e2e specs,
+`docs/architecture/05` and `06` (the verdict's name in the precedence chain).
+
+**Learnings for future iterations:**
+
+- **The calendar rules moved to `attendance-by-day.ts`, and US-34.5 deletes that file.** The AC's
+  „rewritten around the session" cannot be reached in one commit while the tree stays green: the
+  session rules need a `sessionId` that no column supplies until US-34.3, so `recordAttendance`,
+  `lookupCustomer` and `correctAttendance` still have to ask the day's question for one more
+  iteration. A separate module was the cheapest honest way to hold both: the names do not collide
+  (all three would have had to be renamed inside one file), the application changed by **one import
+  line each** rather than by any logic, and story 5 removes a whole file instead of untangling one.
+  Nothing new may call it — the head comment says so.
+- **A story whose note says „the application will not compile until story 5" still has to compile.**
+  Story 1 met the same instruction and kept two errors alive; this one kept three functions alive.
+  Read such a note as „do not do story 5's work here", not as permission to commit a red tree.
+- **The interim bridge is one expression, stated at both call sites:**
+  `sessionGroups: createSessionGroups([week.colour])`. The verdict now asks which groups the session
+  serves; until US-34.5 loads one, the week's colour stands in for it and the answer is unchanged —
+  a one-group session refuses exactly whom a wrong-week check refused. Both sites carry the same
+  two-line comment naming the story that removes it.
+- **`AttendanceRecord` losing `date` reaches `noShows.ts`, which is not an attendance rule.** It now
+  declares its own `AttendedDay { date }` — the last rule reading the calendar should not borrow its
+  input type from the rules that stopped. `count-no-shows.ts` imports the type from `noShows.ts` with
+  it.
+- **The exhaustive verdict switch did its job.** Renaming `ALREADY_SERVED_TODAY` failed the build in
+  `counter-lookup.tsx` until the case was renamed, and the `data-verdict` attribute carries the kind
+  to the browser — so three e2e specs assert the new string. The German key stays
+  `alreadyServedToday` („Heute bereits ausgegeben") for one more iteration: **US-34.7 owns the
+  wording**, so a case named `ALREADY_SERVED` reading a key named `…Today` is deliberate and short-lived.
+- **Two architecture chapters name the verdict by its old name and nothing greps them.** `05`'s
+  precedence chain and `06`'s „opposite orders" paragraph were corrected in this commit — the rest
+  of `06`'s §Scenario 1 (the day key, `AlreadyServedToday`, the unique `(customerId, dayKey)` index)
+  is still true until stories 3 and 5, and US-34.12 owns the rewrite.
+
+---
+
+## 2026-09-19 — US-003 (US-34.3) The session table, the port and the adapter
+
+**Implemented.** `DistributionSession` in `prisma/schema.prisma` (`startedAt`, `endedAt?`,
+`discardedAt?`, `groups`, `@@index([startedAt])`); `DistributionRecord` and `ReminderLog` each gained
+`sessionId` with `onDelete: Restrict` and a unique `(customerId, sessionId)`, and lost `dayKey` and
+`loggedOn`. Migrations regenerated (`20260919153410_init`) with **both** hand-written partial unique
+indexes re-added at the end: `Customer_customerNumber_onRegister_key` and the new
+`one_running_session`. New port `DistributionSessionRepository`, new adapter, new integration suite
+(13 tests); `listForDay` → `listForSession`, `findOnDay` → `findInSession`, `ReminderLogEntry.loggedOn`
+→ `sessionId`, plus `ReminderLogRepository.listForSession` for US-34.4's discard rule.
+
+Files: `prisma/{schema.prisma,migrations/*_init/migration.sql,demo-seed.ts}`,
+`src/application/ports.ts`, `src/domain/distribution/distributionRecord.ts`, `src/domain/errors.ts`,
+`src/app/notice-tier.ts`, `src/app/ausgabe/{deps.ts,actions.ts}`,
+`src/application/distribution/{record-attendance.ts,read-group-roster.ts}`,
+`src/application/customers/{record-reminder.ts,lookup-customer.ts}`,
+`src/infrastructure/prisma/{distribution-session-repository.ts(+test),distribution-record-repository.ts(+test),reminder-log-repository.ts(+test),schema.test.ts,test-support.ts}`,
+seven application test files, `tests/e2e/seeding.ts` and six specs (typecheck only).
+
+**Learnings for future iterations:**
+
+- **SQLite takes the partial index on an expression, so no `runningMarker` fallback was needed.**
+  `CREATE UNIQUE INDEX "one_running_session" ON "DistributionSession"("startedAt" IS NOT NULL)
+  WHERE "endedAt" IS NULL AND "discardedAt" IS NULL;` works through Prisma's engine, and **Prisma's
+  `P2002` names the index** (`meta.target` contains `one_running_session`) rather than a column — so
+  the adapter matches on the index name, unlike the column-name matches everywhere else. It guards
+  `reopen` as well as `start`, which is why reopening while another session runs is refused by the
+  database and not only by the use case.
+- **A `?? 0` on the refusal path was refused.** `DistributionSessionAlreadyRunning` needs the running
+  row's id, which the collision does not carry; the adapter re-reads it and **rethrows the original
+  error** when the read comes back empty, rather than inventing an id for a session nobody can name.
+- **Story 3 could not stay out of `src/application`, and here is the line it drew.** Once `sessionId`
+  is a required column and `listForDay` is gone, four use cases must name a session:
+  `recordAttendance`, `recordReminder`, `readGroupRoster` and `lookupCustomer`. They each load
+  `sessions.findRunning()` — that much is plumbing, and the alternative (the *adapter* resolving the
+  running session) would have put a rule in infrastructure that US-34.5 would then have to take out.
+  **What was deliberately left to US-34.5/34.6:** the once-per-session guard (`recordAttendance` still
+  asks `attendance-by-day.canRecord`), the verdict's `sessionGroups` (still
+  `createSessionGroups([week.colour])` at both call sites), the correction window, the per-group
+  tally, and every rename (`TodaysRecordView`, `reminderLoggedToday`, `servedToday`).
+- **`lookupCustomer` does *not* throw with no session running yet** — it skips the reminder query and
+  reports `reminderLoggedToday: false`, which is literally true and costs the screen nothing. US-34.5
+  owns the refusal, because that is a screen-visible decision and it ships with US-34.8's inert
+  `?nummer=`.
+- **`ReminderAlreadyLoggedToday` is gone already, one story early.** The reminder's last day-caller
+  went with the column, so the class had no caller and no coverage — the 100% gate is what said so.
+  `AlreadyServedToday` is still standing (US-34.5 deletes it with `attendance-by-day.ts`), and the
+  German string behind it (`de…reminder.errors.alreadyLogged`, „heute bereits") still says „heute":
+  **US-34.7 owns the wording**, exactly as it owns `alreadyServedToday`.
+- **`/ausgabe` returns 500 until US-34.7/34.8 build the start screen.** `readGroupRoster` now throws
+  `NoDistributionSessionRunning` and nothing on the page starts a session yet. `/` and
+  `/einstellungen` are fine (checked against `npm run start` after `db:reset` — settings render fully,
+  so there is no schema/database drift). This is the inside-out build order working as planned; do not
+  "fix" it with a half-built screen.
+- **The demo register now holds one ended session per distribution day (14), none running.** One
+  session for the whole history was never possible: the unique `(customerId, sessionId)` would reject
+  the second hand-out of any household. Reminder events start and end a session of their own — a
+  reminder is a counter act and needs an afternoon to belong to. `prisma/seed.ts` still seeds **no**
+  session.
+- **`tests/e2e/seeding.ts` gained `seedEndedSession`**, which is what a spec hangs seeded hand-outs
+  and reminders on. **Ended**, because the register is shared with the spec sorting after it and a
+  running session is state that spec would inherit — US-34.10's specs start the running one through
+  the screen.
+- **The e2e suite is compile-fixed here, not behaviour-fixed.** Six specs stopped selecting `dayKey` /
+  `loggedOn` (the record fingerprints now read `date`), and `group-progress.spec.ts` counts the
+  running session's hand-outs. They will still **fail** until US-34.10 starts a session before each
+  recorded hand-out; `npm run typecheck` covers `tests/**`, so the compile fix had to land now.
+- **Documentation US-34.12 must sweep, found by this story:** `docs/architecture/04-solution-strategy.md`
+  (the constraint list names `(customerId, dayKey)` and `(customerId, loggedOn)`),
+  `02-architecture-constraints.md` (`dayKey` as a stored key), `08-crosscutting-concepts.md` (the ER
+  diagram and the invariants table) and `06-runtime-view.md` §Scenario 1. None of them is this story's
+  to rewrite, but all four are now wrong.
+
+---
+
+## 2026-09-19 — US-004 (US-34.4) Starting, discarding, ending and reopening a session
+
+**Implemented.** Five use cases in `src/application/distribution/`:
+`start-distribution-session.ts` (refuses a second session, stamps `startedAt` from the `Clock`, no
+audit entry), `discard-distribution-session.ts` (counts the afternoon's hand-outs and reminders,
+refuses a non-empty one with `DistributionSessionNotEmpty`, stamps `discardedAt`, no audit entry),
+`end-distribution-session.ts` (returns `SessionSummary { households, totalPaidCents }` and writes the
+one `distribution.session.ended` entry), `reopen-distribution-session.ts` (trimmed reason required,
+`canReopen` guard, `distribution.session.reopened` with the reason as `why`) and
+`read-distribution-session-state.ts` (`{ running, lastEnded, proposedGroups }` for the screens).
+One suite, `distribution-session.test.ts`, 22 tests against hand-written fakes.
+
+Files: `src/application/distribution/{start,discard,end,reopen}-distribution-session.ts`,
+`read-distribution-session-state.ts`, `distribution-session.test.ts`,
+`docs/architecture/05-building-block-view.md`.
+
+**Learnings for future iterations:**
+
+- **`reopenDistributionSession` takes `{ sessionId, reason }`, not `{ reason }` as the PRD's
+  shorthand writes it — deliberate, and US-34.8 must pass the id.** With no target there is no
+  defensible error for „nothing has ever ended" (`DistributionSessionNotReopenable` carries a
+  sessionId and no id exists), and `canReopen`'s first half — `mostRecentlyEnded?.id === session.id`
+  — could only ever be tautologically true. The domain rule was built to *compare* a target against
+  the most recent, and the PRD's own wording („unless **the target** is the most recently ended
+  session") has no referent otherwise. It also settles the race the other reading loses: between the
+  screen rendering the last ended session and the reason being saved, another workstation may have
+  ended a newer one, and reopening *that* is not what anybody asked for. `lastEnded` carries the id
+  the form needs (`read-distribution-session-state`), so the screen pays a hidden field for it.
+- **Start and discard write NOTHING to the audit log, and both have a test that says so by name.**
+  The rule is not „no entry for a small change" — it is that the log never shows a session that
+  began and never ended, which is only true if the entry is written at the *end*, where it can name
+  both instants at once. A later reader adding a `distribution.session.started` entry would break
+  that without any gate noticing; the two named tests are the gate.
+- **The guard order in `startDistributionSession` is the running session first, the group choice
+  second.** Told the form is incomplete, a staff member fixes the form — when what is actually in
+  their way is the afternoon somebody else has under way. `createSessionGroups` is therefore called
+  *after* `findRunning`, inside the `sessions.start(…)` call.
+- **A hand-written fake that stamps rather than deletes has to hide the stamp from its reads.** The
+  first cut of `FakeDistributionSessionRepository` stored `DistributionSession & { discardedAt }` and
+  handed the whole row back, so `toEqual` against a started session failed on an extra key. It now
+  holds `{ discardedAt, session }` and returns `row.session` — which is also what the adapter does
+  (`SessionRow` never leaves `distribution-session-repository.ts`). Worth copying for any port whose
+  store filters rows out.
+- **`SessionSummary.households` is `handouts.length`, not a count of distinct `customerId`s.**
+  `@@unique([customerId, sessionId])` makes the two the same number, and re-deriving it in the use
+  case would be a second answer to a question the database already settles.
+- **Chapter 5's application table counts use cases and ports in its heading** („39 use cases behind
+  eleven ports"), and nothing greps it. It is now „44 use cases behind twelve ports" — the twelfth
+  port arrived with US-34.3 and the heading had not caught up. Check that line whenever a use case or
+  a port is added.
+- **No UI in this story, so no browser check was possible or needed.** `/ausgabe` still returns 500
+  until US-34.7/34.8 build the start screen — unchanged from US-34.3, and still the inside-out build
+  order working as planned.
+
+---
+
+## 2026-09-19 — US-005 (US-34.5) Every hand-out and every reminder belongs to the running session
+
+**Implemented.** The calendar now decides nothing at the counter. `recordAttendance` asks
+`canRecord(history, session.id)` and hands `session.groups` to the verdict; `correctAttendance`
+loads the record's **own** session (`sessions.findById(record.sessionId)`) and refuses unless it is
+running; `lookupCustomer` throws `NoDistributionSessionRunning` outside a session and reads
+`recordForSession`. `TodaysRecordView` → `SessionRecordView`, `todaysRecord` → `sessionRecord`,
+`reminderLoggedToday` → `reminderLoggedInSession`. `attendance-by-day.ts` and `AlreadyServedToday`
+deleted with their last callers; `RecordNoLongerCorrectable` now carries `(recordId, sessionId)`.
+
+Files: `src/domain/distribution/{attendance.ts,attendance.test.ts}`, `attendance-by-day.ts(+test)`
+(deleted), `src/domain/errors.ts`, `src/app/notice-tier.ts`,
+`src/application/distribution/{record-attendance,correct-attendance}.ts(+tests)`,
+`src/application/customers/lookup-customer.ts(+test)`,
+`src/app/ausgabe/{page.tsx,actions.ts,serve-controls.tsx,serve-state.ts,certificate-controls.tsx,deps.ts}`,
+`docs/architecture/06-runtime-view.md`.
+
+**Learnings for future iterations:**
+
+- **`canCorrect` takes `DistributionSession | null`, and that is what kept the branch gate honest.**
+  The port's `findById` is nullable while the FK makes a missing session impossible, so
+  `session === null || !canCorrect(session)` in the use case would have been an application branch no
+  honest test can reach. Widening the *domain* rule instead states it as one answer — "only inside a
+  running session" — and the null arm is covered by a domain test, where a total function over its
+  input type belongs. Same family as the „unreachable `?? fallback`" bullet above.
+- **A fixture dated before today must be given an earlier session id, or half the suite goes green
+  for the wrong reason.** `existingRecord("2026-07-09…")` defaulted to the running session, so under
+  the new rule every balance test's fortnight-old hand-out counted as *this* afternoon's — three
+  tests failed loudly and several would have passed while asserting nothing. Both suites now carry an
+  `earlierRecord(...)` helper whose whole body is `{ sessionId: EARLIER_SESSION_ID, ...overrides }`.
+  Copy it into any suite that grows a session-scoped rule.
+- **Turning a household away no longer needs a date.** A wrong-group test used to move the clock to a
+  RED Thursday; it now hands the session one group (`session(["BLUE"])`). The fixture helper
+  `session(groups = ["RED", "BLUE"])` beside each fake is the shape — the fake's constructor takes
+  the session, so a test states the afternoon rather than the calendar.
+- **`lookupCustomer` refusing outside a session cannot be asserted as „before the register".** The
+  customer and the session are loaded in one `Promise.all`, so the refusal is before the *verdict*,
+  not before the read. The test says what is true instead: a known and an unknown number are both
+  refused, so nothing comes back as a `NOT_FOUND` verdict nobody could act on.
+- **`getWeekColour` has one application caller left, `readGroupRoster`, and US-34.6 removes it.** The
+  AC's „no longer called by any use case" is only true after the next story — do not read this
+  story's diff as having missed it, and do not take the roster's call out here.
+- **The German is deliberately still wrong, and US-34.7 owns it.** `de…serve.errors.alreadyServed`
+  says „heute bereits", `reminder.loggedToday` likewise, and `words.alreadyServedToday` is the key
+  `counter-lookup.tsx` reads for the `ALREADY_SERVED` verdict. Identifiers moved to the session in
+  this story; the sentences move with the screen.
+- **Chapter 06 §Scenario 1 was corrected here, not left to US-34.12.** The paragraphs naming
+  `AlreadyServedToday`, `@@unique([customerId, dayKey])` and „may only touch a record made today" are
+  what *this* change falsified, so they moved with it (plus the two mermaid lines). US-34.12 still
+  owns `02`, `04`, `08`'s ER diagram and invariants table, and the chapter's `_Last reviewed_` date —
+  which is deliberately **not** bumped, because only one scenario was read.
+- **`/ausgabe` still returns 500 and now for two reasons** (`readGroupRoster` and `lookupCustomer`),
+  so no browser check was possible — unchanged from US-34.3 and US-34.4, and still the inside-out
+  build order working as planned. US-34.7/34.8 build the screen that starts a session.
+- **The e2e suite is compile-green and behaviour-red**, as US-34.3 left it: the specs still record
+  hand-outs with no session started. US-34.10 is where they turn green; `npm run test:e2e` before
+  then tells you nothing this batch does not already know.
+---
+
+## 2026-09-19 — US-006 (US-34.6) The group tally follows the session
+
+**Implemented.** `readGroupRoster` no longer resolves a week colour: it takes the running session's
+groups (`servesGroup`), lists the `ACTIVE` and `BLOCKED` households in them — both groups means
+every household — and marks `servedInSession` from `listForSession`. `GroupRosterView.group:
+WeekColour` became `groups: SessionGroups`, and `progress: Progress` became
+`tallies: ReadonlyArray<GroupTally>`, **one fraction per served group**. `ProgressEntry.servedToday`
+→ `servedInSession` (name and doc only — the counting rule is byte-for-byte what it was).
+`group-progress-card.tsx` renders one summary per tally, joined by `de…progress.summaries`, and
+derives the group names itself, so the page no longer passes `groupName`.
+
+Files: `src/application/distribution/read-group-roster.ts(+test)`,
+`src/domain/distribution/groupProgress.ts(+test)`, `src/app/ausgabe/group-progress-card.tsx`,
+`src/app/ausgabe/page.tsx`, `src/i18n/de.ts`.
+
+**Learnings for future iterations:**
+
+- **`getWeekColour` now has no application caller at all** — the AC US-34.5 could not meet is met
+  here. Its two remaining callers are screens: `/ausgabe`'s banner (US-34.7 removes it) and the
+  Start screen's „nächste Ausgabe" line (US-36 removes it with the module). Its own suite
+  (`distribution.test.ts`) is what keeps it at 100% now that the roster's tests no longer reach it.
+- **The per-group split is `session.groups.map(...)`, not a second pass over the records.** Each
+  member carries its own `group` (derived once, where the parity was already being read), so the
+  tally is `groupProgress(members.filter(m => m.group === group))` and `groupProgress` never learned
+  about sessions. A group the session serves but nobody belongs to still gets a tally — `{ served:
+  0, expected: 0 }` — because the screen must be able to state both halves of a merged afternoon;
+  `isEmpty` stays the *whole* roster's question and still guards the disclosure.
+- **The single-group sentence is unchanged on purpose.** `words.summary(group, served, expected)`
+  kept its signature and its wording, so `group-progress.spec.ts` (which builds the expected text
+  out of `de.ts`) asserts exactly what it did before, and only the merged case is new text. The
+  merged line reads „Gruppe Rot: 1 von 6 Haushalten abgeholt · Gruppe Blau: 1 von 6 Haushalten
+  abgeholt", which is **wordy** — the PRD's own target („Rot: 43 von 60 · Blau: 44 von 60") drops
+  the prefix and the repeated noun. **That sentence is US-34.7's**, which owns the wording of this
+  screen; the data shape it needs is in place.
+- **A separator is a German string too.** `perGroup.join(" · ")` lives in `de.ts` as
+  `progress.summaries` rather than in the card — the same middle dot `customers.groupBalance`
+  already joins its two figures with, so one change moves both if DF ever ask.
+- **`de.distribution.groups(colours)` is new and US-34.7 should reuse it** („Gruppe Rot und Blau").
+  The empty-roster sentence needed a name for a *set* of groups, and `group(colour)` only names one.
+- **Verified in a browser, and the contradiction US-34.7 removes is now visible.** With a running
+  RED+BLUE session written by hand into the demo register, `/ausgabe` renders 200 with the two
+  tallies correct against the register (RED 1 von 6, BLUE 1 von 6, three blocked rows listed and out
+  of the denominator) — and the banner above it says **„Heute ist keine Ausgabe"** while the counter
+  serves. That is exactly the false sentence US-34.7's first AC deletes.
+- **The e2e suite is still compile-green and behaviour-red** (US-34.10 starts the sessions), and
+  `group-progress.spec.ts` needs no edit from this story: its local `Member` type is its own, and the
+  text it builds is the dictionary's.
+- **Documentation is untouched on purpose:** chapter 05's row („answer this week's colour, read the
+  group roster") is still literally true, and US-34.12 owns the rest of the sweep.
+---
+
+## 2026-09-20 — US-007 (US-34.7) Starting and ending the session on the distribution screen
+
+**Implemented.** `/ausgabe` states the afternoon instead of predicting it. The week-colour banner is
+gone from this screen with its `de.distribution.banner.*` keys; a `SessionHeader` stands in its place
+naming the running session and its group(s) as `GROUP_STYLES` outline badges. With nothing running
+the screen offers `StartSessionForm` alone — three native radios („Rot", „Blau", „Rot und Blau"),
+preselected from `proposeGroups` and preselected not at all before the first session is on record —
+and the counter, the tally and the household controls are not built. While one runs,
+`RunningSessionControls` offers „Ausgabe beenden" (confirming with households served and total taken)
+and „Ausgabe verwerfen" while the session still holds nothing. `summariseSession` moved to
+`domain/distribution/session.ts`; `readDistributionSessionState` returns a `RunningSession`
+(`session` + `summary` + `canDiscard`) so the page guards once. Verdict wording:
+`alreadyServedToday` → `alreadyServed` („Bereits ausgegeben"), and the „heute" sentences went with it.
+
+Files: `src/app/ausgabe/{page.tsx,session-controls.tsx,session-actions.ts,session-options.ts,session-state.ts,group-progress-card.tsx,certificate-controls.tsx,counter-lookup.tsx}`,
+`src/domain/distribution/session.ts(+test)`,
+`src/application/distribution/{read-distribution-session-state,end-distribution-session}.ts(+test)`,
+`src/i18n/de.ts`, `tests/e2e/{distribution,counter,reminders}.spec.ts`.
+
+**Learnings for future iterations:**
+
+- **The PRD says „confirms in a dialog" and the house rule says never a `Dialog`.** `ui_styling_guide.md`
+  §6 is explicit — disclosures at the counter are `<details>`/`<summary>`, because the queue is
+  waiting and nothing may have to be dismissed before the next customer is served. Read „dialog" in a
+  PRD as „a confirm step", not as the Radix component, and cite §6 where you do.
+- **An e2e register has no session on record, so nothing is preselected there.** The first draft of
+  `distribution.spec.ts` asserted exactly one checked radio and failed for the right reason: the
+  register has never held a session, so `proposeGroups` returns null. The spec now asserts **zero**
+  checked — which is the other half of the AC — and the preselection itself belongs to US-34.11, the
+  only file allowed to leave a session behind. A spec asserting a proposal needs a session it ended
+  itself.
+- **`/ausgabe` returns 200 again** — the first time this batch, after three stories of deliberate 500.
+  The whole loop was verified by accessibility snapshot: start form → „Rot und Blau" → header with
+  both badges → both confirmations open → discard → back to the start form with nothing preselected →
+  start RED → end → **BLUE preselected**. The audit table then held exactly **one** entry
+  (`distribution.session.ended`, `why` carrying `startedAt`, `groups=RED`, `households=0`): the
+  discarded session left none, which is FR-7 proved end to end rather than argued.
+- **Kill the stale `next start` before believing any browser check** — there was one from Sep 19 still
+  serving. The existing bullet above is right; this iteration hit it again. `ps aux | grep
+  "[n]ext-server"`, `kill` by pid, then `npm run db:reset` **and** restart, since the reset cannot
+  reach a running server's open inode.
+- **A removed screen element leaves comments behind.** Three comments in `page.tsx` and
+  `group-progress-card.tsx` still placed things „above the week's banner" after the banner was
+  deleted — a comment describing a thing no reader can find, which is exactly what CLAUDE.md's
+  „don't narrate history" rule is aimed at. `grep -rn banner src/` after taking a screen element out.
+- **The e2e suite is still behaviour-red elsewhere** (US-34.10 starts the sessions); only
+  `distribution.spec.ts` was brought over in this story, because deleting the banner is what
+  falsified it. It passes on **both** engines.
+---
+
+## 2026-09-20 — US-008 (US-34.8) The distribution screen with no session running
+
+**Implemented.** Between afternoons `/ausgabe` now has its second job. `readDistributionSessionState`
+returns `lastEnded` as an `EndedSession` — `session` + `summary` + `canReopen` — the same three-part
+shape `RunningSession` already had, so a screen reads either the same way. The page renders a
+`LastSessionCard` under the start form: the group badges (a lifted `SessionGroupBadges`, shared with
+the session header), „Begonnen"/„Beendet" as full instants, and the clause „1 Haushalt versorgt,
+4,00 € eingenommen". Beside it stands „Ausgabe wieder öffnen" — the closed disclosure of
+`archive-controls.tsx`, reason required, save disabled until one is typed — wired to a
+`reopenSessionAction` that carries the session in a hidden field. The counter lookup, the tally and
+an inert `?nummer=` were already right from US-34.7 and were re-checked rather than rewritten.
+
+Files: `src/application/distribution/read-distribution-session-state.ts` (+ four tests in
+`distribution-session.test.ts`), `src/app/ausgabe/{page.tsx,session-controls.tsx,session-actions.ts}`,
+`src/i18n/{de.ts,format.ts,format.test.ts}`.
+
+**Learnings for future iterations:**
+
+- **The reopening was reachable in the browser for real, so nothing had to be faked.** Start a
+  session serving both groups → look up demo customer 6 → „Ausgabe erfassen" → end → the card states
+  „1 Haushalt versorgt, 4,00 € eingenommen" → reopen with a reason → the audit table holds
+  `distribution.session.reopened` carrying it, and the hand-out is correctable again. That whole loop
+  is one `npm run db:demo` and eight commands; prefer it to the `local_only/` fixture script, which
+  is only for a state no screen can yet produce.
+- **`npm run db:demo` seeds sessions now**, so `/ausgabe` between afternoons is never the
+  before-the-first-session screen in the demo register. The last seeded one is ended with no
+  hand-outs (0 Haushalte, 0,00 €) — run one afternoon by hand if the figures are what you are
+  checking.
+- **A clause read on two screens is lifted above `de`, not copied.** „N Haushalte versorgt, X €
+  eingenommen" is both the end confirmation's first sentence and the whole of the last session's
+  summary; `servedAndTook` beside `householdCount` is the existing pattern (`eggRow`, `fromPersons`)
+  and the reason is CLAUDE.md's: two wordings of one fact are how two screens come to disagree.
+- **`canReopen(ended, { mostRecentlyEnded: ended, running })` passes the same session twice on
+  purpose.** The store has just answered that it *is* the one that ended last, so what is left for
+  the rule to weigh is the session running against it. Restating the rule as `running === null` in
+  the use case would have been a second source of truth for FR-16; the comment says why it reads
+  circular.
+- **`endedAt` is narrowed, never asserted.** The store only reports a session as the last *ended*
+  one when it has an end stamp, but the type is `Date | null` for every session — so the card guards
+  with `=== null ? null : …` rather than a `!`, which the style rules forbid anyway.
+- **Still on US-34.12's list, untouched here:** chapter 05's `/ausgabe` row (line 127) describes the
+  counter alone and has said nothing about starting, ending or reopening an afternoon since US-34.7.
+  It is incomplete rather than wrong, and widening that cell reflows the whole table under Prettier —
+  which is the documentation story's diff to own, not this one's.
+---
+
+## 2026-09-20 — US-009 (US-34.9) A running session on the Start screen
+
+**Implemented.** `/` states the afternoon under way in a panel above the date: „Ausgabe läuft" at
+`text-2xl` with the session's group badges beside it, „Begonnen: 20.09.2026, 14:03" under it, and a
+full-strength „Zur Ausgabe" link to the screen that can end it. With nothing running the screen is
+unchanged, down to the markup — greeting, date, „nächste Ausgabe" (US-36 removes that line, not this
+story). `SessionGroupBadges` moved out of `ausgabe/page.tsx` into `ausgabe/session-group-badges.tsx`,
+now that three panels state the same afternoon, and „Begonnen: …" was lifted to a module-level
+`startedAt` in `de.ts` beside `servedAndTook`.
+
+Files: `src/app/page.tsx`, `src/app/ausgabe/session-group-badges.tsx` (new),
+`src/app/ausgabe/page.tsx`, `src/i18n/de.ts`.
+
+**Learnings for future iterations:**
+
+- **The panel may not be tinted, and the reason is the badges inside it.** „An afternoon is running"
+  is not in `accents.ts`, and §5's rule against nesting a translucent tint inside a tinted container
+  settles it rather than leaving it to taste: a fill behind the red and blue group badges composites
+  into a third colour meaning neither. Prominence came from **position and type size** instead —
+  first after the `h1`, `text-2xl` against the date lines' `text-xl` — which is the cheaper half of
+  §4 and needed no new accent.
+- **The Start screen reads the whole `readDistributionSessionState`, not a narrower question.** It
+  uses only `running.session`, and the summary and `canReopen` beside it are the counter's business —
+  but a second use case answering „is one running" would be a second source of truth, and `app/`
+  may not reach a repository itself. Four extra SQLite reads on a screen that renders three
+  sentences is the right side of that trade in this project.
+- **`Promise.all([today(), readDistributionSessionState(deps)])`**: the two answers are independent,
+  and a session may be running on an installation where no settings version is in force — the panel
+  renders over the „noch nicht hinterlegt" card in that state, which is correct and was not driven in
+  the browser (both branches are proved separately, and reaching the pair needs a pinned clock).
+- **The demo register is the whole verification loop again.** `npm run db:demo -- --reset`, start a
+  session serving both groups on `/ausgabe`, `goto /` → panel with two badges; discard it → the Start
+  screen's accessibility tree is byte-for-byte the three nodes it was. `--reset` is required when the
+  register is already seeded; plain `db:demo` refuses.
+- **Still on US-34.12's list:** chapter 05's `/` row (line 126) still reads „this week's colour, what
+  is waiting to be done" and says nothing about a running session — incomplete rather than wrong,
+  like the `/ausgabe` row US-008 left. The handout section US-34.12 owns explicitly promises „a
+  forgotten one shows on the Start screen", so the whole of this screen's documentation lands there.
+- **No e2e spec was added here.** US-34.10's AC owns it by name („home.spec.ts … gains the
+  running-session panel"), and a spec asserting the panel needs a session the shared register has no
+  helper for until that story writes `tests/e2e/session.ts`. The testids are in place for it:
+  `running-session`, `running-session-groups`, `running-session-started`.
+---
+
+## 2026-09-20 — US-010 (US-34.10) The existing specs run inside a session
+
+**Implemented.** Every spec that records a hand-out or a reminder now holds an afternoon of its own.
+`tests/e2e/session.ts` is the helper: `startSession(page, groups)` picks the radio and presses
+„Ausgabe starten", `endSession(page)` walks the two-step confirmation, and `startSessionInHook` /
+`endSessionInHook` wrap either for a `beforeAll`/`afterAll`, which refuse the `page` fixture and have
+to build their own from `browser` + `baseURL`. Nothing writes a session row through Prisma —
+`seedEndedSession` stays the one exception and is used only where a *past* afternoon is the fixture
+(`customer-record.spec.ts`'s history).
+
+Nineteen specs changed. The substantial ones: `counter.spec.ts` starts a RED afternoon so the even
+household is the one turned away and its `ALREADY_SERVED` row is written onto the running session;
+`serve.spec.ts` and `group-progress.spec.ts` hold one RED session each; `balance.spec.ts` needs
+**two**, because a fortnight of calendar no longer frees a household that has collected — only a new
+session does — so `secondAfternoon()` asks the register which one is running rather than remembering
+between tests; `reminders.spec.ts` walks three afternoons and collects their ids for the log
+assertions, `loggedOn` having become `sessionId`. `distribution.spec.ts` now starts and ends one
+session serving both groups before its first test, so „Rot und Blau" being preselected is a fact
+about a session it wrote. `home.spec.ts` keeps its „nächste Ausgabe" assertions (US-36 owns them) and
+gains the running-session panel, started and ended through the real controls inside one test.
+
+Files: `tests/e2e/session.ts` (new) and nineteen specs. No `src/` change, no documentation change —
+US-34.12 owns the docs and says nothing else in CLAUDE.md changes this batch.
+
+**Learnings for future iterations:**
+
+- **`beforeAll` and `afterAll` cannot take the `page` fixture** — it is created per test. A hook that
+  has to drive the screen builds one from `browser`, and **`baseURL` must be passed with it**: a page
+  made by `browser.newPage()` inherits nothing from the project's `use` block, so a relative `goto`
+  has no server to resolve against. That is the whole reason `startSessionInHook` exists beside
+  `startSession`.
+- **A teardown that throws buries the failure that matters.** `endSessionInHook` is silent when
+  nothing runs, because `afterAll` fires even when the block failed before it started a session;
+  `endSession` still throws, because a test that thinks it started one and did not is a fault worth
+  reporting at the helper rather than three assertions later.
+- **CI retries replay `beforeAll` against the register the failed attempt left behind** (`retries: 2`,
+  `mode: "serial"`). `startSession` therefore ends a session it finds running first — without it the
+  retry dies on „Es läuft bereits eine Ausgabe" nowhere near the hiccup that caused it — and
+  `reminders.spec.ts` clears its collected session ids in `beforeAll` for the same reason.
+- **A session left running is state the next file inherits.** The shared register is ordered by file
+  name, so the rule is: the spec that starts an afternoon ends it. `group-progress.spec.ts` depends
+  on this from the other side — its tally counts the *whole* register's RED households, and it can
+  only assert a served count of its own because every file before it ended its afternoon.
+- **`[data-slot="alert"]` needs `:visible` now.** The last-session card carries a reopen confirmation
+  inside a closed `<details>`, so „no error anywhere on the page" counts it unless the locator asks
+  for visibility.
+- **Nothing branched on `browserName` and both engines passed first time** (208 passed, 1 skipped, on
+  chromium and webkit). Kill any `next dev`/`next start` before believing that: the run starts servers
+  of its own over its own registers.
+---
+
+## 2026-09-20 — US-011 (US-34.11) The session loop, end to end
+
+**Implemented.** `tests/e2e/session.spec.ts` — thirteen tests, one narrative, the only file where
+the rules that replaced the calendar are checked together. Its `beforeAll` starts and ends a RED
+afternoon of its own, so the first test's proposal („Blau" preselected) is a fact about a session
+this spec wrote; the staff member deviates to RED and that afternoon carries the middle of the file.
+Then: no start control while one runs; 352 (even, BLUE) turned away with „Falsche Gruppe"; 351
+collects and the **group tally on the same page** rises by exactly one with no `goto` between the
+write and the figure; a second hand-out refused; the record corrected, removed and recorded afresh;
+„Ausgabe verwerfen" withheld once a household has collected; 353 blocked and unblocked while the
+afternoon runs. Ending confirms „1 Haushalt versorgt, X € eingenommen" and leaves a screen with no
+counter on it at all, so the hand-out cannot be reached to be corrected. 353 is then blocked and
+unblocked again with **nothing running** (B-12). A second afternoon is started, 351 collects again,
+and the two hand-outs are asserted to sit on two `sessionId`s and one calendar day — the claim
+„einmal pro Kalendertag" could not express. The last ended afternoon is reopened with a reason, its
+hand-out corrected, and ended a second time. Finally an empty afternoon is started and discarded,
+leaving the previous one's figures standing as the last ended — a session started by mistake is not
+in the register's story at all.
+
+Files: `tests/e2e/session.spec.ts` (new). No `src/` change, no documentation change — US-34.12 owns
+the docs.
+
+**Learnings for future iterations:**
+
+- **The first draft pinned January like every spec around it, and that was the bug.** Half of what
+  this file asserts is read off the session that ended *last*, and `price-cap.spec.ts` — which
+  cannot pin, because a settings version it saves is recorded at the real now and is only in force
+  there — ends its afternoon at the real now and outranks any pinned-past session. The summary after
+  „Ausgabe beenden" read „1 Haushalt versorgt, 5,00 €": price-cap's afternoon, not this one's. Both
+  halves are now in Codebase Patterns; the second half is that a spec on the real clock may not
+  state a price either, and reads the Betrag field through `parseEuros` instead.
+- **The proposal test passed for the wrong reason before that was found.** price-cap's session also
+  served RED, so „Blau vorausgewählt" held against somebody else's afternoon. A green assertion
+  about `lastEnded` proves nothing until the file owns the session it is reading.
+- **`releaseNumbers` clears the hand-outs too**, so a CI retry replays this whole narrative from an
+  empty 351 — which the two-hand-outs-one-day assertion depends on, being a count rather than a
+  delta.
+- **The tally is read off the panel here, not out of the register.** That the sentence agrees with
+  the database is `group-progress.spec.ts`'s claim; what this file owns is the coupling — the panel
+  following a write made on the same page load. `/(\d+) von (\d+)/` over `innerText`, with an
+  `expect(...).not.toBeNull()` on the match so a changed sentence fails loudly instead of comparing
+  two `NaN`s.
+- **One grown-up and no child in the fixture.** With no pinned clock a child's birthdate is a time
+  bomb (13 in 2033) and the certificate a shorter one, so the certificate is dated a year out from
+  `NOW` and the household is a single 1985 grown-up. Nothing here turns on the composition, because
+  nothing here states a price.
+- **Both engines passed** (221 passed, 1 skipped, chromium and webkit) with nothing branching on
+  `browserName`. `registration.spec.ts` failed once mid-run and passed on every run after — a flake
+  in a file this story does not touch, and worth knowing it exists rather than chasing it here.
+---
+
+## 2026-09-20 — US-012 (US-34.12) Record ADR-020 and update what it makes wrong
+
+**Implemented.** ADR-020 („The distribution session, not the calendar, is what a hand-out belongs
+to"), Accepted, scaffolded with `arc42.py new-adr` and written out in full: five rejected
+alternatives, including the two an implementer reaches for (override the calendar; derive the
+session from the hand-outs themselves) and the two DF refused by name (auto-close, editing an ended
+session). Then the sweep. Chapters **05** (the session module, the twelfth port's missing row, the
+adapter and route counts, `/` and `/ausgabe`), **08** (the ER diagram gains `DistributionSession`
+and loses `dayKey`/`loggedOn`, the „two calendars" rule, the audit list, the invariants table and
+the `P2002`-names-an-index note), **09** (the ADR row, „twenty decisions", a reversal row), **12**
+(_Ausgabetermin_ and _laufende Ausgabe_ added, _Wochenfarbe_ marked as on its way out, not removed),
+**06** (one stale „today", the review date). Beyond the AC and for the same reason: **01** (two
+capability bullets stated the calendar rule), **02** (`dayKey` as a stored key; one hand-written
+partial index is now two), **04** (§5 listed the two vanished indexes), **11** (both indexes in the
+regeneration risk; a new risk row for a session nobody ends), ADR-002 (a consequence bullet named
+`dayKey`). `betriebsanleitung.md` gains „Die Ausgabe starten und beenden" and its „Am selben Tag"
+correction paragraph is rewritten; `ui_styling_guide.md` §8's „window that closes" example named the
+window this batch removed. Root `CLAUDE.md`'s audit list gains ending and reopening.
+
+Files: `docs/architecture/adr/020-*.md` (new), `docs/architecture/{01,02,04,05,06,08,09,11,12}*.md`,
+`docs/architecture/README.md`, `docs/architecture/adr/002-*.md`, `docs/guideline/ui_styling_guide.md`,
+`docs/handout/{README.md,betriebsanleitung.md}`, `tasks/prd-us-0{3,5}-*.md`, `CLAUDE.md`.
+
+**Learnings for future iterations:**
+
+- **`npm run arc42:check` does not exist** — the AC names it, but `package.json` has no such script
+  and CI runs `python3 .claude/skills/arc42/scripts/arc42.py check` directly. Run the script; do not
+  add the alias on a documentation story.
+- **A batch's documentation debt is collected in the progress log, and it was right.** US-34.3, .5,
+  .8 and .9 each named the chapter they had falsified and left it; every one of those pointers was
+  accurate and the sweep cost an hour instead of a day. Keep writing them — and read the whole log
+  before the documentation story, not just the PRD.
+- **The AC named five chapters and seven were wrong.** `02` (a stored `dayKey`), `04` (§5's index
+  list), `01` (two capability bullets) and `11` (the regeneration risk) were falsified by stories
+  3 and 5 and named by nobody. The sweep that finds them is for the **vanished identifier**, not for
+  the concept: `grep -rn "dayKey\|loggedOn" docs/` found `02`, `04` and ADR-002 in one command,
+  where „session" matches hundreds of lines.
+- **An accepted ADR still has to stop naming a column that no longer exists.** ADR-002's consequence
+  bullet cited `dayKey` as its example of SQLite having no timezone arithmetic. Changing an example
+  to one that is still true is not rewriting the decision — the decision (SQLite) and its reasoning
+  are untouched — and a dead identifier in an ADR is the „comment describing code nobody can find"
+  failure with a longer half-life. Reserve the amendment paragraph (ADR-007's shape) for a rule that
+  actually moved.
+- **The handout's stale sentence was more urgent than the section the AC asked for.** „Am selben Tag
+  können Sie einen Eintrag ändern" is an instruction DF would have followed into a dead end. A
+  documentation story that adds a section without re-reading the sections around it ships a document
+  that contradicts itself — `grep -in "am selben\|heute\|Kalendertag" docs/handout/`.
+- **`ui_styling_guide.md` §8's examples are load-bearing prose.** Its „a window that closes" example
+  quoted the same-day correction window verbatim, so the rule taught the next reader a sentence the
+  product no longer says. When a rule is illustrated by a real string, changing the string is part
+  of changing the rule's subject.
+- **Three counting words in chapter 05 go stale per batch, and one had already drifted.** „44 use
+  cases behind twelve ports" was updated by US-34.4 while the ports **table** stayed at eleven rows —
+  a heading and its table disagreeing, which no gate sees. Check both halves: `grep -c "^| \`" `
+  the table against the number in the heading. „27 modules" (now 28), „13 adapters" (now 14, and
+  „modules" is the honest word — `clock.ts`, `client.ts`, `seed.ts` and `test-support.ts` are not
+  adapters) and „the other 7" repositories (now 8) all moved this batch.
+- **No `src/` change, so no browser check** — this story is documentation only. The gates that mean
+  anything here are `format:check` (Prettier owns every table in `docs/`) and `arc42.py check`.

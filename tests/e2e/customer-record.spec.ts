@@ -4,7 +4,6 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
-import { berlinDayKey } from "@/domain/distribution/attendance";
 import { foldName } from "@/domain/customer/nameSearch";
 import { expectNothingCovers } from "./layout";
 import { SHARED } from "./registers";
@@ -14,7 +13,8 @@ import {
   expectCertificateTypeControlValue,
   fillCertificateTypeControl,
 } from "./registration-form";
-import { releaseNumbers } from "./seeding";
+import { releaseNumbers, seedEndedSession } from "./seeding";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /** `CertificateTypeField`'s id on the record's own renewal form (`renewal-form.tsx`). */
 const RENEWAL_TYPE = "renewal-type-field";
@@ -254,21 +254,28 @@ async function seedHouseholdWithHistory(customerNumber: number, handOuts: number
   });
 
   if (handOuts > 0) {
+    // Fortnightly, walking back from the distribution before the pinned day — and one **session**
+    // apiece, because the unique `(customerId, sessionId)` index is what would reject two rows
+    // sharing an afternoon (US-34).
+    const dates = Array.from(
+      { length: handOuts },
+      (_unused, index) => new Date(FIRST_HAND_OUT.getTime() - index * FORTNIGHT_MS),
+    );
+    const afternoons = await Promise.all(
+      dates.map(async (date) => ({
+        date,
+        sessionId: await seedEndedSession(prisma, { at: date }),
+      })),
+    );
     await prisma.distributionRecord.createMany({
-      // Fortnightly, walking back from the distribution before the pinned day. The day key comes
-      // from `berlinDayKey`, the rule the write path uses, because the unique `(customerId, dayKey)`
-      // index is what would reject two rows sharing a day.
-      data: Array.from({ length: handOuts }, (_unused, index) => {
-        const date = new Date(FIRST_HAND_OUT.getTime() - index * FORTNIGHT_MS);
-        return {
-          customerId: customer.id,
-          date,
-          dayKey: berlinDayKey(date),
-          showedUp: true,
-          paidCents: 200,
-          priceCents: 200,
-        };
-      }),
+      data: afternoons.map(({ date, sessionId }) => ({
+        customerId: customer.id,
+        sessionId,
+        date,
+        showedUp: true,
+        paidCents: 200,
+        priceCents: 200,
+      })),
     });
   }
 
@@ -300,12 +307,18 @@ test.describe.configure({ mode: "serial" });
 test.describe("Kundenakte pflegen", () => {
   let id: number;
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     pinToday();
     id = await seedHousehold();
+    // The counter is only built while an afternoon runs (US-34), and the note written on the record
+    // is read back at it. RED, because 291 is odd and that is the whole of the household's group.
+    await startSessionInHook({ browser, baseURL }, "RED");
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: a session left running is state the file sorting after this
+    // one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // The pinned today goes with the spec: leaving it would freeze January for the settings specs,
     // which save a version stamped *now* and would then assert against the wrong month.
     rmSync(NOW_FILE, { force: true });

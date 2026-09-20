@@ -7,6 +7,7 @@ import { de } from "@/i18n/de";
 import { SHARED } from "./registers";
 import { fillDay, hydrated } from "./day";
 import { fillCertificateType } from "./registration-form";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /**
  * A card number is handed out once and never again
@@ -175,11 +176,16 @@ test.describe("Kartennummern werden nie doppelt vergeben", () => {
   let left: Household;
   let successor: Household;
 
-  test.beforeAll(() => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     pinToday();
+    // RED, because every household below is registered onto RED's lowest free slot.
+    await startSessionInHook({ browser, baseURL }, "RED");
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: a session left running is state the file sorting after this
+    // one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // The pinned today goes with the spec: leaving it would freeze January for the settings specs,
     // which save a version stamped *now* and would then assert against the wrong month.
     rmSync(NOW_FILE, { force: true });
@@ -239,7 +245,7 @@ test.describe("Kartennummern werden nie doppelt vergeben", () => {
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
   });
 
-  test("the successor's own card is clear to serve on the same day", async ({ page }) => {
+  test("the successor's own card is clear to serve at the same afternoon", async ({ page }) => {
     await lookUp(page, successor.cardNumber);
 
     await expect(page.getByTestId("counter-verdict")).toHaveAttribute(

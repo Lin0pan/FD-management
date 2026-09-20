@@ -32,8 +32,9 @@ export type NoticeTier = "refusal" | "error";
  */
 const TIERS: Record<DomainErrorCode, NoticeTier> = {
   // A rule refused a well-formed request.
-  AlreadyServedToday: "refusal",
-  ReminderAlreadyLoggedToday: "refusal",
+  AlreadyServedInSession: "refusal",
+  ReminderAlreadyLoggedInSession: "refusal",
+  DistributionSessionNotEmpty: "refusal",
   CertificateStillValid: "refusal",
   CertificateExpired: "refusal",
   NotClearToServe: "refusal",
@@ -76,6 +77,13 @@ const TIERS: Record<DomainErrorCode, NoticeTier> = {
   CardIndexTaken: "error",
   CardNumberTaken: "error",
   InvalidPaymentAmount: "error",
+  InvalidSessionGroups: "error",
+  // The three session codes the *screen* is wrong about: with no session running the counter offers
+  // no lookup, a start control is not offered while one runs, and reopening is offered only on the
+  // session that ended last. Reaching one means another workstation moved on — re-read, do not retry.
+  NoDistributionSessionRunning: "error",
+  DistributionSessionAlreadyRunning: "error",
+  DistributionSessionNotReopenable: "error",
 };
 
 /**

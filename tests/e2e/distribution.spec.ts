@@ -1,123 +1,70 @@
-import { rmSync, writeFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { de } from "@/i18n/de";
-import { SHARED } from "./registers";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /**
- * The week-colour banner against a fixed clock (`tasks/prd-us-03-week-colour.md` §US-03.5).
+ * The distribution screen between afternoons (`tasks/prd-us-34-distribution-session.md` §US-34.7).
  *
- * The banner is a pure function of the calendar, so asserting it means deciding what day the app
- * thinks it is. The seam is `FD_FIXED_NOW_FILE` (`src/infrastructure/clock.ts`), re-read per call, so
- * writing the file moves today without restarting the server.
+ * This file used to pin the clock and assert the week-colour banner, which decided everything about
+ * a distribution from the calendar. The session replaced it: nothing here is a function of the day
+ * any more, so no spec in this file moves the clock.
  *
- * The expected colours follow from the seeded settings alone. The banner **names the group only on a
- * distribution day** — that absence is the assertion worth having, a group named on a day nobody can
- * collect being what US-22 removed. The last spec pins down that the withdrawn `?datum=` is ignored
- * rather than refused.
+ * What it proves is the screen with **nothing running** — the start form is offered, and the counter
+ * and the tally are not, there being nothing to record against. The whole afternoon is US-34.11's.
  *
- * `week-colour-week` is the one thing on the screen reading `view.colour` rather than
- * `nextDistribution.colour`, and the Saturday spec is where the two disagree.
+ * It holds **one afternoon of its own, ended before the first test**: every file sorting before this
+ * one now leaves an ended session behind (US-34.10), so what the start form preselects is a fact
+ * about a session this spec wrote rather than about who happened to run last.
  *
- * They only read, but they restore the clock in `afterAll`: a pinned today would make the settings
- * specs, which save a version stamped *now*, assert against January.
+ * The last spec pins down that the withdrawn `?datum=` is ignored rather than refused.
  */
 
-/** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
-const NOW_FILE = SHARED.now;
-
-/** Make the app believe it is this instant, for every request until the next call. */
-function pinNow(instant: string): void {
-  writeFileSync(NOW_FILE, instant, "utf8");
-}
-
-test.describe.configure({ mode: "serial" });
-
 test.describe("Ausgabe", () => {
-  test.afterAll(() => {
-    rmSync(NOW_FILE, { force: true });
+  test.beforeAll(async ({ browser, baseURL }) => {
+    await startSessionInHook({ browser, baseURL }, "BOTH");
+    await endSessionInHook({ browser, baseURL });
   });
 
-  test("names the red group on a red distribution day", async ({ page }) => {
-    pinNow("2026-01-08T09:00:00.000Z");
+  test("offers the three afternoons when none is running", async ({ page }) => {
     await page.goto("/ausgabe");
 
-    const banner = page.getByTestId("week-colour-banner");
-    await expect(banner).toContainText(de.distribution.banner.isDistributionDay);
-    await expect(page.getByTestId("week-colour-group")).toHaveText(
-      de.distribution.group(de.distribution.colours.RED),
+    const options = de.distribution.session.start.options;
+    await expect(page.locator("#session-groups-RED")).toHaveCount(1);
+    await expect(page.locator("#session-groups-BLUE")).toHaveCount(1);
+    await expect(page.locator("#session-groups-BOTH")).toHaveCount(1);
+    await expect(page.getByText(options.BOTH, { exact: true })).toBeVisible();
+    await expect(page.getByTestId("session-start-submit")).toHaveText(
+      de.distribution.session.start.submit,
     );
-    await expect(banner).toContainText("08.01.2026");
-    await expect(banner).toContainText(de.distribution.banner.week("02"));
-    // A distribution day states no "next" — today is it — and carries no week badge either: the
-    // week's colour is the group in the headline above, and a badge could only repeat it.
-    await expect(page.getByTestId("next-distribution")).toHaveCount(0);
-    await expect(page.getByTestId("week-colour-week")).toHaveCount(0);
+    // „Rot und Blau" and nothing else: the afternoon that ended last served both groups, so there is
+    // no group that was not up, and `proposeGroups` offers both again. That a merged period carries
+    // itself forward is the whole of the proposal's job; the alternating case is US-34.11's.
+    await expect(page.locator("#session-groups-BOTH")).toBeChecked();
+    await expect(page.locator('input[name="groups"]:checked')).toHaveCount(1);
   });
 
-  test("names the blue group on the following distribution day", async ({ page }) => {
-    pinNow("2026-01-15T09:00:00.000Z");
+  test("offers no counter and no tally while no session runs", async ({ page }) => {
     await page.goto("/ausgabe");
 
-    const banner = page.getByTestId("week-colour-banner");
-    await expect(banner).toContainText(de.distribution.banner.isDistributionDay);
-    await expect(page.getByTestId("week-colour-group")).toHaveText(
-      de.distribution.group(de.distribution.colours.BLUE),
-    );
-    await expect(banner).toContainText(de.distribution.banner.week("03"));
-  });
-
-  test("states the next distribution on a weekday without one", async ({ page }) => {
-    // Tuesday of the blue week: two days before its Thursday.
-    pinNow("2026-01-13T09:00:00.000Z");
-    await page.goto("/ausgabe");
-
-    const banner = page.getByTestId("week-colour-banner");
-    await expect(banner).toContainText(de.distribution.banner.noDistributionDay);
-    await expect(page.getByTestId("next-distribution")).toHaveText(
-      de.distribution.banner.next("15.01.2026", de.distribution.colours.BLUE),
-    );
-    await expect(banner).toContainText("13.01.2026");
-    await expect(banner).toContainText(de.distribution.banner.week("03"));
-    // No group headline on a day nobody collects: the sentence above is the only place the group is
-    // named, and it names the date it belongs to in the same breath.
-    await expect(page.getByTestId("week-colour-group")).toHaveCount(0);
-    // The badge states the *week's* colour. Here it agrees with the sentence, because the next
-    // distribution is this week's; the spec below is the one where the two part company.
-    await expect(page.getByTestId("week-colour-week")).toHaveText(de.distribution.colours.BLUE);
-  });
-
-  test("badges the week's own colour, not the colour of the next distribution", async ({
-    page,
-  }) => {
-    // The Saturday after the red Thursday: the week is still red, the next distribution is already
-    // blue, and both are true at once. This is the day the badge exists for — without it the screen
-    // says only "Gruppe Blau" and a staff member asking which week they are in has to count.
-    pinNow("2026-01-10T09:00:00.000Z");
-    await page.goto("/ausgabe");
-
-    await expect(page.getByTestId("next-distribution")).toHaveText(
-      de.distribution.banner.next("15.01.2026", de.distribution.colours.BLUE),
-    );
-    await expect(page.getByTestId("week-colour-banner")).toContainText(
-      de.distribution.banner.week("02"),
-    );
-    await expect(page.getByTestId("week-colour-week")).toHaveText(de.distribution.colours.RED);
+    await expect(page.getByTestId("session-header")).toHaveCount(0);
+    await expect(page.getByTestId("counter-input")).toHaveCount(0);
+    await expect(page.getByTestId("group-progress")).toHaveCount(0);
   });
 
   test("ignores a ?datum= left over from the retired lookup", async ({ page }) => {
-    pinNow("2026-01-08T09:00:00.000Z");
     // The screen once read this parameter and answered about the day it named; US-22 withdrew that
     // (tasks/prd-us-22-drop-week-colour-lookup.md). A URL still carrying it — a bookmark, a link in
     // someone's history — must be inert rather than fatal, and that holds even for a value no
-    // calendar has: nothing reads it, so nothing can reject it.
-    await page.goto("/ausgabe?datum=2026-13-45");
+    // calendar has: nothing reads it, so nothing can reject it. A `?nummer=` with no session running
+    // is inert for the same reason: there is no lookup to make it an error (US-34.7).
+    await page.goto("/ausgabe?datum=2026-13-45&nummer=201");
 
-    await expect(page.getByTestId("week-colour-group")).toHaveText(
-      de.distribution.group(de.distribution.colours.RED),
-    );
+    await expect(page.getByTestId("session-start-submit")).toBeVisible();
     // No error anywhere on the page: every one this screen can show is an `Alert`, and none of them
     // is rendered. Located by `data-slot` rather than by `role="alert"`, because Next injects a
-    // route announcer carrying that role into every page client-side and it would count as one.
-    await expect(page.locator('[data-slot="alert"]')).toHaveCount(0);
+    // route announcer carrying that role into every page client-side and it would count as one —
+    // and `:visible`, because the last session's reopen confirmation is an `Alert` that sits in the
+    // markup inside a closed `<details>`.
+    await expect(page.locator('[data-slot="alert"]:visible')).toHaveCount(0);
   });
 });

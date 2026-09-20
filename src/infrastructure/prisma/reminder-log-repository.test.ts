@@ -1,8 +1,8 @@
 /**
  * Integration tests for the SQLite reminder-log adapter — thin and test-after (CLAUDE.md). What the
- * pure layers cannot state: that the unique `(customerId, loggedOn)` constraint caps reminders at one
- * per day even when the use-case guard is raced past (US-06.3), that it is scoped to the customer,
- * and that `record` writes the entry and the new count in one transaction.
+ * pure layers cannot state: that the unique `(customerId, sessionId)` constraint caps reminders at
+ * one per session even when the use-case guard is raced past (US-06.3, US-34), that it is scoped to
+ * the customer, and that `record` writes the entry and the new count in one transaction.
  *
  * Each run migrates a throwaway database file, so nothing touches `data/fd.db`.
  */
@@ -13,19 +13,25 @@ import { join } from "node:path";
 import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { ReminderAlreadyLoggedToday } from "@/domain/errors";
+import { createSessionGroups } from "@/domain/distribution/session";
+import { ReminderAlreadyLoggedInSession } from "@/domain/errors";
 import { foldName } from "@/domain/customer/nameSearch";
+import { PrismaDistributionSessionRepository } from "./distribution-session-repository";
 import { PrismaReminderLogRepository } from "./reminder-log-repository";
 import { clearRegister, migrateThrowawayDatabase } from "./test-support";
 
 faker.seed(20260724);
 
-const TODAY = "2026-07-23";
-const TOMORROW = "2026-07-24";
+const TODAY = new Date("2026-07-23T09:00:00.000Z");
+const NEXT_WEEK = new Date("2026-07-30T09:00:00.000Z");
 
 let directory: string;
 let prisma: PrismaClient;
 let repository: PrismaReminderLogRepository;
+let sessions: PrismaDistributionSessionRepository;
+/** The afternoon the reminders below are given at, and the one after it. */
+let thisSession: number;
+let nextSession: number;
 
 beforeAll(() => {
   directory = mkdtempSync(join(tmpdir(), "fd-reminders-"));
@@ -33,6 +39,7 @@ beforeAll(() => {
   migrateThrowawayDatabase(url);
   prisma = new PrismaClient({ datasourceUrl: url });
   repository = new PrismaReminderLogRepository(prisma);
+  sessions = new PrismaDistributionSessionRepository(prisma);
 }, 60_000);
 
 afterAll(async () => {
@@ -42,6 +49,12 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await clearRegister(prisma);
+  // Two ended sessions rather than one running: a reminder belongs to the session it was given in,
+  // and these tests are about the constraint, not about what may still be written.
+  thisSession = (await sessions.start(createSessionGroups(["RED"]), TODAY)).id;
+  await sessions.end(thisSession, TODAY);
+  nextSession = (await sessions.start(createSessionGroups(["BLUE"]), NEXT_WEEK)).id;
+  await sessions.end(nextSession, NEXT_WEEK);
 });
 
 /** A customer holding the given slot, written straight through Prisma — the trail is what is tested. */
@@ -83,68 +96,79 @@ describe("PrismaReminderLogRepository.record", () => {
   it("writes the log entry and the customer's new count together", async () => {
     const customerId = await insertCustomer(50, 1);
 
-    await repository.record(customerId, { loggedOn: TODAY, resultingCount: 2 });
+    await repository.record(customerId, { sessionId: thisSession, resultingCount: 2 });
 
-    expect(await repository.findOnDay(customerId, TODAY)).toEqual({
-      loggedOn: TODAY,
+    expect(await repository.findInSession(customerId, thisSession)).toEqual({
+      sessionId: thisSession,
       resultingCount: 2,
     });
     expect(await countOf(customerId)).toBe(2);
   });
 
-  it("refuses a second reminder on the same day as ReminderAlreadyLoggedToday, and writes nothing", async () => {
+  it("refuses a second reminder in the same session, and writes nothing", async () => {
     const customerId = await insertCustomer(50);
-    await repository.record(customerId, { loggedOn: TODAY, resultingCount: 1 });
+    await repository.record(customerId, { sessionId: thisSession, resultingCount: 1 });
 
     await expect(
-      repository.record(customerId, { loggedOn: TODAY, resultingCount: 2 }),
-    ).rejects.toBeInstanceOf(ReminderAlreadyLoggedToday);
+      repository.record(customerId, { sessionId: thisSession, resultingCount: 2 }),
+    ).rejects.toBeInstanceOf(ReminderAlreadyLoggedInSession);
 
     expect(await prisma.reminderLog.count({ where: { customerId } })).toBe(1);
     expect(await countOf(customerId)).toBe(1);
   });
 
-  it("lets neither of two simultaneous reminders on one day leave two entries or a wrong count", async () => {
+  it("lets neither of two simultaneous reminders in one session leave two entries or a wrong count", async () => {
     const customerId = await insertCustomer(50);
 
     const results = await Promise.allSettled([
-      repository.record(customerId, { loggedOn: TODAY, resultingCount: 1 }),
-      repository.record(customerId, { loggedOn: TODAY, resultingCount: 1 }),
+      repository.record(customerId, { sessionId: thisSession, resultingCount: 1 }),
+      repository.record(customerId, { sessionId: thisSession, resultingCount: 1 }),
     ]);
 
     expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     const rejected = results.find((result) => result.status === "rejected");
-    expect(rejected?.reason).toBeInstanceOf(ReminderAlreadyLoggedToday);
+    expect(rejected?.reason).toBeInstanceOf(ReminderAlreadyLoggedInSession);
     expect(await prisma.reminderLog.count({ where: { customerId } })).toBe(1);
     expect(await countOf(customerId)).toBe(1);
   });
 
-  it("lets the trail continue on a later day", async () => {
+  it("lets the trail continue at the next session", async () => {
     const customerId = await insertCustomer(50);
-    await repository.record(customerId, { loggedOn: TODAY, resultingCount: 1 });
+    await repository.record(customerId, { sessionId: thisSession, resultingCount: 1 });
 
-    await repository.record(customerId, { loggedOn: TOMORROW, resultingCount: 2 });
+    await repository.record(customerId, { sessionId: nextSession, resultingCount: 2 });
 
     expect(await prisma.reminderLog.count({ where: { customerId } })).toBe(2);
     expect(await countOf(customerId)).toBe(2);
   });
 
-  it("scopes the once-per-day rule to the customer, so two households may be reminded the same day", async () => {
+  it("scopes the once-per-session rule to the customer, so two households may be reminded at one", async () => {
     const one = await insertCustomer(50);
     const other = await insertCustomer(51);
 
-    await repository.record(one, { loggedOn: TODAY, resultingCount: 1 });
+    await repository.record(one, { sessionId: thisSession, resultingCount: 1 });
     await expect(
-      repository.record(other, { loggedOn: TODAY, resultingCount: 1 }),
+      repository.record(other, { sessionId: thisSession, resultingCount: 1 }),
     ).resolves.toBeUndefined();
   });
 });
 
-describe("PrismaReminderLogRepository.findOnDay", () => {
-  it("answers null for a day no reminder was logged on", async () => {
+describe("PrismaReminderLogRepository reads", () => {
+  it("answers null for a session no reminder was logged in", async () => {
     const customerId = await insertCustomer(50);
-    await repository.record(customerId, { loggedOn: TODAY, resultingCount: 1 });
+    await repository.record(customerId, { sessionId: thisSession, resultingCount: 1 });
 
-    expect(await repository.findOnDay(customerId, TOMORROW)).toBeNull();
+    expect(await repository.findInSession(customerId, nextSession)).toBeNull();
+  });
+
+  it("lists the reminders of one session and not those of another", async () => {
+    const one = await insertCustomer(50);
+    const other = await insertCustomer(51);
+    await repository.record(one, { sessionId: thisSession, resultingCount: 1 });
+    await repository.record(other, { sessionId: nextSession, resultingCount: 1 });
+
+    expect(await repository.listForSession(thisSession)).toEqual([
+      { sessionId: thisSession, resultingCount: 1 },
+    ]);
   });
 });

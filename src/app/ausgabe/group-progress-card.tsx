@@ -1,13 +1,14 @@
 /**
- * How far through today's group the counter is, and who is still missing (US-23). The tally is
- * readable without interaction (§FR-1); the list is folded behind it, a hundred-odd rows between the
- * banner and the number field being a lot of screen for a question asked twice an afternoon.
+ * How far through the session's group(s) the counter is, and who is still missing (US-23). The
+ * tally is readable without interaction (§FR-1); the list is folded behind it, a hundred-odd rows
+ * between the session header and the number field being a lot of screen for a question asked twice an
+ * afternoon.
  *
  * Three deliberate choices:
  *
  * - **A `<details>`, never a `Dialog`** (`docs/guideline/ui_styling_guide.md` §6), which also keeps
  *   this a server component: the fold is the browser's, so 120 links cross no client boundary.
- * - **No group tint** — the banner above carries the colour, and 120 tinted rows would be texture
+ * - **No group tint** — the header above carries the colour, and 120 tinted rows would be texture
  *   rather than emphasis. The group is named in words (US-03.4).
  * - **Only the served rows are marked**: the unserved are the default state, and chrome marks the
  *   exception (§5).
@@ -54,7 +55,7 @@ function MemberRow({ member }: { member: GroupRosterView["members"][number] }): 
           chrome={STATUS_CHROME.BLOCKED}
         />
       ) : null}
-      {member.servedToday ? (
+      {member.servedInSession ? (
         <StateWord
           word={de.distribution.progress.served}
           testId={`served-${member.customerNumber}`}
@@ -65,25 +66,34 @@ function MemberRow({ member }: { member: GroupRosterView["members"][number] }): 
   );
 }
 
-export function GroupProgressCard({
-  roster,
-  groupName,
-}: {
-  roster: GroupRosterView;
-  /** The group in words — `Gruppe Rot`, as the banner above says it. */
-  groupName: string;
-}): React.ReactElement {
+export function GroupProgressCard({ roster }: { roster: GroupRosterView }): React.ReactElement {
   const words = de.distribution.progress;
 
-  // A group with nobody in it says so: a disclosure opening onto an empty list invites a click to
+  // A session serving nobody says so: a disclosure opening onto an empty list invites a click to
   // find out there is nothing to find out.
   if (roster.isEmpty) {
     return (
       <Card>
-        <CardContent data-testid="group-progress">{words.empty(groupName)}</CardContent>
+        <CardContent data-testid="group-progress">
+          {words.empty(
+            de.distribution.groups(roster.groups.map((group) => de.distribution.colours[group])),
+          )}
+        </CardContent>
       </Card>
     );
   }
+
+  // One fraction per group the session serves (US-34.6) — a merged afternoon states both, because
+  // the sum of the two cannot show which half is falling behind.
+  const summary = words.summaries(
+    roster.tallies.map((tally) =>
+      words.summary(
+        de.distribution.group(de.distribution.colours[tally.group]),
+        tally.progress.served,
+        tally.progress.expected,
+      ),
+    ),
+  );
 
   return (
     <Card>
@@ -97,9 +107,7 @@ export function GroupProgressCard({
               the same line as the tally, and every line this card takes is a line the verdict below
               it loses (§FR-10). */}
           <CardHeader className="grid-cols-[1fr_auto] items-center">
-            <CardTitle data-testid="group-progress">
-              {words.summary(groupName, roster.progress.served, roster.progress.expected)}
-            </CardTitle>
+            <CardTitle data-testid="group-progress">{summary}</CardTitle>
             {/* The word stays and the chevron joins it: a glyph alone carries no meaning (US-03.4),
                 and this is the one fold in the application that already said which state it was in.
                 What the chevron adds is the shape every other disclosure now wears. */}

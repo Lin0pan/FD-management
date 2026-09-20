@@ -83,6 +83,28 @@ function balanceWording(kind: BalanceKind, cents: number): string {
   return kind === "SETTLED" ? "ausgeglichen" : signedAmount(cents);
 }
 
+/** „1 Haushalt“, „7 Haushalte“ — inflected, because a session serving one is the ordinary Tuesday. */
+function householdCount(count: number): string {
+  return count === 1 ? "1 Haushalt" : `${count} Haushalte`;
+}
+
+/**
+ * What an afternoon came to, in one clause: „7 Haushalte versorgt, 42,50 € eingenommen“. Read
+ * twice — in the confirmation that ends a session and in the summary of the one that ended last —
+ * and lifted here so the two cannot come to word the same figures differently.
+ */
+function servedAndTook(households: number, totalPaidCents: number): string {
+  return `${householdCount(households)} versorgt, ${formatEuros(totalPaidCents)} eingenommen`;
+}
+
+/**
+ * When an afternoon began — read on the Start screen while it still runs and on the card describing
+ * the one that ended last, which is why it is lifted rather than written twice.
+ */
+function startedAt(instant: string): string {
+  return `Begonnen: ${instant}`;
+}
+
 export const de = {
   app: {
     name: "Füllhorn Delbrück – Verwaltung",
@@ -1049,24 +1071,120 @@ export const de = {
       unknown: "Die Änderung konnte nicht gespeichert werden.",
     },
   },
-  /** The distribution screen at /ausgabe — which group collects today, and who is at the counter. */
+  /** The distribution screen at /ausgabe — the afternoon under way, and who is at the counter. */
   distribution: {
     heading: "Ausgabe",
     colours: {
       RED: "Rot",
       BLUE: "Blau",
     },
-    /** The colour is always named in words; the banner's colour only repeats what the text says. */
+    /** The colour is always named in words; a badge's tint only repeats what the text says. */
     group: (colour: string): string => `Gruppe ${colour}`,
-    banner: {
-      isDistributionDay: "Heute ist Ausgabe",
-      noDistributionDay: "Heute ist keine Ausgabe",
-      next: (date: string, colour: string): string => `Nächste Ausgabe: ${date}, Gruppe ${colour}`,
+    /**
+     * The group or groups one session serves, in words: „Gruppe Rot" or „Gruppe Rot und Blau"
+     * (US-34.6). The plural is written as DF say it — one „Gruppe", two colours — rather than as
+     * two labels a reader has to pair up.
+     */
+    groups: (colours: ReadonlyArray<string>): string => `Gruppe ${colours.join(" und ")}`,
+    /**
+     * The afternoon itself: started by hand, ended by hand (US-34.7). This replaced the week-colour
+     * banner, which on a Tuesday session read „Heute ist keine Ausgabe“ over a counter serving
+     * customers.
+     */
+    session: {
+      /** The header while one runs. Two facts and no third: that it runs, and whom it serves. */
+      running: "Ausgabe läuft",
+      start: {
+        heading: "Ausgabe starten",
+        /**
+         * The one choice the start form asks for. Three options and not two checkboxes: „Rot und
+         * Blau“ is the merged afternoon DF actually hold, and a pair of boxes would also offer
+         * „keine Gruppe“, which is not an afternoon.
+         */
+        groupsLabel: "Gruppen",
+        options: {
+          RED: "Rot",
+          BLUE: "Blau",
+          BOTH: "Rot und Blau",
+        },
+        submit: "Ausgabe starten",
+        submitting: "Wird gestartet …",
+        errors: {
+          alreadyRunning: "Es läuft bereits eine Ausgabe. Bitte die Seite neu laden.",
+          noGroup: "Bitte eine Gruppe auswählen.",
+          unknown: "Die Ausgabe konnte nicht gestartet werden. Bitte erneut versuchen.",
+        },
+      },
+      /** Ending is the freeze (FR-14), so the confirmation names the window that closes with it. */
+      end: {
+        open: "Ausgabe beenden",
+        confirm: (households: number, totalPaidCents: number): string =>
+          `${servedAndTook(households, totalPaidCents)}. ` +
+          `Nach dem Beenden sind die Einträge nicht mehr korrigierbar.`,
+        submit: "Ja, Ausgabe beenden",
+        submitting: "Wird beendet …",
+        errors: {
+          notRunning: "Es läuft keine Ausgabe. Bitte die Seite neu laden.",
+          unknown: "Die Ausgabe konnte nicht beendet werden. Bitte erneut versuchen.",
+        },
+      },
       /**
-       * The week number alone — `KW 02`, not `Kalenderwoche 2026-W02`: the date beside it carries the
-       * year, and staff check it against a wall calendar that prints two digits.
+       * Throwing away a session started by mistake. The confirmation states the one thing the screen
+       * cannot show: nothing is written down about it (FR-7).
        */
-      week: (week: string): string => `KW ${week}`,
+      discard: {
+        open: "Ausgabe verwerfen",
+        confirm: "Diese Ausgabe wird verworfen. Es wird nichts darüber festgehalten.",
+        submit: "Ja, verwerfen",
+        submitting: "Wird verworfen …",
+        errors: {
+          notEmpty: "An dieser Ausgabe wurde bereits etwas erfasst. Bitte sie stattdessen beenden.",
+          notRunning: "Es läuft keine Ausgabe. Bitte die Seite neu laden.",
+          unknown: "Die Ausgabe konnte nicht verworfen werden. Bitte erneut versuchen.",
+        },
+      },
+      /**
+       * The afternoon that ended last, which is half of what the screen between afternoons is for
+       * (US-34.8): a session left running until Friday morning shows up here as one that ran
+       * through the night.
+       *
+       * Both instants are written out in full rather than as one day with two times. The overnight
+       * session is exactly the case this is read in, and „14:00–08:30“ would state it as a morning.
+       */
+      last: {
+        heading: "Letzte Ausgabe",
+        startedAt,
+        endedAt: (instant: string): string => `Beendet: ${instant}`,
+        summary: (households: number, totalPaidCents: number): string =>
+          `${servedAndTook(households, totalPaidCents)}.`,
+      },
+      /**
+       * The Start screen while an afternoon runs (US-34.9). It states the two facts the counter
+       * states — that one is under way and whom it serves — and adds the instant it began, which is
+       * what an afternoon nobody ended looks like on Friday morning.
+       */
+      onStartScreen: {
+        startedAt,
+        /** The whole point of the panel: the screen that can end it is one click away. */
+        link: "Zur Ausgabe",
+      },
+      /**
+       * Opening the last afternoon up again so a hand-out closed a minute too early can still be
+       * corrected (FR-16). The reason is the record — nothing else on the row says why — so it is
+       * asked for as the block and the archive ask for theirs.
+       */
+      reopen: {
+        open: "Ausgabe wieder öffnen",
+        confirm: "Die Einträge dieser Ausgabe werden wieder korrigierbar.",
+        reasonLabel: "Grund",
+        submit: "Ja, wieder öffnen",
+        submitting: "Wird geöffnet …",
+        errors: {
+          missingReason: "Bitte einen Grund angeben.",
+          notReopenable: "Diese Ausgabe lässt sich nicht mehr öffnen. Bitte die Seite neu laden.",
+          unknown: "Die Ausgabe konnte nicht geöffnet werden. Bitte erneut versuchen.",
+        },
+      },
     },
     /**
      * The counter lookup — the most-read text in the product, and held to the strictest account:
@@ -1098,7 +1216,7 @@ export const de = {
         },
         wrongGroup: { headline: "Falsche Gruppe" },
         outdatedCard: { headline: "Karte ungültig" },
-        alreadyServedToday: { headline: "Heute bereits ausgegeben" },
+        alreadyServed: { headline: "Bereits ausgegeben" },
         clearToServe: { headline: "Ausgabe frei" },
         certificateExpired: { headline: "Ausgabe frei — Nachweis abgelaufen" },
       },
@@ -1154,6 +1272,12 @@ export const de = {
     progress: {
       summary: (group: string, served: number, expected: number): string =>
         `${group}: ${served} von ${expected} Haushalten abgeholt`,
+      /**
+       * A merged afternoon's two tallies on one line, joined with the middle dot the Kundenliste's
+       * group balance uses. Never added up: a group falling behind is exactly what one fraction
+       * over both would hide (US-34.6).
+       */
+      summaries: (perGroup: ReadonlyArray<string>): string => perGroup.join(" · "),
       open: "Liste anzeigen",
       close: "Liste ausblenden",
       /** The mark on a household that has collected today. Only these rows are marked. */
@@ -1194,7 +1318,7 @@ export const de = {
        * bezahlt“, which cannot say 2,00 € of 5,00 €.
        */
       alreadyServed: (time: string, paidCents: number, askedCents: number): string =>
-        `Heute bereits versorgt um ${time} Uhr. ` +
+        `Bereits versorgt um ${time} Uhr. ` +
         `(${formatEuros(paidCents)} von ${formatEuros(askedCents)} gezahlt)`,
       /**
        * The question an amount above what was asked raises (US-29.7). A question and not a fault —
@@ -1209,7 +1333,7 @@ export const de = {
         confirm: "Ja, Betrag so buchen",
       },
       correct: {
-        heading: "Heutigen Eintrag korrigieren",
+        heading: "Eintrag korrigieren",
         save: "Betrag speichern",
         saved: "Eintrag aktualisiert.",
         remove: "Eintrag entfernen",
@@ -1222,13 +1346,13 @@ export const de = {
           `Diesen Eintrag wirklich entfernen? Der Saldo steht danach wieder bei: ` +
           `${balanceWording(balanceKind(balanceWithoutRecordCents), balanceWithoutRecordCents)}.`,
         removeConfirmButton: "Ja, entfernen",
-        removed: "Eintrag entfernt. Der Haushalt kann heute erneut erfasst werden.",
+        removed: "Eintrag entfernt. Der Haushalt kann erneut erfasst werden.",
       },
       errors: {
         notClearToServe: "Ausgabe nicht möglich. Bitte den Hinweis oben beachten.",
-        alreadyServed: "Dieser Haushalt hat heute bereits eine Ausgabe erhalten.",
+        alreadyServed: "Dieser Haushalt hat bei dieser Ausgabe bereits etwas erhalten.",
         noLongerCorrectable:
-          "Dieser Eintrag stammt nicht von heute und kann nicht mehr geändert werden.",
+          "Diese Ausgabe ist beendet. Der Eintrag kann nicht mehr geändert werden.",
         notFound: "Der Eintrag wurde nicht gefunden. Bitte die Seite neu laden.",
         /** The field takes euros as DF write them — `4`, `4,00` and `4.00` all read the same. */
         notAnAmount: "Kein gültiger Betrag. Bitte so eingeben: 4,00",
@@ -1245,12 +1369,13 @@ export const de = {
       heading: "Bedarfsnachweis",
       reminder: {
         submit: "Erinnerung erfassen",
-        /** The explanatory label the disabled button carries for the rest of the day (FR-5). */
-        loggedToday: "Erinnerung heute bereits erfasst",
+        /** The explanatory label the disabled button carries for the rest of the session (FR-5). */
+        loggedInSession: "Erinnerung bereits erfasst",
         confirmed: (count: number): string =>
           `Erinnerung erfasst. Bisherige Erinnerungen: ${count}.`,
         errors: {
-          alreadyLogged: "Für diesen Haushalt ist heute bereits eine Erinnerung erfasst.",
+          alreadyLogged:
+            "Für diesen Haushalt ist bei dieser Ausgabe bereits eine Erinnerung erfasst.",
           stillValid: "Der Bedarfsnachweis ist noch gültig. Es gibt nichts zu erinnern.",
           unknown: "Die Erinnerung konnte nicht gespeichert werden. Bitte erneut versuchen.",
         },
@@ -1270,17 +1395,11 @@ export const de = {
         },
       },
     },
-    /**
-     * Both reachable from the banner alone: the screen resolves today's settings, and either there
-     * are none or the anchor week is not a week of the calendar.
-     */
+    /** Reachable from the counter alone: the lookup prices a household and there are no settings. */
     errors: {
       noSettings:
         "Für dieses Datum sind keine Einstellungen hinterlegt. Bitte die Grundeinstellungen " +
         "einspielen.",
-      invalidAnchor:
-        "Die Ankerwoche in den Einstellungen benennt keine Woche des Kalenders. Bitte die " +
-        "Einstellungen prüfen.",
     },
   },
   settings: {

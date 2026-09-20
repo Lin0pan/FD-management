@@ -29,7 +29,7 @@ import {
 } from "@/application/distribution/correct-attendance";
 import { recordAttendance } from "@/application/distribution/record-attendance";
 import {
-  AlreadyServedToday,
+  AlreadyServedInSession,
   CertificateStillValid,
   CertificateValidUntilInPast,
   DistributionRecordNotFound,
@@ -37,7 +37,7 @@ import {
   NotClearToServe,
   OverpaymentNotConfirmed,
   RecordNoLongerCorrectable,
-  ReminderAlreadyLoggedToday,
+  ReminderAlreadyLoggedInSession,
 } from "@/domain/errors";
 import { parseEuros, type Cents } from "@/domain/money";
 import { customerFieldLabel, de } from "@/i18n/de";
@@ -120,7 +120,7 @@ const renewalForm = z.object({ certificateValidUntil: dayInput });
 
 /** Turn a typed domain error from the serve path into the German sentence the counter shows. */
 function serveMessage(error: unknown): string {
-  if (error instanceof AlreadyServedToday) {
+  if (error instanceof AlreadyServedInSession) {
     return de.distribution.serve.errors.alreadyServed;
   }
   if (error instanceof NotClearToServe) {
@@ -201,7 +201,7 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
  * Amend or remove today's record; the clicked button names the intent through `action`.
  *
  * **The two answers leave by different routes, because a removal destroys the card that would show
- * it.** `SET_PAYMENT` comes back as `saved`, read beside the button. `REMOVE` makes `todaysRecord`
+ * it.** `SET_PAYMENT` comes back as `saved`, read beside the button. `REMOVE` makes `sessionRecord`
  * null, so the correction card unmounts and takes the state holding the answer with it — so it
  * redirects instead, keeping the looked-up number, and the counter states it above the verdict.
  * `redirect` throws, so it is called outside the `try`.
@@ -259,7 +259,7 @@ export async function correctServe(
 
 /** Turn a typed domain error from the reminder path into the German sentence the counter shows. */
 function reminderMessage(error: unknown): string {
-  if (error instanceof ReminderAlreadyLoggedToday) {
+  if (error instanceof ReminderAlreadyLoggedInSession) {
     return de.distribution.certificate.reminder.errors.alreadyLogged;
   }
   if (error instanceof CertificateStillValid) {

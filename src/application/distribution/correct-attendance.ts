@@ -1,15 +1,17 @@
 /**
- * Correct today's hand-out — the one amendment the history allows
- * (`tasks/prd-us-05-record-attendance.md` §US-05.2, FR-7).
+ * Correct a hand-out made at the session still running — the one amendment the history allows
+ * (`tasks/prd-us-05-record-attendance.md` §US-05.2, FR-7; US-34, FR-14).
  *
- * A record is mutable only on the Berlin day it was made (`canCorrect`). Removal is the single
- * deletion the store permits; the history is otherwise append-only.
+ * A record is mutable exactly while its **own** session runs (`canCorrect`), which is why that
+ * session is loaded rather than the running one: a reopened afternoon is correctable again and every
+ * other one stays frozen. Removal is the single deletion the store permits; the history is otherwise
+ * append-only.
  *
  * **A removal needs no code of its own to put the balance back** (US-29, rule 9): the balance is the
  * arithmetic of the surviving rows, which is the property ADR-015 was chosen for.
  *
- * **A new payment is judged against what was asked on that record's own day.** Today's amount to pay
- * already has this record's payment folded in, so a household settling an old debt would read as
+ * **A new payment is judged against what was asked at that record's own session.** Today's amount to
+ * pay already has this record's payment folded in, so a household settling an old debt would read as
  * paying ahead.
  */
 
@@ -22,7 +24,12 @@ import {
   RecordNoLongerCorrectable,
 } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
-import type { AuditLog, Clock, DistributionRecordRepository } from "../ports";
+import type {
+  AuditLog,
+  Clock,
+  DistributionRecordRepository,
+  DistributionSessionRepository,
+} from "../ports";
 
 /** The audit event names a correction is written under. */
 const DISTRIBUTION_CORRECTED = "distribution.corrected";
@@ -30,6 +37,7 @@ const DISTRIBUTION_REMOVED = "distribution.removed";
 
 export interface CorrectAttendanceDeps {
   readonly records: DistributionRecordRepository;
+  readonly sessions: DistributionSessionRepository;
   readonly audit: AuditLog;
   readonly clock: Clock;
 }
@@ -44,18 +52,18 @@ export type CorrectAttendanceInput =
       readonly recordId: number;
       readonly action: "SET_PAYMENT";
       readonly paidCents: Cents;
-      /** That an amount above what was asked for that day was meant — see `recordAttendance`. */
+      /** That an amount above what that session asked for was meant — see `recordAttendance`. */
       readonly overpaymentConfirmed?: boolean;
     }
   | { readonly recordId: number; readonly action: "REMOVE" };
 
 /**
- * Amend or remove a record made today.
+ * Amend or remove a record made at a session that is still running.
  *
  * @throws {DistributionRecordNotFound} if no record holds `recordId`.
- * @throws {RecordNoLongerCorrectable} if the record was made before today's Berlin day.
+ * @throws {RecordNoLongerCorrectable} if the session the record belongs to has ended.
  * @throws {InvalidPaymentAmount} if the amount is not a whole, non-negative number of cents.
- * @throws {OverpaymentNotConfirmed} if more than that day's amount was handed over unconfirmed.
+ * @throws {OverpaymentNotConfirmed} if more than that session's amount was handed over unconfirmed.
  */
 export async function correctAttendance(
   deps: CorrectAttendanceDeps,
@@ -67,8 +75,8 @@ export async function correctAttendance(
   if (record === null) {
     throw new DistributionRecordNotFound(input.recordId);
   }
-  if (!canCorrect(record, now)) {
-    throw new RecordNoLongerCorrectable(input.recordId, record.date, now);
+  if (!canCorrect(await deps.sessions.findById(record.sessionId))) {
+    throw new RecordNoLongerCorrectable(input.recordId, record.sessionId);
   }
 
   if (input.action === "REMOVE") {
@@ -85,8 +93,8 @@ export async function correctAttendance(
   // Shape before meaning: an unreadable number is refused without a second read of the store.
   requirePayment(input.paidCents);
 
-  // What the counter asked on the day this record was made — replayed from the history, since nothing
-  // stores it. The same question `lookupCustomer` asks, answered in one place.
+  // What the counter asked at the session this record was made in — replayed from the history, since
+  // nothing stores it. The same question `lookupCustomer` asks, answered in one place.
   const askedCents = askedForRecord(await deps.records.listForCustomer(record.customerId), record);
   if (input.paidCents > askedCents && input.overpaymentConfirmed !== true) {
     throw new OverpaymentNotConfirmed(input.paidCents, askedCents);

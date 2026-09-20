@@ -3,15 +3,15 @@ import { groupProgress, type ProgressEntry } from "./groupProgress";
 
 /** A household of the group, described by the only two flags the tally reads. */
 function entry(flags: Partial<ProgressEntry> = {}): ProgressEntry {
-  return { blocked: false, servedToday: false, ...flags };
+  return { blocked: false, servedInSession: false, ...flags };
 }
 
 /** Every combination of the two flags — the whole state space a roster row can be in. */
 const EVERY_COMBINATION: ReadonlyArray<ProgressEntry> = [
   entry(),
-  entry({ servedToday: true }),
+  entry({ servedInSession: true }),
   entry({ blocked: true }),
-  entry({ blocked: true, servedToday: true }),
+  entry({ blocked: true, servedInSession: true }),
 ];
 
 describe("groupProgress", () => {
@@ -27,7 +27,7 @@ describe("groupProgress", () => {
   });
 
   it("counts everybody served when every household has collected", () => {
-    const collected = entry({ servedToday: true });
+    const collected = entry({ servedInSession: true });
     expect(groupProgress([collected, collected, collected])).toEqual({ served: 3, expected: 3 });
   });
 
@@ -36,7 +36,7 @@ describe("groupProgress", () => {
   });
 
   it("counts a household blocked after collecting in both the served and the expected", () => {
-    expect(groupProgress([entry({ blocked: true, servedToday: true })])).toEqual({
+    expect(groupProgress([entry({ blocked: true, servedInSession: true })])).toEqual({
       served: 1,
       expected: 1,
     });

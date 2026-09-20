@@ -4,21 +4,21 @@
  * in JSX is the mistake this module exists to prevent (`tasks/prd-us-04-lookup-customer.md` §7).
  *
  * The precedence is fixed and total: `NOT_FOUND` → `ARCHIVED` → `BLOCKED` → `WRONG_GROUP` →
- * `OUTDATED_CARD` → `ALREADY_SERVED_TODAY` → certificate → `CLEAR_TO_SERVE`. The earlier reason wins,
+ * `OUTDATED_CARD` → `ALREADY_SERVED` → certificate → `CLEAR_TO_SERVE`. The earlier reason wins,
  * being the more specific fact. An **expired certificate never blocks** — it is a serve-and-remind
  * case (US-06), since chasing a renewal is a conversation, not grounds to refuse food.
  *
  * **The write path ranks the same two facts the other way round, deliberately.** This answers *may
  * they collect*, so a blocked household that already collected reads `BLOCKED`. `recordAttendance`
  * answers *may this write happen* and checks `canRecord` first, so the same household is refused
- * there with `AlreadyServedToday` — the more specific fact about a second `POST` (US-32.5,
+ * there with `AlreadyServedInSession` — the more specific fact about a second `POST` (US-32.5,
  * `docs/architecture/06-runtime-view.md`). Neither order is the other's bug.
  */
 
 import type { CardNumber } from "../card/cardNumber";
 import type { CustomerStatus } from "../customer/customer";
 import type { Group } from "../customer/group";
-import type { WeekColour } from "../policy/settings";
+import { servesGroup, type SessionGroups } from "./session";
 import { startOfUtcDay } from "./weekColour";
 
 /**
@@ -52,15 +52,17 @@ export interface CounterInput {
   readonly customer: CounterCustomer | null;
   /** The card index presented, or `null` for a bare customer number, which means the current card. */
   readonly presentedCardIndex: number | null;
-  /** The calendar day the lookup happens on. */
+  /** The calendar day the lookup happens on — read by the certificate check alone. */
   readonly today: Date;
-  /** The colour of the week `today` falls in (US-03). */
-  readonly weekColour: WeekColour;
   /**
-   * Whether a hand-out is already recorded for this household on the Berlin day being evaluated — a
-   * **fact**, never the record, so the rule knows nothing about `DistributionRecord`.
+   * The group(s) the running session serves (US-34). A household's own week decides nothing here.
    */
-  readonly servedToday: boolean;
+  readonly sessionGroups: SessionGroups;
+  /**
+   * Whether a hand-out is already recorded for this household in the running session — a **fact**,
+   * never the record, so the rule knows nothing about `DistributionRecord`.
+   */
+  readonly servedInSession: boolean;
 }
 
 /**
@@ -71,9 +73,9 @@ export type Verdict =
   | { readonly kind: "NOT_FOUND" }
   | { readonly kind: "ARCHIVED" }
   | { readonly kind: "BLOCKED"; readonly reason: string | null }
-  | { readonly kind: "WRONG_GROUP"; readonly group: Group; readonly weekColour: WeekColour }
+  | { readonly kind: "WRONG_GROUP"; readonly group: Group; readonly sessionGroups: SessionGroups }
   | { readonly kind: "OUTDATED_CARD"; readonly presented: CardNumber; readonly current: CardNumber }
-  | { readonly kind: "ALREADY_SERVED_TODAY" }
+  | { readonly kind: "ALREADY_SERVED" }
   | { readonly kind: "CLEAR_TO_SERVE" }
   | {
       readonly kind: "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED";
@@ -95,7 +97,7 @@ export function certificateExpired(validUntil: Date, today: Date): boolean {
  * @returns exactly one {@link Verdict}; never throws — an unassigned slot is `NOT_FOUND`.
  */
 export function evaluateAtCounter(input: CounterInput): Verdict {
-  const { customer, presentedCardIndex, today, weekColour, servedToday } = input;
+  const { customer, presentedCardIndex, today, sessionGroups, servedInSession } = input;
 
   if (customer === null) {
     return { kind: "NOT_FOUND" };
@@ -106,8 +108,10 @@ export function evaluateAtCounter(input: CounterInput): Verdict {
   if (customer.status === "BLOCKED") {
     return { kind: "BLOCKED", reason: customer.blockReason };
   }
-  if (customer.group !== weekColour) {
-    return { kind: "WRONG_GROUP", group: customer.group, weekColour };
+  // A session serving both groups can never reach this — which is what makes a merged afternoon
+  // one session rather than two.
+  if (!servesGroup(sessionGroups, customer.group)) {
+    return { kind: "WRONG_GROUP", group: customer.group, sessionGroups };
   }
   if (presentedCardIndex !== null && presentedCardIndex < customer.currentCardIndex) {
     return {
@@ -116,8 +120,8 @@ export function evaluateAtCounter(input: CounterInput): Verdict {
       current: { customerNumber: customer.customerNumber, index: customer.currentCardIndex },
     };
   }
-  if (servedToday) {
-    return { kind: "ALREADY_SERVED_TODAY" };
+  if (servedInSession) {
+    return { kind: "ALREADY_SERVED" };
   }
   if (certificateExpired(customer.certificateValidUntil, today)) {
     return {

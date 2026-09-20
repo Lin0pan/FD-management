@@ -9,13 +9,14 @@ import type {
   PersonalDetails,
   RegisteredCustomer,
 } from "@/domain/customer/customer";
+import type { Group } from "@/domain/customer/group";
 import { composition } from "@/domain/customer/householdComposition";
-import { berlinDayKey } from "@/domain/distribution/attendance";
 import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
-import { InvalidCardNumber } from "@/domain/errors";
+import { createSessionGroups, type DistributionSession } from "@/domain/distribution/session";
+import { InvalidCardNumber, NoDistributionSessionRunning } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
 import type {
@@ -23,6 +24,7 @@ import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  DistributionSessionRepository,
   ReminderLogEntry,
   ReminderLogRepository,
   SettingsRepository,
@@ -38,6 +40,9 @@ import { lookupCustomer } from "./lookup-customer";
 faker.seed(20260723);
 
 const TODAY = "2026-07-23T09:00:00.000Z";
+/** The afternoon the counter is working in, and one held before it. */
+const SESSION_ID = 4;
+const EARLIER_SESSION_ID = 3;
 
 class FakeSettingsRepository implements SettingsRepository {
   readonly versions: SettingsVersion[] = [];
@@ -211,8 +216,8 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve(this.records.filter((record) => record.customerId === customerId));
   }
 
-  listForDay(dayKey: string): Promise<ReadonlyArray<DistributionRecord>> {
-    return Promise.resolve(this.records.filter((record) => berlinDayKey(record.date) === dayKey));
+  listForSession(sessionId: number): Promise<ReadonlyArray<DistributionRecord>> {
+    return Promise.resolve(this.records.filter((record) => record.sessionId === sessionId));
   }
 
   findById(recordId: number): Promise<DistributionRecord | null> {
@@ -244,8 +249,8 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
 }
 
 /**
- * A reminder trail the lookup only ever reads from — it answers whether today's reminder is already
- * on file (US-06.4), and `writes` proves the read-only lookup never logged one itself.
+ * A reminder trail the lookup only ever reads from — it answers whether this session's reminder is
+ * already on file (US-06.4), and `writes` proves the read-only lookup never logged one itself.
  */
 class FakeReminderLogRepository implements ReminderLogRepository {
   readonly entries: Array<{ customerId: number; entry: ReminderLogEntry }> = [];
@@ -255,11 +260,19 @@ class FakeReminderLogRepository implements ReminderLogRepository {
     this.entries.push(...entries);
   }
 
-  findOnDay(customerId: number, loggedOn: string): Promise<ReminderLogEntry | null> {
+  findInSession(customerId: number, sessionId: number): Promise<ReminderLogEntry | null> {
     const found = this.entries.find(
-      (candidate) => candidate.customerId === customerId && candidate.entry.loggedOn === loggedOn,
+      (candidate) => candidate.customerId === customerId && candidate.entry.sessionId === sessionId,
     );
     return Promise.resolve(found?.entry ?? null);
+  }
+
+  listForSession(sessionId: number): Promise<ReadonlyArray<ReminderLogEntry>> {
+    return Promise.resolve(
+      this.entries
+        .filter((candidate) => candidate.entry.sessionId === sessionId)
+        .map((c) => c.entry),
+    );
   }
 
   record(customerId: number, entry: ReminderLogEntry): Promise<void> {
@@ -269,7 +282,61 @@ class FakeReminderLogRepository implements ReminderLogRepository {
   }
 }
 
-/** A stored hand-out for customer id 1 on the given instant — the day's record the counter reads. */
+/** The afternoon under way, serving whichever groups a test names — both unless it says otherwise. */
+function session(groups: ReadonlyArray<Group> = ["RED", "BLUE"]): DistributionSession {
+  return {
+    id: SESSION_ID,
+    startedAt: new Date(TODAY),
+    endedAt: null,
+    groups: createSessionGroups(groups),
+  };
+}
+
+/** The session the counter reads in; `null` is the screen between two afternoons. */
+class FakeDistributionSessionRepository implements DistributionSessionRepository {
+  constructor(private readonly running: DistributionSession | null = session()) {}
+
+  findRunning(): Promise<DistributionSession | null> {
+    return Promise.resolve(this.running);
+  }
+
+  lastEnded(): Promise<DistributionSession | null> {
+    return Promise.resolve(null);
+  }
+
+  findById(): Promise<DistributionSession | null> {
+    return Promise.resolve(this.running);
+  }
+
+  start(): Promise<DistributionSession> {
+    return Promise.reject(new Error("the lookup is a read; it starts nothing"));
+  }
+
+  end(): Promise<void> {
+    return Promise.reject(new Error("the lookup is a read; it ends nothing"));
+  }
+
+  discard(): Promise<void> {
+    return Promise.reject(new Error("the lookup is a read; it discards nothing"));
+  }
+
+  reopen(): Promise<void> {
+    return Promise.reject(new Error("the lookup is a read; it reopens nothing"));
+  }
+}
+
+/**
+ * A hand-out from an earlier afternoon. Every fixture dated before today belongs to another session —
+ * which is what the counter reads, the date being carried for the balance and the no-show count.
+ */
+function earlierRecord(
+  iso: string,
+  overrides: Partial<DistributionRecord> = {},
+): DistributionRecord {
+  return distributionRecord(iso, { sessionId: EARLIER_SESSION_ID, ...overrides });
+}
+
+/** A stored hand-out for customer id 1 at the running session — the record the counter reads. */
 function distributionRecord(
   iso: string,
   overrides: Partial<DistributionRecord> = {},
@@ -277,6 +344,7 @@ function distributionRecord(
   return {
     id: 7,
     customerId: 1,
+    sessionId: SESSION_ID,
     date: new Date(iso),
     showedUp: true,
     paidCents: 500 as Cents,
@@ -383,9 +451,10 @@ describe("lookupCustomer", () => {
   let settings: FakeSettingsRepository;
   let records: FakeDistributionRecordRepository;
   let reminders: FakeReminderLogRepository;
+  let sessions: FakeDistributionSessionRepository;
 
   function deps(today = TODAY) {
-    return { customers, settings, records, reminders, clock: fakeClock(today) };
+    return { customers, settings, records, reminders, sessions, clock: fakeClock(today) };
   }
 
   beforeEach(() => {
@@ -393,6 +462,7 @@ describe("lookupCustomer", () => {
     settings = new FakeSettingsRepository(version());
     records = new FakeDistributionRecordRepository();
     reminders = new FakeReminderLogRepository();
+    sessions = new FakeDistributionSessionRepository();
   });
 
   it("reports an unassigned number as not found, not as an error", async () => {
@@ -433,16 +503,18 @@ describe("lookupCustomer", () => {
     expect(result.verdict).toEqual({ kind: "BLOCKED", reason: "gesperrt" });
   });
 
-  it("sends away a customer of the wrong colour for the week", async () => {
-    // 51 is odd and therefore RED, in a BLUE week. Nothing was set to make it so.
+  it("sends away a household the running session does not serve", async () => {
+    // 51 is odd and therefore RED; this afternoon was started for BLUE alone. The calendar has no
+    // part in it (US-34, FR-12).
     customers = new FakeCustomerRepository(customerRecord({ customerNumber: 51 }));
+    sessions = new FakeDistributionSessionRepository(session(["BLUE"]));
 
     const result = await lookupCustomer(deps(), "51");
 
     expect(result.verdict.kind).toBe("WRONG_GROUP");
     if (result.verdict.kind !== "WRONG_GROUP") throw new Error("unreachable");
     expect(result.verdict.group).toBe("RED");
-    expect(result.verdict.weekColour).toBe("BLUE");
+    expect(result.verdict.sessionGroups).toEqual(["BLUE"]);
   });
 
   it("marks a card whose index is below the current one as outdated", async () => {
@@ -484,12 +556,12 @@ describe("lookupCustomer", () => {
 
     const result = await lookupCustomer(deps(), "50");
 
-    expect(result.verdict.kind).toBe("ALREADY_SERVED_TODAY");
+    expect(result.verdict.kind).toBe("ALREADY_SERVED");
   });
 
-  it("clears a household that collected at an earlier distribution, not today", async () => {
+  it("clears a household that collected at an earlier session, not this one", async () => {
     customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
-    records = new FakeDistributionRecordRepository(distributionRecord("2026-07-22T21:59:00.000Z"));
+    records = new FakeDistributionRecordRepository(earlierRecord("2026-07-22T21:59:00.000Z"));
 
     const result = await lookupCustomer(deps(), "50");
 
@@ -504,7 +576,7 @@ describe("lookupCustomer", () => {
 
     const result = await lookupCustomer(deps(), "50");
 
-    expect(result.verdict.kind).toBe("ALREADY_SERVED_TODAY");
+    expect(result.verdict.kind).toBe("ALREADY_SERVED");
     expect(result.customer?.certificateExpired).toBe(true);
   });
 
@@ -694,50 +766,63 @@ describe("lookupCustomer", () => {
     const result = await lookupCustomer(deps(), "50");
 
     expect(result.customerId).toBeNull();
-    expect(result.todaysRecord).toBeNull();
+    expect(result.sessionRecord).toBeNull();
   });
 
-  it("reports no record for today when the customer has none yet", async () => {
+  it("reports no record for this session when the customer has none yet", async () => {
     customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
-    records = new FakeDistributionRecordRepository(distributionRecord("2026-07-16T09:00:00.000Z"));
+    records = new FakeDistributionRecordRepository(earlierRecord("2026-07-16T09:00:00.000Z"));
 
     const result = await lookupCustomer(deps(), "50");
 
-    expect(result.todaysRecord).toBeNull();
+    expect(result.sessionRecord).toBeNull();
   });
 
-  it("reports a reminder already logged today, so the action stays disabled for the day", async () => {
+  it("reports a reminder already logged in this session, so the action stays disabled", async () => {
     customers = new FakeCustomerRepository(
       customerRecord({ id: 1, certificateValidUntil: "2026-07-01T00:00:00.000Z" }),
     );
     reminders = new FakeReminderLogRepository({
       customerId: 1,
-      entry: { loggedOn: "2026-07-23", resultingCount: 1 },
+      entry: { sessionId: SESSION_ID, resultingCount: 1 },
     });
 
     const result = await lookupCustomer(deps(), "50");
 
-    expect(result.reminderLoggedToday).toBe(true);
+    expect(result.reminderLoggedInSession).toBe(true);
   });
 
-  it("reports no reminder for today when the trail holds only earlier days", async () => {
+  it("reports no reminder when the trail holds only earlier sessions", async () => {
     customers = new FakeCustomerRepository(
       customerRecord({ id: 1, certificateValidUntil: "2026-07-01T00:00:00.000Z" }),
     );
     reminders = new FakeReminderLogRepository({
       customerId: 1,
-      entry: { loggedOn: "2026-07-16", resultingCount: 1 },
+      entry: { sessionId: EARLIER_SESSION_ID, resultingCount: 1 },
     });
 
     const result = await lookupCustomer(deps(), "50");
 
-    expect(result.reminderLoggedToday).toBe(false);
+    expect(result.reminderLoggedInSession).toBe(false);
   });
 
-  it("reports no reminder logged today for an unassigned number", async () => {
+  it("refuses the lookup with no session running", async () => {
+    // Between afternoons there is nothing to judge a household against: which groups are served and
+    // what they already collected are both questions about a session. The screen offers no lookup
+    // then, so this is the hand-typed `?nummer=` (US-34, FR-10) — and an unassigned number is
+    // refused the same way rather than coming back as a `NOT_FOUND` verdict nobody could act on.
+    customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
+    sessions = new FakeDistributionSessionRepository(null);
+
+    await expect(lookupCustomer(deps(), "50")).rejects.toBeInstanceOf(NoDistributionSessionRunning);
+    await expect(lookupCustomer(deps(), "77")).rejects.toBeInstanceOf(NoDistributionSessionRunning);
+    expect(records.writes).toBe(0);
+  });
+
+  it("reports no reminder logged for an unassigned number", async () => {
     const result = await lookupCustomer(deps(), "50");
 
-    expect(result.reminderLoggedToday).toBe(false);
+    expect(result.reminderLoggedInSession).toBe(false);
   });
 
   /**
@@ -758,7 +843,7 @@ describe("lookupCustomer", () => {
     customers = new FakeCustomerRepository(
       customerRecord({ id: 1, registeredOn: "2026-05-01T09:00:00.000Z" }),
     );
-    records = new FakeDistributionRecordRepository(distributionRecord("2026-07-09T09:00:00.000Z"));
+    records = new FakeDistributionRecordRepository(earlierRecord("2026-07-09T09:00:00.000Z"));
 
     const result = await lookupCustomer(deps(), "50");
 
@@ -773,7 +858,7 @@ describe("lookupCustomer", () => {
 
     const result = await lookupCustomer(deps(), "50");
 
-    expect(result.todaysRecord).toEqual({
+    expect(result.sessionRecord).toEqual({
       recordId: 7,
       at: new Date("2026-07-23T07:30:00.000Z"),
       paidCents: 0,
@@ -791,7 +876,7 @@ describe("lookupCustomer", () => {
   it("states the price as the amount to pay for a settled household", async () => {
     customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
     records = new FakeDistributionRecordRepository(
-      distributionRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 500 as Cents }),
+      earlierRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 500 as Cents }),
     );
 
     const result = await lookupCustomer(deps(), "50");
@@ -803,7 +888,7 @@ describe("lookupCustomer", () => {
   it("adds an open amount to the price", async () => {
     customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
     records = new FakeDistributionRecordRepository(
-      distributionRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 200 as Cents }),
+      earlierRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 200 as Cents }),
     );
 
     const result = await lookupCustomer(deps(), "50");
@@ -815,7 +900,7 @@ describe("lookupCustomer", () => {
   it("subtracts a credit from the price", async () => {
     customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
     records = new FakeDistributionRecordRepository(
-      distributionRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 600 as Cents }),
+      earlierRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 600 as Cents }),
     );
 
     const result = await lookupCustomer(deps(), "50");
@@ -827,7 +912,7 @@ describe("lookupCustomer", () => {
   it("asks for nothing when the credit exceeds the price", async () => {
     customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
     records = new FakeDistributionRecordRepository(
-      distributionRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 900 as Cents }),
+      earlierRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 900 as Cents }),
     );
 
     const result = await lookupCustomer(deps(), "50");
@@ -859,27 +944,27 @@ describe("lookupCustomer", () => {
   it("states what was asked for today's record", async () => {
     customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
     records = new FakeDistributionRecordRepository(
-      distributionRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 200 as Cents }),
+      earlierRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 200 as Cents }),
       distributionRecord("2026-07-23T07:30:00.000Z", { id: 7, paidCents: 800 as Cents }),
     );
 
     const result = await lookupCustomer(deps(), "50");
 
     // 5,00 € for the week plus the 3,00 € left open a fortnight ago — not the 5,00 € price.
-    expect(result.todaysRecord?.askedCents).toBe(800);
-    expect(result.todaysRecord?.paidCents).toBe(800);
+    expect(result.sessionRecord?.askedCents).toBe(800);
+    expect(result.sessionRecord?.paidCents).toBe(800);
   });
 
   it("states the balance a removal would return to", async () => {
     customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
     records = new FakeDistributionRecordRepository(
-      distributionRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 200 as Cents }),
+      earlierRecord("2026-07-09T09:00:00.000Z", { id: 1, paidCents: 200 as Cents }),
       distributionRecord("2026-07-23T07:30:00.000Z", { id: 7, paidCents: 800 as Cents }),
     );
 
     const result = await lookupCustomer(deps(), "50");
 
     expect(result.customer?.balanceCents).toBe(0);
-    expect(result.todaysRecord?.balanceWithoutRecordCents).toBe(-300);
+    expect(result.sessionRecord?.balanceWithoutRecordCents).toBe(-300);
   });
 });

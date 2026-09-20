@@ -1,7 +1,9 @@
 /**
- * The Start dashboard (`tasks/prd-us-17-navigation-shell.md` §US-17.3) — three lines and nothing
- * else: the greeting, the date, the Ausgabe. The nav bar carries the links, and the signals live on
- * the hub (US-17.2), so nothing here needs clicking except in the unconfigured state.
+ * The Start dashboard (`tasks/prd-us-17-navigation-shell.md` §US-17.3) — the greeting, the date and
+ * the Ausgabe, and nothing else to work through: the nav bar carries the links and the signals live
+ * on the hub (US-17.2). It has something to click in exactly two states — nothing configured yet,
+ * and an afternoon under way, which it states in a panel because that is then the one thing the
+ * screen has to say (US-34.9).
  *
  * **The date only, no clock time**, which is what keeps this a plain server component: no client
  * boundary, no ticking state, and a page that renders the same under the fixed clock the e2e suite
@@ -10,15 +12,21 @@
 
 import Link from "next/link";
 import { getWeekColour, type WeekColourView } from "@/application/distribution/get-week-colour";
+import { readDistributionSessionState } from "@/application/distribution/read-distribution-session-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import type { DistributionSession } from "@/domain/distribution/session";
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
-import { germanLongDate } from "@/i18n/format";
+import { germanDateTime, germanLongDate } from "@/i18n/format";
 import { distributionDeps } from "./ausgabe/deps";
+import { SessionGroupBadges } from "./ausgabe/session-group-badges";
 import { SHELL } from "./shell";
 
-/** The date and the next distribution both turn over at midnight without anything being written. */
+/**
+ * The date and the next distribution turn over at midnight without anything being written, and a
+ * session is started and ended on another workstation — so this screen is never cached.
+ */
 export const dynamic = "force-dynamic";
 
 /**
@@ -45,6 +53,41 @@ function DistributionLine({ view }: { view: WeekColourView }): React.ReactElemen
           : de.home.distribution.next(germanLongDate(date), word)}
       </p>
     </div>
+  );
+}
+
+/**
+ * The afternoon under way, on the first screen anybody opens (US-34.9, PRD A-7). Nothing ends a
+ * session but a staff member, so one forgotten on Thursday evening goes on refusing every
+ * household's next hand-out until somebody notices — and this is where they notice it.
+ *
+ * It states the instant the session began rather than how long it has run: a duration would be a
+ * ticking value, and the whole screen is built to have none.
+ */
+function RunningSessionPanel({ session }: { session: DistributionSession }): React.ReactElement {
+  const words = de.distribution.session.onStartScreen;
+
+  return (
+    <Card data-testid="running-session">
+      <CardContent className="flex flex-col items-start gap-4 py-2">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Second only to the greeting, and a step above the date lines below: on a screen of
+              three sentences the running afternoon is the one that needs acting on. It carries no
+              tint of its own — the group badges inside it do, and a translucent fill behind them
+              would composite into a third colour meaning neither (`ui_styling_guide.md` §5). */}
+          <p className="text-2xl font-semibold tracking-tight">{de.distribution.session.running}</p>
+          <SessionGroupBadges groups={session.groups} testId="running-session-groups" />
+        </div>
+        <p data-testid="running-session-started" className="text-base">
+          {words.startedAt(germanDateTime(session.startedAt))}
+        </p>
+        {/* Ending it is the act this panel exists to prompt, and it belongs to the counter — so the
+            way there looks like the action it leads to, as the unconfigured card's link does. */}
+        <Button size="lg" asChild>
+          <Link href="/ausgabe">{words.link}</Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -88,7 +131,12 @@ async function today(): Promise<WeekColourView | null> {
 }
 
 export default async function Home(): Promise<React.ReactElement> {
-  const view = await today();
+  // The afternoon is read even on a day nothing is configured: the two answers are independent, and
+  // a session may be running whatever the settings history says about the calendar.
+  const [view, session] = await Promise.all([
+    today(),
+    readDistributionSessionState(distributionDeps),
+  ]);
   // The looked-up day, or the injected clock's: the date line is the half of this screen that does
   // not depend on DF having configured anything.
   const date = view?.date ?? distributionDeps.clock.now();
@@ -98,6 +146,9 @@ export default async function Home(): Promise<React.ReactElement> {
       {/* The greeting is the `h1` — one line, and the whole of the welcome. It is set full strength
           rather than muted now that it is the only thing at the top of the screen. */}
       <h1 className="text-3xl font-semibold tracking-tight">{de.home.heading}</h1>
+      {/* Above the date and the coming Ausgabe, because an afternoon that is running outranks both:
+          they describe the calendar, and this is what is actually happening. */}
+      {session.running === null ? null : <RunningSessionPanel session={session.running.session} />}
       {/* The two facts stand together, a line apart rather than a `gap-6` apart: the date is read as
           the qualifier of the Ausgabe below it, not as a section of its own. The empty state keeps
           the shell's full gap, because there the card is a separate thing to act on. */}

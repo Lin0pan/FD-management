@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { germanDate, isoWeekNumber } from "./format";
+import { germanDate, germanDateTime, isoWeekNumber } from "./format";
 
 describe("germanDate", () => {
   it("writes a date the German way, with both parts padded", () => {
@@ -26,5 +26,19 @@ describe("isoWeekNumber", () => {
 
   it("hands back a string carrying no week whole, rather than throwing at the counter", () => {
     expect(isoWeekNumber("2026-02")).toBe("2026-02");
+  });
+});
+
+describe("germanDateTime", () => {
+  it("writes the moment on the Berlin clock, not on UTC", () => {
+    expect(germanDateTime(new Date("2026-01-08T17:30:00.000Z"))).toBe("08.01.2026, 18:30");
+  });
+
+  it("names the next day for an afternoon ended after midnight in Berlin", () => {
+    expect(germanDateTime(new Date("2026-01-08T23:10:00.000Z"))).toBe("09.01.2026, 00:10");
+  });
+
+  it("follows the summer offset, an hour further from UTC than the winter one", () => {
+    expect(germanDateTime(new Date("2026-07-02T17:30:00.000Z"))).toBe("02.07.2026, 19:30");
   });
 });

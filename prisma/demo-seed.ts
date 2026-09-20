@@ -49,6 +49,7 @@ import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  DistributionSessionRepository,
   ReminderLogRepository,
   SettingsRepository,
   WaitingListRepository,
@@ -57,9 +58,10 @@ import { readCurrentSettings } from "../src/application/settings/read-current-se
 import { addToWaitingList } from "../src/application/waiting-list/add-to-waiting-list";
 import { formatCardNumber } from "../src/domain/card/cardNumber";
 import { amountToPay, balanceOf } from "../src/domain/distribution/balance";
+import { createSessionGroups } from "../src/domain/distribution/session";
 import type { Address, HouseholdMemberDetails } from "../src/domain/customer/customer";
 import { freeNumbers } from "../src/domain/customer/customerNumber";
-import { groupOf, inGroup } from "../src/domain/customer/group";
+import { GROUPS, groupOf, inGroup } from "../src/domain/customer/group";
 import type { Cents } from "../src/domain/money";
 import type { WeekColour } from "../src/domain/policy/settings";
 import { startOfUtcDay } from "../src/domain/distribution/weekColour";
@@ -69,6 +71,7 @@ import { PrismaCertificateRepository } from "../src/infrastructure/prisma/certif
 import { PrismaCertificateTypeRepository } from "../src/infrastructure/prisma/certificate-type-repository";
 import { PrismaCustomerRepository } from "../src/infrastructure/prisma/customer-repository";
 import { PrismaDistributionRecordRepository } from "../src/infrastructure/prisma/distribution-record-repository";
+import { PrismaDistributionSessionRepository } from "../src/infrastructure/prisma/distribution-session-repository";
 import { PrismaReminderLogRepository } from "../src/infrastructure/prisma/reminder-log-repository";
 import { PrismaSettingsRepository } from "../src/infrastructure/prisma/settings-repository";
 import { PrismaWaitingListRepository } from "../src/infrastructure/prisma/waiting-list-repository";
@@ -545,6 +548,7 @@ interface DemoDeps {
   readonly certificateTypes: CertificateTypeRepository;
   readonly settings: SettingsRepository;
   readonly records: DistributionRecordRepository;
+  readonly sessions: DistributionSessionRepository;
   readonly reminders: ReminderLogRepository;
   readonly waitingList: WaitingListRepository;
   readonly audit: AuditLog;
@@ -563,6 +567,7 @@ async function main(): Promise<void> {
       certificateTypes: new PrismaCertificateTypeRepository(prisma),
       settings: new PrismaSettingsRepository(prisma),
       records: new PrismaDistributionRecordRepository(prisma),
+      sessions: new PrismaDistributionSessionRepository(prisma),
       reminders: new PrismaReminderLogRepository(prisma),
       waitingList: new PrismaWaitingListRepository(prisma),
       audit: new PrismaAuditLog(prisma),
@@ -713,7 +718,11 @@ function householdEvents(
     events.push({
       at: at(-daysAgo),
       run: async () => {
+        // A reminder is given at a counter, so it needs an afternoon of its own to belong to
+        // (US-34). It serves both groups because this one exists for the household in front of it.
+        const session = await deps.sessions.start(createSessionGroups(GROUPS), at(-daysAgo));
         await recordReminder(deps, { customerId: idOf() });
+        await deps.sessions.end(session.id, at(-daysAgo));
       },
     });
   }
@@ -872,6 +881,10 @@ function distributionEvents(
   return days.map((day) => ({
     at: day.at,
     run: async () => {
+      // The afternoon itself (US-34): every hand-out below belongs to it, and it is ended before the
+      // next event runs — the demo register is one DF are handed between distributions, never in the
+      // middle of one.
+      const session = await deps.sessions.start(createSessionGroups([day.colour]), day.at);
       for (const shape of CAST) {
         const id = customerIds.get(shape.key);
         if (id === undefined) {
@@ -941,6 +954,7 @@ function distributionEvents(
           tally.paidAhead += 1;
         }
       }
+      await deps.sessions.end(session.id, day.at);
     },
   }));
 }

@@ -7,6 +7,7 @@ import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /**
  * Blocking a customer and seeing it hold at the counter
@@ -33,9 +34,9 @@ const NOW_FILE = SHARED.now;
 /**
  * The day this spec is judged on: Thursday 08.01.2026, 09:00 UTC.
  *
- * It follows from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor `2026-W02`
- * = RED, distributions on ISO weekday 4. So it is a RED distribution day, which is what makes the RED
- * household clear to serve once the block is lifted.
+ * Nothing about the distribution follows from it any more: what makes the household clear to serve
+ * once the block is lifted is the RED afternoon this file starts itself (US-34). The day is still
+ * what the record's dates are read against.
  */
 const TODAY = "2026-01-08T09:00:00.000Z";
 
@@ -156,12 +157,18 @@ test.describe("Kunde sperren und entsperren", () => {
   let id: number;
   let name: string;
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     pinToday();
     ({ id, name } = await seedHousehold());
+    // RED, because 241 is odd and that is the whole of the household's group (US-31). Blocking and
+    // unblocking are offered while an afternoon runs, which is when DF decide either of them.
+    await startSessionInHook({ browser, baseURL }, "RED");
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: a session left running is state the file sorting after this
+    // one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // The pinned today goes with the spec: leaving it would freeze January for the settings specs,
     // which save a version stamped *now* and would then assert against the wrong month.
     rmSync(NOW_FILE, { force: true });

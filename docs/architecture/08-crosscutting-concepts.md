@@ -1,6 +1,6 @@
 # 8. Cross-cutting concepts
 
-_Last reviewed: 2026-09-17_
+_Last reviewed: 2026-09-20_
 
 The rules that apply everywhere, so that five modules do not solve one problem five ways. Each says
 what it is, why it exists, the rules that follow, and where it shows up. The "why did we choose this
@@ -8,7 +8,7 @@ over that" is [chapter 9](09-architectural-decisions.md); this chapter is "how d
 
 ## Domain model and persistence
 
-Eleven tables. The schema doubles as domain documentation and carries the argument for every unusual
+Twelve tables. The schema doubles as domain documentation and carries the argument for every unusual
 decision in its comments.
 
 ```mermaid
@@ -18,6 +18,8 @@ erDiagram
     Customer ||--o{ Card : "was issued"
     Customer ||--o{ DistributionRecord : "collected"
     Customer ||--o{ ReminderLog : "was reminded"
+    DistributionSession ||--o{ DistributionRecord : "holds (US-34)"
+    DistributionSession ||--o{ ReminderLog : "holds (US-34)"
     Customer ||--o| Customer : "re-registered from"
     SettingsVersion ||--o{ EggAllowanceRow : "awards (US-28)"
     SettingsVersion {
@@ -50,8 +52,15 @@ erDiagram
         int childrenAtIssue "snapshot of the printed card"
         string reason "FIRST_ISSUE LOST STALE_COUNTS CUSTOMER_NUMBER_CHANGED OTHER"
     }
+    DistributionSession {
+        datetime startedAt "by hand, never by the clock"
+        datetime endedAt "null while it runs; the freeze"
+        datetime discardedAt "stamped, never deleted"
+        string groups "RED, BLUE or RED,BLUE"
+    }
     DistributionRecord {
-        string dayKey "Europe/Berlin YYYY-MM-DD"
+        int sessionId FK "the afternoon it belongs to, for good"
+        datetime date "the instant it was recorded"
         int paidCents "the amount handed over"
         int priceCents "deliberate redundancy"
     }
@@ -60,7 +69,7 @@ erDiagram
         datetime removedOn "stamped, never deleted"
     }
     ReminderLog {
-        string loggedOn "Berlin day, unique per customer"
+        int sessionId FK "unique per customer, as a hand-out is"
     }
     AuditEntry {
         string what
@@ -107,6 +116,12 @@ drop-down and never joined
   argument from the member rows: nothing references one, so removing it destroys no history and the
   records saved with that word keep showing it —
   [ADR-019](adr/019-keep-the-certificate-type-list-out-of-the-versioned-settings-history.md).
+- **A hand-out and a reminder belong to a `DistributionSession`, not to a calendar day** —
+  [ADR-020](adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md).
+  The FK is permanent: „once per afternoon", „the wrong group" and „still correctable" are all read
+  off it. A session started by mistake is stamped `discardedAt` and filtered out of every read, so a
+  third state never reaches the domain, and `endedAt` is the freeze — the one column a reopening
+  ever moves back.
 
 ## Time
 
@@ -116,11 +131,15 @@ dependency like any other.
 - **One wall-clock read in the whole codebase**: `src/infrastructure/clock.ts`. Everything else takes
   a `Clock` port. A zero-argument `new Date()` or `Date.now()` is a lint error in `domain/` and
   `application/`; `new Date(someValue)` stays legal because it transforms a value that was passed in.
-- **Two calendars, on purpose.** Attendance and reminders use the **Europe/Berlin** calendar day
-  (`berlinDayKey`), because they turn on the local moment a person stood at the counter — including
-  across both DST changes. Week colour, distribution day and birthdates use the **UTC** day, because
-  a week's colour is a property of a configured week where the minute is irrelevant. Both derivations
-  are named and shared; neither is re-implemented.
+- **A hand-out asks no calendar at all.** What it belongs to is the session running when it was
+  recorded, so an afternoon may cross midnight without splitting
+  ([ADR-020](adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md)).
+- **Two calendars, for what is left.** The **Europe/Berlin** day (`berlinDayKey`) is read by the
+  no-show count, which still matches attended days against the calendar's distributions until US-36,
+  and by the age boundary, which counts a birthday in the zone the counter is worked in. Week
+  colour, distribution day and birthdates use the **UTC** day, because a week's colour is a property
+  of a configured week where the minute is irrelevant. Both derivations are named and shared;
+  neither is re-implemented.
 - **Named boundary tests.** A time-dependent rule is tested the day before, the day of and the day
   after, plus 29 February. `turns grown-up on the 13th birthday, not the day before` is the shape.
 - The e2e suite cannot inject a fake, so the clock adapter carries the `FD_FIXED_NOW_FILE` seam —
@@ -225,7 +244,13 @@ Append-only entries recording _what_, _when_ and _why_ — **never who**, becaus
 tell its volunteers apart — [ADR-006](adr/006-record-what-when-and-why-in-the-audit-log-never-who.md).
 
 - Required on every state change: archive, block, unblock, number change, card reissue, note edit,
-  policy edit, a change to the list of Nachweis-Arten. Skipping one is a defect, not an omission.
+  policy edit, a change to the list of Nachweis-Arten, **ending and reopening a distribution
+  session**. Skipping one is a defect, not an omission.
+- **A session is written to the log only when it ends**, in one entry carrying both instants and the
+  groups it served. Starting writes nothing, because an entry at the start would show a session that
+  began and never ended; a session discarded while empty writes nothing either, so DF get no
+  paperwork for a misclick
+  ([ADR-020](adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md)).
 - The _why_ is **mandatory** where the judgement is the record (block, archive) and optional where
   the changed fields already say it (a settings edit).
 - `changedFields` is a comma-joined string because SQLite has no array type; it is only read back for
@@ -241,13 +266,17 @@ once, and the answer is always the same: **the database settles it, not a read-t
 | One non-archived household per customer number | Partial unique index over `status <> 'ARCHIVED'`, hand-written — Prisma cannot express it |
 | Exactly one valid card per household           | `@@unique([customerId, index])` — validity _is_ holding the highest index                 |
 | A card number is never handed out twice        | `@@unique([customerNumber, index])`                                                       |
-| One hand-out per household per Berlin day      | `@@unique([customerId, dayKey])`                                                          |
-| One reminder per household per Berlin day      | `@@unique([customerId, loggedOn])`                                                        |
+| One hand-out per household per session         | `@@unique([customerId, sessionId])`                                                       |
+| One reminder per household per session         | `@@unique([customerId, sessionId])` on `ReminderLog`                                      |
+| At most one distribution session running       | Partial unique index on an _expression_, hand-written — `one_running_session`             |
 
 Each domain rule exists as well, because a use case that refuses early gives a better message. But
 the constraint is the authority, and every adapter translates Prisma's `P2002` into the matching
 typed error — `card-repository.ts` even works out _which_ of its two unique indexes fired by matching
-the column list, because the two demand different recoveries.
+the column list, because the two demand different recoveries. The last row is matched differently:
+a partial index on an expression has no column to report, so `P2002` names the **index**, and
+`distribution-session-repository.ts` matches `one_running_session` by name and re-reads the row that
+won in order to name it.
 
 Writes that must not half-happen are single transactions: a whole registration, a certificate renewal
 with its reminder-count reset, a reminder entry with the incremented count.
