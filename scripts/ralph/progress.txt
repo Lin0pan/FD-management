@@ -478,6 +478,22 @@ bullets that sat under „Where batch 35 starts" are not carried over — they a
   and §9 already require distinct accessible names, and the German label is the one-line fix
   (US-33.7 found fifteen such call sites behind one duplicated „Speichern"). The *spec* breaking is
   the gate working.
+- **The isolated register is for a spec that states an absolute figure the *whole* register
+  decides.** The quota was the first (`number-group`, `waiting-list`); **how many afternoons have
+  been held** is the second, because since US-36 that is what a no-show count is walked over and a
+  dozen specs seed, start and end sessions in the shared register. Adding one is four small moves:
+  the glob in `ISOLATED_SPECS`, `clearRegister` in the spec's own `beforeAll` (a CI retry replays
+  it), a `PrismaClient` on `ISOLATED.database`, and the paragraph in
+  `docs/architecture/07-deployment-view.md` that says why the second server exists.
+- **`toHaveCount(0)` passes on a page that never rendered.** An assertion that something is *absent*
+  — the no-show line the record hides at zero, a banner, a badge — proves nothing on a 404 or a
+  crashed route, so pair it with one positive assertion off the same page load (`customer-number`
+  on the record). No gate can tell the two apart.
+- **A household's `registeredOn` is their *first card's* `issuedAt`** (`customer-repository.ts`),
+  not a column of its own. It is the line before which no afternoon was theirs to attend, so a
+  fixture that seeds a card dated *after* a seeded session silently makes that session invisible to
+  the no-show count — and a spec that seeds the card at registration day controls exactly which
+  afternoons count.
 - **A controlled `<select>` or radio inside a `useActionState` form needs its `default…` written by
   a `ref`.** React resets the form when the action resolves and a native reset reads the
   `selected`/`checked` **attribute**, which React never writes for a controlled control — so the
@@ -761,4 +777,57 @@ no longer on the screen.
   is (ADR-020)" — citing the record and stopping, rather than narrating that the line used to be
   there. Root `CLAUDE.md` forbids the second form; the first is one of the four things a comment may
   say.
+---
+
+## 2026-09-20 — US-006 (batch 36)
+
+The suite proves the no-show count over sessions. US-36.5 had already taken the anchor and weekday
+assertions out of `settings.spec.ts` and `home.spec.ts` — it had to, a deleted `de.ts` key breaking
+`npm run typecheck` in `tests/` as well as `src/` — so the first acceptance criterion was met before
+this story started and what was left is the new spec and the two engine runs.
+
+- `tests/e2e/no-shows.spec.ts`: two RED households registered on the same day, two RED afternoons
+  held, one BLUE one between them, and a fourth afternoon started through the real control. Four
+  tests: the household that came to neither reads „2 Ausgaben" on the record, the one that collected
+  at the last of them reads no line at all, the BLUE afternoon changes nothing, and the running one
+  changes nothing either — read on the record **and** at the counter, which is where DF sees it.
+- **It owns the isolated register** and empties it in `beforeAll`. In the shared one the figure is a
+  function of every session a dozen other specs have left behind, so „missed two" could only have
+  been a delta — and one that moves whenever a file sorting earlier holds one afternoon more.
+  `ISOLATED_SPECS` is now three globs and its criterion is stated as what it always was: a figure
+  the whole register decides.
+- **It pins no clock**, deliberately and as the header says: the count stopped being a function of
+  today in US-36.1, so a spec that had to pin a day to assert it would be evidence the calendar was
+  still in there somewhere. `distribution.spec.ts` made the same argument in US-34.
+- Both engines green over the whole suite, 222 passed: `npm run test:e2e` and
+  `npm run test:e2e:webkit`. A baseline run on clean `HEAD` first, which was also green — the new
+  rule had not disturbed the households the other specs seed, because a session only counts against
+  a household registered *before* it and every spec registers its own on a day of its own.
+- Three survivors of the removal, none of them in US-36.5's grep because it matched
+  `weekcolour|weekanchor` without the space: `playwright.config.ts`'s claim that the pinned clock is
+  „how the week-colour banner can be asserted at all", and `warteliste/actions.ts` (twice) saying
+  `page.tsx` „now renders the week colour and nothing else". Plus the record screen's „the quota and
+  the week anchor bear on neither…". All four corrected.
+- `docs/architecture/07-deployment-view.md`: the isolated server now has two reasons and three
+  specs, which is a deployment fact and was wrong the moment `ISOLATED_SPECS` grew.
+
+**Learnings for future iterations:**
+
+- **A removal's grep is only as wide as its spelling.** US-36.5's criterion was
+  `wochenfarbe|weekcolour|weekanchor|distributionweekday|nächste ausgabe` and it passed honestly —
+  „week colour" and „week anchor" with a space were three comments away from it, in two files no
+  story in this batch had any reason to open. Sweep the **phrasing** as well as the identifier, and
+  over `tests/` and the root config files as well as `src/`.
+- **Every isolated spec must empty the register itself, even the one that runs first.** The database
+  is fresh at boot, so the `clearRegister` in `beforeAll` looks redundant — until a CI retry replays
+  the block against what the failed attempt left, and the seeded afternoons are counted a second
+  time. That is the same argument `releaseNumbers` makes for the shared register.
+- **Seeding an afternoon takes two rows and a helper already exists**: `seedEndedSession` in
+  `tests/e2e/seeding.ts` writes the *past* session a seeded hand-out hangs on, with `groups` as the
+  column value (`RED`, `BLUE`, `RED,BLUE`). A session a spec wants **running** is started through
+  `startSession` and never through Prisma — the screen is the thing under test.
+- **An e2e spec proving a derived figure wants a household that contradicts it.** Two households on
+  the same afternoons, one of which collected at the last one, is what separates „counts the
+  sessions" from „counts the sessions with no hand-out": without the second household the first
+  test passes against a rule that ignores hand-outs entirely.
 ---

@@ -344,9 +344,9 @@ function CustomerRecord({
   const { details } = customer;
   const archived = customer.status === "ARCHIVED";
   const words = de.customers.record;
-  // What the household editor derives its live figures from, and nothing more — the quota and the
-  // week anchor bear on neither what a household pays nor what it is handed. The egg rule travels
-  // with the prices because the preview derives both through the domain, never in the browser.
+  // What the household editor derives its live figures from, and nothing more — the quota bears on
+  // neither what a household pays nor what it is handed. The egg rule travels with the prices
+  // because the preview derives both through the domain, never in the browser.
   const policy: AllowanceValues = {
     pricePerGrownUp: settings.pricePerGrownUp,
     pricePerChild: settings.pricePerChild,

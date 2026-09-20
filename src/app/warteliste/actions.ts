@@ -159,8 +159,8 @@ export async function addApplicantAction(
 
   revalidatePath("/warteliste");
   // The hub, which counts the queue and marks a free slot in its badge (US-17.2, US-18.2). Not the
-  // home screen any more: it carried the free-slot banner until US-18.3 took the banner off both, and
-  // `src/app/page.tsx` now renders the week colour and nothing else.
+  // home screen: it carried the free-slot banner until US-18.3 took the banner off both, and there
+  // is nothing on `src/app/page.tsx` a new applicant moves.
   revalidatePath("/kunden");
   return {
     status: "saved",
@@ -202,8 +202,8 @@ export async function removeApplicantAction(
 
   revalidatePath("/warteliste");
   // The hub, which counts the queue and marks a free slot in its badge (US-17.2, US-18.2). Not the
-  // home screen any more: it carried the free-slot banner until US-18.3 took the banner off both, and
-  // `src/app/page.tsx` now renders the week colour and nothing else.
+  // home screen: it carried the free-slot banner until US-18.3 took the banner off both, and there
+  // is nothing on `src/app/page.tsx` a new applicant moves.
   revalidatePath("/kunden");
   redirect(`/warteliste?${REMOVED}=1`);
 }

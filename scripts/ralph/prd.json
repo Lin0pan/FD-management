@@ -117,7 +117,7 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "The no-show spec is the only place the rewritten rule is proved through the screen. Build it with the session helper from US-34's tests/e2e/session.ts rather than a second way of starting a session."
     },
     {
