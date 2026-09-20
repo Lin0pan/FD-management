@@ -477,6 +477,13 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     );
     return Promise.resolve();
   }
+  freezeSession(): Promise<void> {
+    return Promise.reject(new Error("Freezing an afternoon has a suite of its own"));
+  }
+
+  thawSession(): Promise<void> {
+    return Promise.reject(new Error("Thawing an afternoon has a suite of its own"));
+  }
 }
 
 /** A repository that fails for a reason no retry can mend. */

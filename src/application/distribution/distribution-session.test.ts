@@ -160,6 +160,13 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
   remove(): Promise<void> {
     return Promise.reject(new Error("Correcting a hand-out has a suite of its own"));
   }
+  freezeSession(): Promise<void> {
+    return Promise.reject(new Error("Freezing an afternoon has a suite of its own"));
+  }
+
+  thawSession(): Promise<void> {
+    return Promise.reject(new Error("Thawing an afternoon has a suite of its own"));
+  }
 }
 
 class FakeReminderLogRepository implements ReminderLogRepository {

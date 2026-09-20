@@ -7,6 +7,17 @@ bullets that sat under „Where batch 34 starts" are not carried over — they a
 `scripts/ralph/archive/2026-09-20-us-34-distribution-session/progress.txt`.
 
 ## Codebase Patterns
+- **A transaction cannot span two ports.** There is no unit of work in this codebase and
+  `$transaction` appears only inside adapters, so an invariant across two tables owned by two
+  repositories is kept by **ordering plus idempotence**, never by one SQL transaction. State which
+  order and why on the port (US-35.2's `freezeSession` writes before the session is ended, and
+  re-takes the freeze whole so a half-done sequence heals). The tempting alternative — one adapter
+  stamping the other's column — hides the write where nobody looks for it.
+- **Adding a method to a repository port breaks every hand-written fake at once**, and for
+  `DistributionRecordRepository` that is eight test files. The house stub is
+  `Promise.reject(new Error("… has a suite of its own"))`, not a no-op: a use case that starts
+  calling the method then fails loudly in the suites that have no business exercising it. `tsc`
+  names the files; patch them with a script that inserts before the class's first `\n}\n`.
 - **Adding a `DomainErrorCode` is a three-file change**: the union in `src/domain/errors.ts`, the
   class beside it, and `TIERS` in `src/app/notice-tier.ts`. `TIERS` is a `Record` over the union, so
   the *build* fails until the code is tiered — that is the mechanism, not an obstacle. The header
@@ -523,4 +534,71 @@ this batch that finds itself deleting `weekColour.ts` has picked up US-36's work
 - **`it("…")` names longer than 100 columns are normal in this repo** (251 such lines) — Prettier
   will not break a string and the AC dictates the wording. Re-wrap the `/** */` prose instead, which
   is what the width rule is about.
+---
+
+## 2026-09-20 — US-002 (US-35.2: the receipt table, written and thawed with the session)
+
+- **Schema.** New `HandoutReceipt` model in `prisma/schema.prisma`: `recordId Int @unique` with a
+  `DistributionRecord` relation (`onDelete: Restrict` stated out loud) plus exactly the nine captured
+  columns of US-35.1 — no group, no formatted card number, no `priceCents`/`paidCents`. The model
+  comment says the three things the code cannot: that it is a snapshot in `Card.grownUpsAtIssue`'s
+  sense, that the group and the card number stay derived, and why these rows may be **deleted** where
+  ADR-010 forbids it (the thaw is what keeps a reopened session correctable).
+- **Migrations regenerated** (`20260919153410_init` → `20260920125124_init`), both hand-written
+  indexes re-appended by hand, `npm run db:reset` after, and the reset database verified to carry
+  `Customer_customerNumber_onRegister_key` and `one_running_session` by querying `sqlite_master`.
+  `diff` against the old SQL shows only the new table and its unique index.
+- **Port.** `freezeSession(sessionId, receipts)` and `thawSession(sessionId)` on
+  `DistributionRecordRepository`, documented once there, with a new `FrozenHandout` type
+  (`{ recordId, receipt }`) above the interface.
+- **Adapter.** `freezeSession` is one `$transaction`: `deleteMany` the session's receipts, then
+  `createMany`. `thawSession` is the `deleteMany` alone. Both reach the session through the relation
+  filter `{ record: { sessionId } }`.
+- **Fixtures.** `clearRegister` and `releaseNumbers` delete receipts before the records they point at;
+  `demo-seed.ts` freezes every served afternoon before ending it (42 receipts for 42 hand-outs,
+  verified by querying the seeded register). `prisma/seed.ts` is untouched — settings only.
+- **Five integration tests** against a throwaway SQLite file: the round trip of all nine values, one
+  receipt per hand-out and none for another afternoon, the re-take, the thaw leaving hand-outs
+  untouched, and the store refusing to remove a hand-out its receipt still points at (P2003) then
+  allowing it once thawed.
+- Files: `prisma/schema.prisma`, `prisma/migrations/20260920125124_init/migration.sql`,
+  `prisma/demo-seed.ts`, `src/application/ports.ts`,
+  `src/infrastructure/prisma/distribution-record-repository.{ts,test.ts}`,
+  `src/infrastructure/prisma/test-support.ts`, `tests/e2e/seeding.ts`, and the eight application test
+  files whose fakes implement the port.
+- Gates: lint, typecheck, `test:coverage` (63 files, 1429 tests, domain + application 100%), `build`,
+  `format:check`, and **both** e2e engines (221 passed each) all green.
+
+**Learnings for future iterations:**
+
+- **Adding a method to `DistributionRecordRepository` is an eight-file test break**, and every one of
+  them is a hand-written fake: `change-customer-number`, `maintain-customer`, `lookup-customer`,
+  `customers`, `distribution-session`, `read-group-roster`, `record-attendance`,
+  `correct-attendance`. The house stub is `Promise.reject(new Error("… has a suite of its own"))`,
+  which is better than a no-op — a use case that starts calling the method fails loudly in the suites
+  that have no business exercising it. Patch them with a script that inserts before the class's first
+  `\n}\n`; `tsc` names the files but not the insertion point.
+- **A transaction cannot span two ports in this codebase** — there is no unit of work, and
+  `$transaction` appears only inside adapters. So „the receipts land in one transaction *with* the
+  session's end" is implemented as **ordering plus idempotence**, not as one SQL transaction:
+  `freezeSession` first (a failure leaves the session running), `end` second. `freezeSession`
+  therefore begins with a `deleteMany` — the freeze is re-taken whole, which is also what heals a
+  reopening whose thaw did not land. The alternative, stamping `endedAt` from the *record*
+  repository, was refused: it would have hidden the one write everybody looks for in the session
+  repository and left `sessions.end` dead.
+- **A Prisma relation filter is how a child table is scoped by its grandparent.**
+  `handoutReceipt.deleteMany({ where: { record: { sessionId } } })` needs no join and no id list; the
+  same shape scopes `releaseNumbers`' delete by the customers it is releasing.
+- **`omit: { id: true, recordId: true }` turns a round-trip test into one `toEqual`** against the
+  domain value that was written — no field list to fall behind when a column is added. `findUniqueOrThrow`
+  keeps it a single expression.
+- **Assert the *code* of a refusal the database issues, and prove the assertion by breaking it.**
+  A foreign key refusing a delete is `P2003`, not the `P2025` the adapter translates; `rejects.toSatisfy`
+  reads it off `Prisma.PrismaClientKnownRequestError`. Flipping the code to `P9999` for one run is
+  what separates a real assertion from one that passes on any rejection.
+- **The demo seed cannot call `endDistributionSession`** — that use case reads `deps.clock.now()`,
+  while every fixture instant is a historical `day.at`. So the seed freezes through the port directly
+  and maps `RegisteredCustomer` → `ReceiptHousehold` by hand, which US-003 will do again in the use
+  case. Two call sites, one deliberate: the alternative is a domain function taking a stored record,
+  which is exactly what `ReceiptHousehold` exists to avoid.
 ---

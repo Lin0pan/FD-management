@@ -21,6 +21,7 @@ import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
+import type { HandoutReceipt } from "@/domain/distribution/handoutReceipt";
 import type { DistributionSession, SessionGroups } from "@/domain/distribution/session";
 import type { Cents } from "@/domain/money";
 import type { SettingsVersion } from "@/domain/policy/settings";
@@ -347,6 +348,12 @@ export interface CardRepository {
   issue(customerId: number, card: NewCard): Promise<IssuedCard>;
 }
 
+/** One hand-out's receipt: the record it describes, and the household as it stood at the end. */
+export interface FrozenHandout {
+  readonly recordId: number;
+  readonly receipt: HandoutReceipt;
+}
+
 /**
  * The distribution records — the append-many history of hand-outs (US-05).
  *
@@ -375,6 +382,22 @@ export interface DistributionRecordRepository {
   setPayment(recordId: number, paidCents: Cents): Promise<DistributionRecord>;
   /** Remove a record whose session still runs — the one deletion the history permits (US-05, FR-7). */
   remove(recordId: number): Promise<void>;
+  /**
+   * Write the receipts of one ended session — the households as they stood when it was closed
+   * (US-35, ADR-021) — in **one transaction**, so an afternoon is frozen whole or not at all. The
+   * caller ends the session with it and only afterwards, so a freeze that fails leaves a session
+   * still running rather than an ended one nobody can read back.
+   *
+   * The freeze is **re-taken whole**, never amended: there is no `updateReceipt` and there must
+   * never be one. Any receipts the session already carries are therefore dropped first, which is
+   * what lets a second ending follow a reopening whose {@link thawSession} did not land.
+   */
+  freezeSession(sessionId: number, receipts: ReadonlyArray<FrozenHandout>): Promise<void>;
+  /**
+   * Drop a session's receipts, which only a reopening does. It is what keeps the correction window
+   * open: a receipt still pointing at a hand-out would make the store refuse to remove it.
+   */
+  thawSession(sessionId: number): Promise<void>;
 }
 
 /**

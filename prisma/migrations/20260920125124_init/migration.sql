@@ -96,6 +96,22 @@ CREATE TABLE "DistributionRecord" (
 );
 
 -- CreateTable
+CREATE TABLE "HandoutReceipt" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "recordId" INTEGER NOT NULL,
+    "customerNumber" INTEGER NOT NULL,
+    "firstName" TEXT NOT NULL,
+    "lastName" TEXT NOT NULL,
+    "grownUps" INTEGER NOT NULL,
+    "children" INTEGER NOT NULL,
+    "cardCustomerNumber" INTEGER NOT NULL,
+    "cardIndex" INTEGER NOT NULL,
+    "certificateValidUntil" DATETIME NOT NULL,
+    "reminderCount" INTEGER NOT NULL,
+    CONSTRAINT "HandoutReceipt_recordId_fkey" FOREIGN KEY ("recordId") REFERENCES "DistributionRecord" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "DistributionSession" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "startedAt" DATETIME NOT NULL,
@@ -190,6 +206,9 @@ CREATE INDEX "DistributionRecord_sessionId_idx" ON "DistributionRecord"("session
 CREATE UNIQUE INDEX "DistributionRecord_customerId_sessionId_key" ON "DistributionRecord"("customerId", "sessionId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "HandoutReceipt_recordId_key" ON "HandoutReceipt"("recordId");
+
+-- CreateIndex
 CREATE INDEX "DistributionSession_startedAt_idx" ON "DistributionSession"("startedAt");
 
 -- CreateIndex
@@ -200,7 +219,6 @@ CREATE UNIQUE INDEX "ReminderLog_customerId_sessionId_key" ON "ReminderLog"("cus
 
 -- CreateIndex
 CREATE INDEX "AuditEntry_when_idx" ON "AuditEntry"("when");
-
 -- CreateIndex (hand-written: Prisma has no syntax for a partial/filtered unique index)
 --
 -- A customer number is a *slot*, not an identity. At most one household that is still on the

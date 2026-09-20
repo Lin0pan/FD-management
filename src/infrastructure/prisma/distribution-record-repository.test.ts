@@ -15,6 +15,7 @@ import { faker } from "@faker-js/faker";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { NewDistributionRecord } from "@/domain/distribution/distributionRecord";
+import type { HandoutReceipt } from "@/domain/distribution/handoutReceipt";
 import { createSessionGroups } from "@/domain/distribution/session";
 import { AlreadyServedInSession, DistributionRecordNotFound } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
@@ -107,6 +108,25 @@ function handOut(
     showedUp: true,
     paidCents: PRICE,
     priceCents: PRICE,
+    ...overrides,
+  };
+}
+
+/**
+ * The household as it stood, with the one field each test varies named and the rest defaulted. The
+ * values are arbitrary: what is under test is that all nine survive the round trip unchanged.
+ */
+function receipt(overrides: Partial<HandoutReceipt> = {}): HandoutReceipt {
+  return {
+    customerNumber: 50,
+    firstName: "Änne",
+    lastName: "Müller",
+    grownUps: 2,
+    children: 3,
+    cardCustomerNumber: 44,
+    cardIndex: 2,
+    certificateValidUntil: new Date("2026-12-31T00:00:00.000Z"),
+    reminderCount: 1,
     ...overrides,
   };
 }
@@ -326,5 +346,85 @@ describe("PrismaDistributionRecordRepository reads and corrections", () => {
       DistributionRecordNotFound,
     );
     await expect(repository.remove(9_999)).rejects.toBeInstanceOf(DistributionRecordNotFound);
+  });
+});
+
+describe("PrismaDistributionRecordRepository freezing and thawing a session", () => {
+  it("round-trips every captured detail of a household, unchanged", async () => {
+    const customerId = await insertCustomer(50);
+    const record = await repository.create(handOut(customerId));
+    const captured = receipt();
+
+    await repository.freezeSession(thisSession, [{ recordId: record.id, receipt: captured }]);
+
+    const stored = await prisma.handoutReceipt.findUniqueOrThrow({
+      where: { recordId: record.id },
+      omit: { id: true, recordId: true },
+    });
+    expect(stored).toEqual(captured);
+  });
+
+  it("writes one receipt per hand-out of the session and none for any other afternoon", async () => {
+    const [first, second, elsewhere] = [
+      await insertCustomer(50),
+      await insertCustomer(52),
+      await insertCustomer(54),
+    ];
+    const records = [
+      await repository.create(handOut(first)),
+      await repository.create(handOut(second)),
+    ];
+    const other = await repository.create(handOut(elsewhere, { sessionId: nextSession }));
+
+    await repository.freezeSession(
+      thisSession,
+      records.map((record) => ({ recordId: record.id, receipt: receipt() })),
+    );
+
+    expect(await prisma.handoutReceipt.count()).toBe(2);
+    expect(await prisma.handoutReceipt.findUnique({ where: { recordId: other.id } })).toBeNull();
+  });
+
+  it("re-takes the freeze whole, so ending an afternoon a second time is not refused", async () => {
+    const customerId = await insertCustomer(50);
+    const record = await repository.create(handOut(customerId));
+    await repository.freezeSession(thisSession, [{ recordId: record.id, receipt: receipt() }]);
+
+    await repository.freezeSession(thisSession, [
+      { recordId: record.id, receipt: receipt({ lastName: "Schmidt-Öztürk" }) },
+    ]);
+
+    expect(await prisma.handoutReceipt.count()).toBe(1);
+    expect(
+      (await prisma.handoutReceipt.findUniqueOrThrow({ where: { recordId: record.id } })).lastName,
+    ).toBe("Schmidt-Öztürk");
+  });
+
+  it("thaws a session's receipts and leaves its hand-outs untouched", async () => {
+    const customerId = await insertCustomer(50);
+    const record = await repository.create(handOut(customerId));
+    await repository.freezeSession(thisSession, [{ recordId: record.id, receipt: receipt() }]);
+
+    await repository.thawSession(thisSession);
+
+    expect(await prisma.handoutReceipt.count()).toBe(0);
+    expect(await repository.findById(record.id)).toEqual(record);
+  });
+
+  it("refuses to remove a hand-out its receipt still points at, and allows it once thawed", async () => {
+    // Why the thaw exists at all: a reopened session must stay correctable (US-34, FR-14), and the
+    // database — not the use case — is what would otherwise refuse the correction.
+    const customerId = await insertCustomer(50);
+    const record = await repository.create(handOut(customerId));
+    await repository.freezeSession(thisSession, [{ recordId: record.id, receipt: receipt() }]);
+
+    await expect(repository.remove(record.id)).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003",
+    );
+
+    await repository.thawSession(thisSession);
+    await repository.remove(record.id);
+    expect(await repository.findById(record.id)).toBeNull();
   });
 });

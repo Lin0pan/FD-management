@@ -43,7 +43,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "THE ONLY STORY IN THIS BATCH THAT TOUCHES prisma/. Tenth batch to regenerate the migration history and the SECOND with two hand-written indexes to put back — that is the single thing most likely to be forgotten."
     },
     {

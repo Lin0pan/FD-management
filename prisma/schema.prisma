@@ -433,10 +433,57 @@ model DistributionRecord {
   /// reporting can price a past distribution with a single-table read. It is not to be "cleaned up".
   priceCents Int
 
+  /// The household as it stood when the afternoon was closed, or absent while it is still open.
+  receipt HandoutReceipt?
+
   @@unique([customerId, sessionId])
   @@index([date])
   @@index([customerId, date])
   @@index([sessionId])
+}
+
+/// The household as it stood when the session was ended — one row per hand-out (US-35, ADR-021).
+/// A **snapshot in the sense `Card.grownUpsAtIssue` is**: never read as the household's current
+/// name, number or counts, which are the customer's own row. It exists because two of these values
+/// cannot be reconstructed at all — editing a household overwrites the names and replaces the
+/// member rows (US-16, FR-2).
+///
+/// **The group and the card number are not columns**: both are derived from the numbers captured
+/// here, by `groupOf(customerNumber)` (ADR-017) and `formatCardNumber` over the two card integers
+/// (ADR-016). And the price and the amount paid are not copied down from the hand-out either — one
+/// payment with two figures beside it is the fault this whole capture is designed around.
+///
+/// **These rows are deleted, where nothing else in this schema is** (ADR-010). A receipt is not
+/// history, it is the freeze itself, re-taken whole by the next ending: a reopened session may have
+/// a hand-out removed (US-34, FR-14), and a receipt still pointing at it would make the database
+/// refuse that removal. Thawing is what keeps the correction window open at all. It is the third
+/// deliberate exception, beside `HouseholdMember` and `CertificateType`.
+model HandoutReceipt {
+  id Int @id @default(autoincrement())
+
+  /// The hand-out this describes. `@unique`, so an afternoon frozen twice is impossible rather than
+  /// merely unlikely. `onDelete: Restrict` is stated out loud, as every relation in this file does.
+  recordId Int                @unique
+  record   DistributionRecord @relation(fields: [recordId], references: [id], onDelete: Restrict)
+
+  /// The slot the household held that afternoon — and with it the week they collected in, since the
+  /// group is the parity of the number.
+  customerNumber Int
+
+  firstName String
+  lastName  String
+
+  /// The counts as `composition` derived them at the end instant, never as the card printed them.
+  grownUps Int
+  children Int
+
+  /// The slot the card they carried was **printed under**, which a move leaves behind (ADR-016), so
+  /// it may differ from `customerNumber` above.
+  cardCustomerNumber Int
+  cardIndex          Int
+
+  certificateValidUntil DateTime
+  reminderCount         Int
 }
 
 /// One distribution session: the afternoon that actually took place (US-34). Staff start it, name

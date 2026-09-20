@@ -31,6 +31,8 @@ export async function releaseNumbers(
   if (ids.length === 0) return;
 
   const where = { customerId: { in: ids } };
+  // A receipt points at the hand-out it describes (US-35), so it goes first — children first.
+  await prisma.handoutReceipt.deleteMany({ where: { record: where } });
   await prisma.distributionRecord.deleteMany({ where });
   await prisma.reminderLog.deleteMany({ where });
   await prisma.card.deleteMany({ where });
