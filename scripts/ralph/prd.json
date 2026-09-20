@@ -84,7 +84,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "The CLAUDE.md edit is the part that matters most: the file states there are exactly THREE exceptions to derive-don't-store and exactly TWO deletion exceptions, and after this batch both numbers are wrong. Leaving them is how the next reader concludes the receipt is a mistake."
     }
   ]

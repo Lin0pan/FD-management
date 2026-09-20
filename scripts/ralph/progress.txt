@@ -662,3 +662,68 @@ this batch that finds itself deleting `weekColour.ts` has picked up US-36's work
   the repo** (`@prisma/client` resolves nowhere else) and wrap its `await` in a function — the same
   two constraints the `local_only/` bullet above names.
 ---
+
+## 2026-09-20 — US-004 (US-35.4: record ADR-021 and correct what it reverses)
+
+- **ADR-021** „Capture the household's state when a distribution session is ended", scaffolded with
+  `arc42.py new-adr` and set `Accepted` in both the file and the chapter 9 row. Context, options and
+  consequences are taken from DF's own requirement E and their answers (G-3 when to freeze, G-7 no
+  balance, H-2 the reopening, J-1 the mid-session number change) rather than reconstructed.
+- **ADR-007 amended, not superseded**: a **fifth** row in its exception table (`HandoutReceipt`'s
+  nine columns) plus the paragraph saying which row was added and why the group and the card number
+  stayed derived. **ADR-010 amended** the same way ADR-019 amended it: a third deliberate deletion,
+  on an argument of a third kind.
+- **Root `CLAUDE.md`, the two counts the batch made wrong**: three exceptions to derive-don't-store
+  → four, with the receipt's argument written in the same voice as the other three; two deliberate
+  deletion exceptions → three.
+- **arc42**: 05 (29 domain modules, `handoutReceipt.ts` named in the `distribution/` row, the two
+  port methods on `DistributionRecordRepository`), 08 (thirteen tables, the `HandoutReceipt` block
+  and relation in the ER diagram, the five-exception rule restated as **derived or snapshotted**,
+  the third deletion, the freeze, and the end-instant rule under „Time"), 09 (the ADR row, the
+  count in the intro, and a row in **Decisions that were reversed**), 11 (a forgotten session now
+  also takes its receipt late), 12 (glossary **Receipt** / _Beleg_, plus the two entries that had
+  stopped being true).
+- `tasks/prd-us-16-maintain-customer-record.md` gained a second dated note at the top; its body is
+  untouched. `src/application/ports.ts`'s `updateHousehold` doc had copied FR-2's absolute claim —
+  one clause bounds it.
+- `docs/handout/betriebsanleitung.md`: four German sentences between „verwerfen" and „wieder
+  öffnen".
+- Gates: `arc42.py check`, `prettier --check .`, lint, typecheck, `test` (63 files, 1439 tests) and
+  `build` all green. No e2e: the only `src/` change is a doc comment.
+
+**Learnings for future iterations:**
+
+- **`npm run arc42:check` does not exist**, though three PRDs and this batch's AC name it. `package.json`
+  has no such script; CI runs `python3 .claude/skills/arc42/scripts/arc42.py check` directly
+  (`.github/workflows/ci.yml`). Run the script. Its clean output still lists the two long-standing
+  `> **TODO:**` markers in chapter 07 — those are expected, not this story's.
+- **Root `CLAUDE.md` and ADR-007 have never agreed on how many exceptions there are, and both are
+  right.** The ADR's table counts `DistributionRecord.priceCents`; `CLAUDE.md`'s prose list never
+  has. So one batch makes it „three → four" in one file and „four → five" in the other. Say which
+  file a count belongs to before changing it, and state the discrepancy where a reader meets it
+  (ADR-021's consequence does) rather than quietly aligning the two.
+- **Never rewrap a markdown paragraph with a script that stops at the next blank line.** Two such
+  rewraps swallowed the following list item into the paragraph above it (`CLAUDE.md`'s audit
+  „Don't", chapter 08's `onDelete` bullet) and one turned a top-level bullet into a nested one by
+  applying a two-space prefix to the `-` as well. `prettier --check` passes on all three, because
+  every result is valid markdown — only reading `git diff` catches it. Re-wrap by hand, or bound the
+  block by its own list marker.
+- **The width sweep has to be re-run after each rewrap, not once at the end.** Fixing one 101-column
+  line pushes words onto the next and creates the next violation, so the check is a loop:
+  `git diff -U0 | python3 -c "…len(b) > 100…"` until it is silent. Exclude lines containing `](` —
+  a long ADR link is unbreakable and Prettier accepts it.
+- **A documentation story still has to ask what is true *today*.** The AC's German paragraph
+  described the detail view US-37 builds, in a document DF actually hold; it was rewritten to
+  describe what ending a session *does* („Was eine beendete Ausgabe festhält"), which is true now,
+  is the one thing DF need in order to use the reopening sensibly, and reads identically once the
+  screen lands. An AC written for a four-part piece of work can name a screen that is two batches
+  away.
+- **An ADR that reverses something gets a second home in chapter 09.** The „Decisions that were
+  reversed" table is not covered by `arc42.py check` and no AC named it, but the chapter says in its
+  own words why it exists — a reversal is the most useful row in a decision log. A batch whose PRD
+  says „this reverses a written decision" owes that table a row.
+- **Sweep the reversed claim's *phrasing* through `src/` too, not only `docs/` and `tasks/`.**
+  `grep -rn "no history of past"` found the sentence copied into `ports.ts` and
+  `customer-repository.ts` verbatim. The port was bounded (documented once, on the port); the
+  adapter was left, since CLAUDE.md puts that comment's home on the port.
+---
